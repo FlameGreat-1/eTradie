@@ -2,6 +2,7 @@
 
 All configuration is loaded from environment variables and validated at startup.
 The application fails fast if any required variable is missing or malformed.
+This is the single source of truth for every tuneable parameter in the system.
 """
 
 from __future__ import annotations
@@ -40,13 +41,21 @@ class Settings(BaseSettings):
     app_name: str = "etradie-engine"
     app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
     app_debug: bool = False
-    app_log_level: str = "INFO"
+    app_log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
 
     # ── PostgreSQL ───────────────────────────────────────────
     database_url: PostgresDsn
+    db_pool_size: int = Field(default=10, ge=2, le=50, description="SQLAlchemy connection pool size")
+    db_max_overflow: int = Field(default=20, ge=0, le=100, description="Max connections above pool_size")
+    db_pool_timeout: int = Field(default=30, ge=5, le=120, description="Seconds to wait for a connection from pool")
+    db_pool_recycle: int = Field(default=1800, ge=300, le=7200, description="Seconds before a connection is recycled")
+    db_echo: bool = Field(default=False, description="Echo SQL statements to log (dev only)")
 
     # ── Redis ────────────────────────────────────────────────
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+    redis_max_connections: int = Field(default=20, ge=5, le=100, description="Redis connection pool max")
+    redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
+    redis_socket_connect_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
 
     # ── API Keys — Data Providers ────────────────────────────
     # CFTC (no key required — public API)
@@ -90,16 +99,16 @@ class Settings(BaseSettings):
     reuters_rss_url: str = "https://www.reutersagency.com/feed"
     bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
 
-    # ── Polling Intervals (seconds) ─────────────────────────
-    poll_interval_central_bank_rss: int = Field(default=600, ge=60)
-    poll_interval_news: int = Field(default=900, ge=60)
-    poll_interval_calendar: int = Field(default=1800, ge=60)
-    poll_interval_cot: int = Field(default=604800, ge=3600)
-    poll_interval_dxy: int = Field(default=14400, ge=300)
-    poll_interval_intermarket: int = Field(default=86400, ge=3600)
-    poll_interval_sentiment: int = Field(default=604800, ge=3600)
-    poll_interval_economic_data: int = Field(default=3600, ge=300)
-    analysis_cycle_interval: int = Field(default=14400, ge=300)
+    # ── Polling Intervals (seconds) ──────────────────────────
+    poll_interval_central_bank_rss: int = Field(default=600, ge=60, description="CB RSS poll: 10 min default")
+    poll_interval_news: int = Field(default=900, ge=60, description="News poll: 15 min default")
+    poll_interval_calendar: int = Field(default=1800, ge=60, description="Calendar poll: 30 min default")
+    poll_interval_cot: int = Field(default=604800, ge=3600, description="COT poll: weekly default")
+    poll_interval_dxy: int = Field(default=14400, ge=300, description="DXY poll: 4H default")
+    poll_interval_intermarket: int = Field(default=86400, ge=3600, description="Intermarket poll: daily default")
+    poll_interval_sentiment: int = Field(default=604800, ge=3600, description="Sentiment poll: weekly default")
+    poll_interval_economic_data: int = Field(default=3600, ge=300, description="Economic data poll: 1H default")
+    analysis_cycle_interval: int = Field(default=14400, ge=300, description="Analysis cycle: 4H default")
 
     # ── HTTP Client ──────────────────────────────────────────
     http_timeout_seconds: int = Field(default=30, ge=5, le=120)
@@ -110,6 +119,11 @@ class Settings(BaseSettings):
     # ── Rate Limiting ────────────────────────────────────────
     rate_limit_requests_per_minute: int = Field(default=60, ge=1)
     rate_limit_burst_size: int = Field(default=10, ge=1)
+
+    # ── Circuit Breaker ──────────────────────────────────────
+    circuit_breaker_failure_threshold: int = Field(default=5, ge=2, le=20)
+    circuit_breaker_recovery_timeout: int = Field(default=60, ge=10, le=600, description="Seconds before half-open")
+    circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
 
     # ── Observability ────────────────────────────────────────
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
@@ -128,8 +142,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_production_secrets(self) -> Self:
-        """In production, all API keys must be explicitly set."""
-        if self.app_env == AppEnvironment.PRODUCTION:
+        """In production and staging, all critical API keys must be set."""
+        if self.app_env in {AppEnvironment.PRODUCTION, AppEnvironment.STAGING}:
             required_keys = {
                 "newsapi_api_key": self.newsapi_api_key,
                 "twelvedata_api_key": self.twelvedata_api_key,
@@ -137,9 +151,23 @@ class Settings(BaseSettings):
             }
             missing = [k for k, v in required_keys.items() if not v]
             if missing:
-                msg = f"Production requires API keys: {', '.join(missing)}"
+                msg = f"Production/staging requires API keys: {', '.join(missing)}"
                 raise ValueError(msg)
+        if self.app_env == AppEnvironment.PRODUCTION and self.app_debug:
+            raise ValueError("app_debug must be False in production")
+        if self.app_env == AppEnvironment.PRODUCTION and self.db_echo:
+            raise ValueError("db_echo must be False in production")
         return self
+
+    @property
+    def async_database_url(self) -> str:
+        """Database URL with asyncpg driver for SQLAlchemy async engine."""
+        return str(self.database_url)
+
+    @property
+    def sync_database_url(self) -> str:
+        """Database URL with psycopg2 driver for Alembic migrations."""
+        return str(self.database_url).replace("+asyncpg", "")
 
     @property
     def is_production(self) -> bool:
@@ -148,6 +176,11 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.app_env == AppEnvironment.TESTING
+
+    @property
+    def json_logs(self) -> bool:
+        """Use JSON log output in non-development environments."""
+        return self.app_env != AppEnvironment.DEVELOPMENT
 
 
 @lru_cache(maxsize=1)
