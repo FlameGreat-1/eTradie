@@ -5,7 +5,6 @@ from engine.macro.storage.schemas.cot import COTReportRow
 from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 from engine.macro.storage.schemas.economic import EconomicReleaseRow
 from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
-from engine.macro.storage.schemas.macro_output import MacroBiasOutputRow
 from engine.macro.storage.schemas.news import NewsItemRow
 
 __all__ = [
@@ -16,6 +15,5 @@ __all__ = [
     "DXYSnapshotRow",
     "EconomicReleaseRow",
     "IntermarketSnapshotRow",
-    "MacroBiasOutputRow",
     "NewsItemRow",
 ]

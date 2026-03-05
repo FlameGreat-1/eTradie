@@ -147,29 +147,8 @@ def upgrade() -> None:
     )
     op.create_index("ix_intermarket_snapshot_at", "intermarket_snapshots", ["snapshot_at"])
 
-    op.create_table(
-        "macro_bias_outputs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("run_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("currency", sa.String(5), nullable=False),
-        sa.Column("bias", sa.String(10), nullable=False),
-        sa.Column("score", sa.Float, nullable=False),
-        sa.Column("evidence_chain_json", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("dxy_bias", sa.String(10), nullable=False, server_default="NEUTRAL"),
-        sa.Column("cot_signal_json", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("event_risks_json", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("data_snapshot_ids_json", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("rules_version", sa.String(20), nullable=False, server_default="1.0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    )
-    op.create_index("ix_macro_output_run_id", "macro_bias_outputs", ["run_id"])
-    op.create_index("ix_macro_output_currency", "macro_bias_outputs", ["currency"])
-    op.create_index("ix_macro_output_created_at", "macro_bias_outputs", ["created_at"])
-    op.create_index("ix_macro_output_run_currency", "macro_bias_outputs", ["run_id", "currency"])
-
 
 def downgrade() -> None:
-    op.drop_table("macro_bias_outputs")
     op.drop_table("intermarket_snapshots")
     op.drop_table("dxy_snapshots")
     op.drop_table("calendar_events")
