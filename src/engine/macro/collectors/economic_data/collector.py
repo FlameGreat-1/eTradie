@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from engine.shared.logging import get_logger
-from engine.macro.models.collector.economic import EconomicDataSet
 from engine.macro.collectors.base import BaseCollector
+from engine.macro.models.collector.economic import EconomicDataSet
+from engine.macro.storage.schemas.economic import EconomicReleaseRow
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,23 @@ class EconomicDataCollector(BaseCollector):
                 sources.append(provider.provider_name)
             except Exception:
                 logger.warning("economic_provider_skipped", provider=provider.provider_name)
+
+        async with self._db.session() as session:
+            for release in all_releases:
+                row = EconomicReleaseRow(
+                    currency=release.currency.value,
+                    indicator=release.indicator.value,
+                    indicator_name=release.indicator_name,
+                    actual=release.actual,
+                    forecast=release.forecast,
+                    previous=release.previous,
+                    surprise=release.surprise,
+                    surprise_direction=release.surprise_direction.value,
+                    impact=release.impact.value,
+                    source=release.source,
+                    release_time=release.release_time,
+                )
+                session.add(row)
 
         dataset = EconomicDataSet(
             releases=all_releases,

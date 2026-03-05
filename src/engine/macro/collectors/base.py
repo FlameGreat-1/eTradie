@@ -5,6 +5,7 @@ import time
 from typing import Any, TypeVar
 
 from engine.shared.cache import RedisCache
+from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
     COLLECTOR_ITEMS_STORED,
@@ -26,9 +27,11 @@ class BaseCollector(abc.ABC):
         self,
         providers: list[BaseProvider],
         cache: RedisCache,
+        db: DatabaseManager,
     ) -> None:
         self._providers = providers
         self._cache = cache
+        self._db = db
 
     async def collect(self) -> Any:
         start = time.monotonic()
@@ -58,7 +61,7 @@ class BaseCollector(abc.ABC):
                 logger.warning(
                     "provider_failover",
                     collector=self.collector_name,
-                    provider=provider.provider_name,
+                    failed_provider=provider.provider_name,
                     error=str(exc),
                 )
                 last_exc = exc

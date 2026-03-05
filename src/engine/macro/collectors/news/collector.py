@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from engine.shared.logging import get_logger
-from engine.macro.models.collector.news import NewsDataSet
 from engine.macro.collectors.base import BaseCollector
+from engine.macro.models.collector.news import NewsDataSet
+from engine.macro.storage.repositories.news.item import NewsRepository
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,27 @@ class NewsCollector(BaseCollector):
                 sources.append(provider.provider_name)
             except Exception:
                 logger.warning("news_provider_skipped", provider=provider.provider_name)
+
+        async with self._db.session() as session:
+            repo = NewsRepository(session)
+            for item in all_items:
+                if await repo.exists_by_hash(item.dedupe_hash):
+                    continue
+                rows = [{
+                    "headline": item.headline,
+                    "source": item.source,
+                    "url": item.url,
+                    "summary": item.summary,
+                    "currencies": [c.value for c in item.currencies_mentioned],
+                    "sentiment": item.sentiment.value,
+                    "impact": item.impact.value,
+                    "dedupe_hash": item.dedupe_hash,
+                    "published_at": item.published_at,
+                }]
+                await repo.bulk_upsert(
+                    rows,
+                    index_elements=["dedupe_hash"],
+                )
 
         dataset = NewsDataSet(
             items=all_items,
