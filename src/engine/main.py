@@ -11,7 +11,6 @@ from engine.dependencies import Container
 from engine.shared.logging import configure_logging, get_logger
 from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
-from engine.macro.router import router as macro_router
 from engine.macro.scheduler_jobs import register_macro_jobs
 
 logger = get_logger(__name__)
@@ -79,7 +78,6 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return {"status": "ok"}
 
-    app.include_router(macro_router)
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
