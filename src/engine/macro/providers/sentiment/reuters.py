@@ -6,8 +6,7 @@ from typing import Any
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.shared.models.events import MacroBias
-from engine.macro.models.processor.sentiment import CurrencySentiment
+from engine.macro.models.provider.sentiment import SentimentReading
 from engine.macro.providers.sentiment.base import BaseSentimentProvider
 
 logger = get_logger(__name__)
@@ -22,7 +21,7 @@ class ReutersSentimentProvider(BaseSentimentProvider):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
 
-    async def fetch(self) -> list[CurrencySentiment]:
+    async def fetch(self) -> list[SentimentReading]:
         start = time.monotonic()
         try:
             headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
@@ -41,7 +40,7 @@ class ReutersSentimentProvider(BaseSentimentProvider):
             logger.error("reuters_sentiment_fetch_failed", error=str(exc))
             raise
 
-    def _parse(self, raw: dict[str, Any]) -> CurrencySentiment | None:
+    def _parse(self, raw: dict[str, Any]) -> SentimentReading | None:
         symbol = str(raw.get("currency", "")).upper()[:3]
         try:
             currency = Currency(symbol)
@@ -49,16 +48,10 @@ class ReutersSentimentProvider(BaseSentimentProvider):
             return None
         long_pct = float(raw.get("long_pct", 50))
         short_pct = float(raw.get("short_pct", 50))
-        lean = MacroBias.NEUTRAL
-        if long_pct > 60:
-            lean = MacroBias.BULLISH
-        elif short_pct > 60:
-            lean = MacroBias.BEARISH
-
-        return CurrencySentiment(
+        return SentimentReading(
             currency=currency,
-            institutional_long_pct=long_pct,
-            institutional_short_pct=short_pct,
-            positioning_lean=lean,
-            signal=lean,
+            source="reuters",
+            long_percentage=long_pct,
+            short_percentage=short_pct,
+            net_positioning=long_pct - short_pct,
         )
