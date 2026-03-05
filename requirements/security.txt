@@ -1,0 +1,6 @@
+-r base.txt
+
+# ── Security Scanning ───────────────────────────────────────
+bandit==1.8.3
+safety==3.2.14
+pip-audit==2.7.3

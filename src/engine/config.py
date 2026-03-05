@@ -1,0 +1,156 @@
+"""Engine configuration — Pydantic Settings.
+
+All configuration is loaded from environment variables and validated at startup.
+The application fails fast if any required variable is missing or malformed.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+from functools import lru_cache
+from typing import Self
+
+from pydantic import Field, PostgresDsn, RedisDsn, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AppEnvironment(StrEnum):
+    DEVELOPMENT = "development"
+    TESTING = "testing"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+
+class Settings(BaseSettings):
+    """Centralised configuration loaded exclusively from environment variables.
+
+    Every external API key, URL, polling interval, and operational parameter
+    is defined here with validation.  Missing required values cause an
+    immediate startup failure — no silent defaults for secrets.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ── Application ──────────────────────────────────────────
+    app_name: str = "etradie-engine"
+    app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
+    app_debug: bool = False
+    app_log_level: str = "INFO"
+
+    # ── PostgreSQL ───────────────────────────────────────────
+    database_url: PostgresDsn
+
+    # ── Redis ────────────────────────────────────────────────
+    redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+
+    # ── API Keys — Data Providers ────────────────────────────
+    # CFTC (no key required — public API)
+    cftc_api_base_url: str = "https://publicreporting.cftc.gov/resource"
+
+    # NewsAPI
+    newsapi_api_key: str = Field(default="", description="NewsAPI.org API key")
+    newsapi_base_url: str = "https://newsapi.org/v2"
+
+    # Twelve Data
+    twelvedata_api_key: str = Field(default="", description="TwelveData API key")
+    twelvedata_base_url: str = "https://api.twelvedata.com"
+
+    # Yahoo Finance
+    yahoo_finance_api_key: str = Field(default="", description="Yahoo Finance (RapidAPI) key")
+    yahoo_finance_base_url: str = "https://yahoo-finance15.p.rapidapi.com/api/v1"
+
+    # Investing.com
+    investing_com_api_key: str = Field(default="", description="Investing.com (RapidAPI) key")
+    investing_com_base_url: str = "https://investing-cryptocurrency-markets.p.rapidapi.com"
+
+    # DailyFX
+    dailyfx_api_key: str = Field(default="", description="DailyFX API key")
+    dailyfx_base_url: str = "https://api.dailyfx.com"
+
+    # Reuters
+    reuters_api_key: str = Field(default="", description="Reuters API key")
+    reuters_base_url: str = "https://api.reuters.com/v2"
+
+    # Forex Factory
+    forex_factory_api_key: str = Field(default="", description="Forex Factory API key")
+    forex_factory_base_url: str = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+    # ── RSS Feed URLs — Central Banks ────────────────────────
+    fed_rss_url: str = "https://www.federalreserve.gov/feeds/press_all.xml"
+    ecb_rss_url: str = "https://www.ecb.europa.eu/rss/press.html"
+    boe_rss_url: str = "https://www.bankofengland.co.uk/rss/news"
+    boj_rss_url: str = "https://www.boj.or.jp/en/rss/whatsnew.xml"
+
+    # ── RSS Feed URLs — News ─────────────────────────────────
+    reuters_rss_url: str = "https://www.reutersagency.com/feed"
+    bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
+
+    # ── Polling Intervals (seconds) ─────────────────────────
+    poll_interval_central_bank_rss: int = Field(default=600, ge=60)
+    poll_interval_news: int = Field(default=900, ge=60)
+    poll_interval_calendar: int = Field(default=1800, ge=60)
+    poll_interval_cot: int = Field(default=604800, ge=3600)
+    poll_interval_dxy: int = Field(default=14400, ge=300)
+    poll_interval_intermarket: int = Field(default=86400, ge=3600)
+    poll_interval_sentiment: int = Field(default=604800, ge=3600)
+    poll_interval_economic_data: int = Field(default=3600, ge=300)
+    analysis_cycle_interval: int = Field(default=14400, ge=300)
+
+    # ── HTTP Client ──────────────────────────────────────────
+    http_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    http_max_retries: int = Field(default=3, ge=1, le=10)
+    http_retry_backoff_base: float = Field(default=1.0, ge=0.1, le=10.0)
+    http_retry_backoff_max: float = Field(default=60.0, ge=5.0, le=300.0)
+
+    # ── Rate Limiting ────────────────────────────────────────
+    rate_limit_requests_per_minute: int = Field(default=60, ge=1)
+    rate_limit_burst_size: int = Field(default=10, ge=1)
+
+    # ── Observability ────────────────────────────────────────
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_name: str = "etradie-engine"
+    prometheus_metrics_port: int = Field(default=9090, ge=1024, le=65535)
+
+    # ── Cache TTL (seconds) ──────────────────────────────────
+    cache_ttl_central_bank: int = Field(default=600, ge=60)
+    cache_ttl_news: int = Field(default=300, ge=60)
+    cache_ttl_calendar: int = Field(default=900, ge=60)
+    cache_ttl_cot: int = Field(default=86400, ge=3600)
+    cache_ttl_dxy: int = Field(default=14400, ge=300)
+    cache_ttl_intermarket: int = Field(default=43200, ge=3600)
+    cache_ttl_sentiment: int = Field(default=86400, ge=3600)
+    cache_ttl_economic_data: int = Field(default=1800, ge=300)
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> Self:
+        """In production, all API keys must be explicitly set."""
+        if self.app_env == AppEnvironment.PRODUCTION:
+            required_keys = {
+                "newsapi_api_key": self.newsapi_api_key,
+                "twelvedata_api_key": self.twelvedata_api_key,
+                "yahoo_finance_api_key": self.yahoo_finance_api_key,
+            }
+            missing = [k for k, v in required_keys.items() if not v]
+            if missing:
+                msg = f"Production requires API keys: {', '.join(missing)}"
+                raise ValueError(msg)
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == AppEnvironment.PRODUCTION
+
+    @property
+    def is_testing(self) -> bool:
+        return self.app_env == AppEnvironment.TESTING
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the singleton settings instance, cached after first load."""
+    return Settings()

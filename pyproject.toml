@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel>=0.41.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "etradie-engine"
+version = "1.0.0"
+description = "AI-Powered Trading System — Market Intelligence Engine"
+requires-python = ">=3.11"
+license = {text = "Proprietary"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "S",      # flake8-bandit (security)
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "RET",    # flake8-return
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # flake8-eradicate
+    "PL",     # pylint
+    "ASYNC",  # flake8-async
+]
+ignore = [
+    "S101",   # allow assert in tests
+    "PLR0913", # too many arguments (needed for DI)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["engine"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S106", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+
+[[tool.mypy.overrides]]
+module = ["feedparser.*", "apscheduler.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--cov=src/engine",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (require DB/Redis)",
+    "slow: Tests that take >5s to run",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:feedparser.*",
+]
+
+[tool.coverage.run]
+source = ["src/engine"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "@(abc\\.)?abstractmethod",
+    "raise NotImplementedError",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]

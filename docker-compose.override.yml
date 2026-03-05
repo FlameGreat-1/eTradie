@@ -1,0 +1,20 @@
+# Development overrides — hot reload, volume mounts, debug ports
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: docker/engine/Dockerfile
+      target: runtime
+    volumes:
+      - ./src:/app/src:ro
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+      APP_LOG_LEVEL: DEBUG
+    command: >
+      uvicorn engine.main:create_app
+      --factory
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src

@@ -1,0 +1,42 @@
+# ── Web Framework ────────────────────────────────────────────
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+pydantic-settings==2.8.1
+
+# ── Database ─────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.38
+asyncpg==0.30.0
+alembic==1.14.1
+greenlet==3.1.1
+
+# ── Cache ────────────────────────────────────────────────────
+redis[hiredis]==5.2.1
+
+# ── HTTP Client ──────────────────────────────────────────────
+aiohttp==3.11.13
+aiohttp-retry==2.9.1
+
+# ── RSS / Feed Parsing ───────────────────────────────────────
+feedparser==6.0.11
+
+# ── Scheduler ────────────────────────────────────────────────
+APScheduler==3.10.4
+
+# ── Observability ────────────────────────────────────────────
+prometheus-client==0.21.1
+opentelemetry-api==1.30.0
+opentelemetry-sdk==1.30.0
+opentelemetry-exporter-otlp-proto-grpc==1.30.0
+opentelemetry-instrumentation-fastapi==0.51b0
+opentelemetry-instrumentation-aiohttp-client==0.51b0
+opentelemetry-instrumentation-sqlalchemy==0.51b0
+opentelemetry-instrumentation-redis==0.51b0
+
+# ── Structured Logging ───────────────────────────────────────
+structlog==24.4.0
+
+# ── Serialization / Utilities ────────────────────────────────
+orjson==3.10.15
+python-dateutil==2.9.0
+tenacity==9.0.0

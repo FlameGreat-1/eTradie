@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "etradie-engine"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["engine:8000"]
+        labels:
+          service: "etradie-engine"
+          environment: "development"

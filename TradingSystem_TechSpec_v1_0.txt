@@ -1,0 +1,1144 @@
+⬡
+
+AI-POWERED TRADING SYSTEM
+
+TECHNICAL SPECIFICATION
+
+Module A · Module B · Module C
+
+Market Intelligence · Trade Execution · Trade Management
+
+CLASSIFICATION: PROPRIETARY — OPEN SOURCE BUILD
+
+Version 1.0 | March 2026
+
+SECTION 1 — SYSTEM OVERVIEW & ARCHITECTURE
+
+◆ 1.1 System Purpose
+
+This document is the complete technical specification for the AI-powered trading infrastructure. It defines every feature, component, data flow, integration, and behavioral rule for all three system modules. It serves as the authoritative reference for design, development, testing, and deployment.
+
+The system is not a high-frequency trading bot or an indicator-based algorithm. It is an AI reasoning engine that thinks and analyzes markets the way an experienced discretionary trader does — combining macroeconomic intelligence, institutional flow data, and pure price action analysis under the SMC, Supply & Demand, and Wyckoff frameworks.
+
+◆ 1.2 Design Principles
+
+-   Reasoning over reaction: The AI reasons from structured knowledge, not pattern-matching indicators
+
+-   Rules-first architecture: Every decision traces back to an explicit rule in the Master Rulebook
+
+-   Pair-agnostic: The system applies identically to any instrument — no hardcoded pair logic
+
+-   Style-configurable: Trading style (Scalping / Intraday / Swing / Positional) is a runtime setting
+
+-   Zero hallucination design: AI retrieves rules from RAG — it does not speculate beyond what is documented
+
+-   Full automation: Analysis → Execution → Management runs without manual intervention
+
+-   Open source: Built on open-source components, publicly hostable, self-contained
+
+◆ 1.3 Module Overview
+
+  ----------- ---------------------------- ------------------------------------------------------------------------------------------------- ----------------------------
+  Module      Name                         Function                                                                                          Trigger
+
+  A           Market Intelligence Engine   Pulls macro + chart data, runs RAG analysis, scores confluence, outputs structured trade thesis   Scheduled interval
+
+  B           Trade Execution Engine       Validates Module A output, calculates position size, places orders via broker API                 Module A → HIGH confidence
+
+  C           Trade Management Engine      Monitors open trades, manages SL/TP, trails stops, handles EOD protocols, journals results        Order FILLED
+  ----------- ---------------------------- ------------------------------------------------------------------------------------------------- ----------------------------
+
+◆ 1.4 High-Level System Flow
+
++-------------------------------------------------------------------------+
+| SCHEDULER TRIGGERS (Configurable interval)                              |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| MODULE A: Pull Macro Data + Chart Data                                  |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| RAG ENGINE: Retrieve rules + confirmations → Analyze → Score confluence |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| Score ≥ threshold + A/B Grade + All confirmations met?                  |
+|                                                                         |
+| NO → Log NO SETUP → Sleep until next interval                           |
+|                                                                         |
+| YES ↓                                                                   |
+|                                                                         |
+| MODULE B: Pre-execution validator (all 13 checks must pass)             |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| All checks pass?                                                        |
+|                                                                         |
+| NO → Log REJECTED + reason → Notify trader → Sleep                      |
+|                                                                         |
+| YES ↓                                                                   |
+|                                                                         |
+| Calculate lot size + Build order object (Entry / SL / TP1/2/3)          |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| ┌─────────────── EXECUTION MODE ───────────────┐                        |
+|                                                                         |
+| │ │                                                                     |
+|                                                                         |
+| │ LIMIT MODE INSTANT MODE │                                             |
+|                                                                         |
+| │ Place limit order Arm Module C │                                      |
+|                                                                         |
+| │ at broker NOW Go goroutine │                                          |
+|                                                                         |
+| │ Broker fills when watches every tick │                                |
+|                                                                         |
+| │ price arrives Fires market order │                                    |
+|                                                                         |
+| │ on price touch │                                                      |
+|                                                                         |
+| └──────────────────────────────────────────────┘                        |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| ORDER FILLED (either mode)                                              |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| MODULE C TAKES OVER — full trade management                             |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| BE trigger → Trail → Partial closes → EOD protocol                      |
+|                                                                         |
+| ↓                                                                       |
+|                                                                         |
+| Trade closed → Auto-journal → Analytics updated → Notify                |
++-------------------------------------------------------------------------+
+
+◆ 1.5 Deployment Architecture
+
+-   Self-hosted on Ubuntu 24 VPS (open source) or Railway.app for managed hosting
+
+-   All components containerised via Docker Compose for reproducibility and portability
+
+-   Single repository on GitHub — public open source
+
+-   Environment variables manage broker credentials, API keys, and configuration
+
+-   No proprietary dependencies — every component is replaceable
+
++-----------------------------------------------------------------------+
+| MODULE A                                                              |
+|                                                                       |
+| Market Intelligence Engine                                            |
+|                                                                       |
+| Analysis · Reasoning · Scoring                                        |
++-----------------------------------------------------------------------+
+
+◆ A.1 Overview
+
+Module A is the brain of the system. It ingests real-time macroeconomic data and live chart data, processes both through a RAG-powered AI reasoning engine, and produces a structured, scored trade thesis for every active instrument on every analysis cycle. It does not place orders — it produces intelligence.
+
+◆ A.2 Analysis Cycle
+
+-   Module A runs on a configurable scheduled interval (default: every 4 hours, aligned with 4H candle close)
+
+-   On each cycle: macro pipeline runs first → chart pipeline runs second → RAG engine synthesizes both → output is generated
+
+-   If no setup is found: output is logged as NO SETUP and the system sleeps until the next cycle
+
+-   If a setup is found: output is passed to Module B immediately
+
+-   Multiple instruments can be analyzed per cycle — each produces an independent output
+
+◆ A.3 Sub-Module A1 — Macro & Fundamental Data Pipeline
+
+Data Sources
+
+  ----------------------------------------------- ------------------------------------------- ------------------ --------------
+  Data Type                                       Source                                      Interval           Priority
+
+  Interest rate decisions + CB forward guidance   Fed / ECB / BOE / BOJ official RSS feeds    Event-driven       CRITICAL
+
+  CPI, PPI, NFP, GDP, PMI, Retail Sales           Forex Factory scraper + Investing.com API   Event-driven       HIGH
+
+  COT Reports (Commitments of Traders)            CFTC.gov official API                       Weekly (Fridays)   HIGH
+
+  Institutional positioning & sentiment           COT data + DailyFX / Reuters feeds          Weekly             HIGH
+
+  Geopolitical events & breaking news             NewsAPI / Reuters RSS / Bloomberg RSS       Every 15–30 mins   MEDIUM
+
+  Central bank speeches & meeting minutes         Fed / ECB / BOE / BOJ official RSS          Event-driven       HIGH
+
+  DXY macro structure & key levels                Calculated from pairs + Twelve Data API     Every 4H           MANDATORY
+
+  Intermarket correlations (Gold, Oil, Bonds)     Yahoo Finance / Twelve Data API             Daily              MEDIUM
+
+  Economic calendar (upcoming events)             Forex Factory API / Investing.com           Every cycle        HIGH
+  ----------------------------------------------- ------------------------------------------- ------------------ --------------
+
+Macro Processing Rules
+
+-   Currency macro bias is assessed independently for both currencies in every pair
+
+-   DXY is always analyzed first on every cycle — its conclusion feeds directly into USD pair bias
+
+-   COT data: Non-Commercial (speculative) positioning is the primary signal — large institutions and hedge funds
+
+-   If COT shows extreme positioning (multi-year high/low) — flag as reversal risk, do not add in direction of extreme
+
+-   High-impact news events within 30 minutes: system auto-flags, Module B will block execution during the window
+
+-   Output: Macro Bias Score per currency (BULLISH / BEARISH / NEUTRAL) with supporting evidence chain
+
+◆ A.4 Sub-Module A2 — Chart Data Pipeline
+
+Chart Data Ingestion
+
+  -------------- ------------------------ ---------------------------------------------------------------------------- ------------------
+  Timeframe      Role                     What is Identified                                                           Style Scope
+
+  1M (Monthly)   Macro structure          Long-term trend, major institutional zones                                   Positional only
+
+  1W (Weekly)    HTF direction            Primary trend, major S&D zones, Wyckoff phase, HTF liquidity pools           All styles
+
+  1D (Daily)     Intermediate structure   BOS/ChoCH, swing highs/lows, daily OBs and FVGs, key levels                  All except Scalp
+
+  4H             Entry context            Order blocks, FVGs, liquidity sweeps, ChoCH signal, zone precision           All styles
+
+  1H             Entry timing             Final entry confirmation, micro-structure alignment, limit order placement   All styles
+
+  15M            Scalp precision          Scalp-specific OBs, micro FVGs, intra-session structure                      Scalping only
+  -------------- ------------------------ ---------------------------------------------------------------------------- ------------------
+
+Chart Data Sources (In Order of Preference)
+
+-   Primary: MetaTrader 5 Python API — direct OHLCV data from broker feed, real-time
+
+-   Secondary: TradingView Webhook + Pine Script — for visual chart signal capture and annotation
+
+-   Tertiary: Twelve Data API — REST API for historical and live OHLCV candles (backup)
+
+-   All sources return standardized OHLCV format before entering the analysis pipeline
+
+-   Data validation: outlier candles, gaps, and feed errors are detected and flagged before analysis proceeds
+
+◆ A.5 Sub-Module A3 — RAG Intelligence Engine
+
+This is the core reasoning component. It combines retrieved knowledge from the RAG knowledge base with the real-time data from A1 and A2 to produce a reasoned, evidence-based trade thesis.
+
+Knowledge Base — RAG Document Library
+
+The following documents are embedded into the vector database and are the sole source from which the AI reasons:
+
+  ----------------------------------- -------------------------------------------------------------------------------------------------------------------------- -------------
+  Document                            Contents                                                                                                                   Format
+
+  Master Rulebook                     Complete SMC, SnD, Wyckoff rules, confluence scoring, risk rules, session rules                                            Markdown
+
+  SMC Framework Document              Full definitions and identification rules for OBs, FVGs, BOS, ChoCH, liquidity sweeps, breaker blocks, mitigation blocks   Markdown
+
+  Supply & Demand Rulebook            Zone identification criteria, grading framework (A/B/Invalid), origin candle rules, mitigation definitions                 Markdown
+
+  Wyckoff Phase Guide                 Phase identification rules for Accumulation, Distribution, Spring, Upthrust, LPS, LPSY, SOS, SOW                           Markdown
+
+  DXY Analysis Framework              How DXY structure maps to USD pair directional bias, correlation rules for metals and indices                              Markdown
+
+  COT Interpretation Guide            Non-commercial positioning rules, extreme reading identification, week-over-week change interpretation                     Markdown
+
+  Chart Scenario Library              Annotated real chart examples: valid setups, failed setups, edge cases, each tagged by pattern type and outcome            Images + MD
+
+  Trading Style Rules                 Style-specific rules for Scalping, Intraday, Swing, Positional — timeframes, TP structure, management rules                Markdown
+
+  Macro-to-Price Relationship Guide   Rules mapping specific macro conditions to expected price behavior (e.g. extreme COT short + weekly demand = long bias)    Markdown
+  ----------------------------------- -------------------------------------------------------------------------------------------------------------------------- -------------
+
+RAG Architecture Components
+
+  ----------------------- ------------------------------------------------------------------- ---------------------------------------------------------------------------
+  Component               Technology                                                          Role
+
+  Vector Database         ChromaDB (open source)                                              Stores embedded knowledge base documents for semantic retrieval
+
+  Embeddings Model        nomic-embed (local, open source) or OpenAI text-embedding-3-large   Converts text and chart annotations into vector representations
+
+  LLM Reasoning Engine    Claude API — claude-sonnet-4-6 (primary)                            Performs the final reasoning, synthesis, and structured output generation
+
+  RAG Orchestration       LlamaIndex (primary) or LangChain                                   Manages retrieval pipeline, context injection, and prompt construction
+
+  Prompt Architecture     Structured system prompt + retrieved context + live data            Constrains AI to reason only from rulebook + real-time data
+  ----------------------- ------------------------------------------------------------------- ---------------------------------------------------------------------------
+
+Hallucination Prevention Design
+
+-   The AI is explicitly instructed in the system prompt that it may only reason from retrieved RAG documents and the real-time data provided
+
+-   If a scenario is not covered by any retrieved document: output is NO SETUP — never a fabricated analysis
+
+-   Every factor in the confluence score must be verifiably present in the live data — no assumed confluence
+
+-   Each decision in the output cites the specific rule or document that supports it
+
+-   Conflicting signals across timeframes are never resolved by assumption — they produce NO SETUP
+
+-   The LLM temperature is set to 0 for deterministic, rule-consistent outputs
+
+◆ A.6 Sub-Module A4 — Output Layer
+
+Every analysis cycle produces a standardized structured output. The schema is fixed — every field is always populated. This output is the handoff document to Module B.
+
++-----------------------------------------------------------------------+
+| ┌─────────────────────────────────────────────────────────┐           |
+|                                                                       |
+| │ MODULE A — ANALYSIS OUTPUT SCHEMA │                                 |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ PAIR : [Instrument] │                                               |
+|                                                                       |
+| │ TIMESTAMP : [UTC datetime] │                                        |
+|                                                                       |
+| │ TRADING STYLE : [Active style at time of analysis] │                |
+|                                                                       |
+| │ SESSION : [Active session] │                                        |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ MACRO BIAS : [BULLISH/BEARISH/NEUTRAL per CCY] │                    |
+|                                                                       |
+| │ DXY BIAS : [Directional conclusion + evidence] │                    |
+|                                                                       |
+| │ COT SIGNAL : [Net position + WoW direction] │                       |
+|                                                                       |
+| │ EVENT RISK : [Next high-impact events <48hrs] │                     |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ 1W BIAS : [Structure + trend direction] │                           |
+|                                                                       |
+| │ 1D BIAS : [BOS/ChoCH status + key levels] │                         |
+|                                                                       |
+| │ 4H SETUP : [OB/FVG/Zone ID and quality] │                           |
+|                                                                       |
+| │ WYCKOFF PHASE : [Identified phase + evidence] │                     |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ CONFLUENCE SCORE : [X/10 — each factor listed] │                    |
+|                                                                       |
+| │ SETUP GRADE : [A+ / A / B / REJECT] │                               |
+|                                                                       |
+| │ DIRECTION : [LONG / SHORT / NO SETUP] │                             |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ ENTRY ZONE : [Precise price range] │                                |
+|                                                                       |
+| │ STOP LOSS : [Price + structural reasoning] │                        |
+|                                                                       |
+| │ TP1 / TP2 / TP3 : [Three targets + basis] │                         |
+|                                                                       |
+| │ R:R RATIO : [Calculated ratio] │                                    |
+|                                                                       |
+| ├─────────────────────────────────────────────────────────┤           |
+|                                                                       |
+| │ CONFIDENCE : [HIGH / MEDIUM / LOW / NO SETUP] │                     |
+|                                                                       |
+| │ RAG SOURCES : [Documents cited in this analysis] │                  |
+|                                                                       |
+| │ PROCEED TO B : [YES / NO] │                                         |
+|                                                                       |
+| └─────────────────────────────────────────────────────────┘           |
++-----------------------------------------------------------------------+
+
+◆ A.7 Module A — Tech Stack
+
+  ----------------------- ----------------------------------- ---------------------------------------------------
+  Component               Technology                          Notes
+
+  Backend                 Python 3.11+ (FastAPI)              REST endpoints for dashboard + inter-module comms
+
+  Scheduler               APScheduler                         Triggers analysis cycle at configurable intervals
+
+  RAG Orchestration       LlamaIndex                          Retrieval pipeline and context management
+
+  Vector Database         ChromaDB                            Open source, self-hosted, no external dependency
+
+  LLM                     Claude API — claude-sonnet-4-6      Primary reasoning engine, temperature=0
+
+  Chart Data              MT5 Python API + Twelve Data        MT5 primary, Twelve Data backup
+
+  Macro Data              CFTC API + ForexFactory + NewsAPI   Scheduled pulls + event-driven triggers
+
+  Database                PostgreSQL                          Stores all analysis outputs and cycle logs
+  ----------------------- ----------------------------------- ---------------------------------------------------
+
++-----------------------------------------------------------------------+
+| MODULE B                                                              |
+|                                                                       |
+| Trade Execution Engine                                                |
+|                                                                       |
+| Validation · Sizing · Order Placement                                 |
++-----------------------------------------------------------------------+
+
+◆ B.1 Overview
+
+Module B is triggered automatically when Module A produces a CONFIDENCE: HIGH output with a Grade A or A+ setup. It receives the structured output from Module A and executes the trade exactly as specified — applying the risk rules, calculating the precise lot size, and placing the order via the broker API. Module B does not re-analyze. It executes.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  📌 Module B operates as a pure execution layer. It enforces the rules — it does not exercise judgment. If any pre-execution check fails, the trade is rejected and logged. No override is possible.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+◆ B.2 Sub-Module B1 — Pre-Execution Validator
+
+Before any order is placed, every condition in the validation checklist must pass. A single failure results in rejection. The validator runs sequentially — it stops and rejects on the first failure found.
+
+  ---- ------------------------------- ------------------------------------------------------------------------- -----------
+  #    Validation Check                Pass Condition                                                            On Fail
+
+  1    Confluence Score                Must meet minimum threshold for active trading style                      REJECT
+
+  2    Setup Grade                     A+ or A grade (B grade configurable via dashboard)                        REJECT
+
+  3    Higher Timeframe Alignment      1W and 1D must both agree with trade direction                            REJECT
+
+  4    News Event Lockout              No high-impact news within 30 minutes (45 min in Scalping mode)           REJECT
+
+  5    Session Filter                  Current session must be enabled in dashboard settings                     REJECT
+
+  6    Existing Position — Same Pair   No open trade or pending order on the same instrument                     REJECT
+
+  7    Correlated Pair Exposure        Max 1 trade per correlated group — take the strongest setup only          REJECT
+
+  8    Maximum Concurrent Trades       Open trade count must be below configured maximum (default: 3)            QUEUE
+
+  9    Daily Loss Limit                Daily drawdown must be below 3% limit                                     LOCK
+
+  10   Weekly Drawdown Limit           Weekly drawdown must be below 5% limit                                    PAUSE
+
+  11   Spread Check                    Current spread must not exceed 2x normal average (1.5x in Scalping)       REJECT
+
+  12   Minimum R:R Confirmation        R:R must meet minimum for active trading style (1:2 scalp, 1:3 others)    REJECT
+
+  13   Weekend/Day Filter              No entries after Friday 12:00 UTC (intraday/scalp) or 14:00 UTC (swing)   REJECT
+  ---- ------------------------------- ------------------------------------------------------------------------- -----------
+
+◆ B.3 Sub-Module B2 — Position Sizing Engine
+
+Lot Size Calculation Formula
+
++---------------------------------------------------------------------------+
+| Lot Size = (Account Balance × Risk %) ÷ (SL Distance in pips × Pip Value) |
+|                                                                           |
+| Where:                                                                    |
+|                                                                           |
+| Account Balance = Current live balance (fetched from broker API)          |
+|                                                                           |
+| Risk % = Style/grade-based risk (A+/A = 1%, B = 0.5%)                     |
+|                                                                           |
+| SL Distance = |Entry Price - Stop Loss Price| converted to pips           |
+|                                                                           |
+| Pip Value = Per-pip value for the instrument (fetched from broker)        |
+|                                                                           |
+| Example:                                                                  |
+|                                                                           |
+| Balance: $10,000 | Risk: 1% ($100) | SL: 25 pips | Pip Value: $10/lot     |
+|                                                                           |
+| Lot Size = $100 ÷ (25 × $10) = $100 ÷ $250 = 0.40 lots                    |
++---------------------------------------------------------------------------+
+
+-   Lot size is calculated fresh on every trade using current live account balance — never static
+
+-   Fractional lots are used to achieve precise risk amounts (e.g. 0.43 lots)
+
+-   Minimum lot size floor: 0.01 lots — if calculated size is below floor, trade is rejected
+
+-   Maximum lot size ceiling: configurable per instrument (prevents outsized exposure on exotic pairs)
+
+◆ B.4 Sub-Module B3 — Hybrid Execution Mode
+
+The system supports two execution modes selectable from the dashboard. Both modes run the identical full analysis pipeline — same Module A cycle, same confirmation rules, same confluence requirements, same RAG validation. The ONLY difference is the execution mechanism after the setup is validated and the entry zone is confirmed.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  📌 Same intelligence. Same rules. Same confirmations. Different trigger mechanism. The mode controls HOW the order is placed — not WHAT is analyzed or validated before it.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  ---------------------- -------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------
+                         LIMIT MODE                                                                                         INSTANT MODE
+
+  Analysis Pipeline      Full Module A cycle — macro, chart, RAG, confirmations, confluence                                 Full Module A cycle — macro, chart, RAG, confirmations, confluence
+
+  Confirmation Rules     Applied in full — retrieved from RAG documents                                                     Applied in full — retrieved from RAG documents
+
+  Order Type             Limit Order — placed at broker at the confirmed entry price immediately after analysis completes   Market Order — fired the moment price touches the confirmed entry level in real-time
+
+  Who Watches Price      Broker — holds the limit order and fills automatically when price arrives                          Module C Go goroutine — monitors every tick and fires on touch
+
+  Fill Price             Exact entry price guaranteed — zero slippage by design                                             At-touch market price — minimal slippage, fired instantly
+
+  Speed Requirement      Low — order placed in advance, no real-time monitoring needed                                      High — Go goroutine tick monitoring, sub-millisecond trigger
+
+  Best For               Clean zone entries where price is expected to retrace calmly into the zone                         Sweep entries, fast-moving price, entries where pre-placing risks a bad fill on overshoot
+
+  Pending Order Expiry   Configurable TTL (time-to-live) — limit cancelled if not filled within X candles                   No pending order — goroutine watches until entry fires or setup invalidates
+  ---------------------- -------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------
+
+Dashboard Execution Mode Controls
+
+-   Global default: trader sets preferred mode once — applies to all pairs and setups
+
+-   Per-pair override: EURUSD can run Limit while XAUUSD runs Instant simultaneously
+
+-   Module A recommendation: the analysis output includes a recommended execution mode based on setup type — trader can accept or override from dashboard before next cycle
+
+-   Mode changes take effect on the next analysis cycle — no mid-setup switching
+
+Limit Order — Pending Management Rules
+
+-   Limit order is placed immediately when Module B completes execution validation
+
+-   Entry price: OTE zone (62–79% of OB) or top/bottom of confirmed SnD zone
+
+-   Stop loss and all three TP levels are attached to the order at placement time
+
+-   TTL (Time-To-Live): configurable per trading style — e.g. Intraday: cancel if unfilled after 1 session, Swing: cancel after 3 days
+
+-   If market structure breaks before fill (1D BOS against trade direction) — limit order cancelled automatically
+
+-   If a new Module A cycle runs and the thesis changes — pending limit is cancelled and replaced or removed
+
+Instant Mode — Go Goroutine Trigger Rules
+
+-   After Module B validates the setup, it arms Module C with: entry zone, SL, TP levels, lot size, direction, and invalidation conditions
+
+-   Module C Go goroutine begins tick monitoring immediately on the confirmed instrument
+
+-   Trigger condition: ask price (for longs) or bid price (for shorts) touches the confirmed entry level
+
+-   On trigger: market order fires immediately via broker API — no delay, no confirmation step
+
+-   If price overshoots entry zone without reversal signal — goroutine applies overshoot tolerance rule (configurable, default: entry zone width × 1.5)
+
+-   If setup invalidation conditions are met before trigger — goroutine disarms, no order placed, logged as EXPIRED
+
+Unified Order Object Schema
+
++--------------------------------------------------------------------------+
+| ORDER OBJECT {                                                           |
+|                                                                          |
+| // Identity                                                              |
+|                                                                          |
+| pair : "EURUSD"                                                          |
+|                                                                          |
+| execution_mode : "LIMIT" // or "INSTANT"                                 |
+|                                                                          |
+| direction : "BUY"                                                        |
+|                                                                          |
+| // Execution Levels                                                      |
+|                                                                          |
+| entry_price : 1.08350                                                    |
+|                                                                          |
+| stop_loss : 1.07780                                                      |
+|                                                                          |
+| take_profit_1 : 1.09200 // 40% of position                               |
+|                                                                          |
+| take_profit_2 : 1.09850 // 30% of position                               |
+|                                                                          |
+| take_profit_3 : 1.10500 // 30% of position (runner)                      |
+|                                                                          |
+| // Risk                                                                  |
+|                                                                          |
+| lot_size : 0.45                                                          |
+|                                                                          |
+| risk_percent : 1.0                                                       |
+|                                                                          |
+| risk_amount : 127.00                                                     |
+|                                                                          |
+| rr_ratio : 5.38                                                          |
+|                                                                          |
+| // Context                                                               |
+|                                                                          |
+| module_a_ref : "analysis_id_20260302_0800"                               |
+|                                                                          |
+| trading_style : "INTRADAY"                                               |
+|                                                                          |
+| session : "LONDON_OPEN"                                                  |
+|                                                                          |
+| timestamp : "2026-03-02T09:14:32Z"                                       |
+|                                                                          |
+| // Mode-Specific                                                         |
+|                                                                          |
+| // LIMIT: ttl_candles: 4, broker_order_id: "MT5_ORD_001"                 |
+|                                                                          |
+| // INSTANT: goroutine_id: "GRT_EURUSD_001", overshoot_tolerance: 0.00050 |
+|                                                                          |
+| }                                                                        |
++--------------------------------------------------------------------------+
+
+◆ B.5 Sub-Module B4 — Broker Connectivity Layer
+
+The broker connectivity layer is abstracted — a single interface that any supported broker can plug into. Swapping brokers requires only changing the connector configuration, not the core engine.
+
+  ------------------------- -------------------------------------------------------------------- ----------- -----------
+  Interface                 Primary Use Case                                                     Status      Priority
+
+  MetaTrader 5 Python API   Primary execution — direct order placement and position management   Active      1st
+
+  OANDA REST API            Alternative retail broker for FX and metals                          Available   2nd
+
+  cTrader Open API          Alternative ECN broker execution                                     Available   3rd
+
+  Interactive Brokers API   Future scaling — multi-asset expansion                               Planned     Future
+  ------------------------- -------------------------------------------------------------------- ----------- -----------
+
+◆ B.6 Sub-Module B5 — Execution Audit Log
+
+Every action taken by Module B is logged with full detail. Nothing happens silently. The audit log is immutable — entries cannot be edited or deleted.
+
++-----------------------------------------------------------------------+
+| // LIMIT MODE LOG ENTRY                                               |
+|                                                                       |
+| EXECUTION LOG {                                                       |
+|                                                                       |
+| timestamp : "2026-03-02T09:14:32Z"                                    |
+|                                                                       |
+| pair : "EURUSD"                                                       |
+|                                                                       |
+| execution_mode : "LIMIT"                                              |
+|                                                                       |
+| action : "LIMIT_ORDER_PLACED"                                         |
+|                                                                       |
+| entry : 1.08350                                                       |
+|                                                                       |
+| stop_loss : 1.07780                                                   |
+|                                                                       |
+| tp1/tp2/tp3 : 1.09200 / 1.09850 / 1.10500                             |
+|                                                                       |
+| lot_size : 0.45                                                       |
+|                                                                       |
+| risk_amount : "$127.00"                                               |
+|                                                                       |
+| broker_order_id : "MT5_ORD_20260302_001"                              |
+|                                                                       |
+| ttl_candles : 4                                                       |
+|                                                                       |
+| module_a_score : "8.5/10 — A-GRADE"                                   |
+|                                                                       |
+| fill_status : "PENDING → FILLED at 1.08348"                           |
+|                                                                       |
+| slippage : 0.00000 // zero — limit order                              |
+|                                                                       |
+| }                                                                     |
+|                                                                       |
+| // INSTANT MODE LOG ENTRY                                             |
+|                                                                       |
+| EXECUTION LOG {                                                       |
+|                                                                       |
+| timestamp : "2026-03-02T09:14:32Z"                                    |
+|                                                                       |
+| pair : "XAUUSD"                                                       |
+|                                                                       |
+| execution_mode : "INSTANT"                                            |
+|                                                                       |
+| action : "GOROUTINE_ARMED"                                            |
+|                                                                       |
+| goroutine_id : "GRT_XAUUSD_001"                                       |
+|                                                                       |
+| watch_level : 5278.50                                                 |
+|                                                                       |
+| stop_loss : 5241.00                                                   |
+|                                                                       |
+| tp1/tp2/tp3 : 5320.00 / 5380.00 / 5450.00                             |
+|                                                                       |
+| lot_size : 0.30                                                       |
+|                                                                       |
+| trigger_time : "2026-03-02T09:31:14Z"                                 |
+|                                                                       |
+| trigger_price : 5278.48                                               |
+|                                                                       |
+| action : "MARKET_ORDER_FIRED"                                         |
+|                                                                       |
+| fill_price : 5278.52                                                  |
+|                                                                       |
+| slippage : 0.02 // 2 cents on gold                                    |
+|                                                                       |
+| module_a_score : "9.0/10 — A+ GRADE"                                  |
+|                                                                       |
+| }                                                                     |
++-----------------------------------------------------------------------+
+
+-   Every REJECTION is fully logged: timestamp, pair, reason, which check failed
+
+-   LIMIT mode: logs both placement and fill as separate events with timestamps
+
+-   INSTANT mode: logs goroutine armed, trigger fired, and fill as three separate events
+
+-   Expired pending limits and disarmed goroutines are logged as EXPIRED with reason
+
+-   All entries stored in PostgreSQL — queryable for performance analytics and full audit
+
+◆ B.7 Sub-Module B6 — Notification System
+
+  ----------------- --------------------------------------------------------------------------------------------------- --------------------
+  Channel           Trigger Events                                                                                      Timing
+
+  Telegram Bot      Order placed, order filled, order rejected, SL hit, TP1/2/3 hit, daily limit locked, system error   Real-time, instant
+
+  Email             Daily performance summary, weekly analytics report, monthly drawdown review                         Scheduled
+
+  Dashboard Alert   Real-time status of all open positions, pending orders, and system health                           Live polling
+  ----------------- --------------------------------------------------------------------------------------------------- --------------------
+
+  ---------------------------------------------------------------------------------------------------------------------------------------------
+  📌 The trader is always informed but never required to act. The system manages everything. Notifications are observational, not actionable.
+
+  ---------------------------------------------------------------------------------------------------------------------------------------------
+
+◆ B.8 Module B — Tech Stack
+
+  ------------------------------- ----------------------------------- -----------------------------------------------------------------
+  Component                       Technology                          Notes
+
+  Execution Service               Go (Gin framework)                  Receives Module A output via gRPC from Python service
+
+  Pre-Execution Validator         Go — pure business logic            All 13 checks hardcoded — not configurable by LLM
+
+  Position Sizing Engine          Go — arithmetic precision           Lot size calculated to 2 decimal places with live balance fetch
+
+  Limit Order Placement           Go → MT5 Python API bridge          Go calls Python MT5 bridge via gRPC for broker submission
+
+  Instant Mode Goroutine Arming   Go goroutine (passed to Module C)   Arms Module C tick watcher with order parameters
+
+  Inter-Module Communication      gRPC (Protocol Buffers)             Fast, typed, low-latency comms between Python (A) and Go (B/C)
+
+  Broker API                      MT5 Python API (via bridge)         Python MT5 library bridged — Go calls Python subprocess
+
+  Notifications                   Telegram Bot API                    Instant alerts on all execution events
+
+  Database                        PostgreSQL via pgx (Go driver)      Execution log, audit trail, pending order state
+
+  Validation Rules                Go business logic — hardcoded       Risk rules cannot be overridden by AI layer
+  ------------------------------- ----------------------------------- -----------------------------------------------------------------
+
++-----------------------------------------------------------------------+
+| MODULE C                                                              |
+|                                                                       |
+| Trade Management Engine                                               |
+|                                                                       |
+| Monitoring · Protection · Journaling                                  |
++-----------------------------------------------------------------------+
+
+◆ C.1 Overview
+
+Module C activates the moment Module B confirms an order is FILLED. From that point, Module C owns the trade entirely — from entry to final exit. It monitors price in real time, manages stop loss adjustments, executes partial closes at take profit levels, handles end-of-period protocols based on the active trading style, invalidates trades when the thesis breaks, and automatically journals every closed trade with full detail.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ✅ Module B hands the trade to Module C. Module C never hands it back. The trade lifecycle ends when Module C logs the final close. No manual intervention at any point.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+◆ C.2 Sub-Module C1 — Trade Monitoring Engine
+
+Module C runs two parallel monitoring tracks for every active instrument: the pre-fill track (Instant Mode only) and the post-fill management track (both modes). Both are implemented as Go goroutines running concurrently.
+
+Pre-Fill Track — Instant Mode Goroutine
+
+-   Activated when Module B arms Module C after a validated Instant Mode setup
+
+-   Go goroutine monitors every incoming tick on the instrument via MT5 price feed
+
+-   Trigger condition: ask price (longs) or bid price (shorts) touches confirmed entry level
+
+-   On trigger: market order fired immediately via broker API — sub-millisecond from touch to order
+
+-   Overshoot tolerance: if price pierces entry zone by more than configured tolerance without reversal — goroutine disarms, logs EXPIRED, notifies trader
+
+-   Invalidation watch: if structure breaks before trigger (1D BOS against thesis) — goroutine disarms automatically
+
+-   On fill confirmed: pre-fill goroutine terminates, post-fill management goroutine activates
+
+Post-Fill Track — Management Monitoring
+
+  ----------------------------- ----------------------------- -----------------------------------------------------
+  Monitor                       Frequency                     Action Triggers
+
+  Price vs SL / TP levels       Every tick / every 1 minute   SL hit → close. TP hit → partial close + SL adjust.
+
+  Structure change on 4H + 1D   Every candle close            BOS in opposite direction → tighten SL
+
+  New macro / news events       Every 15 minutes              High-impact event vs position direction → evaluate
+
+  COT weekly update             Friday release                COT flip against position → tighten SL, flag trade
+
+  Correlated pair behavior      Every 4H candle close         Correlated pair confirms opposite → tighten SL
+
+  Session open / close          Time-based triggers           EOD / end-of-session protocols activate
+
+  Break-even trigger            Every tick                    TP1 level reached → SL moves to entry + buffer
+  ----------------------------- ----------------------------- -----------------------------------------------------
+
+◆ C.3 Sub-Module C2 — Stop Loss Management
+
+Break-Even Rules
+
+-   Trigger: Price reaches TP1 level → SL immediately moves to entry price + spread buffer (2–3 pips)
+
+-   Scalping exception: BE triggers when price moves 60% toward TP1 on 15M chart
+
+-   Intraday time-based exception: If TP1 not reached within 3 hours → tighten SL to 50% of original risk
+
+-   Break-even is strictly one-directional — SL only moves in profit direction, never pulled back
+
+-   If price returns to BE level after trigger — trade closes at break-even. Logged as BREAK-EVEN, not a loss.
+
+Trailing Stop — Style-Adaptive
+
+  ----------------- --------------------------------------------------------------------- -------------------------
+  Trading Style     Trail Mechanism                                                       Recalculation Frequency
+
+  Scalping          Trail to most recent 15M swing high/low                               Every 15M candle close
+
+  Intraday          Trail to 1H swing high/low. Switch to 4H during London/NY overlap.    Every 1H candle close
+
+  Swing             Trail to 4H swing high/low after TP1. Switch to 1D swing after TP2.   Every 4H candle close
+
+  Positional        Trail to 1D swing high/low after TP1. Switch to 1W swing after TP2.   Every daily close
+  ----------------- --------------------------------------------------------------------- -------------------------
+
+◆ C.4 Sub-Module C3 — Take Profit Execution
+
+  ------------ ------------------ ------------------------------------------------------------ -------------------------------
+  Target       Position Closed    Level Basis                                                  Post-TP SL Action
+
+  TP1          40% (Scalp: 60%)   Nearest liquidity pool / minor resistance / previous swing   Move SL to break-even
+
+  TP2          30% (Scalp: 40%)   Major S&D zone / HTF key level / 1D structure target         Trail SL to TP1 level
+
+  TP3 Runner   30% (Scalp: N/A)   1W key level / final macro target / trailed until hit        Trail on style-appropriate TF
+  ------------ ------------------ ------------------------------------------------------------ -------------------------------
+
+-   Each partial close is executed as a separate broker order — remaining position stays open with updated SL
+
+-   After each partial close: lot size updates, SL adjusts per rules, notification sent, journal entry updated
+
+-   Scalping mode: No TP3/runner — full position closed by TP2 at the latest or session end
+
+◆ C.5 Sub-Module C4 — End-of-Period Protocols
+
+Scalping — End of Session
+
+-   All scalp trades forced-closed before session end regardless of status
+
+-   Maximum trade duration: 2 hours from entry — hard time-based close
+
+-   No carry to next session under any circumstances
+
+Intraday — 16:30 UTC Daily Protocol
+
+  ---------------------------------------------------------------------- -------------------------------------------------
+  Trade Status at 16:30 UTC                                              Automated Action
+
+  In profit — TP1 hit — SL at break-even or better                       Close remaining position at market. Log WIN.
+
+  In profit — TP1 not yet reached                                        Close at market. Log partial WIN.
+
+  At break-even                                                          Close at market. Log BREAK-EVEN.
+
+  In loss — SL not yet hit                                               Close at market. Log LOSS. No overnight hold.
+
+  Overnight carry exception (toggle ON + SL at BE + no overnight news)   Hold position. Re-evaluate at next London open.
+  ---------------------------------------------------------------------- -------------------------------------------------
+
+Swing — Friday 16:00 UTC Protocol
+
+-   SL at break-even or better AND overnight carry toggle ON → may hold over weekend
+
+-   SL still in original loss territory → close at market regardless of unrealised P&L
+
+-   Re-evaluate all swing trades at Monday 07:00 UTC before London open
+
+Positional — Weekly Review (Friday 15:00 UTC)
+
+-   No forced closure — positional trades run on their own structural logic
+
+-   System assesses weekly candle close — if 1W close invalidates the thesis → close Monday open
+
+-   Weekend hold is standard and expected — SL placement accounts for weekend gap risk
+
+◆ C.6 Sub-Module C5 — Trade Invalidation Engine
+
+  ------------------------------------------------------------------------------------------------------------
+  ⚠ If the reason the trade was entered no longer exists — the trade no longer exists. The system closes it.
+
+  ------------------------------------------------------------------------------------------------------------
+
+  ----------------------------------------------------------- -----------------------------------------------------------------------------------
+  Invalidation Signal                                         Automated System Action
+
+  1D candle closes beyond the SL invalidation zone            Close trade immediately. Log: STRUCTURAL INVALIDATION.
+
+  4H BOS confirmed in opposite direction while in trade       Tighten SL to most recent 4H swing. Prepare for exit.
+
+  High-impact news surprise against position direction        Hold unless SL triggers. If 4H structure breaks → close.
+
+  COT positioning flips against open trade on weekly update   Flag trade. Tighten SL. No further position additions.
+
+  Correlated pair confirms strong opposing directional move   Tighten SL to last confirmed structure level.
+
+  Trading style changed mid-trade (dashboard update)          Trade continues under entry-style rules until closed. No retroactive rule change.
+  ----------------------------------------------------------- -----------------------------------------------------------------------------------
+
+◆ C.7 Sub-Module C6 — Automatic Trade Journal
+
+Every closed trade is automatically journaled with full detail. No manual input is ever required. The journal is the primary source for all performance analytics.
+
++----------------------------------------------------------------------------------+
+| TRADE JOURNAL ENTRY {                                                            |
+|                                                                                  |
+| // Identity                                                                      |
+|                                                                                  |
+| trade_id : "TRD_20260302_001"                                                    |
+|                                                                                  |
+| pair : "EURUSD"                                                                  |
+|                                                                                  |
+| direction : "LONG"                                                               |
+|                                                                                  |
+| trading_style : "INTRADAY"                                                       |
+|                                                                                  |
+| session_at_entry : "LONDON_OPEN"                                                 |
+|                                                                                  |
+| // Execution                                                                     |
+|                                                                                  |
+| entry_price : 1.08348                                                            |
+|                                                                                  |
+| final_exit_price : 1.09850                                                       |
+|                                                                                  |
+| lot_size : 0.45                                                                  |
+|                                                                                  |
+| risk_amount : "$127.00"                                                          |
+|                                                                                  |
+| gross_pnl : "+$684.00"                                                           |
+|                                                                                  |
+| r_multiple : "+5.38R"                                                            |
+|                                                                                  |
+| duration : "3 days 4 hours"                                                      |
+|                                                                                  |
+| // Analysis Context                                                              |
+|                                                                                  |
+| module_a_score : "8.5/10 — A-GRADE"                                              |
+|                                                                                  |
+| setup_type : "4H OB + 1D FVG + Liquidity Sweep"                                  |
+|                                                                                  |
+| wyckoff_phase : "Markup Phase"                                                   |
+|                                                                                  |
+| macro_bias : "USD bearish / EUR bullish"                                         |
+|                                                                                  |
+| cot_signal : "Smart money net long EUR (3-week buildup)"                         |
+|                                                                                  |
+| dxy_bias : "Bearish — below 50MA, descending structure"                          |
+|                                                                                  |
+| // Management Log                                                                |
+|                                                                                  |
+| sl_adjustments : [                                                               |
+|                                                                                  |
+| { time: "09:45", action: "BE triggered", new_sl: 1.08351 },                      |
+|                                                                                  |
+| { time: "14:20", action: "Trail step", new_sl: 1.09200 },                        |
+|                                                                                  |
+| ]                                                                                |
+|                                                                                  |
+| partial_closes : [                                                               |
+|                                                                                  |
+| { time: "11:30", target: "TP1", price: 1.09200, lots: 0.18, pnl: "$193.50" },    |
+|                                                                                  |
+| { time: "15:45", target: "TP2", price: 1.09850, lots: 0.14, pnl: "$282.10" },    |
+|                                                                                  |
+| { time: "16:28", target: "RUNNER", price: 1.09780, lots: 0.13, pnl: "$208.40" }, |
+|                                                                                  |
+| ]                                                                                |
+|                                                                                  |
+| // Outcome                                                                       |
+|                                                                                  |
+| outcome : "WIN"                                                                  |
+|                                                                                  |
+| close_reason : "TP2 hit — runner closed by 16:30 EOD protocol"                   |
+|                                                                                  |
+| }                                                                                |
++----------------------------------------------------------------------------------+
+
+◆ C.8 Sub-Module C7 — Performance Analytics Engine
+
+Module C feeds a live analytics engine that continuously measures the system's edge. All metrics are available on the dashboard and included in scheduled reports.
+
+  --------------------------------------- ------------------------------------ ------------------------------------------------------
+  Metric                                  Scope                                Purpose
+
+  Overall win rate (%)                    All time / monthly / weekly          Core performance benchmark
+
+  Win rate by pair                        Per instrument                       Identify strongest performing instruments
+
+  Win rate by setup type                  OB / FVG / SnD / Spring / Upthrust   Identify highest-edge setup patterns
+
+  Average R multiple per trade            Per trade / per month                Measures quality of wins vs losses
+
+  Best performing session                 London / NY / Overlap                Session-specific edge identification
+
+  System expectancy                       Rolling 30-trade window              (Win% × Avg Win R) − (Loss% × Avg Loss R)
+
+  Module A score vs outcome correlation   Per score band                       Validates and recalibrates confluence scoring
+
+  Daily / weekly / monthly drawdown       Rolling and peak-to-trough           Risk monitoring and circuit breaker feed
+
+  Consecutive win / loss streaks          Real-time                            Behavioral pattern detection and alerting
+
+  Best performing trading style           By style                             Informs which style configuration produces best edge
+  --------------------------------------- ------------------------------------ ------------------------------------------------------
+
+◆ C.9 Module C — Tech Stack
+
+  --------------------------- -------------------------------------- ------------------------------------------------------------------
+  Component                   Technology                             Notes
+
+  Management Service          Go (Gin framework)                     High-performance concurrent goroutines for tick monitoring
+
+  Instant Mode Goroutine      Go goroutine — tick-level monitoring   Sub-millisecond trigger from price touch to market order fire
+
+  Post-Fill Management Loop   Go goroutine per open trade            Concurrent per-pair monitoring — no blocking between instruments
+
+  Price Feed                  MT5 Python API via gRPC bridge         Live tick stream bridged to Go service
+
+  Candle Close Monitoring     Go goroutine + APScheduler signal      Structure checks fired on every TF candle close
+
+  Partial Close Execution     Go → MT5 Python bridge                 Separate order per partial close with lot precision
+
+  Trade Journal               PostgreSQL via pgx (Go driver)         Immutable journal entries, queryable for analytics
+
+  Analytics Engine            Python + SQLAlchemy + pandas           Aggregations, expectancy, rolling metrics — Python fine here
+
+  Dashboard                   React + Recharts                       Real-time trade monitor, analytics, execution mode config
+
+  Notifications               Telegram Bot API                       TP hits, SL hits, goroutine triggers, EOD closures
+  --------------------------- -------------------------------------- ------------------------------------------------------------------
+
+SECTION 5 — COMPLETE SYSTEM TECH STACK
+
+  -------------------- ------------------------- ------------------------------------------------------- -----------------
+  Layer                Component                 Technology                                              Module(s)
+
+  Analysis Service     RAG + Intelligence        Python 3.11+ (FastAPI)                                  A
+
+  Execution Service    Validator + Orders        Go (Gin framework)                                      B
+
+  Management Service   Goroutines + Monitoring   Go (Gin framework)                                      C
+
+  Inter-Module Comms   Python ↔ Go Bridge        gRPC (Protocol Buffers)                                 A↔B↔C
+
+  AI Reasoning         LLM Engine                Claude API — claude-sonnet-4-6                          A
+
+  RAG Orchestration    Retrieval Pipeline        LlamaIndex                                              A
+
+  Vector Database      Knowledge Base Store      ChromaDB (open source, self-hosted)                     A
+
+  Embeddings           Vector Generation         nomic-embed (local) or text-embedding-3-large           A
+
+  Chart Data           OHLCV + Tick Feed         MT5 Python API + Twelve Data API                        A, C
+
+  Macro Data           Economic + COT            CFTC API + ForexFactory + NewsAPI + RSS                 A
+
+  Broker API           Order Execution           MT5 Python API (bridged via gRPC to Go)                 B, C
+
+  Tick Monitoring      Instant Mode Engine       Go goroutines — concurrent per instrument               C
+
+  Task Scheduler       Cycle Triggers            APScheduler (Python) + Go time.Ticker                   A, B, C
+
+  Database             Persistence Layer         PostgreSQL (pgx driver for Go, SQLAlchemy for Python)   A, B, C
+
+  Analytics Engine     Performance Metrics       Python + pandas + SQLAlchemy                            C
+
+  Notifications        Alerts + Reports          Telegram Bot API + SendGrid SMTP                        B, C
+
+  Frontend Dashboard   Trader Interface          React + Recharts                                        A, B, C
+
+  Containerisation     Deployment                Docker + Docker Compose                                 All
+
+  Hosting              Infrastructure            Ubuntu 24 VPS (co-located near broker server)           All
+
+  Version Control      Source Code               GitHub — public open source repository                  All
+  -------------------- ------------------------- ------------------------------------------------------- -----------------
+
+SECTION 6 — BUILD ROADMAP
+
+◆ 6.1 Development Phases
+
+  ----------------- ----------- ----------------------------------------------------------------------------------- ----------------------------------------------------
+  Phase             Module      Milestone                                                                           Deliverable
+
+  1 — Weeks 1–3     A           Data pipelines operational — macro + chart data flowing cleanly                     Reliable OHLCV + macro data feed
+
+  2 — Weeks 3–5     A           RAG knowledge base built — all rulebook documents embedded into ChromaDB            ChromaDB populated + retrieval tested
+
+  3 — Weeks 5–8     A           RAG reasoning engine live — AI producing structured outputs                         Analysis outputs validated against manual analysis
+
+  4 — Weeks 8–10    A           MVP dashboard — analysis outputs visible on React frontend                          Module A MVP — fully functional
+
+  5 — Weeks 11–14   B           Execution engine built — validator + lot sizing + order construction                Paper trading / demo account execution live
+
+  6 — Weeks 14–16   B           Broker API connected + notification system live                                     Module B validated on demo — ready for live
+
+  7 — Weeks 17–20   C           Management engine built — SL management, TP execution, EOD protocols                Full lifecycle management on demo account
+
+  8 — Weeks 20–22   C           Auto-journaling + analytics engine live                                             Module C validated — full system demo-ready
+
+  9 — Weeks 22–24   A+B+C       Full system live on real account — low capital, scale up on validated performance   Production-ready system
+
+  10 — Ongoing      All         Analytics feedback loop — recalibrate RAG knowledge base from real trade outcomes   Continuous improvement cycle
+  ----------------- ----------- ----------------------------------------------------------------------------------- ----------------------------------------------------
+
+◆ 6.2 MVP Scope (Module A Only)
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ✅ The MVP is Module A operating as a standalone AI market analyst. It produces analysis outputs on a schedule, displays them on a dashboard, and alerts the trader via Telegram. No execution occurs in MVP. The trader validates Module A outputs manually before enabling Module B.
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-   MVP delivers: scheduled analysis cycles, structured output per instrument, confluence scoring, Telegram alerts, basic dashboard
+
+-   MVP validation criterion: Module A outputs agree with the trader's own manual analysis on 80%+ of reviewed setups over a 4-week forward test
+
+-   Only after MVP validation passes should Module B construction begin
+
+◆ 6.3 Pre-Build Prerequisites
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ⚠ Before writing a single line of code, the following documents must be complete. They are the system's soul — without them the RAG engine has nothing to reason from.
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-   Master Rulebook — complete and finalized (Version 1.0 exists)
+
+-   SMC Framework Document — all concepts fully defined with identification criteria
+
+-   Supply & Demand Rulebook — zone grading, origin candle rules, mitigation definitions
+
+-   Wyckoff Phase Guide — all 6 phases/events with identification rules
+
+-   DXY Analysis Framework — correlation mapping for all pair types
+
+-   COT Interpretation Guide — non-commercial positioning rules
+
+-   Chart Scenario Library — minimum 20 annotated examples (bullish, bearish, failed setups)
+
+-   Trading Style Rules — all four styles fully documented
+
+-   Macro-to-Price Relationship Guide — specific macro conditions mapped to price expectations
+
+⬡
+
+END OF DOCUMENT
+
+AI Trading System — Technical Specification | Version 1.0 | March 2026 | Proprietary

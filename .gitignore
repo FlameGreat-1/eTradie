@@ -1,0 +1,48 @@
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ── Virtual Environments ─────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Testing ──────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# ── Linting / Type Checking ─────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+
+# ── Environment ─────────────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── Docker ───────────────────────────────────────────────────
+postgres_data/
+prometheus_data/
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Security reports ────────────────────────────────────────
+bandit-report.json
