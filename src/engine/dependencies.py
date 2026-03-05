@@ -14,23 +14,21 @@ from engine.macro.collectors.economic_data.collector import EconomicDataCollecto
 from engine.macro.collectors.intermarket.collector import IntermarketCollector
 from engine.macro.collectors.news.collector import NewsCollector
 from engine.macro.collectors.sentiment.collector import SentimentCollector
-from engine.macro.providers.calendar.forex_factory import ForexFactoryCalendarProvider
-from engine.macro.providers.calendar.investing_com import InvestingComCalendarProvider
+from engine.macro.providers.calendar.trading_economics import TradingEconomicsCalendarProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.cot.cftc import CFTCProvider
-from engine.macro.providers.economic_data.forex_factory import ForexFactoryProvider
-from engine.macro.providers.economic_data.investing_com import InvestingComProvider
+from engine.macro.providers.economic_data.fred import FREDEconomicProvider
+from engine.macro.providers.economic_data.trading_economics import TradingEconomicsEconomicProvider
+from engine.macro.providers.market_data.trading_economics import TradingEconomicsMarketDataProvider
 from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
-from engine.macro.providers.market_data.yahoo_finance import YahooFinanceProvider
 from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
 from engine.macro.providers.news.newsapi import NewsAPIProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
-from engine.macro.providers.sentiment.dailyfx import DailyFXProvider
-from engine.macro.providers.sentiment.reuters import ReutersSentimentProvider
+from engine.macro.providers.sentiment.trading_economics import TradingEconomicsSentimentProvider
 
 
 class Container:
@@ -73,6 +71,7 @@ class Container:
         h = self.http_client
         r = self.rss_parser
 
+        # ── Central Bank RSS (official feeds — unchanged) ────────
         self.fed_provider = FedRSSProvider(r, feed_url=s.fed_rss_url)
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
@@ -80,34 +79,48 @@ class Container:
         for p in (self.fed_provider, self.ecb_provider, self.boe_provider, self.boj_provider):
             self.registry.register(p)
 
+        # ── COT — CFTC (only official source — unchanged) ───────
         self.cftc_provider = CFTCProvider(h, base_url=s.cftc_api_base_url)
         self.registry.register(self.cftc_provider)
 
-        self.ff_econ_provider = ForexFactoryProvider(h, base_url=s.forex_factory_base_url, api_key=s.forex_factory_api_key)
-        self.ic_econ_provider = InvestingComProvider(h, base_url=s.investing_com_base_url, api_key=s.investing_com_api_key)
-        for p in (self.ff_econ_provider, self.ic_econ_provider):
+        # ── Economic Data — TradingEconomics (primary) + FRED (US backup) ──
+        self.te_econ_provider = TradingEconomicsEconomicProvider(
+            h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
+        )
+        self.fred_provider = FREDEconomicProvider(
+            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+        )
+        for p in (self.te_econ_provider, self.fred_provider):
             self.registry.register(p)
 
-        self.twelve_data_provider = TwelveDataProvider(h, base_url=s.twelvedata_base_url, api_key=s.twelvedata_api_key)
-        self.yahoo_provider = YahooFinanceProvider(h, base_url=s.yahoo_finance_base_url, api_key=s.yahoo_finance_api_key)
-        for p in (self.twelve_data_provider, self.yahoo_provider):
+        # ── Market Data — TwelveData (primary) + TradingEconomics (backup) ──
+        self.twelve_data_provider = TwelveDataProvider(
+            h, base_url=s.twelvedata_base_url, api_key=s.twelvedata_api_key,
+        )
+        self.te_market_provider = TradingEconomicsMarketDataProvider(
+            h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
+        )
+        for p in (self.twelve_data_provider, self.te_market_provider):
             self.registry.register(p)
 
-        self.ff_cal_provider = ForexFactoryCalendarProvider(h, base_url=s.forex_factory_base_url)
-        self.ic_cal_provider = InvestingComCalendarProvider(h, base_url=s.investing_com_base_url, api_key=s.investing_com_api_key)
-        for p in (self.ff_cal_provider, self.ic_cal_provider):
-            self.registry.register(p)
+        # ── Calendar — TradingEconomics (single source, institutional-grade) ──
+        self.te_cal_provider = TradingEconomicsCalendarProvider(
+            h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
+        )
+        self.registry.register(self.te_cal_provider)
 
+        # ── News — NewsAPI (primary) + Reuters/Bloomberg RSS (backup) ──
         self.newsapi_provider = NewsAPIProvider(h, base_url=s.newsapi_base_url, api_key=s.newsapi_api_key)
         self.reuters_rss_provider = ReutersRSSProvider(r, feed_url=s.reuters_rss_url)
         self.bloomberg_rss_provider = BloombergRSSProvider(r, feed_url=s.bloomberg_rss_url)
         for p in (self.newsapi_provider, self.reuters_rss_provider, self.bloomberg_rss_provider):
             self.registry.register(p)
 
-        self.dailyfx_provider = DailyFXProvider(h, base_url=s.dailyfx_base_url, api_key=s.dailyfx_api_key)
-        self.reuters_sent_provider = ReutersSentimentProvider(h, base_url=s.reuters_base_url, api_key=s.reuters_api_key)
-        for p in (self.dailyfx_provider, self.reuters_sent_provider):
-            self.registry.register(p)
+        # ── Sentiment — TradingEconomics (confidence indicators) ──
+        self.te_sentiment_provider = TradingEconomicsSentimentProvider(
+            h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
+        )
+        self.registry.register(self.te_sentiment_provider)
 
     def _build_collectors(self) -> None:
         s = self.settings
@@ -122,7 +135,9 @@ class Container:
         self.cot_collector = COTCollector([self.cftc_provider], c, d)
         self.cot_collector.cache_ttl = s.cache_ttl_cot
 
-        self.economic_collector = EconomicDataCollector([self.ff_econ_provider, self.ic_econ_provider], c, d)
+        self.economic_collector = EconomicDataCollector(
+            [self.te_econ_provider, self.fred_provider], c, d,
+        )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
 
         self.news_collector = NewsCollector(
@@ -130,16 +145,20 @@ class Container:
         )
         self.news_collector.cache_ttl = s.cache_ttl_news
 
-        self.calendar_collector = CalendarCollector([self.ff_cal_provider, self.ic_cal_provider], c, d)
+        self.calendar_collector = CalendarCollector([self.te_cal_provider], c, d)
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
-        self.dxy_collector = DXYCollector([self.twelve_data_provider, self.yahoo_provider], c, d)
+        self.dxy_collector = DXYCollector(
+            [self.twelve_data_provider, self.te_market_provider], c, d,
+        )
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
-        self.intermarket_collector = IntermarketCollector([self.yahoo_provider, self.twelve_data_provider], c, d)
+        self.intermarket_collector = IntermarketCollector(
+            [self.twelve_data_provider, self.te_market_provider], c, d,
+        )
         self.intermarket_collector.cache_ttl = s.cache_ttl_intermarket
 
-        self.sentiment_collector = SentimentCollector([self.dailyfx_provider, self.reuters_sent_provider], c, d)
+        self.sentiment_collector = SentimentCollector([self.te_sentiment_provider], c, d)
         self.sentiment_collector.cache_ttl = s.cache_ttl_sentiment
 
     async def shutdown(self) -> None:

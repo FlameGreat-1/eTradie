@@ -69,25 +69,13 @@ class Settings(BaseSettings):
     twelvedata_api_key: str = Field(default="", description="TwelveData API key")
     twelvedata_base_url: str = "https://api.twelvedata.com"
 
-    # Yahoo Finance
-    yahoo_finance_api_key: str = Field(default="", description="Yahoo Finance (RapidAPI) key")
-    yahoo_finance_base_url: str = "https://yahoo-finance15.p.rapidapi.com/api/v1"
+    # TradingEconomics.com — institutional-grade economic data
+    tradingeconomics_api_key: str = Field(default="", description="TradingEconomics.com API key")
+    tradingeconomics_base_url: str = "https://api.tradingeconomics.com"
 
-    # Investing.com
-    investing_com_api_key: str = Field(default="", description="Investing.com (RapidAPI) key")
-    investing_com_base_url: str = "https://investing-cryptocurrency-markets.p.rapidapi.com"
-
-    # DailyFX
-    dailyfx_api_key: str = Field(default="", description="DailyFX API key")
-    dailyfx_base_url: str = "https://api.dailyfx.com"
-
-    # Reuters
-    reuters_api_key: str = Field(default="", description="Reuters API key")
-    reuters_base_url: str = "https://api.reuters.com/v2"
-
-    # Forex Factory
-    forex_factory_api_key: str = Field(default="", description="Forex Factory API key")
-    forex_factory_base_url: str = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+    # FRED (Federal Reserve Economic Data) — US-only backup
+    fred_api_key: str = Field(default="", description="FRED (St. Louis Fed) API key")
+    fred_base_url: str = "https://api.stlouisfed.org/fred"
 
     # ── RSS Feed URLs — Central Banks ────────────────────────
     fed_rss_url: str = "https://www.federalreserve.gov/feeds/press_all.xml"
@@ -147,7 +135,7 @@ class Settings(BaseSettings):
             required_keys = {
                 "newsapi_api_key": self.newsapi_api_key,
                 "twelvedata_api_key": self.twelvedata_api_key,
-                "yahoo_finance_api_key": self.yahoo_finance_api_key,
+                "tradingeconomics_api_key": self.tradingeconomics_api_key,
             }
             missing = [k for k, v in required_keys.items() if not v]
             if missing:
