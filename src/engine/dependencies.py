@@ -71,7 +71,7 @@ class Container:
         h = self.http_client
         r = self.rss_parser
 
-        # ── Central Bank RSS (official feeds — unchanged) ────────
+        # ── Central Bank RSS (official feeds) ────────
         self.fed_provider = FedRSSProvider(r, feed_url=s.fed_rss_url)
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
@@ -79,7 +79,7 @@ class Container:
         for p in (self.fed_provider, self.ecb_provider, self.boe_provider, self.boj_provider):
             self.registry.register(p)
 
-        # ── COT — CFTC (only official source — unchanged) ───────
+        # ── COT — CFTC (only official source) ───────
         self.cftc_provider = CFTCProvider(h, base_url=s.cftc_api_base_url)
         self.registry.register(self.cftc_provider)
 
