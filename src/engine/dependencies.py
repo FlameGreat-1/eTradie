@@ -6,6 +6,10 @@ from engine.shared.db import DatabaseManager
 from engine.shared.http import HttpClient
 from engine.shared.rss import RSSParser
 from engine.shared.scheduler import SchedulerManager
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MACRO IMPORTS
+# ══════════════════════════════════════════════════════════════════════════════
 from engine.macro.collectors.calendar.collector import CalendarCollector
 from engine.macro.collectors.central_bank.collector import CentralBankCollector
 from engine.macro.collectors.cot.collector import COTCollector
@@ -29,6 +33,62 @@ from engine.macro.providers.news.newsapi import NewsAPIProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.trading_economics import TradingEconomicsSentimentProvider
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TA IMPORTS
+# ══════════════════════════════════════════════════════════════════════════════
+from engine.ta.broker.mt5.client import MT5Client
+from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.twelve_data.client import TwelveDataBrokerClient
+from engine.ta.broker.twelve_data.config import TwelveDataBrokerConfig
+from engine.ta.broker.registry import BrokerRegistry
+from engine.ta.common.analyzers.candles import CandleAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
+from engine.ta.common.analyzers.compression import CompressionAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
+from engine.ta.common.services.snapshot.builder import SnapshotBuilder
+from engine.ta.common.services.alignment.service import AlignmentService
+from engine.ta.common.timeframe.manager import TimeframeManager
+from engine.ta.smc.config import SMCConfig
+from engine.ta.smc.detector import SMCDetector
+from engine.ta.smc.detectors.bms import BMSDetector
+from engine.ta.smc.detectors.sms import SMSDetector
+from engine.ta.smc.detectors.choch import CHOCHDetector
+from engine.ta.smc.detectors.inducement import InducementDetector
+from engine.ta.smc.detectors.turtle_soup import TurtleSoupDetector
+from engine.ta.smc.detectors.amd import AMDDetector
+from engine.ta.smc.zones.order_block import OrderBlockDetector
+from engine.ta.smc.zones.fvg import FVGDetector
+from engine.ta.smc.zones.breaker import BreakerBlockDetector
+from engine.ta.smc.zones.mitigation import MitigationBlockDetector
+from engine.ta.smc.validators.zone.validator import ZoneValidator
+from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator as SMCLTFValidator
+from engine.ta.smc.builders.reversal import ReversalCandidateBuilder
+from engine.ta.smc.builders.continuation import ContinuationCandidateBuilder
+from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
+from engine.ta.snd.config import SnDConfig
+from engine.ta.snd.detector import SnDDetector
+from engine.ta.snd.detectors.qm import QMDetector
+from engine.ta.snd.detectors.sr_flip import SRFlipDetector
+from engine.ta.snd.detectors.rs_flip import RSFlipDetector
+from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
+from engine.ta.snd.detectors.mpl import MPLDetector
+from engine.ta.snd.detectors.fakeouts import FakeoutDetector
+from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
+from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator as SnDLTFValidator
+from engine.ta.snd.builders.candidates.fakeout import FakeoutCandidateBuilder
+from engine.ta.snd.builders.candidates.qm import QMCandidateBuilder
+from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder as SnDContinuationBuilder
+from engine.ta.storage.repositories.candle import CandleRepository
+from engine.ta.storage.repositories.snapshot import SnapshotRepository
+from engine.ta.storage.repositories.candidate import CandidateRepository
+from engine.ta.orchestrator import TAOrchestrator
 
 
 class Container:
@@ -65,13 +125,21 @@ class Container:
         self.registry = ProviderRegistry()
         self._build_providers()
         self._build_collectors()
+        
+        self._build_ta_configs()
+        self._build_ta_brokers()
+        self._build_ta_repositories()
+        self._build_ta_analyzers()
+        self._build_ta_services()
+        self._build_smc_framework()
+        self._build_snd_framework()
+        self._build_ta_orchestrator()
 
     def _build_providers(self) -> None:
         s = self.settings
         h = self.http_client
         r = self.rss_parser
 
-        # ── Central Bank RSS (official feeds) ────────
         self.fed_provider = FedRSSProvider(r, feed_url=s.fed_rss_url)
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
@@ -79,11 +147,9 @@ class Container:
         for p in (self.fed_provider, self.ecb_provider, self.boe_provider, self.boj_provider):
             self.registry.register(p)
 
-        # ── COT — CFTC (only official source) ───────
         self.cftc_provider = CFTCProvider(h, base_url=s.cftc_api_base_url)
         self.registry.register(self.cftc_provider)
 
-        # ── Economic Data — TradingEconomics (primary) + FRED (US backup) ──
         self.te_econ_provider = TradingEconomicsEconomicProvider(
             h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
         )
@@ -93,7 +159,6 @@ class Container:
         for p in (self.te_econ_provider, self.fred_provider):
             self.registry.register(p)
 
-        # ── Market Data — TwelveData (primary) + TradingEconomics (backup) ──
         self.twelve_data_provider = TwelveDataProvider(
             h, base_url=s.twelvedata_base_url, api_key=s.twelvedata_api_key,
         )
@@ -103,20 +168,17 @@ class Container:
         for p in (self.twelve_data_provider, self.te_market_provider):
             self.registry.register(p)
 
-        # ── Calendar — TradingEconomics (single source, institutional-grade) ──
         self.te_cal_provider = TradingEconomicsCalendarProvider(
             h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
         )
         self.registry.register(self.te_cal_provider)
 
-        # ── News — NewsAPI (primary) + Reuters/Bloomberg RSS (backup) ──
         self.newsapi_provider = NewsAPIProvider(h, base_url=s.newsapi_base_url, api_key=s.newsapi_api_key)
         self.reuters_rss_provider = ReutersRSSProvider(r, feed_url=s.reuters_rss_url)
         self.bloomberg_rss_provider = BloombergRSSProvider(r, feed_url=s.bloomberg_rss_url)
         for p in (self.newsapi_provider, self.reuters_rss_provider, self.bloomberg_rss_provider):
             self.registry.register(p)
 
-        # ── Sentiment — TradingEconomics (confidence indicators) ──
         self.te_sentiment_provider = TradingEconomicsSentimentProvider(
             h, base_url=s.tradingeconomics_base_url, api_key=s.tradingeconomics_api_key,
         )
@@ -161,8 +223,151 @@ class Container:
         self.sentiment_collector = SentimentCollector([self.te_sentiment_provider], c, d)
         self.sentiment_collector.cache_ttl = s.cache_ttl_sentiment
 
+    def _build_ta_configs(self) -> None:
+        self.smc_config = SMCConfig()
+        self.snd_config = SnDConfig()
+
+    def _build_ta_brokers(self) -> None:
+        s = self.settings
+        
+        mt5_config = MT5Config(
+            server=s.mt5_server,
+            login=s.mt5_login,
+            password=s.mt5_password,
+            timeout=s.mt5_timeout,
+        )
+        self.mt5_client = MT5Client(mt5_config)
+        
+        twelve_config = TwelveDataBrokerConfig(
+            api_key=s.twelvedata_api_key,
+            base_url=s.twelvedata_base_url,
+        )
+        self.twelve_broker_client = TwelveDataBrokerClient(twelve_config, self.http_client)
+        
+        self.broker_registry = BrokerRegistry()
+        self.broker_registry.register("mt5", self.mt5_client)
+        self.broker_registry.register("twelvedata", self.twelve_broker_client)
+
+    def _build_ta_repositories(self) -> None:
+        self.candle_repository_factory = lambda session: CandleRepository(session)
+        self.snapshot_repository_factory = lambda session: SnapshotRepository(session)
+        self.candidate_repository_factory = lambda session: CandidateRepository(session)
+
+    def _build_ta_analyzers(self) -> None:
+        self.candle_analyzer = CandleAnalyzer()
+        self.swing_analyzer = SwingAnalyzer()
+        self.fibonacci_analyzer = FibonacciAnalyzer()
+        self.marubozu_analyzer = MarubozuAnalyzer()
+        self.compression_analyzer = CompressionAnalyzer()
+        self.liquidity_analyzer = LiquidityAnalyzer()
+        self.sweep_analyzer = SweepAnalyzer()
+        self.session_analyzer = SessionAnalyzer()
+        self.dealing_range_analyzer = DealingRangeAnalyzer()
+
+    def _build_ta_services(self) -> None:
+        self.timeframe_manager = TimeframeManager()
+        self.snapshot_builder = SnapshotBuilder(
+            swing_analyzer=self.swing_analyzer,
+            liquidity_analyzer=self.liquidity_analyzer,
+            fibonacci_analyzer=self.fibonacci_analyzer,
+        )
+        self.alignment_service = AlignmentService(timeframe_manager=self.timeframe_manager)
+
+    def _build_smc_framework(self) -> None:
+        self.bms_detector = BMSDetector(self.smc_config)
+        self.sms_detector = SMSDetector(self.smc_config)
+        self.choch_detector = CHOCHDetector(self.smc_config)
+        self.inducement_detector = InducementDetector(self.smc_config)
+        self.turtle_soup_detector = TurtleSoupDetector(self.smc_config)
+        self.amd_detector = AMDDetector(self.smc_config, self.session_analyzer, self.dealing_range_analyzer)
+        
+        self.order_block_detector = OrderBlockDetector(self.smc_config)
+        self.fvg_detector = FVGDetector(self.smc_config)
+        self.breaker_detector = BreakerBlockDetector(self.smc_config)
+        self.mitigation_detector = MitigationBlockDetector(self.smc_config)
+        
+        self.zone_validator = ZoneValidator(self.smc_config, self.fibonacci_analyzer)
+        self.smc_ltf_validator = SMCLTFValidator(self.smc_config, self.compression_analyzer, self.fibonacci_analyzer)
+        
+        self.reversal_builder = ReversalCandidateBuilder(
+            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
+        )
+        self.continuation_builder = ContinuationCandidateBuilder(
+            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
+        )
+        self.amd_builder = AMDCandidateBuilder(
+            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
+        )
+        
+        self.smc_detector = SMCDetector(
+            config=self.smc_config,
+            candle_analyzer=self.candle_analyzer,
+            swing_analyzer=self.swing_analyzer,
+            bms_detector=self.bms_detector,
+            sms_detector=self.sms_detector,
+            choch_detector=self.choch_detector,
+            inducement_detector=self.inducement_detector,
+            turtle_soup_detector=self.turtle_soup_detector,
+            amd_detector=self.amd_detector,
+            ob_detector=self.order_block_detector,
+            fvg_detector=self.fvg_detector,
+            breaker_detector=self.breaker_detector,
+            mitigation_detector=self.mitigation_detector,
+            fibonacci_analyzer=self.fibonacci_analyzer,
+            reversal_builder=self.reversal_builder,
+            continuation_builder=self.continuation_builder,
+            amd_builder=self.amd_builder,
+        )
+
+    def _build_snd_framework(self) -> None:
+        self.qm_detector = QMDetector(self.snd_config)
+        self.sr_flip_detector = SRFlipDetector(self.snd_config, self.marubozu_analyzer)
+        self.rs_flip_detector = RSFlipDetector(self.snd_config, self.marubozu_analyzer)
+        self.previous_level_detector = PreviousLevelDetector(self.snd_config)
+        self.mpl_detector = MPLDetector(self.snd_config)
+        self.fakeout_detector = FakeoutDetector(self.snd_config, self.compression_analyzer, self.marubozu_analyzer)
+        self.supply_demand_detector = SupplyDemandDetector(self.snd_config)
+        
+        self.marubozu_validator = MarubozuValidator(self.snd_config, self.marubozu_analyzer)
+        self.snd_ltf_validator = SnDLTFValidator(self.snd_config, self.compression_analyzer, self.fibonacci_analyzer)
+        
+        self.fakeout_builder = FakeoutCandidateBuilder(
+            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
+        )
+        self.qm_builder = QMCandidateBuilder(
+            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
+        )
+        self.snd_continuation_builder = SnDContinuationBuilder(
+            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
+        )
+        
+        self.snd_detector = SnDDetector(
+            config=self.snd_config,
+            candle_analyzer=self.candle_analyzer,
+            swing_analyzer=self.swing_analyzer,
+            marubozu_analyzer=self.marubozu_analyzer,
+            compression_analyzer=self.compression_analyzer,
+            fibonacci_analyzer=self.fibonacci_analyzer,
+        )
+
+    def _build_ta_orchestrator(self) -> None:
+        self.ta_orchestrator = TAOrchestrator(
+            broker_client=self.mt5_client,
+            candle_repository=None,
+            snapshot_repository=None,
+            candidate_repository=None,
+            smc_detector=self.smc_detector,
+            snd_detector=self.snd_detector,
+            snapshot_builder=self.snapshot_builder,
+            candle_analyzer=self.candle_analyzer,
+            swing_analyzer=self.swing_analyzer,
+            fibonacci_analyzer=self.fibonacci_analyzer,
+        )
+
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
+        if hasattr(self, 'mt5_client'):
+            await self.mt5_client.disconnect()
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()
