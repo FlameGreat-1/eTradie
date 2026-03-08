@@ -1,0 +1,218 @@
+# FORVIL COMPLETE TRADING SYSTEM — MASTER REFERENCE
+
+---
+
+## SELL PATTERNS
+
+---
+
+**Pattern 1 — QML + SR Flip + Fakeout (Standard Baseline)**
+
+QM structure forms (H → HH → break of H level = QML established) → Single bearish Marubozu breaks previous Support → SR Flip zone created → Price retraces up to SR Flip zone → Fakeout forms at zone (R1, R2, or R3) → Single bullish Marubozu breaks the fakeout upward → Price reaches QML → SELL inside Supply zone between SR Flip level and QML
+
+---
+
+**Pattern 2 — QML + MPL + SR Flip + Fakeout**
+
+QM structure forms → MPL (Mini Price Level — small internal engulfing structure) forms near the QML during the HH move → Single bearish Marubozu breaks Support creating SR Flip zone → Fakeout forms at SR Flip zone → Single bullish Marubozu breaks fakeout → Price reaches QML/MPL confluence zone → SELL inside Supply zone
+
+---
+
+**Pattern 3 — QML + Previous Highs + MPL + SR Flip + Fakeout — Type 1 (90% Setup)**
+
+Previous Highs (minimum 2 R's clustered at same level — also called Previous Fakeouts) exist at the SAME level as QML acting as Left Shoulder → MPL forms during HH move with internal engulfing structure (circled) → Single bearish Marubozu breaks Support → SR Flip zone created → Fakeouts form (R1 through R4) → Diamond Fakeout (Fake QM) may appear near end as exhaustion warning → Single bullish Marubozu breaks fakeout → Price hits QML which aligns with Previous Highs → SELL inside Supply zone
+
+---
+
+**Pattern 4 — QML + Previous Highs + SR Flip + Fakeout — Type 2**
+
+Identical to Pattern 3 except MPL breaks cleanly without forming an internal engulfing structure — no MPL circle, just a clean break from the level → Previous Highs (2+ R's) at QML → SR Flip + Fakeouts (R1 through R4) → Diamond Fakeout may appear → Single bullish Marubozu breaks fakeout → SELL inside Supply zone at QML
+
+---
+
+**Pattern 5 — QML + Triple Fakeout (Highest Confluence Sell)**
+
+Three separate layers of resistance all pointing to the same QML:
+
+- Layer 1 (First Fakeouts) = Previous Highs cluster (2+ R's) acting as Left Shoulder at QML level
+- Layer 2 (Second Fakeouts) = Additional resistance cluster at a separate level below QML, with MPL forming during HH
+- Layer 3 (Third Fakeouts) = SR Flip zone fakeouts (R1, R2) after the Clean Breakout Marubozu
+
+→ Diamond Fakeout forms near end → Single bullish Marubozu breaks the third fakeout layer → Price rallies to QML → SELL inside Supply zone. This is the highest confluence setup in the entire system.
+
+---
+
+**Pattern 6 — Fakeout King**
+
+Previous Highs (3 or more R's clustered) exist but sit LOWER than the QML — this is NOT a normal QM setup, Previous Highs do not need to align with QML here → MPL forms just above the SR Flip zone → Single bearish Marubozu breaks Support → SR Flip fakeouts form (R1 through R4) → Diamond Fakeout appears as exhaustion warning → Single bullish Marubozu breaks fakeout → Price hits QML → SELL inside Supply zone
+
+---
+
+**Pattern 7 — Previous Highs + Supply Zone + Fakeout (S.O.P Setup)**
+
+The 3-step Standard Operating Procedure — must be executed in this exact order:
+
+- Step 1: Identify Previous Highs on higher TF — must be MORE than one high clustered at the same SR Flip level (single high does not qualify)
+- Step 2: Confirm in-line Fakeouts visible at the SR Flip zone on lower TF
+- Step 3: Wait for single bullish Marubozu to break the fakeouts → this is the signal → Price returns up into Supply zone which aligns with Previous Highs → SELL triggered inside Supply zone
+
+---
+
+## BUY PATTERNS
+
+All Buy patterns are the exact mirror of Sell patterns using RS Flip (old resistance becomes support), Previous Lows instead of Previous Highs, and QML sitting below price as the target.
+
+---
+
+**Pattern 8 — QML + RS Flip + Fakeout (Standard Baseline)**
+
+QM structure forms to downside → Single bullish Marubozu breaks previous Resistance → RS Flip zone created → Price retraces down to RS Flip zone → Fakeout forms at zone (S1, S2, or S3) → Single bearish Marubozu breaks fakeout downward → Price reaches QML below → BUY inside Demand zone between RS Flip level and QML
+
+---
+
+**Pattern 9 — QML + MPL + RS Flip + Fakeout**
+
+QM structure forms to downside → MPL forms near QML during the LL move → Single bullish Marubozu breaks Resistance creating RS Flip zone → Fakeout forms at RS Flip zone → Single bearish Marubozu breaks fakeout → Price reaches QML/MPL confluence zone below → BUY inside Demand zone
+
+---
+
+**Pattern 10 — QML + Previous Lows + MPL + RS Flip + Fakeout — Type 1 (90% Setup)**
+
+Previous Lows (minimum 2 S's clustered at same level) exist at the SAME level as QML acting as Left Shoulder → MPL forms during LL move with internal structure → Single bullish Marubozu breaks Resistance → RS Flip zone created → Fakeouts form (S1 through S4) → Diamond Fakeout may appear near end → Single bearish Marubozu breaks fakeout → Price hits QML which aligns with Previous Lows → BUY inside Demand zone
+
+---
+
+**Pattern 11 — QML + Previous Lows + RS Flip + Fakeout — Type 2**
+
+Identical to Pattern 10 except MPL breaks cleanly without internal structure → Previous Lows (2+ S's) at QML → RS Flip + Fakeouts → Diamond Fakeout may appear → Single bearish Marubozu breaks fakeout → BUY inside Demand zone at QML
+
+---
+
+**Pattern 12 — QML + Triple Fakeout Buy (Highest Confluence Buy)**
+
+Three separate layers of support all pointing to the same QML:
+
+- Layer 1 (First Fakeouts) = Previous Lows cluster (2+ S's) at QML level
+- Layer 2 (Second Fakeouts) = Additional support cluster at separate level above QML with MPL
+- Layer 3 (Third Fakeouts) = RS Flip zone fakeouts (S1, S2) after Clean Breakout Marubozu
+
+→ Diamond Fakeout forms near end → Single bearish Marubozu breaks the third fakeout layer → Price drops to QML → BUY inside Demand zone
+
+---
+
+**Pattern 13 — Fakeout King Buy**
+
+Previous Lows (3+ S's) exist but sit HIGHER than QML → MPL forms just below RS Flip zone → Single bullish Marubozu breaks Resistance → RS Flip fakeouts form (S1 through S4) → Diamond Fakeout appears → Single bearish Marubozu breaks fakeout → Price hits QML below → BUY inside Demand zone
+
+---
+
+**Pattern 14 — Previous Lows + Demand Zone + Fakeout (S.O.P Buy)**
+
+- Step 1: Previous Lows on higher TF — must be MORE than one low at same RS Flip level
+- Step 2: Confirm in-line Fakeouts at RS Flip zone on lower TF
+- Step 3: Single bearish Marubozu breaks fakeouts → Price drops into Demand zone aligning with Previous Lows → BUY inside Demand zone
+
+---
+
+## UNIVERSAL RULES — APPLY TO EVERY SINGLE PATTERN
+
+**Rule 1 — Marubozu is Non-Negotiable**
+Every breakout of Support or Resistance must be executed by ONE single Marubozu candle — full body, no or minimal wicks. No Marubozu = no valid SR/RS Flip = no valid setup. This applies to the initial Clean Breakout AND to the Marubozu that breaks the fakeout zone.
+
+**Rule 2 — Previous Highs/Lows Minimum Requirement**
+Previous Highs (sell) or Previous Lows (buy) must be a minimum of 2 clustered touches at the same level. A single previous high or low does NOT qualify. These are also called Previous Fakeouts and normally sit at the same QML level.
+
+**Rule 3 — Entry is a Zone, Not a Line**
+The entry is never at a single price line. The SELL entry is inside the Supply zone sitting between the SR Flip level (bottom of zone) and the QML (top of zone). The BUY entry is inside the Demand zone between the RS Flip level (top of zone) and the QML (bottom of zone).
+
+**Rule 4 — Top-Down Timeframe Execution (Mandatory)**
+Higher TF (H4/D1): Identify QM structure, QML, Previous Highs/Lows → Mid TF (H1/M30): Confirm SR/RS Flip zone and fakeout formation → Lower TF (M15/M5): Confirm Compression inside fakeout zone → Lowest TF (M1): Find the Decision Point — the exact candle where price makes its final rejection — this is the entry trigger.
+
+**Rule 5 — Compression Adds Conviction**
+When price forms a Compression (CP) inside the fakeout zone — tightening structure with higher lows converging toward resistance — it signals the Marubozu breakout of the fakeout is imminent. Compression inside fakeout = higher probability that the setup will deliver.
+
+**Rule 6 — Diamond Fakeout is an Exhaustion Warning**
+When a Diamond Fakeout (Fake QM — looks like a QM structure but is not) appears at the fakeout zone near the end of a long trend, it warns that the move may be exhausting. Do not trade the Diamond Fakeout as a QM. It is a signal to tighten management if already in a trade.
+
+**Rule 7 — Fakeout Broken by Marubozu = Entry Imminent**
+When you see a Marubozu break through the fakeout zone, that is your signal that the tradable Supply/Demand zone and QML are directly ahead. This is the moment to be ready — not after price is already inside the zone.
+
+**Rule 8 — Multiple Fakeout Tests = Trend Strength**
+Repeated tests of the same SR/RS Flip zone (R2, R3, R4 / S2, S3, S4) confirm the trend is intact and the zone is holding. The more tests without breaking through, the stronger the zone. Only the Diamond Fakeout at end of trend warns of potential exhaustion.
+
+**Rule 9 — Fibonacci Confluence (90% Probability Add-On)**
+Draw Fibonacci retracement from the most recent swing Low to swing High (sells) or swing High to swing Low (buys). If the 50%, 61.8%, 70.5% or 79% retracement level aligns exactly with the identified Supply/Demand zone (QML, MPL, SR Flip level) — this adds a critical extra confluence to any pattern above and pushes the setup to 90% high probability. Fibonacci alone is meaningless in this system — it only counts when it lands precisely on an already valid zone.
+
+---
+
+## PATTERN RANKING BY PROBABILITY
+
+1. Triple Fakeout (Patterns 5 / 12) — 3 layers of confluence pointing to same QML
+2. Previous Highs/Lows + QML + SR/RS Flip + Fakeout Type 1 (Patterns 3 / 10) — 90% reward bias, labeled Killer Setup
+3. Fakeout King (Patterns 6 / 13) — Previous Highs/Lows below/above QML
+4. QML + MPL + SR/RS Flip + Fakeout (Patterns 2 / 9)
+5. QML + SR/RS Flip + Fakeout (Patterns 1 / 8) — standard baseline, minimum requirement
+
+---
+
+## DEALING RANGE — CORE FRAMEWORK
+
+A Dealing Range is a confined trading region between two points on a chart showing external and internal range liquidity. Everything inside is navigated by these rules:
+
+- Price moves from Premium to Discount and from BSL to SSL — constantly cycling
+- Focus on the LEFT-HAND SIDE of the chart to identify liquidity sources within the range
+- SELL only at Premium price of the range → BUY only at Discount price of the range
+- AVOID equilibrium pricing (the 50% midpoint) — no entries there under any circumstance
+- Use Order Blocks and mean thresholds to identify entry and exit points within the range
+- After a liquidity grab at the upper or lower range extreme → look for reversal entries at premium/discount zones
+- If an OB is left behind with an FVG and a clean BOS or CHoCH → extra confluence to execute with confidence
+- Price always seeks external and internal liquidity around the upper and lower region of the range
+- Only execute AFTER a liquidity sweep at the range extremes — never before the sweep
+
+---
+
+## PREMIUM & DISCOUNT — MANDATORY FILTER
+
+Draw Fibonacci from swing high to swing low (sells) or swing low to swing high (buys):
+- 0% to 50% = DISCOUNT zone (buy zone only)
+- 50% to 100% = PREMIUM zone (sell zone only)
+- Entry points specifically at 61%, 70.5% and 79% Fibonacci levels (OTE)
+- Any Supply or Demand zone (QML, MPL, SR/RS Flip level) you choose to trade MUST be located at Premium (sells) or Discount (buys) — never at equilibrium
+- If the QML sits at the 50% equilibrium midpoint — skip the trade
+- Target: previous low or next liquidity draw on liquidity
+
+---
+
+## ADDITIONAL MARKET STRUCTURE RULES
+
+- Cannot assume break of bearish structure until a LOWER HIGH has clearly been broken
+- Cannot assume break of bullish structure until a HIGHER LOW has clearly been broken
+- A liquidity grab = candle that fails to close substantially above/below the level (mostly a wick) — this is NOT a break and does NOT create a valid SR/RS Flip
+- A real break = substantial close above or below the level (in ForViL this is the single Marubozu candle)
+- If price is not making HH+HL or LH+LL — it is ranging, no directional bias, no trade
+- Never guess a trend change until structure confirms it
+- Always ask before entering: Where is price coming from? Where is it heading to?
+
+---
+
+## PRICE RUNS FROM LIQUIDITY TO LIQUIDITY — TARGETING RULE
+
+Price runs from liquidity to liquidity on every timeframe without exception. Once BSL is cleared → price reverses seeking SSL. Once SSL is cleared → price reverses seeking BSL. The cycle repeats endlessly. After entering at the QML or Supply/Demand zone — always target the next draw on liquidity as your take profit. Never guess the target — identify the next BSL or SSL pool and that is where price is heading.
+
+---
+
+## ENTRY CONFIRMATION — LTF (M15/M5/M1)
+
+After identifying the full pattern on HTF (H4/H1) and confirming the SR/RS Flip zone and fakeout on mid TF (M30/H1) — drop to M15/M5/M1 and wait for ALL of the following:
+
+**Confirmation 1 — Compression at the Zone**
+Price must show Compression (CP) inside the SR/RS Flip zone — small, tight, directional candles collecting orders. This confirms price is stalling at the zone and building for the next move.
+
+**Confirmation 2 — Fakeout Broken by Marubozu**
+A single Marubozu candle must break through the fakeout zone. This is the signal that the Supply/Demand zone (QML) is directly ahead. Be ready — do not wait until price is already inside the zone.
+
+**Confirmation 3 — The Decision Point**
+On M15/M5/M1, identify the exact candle where price makes its final rejection at the SR/RS Flip level — this is the Decision Point. It is the specific candle where price touches the internal support/resistance of the fakeout and rejects. This is the entry trigger — the moment the Decision Point candle closes, you enter.
+
+**Confirmation 4 — Fibonacci Alignment (Optional but High Probability)**
+If the 50%, 61.8%, 70.5% or 79% Fibonacci level aligns with the zone at this LTF — this is the highest probability entry. Do not force it but when it appears treat it as the strongest possible confirmation.

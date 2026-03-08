@@ -1,21 +1,19 @@
-"""Currency and currency-pair domain models.
 
-Defines every tradeable currency and their correlation groups so that
-the system can enforce correlated-pair exposure rules and assess
-macro bias per currency independently.
-"""
+# shared/models/currency.py
 
 from __future__ import annotations
 
 from enum import StrEnum
+from threading import Lock
+from typing import ClassVar
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
+from engine.shared.exceptions import ConfigurationError
 from engine.shared.models.base import FrozenModel
 
 
 class Currency(StrEnum):
-    """ISO 4217 currencies supported by the system."""
 
     USD = "USD"
     EUR = "EUR"
@@ -25,17 +23,23 @@ class Currency(StrEnum):
     AUD = "AUD"
     CAD = "CAD"
     NZD = "NZD"
-    # Metals (treated as currencies for pairing purposes)
     XAU = "XAU"
     XAG = "XAG"
 
 
 class CurrencyPair(FrozenModel):
-    """A tradeable currency pair with base/quote decomposition."""
 
-    symbol: str = Field(description="Full symbol, e.g. EURUSD")
-    base: Currency = Field(description="Base currency")
-    quote: Currency = Field(description="Quote currency")
+    symbol: str = Field(min_length=6, max_length=7)
+    base: Currency
+    quote: Currency
+
+    @field_validator("symbol")
+    @classmethod
+    def validate_symbol(cls, v: str) -> str:
+        normalized = v.upper().replace("/", "").replace("_", "")
+        if len(normalized) not in (6, 7):
+            raise ValueError(f"Invalid currency pair symbol: {v}")
+        return normalized
 
     @property
     def involves_usd(self) -> bool:
@@ -43,12 +47,10 @@ class CurrencyPair(FrozenModel):
 
     @property
     def is_usd_base(self) -> bool:
-        """USD is the base (e.g. USD/JPY) — bullish DXY = bullish pair."""
         return self.base == Currency.USD
 
     @property
     def is_usd_quote(self) -> bool:
-        """USD is the quote (e.g. EUR/USD) — bullish DXY = bearish pair."""
         return self.quote == Currency.USD
 
     @property
@@ -57,11 +59,6 @@ class CurrencyPair(FrozenModel):
 
     @property
     def correlation_group(self) -> str:
-        """Returns the correlation group for exposure checks.
-
-        Pairs that share the same USD-side direction belong to the same
-        group.  Max 1 trade per group.
-        """
         if self.is_usd_base:
             return "USD_BASE"
         if self.is_usd_quote:
@@ -71,40 +68,80 @@ class CurrencyPair(FrozenModel):
         return f"CROSS_{self.base}_{self.quote}"
 
 
-# ── Convenience factory ──────────────────────────────────────
-
 _PAIR_REGISTRY: dict[str, CurrencyPair] = {}
+_PAIR_LOCK: Lock = Lock()
 
 
 def parse_pair(symbol: str) -> CurrencyPair:
-    """Parse a 6-char symbol into a ``CurrencyPair``.
+    normalized = symbol.upper().replace("/", "").replace("_", "")
+    
+    with _PAIR_LOCK:
+        if normalized in _PAIR_REGISTRY:
+            return _PAIR_REGISTRY[normalized]
+        
+        if len(normalized) == 6:
+            base_str, quote_str = normalized[:3], normalized[3:]
+        elif len(normalized) == 7 and normalized.startswith("XAU"):
+            base_str, quote_str = normalized[:3], normalized[3:]
+        elif len(normalized) == 7 and normalized.startswith("XAG"):
+            base_str, quote_str = normalized[:3], normalized[3:]
+        else:
+            raise ConfigurationError(
+                f"Cannot parse currency pair from symbol: {symbol}",
+                details={"symbol": symbol, "normalized": normalized},
+            )
+        
+        try:
+            pair = CurrencyPair(
+                symbol=normalized,
+                base=Currency(base_str),
+                quote=Currency(quote_str),
+            )
+        except ValueError as e:
+            raise ConfigurationError(
+                f"Invalid currency in pair {symbol}: {e}",
+                details={"symbol": symbol, "base": base_str, "quote": quote_str},
+            ) from e
+        
+        _PAIR_REGISTRY[normalized] = pair
+        return pair
 
-    Caches instances to avoid repeated object creation.
-    """
-    symbol = symbol.upper().replace("/", "")
-    if symbol in _PAIR_REGISTRY:
-        return _PAIR_REGISTRY[symbol]
 
-    # Handle 6-char FX pairs and XAU/XAG (also 6 chars: XAUUSD)
-    if len(symbol) == 6:
-        base_str, quote_str = symbol[:3], symbol[3:]
-    else:
-        msg = f"Cannot parse currency pair from symbol: {symbol}"
-        raise ValueError(msg)
-
-    pair = CurrencyPair(
-        symbol=symbol,
-        base=Currency(base_str),
-        quote=Currency(quote_str),
+class CorrelationConfig(FrozenModel):
+    
+    groups: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "USD_QUOTE": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"],
+            "USD_BASE": ["USDJPY", "USDCHF", "USDCAD"],
+            "METALS": ["XAUUSD", "XAGUSD"],
+        }
     )
-    _PAIR_REGISTRY[symbol] = pair
-    return pair
+    
+    max_trades_per_group: int = Field(default=1, ge=1)
+    
+    def get_group(self, symbol: str) -> str | None:
+        normalized = symbol.upper().replace("/", "")
+        for group_name, symbols in self.groups.items():
+            if normalized in symbols:
+                return group_name
+        return None
 
 
-# ── Correlation Groups ───────────────────────────────────────
+_correlation_config: CorrelationConfig | None = None
+_config_lock: Lock = Lock()
 
-CORRELATED_GROUPS: dict[str, list[str]] = {
-    "USD_QUOTE": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"],
-    "USD_BASE": ["USDJPY", "USDCHF", "USDCAD"],
-    "METALS": ["XAUUSD", "XAGUSD"],
-}
+
+def get_correlation_config() -> CorrelationConfig:
+    global _correlation_config
+    
+    with _config_lock:
+        if _correlation_config is None:
+            _correlation_config = CorrelationConfig()
+        return _correlation_config
+
+
+def set_correlation_config(config: CorrelationConfig) -> None:
+    global _correlation_config
+    
+    with _config_lock:
+        _correlation_config = config

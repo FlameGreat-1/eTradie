@@ -1,20 +1,9 @@
-"""Shared exception hierarchy for the eTradie engine.
-
-Every custom exception derives from ``ETradieBaseError`` so that top-level
-handlers can catch the entire tree with a single ``except`` clause while
-still allowing granular handling per category.
-
-Exceptions carry structured context (``details`` dict) that is safe to log
-but never exposed to external callers without sanitisation.
-"""
-
 from __future__ import annotations
 
 from typing import Any
 
 
 class ETradieBaseError(Exception):
-    """Root exception for all eTradie engine errors."""
 
     def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
         super().__init__(message)
@@ -26,79 +15,125 @@ class ETradieBaseError(Exception):
         return f"{cls}(message={self.message!r}, details={self.details!r})"
 
 
-# ── Configuration ────────────────────────────────────────────
-
-
 class ConfigurationError(ETradieBaseError):
-    """Invalid or missing configuration."""
-
-
-# ── Provider layer ───────────────────────────────────────────
+    pass
 
 
 class ProviderError(ETradieBaseError):
-    """Base class for all provider (external API) errors."""
+    pass
 
 
 class ProviderTimeoutError(ProviderError):
-    """An external API call exceeded its timeout deadline."""
+    pass
 
 
 class ProviderRateLimitError(ProviderError):
-    """An external API returned a rate-limit (HTTP 429) response."""
+    pass
 
 
 class ProviderAuthenticationError(ProviderError):
-    """An external API rejected the supplied credentials."""
+    pass
 
 
 class ProviderUnavailableError(ProviderError):
-    """An external API is unreachable or returns 5xx errors."""
+    pass
 
 
 class ProviderResponseError(ProviderError):
-    """An external API returned a parseable but semantically invalid response."""
+    pass
 
 
-# ── Collector layer ──────────────────────────────────────────
+class ProviderValidationError(ProviderError):
+    pass
 
 
 class CollectorError(ETradieBaseError):
-    """Base class for data collection errors."""
+    pass
 
 
 class CollectorAllProvidersFailedError(CollectorError):
-    """Every provider in a collector's pool returned an error."""
-
-
-# ── Processor layer ──────────────────────────────────────────
+    pass
 
 
 class ProcessorError(ETradieBaseError):
-    """Base class for data processing / analysis errors."""
+    pass
 
 
 class ProcessorInsufficientDataError(ProcessorError):
-    """Not enough data available to produce a meaningful analysis."""
-
-
-# ── Storage layer ────────────────────────────────────────────
+    pass
 
 
 class StorageError(ETradieBaseError):
-    """Base class for database / cache persistence errors."""
+    pass
 
 
 class StorageConnectionError(StorageError):
-    """Could not connect to the backing store."""
+    pass
 
 
 class StorageIntegrityError(StorageError):
-    """A write violated a database constraint (unique, FK, etc.)."""
-
-
-# ── Pipeline layer ───────────────────────────────────────────
+    pass
 
 
 class PipelineError(ETradieBaseError):
-    """An error during pipeline orchestration."""
+    pass
+
+
+class DatabaseError(ETradieBaseError):
+    pass
+
+
+class DatabaseConnectionError(DatabaseError):
+    pass
+
+
+class DatabaseIntegrityError(DatabaseError):
+    pass
+
+
+class DatabaseOperationalError(DatabaseError):
+    pass
+
+
+class DatabaseTimeoutError(DatabaseError):
+    pass
+
+
+class RepositoryError(ETradieBaseError):
+    pass
+
+
+class CacheError(ETradieBaseError):
+    pass
+
+
+class CacheConnectionError(CacheError):
+    pass
+
+
+class CacheTimeoutError(CacheError):
+    pass
+
+
+class CacheValidationError(CacheError):
+    pass
+
+
+class HttpClientError(ETradieBaseError):
+    pass
+
+
+class SchedulerError(ETradieBaseError):
+    pass
+
+
+class SchedulerValidationError(SchedulerError):
+    pass
+
+
+class TracingError(ETradieBaseError):
+    pass
+
+
+class TracingValidationError(TracingError):
+    pass

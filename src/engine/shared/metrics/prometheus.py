@@ -1,26 +1,44 @@
-"""Prometheus metric definitions for the eTradie engine.
+"""
+Prometheus metric definitions for the eTradie engine.
 
 Metrics follow RED/USE methodology:
 - Rate (requests/operations per second)
 - Errors (error counts by type)
 - Duration (latency histograms)
-- Utilisation / Saturation for resource-oriented metrics
+- Utilization / Saturation for resource-oriented metrics
 
 All metrics are namespaced under ``etradie_`` to avoid collisions.
+
+Cardinality Warning:
+- Avoid high-cardinality labels (user IDs, timestamps, UUIDs)
+- Use bounded label sets (status, operation type, error category)
+- Monitor metric cardinality in production
+
+Usage Example:
+    >>> from engine.shared.metrics.prometheus import PROVIDER_FETCH_TOTAL
+    >>> PROVIDER_FETCH_TOTAL.labels(
+    ...     provider="fred",
+    ...     category="economic",
+    ...     status="success"
+    ... ).inc()
 """
 
 from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram, Info
 
-# ── Application Info ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Application Info
+# ══════════════════════════════════════════════════════════════
 
 APP_INFO = Info(
     "etradie_engine",
     "eTradie engine build information",
 )
 
-# ── Provider Metrics ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Provider / HTTP Client Metrics
+# ══════════════════════════════════════════════════════════════
 
 PROVIDER_FETCH_TOTAL = Counter(
     "etradie_provider_fetch_total",
@@ -41,7 +59,22 @@ PROVIDER_ERRORS_TOTAL = Counter(
     ["provider", "category", "error_type"],
 )
 
-# ── Collector Metrics ────────────────────────────────────────
+PROVIDER_RESPONSE_SIZE = Histogram(
+    "etradie_provider_response_size_bytes",
+    "Provider response size in bytes",
+    ["provider", "category"],
+    buckets=(100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000),
+)
+
+ACTIVE_PROVIDERS = Gauge(
+    "etradie_active_providers",
+    "Number of currently active (healthy) providers",
+    ["category"],
+)
+
+# ══════════════════════════════════════════════════════════════
+# Collector Metrics
+# ══════════════════════════════════════════════════════════════
 
 COLLECTOR_RUN_TOTAL = Counter(
     "etradie_collector_run_total",
@@ -62,7 +95,9 @@ COLLECTOR_ITEMS_STORED = Counter(
     ["collector"],
 )
 
-# ── Processor Metrics ────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Processor Metrics
+# ══════════════════════════════════════════════════════════════
 
 PROCESSOR_RUN_TOTAL = Counter(
     "etradie_processor_run_total",
@@ -77,7 +112,9 @@ PROCESSOR_RUN_DURATION = Histogram(
     buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
-# ── Pipeline Metrics ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Pipeline Metrics
+# ══════════════════════════════════════════════════════════════
 
 PIPELINE_CYCLE_TOTAL = Counter(
     "etradie_pipeline_cycle_total",
@@ -91,12 +128,28 @@ PIPELINE_CYCLE_DURATION = Histogram(
     buckets=(5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
 )
 
-# ── Cache Metrics ────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Cache Metrics
+# ══════════════════════════════════════════════════════════════
 
 CACHE_OPERATIONS_TOTAL = Counter(
     "etradie_cache_operations_total",
     "Cache get/set/delete operations",
     ["operation", "status"],
+)
+
+CACHE_OPERATION_DURATION = Histogram(
+    "etradie_cache_operation_duration_seconds",
+    "Cache operation latency",
+    ["operation"],
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+CACHE_VALUE_SIZE = Histogram(
+    "etradie_cache_value_size_bytes",
+    "Cache value size in bytes",
+    ["operation"],
+    buckets=(100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000),
 )
 
 CACHE_HIT_RATIO = Gauge(
@@ -105,13 +158,41 @@ CACHE_HIT_RATIO = Gauge(
     ["namespace"],
 )
 
-# ── Database Metrics ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Database Metrics
+# ══════════════════════════════════════════════════════════════
 
 DB_QUERY_DURATION = Histogram(
     "etradie_db_query_duration_seconds",
-    "Database query latency",
+    "Database query latency by repository and operation",
     ["repository", "operation"],
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+DB_OPERATION_DURATION = Histogram(
+    "etradie_db_operation_duration_seconds",
+    "Database operation duration (read/write sessions)",
+    ["operation"],
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
+DB_OPERATION_ERRORS = Counter(
+    "etradie_db_operation_errors_total",
+    "Database operation errors by type",
+    ["operation", "error_type"],
+)
+
+DB_QUERY_ERRORS = Counter(
+    "etradie_db_query_errors_total",
+    "Database query errors by repository and operation",
+    ["repository", "operation", "error_type"],
+)
+
+DB_QUERY_ROWS = Histogram(
+    "etradie_db_query_rows",
+    "Number of rows affected by database operations",
+    ["repository", "operation"],
+    buckets=(1, 10, 50, 100, 500, 1_000, 5_000, 10_000),
 )
 
 DB_CONNECTION_POOL_SIZE = Gauge(
@@ -120,7 +201,9 @@ DB_CONNECTION_POOL_SIZE = Gauge(
     ["state"],
 )
 
-# ── Scheduler Metrics ────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Scheduler Metrics
+# ══════════════════════════════════════════════════════════════
 
 SCHEDULER_JOB_TOTAL = Counter(
     "etradie_scheduler_job_total",
@@ -135,10 +218,170 @@ SCHEDULER_JOB_DURATION = Histogram(
     buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 120.0),
 )
 
-# ── Active Providers Gauge ───────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Logging Metrics
+# ══════════════════════════════════════════════════════════════
 
-ACTIVE_PROVIDERS = Gauge(
-    "etradie_active_providers",
-    "Number of currently active (healthy) providers",
-    ["category"],
+LOG_ENTRIES_TOTAL = Counter(
+    "etradie_log_entries_total",
+    "Total log entries by level and logger",
+    ["level", "logger"],
+)
+
+# ══════════════════════════════════════════════════════════════
+# Technical Analysis (TA) Metrics
+# ══════════════════════════════════════════════════════════════
+
+TA_BROKER_FETCH_TOTAL = Counter(
+    "etradie_ta_broker_fetch_total",
+    "Total TA broker candle fetch attempts",
+    ["broker", "symbol", "timeframe", "status"],
+)
+
+TA_BROKER_FETCH_DURATION = Histogram(
+    "etradie_ta_broker_fetch_duration_seconds",
+    "TA broker fetch latency",
+    ["broker", "symbol", "timeframe"],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
+TA_BROKER_ERRORS_TOTAL = Counter(
+    "etradie_ta_broker_errors_total",
+    "TA broker error count by type",
+    ["broker", "error_type"],
+)
+
+TA_DETECTION_DURATION = Histogram(
+    "etradie_ta_detection_duration_seconds",
+    "TA detection execution latency",
+    ["framework", "detector"],
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
+TA_CANDIDATES_DETECTED = Counter(
+    "etradie_ta_candidates_detected_total",
+    "Total TA pattern candidates detected",
+    ["framework", "pattern", "direction"],
+)
+
+TA_SNAPSHOT_BUILD_DURATION = Histogram(
+    "etradie_ta_snapshot_build_duration_seconds",
+    "TA snapshot build latency",
+    ["symbol", "timeframe"],
+    buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
+TA_VALIDATION_FAILURES = Counter(
+    "etradie_ta_validation_failures_total",
+    "TA validation failures by framework and validator",
+    ["framework", "validator", "reason"],
+)
+
+# ══════════════════════════════════════════════════════════════
+# RAG (Retrieval-Augmented Generation) Metrics
+# ══════════════════════════════════════════════════════════════
+
+RAG_QUERY_TOTAL = Counter(
+    "etradie_rag_query_total",
+    "Total RAG retrieval queries",
+    ["collection", "status"],
+)
+
+RAG_QUERY_DURATION = Histogram(
+    "etradie_rag_query_duration_seconds",
+    "RAG query latency",
+    ["collection"],
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
+)
+
+RAG_DOCUMENTS_RETRIEVED = Histogram(
+    "etradie_rag_documents_retrieved",
+    "Number of documents retrieved per query",
+    ["collection"],
+    buckets=(1, 5, 10, 20, 50, 100),
+)
+
+RAG_EMBEDDING_DURATION = Histogram(
+    "etradie_rag_embedding_duration_seconds",
+    "Document embedding generation latency",
+    ["model"],
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+# ══════════════════════════════════════════════════════════════
+# LLM / Processor (Module A) Metrics
+# ══════════════════════════════════════════════════════════════
+
+LLM_REQUEST_TOTAL = Counter(
+    "etradie_llm_request_total",
+    "Total LLM API requests",
+    ["provider", "model", "status"],
+)
+
+LLM_REQUEST_DURATION = Histogram(
+    "etradie_llm_request_duration_seconds",
+    "LLM API request latency",
+    ["provider", "model"],
+    buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
+LLM_TOKENS_USED = Counter(
+    "etradie_llm_tokens_used_total",
+    "Total LLM tokens consumed",
+    ["provider", "model", "token_type"],
+)
+
+LLM_ERRORS_TOTAL = Counter(
+    "etradie_llm_errors_total",
+    "LLM API error count by type",
+    ["provider", "model", "error_type"],
+)
+
+TRADE_PLAN_GENERATED_TOTAL = Counter(
+    "etradie_trade_plan_generated_total",
+    "Total trade plans generated by Module A",
+    ["status"],
+)
+
+TRADE_PLAN_VALIDATION_FAILURES = Counter(
+    "etradie_trade_plan_validation_failures_total",
+    "Trade plan validation failures by rule",
+    ["rule"],
+)
+
+# ══════════════════════════════════════════════════════════════
+# System Resource Metrics
+# ══════════════════════════════════════════════════════════════
+
+SYSTEM_CPU_USAGE = Gauge(
+    "etradie_system_cpu_usage_percent",
+    "System CPU usage percentage",
+)
+
+SYSTEM_MEMORY_USAGE = Gauge(
+    "etradie_system_memory_usage_bytes",
+    "System memory usage in bytes",
+    ["type"],  # used, available, total
+)
+
+SYSTEM_DISK_USAGE = Gauge(
+    "etradie_system_disk_usage_bytes",
+    "System disk usage in bytes",
+    ["mount_point", "type"],  # used, available, total
+)
+
+# ══════════════════════════════════════════════════════════════
+# Rate Limiting Metrics
+# ══════════════════════════════════════════════════════════════
+
+RATE_LIMIT_HITS_TOTAL = Counter(
+    "etradie_rate_limit_hits_total",
+    "Total rate limit hits by endpoint/resource",
+    ["resource", "limit_type"],
+)
+
+RATE_LIMIT_REMAINING = Gauge(
+    "etradie_rate_limit_remaining",
+    "Remaining rate limit quota",
+    ["resource", "limit_type"],
 )
