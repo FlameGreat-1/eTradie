@@ -12,13 +12,8 @@ from engine.shared.logging import configure_logging, get_logger
 from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
-from engine.ta.scheduler.jobs import (
-    CandleRefreshJob,
-    BackfillJob,
-    BrokerSyncJob,
-    AnalysisTriggerJob,
-)
-from engine.ta.constants import Timeframe
+from engine.ta.scheduler_jobs import register_ta_jobs
+from engine.ta.config import TAConfig
 
 logger = get_logger(__name__)
 
@@ -63,7 +58,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_economic=settings.poll_interval_economic_data,
     )
 
-    await _register_ta_jobs(container, settings)
+    ta_config = TAConfig()
+    register_ta_jobs(
+        container.scheduler,
+        ta_config=ta_config,
+        orchestrator=container.ta_orchestrator,
+        broker_client=container.mt5_client,
+        candle_repository=container.candle_repository,
+    )
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -72,77 +74,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await container.shutdown()
     logger.info("application_stopped")
-
-
-async def _register_ta_jobs(container: Container, settings) -> None:
-    """Register TA jobs with scheduler."""
-    async with container.db.session() as session:
-        candle_repo = container.candle_repository_factory(session)
-        snapshot_repo = container.snapshot_repository_factory(session)
-        candidate_repo = container.candidate_repository_factory(session)
-        
-        container.ta_orchestrator.candle_repository = candle_repo
-        container.ta_orchestrator.snapshot_repository = snapshot_repo
-        container.ta_orchestrator.candidate_repository = candidate_repo
-    
-    symbols = getattr(settings, 'ta_symbols', ['EURUSD', 'GBPUSD', 'USDJPY'])
-    
-    for symbol in symbols:
-        candle_refresh_h4 = CandleRefreshJob(
-            symbol=symbol,
-            timeframe=Timeframe.H4,
-            broker_client=container.mt5_client,
-            candle_repository=candle_repo,
-        )
-        container.scheduler.add_job(
-            candle_refresh_h4.execute,
-            trigger='interval',
-            hours=4,
-            id=f'candle_refresh_{symbol}_H4',
-        )
-        
-        candle_refresh_m15 = CandleRefreshJob(
-            symbol=symbol,
-            timeframe=Timeframe.M15,
-            broker_client=container.mt5_client,
-            candle_repository=candle_repo,
-        )
-        container.scheduler.add_job(
-            candle_refresh_m15.execute,
-            trigger='interval',
-            minutes=15,
-            id=f'candle_refresh_{symbol}_M15',
-        )
-        
-        broker_sync = BrokerSyncJob(
-            symbol=symbol,
-            timeframe=Timeframe.H4,
-            lookback_periods=100,
-            broker_client=container.mt5_client,
-            candle_repository=candle_repo,
-        )
-        container.scheduler.add_job(
-            broker_sync.execute,
-            trigger='interval',
-            hours=1,
-            id=f'broker_sync_{symbol}_H4',
-        )
-        
-        analysis_trigger = AnalysisTriggerJob(
-            symbol=symbol,
-            htf_timeframe=Timeframe.H4,
-            ltf_timeframe=Timeframe.M15,
-            candle_repository=candle_repo,
-            orchestrator=container.ta_orchestrator,
-        )
-        container.scheduler.add_job(
-            analysis_trigger.execute,
-            trigger='interval',
-            minutes=15,
-            id=f'analysis_trigger_{symbol}_H4_M15',
-        )
-    
-    logger.info("ta_jobs_registered", symbols=symbols)
 
 
 def create_app() -> FastAPI:

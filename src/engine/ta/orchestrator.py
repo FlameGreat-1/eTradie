@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from engine.shared.logging import get_logger
-from engine.ta.broker.base import BaseBrokerClient
+from engine.ta.broker.base import BrokerBase
 from engine.ta.common.analyzers.candles import CandleAnalyzer
 from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
@@ -36,7 +36,7 @@ class TAOrchestrator:
     
     def __init__(
         self,
-        broker_client: BaseBrokerClient,
+        broker_client: BrokerBase,
         candle_repository: CandleRepository,
         snapshot_repository: SnapshotRepository,
         candidate_repository: CandidateRepository,

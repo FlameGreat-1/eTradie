@@ -39,8 +39,8 @@ from engine.macro.providers.sentiment.trading_economics import TradingEconomicsS
 # ══════════════════════════════════════════════════════════════════════════════
 from engine.ta.broker.mt5.client import MT5Client
 from engine.ta.broker.mt5.config import MT5Config
-from engine.ta.broker.twelve_data.client import TwelveDataBrokerClient
-from engine.ta.broker.twelve_data.config import TwelveDataBrokerConfig
+from engine.ta.broker.twelve_data.client import TwelveDataClient
+from engine.ta.broker.twelve_data.config import TwelveDataConfig
 from engine.ta.broker.registry import BrokerRegistry
 from engine.ta.common.analyzers.candles import CandleAnalyzer
 from engine.ta.common.analyzers.swings import SwingAnalyzer
@@ -224,34 +224,37 @@ class Container:
         self.sentiment_collector.cache_ttl = s.cache_ttl_sentiment
 
     def _build_ta_configs(self) -> None:
+        from engine.ta.config import TAConfig
+        self.ta_config = TAConfig()
         self.smc_config = SMCConfig()
         self.snd_config = SnDConfig()
 
     def _build_ta_brokers(self) -> None:
         s = self.settings
         
-        mt5_config = MT5Config(
-            server=s.mt5_server,
-            login=s.mt5_login,
-            password=s.mt5_password,
-            timeout=s.mt5_timeout,
-        )
+        mt5_config = MT5Config()
         self.mt5_client = MT5Client(mt5_config)
         
-        twelve_config = TwelveDataBrokerConfig(
+        twelve_config = TwelveDataConfig(
             api_key=s.twelvedata_api_key,
             base_url=s.twelvedata_base_url,
         )
-        self.twelve_broker_client = TwelveDataBrokerClient(twelve_config, self.http_client)
+        self.twelve_data_client = TwelveDataClient(
+            config=twelve_config,
+            http_client=self.http_client,
+            cache=self.cache,
+        )
         
-        self.broker_registry = BrokerRegistry()
-        self.broker_registry.register("mt5", self.mt5_client)
-        self.broker_registry.register("twelvedata", self.twelve_broker_client)
+        self.broker_registry = BrokerRegistry(
+            ta_config=self.ta_config,
+            http_client=self.http_client,
+            cache=self.cache,
+        )
 
     def _build_ta_repositories(self) -> None:
-        self.candle_repository_factory = lambda session: CandleRepository(session)
-        self.snapshot_repository_factory = lambda session: SnapshotRepository(session)
-        self.candidate_repository_factory = lambda session: CandidateRepository(session)
+        self.candle_repository = CandleRepository(self.db)
+        self.snapshot_repository = SnapshotRepository(self.db)
+        self.candidate_repository = CandidateRepository(self.db)
 
     def _build_ta_analyzers(self) -> None:
         self.candle_analyzer = CandleAnalyzer()
@@ -353,9 +356,9 @@ class Container:
     def _build_ta_orchestrator(self) -> None:
         self.ta_orchestrator = TAOrchestrator(
             broker_client=self.mt5_client,
-            candle_repository=None,
-            snapshot_repository=None,
-            candidate_repository=None,
+            candle_repository=self.candle_repository,
+            snapshot_repository=self.snapshot_repository,
+            candidate_repository=self.candidate_repository,
             smc_detector=self.smc_detector,
             snd_detector=self.snd_detector,
             snapshot_builder=self.snapshot_builder,

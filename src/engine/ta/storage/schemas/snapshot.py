@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import String, DateTime, Index, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from engine.shared.database.base import Base
+from engine.shared.db.migrations._schema_registry import Base
 
 
 class SnapshotSchema(Base):

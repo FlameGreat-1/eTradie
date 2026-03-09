@@ -10,6 +10,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from engine.config import get_settings
 from engine.shared.db.migrations._schema_registry import Base  # noqa: F401
 
+# Schema imports — Alembic needs these so table metadata registers on Base.metadata
+import engine.macro.storage.schemas  # noqa: F401
+import engine.ta.storage.schemas  # noqa: F401
+
 config = context.config
 
 if config.config_file_name is not None:
