@@ -351,6 +351,82 @@ RAG_EMBEDDING_DURATION = Histogram(
     buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 
+RAG_EMBEDDING_TOTAL = Counter(
+    "etradie_rag_embedding_total",
+    "Total embedding generation requests",
+    ["model", "status"],
+)
+
+RAG_EMBEDDING_BATCH_SIZE = Histogram(
+    "etradie_rag_embedding_batch_size",
+    "Chunks per embedding batch",
+    ["model"],
+    buckets=(1, 8, 16, 32, 64, 128, 256),
+)
+
+RAG_INGEST_TOTAL = Counter(
+    "etradie_rag_ingest_total",
+    "Total document ingest operations",
+    ["doc_type", "status"],
+)
+
+RAG_INGEST_DURATION = Histogram(
+    "etradie_rag_ingest_duration_seconds",
+    "End-to-end ingest pipeline latency",
+    ["doc_type"],
+    buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
+RAG_CHUNKS_GENERATED = Counter(
+    "etradie_rag_chunks_generated_total",
+    "Total chunks produced by chunking pipeline",
+    ["doc_type", "chunker"],
+)
+
+RAG_VECTORSTORE_OPS_TOTAL = Counter(
+    "etradie_rag_vectorstore_ops_total",
+    "Vector store operations",
+    ["operation", "collection", "status"],
+)
+
+RAG_VECTORSTORE_OPS_DURATION = Histogram(
+    "etradie_rag_vectorstore_ops_duration_seconds",
+    "Vector store operation latency",
+    ["operation", "collection"],
+    buckets=(0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
+)
+
+RAG_RERANK_DURATION = Histogram(
+    "etradie_rag_rerank_duration_seconds",
+    "Reranking stage latency",
+    ["strategy"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25),
+)
+
+RAG_COVERAGE_CHECKS_TOTAL = Counter(
+    "etradie_rag_coverage_checks_total",
+    "Coverage check outcomes",
+    ["result"],
+)
+
+RAG_CONFLICT_DETECTIONS_TOTAL = Counter(
+    "etradie_rag_conflict_detections_total",
+    "Conflict detection outcomes",
+    ["result"],
+)
+
+RAG_ACTIVE_DOCUMENTS = Gauge(
+    "etradie_rag_active_documents",
+    "Number of active documents in knowledge base",
+    ["doc_type"],
+)
+
+RAG_ACTIVE_CHUNKS = Gauge(
+    "etradie_rag_active_chunks",
+    "Total active chunks in vector store",
+    ["collection"],
+)
+
 # ══════════════════════════════════════════════════════════════
 # LLM / Processor (Module A) Metrics
 # ══════════════════════════════════════════════════════════════
