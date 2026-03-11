@@ -57,7 +57,12 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
             start = time.monotonic()
             try:
                 response = await self._http.post(
-                    url, json=payload, headers=headers, timeout=self._timeout,
+                    url,
+                    json_body=payload,
+                    headers=headers,
+                    timeout_override=self._timeout,
+                    provider_name="openai_embedding",
+                    category="embedding",
                 )
                 elapsed = time.monotonic() - start
                 RAG_EMBEDDING_DURATION.labels(model=self._model).observe(elapsed)
