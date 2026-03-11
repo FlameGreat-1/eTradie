@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,7 @@ class ChunkRow(Base):
     )
     doc_type: Mapped[str] = mapped_column(String(64), nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")

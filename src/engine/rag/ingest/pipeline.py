@@ -239,7 +239,7 @@ class IngestPipeline:
             framework_tags=list(loaded.raw_metadata.get("framework_tags", [])),
             metadata={},
         )
-        return await self._document_repo.create(row)
+        return await self._document_repo.add(row)
 
     async def _create_version(
         self, doc_row: DocumentRow, checksum: str,
@@ -253,7 +253,7 @@ class IngestPipeline:
             status="draft",
             checksum=checksum,
         )
-        return await self._version_repo.create(row)
+        return await self._version_repo.add(row)
 
     async def _create_ingest_job(
         self, doc_row: DocumentRow, version_row: DocumentVersionRow,
@@ -264,7 +264,7 @@ class IngestPipeline:
             status="pending",
             max_retries=self._config.ingest_retry_max,
         )
-        return await self._ingest_job_repo.create(row)
+        return await self._ingest_job_repo.add(row)
 
     async def _persist_chunks(
         self,
@@ -279,6 +279,7 @@ class IngestPipeline:
                 document_version_id=version_row.id,
                 doc_type=doc_row.doc_type,
                 chunk_index=chunk.chunk_index,
+                content=chunk.content,
                 content_hash=chunk.content_hash,
                 token_count=chunk.token_count_estimate,
                 embedding_status="pending",
@@ -287,6 +288,6 @@ class IngestPipeline:
                 hierarchy_level=chunk.hierarchy_level,
                 metadata=chunk.metadata,
             )
-            created = await self._chunk_repo.create(row)
+            created = await self._chunk_repo.add(row)
             rows.append(created)
         return rows
