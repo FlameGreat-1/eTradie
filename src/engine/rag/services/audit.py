@@ -3,10 +3,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from engine.rag.models.citation import Citation
-from engine.rag.storage.repositories.citation_log import CitationLogRepository
-from engine.rag.storage.repositories.retrieval_log import RetrievalLogRepository
 from engine.rag.storage.schemas.citation_log import AnalysisCitationRow
 from engine.rag.storage.schemas.retrieval_log import RetrievalLogRow
+from engine.rag.storage.uow import RAGUnitOfWorkFactory
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -16,11 +15,9 @@ class AuditService:
     def __init__(
         self,
         *,
-        retrieval_log_repo: RetrievalLogRepository,
-        citation_log_repo: CitationLogRepository,
+        uow_factory: RAGUnitOfWorkFactory,
     ) -> None:
-        self._retrieval_log_repo = retrieval_log_repo
-        self._citation_log_repo = citation_log_repo
+        self._uow = uow_factory
 
     async def log_retrieval(
         self,
@@ -48,8 +45,9 @@ class AuditService:
             duration_ms=duration_ms,
             trace_id=trace_id,
         )
-        created = await self._retrieval_log_repo.add(row)
-        return created.id
+        async with self._uow() as uow:
+            created = await uow.retrieval_log_repo.add(row)
+            return created.id
 
     async def log_citations(
         self,
@@ -58,21 +56,22 @@ class AuditService:
         citations: list[Citation],
     ) -> int:
         count = 0
-        for citation in citations:
-            row = AnalysisCitationRow(
-                retrieval_log_id=retrieval_log_id,
-                chunk_id=citation.chunk_id,
-                document_id=citation.document_id,
-                document_version_id=citation.document_version_id,
-                doc_type=citation.doc_type,
-                section=citation.section,
-                subsection=citation.subsection,
-                scenario_id=citation.scenario_id,
-                relevance_score=citation.relevance_score,
-                excerpt=citation.excerpt,
-            )
-            await self._citation_log_repo.add(row)
-            count += 1
+        async with self._uow() as uow:
+            for citation in citations:
+                row = AnalysisCitationRow(
+                    retrieval_log_id=retrieval_log_id,
+                    chunk_id=citation.chunk_id,
+                    document_id=citation.document_id,
+                    document_version_id=citation.document_version_id,
+                    doc_type=citation.doc_type,
+                    section=citation.section,
+                    subsection=citation.subsection,
+                    scenario_id=citation.scenario_id,
+                    relevance_score=citation.relevance_score,
+                    excerpt=citation.excerpt,
+                )
+                await uow.citation_log_repo.add(row)
+                count += 1
 
         logger.info(
             "citations_logged",

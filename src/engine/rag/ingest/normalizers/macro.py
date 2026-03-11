@@ -25,17 +25,6 @@ _CURRENCY_ALIASES: dict[str, str] = {
     "silver": "XAG",
 }
 
-_EVENT_ALIASES: dict[str, str] = {
-    "nfp": "Non-Farm Payrolls",
-    "cpi": "Consumer Price Index",
-    "ppi": "Producer Price Index",
-    "gdp": "Gross Domestic Product",
-    "fomc": "FOMC Decision",
-    "ecb rate": "ECB Rate Decision",
-    "boe rate": "BOE Rate Decision",
-    "boj rate": "BOJ Rate Decision",
-}
-
 _ALIAS_PATTERN = re.compile(
     r"\b(" + "|".join(re.escape(k) for k in _CURRENCY_ALIASES) + r")\b",
     re.IGNORECASE,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from prometheus_client import make_asgi_app
 
 from engine.config import TAConfig, get_rag_config, get_settings
@@ -39,15 +39,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     rag_config = get_rag_config()
     if rag_config.enabled:
-        async with container.db.session() as session:
-            await container.build_rag(session)
+        await container.build_rag()
 
         if rag_config.ingest_on_startup:
-            async with container.db.session() as session:
-                await container.build_rag(session)
-                await container.rag_bootstrap_service.bootstrap()
-                rag_ready = await container.rag_bootstrap_service.check_readiness()
-                logger.info("rag_startup", ready=rag_ready)
+            await container.rag_bootstrap_service.bootstrap()
+            rag_ready = await container.rag_bootstrap_service.check_readiness()
+            logger.info("rag_startup", ready=rag_ready)
 
         rag_health = await container.rag_health_service.check()
         logger.info(
@@ -111,7 +108,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/health/rag")
-    async def rag_health(request) -> dict:
+    async def rag_health(request: Request) -> dict:
         container: Container = request.app.state.container
         if not hasattr(container, "rag_health_service"):
             return {"status": "disabled"}

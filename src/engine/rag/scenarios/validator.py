@@ -57,8 +57,6 @@ def validate_scenario_count(
     *,
     config: ScenarioConfig,
 ) -> None:
-    if count < config.min_total_scenarios:
-        raise RAGScenarioError(
-            f"Insufficient scenarios: {count} < {config.min_total_scenarios} required",
-            details={"count": count, "required": config.min_total_scenarios},
-        )
+    from engine.rag.knowledge.policies import enforce_scenario_minimum
+
+    enforce_scenario_minimum(count, minimum=config.min_total_scenarios)

@@ -150,3 +150,7 @@ MANDATORY_KNOWLEDGE_GROUPS: frozenset[DocumentType] = frozenset({
     DocumentType.TRADING_STYLE_RULES,
     DocumentType.MACRO_TO_PRICE_GUIDE,
 })
+
+SUPPORTED_IMAGE_FORMATS: frozenset[str] = frozenset({
+    ".png", ".jpg", ".jpeg", ".webp", ".svg",
+})

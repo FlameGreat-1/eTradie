@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from engine.config import RAGConfig
 from engine.rag.constants import DocumentType
 from engine.rag.models.retrieval import RetrievedChunk
@@ -33,7 +35,7 @@ class Reranker:
         strategy: str = "rule_weighted",
         top_k: int | None = None,
     ) -> list[RetrievedChunk]:
-        import time
+
         start = time.monotonic()
 
         effective_top_k = top_k or self._top_k

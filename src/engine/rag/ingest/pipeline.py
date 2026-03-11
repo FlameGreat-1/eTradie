@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -24,10 +25,7 @@ from engine.rag.ingest.normalizers.scenarios import ScenariosNormalizer
 from engine.rag.ingest.validators.chunk import validate_chunks
 from engine.rag.ingest.validators.document import validate_document
 from engine.rag.ingest.validators.scenario import validate_scenario
-from engine.rag.storage.repositories.chunk import ChunkRepository
-from engine.rag.storage.repositories.document import DocumentRepository
-from engine.rag.storage.repositories.document_version import DocumentVersionRepository
-from engine.rag.storage.repositories.ingest_job import IngestJobRepository
+from engine.rag.storage.uow import RAGUnitOfWork, RAGUnitOfWorkFactory
 from engine.rag.storage.schemas.chunk import ChunkRow
 from engine.rag.storage.schemas.document import DocumentRow
 from engine.rag.storage.schemas.document_version import DocumentVersionRow
@@ -69,16 +67,10 @@ class IngestPipeline:
         self,
         *,
         config: RAGConfig,
-        document_repo: DocumentRepository,
-        version_repo: DocumentVersionRepository,
-        chunk_repo: ChunkRepository,
-        ingest_job_repo: IngestJobRepository,
+        uow_factory: RAGUnitOfWorkFactory,
     ) -> None:
         self._config = config
-        self._document_repo = document_repo
-        self._version_repo = version_repo
-        self._chunk_repo = chunk_repo
-        self._ingest_job_repo = ingest_job_repo
+        self._uow = uow_factory
 
         self._rules_normalizer = RulesNormalizer()
         self._macro_normalizer = MacroNormalizer()
@@ -92,7 +84,7 @@ class IngestPipeline:
         source_format: SourceFormat,
         title: str,
     ) -> UUID:
-        import time
+
         start = time.monotonic()
 
         try:
@@ -107,53 +99,54 @@ class IngestPipeline:
 
             loaded = self._normalize(loaded, doc_type)
 
-            doc_row = await self._ensure_document(
-                loaded, doc_type=doc_type, source_format=source_format, title=title, checksum=checksum,
-            )
-
-            existing_version = await self._version_repo.get_by_checksum(
-                doc_row.id, checksum,
-            )
-            if existing_version:
-                logger.info(
-                    "ingest_skipped_unchanged",
-                    doc_id=str(doc_row.id),
-                    checksum=checksum,
+            async with self._uow() as uow:
+                doc_row = await self._ensure_document(
+                    uow, loaded, doc_type=doc_type, source_format=source_format, title=title, checksum=checksum,
                 )
-                RAG_INGEST_TOTAL.labels(doc_type=doc_type, status="skipped").inc()
-                return doc_row.id
 
-            version_row = await self._create_version(doc_row, checksum)
+                existing_version = await uow.version_repo.get_by_checksum(
+                    doc_row.id, checksum,
+                )
+                if existing_version:
+                    logger.info(
+                        "ingest_skipped_unchanged",
+                        doc_id=str(doc_row.id),
+                        checksum=checksum,
+                    )
+                    RAG_INGEST_TOTAL.labels(doc_type=doc_type, status="skipped").inc()
+                    return doc_row.id
 
-            job_row = await self._create_ingest_job(doc_row, version_row)
-            await self._ingest_job_repo.mark_running(job_row.id)
+                version_row = await self._create_version(uow, doc_row, checksum)
 
-            chunker = self._resolve_chunker(doc_type)
-            raw_chunks = chunker.chunk(loaded)
+                job_row = await self._create_ingest_job(uow, doc_row, version_row)
+                await uow.ingest_job_repo.mark_running(job_row.id)
 
-            raw_chunks = attach_metadata(
-                raw_chunks,
-                doc_id=doc_row.id,
-                doc_type=doc_type,
-                doc_version=version_row.version_number,
-                source_path=str(path),
-            )
+                chunker = self._resolve_chunker(doc_type)
+                raw_chunks = chunker.chunk(loaded)
 
-            validate_chunks(
-                raw_chunks,
-                min_size=self._config.chunk_min_size,
-                max_size=self._config.chunk_max_size,
-            )
+                raw_chunks = attach_metadata(
+                    raw_chunks,
+                    doc_id=doc_row.id,
+                    doc_type=doc_type,
+                    doc_version=version_row.version_number,
+                    source_path=str(path),
+                )
 
-            await self._chunk_repo.delete_by_document_version(version_row.id)
+                validate_chunks(
+                    raw_chunks,
+                    min_size=self._config.chunk_min_size,
+                    max_size=self._config.chunk_max_size,
+                )
 
-            chunk_rows = await self._persist_chunks(raw_chunks, doc_row, version_row)
+                await uow.chunk_repo.delete_by_document_version(version_row.id)
 
-            await self._ingest_job_repo.mark_completed(
-                job_row.id,
-                chunks_created=len(chunk_rows),
-                embeddings_created=0,
-            )
+                chunk_rows = await self._persist_chunks(uow, raw_chunks, doc_row, version_row)
+
+                await uow.ingest_job_repo.mark_completed(
+                    job_row.id,
+                    chunks_created=len(chunk_rows),
+                    embeddings_created=0,
+                )
 
             elapsed = time.monotonic() - start
             RAG_INGEST_TOTAL.labels(doc_type=doc_type, status="success").inc()
@@ -218,6 +211,7 @@ class IngestPipeline:
 
     async def _ensure_document(
         self,
+        uow: RAGUnitOfWork,
         loaded: LoadedDocument,
         *,
         doc_type: str,
@@ -225,7 +219,7 @@ class IngestPipeline:
         title: str,
         checksum: str,
     ) -> DocumentRow:
-        existing = await self._document_repo.get_by_source_path(loaded.source_path)
+        existing = await uow.document_repo.get_by_source_path(loaded.source_path)
         if existing:
             return existing
 
@@ -239,12 +233,12 @@ class IngestPipeline:
             framework_tags=list(loaded.raw_metadata.get("framework_tags", [])),
             metadata={},
         )
-        return await self._document_repo.add(row)
+        return await uow.document_repo.add(row)
 
     async def _create_version(
-        self, doc_row: DocumentRow, checksum: str,
+        self, uow: RAGUnitOfWork, doc_row: DocumentRow, checksum: str,
     ) -> DocumentVersionRow:
-        latest = await self._version_repo.get_latest(doc_row.id)
+        latest = await uow.version_repo.get_latest(doc_row.id)
         next_number = (latest.version_number + 1) if latest else 1
 
         row = DocumentVersionRow(
@@ -253,10 +247,10 @@ class IngestPipeline:
             status="draft",
             checksum=checksum,
         )
-        return await self._version_repo.add(row)
+        return await uow.version_repo.add(row)
 
     async def _create_ingest_job(
-        self, doc_row: DocumentRow, version_row: DocumentVersionRow,
+        self, uow: RAGUnitOfWork, doc_row: DocumentRow, version_row: DocumentVersionRow,
     ) -> IngestJobRow:
         row = IngestJobRow(
             document_id=doc_row.id,
@@ -264,10 +258,11 @@ class IngestPipeline:
             status="pending",
             max_retries=self._config.ingest_retry_max,
         )
-        return await self._ingest_job_repo.add(row)
+        return await uow.ingest_job_repo.add(row)
 
     async def _persist_chunks(
         self,
+        uow: RAGUnitOfWork,
         raw_chunks: tuple[RawChunk, ...],
         doc_row: DocumentRow,
         version_row: DocumentVersionRow,
@@ -288,6 +283,6 @@ class IngestPipeline:
                 hierarchy_level=chunk.hierarchy_level,
                 metadata=chunk.metadata,
             )
-            created = await self._chunk_repo.add(row)
+            created = await uow.chunk_repo.add(row)
             rows.append(created)
         return rows

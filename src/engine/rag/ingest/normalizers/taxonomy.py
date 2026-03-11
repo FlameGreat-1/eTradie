@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.rag.constants import Direction, Framework, SetupFamily
+from engine.rag.constants import Direction, Framework, ScenarioOutcome, SetupFamily
 
 _FRAMEWORK_MAP: dict[str, str] = {
     "smart money concepts": Framework.SMC,
@@ -54,6 +54,17 @@ _DIRECTION_MAP: dict[str, str] = {
     "flat": Direction.NEUTRAL,
 }
 
+_OUTCOME_MAP: dict[str, str] = {
+    "win": ScenarioOutcome.VALID_WIN,
+    "valid_win": ScenarioOutcome.VALID_WIN,
+    "loss": ScenarioOutcome.VALID_LOSS,
+    "valid_loss": ScenarioOutcome.VALID_LOSS,
+    "failed": ScenarioOutcome.FAILED_SETUP,
+    "failed_setup": ScenarioOutcome.FAILED_SETUP,
+    "edge_case": ScenarioOutcome.EDGE_CASE,
+    "edge": ScenarioOutcome.EDGE_CASE,
+}
+
 
 def resolve_framework(raw: str) -> str | None:
     return _FRAMEWORK_MAP.get(raw.strip().lower())
@@ -66,3 +77,7 @@ def resolve_setup_family(raw: str) -> str | None:
 
 def resolve_direction(raw: str) -> str | None:
     return _DIRECTION_MAP.get(raw.strip().lower())
+
+
+def resolve_outcome(raw: str) -> str | None:
+    return _OUTCOME_MAP.get(raw.strip().lower())

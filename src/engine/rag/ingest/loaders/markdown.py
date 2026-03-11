@@ -101,8 +101,6 @@ class MarkdownLoader(BaseLoader):
                     current_lines = []
                     subsection_buffer = []
                 else:
-                    if subsection_buffer:
-                        pass
                     subsection_buffer.append((heading_text, level, []))
             else:
                 if subsection_buffer:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 
 from engine.config import RAGConfig
 from engine.rag.embeddings.base import BaseEmbeddingProvider
@@ -53,7 +54,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
 
         last_exc: Exception | None = None
         for attempt in range(1, self._max_retries + 1):
-            import time
+
             start = time.monotonic()
             try:
                 response = await self._http.post(

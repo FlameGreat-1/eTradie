@@ -3,7 +3,7 @@ from __future__ import annotations
 import json as json_lib
 from pathlib import Path
 
-from engine.rag.constants import SourceFormat
+from engine.rag.constants import SourceFormat, SUPPORTED_IMAGE_FORMATS
 from engine.rag.ingest.loaders.base import BaseLoader, LoadedDocument
 from engine.shared.exceptions import RAGLoaderError
 from engine.shared.logging import get_logger
@@ -82,7 +82,7 @@ class ScenarioAssetLoader(BaseLoader):
 
         image_refs: list[str] = []
         for child in sorted(path.iterdir()):
-            if child.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".svg"}:
+            if child.suffix.lower() in SUPPORTED_IMAGE_FORMATS:
                 image_refs.append(str(child.relative_to(path)))
 
         raw_metadata = {k: str(v) for k, v in metadata.items() if isinstance(v, (str, int, float, bool))}

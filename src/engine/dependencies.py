@@ -60,6 +60,7 @@ from engine.ta.orchestrator import TAOrchestrator
 from engine.config import get_rag_config
 from engine.rag.embeddings.factory import create_embedding_provider
 from engine.rag.embeddings.pipeline import EmbeddingPipeline
+from engine.rag.ingest.pipeline import IngestPipeline
 from engine.rag.orchestrator import RAGOrchestrator
 from engine.rag.retrieval.reranker import Reranker
 from engine.rag.retrieval.retriever import Retriever
@@ -70,14 +71,7 @@ from engine.rag.services.health import HealthService
 from engine.rag.services.reembed import ReembedService
 from engine.rag.services.sync import SyncService
 from engine.rag.services.versioning import VersioningService
-from engine.rag.storage.repositories.chunk import ChunkRepository
-from engine.rag.storage.repositories.citation_log import CitationLogRepository
-from engine.rag.storage.repositories.document import DocumentRepository
-from engine.rag.storage.repositories.document_version import DocumentVersionRepository
-from engine.rag.storage.repositories.ingest_job import IngestJobRepository
-from engine.rag.storage.repositories.reembed_queue import ReembedQueueRepository
-from engine.rag.storage.repositories.retrieval_log import RetrievalLogRepository
-from engine.rag.storage.repositories.scenario import ScenarioRepository
+from engine.rag.storage.uow import rag_uow_factory
 from engine.rag.vectorstore.factory import create_vector_store
 
 
@@ -304,17 +298,10 @@ class Container:
             fibonacci_analyzer=self.fibonacci_analyzer,
         )
 
-    async def build_rag(self, session) -> None:
+    async def build_rag(self) -> None:
         rc = self.rag_config
 
-        self.rag_document_repo = DocumentRepository(session)
-        self.rag_version_repo = DocumentVersionRepository(session)
-        self.rag_chunk_repo = ChunkRepository(session)
-        self.rag_scenario_repo = ScenarioRepository(session)
-        self.rag_ingest_job_repo = IngestJobRepository(session)
-        self.rag_retrieval_log_repo = RetrievalLogRepository(session)
-        self.rag_citation_log_repo = CitationLogRepository(session)
-        self.rag_reembed_queue_repo = ReembedQueueRepository(session)
+        uow_factory = rag_uow_factory(self.db)
 
         self.rag_vector_store = create_vector_store(config=rc)
 
@@ -325,7 +312,12 @@ class Container:
         self.rag_embedding_pipeline = EmbeddingPipeline(
             config=rc,
             provider=self.rag_embedding_provider,
-            chunk_repo=self.rag_chunk_repo,
+            uow_factory=uow_factory,
+        )
+
+        self.rag_ingest_pipeline = IngestPipeline(
+            config=rc,
+            uow_factory=uow_factory,
         )
 
         self.rag_retriever = Retriever(
@@ -337,39 +329,33 @@ class Container:
         self.rag_reranker = Reranker(config=rc)
 
         self.rag_scenario_matcher = ScenarioMatcher(
-            scenario_repo=self.rag_scenario_repo,
+            uow_factory=uow_factory,
         )
 
         self.rag_audit_service = AuditService(
-            retrieval_log_repo=self.rag_retrieval_log_repo,
-            citation_log_repo=self.rag_citation_log_repo,
+            uow_factory=uow_factory,
         )
 
         self.rag_versioning_service = VersioningService(
-            document_repo=self.rag_document_repo,
-            version_repo=self.rag_version_repo,
-            reembed_repo=self.rag_reembed_queue_repo,
+            uow_factory=uow_factory,
         )
 
         self.rag_reembed_service = ReembedService(
-            reembed_repo=self.rag_reembed_queue_repo,
-            chunk_repo=self.rag_chunk_repo,
+            uow_factory=uow_factory,
             embedding_pipeline=self.rag_embedding_pipeline,
             vector_store=self.rag_vector_store,
             collection=rc.collection_documents,
         )
 
         self.rag_sync_service = SyncService(
-            document_repo=self.rag_document_repo,
-            version_repo=self.rag_version_repo,
-            chunk_repo=self.rag_chunk_repo,
+            uow_factory=uow_factory,
             vector_store=self.rag_vector_store,
             collection=rc.collection_documents,
         )
 
         self.rag_bootstrap_service = BootstrapService(
             config=rc,
-            document_repo=self.rag_document_repo,
+            uow_factory=uow_factory,
             vector_store=self.rag_vector_store,
         )
 
@@ -386,8 +372,7 @@ class Container:
             reranker=self.rag_reranker,
             scenario_matcher=self.rag_scenario_matcher,
             audit_service=self.rag_audit_service,
-            document_repo=self.rag_document_repo,
-            version_repo=self.rag_version_repo,
+            uow_factory=uow_factory,
         )
 
     async def shutdown(self) -> None:
@@ -401,3 +386,4 @@ class Container:
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()
+

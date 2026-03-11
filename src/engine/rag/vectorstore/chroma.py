@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import chromadb
@@ -57,7 +58,7 @@ class ChromaVectorStore(BaseVectorStore):
         return loop.run_in_executor(self._executor, lambda: fn(*args, **kwargs))
 
     async def create_collection(self, name: str, *, dimensions: int) -> None:
-        import time
+
         start = time.monotonic()
         try:
             client = self._get_client()
@@ -103,7 +104,6 @@ class ChromaVectorStore(BaseVectorStore):
         if not ids:
             return
 
-        import time
         start = time.monotonic()
         try:
             client = self._get_client()
@@ -149,7 +149,6 @@ class ChromaVectorStore(BaseVectorStore):
         top_k: int,
         where: dict | None = None,
     ) -> list[VectorSearchResult]:
-        import time
         start = time.monotonic()
         try:
             client = self._get_client()

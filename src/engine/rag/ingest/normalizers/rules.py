@@ -6,7 +6,6 @@ from dataclasses import replace
 from engine.rag.ingest.loaders.base import LoadedDocument, LoadedSection
 from engine.rag.ingest.normalizers.base import BaseNormalizer
 
-_NUMBERED_RULE_RE = re.compile(r"^(\d+)\.\s+")
 _RULE_ID_RE = re.compile(r"\b(Rule\s+[A-Z]+-\d+)\b", re.IGNORECASE)
 
 

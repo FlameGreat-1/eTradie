@@ -4,12 +4,14 @@ import time
 from uuid import UUID
 
 from engine.config import RAGConfig
-from engine.rag.constants import ConflictResult, CoverageResult, RetrievalStrategy
+from engine.rag.constants import RetrievalStrategy
 from engine.rag.embeddings.base import BaseEmbeddingProvider
 from engine.rag.models.context_bundle import ContextBundle
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.rag.retrieval.assembler import assemble_context_bundle
 from engine.rag.retrieval.citations import build_citations
+from engine.rag.retrieval.conflicts import detect_conflicts
+from engine.rag.retrieval.coverage import check_coverage
 from engine.rag.retrieval.reranker import Reranker
 from engine.rag.retrieval.retriever import Retriever
 from engine.rag.retrieval.strategies.hybrid import HybridStrategy
@@ -18,9 +20,7 @@ from engine.rag.retrieval.strategies.rule_first import RuleFirstStrategy
 from engine.rag.retrieval.strategies.scenario_first import ScenarioFirstStrategy
 from engine.rag.scenarios.matcher import ScenarioMatcher
 from engine.rag.services.audit import AuditService
-from engine.rag.storage.repositories.document import DocumentRepository
-from engine.rag.storage.repositories.document_version import DocumentVersionRepository
-from engine.rag.vectorstore.base import BaseVectorStore
+from engine.rag.storage.uow import RAGUnitOfWorkFactory
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,16 +35,14 @@ class RAGOrchestrator:
         reranker: Reranker,
         scenario_matcher: ScenarioMatcher,
         audit_service: AuditService,
-        document_repo: DocumentRepository,
-        version_repo: DocumentVersionRepository,
+        uow_factory: RAGUnitOfWorkFactory,
     ) -> None:
         self._config = config
         self._retriever = retriever
         self._reranker = reranker
         self._scenario_matcher = scenario_matcher
         self._audit = audit_service
-        self._document_repo = document_repo
-        self._version_repo = version_repo
+        self._uow = uow_factory
 
         self._rule_first = RuleFirstStrategy(retriever=retriever)
         self._scenario_first = ScenarioFirstStrategy(retriever=retriever)
@@ -97,13 +95,22 @@ class RAGOrchestrator:
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
+        coverage = check_coverage(
+            chunks,
+            config=self._config,
+            required_framework=framework,
+        )
+        conflict_result, conflict_details = detect_conflicts(chunks)
+
         bundle = assemble_context_bundle(
             strategy=RetrievalStrategy(effective_strategy),
             chunks=chunks,
             citations=citations,
             scenarios=scenarios,
-            coverage_result=CoverageResult.SUFFICIENT,
-            conflict_result=ConflictResult.NONE_DETECTED,
+            coverage_result=coverage.result,
+            conflict_result=conflict_result,
+            coverage_gaps=list(coverage.gaps),
+            conflict_details=conflict_details,
             total_candidates=total_candidates,
         )
 
@@ -209,13 +216,14 @@ class RAGOrchestrator:
         version_map: dict[UUID, UUID] = {}
         seen_doc_ids: set[UUID] = set()
 
-        for chunk in chunks:
-            if chunk.document_id in seen_doc_ids:
-                continue
-            seen_doc_ids.add(chunk.document_id)
+        async with self._uow() as uow:
+            for chunk in chunks:
+                if chunk.document_id in seen_doc_ids:
+                    continue
+                seen_doc_ids.add(chunk.document_id)
 
-            active = await self._version_repo.get_active(chunk.document_id)
-            if active:
-                version_map[chunk.document_id] = active.id
+                active = await uow.version_repo.get_active(chunk.document_id)
+                if active:
+                    version_map[chunk.document_id] = active.id
 
         return version_map

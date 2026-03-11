@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from engine.rag.models.scenario import Scenario
-from engine.rag.storage.repositories.scenario import ScenarioRepository
+from engine.rag.storage.uow import RAGUnitOfWorkFactory
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class ScenarioMatcher:
-    def __init__(self, *, scenario_repo: ScenarioRepository) -> None:
-        self._repo = scenario_repo
+    def __init__(self, *, uow_factory: RAGUnitOfWorkFactory) -> None:
+        self._uow = uow_factory
 
     async def match(
         self,
@@ -21,14 +21,15 @@ class ScenarioMatcher:
         outcome: str | None = None,
         limit: int = 5,
     ) -> list[Scenario]:
-        rows = await self._repo.match(
-            framework=framework,
-            setup_family=setup_family,
-            direction=direction,
-            timeframe=timeframe,
-            outcome=outcome,
-            limit=limit,
-        )
+        async with self._uow() as uow:
+            rows = await uow.scenario_repo.match(
+                framework=framework,
+                setup_family=setup_family,
+                direction=direction,
+                timeframe=timeframe,
+                outcome=outcome,
+                limit=limit,
+            )
 
         scenarios: list[Scenario] = []
         for row in rows:

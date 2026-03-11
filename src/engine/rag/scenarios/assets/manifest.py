@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from engine.rag.constants import SUPPORTED_IMAGE_FORMATS
+
 
 @dataclass(frozen=True, slots=True)
 class ScenarioManifestEntry:
@@ -30,7 +32,7 @@ def build_scenario_manifest(scenario_root: Path) -> list[ScenarioManifestEntry]:
         images = tuple(
             sorted(
                 f for f in child.iterdir()
-                if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+                if f.suffix.lower() in SUPPORTED_IMAGE_FORMATS
             )
         )
 
