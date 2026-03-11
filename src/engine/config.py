@@ -239,6 +239,241 @@ class TAConfig(BaseSettings):
         return [s.upper() for s in v]
 
 
+class RAGConfig(BaseSettings):
+    """RAG Intelligence Engine configuration.
+
+    All RAG parameters are loaded from env vars prefixed with ``RAG_``.
+    Covers embedding providers, vector store, chunking strategy,
+    retrieval tuning, reranking, knowledge base governance, and
+    ingest pipeline settings.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="RAG_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    enabled: bool = Field(default=True, description="Master switch for the RAG subsystem")
+
+    # ── Embedding Provider ──────────────────────────────────────────
+    embedding_provider: str = Field(
+        default="openai",
+        description="Active embedding provider: openai, nomic, sentence_transformers",
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-large",
+        description="Model identifier for the active embedding provider",
+    )
+    embedding_dimensions: int = Field(
+        default=3072, ge=64, le=4096,
+        description="Output vector dimensionality",
+    )
+    embedding_batch_size: int = Field(
+        default=64, ge=1, le=512,
+        description="Chunks per embedding API call",
+    )
+    embedding_max_retries: int = Field(
+        default=3, ge=1, le=10,
+        description="Max retries per embedding batch request",
+    )
+    embedding_timeout_seconds: int = Field(
+        default=30, ge=5, le=120,
+        description="Timeout per embedding API call",
+    )
+
+    # ── Embedding API Keys ──────────────────────────────────────────
+    openai_api_key: str = Field(
+        default="",
+        description="OpenAI API key for text-embedding-3-large",
+    )
+    openai_embedding_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="OpenAI API base URL",
+    )
+
+    # ── Vector Store ────────────────────────────────────────────────
+    vectorstore_provider: str = Field(
+        default="chroma",
+        description="Active vector store backend: chroma",
+    )
+    chroma_host: str = Field(
+        default="localhost",
+        description="ChromaDB server host",
+    )
+    chroma_port: int = Field(
+        default=8000, ge=1, le=65535,
+        description="ChromaDB server port",
+    )
+    chroma_auth_token: str = Field(
+        default="",
+        description="ChromaDB authentication token (empty for no auth)",
+    )
+    chroma_ssl: bool = Field(
+        default=False,
+        description="Use TLS for ChromaDB connection",
+    )
+    collection_documents: str = Field(
+        default="etradie_documents",
+        description="ChromaDB collection name for rulebook/guide chunks",
+    )
+    collection_scenarios: str = Field(
+        default="etradie_scenarios",
+        description="ChromaDB collection name for chart scenario chunks",
+    )
+
+    # ── Chunking ────────────────────────────────────────────────────
+    chunk_size: int = Field(
+        default=1024, ge=128, le=4096,
+        description="Target chunk size in tokens",
+    )
+    chunk_overlap: int = Field(
+        default=128, ge=0, le=512,
+        description="Overlap between consecutive chunks in tokens",
+    )
+    chunk_min_size: int = Field(
+        default=64, ge=16, le=512,
+        description="Minimum chunk size; smaller chunks are merged with neighbors",
+    )
+    chunk_max_size: int = Field(
+        default=2048, ge=256, le=8192,
+        description="Maximum chunk size; larger chunks are force-split",
+    )
+
+    # ── Retrieval ───────────────────────────────────────────────────
+    retrieval_top_k: int = Field(
+        default=15, ge=1, le=100,
+        description="Number of candidate chunks to retrieve from vector store",
+    )
+    retrieval_score_threshold: float = Field(
+        default=0.25, ge=0.0, le=1.0,
+        description="Minimum similarity score to include a chunk in results",
+    )
+    retrieval_default_strategy: str = Field(
+        default="hybrid",
+        description="Default retrieval strategy: rule_first, scenario_first, macro_bias, hybrid",
+    )
+
+    # ── Reranking ───────────────────────────────────────────────────
+    rerank_enabled: bool = Field(
+        default=True,
+        description="Enable reranking stage after initial retrieval",
+    )
+    rerank_top_k: int = Field(
+        default=8, ge=1, le=50,
+        description="Number of chunks to keep after reranking",
+    )
+    rerank_model: str = Field(
+        default="rule_weighted",
+        description="Reranking method: rule_weighted (built-in rule-based scoring)",
+    )
+
+    # ── Coverage & Conflict ─────────────────────────────────────────
+    coverage_min_rule_chunks: int = Field(
+        default=2, ge=1, le=10,
+        description="Minimum rulebook chunks required for sufficient coverage",
+    )
+    coverage_min_framework_chunks: int = Field(
+        default=1, ge=1, le=10,
+        description="Minimum framework-specific chunks required",
+    )
+    conflict_auto_reject: bool = Field(
+        default=True,
+        description="Auto-reject (NO SETUP) when conflicting rules are retrieved",
+    )
+
+    # ── Knowledge Base Paths ────────────────────────────────────────
+    knowledge_base_dir: str = Field(
+        default="docs",
+        description="Root directory containing knowledge base source documents",
+    )
+    scenario_assets_dir: str = Field(
+        default="docs/scenarios",
+        description="Directory containing chart scenario assets",
+    )
+
+    # ── Ingest Pipeline ─────────────────────────────────────────────
+    ingest_on_startup: bool = Field(
+        default=True,
+        description="Run bootstrap ingest check on application startup",
+    )
+    ingest_max_concurrent: int = Field(
+        default=4, ge=1, le=16,
+        description="Max concurrent document ingest operations",
+    )
+    ingest_retry_max: int = Field(
+        default=3, ge=1, le=10,
+        description="Max retries for failed ingest jobs",
+    )
+
+    # ── Cache TTL ───────────────────────────────────────────────────
+    cache_ttl_retrieval: int = Field(
+        default=300, ge=60, le=3600,
+        description="Cache TTL for retrieval results in seconds",
+    )
+    cache_ttl_embedding: int = Field(
+        default=86400, ge=3600, le=604800,
+        description="Cache TTL for embedding hashes in seconds",
+    )
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def validate_embedding_provider(cls, v: str) -> str:
+        allowed = {"openai", "nomic", "sentence_transformers"}
+        if v not in allowed:
+            raise ValueError(f"Embedding provider must be one of {allowed}")
+        return v
+
+    @field_validator("vectorstore_provider")
+    @classmethod
+    def validate_vectorstore_provider(cls, v: str) -> str:
+        allowed = {"chroma"}
+        if v not in allowed:
+            raise ValueError(f"Vector store provider must be one of {allowed}")
+        return v
+
+    @field_validator("retrieval_default_strategy")
+    @classmethod
+    def validate_retrieval_strategy(cls, v: str) -> str:
+        allowed = {"rule_first", "scenario_first", "macro_bias", "hybrid"}
+        if v not in allowed:
+            raise ValueError(f"Retrieval strategy must be one of {allowed}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_chunk_bounds(self) -> Self:
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) must be less than "
+                f"chunk_size ({self.chunk_size})"
+            )
+        if self.chunk_min_size >= self.chunk_size:
+            raise ValueError(
+                f"chunk_min_size ({self.chunk_min_size}) must be less than "
+                f"chunk_size ({self.chunk_size})"
+            )
+        if self.rerank_top_k > self.retrieval_top_k:
+            raise ValueError(
+                f"rerank_top_k ({self.rerank_top_k}) must not exceed "
+                f"retrieval_top_k ({self.retrieval_top_k})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_production_embedding_key(self) -> Self:
+        if self.embedding_provider == "openai" and not self.openai_api_key:
+            import os
+            env = os.getenv("APP_ENV", "development")
+            if env in {"production", "staging"}:
+                raise ValueError(
+                    "RAG_OPENAI_API_KEY is required when embedding_provider "
+                    "is 'openai' in production/staging"
+                )
+        return self
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return the singleton settings instance, cached after first load."""
@@ -249,3 +484,9 @@ def get_settings() -> Settings:
 def get_ta_config() -> TAConfig:
     """Return the singleton TA config instance, cached after first load."""
     return TAConfig()
+
+
+@lru_cache(maxsize=1)
+def get_rag_config() -> RAGConfig:
+    """Return the singleton RAG config instance, cached after first load."""
+    return RAGConfig()
