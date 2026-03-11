@@ -48,7 +48,7 @@ class AuditService:
             duration_ms=duration_ms,
             trace_id=trace_id,
         )
-        created = await self._retrieval_log_repo.create(row)
+        created = await self._retrieval_log_repo.add(row)
         return created.id
 
     async def log_citations(
@@ -71,7 +71,7 @@ class AuditService:
                 relevance_score=citation.relevance_score,
                 excerpt=citation.excerpt,
             )
-            await self._citation_log_repo.create(row)
+            await self._citation_log_repo.add(row)
             count += 1
 
         logger.info(

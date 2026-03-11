@@ -45,7 +45,7 @@ class ScenarioIndexer:
             metadata=metadata or {},
             is_active=True,
         )
-        created = await self._repo.create(row)
+        created = await self._repo.add(row)
 
         logger.info(
             "scenario_indexed",

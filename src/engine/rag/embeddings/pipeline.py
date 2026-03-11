@@ -98,7 +98,7 @@ class EmbeddingPipeline:
     async def _embed_batch(
         self, chunk_rows: list[ChunkRow] | tuple[ChunkRow, ...],
     ) -> list[tuple[UUID, list[float]]]:
-        texts = [row.metadata.get("content", "") for row in chunk_rows]
+        texts = [row.content for row in chunk_rows]
 
         import time
         start = time.monotonic()

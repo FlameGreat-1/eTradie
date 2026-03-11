@@ -33,7 +33,7 @@ async def seed_knowledge_assets(
             framework_tags=[],
             metadata={},
         )
-        created = await document_repo.create(row)
+        created = await document_repo.add(row)
         seeded.append(created)
 
         logger.info(

@@ -7,7 +7,6 @@ from engine.rag.storage.repositories.chunk import ChunkRepository
 from engine.rag.storage.repositories.reembed_queue import ReembedQueueRepository
 from engine.rag.vectorstore.base import BaseVectorStore
 from engine.rag.vectorstore.upsert import upsert_chunk_vectors
-from engine.shared.exceptions import RAGError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,14 +64,14 @@ class ReembedService:
         if not chunks:
             return
 
-        contents = [c.metadata.get("content", "") for c in chunks]
+        contents = [c.content for c in chunks]
         results = await self._embedding_pipeline.embed_chunks(chunks, contents)
 
         if results:
             chunk_ids = [r[0] for r in results]
             embeddings = [r[1] for r in results]
             documents = contents[:len(results)]
-            metadatas = [c.metadata for c in chunks[:len(results)]]
+            metadatas = [c.metadata if isinstance(c.metadata, dict) else {} for c in chunks[:len(results)]]
 
             await upsert_chunk_vectors(
                 store=self._vector_store,
