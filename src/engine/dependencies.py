@@ -7,9 +7,6 @@ from engine.shared.http import HttpClient
 from engine.shared.rss import RSSParser
 from engine.shared.scheduler import SchedulerManager
 
-# ══════════════════════════════════════════════════════════════════════════════
-# MACRO IMPORTS
-# ══════════════════════════════════════════════════════════════════════════════
 from engine.macro.collectors.calendar.collector import CalendarCollector
 from engine.macro.collectors.central_bank.collector import CentralBankCollector
 from engine.macro.collectors.cot.collector import COTCollector
@@ -34,9 +31,6 @@ from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.trading_economics import TradingEconomicsSentimentProvider
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TA IMPORTS
-# ══════════════════════════════════════════════════════════════════════════════
 from engine.ta.broker.mt5.client import MT5Client
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.twelve_data.client import TwelveDataClient
@@ -62,6 +56,29 @@ from engine.ta.storage.repositories.candle import CandleRepository
 from engine.ta.storage.repositories.snapshot import SnapshotRepository
 from engine.ta.storage.repositories.candidate import CandidateRepository
 from engine.ta.orchestrator import TAOrchestrator
+
+from engine.config import get_rag_config
+from engine.rag.embeddings.factory import create_embedding_provider
+from engine.rag.embeddings.pipeline import EmbeddingPipeline
+from engine.rag.orchestrator import RAGOrchestrator
+from engine.rag.retrieval.reranker import Reranker
+from engine.rag.retrieval.retriever import Retriever
+from engine.rag.scenarios.matcher import ScenarioMatcher
+from engine.rag.services.audit import AuditService
+from engine.rag.services.bootstrap import BootstrapService
+from engine.rag.services.health import HealthService
+from engine.rag.services.reembed import ReembedService
+from engine.rag.services.sync import SyncService
+from engine.rag.services.versioning import VersioningService
+from engine.rag.storage.repositories.chunk import ChunkRepository
+from engine.rag.storage.repositories.citation_log import CitationLogRepository
+from engine.rag.storage.repositories.document import DocumentRepository
+from engine.rag.storage.repositories.document_version import DocumentVersionRepository
+from engine.rag.storage.repositories.ingest_job import IngestJobRepository
+from engine.rag.storage.repositories.reembed_queue import ReembedQueueRepository
+from engine.rag.storage.repositories.retrieval_log import RetrievalLogRepository
+from engine.rag.storage.repositories.scenario import ScenarioRepository
+from engine.rag.vectorstore.factory import create_vector_store
 
 
 class Container:
@@ -98,7 +115,7 @@ class Container:
         self.registry = ProviderRegistry()
         self._build_providers()
         self._build_collectors()
-        
+
         self._build_ta_configs()
         self._build_ta_brokers()
         self._build_ta_repositories()
@@ -107,6 +124,8 @@ class Container:
         self._build_smc_framework()
         self._build_snd_framework()
         self._build_ta_orchestrator()
+
+        self.rag_config = get_rag_config()
 
     def _build_providers(self) -> None:
         s = self.settings
@@ -204,10 +223,10 @@ class Container:
 
     def _build_ta_brokers(self) -> None:
         s = self.settings
-        
+
         mt5_config = MT5Config()
         self.mt5_client = MT5Client(mt5_config)
-        
+
         twelve_config = TwelveDataConfig(
             api_key=s.twelvedata_api_key,
             base_url=s.twelvedata_base_url,
@@ -217,7 +236,7 @@ class Container:
             http_client=self.http_client,
             cache=self.cache,
         )
-        
+
         self.broker_registry = BrokerRegistry(
             ta_config=self.ta_config,
             http_client=self.http_client,
@@ -285,10 +304,100 @@ class Container:
             fibonacci_analyzer=self.fibonacci_analyzer,
         )
 
+    async def build_rag(self, session) -> None:
+        rc = self.rag_config
+
+        self.rag_document_repo = DocumentRepository(session)
+        self.rag_version_repo = DocumentVersionRepository(session)
+        self.rag_chunk_repo = ChunkRepository(session)
+        self.rag_scenario_repo = ScenarioRepository(session)
+        self.rag_ingest_job_repo = IngestJobRepository(session)
+        self.rag_retrieval_log_repo = RetrievalLogRepository(session)
+        self.rag_citation_log_repo = CitationLogRepository(session)
+        self.rag_reembed_queue_repo = ReembedQueueRepository(session)
+
+        self.rag_vector_store = create_vector_store(config=rc)
+
+        self.rag_embedding_provider = create_embedding_provider(
+            config=rc, http_client=self.http_client,
+        )
+
+        self.rag_embedding_pipeline = EmbeddingPipeline(
+            config=rc,
+            provider=self.rag_embedding_provider,
+            chunk_repo=self.rag_chunk_repo,
+        )
+
+        self.rag_retriever = Retriever(
+            config=rc,
+            vector_store=self.rag_vector_store,
+            embedding_provider=self.rag_embedding_provider,
+        )
+
+        self.rag_reranker = Reranker(config=rc)
+
+        self.rag_scenario_matcher = ScenarioMatcher(
+            scenario_repo=self.rag_scenario_repo,
+        )
+
+        self.rag_audit_service = AuditService(
+            retrieval_log_repo=self.rag_retrieval_log_repo,
+            citation_log_repo=self.rag_citation_log_repo,
+        )
+
+        self.rag_versioning_service = VersioningService(
+            document_repo=self.rag_document_repo,
+            version_repo=self.rag_version_repo,
+            reembed_repo=self.rag_reembed_queue_repo,
+        )
+
+        self.rag_reembed_service = ReembedService(
+            reembed_repo=self.rag_reembed_queue_repo,
+            chunk_repo=self.rag_chunk_repo,
+            embedding_pipeline=self.rag_embedding_pipeline,
+            vector_store=self.rag_vector_store,
+            collection=rc.collection_documents,
+        )
+
+        self.rag_sync_service = SyncService(
+            document_repo=self.rag_document_repo,
+            version_repo=self.rag_version_repo,
+            chunk_repo=self.rag_chunk_repo,
+            vector_store=self.rag_vector_store,
+            collection=rc.collection_documents,
+        )
+
+        self.rag_bootstrap_service = BootstrapService(
+            config=rc,
+            document_repo=self.rag_document_repo,
+            vector_store=self.rag_vector_store,
+        )
+
+        self.rag_health_service = HealthService(
+            config=rc,
+            vector_store=self.rag_vector_store,
+            db=self.db,
+            embedding_provider=self.rag_embedding_provider,
+        )
+
+        self.rag_orchestrator = RAGOrchestrator(
+            config=rc,
+            retriever=self.rag_retriever,
+            reranker=self.rag_reranker,
+            scenario_matcher=self.rag_scenario_matcher,
+            audit_service=self.rag_audit_service,
+            document_repo=self.rag_document_repo,
+            version_repo=self.rag_version_repo,
+        )
+
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
         if hasattr(self, 'mt5_client'):
             await self.mt5_client.shutdown()
+        if hasattr(self, 'rag_vector_store'):
+            await self.rag_vector_store.close()
+        if hasattr(self, 'rag_embedding_provider'):
+            await self.rag_embedding_provider.close()
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()

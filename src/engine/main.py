@@ -6,14 +6,13 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 
-from engine.config import get_settings
+from engine.config import TAConfig, get_rag_config, get_settings
 from engine.dependencies import Container
 from engine.shared.logging import configure_logging, get_logger
 from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
-from engine.config import TAConfig
 
 logger = get_logger(__name__)
 
@@ -37,6 +36,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db_ok = await container.db.health_check()
     cache_ok = await container.cache.health_check()
     logger.info("startup_health", db=db_ok, cache=cache_ok)
+
+    rag_config = get_rag_config()
+    if rag_config.enabled:
+        async with container.db.session() as session:
+            await container.build_rag(session)
+
+        if rag_config.ingest_on_startup:
+            async with container.db.session() as session:
+                await container.build_rag(session)
+                await container.rag_bootstrap_service.bootstrap()
+                rag_ready = await container.rag_bootstrap_service.check_readiness()
+                logger.info("rag_startup", ready=rag_ready)
+
+        rag_health = await container.rag_health_service.check()
+        logger.info(
+            "rag_health_startup",
+            overall=rag_health.overall_healthy,
+            vectorstore=rag_health.vectorstore.connected,
+            database=rag_health.database_connected,
+            embedding=rag_health.embedding_provider_ready,
+        )
 
     register_macro_jobs(
         container.scheduler,
@@ -89,6 +109,21 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.get("/health/rag")
+    async def rag_health(request) -> dict:
+        container: Container = request.app.state.container
+        if not hasattr(container, "rag_health_service"):
+            return {"status": "disabled"}
+        status = await container.rag_health_service.check()
+        return {
+            "status": "healthy" if status.overall_healthy else "degraded",
+            "vectorstore_connected": status.vectorstore.connected,
+            "database_connected": status.database_connected,
+            "embedding_ready": status.embedding_provider_ready,
+            "documents_count": status.vectorstore.documents_collection_count,
+            "scenarios_count": status.vectorstore.scenarios_collection_count,
+        }
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
