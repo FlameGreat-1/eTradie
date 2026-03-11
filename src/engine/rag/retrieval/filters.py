@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.rag.constants import DocumentType, Framework
+from engine.rag.constants import DocumentType, Framework, SetupFamily
 from engine.rag.models.retrieval import RetrievalFilter
 
 
@@ -46,7 +46,6 @@ def build_framework_filters(
     doc_type = doc_type_map.get(framework)
     doc_types = frozenset({doc_type}) if doc_type else frozenset()
 
-    from engine.rag.constants import SetupFamily
     setup_families = frozenset({setup_family}) if setup_family else frozenset()
     directions = frozenset({direction}) if direction else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
@@ -70,7 +69,6 @@ def build_scenario_filters(
     doc_types = frozenset({DocumentType.CHART_SCENARIO_LIBRARY})
     frameworks = frozenset({framework}) if framework else frozenset()
 
-    from engine.rag.constants import SetupFamily
     setup_families = frozenset({setup_family}) if setup_family else frozenset()
     directions = frozenset({direction}) if direction else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
