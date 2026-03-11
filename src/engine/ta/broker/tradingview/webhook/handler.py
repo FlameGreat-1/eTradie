@@ -15,6 +15,7 @@ from engine.shared.metrics.prometheus import (
     PROVIDER_REQUEST_DURATION,
     PROVIDER_REQUEST_ERRORS,
 )
+
 from engine.shared.models.base import FrozenModel
 from engine.ta.broker.tradingview.config import TradingViewConfig
 from engine.ta.constants import Timeframe, Direction

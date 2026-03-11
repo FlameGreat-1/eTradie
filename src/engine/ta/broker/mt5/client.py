@@ -13,8 +13,8 @@ from engine.shared.exceptions import (
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
-    PROVIDER_REQUEST_DURATION,
-    PROVIDER_REQUEST_ERRORS,
+    TA_BROKER_FETCH_DURATION,
+    TA_BROKER_ERRORS_TOTAL,
     PROVIDER_RESPONSE_SIZE,
 )
 from engine.ta.broker.base import BrokerBase, BrokerCapabilities
@@ -144,7 +144,8 @@ class MT5Client(BrokerBase):
                 details={"timeframe": timeframe},
             )
         
-        start_timer = asyncio.get_event_loop().time()
+        import time as _time
+        start_timer = _time.monotonic()
         
         try:
             if count:
@@ -180,18 +181,18 @@ class MT5Client(BrokerBase):
                     500,
                 )
             
-            duration = asyncio.get_event_loop().time() - start_timer
+            duration = _time.monotonic() - start_timer
             
-            PROVIDER_REQUEST_DURATION.labels(
-                provider="mt5",
-                operation="fetch_candles",
+            TA_BROKER_FETCH_DURATION.labels(
+                broker="mt5",
+                symbol=symbol,
+                timeframe=timeframe.value,
             ).observe(duration)
             
             if rates is None or len(rates) == 0:
                 error_code = mt5.last_error()
-                PROVIDER_REQUEST_ERRORS.labels(
-                    provider="mt5",
-                    operation="fetch_candles",
+                TA_BROKER_ERRORS_TOTAL.labels(
+                    broker="mt5",
                     error_type="no_data",
                 ).inc()
                 
@@ -228,7 +229,7 @@ class MT5Client(BrokerBase):
             
             PROVIDER_RESPONSE_SIZE.labels(
                 provider="mt5",
-                operation="fetch_candles",
+                category="candles",
             ).observe(len(candles))
             
             logger.info(
@@ -246,9 +247,8 @@ class MT5Client(BrokerBase):
         except ProviderError:
             raise
         except Exception as e:
-            PROVIDER_REQUEST_ERRORS.labels(
-                provider="mt5",
-                operation="fetch_candles",
+            TA_BROKER_ERRORS_TOTAL.labels(
+                broker="mt5",
                 error_type=type(e).__name__,
             ).inc()
             

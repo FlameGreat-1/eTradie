@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -116,18 +117,19 @@ class AMDCandidateBuilder:
         if confluences < self.config.min_confluences:
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (0.0010)
+        stop_loss = ltf_ob.lower_bound - (10 * pip_val)
         
         if amd_context.asian_range:
-            take_profit = amd_context.asian_range.high + (0.0050)
+            take_profit = amd_context.asian_range.high + (50 * pip_val)
         else:
-            take_profit = entry_price + (0.0100)
+            take_profit = entry_price + (100 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.AMD,
+            pattern=CandidatePattern.AMD_BULLISH,
             direction=Direction.BULLISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,
@@ -242,18 +244,19 @@ class AMDCandidateBuilder:
         if confluences < self.config.min_confluences:
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (0.0010)
+        stop_loss = ltf_ob.upper_bound + (10 * pip_val)
         
         if amd_context.asian_range:
-            take_profit = amd_context.asian_range.low - (0.0050)
+            take_profit = amd_context.asian_range.low - (50 * pip_val)
         else:
-            take_profit = entry_price - (0.0100)
+            take_profit = entry_price - (100 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.AMD,
+            pattern=CandidatePattern.AMD_BEARISH,
             direction=Direction.BEARISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,

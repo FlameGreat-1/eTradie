@@ -1,6 +1,7 @@
 from typing import Optional
 
 from engine.shared.logging import get_logger
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import (
     FibonacciLevel,
     FIBONACCI_VALUES,
@@ -90,7 +91,7 @@ class FibonacciAnalyzer:
     ) -> bool:
         ote_zone = self.get_ote_zone(retracement)
         
-        tolerance = tolerance_pips * 0.0001
+        tolerance = tolerance_pips * float(get_pip_value(retracement.symbol))
         
         return (
             ote_zone.lower_bound - tolerance <= price <= ote_zone.upper_bound + tolerance

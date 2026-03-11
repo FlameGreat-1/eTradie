@@ -218,6 +218,49 @@ SCHEDULER_JOB_DURATION = Histogram(
     buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 120.0),
 )
 
+SCHEDULER_PENDING_JOBS = Gauge(
+    "etradie_scheduler_pending_jobs",
+    "Number of pending scheduled jobs",
+)
+
+SCHEDULER_ACTIVE_JOBS = Gauge(
+    "etradie_scheduler_active_jobs",
+    "Number of currently executing jobs",
+)
+
+# ══════════════════════════════════════════════════════════════
+# Tracing Metrics
+# ══════════════════════════════════════════════════════════════
+
+TRACING_SPANS_CREATED = Counter(
+    "etradie_tracing_spans_created_total",
+    "Total tracing spans created",
+    ["span_name"],
+)
+
+TRACING_SPANS_ERRORS = Counter(
+    "etradie_tracing_spans_errors_total",
+    "Total tracing span errors",
+    ["span_name", "error_type"],
+)
+
+# ══════════════════════════════════════════════════════════════
+# Generic Provider Request Metrics (broker-agnostic)
+# ══════════════════════════════════════════════════════════════
+
+PROVIDER_REQUEST_DURATION = Histogram(
+    "etradie_provider_request_duration_seconds",
+    "Provider request latency (broker-agnostic)",
+    ["provider", "operation"],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+
+PROVIDER_REQUEST_ERRORS = Counter(
+    "etradie_provider_request_errors_total",
+    "Provider request error count (broker-agnostic)",
+    ["provider", "operation", "error_type"],
+)
+
 # ══════════════════════════════════════════════════════════════
 # Logging Metrics
 # ══════════════════════════════════════════════════════════════

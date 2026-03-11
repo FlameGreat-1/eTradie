@@ -13,7 +13,7 @@ from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
-from engine.ta.config import TAConfig
+from engine.config import TAConfig
 
 logger = get_logger(__name__)
 

@@ -56,35 +56,8 @@ from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.timeframe.manager import TimeframeManager
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detector import SMCDetector
-from engine.ta.smc.detectors.bms import BMSDetector
-from engine.ta.smc.detectors.sms import SMSDetector
-from engine.ta.smc.detectors.choch import CHOCHDetector
-from engine.ta.smc.detectors.inducement import InducementDetector
-from engine.ta.smc.detectors.turtle_soup import TurtleSoupDetector
-from engine.ta.smc.detectors.amd import AMDDetector
-from engine.ta.smc.zones.order_block import OrderBlockDetector
-from engine.ta.smc.zones.fvg import FVGDetector
-from engine.ta.smc.zones.breaker import BreakerBlockDetector
-from engine.ta.smc.zones.mitigation import MitigationBlockDetector
-from engine.ta.smc.validators.zone.validator import ZoneValidator
-from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator as SMCLTFValidator
-from engine.ta.smc.builders.reversal import ReversalCandidateBuilder
-from engine.ta.smc.builders.continuation import ContinuationCandidateBuilder
-from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
-from engine.ta.snd.detectors.qm import QMDetector
-from engine.ta.snd.detectors.sr_flip import SRFlipDetector
-from engine.ta.snd.detectors.rs_flip import RSFlipDetector
-from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
-from engine.ta.snd.detectors.mpl import MPLDetector
-from engine.ta.snd.detectors.fakeouts import FakeoutDetector
-from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
-from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator as SnDLTFValidator
-from engine.ta.snd.builders.candidates.fakeout import FakeoutCandidateBuilder
-from engine.ta.snd.builders.candidates.qm import QMCandidateBuilder
-from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder as SnDContinuationBuilder
 from engine.ta.storage.repositories.candle import CandleRepository
 from engine.ta.storage.repositories.snapshot import SnapshotRepository
 from engine.ta.storage.repositories.candidate import CandidateRepository
@@ -224,7 +197,7 @@ class Container:
         self.sentiment_collector.cache_ttl = s.cache_ttl_sentiment
 
     def _build_ta_configs(self) -> None:
-        from engine.ta.config import TAConfig
+        from engine.config import TAConfig
         self.ta_config = TAConfig()
         self.smc_config = SMCConfig()
         self.snd_config = SnDConfig()
@@ -277,73 +250,18 @@ class Container:
         self.alignment_service = AlignmentService(timeframe_manager=self.timeframe_manager)
 
     def _build_smc_framework(self) -> None:
-        self.bms_detector = BMSDetector(self.smc_config)
-        self.sms_detector = SMSDetector(self.smc_config)
-        self.choch_detector = CHOCHDetector(self.smc_config)
-        self.inducement_detector = InducementDetector(self.smc_config)
-        self.turtle_soup_detector = TurtleSoupDetector(self.smc_config)
-        self.amd_detector = AMDDetector(self.smc_config, self.session_analyzer, self.dealing_range_analyzer)
-        
-        self.order_block_detector = OrderBlockDetector(self.smc_config)
-        self.fvg_detector = FVGDetector(self.smc_config)
-        self.breaker_detector = BreakerBlockDetector(self.smc_config)
-        self.mitigation_detector = MitigationBlockDetector(self.smc_config)
-        
-        self.zone_validator = ZoneValidator(self.smc_config, self.fibonacci_analyzer)
-        self.smc_ltf_validator = SMCLTFValidator(self.smc_config, self.compression_analyzer, self.fibonacci_analyzer)
-        
-        self.reversal_builder = ReversalCandidateBuilder(
-            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
-        )
-        self.continuation_builder = ContinuationCandidateBuilder(
-            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
-        )
-        self.amd_builder = AMDCandidateBuilder(
-            self.smc_config, self.zone_validator, self.smc_ltf_validator, self.fibonacci_analyzer,
-        )
-        
         self.smc_detector = SMCDetector(
             config=self.smc_config,
             candle_analyzer=self.candle_analyzer,
             swing_analyzer=self.swing_analyzer,
-            bms_detector=self.bms_detector,
-            sms_detector=self.sms_detector,
-            choch_detector=self.choch_detector,
-            inducement_detector=self.inducement_detector,
-            turtle_soup_detector=self.turtle_soup_detector,
-            amd_detector=self.amd_detector,
-            ob_detector=self.order_block_detector,
-            fvg_detector=self.fvg_detector,
-            breaker_detector=self.breaker_detector,
-            mitigation_detector=self.mitigation_detector,
+            session_analyzer=self.session_analyzer,
+            liquidity_analyzer=self.liquidity_analyzer,
+            sweep_analyzer=self.sweep_analyzer,
             fibonacci_analyzer=self.fibonacci_analyzer,
-            reversal_builder=self.reversal_builder,
-            continuation_builder=self.continuation_builder,
-            amd_builder=self.amd_builder,
+            dealing_range_analyzer=self.dealing_range_analyzer,
         )
 
     def _build_snd_framework(self) -> None:
-        self.qm_detector = QMDetector(self.snd_config)
-        self.sr_flip_detector = SRFlipDetector(self.snd_config, self.marubozu_analyzer)
-        self.rs_flip_detector = RSFlipDetector(self.snd_config, self.marubozu_analyzer)
-        self.previous_level_detector = PreviousLevelDetector(self.snd_config)
-        self.mpl_detector = MPLDetector(self.snd_config)
-        self.fakeout_detector = FakeoutDetector(self.snd_config, self.compression_analyzer, self.marubozu_analyzer)
-        self.supply_demand_detector = SupplyDemandDetector(self.snd_config)
-        
-        self.marubozu_validator = MarubozuValidator(self.snd_config, self.marubozu_analyzer)
-        self.snd_ltf_validator = SnDLTFValidator(self.snd_config, self.compression_analyzer, self.fibonacci_analyzer)
-        
-        self.fakeout_builder = FakeoutCandidateBuilder(
-            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
-        )
-        self.qm_builder = QMCandidateBuilder(
-            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
-        )
-        self.snd_continuation_builder = SnDContinuationBuilder(
-            self.snd_config, self.marubozu_validator, self.snd_ltf_validator, self.fibonacci_analyzer,
-        )
-        
         self.snd_detector = SnDDetector(
             config=self.snd_config,
             candle_analyzer=self.candle_analyzer,
@@ -370,7 +288,7 @@ class Container:
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
         if hasattr(self, 'mt5_client'):
-            await self.mt5_client.disconnect()
+            await self.mt5_client.shutdown()
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()

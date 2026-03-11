@@ -12,6 +12,8 @@ from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.fibonacci import FibonacciRetracement
+from engine.ta.models.liquidity_event import LiquiditySweep
+from engine.ta.models.structure_event import BreakInMarketStructure
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
@@ -548,8 +550,8 @@ class SMCDetector:
         self,
         sweeps: list,
         direction: Direction,
-        bms: object,
-    ) -> Optional[object]:
+        bms: BreakInMarketStructure,
+    ) -> Optional[LiquiditySweep]:
         for sweep in sweeps:
             if abs(sweep.timestamp.timestamp() - bms.timestamp.timestamp()) < 3600:
                 if direction == Direction.BULLISH and sweep.liquidity_type.value in ["SSL", "EQUAL_LOWS"]:

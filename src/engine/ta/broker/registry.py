@@ -9,7 +9,7 @@ from engine.ta.broker.mt5.client import MT5Client
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.twelve_data.client import TwelveDataClient
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
-from engine.ta.config import TAConfig
+from engine.config import TAConfig
 
 logger = get_logger(__name__)
 
@@ -28,28 +28,31 @@ class BrokerRegistry:
         self._brokers: Dict[str, BrokerBase] = {}
         self._initialized = False
     
+    def register_broker(self, broker_id: str, broker: BrokerBase) -> None:
+        """Register a pre-configured broker client.
+        
+        Args:
+            broker_id: Unique identifier for the broker (e.g. "mt5", "twelve_data")
+            broker: Pre-configured broker client instance
+        """
+        self._brokers[broker_id] = broker
+        logger.info("broker_registered", extra={"broker": broker_id})
+    
     async def initialize(self) -> None:
+        """Initialize the registry from config if no brokers were pre-registered.
+        
+        If `register_broker()` was called before `initialize()`, those
+        pre-configured clients are used.  Otherwise, the registry falls
+        back to creating clients from config (legacy behaviour kept for
+        backwards compatibility).
+        """
         if self._initialized:
             return
         
         try:
-            if self.ta_config.primary_broker == "mt5":
-                mt5_config = MT5Config()
-                if mt5_config.enabled:
-                    mt5_client = MT5Client(config=mt5_config)
-                    self._brokers["mt5"] = mt5_client
-                    logger.info("broker_registered", extra={"broker": "mt5"})
-            
-            if self.ta_config.fallback_broker == "twelve_data" or self.ta_config.primary_broker == "twelve_data":
-                twelve_data_config = TwelveDataConfig()
-                if twelve_data_config.enabled:
-                    twelve_data_client = TwelveDataClient(
-                        config=twelve_data_config,
-                        http_client=self.http_client,
-                        cache=self.cache,
-                    )
-                    self._brokers["twelve_data"] = twelve_data_client
-                    logger.info("broker_registered", extra={"broker": "twelve_data"})
+            # Only auto-create brokers when none were pre-registered
+            if not self._brokers:
+                self._auto_configure_brokers()
             
             if not self._brokers:
                 raise ConfigurationError(
@@ -78,6 +81,26 @@ class BrokerRegistry:
                 exc_info=True,
             )
             raise
+    
+    def _auto_configure_brokers(self) -> None:
+        """Create broker clients from config (fallback when no pre-registered clients)."""
+        if self.ta_config.primary_broker == "mt5":
+            mt5_config = MT5Config()
+            if mt5_config.enabled:
+                mt5_client = MT5Client(config=mt5_config)
+                self._brokers["mt5"] = mt5_client
+                logger.info("broker_auto_configured", extra={"broker": "mt5"})
+        
+        if self.ta_config.fallback_broker == "twelve_data" or self.ta_config.primary_broker == "twelve_data":
+            twelve_data_config = TwelveDataConfig()
+            if twelve_data_config.enabled:
+                twelve_data_client = TwelveDataClient(
+                    config=twelve_data_config,
+                    http_client=self.http_client,
+                    cache=self.cache,
+                )
+                self._brokers["twelve_data"] = twelve_data_client
+                logger.info("broker_auto_configured", extra={"broker": "twelve_data"})
     
     def get_broker(self, broker_id: Optional[str] = None) -> BrokerBase:
         if not self._initialized:

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from engine.shared.logging import get_logger
-from engine.ta.constants import Session, SESSION_UTC_RANGES, Timeframe
+from engine.ta.constants import Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.session import SessionState, SessionRange, SessionWindow, get_session_window
 

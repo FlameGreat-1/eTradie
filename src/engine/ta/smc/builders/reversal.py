@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -114,14 +115,15 @@ class ReversalBuilder:
         if confluences < self.config.min_confluences:
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (0.0010)
-        take_profit = htf_sms.failed_level + (0.0050)
+        stop_loss = ltf_ob.lower_bound - (10 * pip_val)
+        take_profit = htf_sms.failed_level + (50 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.SMS_BMS_RTO,
+            pattern=CandidatePattern.SMS_BMS_RTO_BULLISH,
             direction=Direction.BULLISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,
@@ -217,14 +219,15 @@ class ReversalBuilder:
         if confluences < self.config.min_confluences:
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (0.0010)
-        take_profit = htf_sms.failed_level - (0.0050)
+        stop_loss = ltf_ob.upper_bound + (10 * pip_val)
+        take_profit = htf_sms.failed_level - (50 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.SMS_BMS_RTO,
+            pattern=CandidatePattern.SMS_BMS_RTO_BEARISH,
             direction=Direction.BEARISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,
@@ -277,14 +280,15 @@ class ReversalBuilder:
         if not self.ltf_validator.validate_session_timing(ltf_sequence):
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * 0.0001)
-        take_profit = sweep.swept_level + (sweep.sweep_pips * 2 * 0.0001)
+        stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
+        take_profit = sweep.swept_level + (sweep.sweep_pips * 2 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.TURTLE_SOUP,
+            pattern=CandidatePattern.TURTLE_SOUP_LONG,
             direction=Direction.BULLISH,
             timestamp=sweep.timestamp,
             entry_price=entry_price,
@@ -325,14 +329,15 @@ class ReversalBuilder:
         if not self.ltf_validator.validate_session_timing(ltf_sequence):
             return None
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * 0.0001)
-        take_profit = sweep.swept_level - (sweep.sweep_pips * 2 * 0.0001)
+        stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
+        take_profit = sweep.swept_level - (sweep.sweep_pips * 2 * pip_val)
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.TURTLE_SOUP,
+            pattern=CandidatePattern.TURTLE_SOUP_SHORT,
             direction=Direction.BEARISH,
             timestamp=sweep.timestamp,
             entry_price=entry_price,

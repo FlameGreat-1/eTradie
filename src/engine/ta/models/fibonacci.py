@@ -5,6 +5,7 @@ from pydantic import Field, field_validator, computed_field
 
 from engine.shared.exceptions import ConfigurationError
 from engine.shared.models.base import FrozenModel
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import (
     Timeframe,
     FibonacciLevel,
@@ -97,9 +98,10 @@ class FibonacciRetracement(FrozenModel):
     
     def is_at_ote(self, price: float, tolerance_pips: float = 5.0) -> Optional[FibonacciLevel]:
         ote_levels = self.get_ote_levels()
+        pip_value = float(get_pip_value(self.symbol))
         
         for level, level_price in ote_levels.items():
-            if abs(price - level_price) <= (tolerance_pips * 0.0001):
+            if abs(price - level_price) <= (tolerance_pips * pip_value):
                 return level
         
         return None

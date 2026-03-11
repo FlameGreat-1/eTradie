@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -116,13 +117,14 @@ class ContinuationBuilder:
             return None
         
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (0.0010)
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
+        stop_loss = ltf_ob.lower_bound - (10 * pip_val)
         take_profit = htf_bms.breakout_price
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.SH_BMS_RTO,
+            pattern=CandidatePattern.SH_BMS_RTO_BULLISH,
             direction=Direction.BULLISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,
@@ -222,13 +224,14 @@ class ContinuationBuilder:
             return None
         
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (0.0010)
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
+        stop_loss = ltf_ob.upper_bound + (10 * pip_val)
         take_profit = htf_bms.breakout_price
         
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
-            pattern=CandidatePattern.SH_BMS_RTO,
+            pattern=CandidatePattern.SH_BMS_RTO_BEARISH,
             direction=Direction.BEARISH,
             timestamp=ltf_sequence.candles[-1].timestamp,
             entry_price=entry_price,

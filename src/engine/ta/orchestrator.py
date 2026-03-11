@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 
 from engine.shared.logging import get_logger
@@ -8,7 +8,7 @@ from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.constants import Timeframe
-from engine.ta.models.candle import CandleSequence, Candle
+from engine.ta.models.candle import CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
 from engine.ta.models.snapshot import TechnicalSnapshot
 from engine.ta.smc.detector import SMCDetector
@@ -87,13 +87,13 @@ class TAOrchestrator:
         )
         
         try:
-            htf_sequence = await self._fetch_and_build_sequence(
+            htf_sequence = await self._fetch_sequence(
                 symbol,
                 htf_timeframe,
                 lookback_periods,
             )
             
-            ltf_sequence = await self._fetch_and_build_sequence(
+            ltf_sequence = await self._fetch_sequence(
                 symbol,
                 ltf_timeframe,
                 lookback_periods * 4,
@@ -167,14 +167,14 @@ class TAOrchestrator:
                 "snd_candidates": 0,
             }
     
-    async def _fetch_and_build_sequence(
+    async def _fetch_sequence(
         self,
         symbol: str,
         timeframe: Timeframe,
         lookback_periods: int,
     ) -> Optional[CandleSequence]:
-        """Fetch candles and build CandleSequence."""
-        end_time = datetime.utcnow()
+        """Fetch candles from broker and return CandleSequence."""
+        end_time = datetime.now(UTC)
         start_time = self._calculate_start_time(end_time, timeframe, lookback_periods)
         
         stored_candles = await self.candle_repository.find_by_time_range(
@@ -195,56 +195,35 @@ class TAOrchestrator:
                 },
             )
             
-            broker_candles = await self.broker_client.fetch_historical_candles(
-                symbol,
-                timeframe.value,
-                start_time,
-                end_time,
-            )
-            
-            if broker_candles:
-                new_candles = []
-                for candle in broker_candles:
-                    existing = await self.candle_repository.find_by_symbol_timeframe_timestamp(
-                        symbol,
-                        timeframe.value,
-                        candle.timestamp,
-                    )
-                    if not existing:
-                        new_candles.append(candle)
+            try:
+                sequence = await self.broker_client.fetch_candles(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    start_time=start_time,
+                    end_time=end_time,
+                    count=lookback_periods,
+                )
                 
-                if new_candles:
-                    await self.candle_repository.bulk_create(new_candles)
-                    stored_candles = await self.candle_repository.find_by_time_range(
-                        symbol,
-                        timeframe.value,
-                        start_time,
-                        end_time,
-                    )
+                if sequence and sequence.count > 0:
+                    return sequence
+            except Exception as e:
+                self._logger.error(
+                    "broker_fetch_failed",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": timeframe.value,
+                        "error": str(e),
+                    },
+                    exc_info=True,
+                )
         
         if not stored_candles:
             return None
         
-        candles = [
-            Candle(
-                symbol=c.symbol,
-                timeframe=c.timeframe,
-                open_time=c.open_time,
-                close_time=c.close_time,
-                timestamp=c.timestamp,
-                open=c.open,
-                high=c.high,
-                low=c.low,
-                close=c.close,
-                volume=c.volume,
-            )
-            for c in stored_candles
-        ]
-        
         return CandleSequence(
             symbol=symbol,
-            timeframe=timeframe.value,
-            candles=candles,
+            timeframe=timeframe,
+            candles=stored_candles,
         )
     
     def _calculate_start_time(
@@ -370,9 +349,8 @@ class TAOrchestrator:
         )
         
         try:
-            snapshot = self.snapshot_builder.build(
-                htf_sequence,
-                ltf_sequence,
+            snapshot = self.snapshot_builder.build_snapshot(
+                candles=htf_sequence,
             )
             
             self._logger.debug(
@@ -398,16 +376,8 @@ class TAOrchestrator:
             return TechnicalSnapshot(
                 symbol=htf_sequence.symbol,
                 timeframe=htf_sequence.timeframe,
-                timestamp=datetime.utcnow(),
-                swing_highs=[],
-                swing_lows=[],
-                bms_events=[],
-                choch_events=[],
-                sms_events=[],
-                order_blocks=[],
-                fair_value_gaps=[],
-                liquidity_sweeps=[],
-                inducement_events=[],
+                timestamp=datetime.now(UTC),
+                candles=htf_sequence,
             )
     
     async def _persist_results(
@@ -454,18 +424,18 @@ class TAOrchestrator:
                 choch_events=self._serialize_choch_events(snapshot.choch_events),
                 sms_events=self._serialize_sms_events(snapshot.sms_events),
                 order_blocks=self._serialize_order_blocks(snapshot.order_blocks),
-                fair_value_gaps=self._serialize_fvgs(snapshot.fair_value_gaps),
+                fair_value_gaps=self._serialize_fvgs(snapshot.fvgs),
                 liquidity_sweeps=self._serialize_sweeps(snapshot.liquidity_sweeps),
                 inducement_events=self._serialize_inducements(snapshot.inducement_events),
-                qm_levels={},
-                sr_flips={},
-                rs_flips={},
+                qm_levels=self._serialize_qm_levels(snapshot.qml_levels),
+                sr_flips=self._serialize_sr_flips(snapshot.sr_flips),
+                rs_flips=self._serialize_rs_flips(snapshot.rs_flips),
                 previous_levels={},
-                mpl_levels={},
+                mpl_levels=self._serialize_mpl_levels(snapshot.mpl_levels),
                 fakeout_tests={},
-                supply_zones={},
-                demand_zones={},
-                fibonacci_retracements={},
+                supply_zones=self._serialize_supply_zones(snapshot.supply_zones),
+                demand_zones=self._serialize_demand_zones(snapshot.demand_zones),
+                fibonacci_retracements=self._serialize_fibonacci(snapshot.fibonacci_retracements),
             )
         
         except Exception as e:
@@ -510,6 +480,8 @@ class TAOrchestrator:
                     exc_info=True,
                 )
     
+    # ── Serializers ──
+    
     def _serialize_swing_highs(self, swing_highs: list) -> dict:
         """Serialize swing highs for JSON storage."""
         return {
@@ -544,9 +516,11 @@ class TAOrchestrator:
             "count": len(bms_events),
             "data": [
                 {
-                    "price": bms.price,
+                    "breakout_price": bms.breakout_price,
+                    "broken_level": bms.broken_level,
                     "timestamp": bms.timestamp.isoformat(),
                     "direction": bms.direction.value,
+                    "displacement_pips": bms.displacement_pips,
                 }
                 for bms in bms_events
             ],
@@ -558,7 +532,8 @@ class TAOrchestrator:
             "count": len(choch_events),
             "data": [
                 {
-                    "price": choch.price,
+                    "breakout_price": choch.breakout_price,
+                    "broken_level": choch.broken_level,
                     "timestamp": choch.timestamp.isoformat(),
                     "direction": choch.direction.value,
                 }
@@ -572,7 +547,7 @@ class TAOrchestrator:
             "count": len(sms_events),
             "data": [
                 {
-                    "price": sms.price,
+                    "failed_level": sms.failed_level,
                     "timestamp": sms.timestamp.isoformat(),
                     "direction": sms.direction.value,
                 }
@@ -590,6 +565,9 @@ class TAOrchestrator:
                     "lower_bound": ob.lower_bound,
                     "timestamp": ob.timestamp.isoformat(),
                     "direction": ob.direction.value,
+                    "displacement_pips": ob.displacement_pips,
+                    "is_breaker": ob.is_breaker,
+                    "mitigated": ob.mitigated,
                 }
                 for ob in order_blocks
             ],
@@ -605,6 +583,8 @@ class TAOrchestrator:
                     "lower_bound": fvg.lower_bound,
                     "timestamp": fvg.timestamp.isoformat(),
                     "direction": fvg.direction.value,
+                    "filled": fvg.filled,
+                    "fill_percentage": fvg.fill_percentage,
                 }
                 for fvg in fvgs
             ],
@@ -618,7 +598,9 @@ class TAOrchestrator:
                 {
                     "swept_level": sweep.swept_level,
                     "timestamp": sweep.timestamp.isoformat(),
-                    "direction": sweep.direction.value,
+                    "liquidity_type": sweep.liquidity_type.value,
+                    "sweep_pips": sweep.sweep_pips,
+                    "closed_back_inside": sweep.closed_back_inside,
                 }
                 for sweep in sweeps
             ],
@@ -633,7 +615,125 @@ class TAOrchestrator:
                     "price": ind.price,
                     "timestamp": ind.timestamp.isoformat(),
                     "direction": ind.direction.value,
+                    "cleared": ind.cleared,
                 }
                 for ind in inducements
+            ],
+        }
+    
+    def _serialize_qm_levels(self, qm_levels: list) -> dict:
+        """Serialize Quasi-Modo levels for JSON storage."""
+        return {
+            "count": len(qm_levels),
+            "data": [
+                {
+                    "qml_price": qm.qml_price,
+                    "timestamp": qm.timestamp.isoformat(),
+                    "direction": qm.direction.value,
+                    "h_price": qm.h_price,
+                    "hh_price": qm.hh_price,
+                    "tested": qm.tested,
+                }
+                for qm in qm_levels
+            ],
+        }
+    
+    def _serialize_sr_flips(self, sr_flips: list) -> dict:
+        """Serialize SR flip events for JSON storage."""
+        return {
+            "count": len(sr_flips),
+            "data": [
+                {
+                    "flip_level": sr.flip_level,
+                    "breakout_price": sr.breakout_price,
+                    "timestamp": sr.timestamp.isoformat(),
+                    "previous_role": sr.previous_role,
+                    "new_role": sr.new_role,
+                }
+                for sr in sr_flips
+            ],
+        }
+    
+    def _serialize_rs_flips(self, rs_flips: list) -> dict:
+        """Serialize RS flip events for JSON storage."""
+        return {
+            "count": len(rs_flips),
+            "data": [
+                {
+                    "flip_level": rs.flip_level,
+                    "breakout_price": rs.breakout_price,
+                    "timestamp": rs.timestamp.isoformat(),
+                    "previous_role": rs.previous_role,
+                    "new_role": rs.new_role,
+                }
+                for rs in rs_flips
+            ],
+        }
+    
+    def _serialize_supply_zones(self, supply_zones: list) -> dict:
+        """Serialize supply zones for JSON storage."""
+        return {
+            "count": len(supply_zones),
+            "data": [
+                {
+                    "upper_bound": sz.upper_bound,
+                    "lower_bound": sz.lower_bound,
+                    "timestamp": sz.timestamp.isoformat(),
+                    "strength": sz.strength,
+                    "tested": sz.tested,
+                    "test_count": sz.test_count,
+                    "broken": sz.broken,
+                }
+                for sz in supply_zones
+            ],
+        }
+    
+    def _serialize_demand_zones(self, demand_zones: list) -> dict:
+        """Serialize demand zones for JSON storage."""
+        return {
+            "count": len(demand_zones),
+            "data": [
+                {
+                    "upper_bound": dz.upper_bound,
+                    "lower_bound": dz.lower_bound,
+                    "timestamp": dz.timestamp.isoformat(),
+                    "strength": dz.strength,
+                    "tested": dz.tested,
+                    "test_count": dz.test_count,
+                    "broken": dz.broken,
+                }
+                for dz in demand_zones
+            ],
+        }
+    
+    def _serialize_fibonacci(self, fibonacci_retracements: list) -> dict:
+        """Serialize Fibonacci retracements for JSON storage."""
+        return {
+            "count": len(fibonacci_retracements),
+            "data": [
+                {
+                    "swing_high": fib.swing_high,
+                    "swing_low": fib.swing_low,
+                    "swing_high_timestamp": fib.swing_high_timestamp.isoformat(),
+                    "swing_low_timestamp": fib.swing_low_timestamp.isoformat(),
+                    "is_bullish": fib.is_bullish,
+                }
+                for fib in fibonacci_retracements
+            ],
+        }
+    
+    def _serialize_mpl_levels(self, mpl_levels: list) -> dict:
+        """Serialize Mini Price Levels for JSON storage."""
+        return {
+            "count": len(mpl_levels),
+            "data": [
+                {
+                    "mpl_price": mpl.mpl_price,
+                    "timestamp": mpl.timestamp.isoformat(),
+                    "direction": mpl.direction.value,
+                    "has_internal_structure": mpl.has_internal_structure,
+                    "tested": mpl.tested,
+                }
+                for mpl in mpl_levels
             ],
         }

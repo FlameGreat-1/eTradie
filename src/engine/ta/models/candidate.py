@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import Field, field_validator, computed_field
 
 from engine.shared.models.base import FrozenModel
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Timeframe, Direction, CandidatePattern
 
 
@@ -69,14 +70,16 @@ class TechnicalCandidate(FrozenModel):
     @computed_field
     @property
     def stop_loss_pips(self) -> float:
-        return abs(self.entry_price - self.stop_loss) * 10000
+        pip_value = float(get_pip_value(self.symbol))
+        return abs(self.entry_price - self.stop_loss) / pip_value
     
     @computed_field
     @property
     def take_profit_pips(self) -> Optional[float]:
         if self.take_profit is None:
             return None
-        return abs(self.take_profit - self.entry_price) * 10000
+        pip_value = float(get_pip_value(self.symbol))
+        return abs(self.take_profit - self.entry_price) / pip_value
 
 
 class SMCCandidate(FrozenModel):
@@ -190,7 +193,7 @@ class SMCCandidate(FrozenModel):
         )
 
 
-class SNDCandidate(FrozenModel):
+class SnDCandidate(FrozenModel):
     
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
