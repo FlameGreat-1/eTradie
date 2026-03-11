@@ -64,6 +64,7 @@ def upgrade() -> None:
         sa.Column("document_version_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("rag_document_versions.id", ondelete="CASCADE"), nullable=False),
         sa.Column("doc_type", sa.String(64), nullable=False),
         sa.Column("chunk_index", sa.Integer, nullable=False),
+        sa.Column("content", sa.Text, nullable=False),
         sa.Column("content_hash", sa.String(128), nullable=False),
         sa.Column("token_count", sa.Integer, nullable=False),
         sa.Column("embedding_status", sa.String(20), nullable=False, server_default="pending"),
