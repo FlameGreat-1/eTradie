@@ -137,3 +137,103 @@ class TracingError(ETradieBaseError):
 
 class TracingValidationError(TracingError):
     pass
+
+
+# ══════════════════════════════════════════════════════════════
+# RAG (Retrieval-Augmented Generation) Errors
+# ══════════════════════════════════════════════════════════════
+
+
+class RAGError(ETradieBaseError):
+    """Base error for all RAG subsystem failures."""
+    pass
+
+
+class RAGIngestError(RAGError):
+    """Failure during document ingestion pipeline (load, normalize, chunk, embed, upsert)."""
+    pass
+
+
+class RAGLoaderError(RAGIngestError):
+    """Failure loading a source document from disk or remote."""
+    pass
+
+
+class RAGNormalizationError(RAGIngestError):
+    """Failure normalizing source document content."""
+    pass
+
+
+class RAGChunkingError(RAGIngestError):
+    """Failure splitting a document into chunks."""
+    pass
+
+
+class RAGValidationError(RAGError):
+    """Validation failure for documents, chunks, or scenarios."""
+    pass
+
+
+class RAGEmbeddingError(RAGError):
+    """Failure generating or validating embeddings."""
+    pass
+
+
+class RAGEmbeddingProviderError(RAGEmbeddingError):
+    """Embedding provider API call failure (timeout, auth, rate limit)."""
+    pass
+
+
+class RAGVectorStoreError(RAGError):
+    """Failure communicating with the vector store (ChromaDB)."""
+    pass
+
+
+class RAGVectorStoreConnectionError(RAGVectorStoreError):
+    """Cannot connect to the vector store."""
+    pass
+
+
+class RAGVectorStoreUpsertError(RAGVectorStoreError):
+    """Failure upserting vectors into the store."""
+    pass
+
+
+class RAGRetrievalError(RAGError):
+    """Failure during retrieval pipeline (query, filter, rerank, assemble)."""
+    pass
+
+
+class RAGCoverageError(RAGRetrievalError):
+    """Retrieved material does not sufficiently cover the requested context."""
+    pass
+
+
+class RAGConflictError(RAGRetrievalError):
+    """Conflicting rules or examples detected across retrieved chunks."""
+    pass
+
+
+class RAGScenarioError(RAGError):
+    """Failure in chart scenario handling (loading, indexing, matching)."""
+    pass
+
+
+class RAGKnowledgeBaseError(RAGError):
+    """Knowledge base governance failure (missing mandatory assets, version issues)."""
+    pass
+
+
+class RAGBootstrapError(RAGError):
+    """Failure during RAG bootstrap or initialization."""
+    pass
+
+
+class RAGVersioningError(RAGError):
+    """Document version lifecycle failure (supersession, activation)."""
+    pass
+
+
+class RAGSyncError(RAGError):
+    """Failure synchronizing source docs with vector and relational stores."""
+    pass
