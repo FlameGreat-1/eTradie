@@ -10,7 +10,12 @@ KNOWLEDGE_REGISTRY: tuple[ManifestEntry, ...] = BOOTSTRAP_MANIFEST
 
 
 def resolve_asset_path(base_dir: str, asset: ManifestEntry) -> Path:
-    return Path(base_dir) / asset.filename
+    """Resolve the full filesystem path for a knowledge asset.
+
+    Uses the asset's relative_path which includes subdirectory structure
+    matching the actual knowledge/ directory layout.
+    """
+    return Path(base_dir) / asset.relative_path
 
 
 def get_mandatory_assets() -> frozenset[str]:

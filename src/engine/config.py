@@ -386,11 +386,11 @@ class RAGConfig(BaseSettings):
 
     # ── Knowledge Base Paths ────────────────────────────────────────
     knowledge_base_dir: str = Field(
-        default="docs",
+        default="knowledge",
         description="Root directory containing knowledge base source documents",
     )
     scenario_assets_dir: str = Field(
-        default="docs/scenarios",
+        default="knowledge/scenarios",
         description="Directory containing chart scenario assets",
     )
 
