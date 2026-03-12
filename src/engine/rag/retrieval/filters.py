@@ -42,6 +42,8 @@ def build_framework_filters(
         Framework.WYCKOFF: DocumentType.WYCKOFF_GUIDE,
         Framework.DXY: DocumentType.DXY_FRAMEWORK,
         Framework.COT: DocumentType.COT_INTERPRETATION_GUIDE,
+        Framework.MACRO: DocumentType.MACRO_TO_PRICE_GUIDE,
+        Framework.STYLE: DocumentType.TRADING_STYLE_RULES,
     }
     doc_type = doc_type_map.get(framework)
     doc_types = frozenset({doc_type}) if doc_type else frozenset()
@@ -85,6 +87,7 @@ def build_scenario_filters(
 def build_macro_filters(
     *,
     style: str | None = None,
+    direction: str | None = None,
 ) -> RetrievalFilter:
     doc_types = frozenset({
         DocumentType.MACRO_TO_PRICE_GUIDE,
@@ -92,8 +95,10 @@ def build_macro_filters(
         DocumentType.COT_INTERPRETATION_GUIDE,
     })
     styles = frozenset({style}) if style else frozenset()
+    directions = frozenset({direction}) if direction else frozenset()
 
     return RetrievalFilter(
         doc_types=doc_types,
         styles=styles,
+        directions=directions,
     )

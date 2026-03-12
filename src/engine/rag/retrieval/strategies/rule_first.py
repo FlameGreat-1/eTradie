@@ -36,6 +36,7 @@ class RuleFirstStrategy:
             top_k=rule_k,
             doc_types=rule_doc_types,
             frameworks=[framework] if framework else None,
+            setup_families=[setup_family] if setup_family else None,
             directions=[direction] if direction else None,
             timeframes=[timeframe] if timeframe else None,
             styles=[style] if style else None,
@@ -51,6 +52,7 @@ class RuleFirstStrategy:
                 frameworks=[framework] if framework else None,
                 setup_families=[setup_family] if setup_family else None,
                 directions=[direction] if direction else None,
+                timeframes=[timeframe] if timeframe else None,
             )
             for chunk in supplemental:
                 if chunk.chunk_id not in seen_ids and len(rule_chunks) < top_k:

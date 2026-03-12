@@ -2,37 +2,67 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from engine.rag.constants import ConflictResult
+from engine.rag.constants import ConflictResult, DocumentType, METADATA_KEY_DIRECTION, METADATA_KEY_FRAMEWORK
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.shared.logging import get_logger
 from engine.shared.metrics import RAG_CONFLICT_DETECTIONS_TOTAL
 
 logger = get_logger(__name__)
 
-_DIRECTION_KEYWORDS: dict[str, str] = {
-    "bullish": "long",
-    "long": "long",
-    "buy": "long",
-    "bearish": "short",
-    "short": "short",
-    "sell": "short",
-}
+# Document types that are reference material containing both directions
+# by design. These should NEVER trigger directional conflicts.
+_REFERENCE_DOC_TYPES: frozenset[str] = frozenset({
+    DocumentType.MASTER_RULEBOOK,
+    DocumentType.TRADING_STYLE_RULES,
+    DocumentType.CHART_SCENARIO_LIBRARY,
+})
 
 
 def detect_conflicts(
     chunks: list[RetrievedChunk],
 ) -> tuple[ConflictResult, list[str]]:
+    """Detect genuine directional conflicts across retrieved chunks.
+
+    A conflict exists when chunks from DIFFERENT analytical frameworks
+    provide opposing directional signals for the same query context.
+
+    NOT a conflict:
+    - A single framework document containing both bullish and bearish
+      rules (that is reference material, not a signal)
+    - Reference documents (master_rulebook, trading_style_rules,
+      chart_scenario_library) containing both directions
+    - Chunks without explicit direction metadata
+    """
     details: list[str] = []
 
-    direction_signals = _extract_direction_signals(chunks)
+    framework_directions = _extract_framework_direction_signals(chunks)
 
-    for key, directions in direction_signals.items():
-        unique_directions = set(directions)
-        if len(unique_directions) > 1:
+    # Only flag conflict when different frameworks disagree
+    all_directions: set[str] = set()
+    framework_direction_map: dict[str, set[str]] = {}
+
+    for framework, directions in framework_directions.items():
+        unique = set(directions)
+        # A single framework with both long and short is reference, not conflict
+        if len(unique) == 1:
+            framework_direction_map[framework] = unique
+            all_directions.update(unique)
+
+    # Check if different frameworks point in different directions
+    if len(all_directions) > 1 and len(framework_direction_map) > 1:
+        conflicting_frameworks: dict[str, str] = {}
+        for fw, dirs in framework_direction_map.items():
+            for d in dirs:
+                conflicting_frameworks[fw] = d
+
+        # Verify it's a genuine cross-framework conflict
+        direction_values = set(conflicting_frameworks.values())
+        if len(direction_values) > 1:
+            conflict_desc = ", ".join(
+                f"{fw}={d}" for fw, d in sorted(conflicting_frameworks.items())
+            )
             details.append(
-                f"Conflicting directions for {key}: "
-                f"{', '.join(sorted(unique_directions))} "
-                f"(from {len(directions)} chunks)"
+                f"Cross-framework directional conflict: {conflict_desc}"
             )
 
     if details:
@@ -49,21 +79,33 @@ def detect_conflicts(
     return ConflictResult.NONE_DETECTED, []
 
 
-def _extract_direction_signals(
+def _extract_framework_direction_signals(
     chunks: list[RetrievedChunk],
 ) -> dict[str, list[str]]:
+    """Extract direction signals grouped by framework from chunk metadata.
+
+    Only considers chunks that have explicit direction metadata tags
+    (populated during ingest). Skips reference document types that
+    naturally contain both directions.
+    """
     signals: dict[str, list[str]] = defaultdict(list)
 
     for chunk in chunks:
-        if not chunk.section:
+        # Skip reference documents that contain both directions by design
+        if chunk.doc_type in _REFERENCE_DOC_TYPES:
             continue
 
-        content_lower = chunk.content.lower()
-        section_key = chunk.section.strip().lower()
+        framework = chunk.metadata.get(METADATA_KEY_FRAMEWORK, "")
+        direction_raw = chunk.metadata.get(METADATA_KEY_DIRECTION, "")
 
-        for keyword, direction in _DIRECTION_KEYWORDS.items():
-            if keyword in content_lower:
-                signals[section_key].append(direction)
-                break
+        if not framework or not direction_raw:
+            continue
+
+        # direction_raw may be comma-separated (e.g., "long,short" for
+        # mixed chunks). Only use single-direction chunks for conflict
+        # detection.
+        directions = [d.strip() for d in direction_raw.split(",") if d.strip()]
+        if len(directions) == 1:
+            signals[framework].append(directions[0])
 
     return dict(signals)

@@ -30,7 +30,7 @@ def make_document(
     *,
     doc_type: str = DocumentType.MASTER_RULEBOOK,
     title: str = "Test Rulebook",
-    source_path: str = "docs/test_rulebook.md",
+    source_path: str = "knowledge/test_rulebook.md",
     status: str = DocumentStatus.ACTIVE,
     checksum: str = "a" * 64,
 ) -> Document:

@@ -58,6 +58,10 @@ _FRAMEWORK_DOC_TYPES = frozenset({
 
 _MACRO_DOC_TYPES = frozenset({
     DocumentType.MACRO_TO_PRICE_GUIDE,
+})
+
+_RULEBOOK_DOC_TYPES = frozenset({
+    DocumentType.MASTER_RULEBOOK,
     DocumentType.TRADING_STYLE_RULES,
 })
 
@@ -94,7 +98,10 @@ class IngestPipeline:
             checksum = self._compute_checksum(loaded.content)
 
             validate_document(loaded, doc_type=doc_type, checksum=checksum)
-            if doc_type == DocumentType.CHART_SCENARIO_LIBRARY:
+            if (
+                doc_type == DocumentType.CHART_SCENARIO_LIBRARY
+                and source_format == SourceFormat.SCENARIO_BUNDLE
+            ):
                 validate_scenario(loaded)
 
             loaded = self._normalize(loaded, doc_type)
@@ -189,7 +196,7 @@ class IngestPipeline:
             "min_size": self._config.chunk_min_size,
             "max_size": self._config.chunk_max_size,
         }
-        if doc_type == DocumentType.MASTER_RULEBOOK:
+        if doc_type in _RULEBOOK_DOC_TYPES:
             return RulebookChunker(**kwargs)
         if doc_type in _FRAMEWORK_DOC_TYPES:
             return FrameworkChunker(**kwargs)
@@ -200,7 +207,10 @@ class IngestPipeline:
         return RulebookChunker(**kwargs)
 
     def _normalize(self, doc: LoadedDocument, doc_type: str) -> LoadedDocument:
-        if doc_type == DocumentType.CHART_SCENARIO_LIBRARY:
+        if (
+            doc_type == DocumentType.CHART_SCENARIO_LIBRARY
+            and doc.source_format == SourceFormat.SCENARIO_BUNDLE
+        ):
             return self._scenarios_normalizer.normalize(doc)
         if doc_type in _MACRO_DOC_TYPES:
             return self._macro_normalizer.normalize(doc)
@@ -223,6 +233,26 @@ class IngestPipeline:
         if existing:
             return existing
 
+        # Extract framework tags from frontmatter metadata
+        framework_tags: list[str] = []
+        fm_framework = loaded.raw_metadata.get("framework", "")
+        if fm_framework:
+            framework_tags.append(fm_framework.lower())
+        fm_tags = loaded.raw_metadata.get("framework_tags", "")
+        if isinstance(fm_tags, str) and fm_tags:
+            framework_tags.extend(t.strip().lower() for t in fm_tags.split(",") if t.strip())
+        elif isinstance(fm_tags, list):
+            framework_tags.extend(str(t).strip().lower() for t in fm_tags if str(t).strip())
+
+        # Preserve frontmatter doc_id as document-level metadata
+        doc_metadata: dict[str, str] = {}
+        fm_doc_id = loaded.raw_metadata.get("doc_id", "")
+        if fm_doc_id:
+            doc_metadata["canonical_doc_id"] = fm_doc_id
+        fm_version = loaded.raw_metadata.get("version", loaded.raw_metadata.get("doc_version", ""))
+        if fm_version:
+            doc_metadata["source_version"] = fm_version
+
         row = DocumentRow(
             doc_type=doc_type,
             title=title,
@@ -230,8 +260,8 @@ class IngestPipeline:
             source_format=source_format,
             status="draft",
             checksum=checksum,
-            framework_tags=list(loaded.raw_metadata.get("framework_tags", [])),
-            metadata={},
+            framework_tags=framework_tags,
+            metadata=doc_metadata,
         )
         return await uow.document_repo.add(row)
 

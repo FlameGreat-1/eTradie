@@ -48,7 +48,9 @@ class ScenarioFirstStrategy:
                     DocumentType.TRADING_STYLE_RULES,
                 ],
                 frameworks=[framework] if framework else None,
+                setup_families=[setup_family] if setup_family else None,
                 directions=[direction] if direction else None,
+                timeframes=[timeframe] if timeframe else None,
             )
             for chunk in rule_chunks:
                 if chunk.chunk_id not in seen_ids and len(scenario_chunks) < top_k:

@@ -8,14 +8,32 @@ DIRECTION_TAGS: frozenset[str] = frozenset(d.value for d in Direction)
 OUTCOME_TAGS: frozenset[str] = frozenset(o.value for o in ScenarioOutcome)
 
 CONFLUENCE_TAGS: frozenset[str] = frozenset({
-    "bms", "choch", "sms", "inducement", "liquidity_sweep",
+    # SMC structure signals
+    "bms", "bos", "choch", "sms", "inducement", "liquidity_sweep",
     "order_block", "fair_value_gap", "breaker_block", "mitigation",
+    "displacement", "premium", "discount", "equilibrium", "ote",
+    "turtle_soup", "amd",
+    # SnD structure signals
     "qm", "qml", "qmh", "sr_flip", "rs_flip", "mpl",
-    "fakeout", "compression", "marubozu", "displacement",
-    "spring", "upthrust", "sos", "sow", "lps", "lpsy",
-    "dxy_alignment", "cot_extreme", "macro_alignment",
-    "session_london", "session_new_york", "session_asia",
-    "fibonacci_618", "fibonacci_786", "fibonacci_optimal",
+    "fakeout", "compression", "marubozu",
+    "supply_zone", "demand_zone",
+    # Wyckoff phase signals
+    "spring", "upthrust", "utad", "sos", "sow", "lps", "lpsy",
+    "accumulation", "distribution", "markup", "markdown",
+    "reaccumulation", "redistribution",
+    "selling_climax", "buying_climax", "automatic_rally", "automatic_reaction",
+    # Cross-framework alignment signals
+    "dxy_alignment", "dxy_divergence",
+    "cot_extreme", "cot_accumulation", "cot_distribution",
+    "macro_alignment", "macro_divergence",
+    "policy_divergence", "rate_differential",
+    # Session signals
+    "session_london", "session_new_york", "session_overlap", "session_asia",
+    # Fibonacci signals
+    "fibonacci_50", "fibonacci_618", "fibonacci_705", "fibonacci_786",
+    "fibonacci_optimal",
+    # Risk/event signals
+    "news_spike", "fomc", "nfp", "cpi", "risk_off", "risk_on",
 })
 
 STYLE_TAGS: frozenset[str] = frozenset({
@@ -24,4 +42,5 @@ STYLE_TAGS: frozenset[str] = frozenset({
 
 TIMEFRAME_TAGS: frozenset[str] = frozenset({
     "M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN",
+    "1M", "1W", "1D", "4H", "1H",
 })

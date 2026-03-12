@@ -99,6 +99,7 @@ class RAGOrchestrator:
             chunks,
             config=self._config,
             required_framework=framework,
+            strategy=effective_strategy,
         )
         conflict_result, conflict_details = detect_conflicts(chunks)
 

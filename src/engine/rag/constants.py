@@ -87,6 +87,12 @@ class SetupFamily(StrEnum):
     DISTRIBUTION = "distribution"
     MARKUP = "markup"
     MARKDOWN = "markdown"
+    QML = "qml"
+    SR_FLIP = "sr_flip"
+    RS_FLIP = "rs_flip"
+    AMD = "amd"
+    TURTLE_SOUP = "turtle_soup"
+    COMPRESSION = "compression"
 
 
 @unique
