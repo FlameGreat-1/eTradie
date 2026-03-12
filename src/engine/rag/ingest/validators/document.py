@@ -13,7 +13,7 @@ _DOC_TYPE_REQUIRED_FORMATS: dict[str, frozenset[SourceFormat]] = {
     DocumentType.COT_INTERPRETATION_GUIDE: frozenset({SourceFormat.MARKDOWN}),
     DocumentType.TRADING_STYLE_RULES: frozenset({SourceFormat.MARKDOWN}),
     DocumentType.MACRO_TO_PRICE_GUIDE: frozenset({SourceFormat.MARKDOWN}),
-    DocumentType.CHART_SCENARIO_LIBRARY: frozenset({SourceFormat.SCENARIO_BUNDLE}),
+    DocumentType.CHART_SCENARIO_LIBRARY: frozenset({SourceFormat.MARKDOWN, SourceFormat.SCENARIO_BUNDLE}),
 }
 
 
