@@ -164,13 +164,13 @@ This tree is built to support the full knowledge base your spec implies:
 
 * **master_rulebook**
 * **smc_framework**
-* **snd_rulebook**
+* **snd_framework**
 * **wyckoff_guide**
 * **dxy_framework**
 * **cot_interpretation_guide**
 * **trading_style_rules**
-* **macro_to_price_relationship_guide**
-* **chart_scenario_library**
+* **macro_to_price_guide**
+* **chart_scenario**
 
 ## Important architecture note
 
