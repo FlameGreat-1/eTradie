@@ -25,6 +25,7 @@ _FRAMEWORK_DOC_TYPES: dict[str, str] = {
     DocumentType.DXY_FRAMEWORK: Framework.DXY,
     DocumentType.COT_INTERPRETATION_GUIDE: Framework.COT,
     DocumentType.MACRO_TO_PRICE_GUIDE: Framework.MACRO,
+    DocumentType.TRADING_STYLE_RULES: Framework.STYLE,
 }
 
 _SCENARIO_DOC_TYPES: frozenset[str] = frozenset({
