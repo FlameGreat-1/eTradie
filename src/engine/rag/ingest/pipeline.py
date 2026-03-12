@@ -58,6 +58,10 @@ _FRAMEWORK_DOC_TYPES = frozenset({
 
 _MACRO_DOC_TYPES = frozenset({
     DocumentType.MACRO_TO_PRICE_GUIDE,
+})
+
+_RULEBOOK_DOC_TYPES = frozenset({
+    DocumentType.MASTER_RULEBOOK,
     DocumentType.TRADING_STYLE_RULES,
 })
 
@@ -189,7 +193,7 @@ class IngestPipeline:
             "min_size": self._config.chunk_min_size,
             "max_size": self._config.chunk_max_size,
         }
-        if doc_type == DocumentType.MASTER_RULEBOOK:
+        if doc_type in _RULEBOOK_DOC_TYPES:
             return RulebookChunker(**kwargs)
         if doc_type in _FRAMEWORK_DOC_TYPES:
             return FrameworkChunker(**kwargs)
