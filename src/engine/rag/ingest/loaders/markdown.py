@@ -11,6 +11,7 @@ from engine.shared.logging import get_logger
 logger = get_logger(__name__)
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+_FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 class MarkdownLoader(BaseLoader):
@@ -38,23 +39,72 @@ class MarkdownLoader(BaseLoader):
                 details={"path": str(path)},
             )
 
-        title = self._extract_title(content, path)
-        sections = self._parse_sections(content)
+        # Extract YAML frontmatter before parsing sections
+        raw_metadata, content_without_frontmatter = self._extract_frontmatter(content)
+
+        # Use frontmatter title if available, otherwise extract from headings
+        title = raw_metadata.get("title", "").strip()
+        if not title:
+            title = self._extract_title(content_without_frontmatter, path)
+
+        sections = self._parse_sections(content_without_frontmatter)
 
         logger.info(
             "loaded_markdown",
             path=str(path),
             title=title,
             section_count=len(sections),
+            has_frontmatter=bool(raw_metadata),
+            doc_id=raw_metadata.get("doc_id", ""),
         )
 
         return LoadedDocument(
-            content=content,
+            content=content_without_frontmatter,
             source_path=str(path),
             source_format=SourceFormat.MARKDOWN,
             title=title,
             sections=sections,
+            raw_metadata=raw_metadata,
         )
+
+    def _extract_frontmatter(self, content: str) -> tuple[dict[str, str], str]:
+        """Extract YAML frontmatter from markdown content.
+
+        Knowledge files use YAML frontmatter between --- delimiters:
+            ---
+            doc_id: smc_framework
+            doc_type: framework
+            framework: SMC
+            version: "1.0"
+            status: active
+            ---
+
+        Returns:
+            Tuple of (metadata_dict, content_without_frontmatter)
+        """
+        match = _FRONTMATTER_RE.match(content)
+        if not match:
+            return {}, content
+
+        frontmatter_text = match.group(1)
+        content_after = content[match.end():]
+
+        metadata: dict[str, str] = {}
+        for line in frontmatter_text.split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:
+                key, _, value = line.partition(":")
+                key = key.strip().lower()
+                value = value.strip()
+                # Remove surrounding quotes
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                    value = value[1:-1]
+                if key and value:
+                    metadata[key] = value
+
+        return metadata, content_after
 
     def _extract_title(self, content: str, path: Path) -> str:
         for match in _HEADING_RE.finditer(content):
