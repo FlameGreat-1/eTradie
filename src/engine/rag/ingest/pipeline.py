@@ -233,6 +233,26 @@ class IngestPipeline:
         if existing:
             return existing
 
+        # Extract framework tags from frontmatter metadata
+        framework_tags: list[str] = []
+        fm_framework = loaded.raw_metadata.get("framework", "")
+        if fm_framework:
+            framework_tags.append(fm_framework.lower())
+        fm_tags = loaded.raw_metadata.get("framework_tags", "")
+        if isinstance(fm_tags, str) and fm_tags:
+            framework_tags.extend(t.strip().lower() for t in fm_tags.split(",") if t.strip())
+        elif isinstance(fm_tags, list):
+            framework_tags.extend(str(t).strip().lower() for t in fm_tags if str(t).strip())
+
+        # Preserve frontmatter doc_id as document-level metadata
+        doc_metadata: dict[str, str] = {}
+        fm_doc_id = loaded.raw_metadata.get("doc_id", "")
+        if fm_doc_id:
+            doc_metadata["canonical_doc_id"] = fm_doc_id
+        fm_version = loaded.raw_metadata.get("version", loaded.raw_metadata.get("doc_version", ""))
+        if fm_version:
+            doc_metadata["source_version"] = fm_version
+
         row = DocumentRow(
             doc_type=doc_type,
             title=title,
@@ -240,8 +260,8 @@ class IngestPipeline:
             source_format=source_format,
             status="draft",
             checksum=checksum,
-            framework_tags=list(loaded.raw_metadata.get("framework_tags", [])),
-            metadata={},
+            framework_tags=framework_tags,
+            metadata=doc_metadata,
         )
         return await uow.document_repo.add(row)
 
