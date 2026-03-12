@@ -98,7 +98,10 @@ class IngestPipeline:
             checksum = self._compute_checksum(loaded.content)
 
             validate_document(loaded, doc_type=doc_type, checksum=checksum)
-            if doc_type == DocumentType.CHART_SCENARIO_LIBRARY:
+            if (
+                doc_type == DocumentType.CHART_SCENARIO_LIBRARY
+                and source_format == SourceFormat.SCENARIO_BUNDLE
+            ):
                 validate_scenario(loaded)
 
             loaded = self._normalize(loaded, doc_type)
@@ -204,7 +207,10 @@ class IngestPipeline:
         return RulebookChunker(**kwargs)
 
     def _normalize(self, doc: LoadedDocument, doc_type: str) -> LoadedDocument:
-        if doc_type == DocumentType.CHART_SCENARIO_LIBRARY:
+        if (
+            doc_type == DocumentType.CHART_SCENARIO_LIBRARY
+            and doc.source_format == SourceFormat.SCENARIO_BUNDLE
+        ):
             return self._scenarios_normalizer.normalize(doc)
         if doc_type in _MACRO_DOC_TYPES:
             return self._macro_normalizer.normalize(doc)
