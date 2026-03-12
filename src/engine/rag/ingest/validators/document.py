@@ -52,8 +52,10 @@ def validate_document(
             },
         )
 
-    if doc_type != DocumentType.CHART_SCENARIO_LIBRARY and not doc.sections:
+    if doc_type not in {
+        DocumentType.CHART_SCENARIO_LIBRARY,
+    } and not doc.sections:
         raise RAGValidationError(
-            "Rulebook/guide documents must have at least one section heading",
+            f"Document type '{doc_type}' must have at least one section heading",
             details={"source_path": doc.source_path, "doc_type": doc_type},
         )
