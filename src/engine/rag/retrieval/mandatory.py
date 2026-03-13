@@ -13,6 +13,10 @@ The LLM processes TA + Macro + RAG knowledge ALL TOGETHER in a single
 pass. It does not analyze TA separately from macro. Therefore every
 knowledge document is equally important and must be represented.
 
+CRITICAL DESIGN RULE: ALL 9 knowledge documents are ALWAYS included
+in the mandatory requirements with baseline minimums. No document is
+ever excluded. Signal flags only INCREASE minimums above the baseline.
+
 The system is pair-agnostic: it accepts ANY instrument the user selects
 from the dashboard. USD detection is dynamic (checks if symbol contains
 "USD"), not based on a hardcoded list.
@@ -65,6 +69,9 @@ class MandatoryRequirements:
     minimum number of chunks that must appear in the final result.
     If semantic retrieval does not return enough, the system must
     run supplemental targeted retrievals to fill the gaps.
+
+    ALL 9 knowledge documents always have an entry. Signal flags
+    only increase the minimums, never remove documents.
     """
 
     doc_type_min_chunks: dict[str, int] = field(default_factory=dict)
@@ -73,6 +80,11 @@ class MandatoryRequirements:
     is_usd_pair: bool = False
     is_metal_pair: bool = False
     detected_frameworks: frozenset[str] = field(default_factory=frozenset)
+
+
+def _raise_min(store: dict[str, int], key: str, value: int) -> None:
+    """Set minimum to the higher of current and new value."""
+    store[key] = max(store.get(key, 0), value)
 
 
 def compute_mandatory_requirements(
@@ -89,10 +101,12 @@ def compute_mandatory_requirements(
 ) -> MandatoryRequirements:
     """Compute mandatory retrieval requirements from TA+Macro signals.
 
-    The LLM processes TA + Macro + RAG knowledge ALL TOGETHER. It does
-    not prioritize TA over macro or vice versa. Therefore this function
-    ensures ALL knowledge categories are represented, not just the ones
-    that match the current signals most closely.
+    ALL 9 knowledge documents are ALWAYS included with baseline minimums.
+    The knowledge base is the LLM's brain - withholding any document
+    means the LLM reasons with an incomplete brain.
+
+    Signal flags only INCREASE minimums above the baseline. They never
+    cause a document to be excluded.
 
     The system is pair-agnostic. USD detection is dynamic.
     """
@@ -106,135 +120,117 @@ def compute_mandatory_requirements(
     is_metal = _symbol_is_metal(symbol) if symbol else False
 
     # =====================================================================
-    # ALWAYS REQUIRED (every single cycle, regardless of signals)
-    # The knowledge base IS the LLM's brain. Without these, the LLM
-    # cannot make correct decisions on ANY analysis.
+    # BASELINE: ALL 9 DOCUMENTS ALWAYS INCLUDED
+    # The knowledge base IS the LLM's brain. Every document is relevant
+    # to every analysis. The LLM needs the full picture to reason
+    # correctly - even the absence of a signal is meaningful only if
+    # the LLM knows the rules for that signal type.
     # =====================================================================
 
-    # Master rulebook: rejection rules, confluence scoring, risk rules,
-    # output format, session rules. These govern EVERY decision.
+    # 1. Master rulebook: rejection rules, confluence scoring, risk rules,
+    #    output format, session rules. Governs EVERY decision.
     min_chunks[DocumentType.MASTER_RULEBOOK] = 5
     force_types.add(DocumentType.MASTER_RULEBOOK)
-    rule_patterns.extend([
-        "MR-REJECT",
-        "MR-RISK",
-        "MR-PHIL",
-        "MR-AI",
-    ])
+    rule_patterns.extend(["MR-REJECT", "MR-RISK", "MR-PHIL", "MR-AI"])
 
-    # Trading style rules: TP structure, R:R, session, management.
+    # 2. Trading style rules: TP structure, R:R, session, management.
     min_chunks[DocumentType.TRADING_STYLE_RULES] = 3
     force_types.add(DocumentType.TRADING_STYLE_RULES)
-    rule_patterns.extend([
-        "STYLE-RR",
-        "STYLE-RISK",
-        "STYLE-SESSION",
-        "STYLE-AVOID",
-    ])
+    rule_patterns.extend(["STYLE-RR", "STYLE-RISK", "STYLE-SESSION", "STYLE-AVOID"])
 
-    # Wyckoff: contextual confirmation needed on every cycle.
-    # Even when no Wyckoff phase is detected, the LLM must know the
-    # phase identification rules to determine if a phase applies.
+    # 3. SMC framework: even without SMC candidates, the LLM needs to
+    #    understand SMC structure to interpret the technical snapshot
+    #    (BOS events, swing points, liquidity sweeps are always present).
+    min_chunks[DocumentType.SMC_FRAMEWORK] = 2
+    force_types.add(DocumentType.SMC_FRAMEWORK)
+    detected_fw.add("smc")
+
+    # 4. SnD framework: even without SnD candidates, the LLM needs zone
+    #    identification rules to understand why zones were or were not found.
+    min_chunks[DocumentType.SND_RULEBOOK] = 2
+    force_types.add(DocumentType.SND_RULEBOOK)
+    detected_fw.add("snd")
+
+    # 5. Wyckoff guide: contextual confirmation needed on every cycle.
     min_chunks[DocumentType.WYCKOFF_GUIDE] = 2
     force_types.add(DocumentType.WYCKOFF_GUIDE)
     detected_fw.add("wyckoff")
 
-    # Macro-to-price guide: the LLM always needs to understand how
-    # macro signals translate to price action, even when macro data
-    # is neutral. Neutral macro is itself a signal (MACRO-BIAS-003).
+    # 6. DXY framework: needed for ALL pairs, not just USD pairs.
+    #    For USD pairs: mandatory directional anchor (MR-PHIL-008).
+    #    For non-USD crosses: global risk sentiment context (DXY-PAIR-008).
+    #    For metals: strong inverse correlation (DXY-PAIR-009).
+    #    The LLM must always know DXY rules to correctly weight DXY data.
+    min_chunks[DocumentType.DXY_FRAMEWORK] = 2
+    force_types.add(DocumentType.DXY_FRAMEWORK)
+    detected_fw.add("dxy")
+
+    # 7. COT interpretation guide: even without COT data, the LLM needs
+    #    to know COT rules to understand what the absence of COT means
+    #    and to correctly score confluence (COT is a PREFERRED factor).
+    min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 2
+    force_types.add(DocumentType.COT_INTERPRETATION_GUIDE)
+    detected_fw.add("cot")
+
+    # 8. Macro-to-price guide: the LLM always needs macro translation
+    #    rules. Even neutral macro is a signal (MACRO-BIAS-003).
     min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 3
     force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
     detected_fw.add("macro")
-    rule_patterns.extend([
-        "MACRO-BIAS",
-        "MACRO-LIMIT",
-    ])
+    rule_patterns.extend(["MACRO-BIAS", "MACRO-LIMIT"])
 
-    # Scenarios are always valuable for reasoning support.
+    # 9. Chart scenarios: reasoning examples always valuable.
     min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 3
     force_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
 
     # =====================================================================
-    # FRAMEWORK-SPECIFIC (based on detected candidates)
+    # ELEVATED MINIMUMS: signal flags raise minimums above baseline
+    # These NEVER remove documents - only increase chunk counts.
     # =====================================================================
 
+    # SMC candidates detected -> need more SMC knowledge
     if has_smc_candidates:
-        min_chunks[DocumentType.SMC_FRAMEWORK] = 4
-        force_types.add(DocumentType.SMC_FRAMEWORK)
-        detected_fw.add("smc")
-        rule_patterns.extend([
-            "SMC-ENTRY",
-            "SMC-OB",
-            "SMC-LIQ",
-            "SMC-INV",
-        ])
+        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 4)
+        rule_patterns.extend(["SMC-ENTRY", "SMC-OB", "SMC-LIQ", "SMC-INV"])
 
+    # SnD candidates detected -> need more SnD knowledge
     if has_snd_candidates:
-        min_chunks[DocumentType.SND_RULEBOOK] = 4
-        force_types.add(DocumentType.SND_RULEBOOK)
-        detected_fw.add("snd")
-        rule_patterns.extend([
-            "SND-ENTRY",
-            "SND-ZONE",
-            "SND-INV",
-            "SND-FILTER",
-        ])
+        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 4)
+        rule_patterns.extend(["SND-ENTRY", "SND-ZONE", "SND-INV", "SND-FILTER"])
 
-    # When BOTH frameworks have candidates, the LLM must cross-reference
+    # Both frameworks -> LLM must cross-reference, need even more
     if has_smc_candidates and has_snd_candidates:
-        min_chunks[DocumentType.SMC_FRAMEWORK] = 5
-        min_chunks[DocumentType.SND_RULEBOOK] = 5
+        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 5)
+        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 5)
 
-    # =====================================================================
-    # USD PAIR: DXY IS MANDATORY (MR-PHIL-008)
-    # Dynamic detection - works for ANY instrument containing USD
-    # =====================================================================
+    # USD pair -> DXY is mandatory directional anchor
+    if is_usd:
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 3)
+        rule_patterns.extend(["DXY-TREND", "DXY-PAIR", "DXY-STRUCT"])
 
-    if is_usd or has_dxy_data:
-        min_chunks[DocumentType.DXY_FRAMEWORK] = 3
-        force_types.add(DocumentType.DXY_FRAMEWORK)
-        detected_fw.add("dxy")
-        rule_patterns.extend([
-            "DXY-TREND",
-            "DXY-PAIR",
-            "DXY-STRUCT",
-        ])
-
-    # Metals get extra DXY weight (strong inverse correlation)
+    # Metal -> extra DXY weight (strong inverse correlation)
     if is_metal:
-        min_chunks[DocumentType.DXY_FRAMEWORK] = 4
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 4)
         rule_patterns.append("DXY-PAIR-009")
 
-    # =====================================================================
-    # ELEVATED MACRO REQUIREMENTS (when specific macro signals present)
-    # =====================================================================
+    # DXY data present (always collected) -> ensure DXY rules available
+    if has_dxy_data:
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 3)
 
+    # Rate decisions -> highest-impact macro events
     if has_rate_decision:
-        min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = max(
-            min_chunks.get(DocumentType.MACRO_TO_PRICE_GUIDE, 0), 4,
-        )
-        rule_patterns.extend([
-            "MACRO-CB",
-            "MACRO-RATE",
-            "MACRO-EVENT",
-        ])
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        rule_patterns.extend(["MACRO-CB", "MACRO-RATE", "MACRO-EVENT"])
 
+    # High-impact events -> need event rules
     if has_high_impact_event:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 3)
         rule_patterns.append("MACRO-EVENT")
-        min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = max(
-            min_chunks.get(DocumentType.MACRO_TO_PRICE_GUIDE, 0), 3,
-        )
 
+    # COT data present -> need full COT interpretation
     if has_cot_data:
-        min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 3
-        force_types.add(DocumentType.COT_INTERPRETATION_GUIDE)
-        detected_fw.add("cot")
-        rule_patterns.extend([
-            "COT-EXTREME",
-            "COT-SHIFT",
-            "COT-TECH",
-            "COT-TREND",
-        ])
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 3)
+        rule_patterns.extend(["COT-EXTREME", "COT-SHIFT", "COT-TECH", "COT-TREND"])
 
     requirements = MandatoryRequirements(
         doc_type_min_chunks=min_chunks,
