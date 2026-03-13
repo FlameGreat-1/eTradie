@@ -277,6 +277,16 @@ class PipelineOrchestrator:
                         timeframe=query_params.timeframe,
                         style=query_params.style,
                         trace_id=trace_id,
+                        symbol=query_params.symbol,
+                        all_frameworks=query_params.all_frameworks,
+                        all_setup_families=query_params.all_setup_families,
+                        has_smc_candidates=query_params.has_smc_candidates,
+                        has_snd_candidates=query_params.has_snd_candidates,
+                        has_macro_data=query_params.has_macro_data,
+                        has_cot_data=query_params.has_cot_data,
+                        has_rate_decision=query_params.has_rate_decision,
+                        has_high_impact_event=query_params.has_high_impact_event,
+                        has_dxy_data=query_params.has_dxy_data,
                     )
             except asyncio.TimeoutError:
                 GATEWAY_STAGE_ERRORS.labels(
