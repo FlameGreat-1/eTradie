@@ -9,15 +9,13 @@ every analysis. On a normal circumstance the entire knowledge base
 would be fed to the LLM. Since token limits prevent that, this module
 ensures the RAG retrieval never omits knowledge that the LLM needs.
 
-Design principles:
-- Master rulebook rejection rules apply to EVERY trade evaluation
-- Confluence scoring rules apply to EVERY trade evaluation
-- Risk management rules apply to EVERY trade evaluation
-- DXY is MANDATORY for every USD pair (MR-PHIL-008)
-- Wyckoff phase context is needed on every cycle
-- Framework docs are needed for ALL detected frameworks, not just primary
-- Trading style rules are needed for the active style on every cycle
-- COT and macro guides are needed whenever macro data is present
+The LLM processes TA + Macro + RAG knowledge ALL TOGETHER in a single
+pass. It does not analyze TA separately from macro. Therefore every
+knowledge document is equally important and must be represented.
+
+The system is pair-agnostic: it accepts ANY instrument the user selects
+from the dashboard. USD detection is dynamic (checks if symbol contains
+"USD"), not based on a hardcoded list.
 """
 
 from __future__ import annotations
@@ -29,21 +27,34 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# USD pairs where DXY analysis is mandatory per MR-PHIL-008 and Section 2.2
-_USD_PAIRS: frozenset[str] = frozenset({
-    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD",
-    "USDJPY", "USDCAD", "USDCHF",
-    "XAUUSD", "XAGUSD",
-    # Normalised variants
-    "EUR/USD", "GBP/USD", "AUD/USD", "NZD/USD",
-    "USD/JPY", "USD/CAD", "USD/CHF",
-    "XAU/USD", "XAG/USD",
-})
 
-# Metals where DXY inverse correlation is HIGH weight
-_METAL_PAIRS: frozenset[str] = frozenset({
-    "XAUUSD", "XAGUSD", "XAU/USD", "XAG/USD",
-})
+def _symbol_contains_usd(symbol: str) -> bool:
+    """Detect if a symbol involves USD.
+
+    The system is pair-agnostic and accepts any instrument. This function
+    dynamically checks whether USD appears in the symbol rather than
+    matching against a hardcoded list. Works for any current or future
+    USD pair regardless of broker naming convention.
+
+    Examples:
+        EURUSD -> True    EUR/USD -> True
+        USDJPY -> True    USD/JPY -> True
+        XAUUSD -> True    XAU/USD -> True
+        GBPJPY -> False   NAS100  -> False
+        DE40   -> False   BTCUSD  -> True
+    """
+    normalised = symbol.upper().replace("/", "").replace(".", "").replace("_", "")
+    return "USD" in normalised
+
+
+def _symbol_is_metal(symbol: str) -> bool:
+    """Detect if a symbol is a precious metal.
+
+    Metals have a strong inverse DXY correlation and need extra DXY
+    knowledge. Checks for XAU (gold) and XAG (silver) dynamically.
+    """
+    normalised = symbol.upper().replace("/", "").replace(".", "").replace("_", "")
+    return "XAU" in normalised or "XAG" in normalised
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,64 +89,84 @@ def compute_mandatory_requirements(
 ) -> MandatoryRequirements:
     """Compute mandatory retrieval requirements from TA+Macro signals.
 
-    This function examines what the TA and Macro systems detected and
-    determines which knowledge documents MUST have chunks in the final
-    retrieval result. The RAG orchestrator uses this to run supplemental
-    retrievals when semantic search alone does not cover everything.
+    The LLM processes TA + Macro + RAG knowledge ALL TOGETHER. It does
+    not prioritize TA over macro or vice versa. Therefore this function
+    ensures ALL knowledge categories are represented, not just the ones
+    that match the current signals most closely.
+
+    The system is pair-agnostic. USD detection is dynamic.
     """
     min_chunks: dict[str, int] = {}
     force_types: set[str] = set()
     rule_patterns: list[str] = []
     detected_fw: set[str] = set()
 
-    symbol_upper = (symbol or "").upper().replace("/", "")
-    is_usd = symbol_upper in {s.replace("/", "") for s in _USD_PAIRS}
-    is_metal = symbol_upper in {s.replace("/", "") for s in _METAL_PAIRS}
+    # Dynamic pair detection - works for ANY instrument
+    is_usd = _symbol_contains_usd(symbol) if symbol else False
+    is_metal = _symbol_is_metal(symbol) if symbol else False
 
-    # ── ALWAYS REQUIRED (every single cycle) ──────────────────────────
+    # =====================================================================
+    # ALWAYS REQUIRED (every single cycle, regardless of signals)
+    # The knowledge base IS the LLM's brain. Without these, the LLM
+    # cannot make correct decisions on ANY analysis.
+    # =====================================================================
 
     # Master rulebook: rejection rules, confluence scoring, risk rules,
     # output format, session rules. These govern EVERY decision.
     min_chunks[DocumentType.MASTER_RULEBOOK] = 5
     force_types.add(DocumentType.MASTER_RULEBOOK)
     rule_patterns.extend([
-        "MR-REJECT",     # All 10 rejection rules
-        "MR-RISK",       # Risk management rules
-        "MR-PHIL",       # Core philosophy
-        "MR-AI",         # AI guardrails
+        "MR-REJECT",
+        "MR-RISK",
+        "MR-PHIL",
+        "MR-AI",
     ])
 
     # Trading style rules: TP structure, R:R, session, management.
-    # Needed every cycle because every trade must be evaluated against
-    # the active style's constraints.
     min_chunks[DocumentType.TRADING_STYLE_RULES] = 3
     force_types.add(DocumentType.TRADING_STYLE_RULES)
     rule_patterns.extend([
-        "STYLE-RR",      # R:R requirements
-        "STYLE-RISK",    # Risk per trade by grade
-        "STYLE-SESSION", # Session rules
-        "STYLE-AVOID",   # Avoidance conditions
+        "STYLE-RR",
+        "STYLE-RISK",
+        "STYLE-SESSION",
+        "STYLE-AVOID",
     ])
 
     # Wyckoff: contextual confirmation needed on every cycle.
-    # Even when no explicit Wyckoff phase is detected, the LLM must
-    # know the phase identification rules to determine if a phase
-    # applies or not (WYCKOFF-PHASE-005: ambiguous = no bonus).
+    # Even when no Wyckoff phase is detected, the LLM must know the
+    # phase identification rules to determine if a phase applies.
     min_chunks[DocumentType.WYCKOFF_GUIDE] = 2
     force_types.add(DocumentType.WYCKOFF_GUIDE)
     detected_fw.add("wyckoff")
 
-    # ── FRAMEWORK-SPECIFIC (based on detected candidates) ─────────────
+    # Macro-to-price guide: the LLM always needs to understand how
+    # macro signals translate to price action, even when macro data
+    # is neutral. Neutral macro is itself a signal (MACRO-BIAS-003).
+    min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 3
+    force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
+    detected_fw.add("macro")
+    rule_patterns.extend([
+        "MACRO-BIAS",
+        "MACRO-LIMIT",
+    ])
+
+    # Scenarios are always valuable for reasoning support.
+    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 3
+    force_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
+
+    # =====================================================================
+    # FRAMEWORK-SPECIFIC (based on detected candidates)
+    # =====================================================================
 
     if has_smc_candidates:
         min_chunks[DocumentType.SMC_FRAMEWORK] = 4
         force_types.add(DocumentType.SMC_FRAMEWORK)
         detected_fw.add("smc")
         rule_patterns.extend([
-            "SMC-ENTRY",  # Entry logic
-            "SMC-OB",     # Order block rules
-            "SMC-LIQ",    # Liquidity rules
-            "SMC-INV",    # Invalidation rules
+            "SMC-ENTRY",
+            "SMC-OB",
+            "SMC-LIQ",
+            "SMC-INV",
         ])
 
     if has_snd_candidates:
@@ -143,80 +174,67 @@ def compute_mandatory_requirements(
         force_types.add(DocumentType.SND_RULEBOOK)
         detected_fw.add("snd")
         rule_patterns.extend([
-            "SND-ENTRY",  # Entry logic
-            "SND-ZONE",   # Zone definitions
-            "SND-INV",    # Invalidation rules
-            "SND-FILTER", # Quality filters
+            "SND-ENTRY",
+            "SND-ZONE",
+            "SND-INV",
+            "SND-FILTER",
         ])
 
-    # When BOTH frameworks have candidates, we need MORE chunks from each
-    # because the LLM must cross-reference both frameworks.
+    # When BOTH frameworks have candidates, the LLM must cross-reference
     if has_smc_candidates and has_snd_candidates:
         min_chunks[DocumentType.SMC_FRAMEWORK] = 5
         min_chunks[DocumentType.SND_RULEBOOK] = 5
 
-    # ── USD PAIR: DXY IS MANDATORY (MR-PHIL-008) ──────────────────────
+    # =====================================================================
+    # USD PAIR: DXY IS MANDATORY (MR-PHIL-008)
+    # Dynamic detection - works for ANY instrument containing USD
+    # =====================================================================
 
     if is_usd or has_dxy_data:
         min_chunks[DocumentType.DXY_FRAMEWORK] = 3
         force_types.add(DocumentType.DXY_FRAMEWORK)
         detected_fw.add("dxy")
         rule_patterns.extend([
-            "DXY-TREND",  # Trend interpretation
-            "DXY-PAIR",   # Pair-specific correlation rules
-            "DXY-STRUCT", # Structural confirmation
+            "DXY-TREND",
+            "DXY-PAIR",
+            "DXY-STRUCT",
         ])
 
     # Metals get extra DXY weight (strong inverse correlation)
     if is_metal:
         min_chunks[DocumentType.DXY_FRAMEWORK] = 4
-        rule_patterns.append("DXY-PAIR-009")  # Gold-specific rule
+        rule_patterns.append("DXY-PAIR-009")
 
-    # ── MACRO KNOWLEDGE ───────────────────────────────────────────────
+    # =====================================================================
+    # ELEVATED MACRO REQUIREMENTS (when specific macro signals present)
+    # =====================================================================
 
-    if has_macro_data:
-        min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 3
-        force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
-        detected_fw.add("macro")
-        rule_patterns.extend([
-            "MACRO-BIAS",   # Bias generation rules
-            "MACRO-LIMIT",  # Macro limitations
-        ])
-
-    # Rate decisions are the highest-impact macro events
     if has_rate_decision:
         min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = max(
             min_chunks.get(DocumentType.MACRO_TO_PRICE_GUIDE, 0), 4,
         )
         rule_patterns.extend([
-            "MACRO-CB",     # Central bank policy rules
-            "MACRO-RATE",   # Interest rate impact rules
-            "MACRO-EVENT",  # High-impact event rules
+            "MACRO-CB",
+            "MACRO-RATE",
+            "MACRO-EVENT",
         ])
 
     if has_high_impact_event:
         rule_patterns.append("MACRO-EVENT")
-        # Ensure macro guide is present even if has_macro_data was False
-        if DocumentType.MACRO_TO_PRICE_GUIDE not in min_chunks:
-            min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 2
-            force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
+        min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = max(
+            min_chunks.get(DocumentType.MACRO_TO_PRICE_GUIDE, 0), 3,
+        )
 
     if has_cot_data:
         min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 3
         force_types.add(DocumentType.COT_INTERPRETATION_GUIDE)
         detected_fw.add("cot")
         rule_patterns.extend([
-            "COT-EXTREME",  # Positioning extremes
-            "COT-SHIFT",    # Positioning shifts
-            "COT-TECH",     # Interaction with technical frameworks
-            "COT-TREND",    # Trend confirmation
+            "COT-EXTREME",
+            "COT-SHIFT",
+            "COT-TECH",
+            "COT-TREND",
         ])
-
-    # ── SCENARIO EXAMPLES ─────────────────────────────────────────────
-
-    # Scenarios are always valuable for reasoning support.
-    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 3
-    force_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
 
     requirements = MandatoryRequirements(
         doc_type_min_chunks=min_chunks,

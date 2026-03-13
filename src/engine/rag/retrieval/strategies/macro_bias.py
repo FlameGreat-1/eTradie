@@ -6,10 +6,12 @@ from engine.rag.retrieval.retriever import Retriever
 
 
 class MacroBiasStrategy:
-    """Macro-prioritised retrieval for strong macro signal scenarios.
+    """Macro-boosted retrieval for strong macro signal scenarios.
 
-    Allocates the majority of budget to macro docs, then fills with
-    rules and framework-specific knowledge.
+    The LLM processes everything together. This strategy gives macro docs
+    a slight budget boost because strong macro signals need thorough
+    macro-to-price translation rules. All other categories still receive
+    substantial equal budgets.
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -32,8 +34,11 @@ class MacroBiasStrategy:
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
 
-        # Primary: Macro docs
-        macro_k = max(3, top_k // 2)
+        # Equal base budget per category, macro gets a slight boost
+        base_k = max(3, top_k // 4)
+        macro_k = base_k + 3
+
+        # Macro docs
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
@@ -51,12 +56,11 @@ class MacroBiasStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Secondary: Rules
-        rule_k = max(3, top_k // 4)
+        # Rules
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=rule_k + 2,
+            top_k=base_k + 2,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -67,7 +71,7 @@ class MacroBiasStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Tertiary: Framework-specific docs for detected frameworks
+        # Framework-specific docs for detected frameworks
         framework_doc_map = {
             "smc": DocumentType.SMC_FRAMEWORK,
             "snd": DocumentType.SND_RULEBOOK,
@@ -78,8 +82,9 @@ class MacroBiasStrategy:
             for fw in all_frameworks:
                 if fw in framework_doc_map:
                     frameworks_to_retrieve.add(fw)
+        frameworks_to_retrieve.add("wyckoff")
 
-        per_fw_k = max(2, top_k // (len(frameworks_to_retrieve) + 4)) if frameworks_to_retrieve else 0
+        per_fw_k = max(2, base_k // max(1, len(frameworks_to_retrieve)))
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]
             fw_chunks = await self._retriever.retrieve(

@@ -6,16 +6,17 @@ from engine.rag.retrieval.retriever import Retriever
 
 
 class HybridStrategy:
-    """Multi-bucket retrieval strategy for comprehensive knowledge coverage.
+    """Equal-weight multi-bucket retrieval for comprehensive knowledge coverage.
 
-    Retrieves from multiple categories simultaneously:
+    The LLM processes TA + Macro + RAG knowledge ALL TOGETHER in a single
+    pass. It does not analyze TA separately from macro. Therefore every
+    knowledge category receives EQUAL retrieval budget.
+
+    Retrieves from all categories with equal weight:
     1. Core rules (master_rulebook, trading_style_rules)
     2. Framework-specific chunks for EACH detected framework
     3. Macro/cross-framework chunks (macro_to_price, dxy, cot)
     4. Scenario examples (chart_scenario_library)
-
-    This ensures the LLM always receives all knowledge layers
-    needed for correct reasoning.
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -40,20 +41,17 @@ class HybridStrategy:
         all_frameworks: list[str] | None = None,
         all_setup_families: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        # Generous per-bucket budgets to ensure broad coverage.
-        # The gap filler and reranker will handle final selection.
-        rule_k = max(3, top_k // 3)
-        macro_k = max(3, top_k // 4)
-        scenario_k = max(3, top_k // 4)
+        # Equal budget per category - no prioritization
+        per_category_k = max(3, top_k // 4)
 
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
 
-        # Bucket 1: Core rules (master_rulebook + trading_style_rules)
+        # Category 1: Core rules (master_rulebook + trading_style_rules)
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=rule_k + 3,
+            top_k=per_category_k + 2,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -65,7 +63,7 @@ class HybridStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Bucket 2: Framework-specific chunks for EACH detected framework
+        # Category 2: Framework-specific chunks for EACH detected framework
         framework_doc_map = {
             "smc": DocumentType.SMC_FRAMEWORK,
             "snd": DocumentType.SND_RULEBOOK,
@@ -82,9 +80,7 @@ class HybridStrategy:
         # Always include wyckoff for phase context
         frameworks_to_retrieve.add("wyckoff")
 
-        # Retrieve from each framework document separately to guarantee
-        # chunks from every relevant framework
-        per_fw_k = max(2, top_k // (len(frameworks_to_retrieve) + 2))
+        per_fw_k = max(2, per_category_k // max(1, len(frameworks_to_retrieve)))
         all_setup_fams = all_setup_families or (
             [setup_family] if setup_family else None
         )
@@ -105,17 +101,16 @@ class HybridStrategy:
                     merged.append(chunk)
                     seen_ids.add(chunk.chunk_id)
 
-        # Bucket 3: Macro/cross-framework (DXY, COT, macro-to-price)
-        macro_doc_types = [
-            DocumentType.MACRO_TO_PRICE_GUIDE,
-            DocumentType.DXY_FRAMEWORK,
-            DocumentType.COT_INTERPRETATION_GUIDE,
-        ]
+        # Category 3: Macro/cross-framework (DXY, COT, macro-to-price)
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=macro_k + 3,
-            doc_types=macro_doc_types,
+            top_k=per_category_k + 2,
+            doc_types=[
+                DocumentType.MACRO_TO_PRICE_GUIDE,
+                DocumentType.DXY_FRAMEWORK,
+                DocumentType.COT_INTERPRETATION_GUIDE,
+            ],
             directions=[direction] if direction else None,
         )
         for chunk in macro_chunks:
@@ -123,11 +118,11 @@ class HybridStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Bucket 4: Scenario examples
+        # Category 4: Scenario examples
         scenario_chunks = await self._retriever.retrieve(
             query_text,
             collection=scenario_collection,
-            top_k=scenario_k + 2,
+            top_k=per_category_k + 2,
             frameworks=[framework] if framework else None,
             setup_families=all_setup_fams,
             directions=[direction] if direction else None,
