@@ -20,6 +20,7 @@ from gateway.routing.execution_port import ExecutionPort
 from gateway.routing.guards import GuardEvaluator
 from gateway.routing.processor_port import ProcessorPort
 from gateway.routing.router import DecisionRouter
+from gateway.symbol_store import SymbolStore
 
 if TYPE_CHECKING:
     from engine.dependencies import Container as EngineContainer
@@ -48,6 +49,10 @@ class GatewayContainer:
     ) -> None:
         self._engine = engine
         self._config = get_gateway_config()
+
+        # Symbol Store - persists user's active symbol selection in Redis.
+        # Every scheduled cycle reads from here; defaults used until user selects.
+        self.symbol_store = SymbolStore(cache=engine.cache)
 
         # TA Collector - no symbol list here.
         # Symbols are provided by the caller at runtime via run_cycle(symbols=[...]).
@@ -115,5 +120,6 @@ class GatewayContainer:
         register_gateway_cycle(
             scheduler=self._engine.scheduler,
             orchestrator=self.orchestrator,
+            symbol_store=self.symbol_store,
             config=self._config,
         )
