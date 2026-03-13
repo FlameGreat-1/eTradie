@@ -1,8 +1,11 @@
 """TA collection adapter.
 
-Calls TAOrchestrator.analyze() for each configured symbol and collects
+Calls TAOrchestrator.analyze() for each symbol and collects
 the persisted SMCCandidates, SnDCandidates, and TechnicalSnapshot from
 repositories so the gateway has the full typed output.
+
+The gateway does NOT own a symbol list. Symbols are provided by the
+caller (dashboard/API) at runtime for every cycle.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ logger = get_logger(__name__)
 
 
 class TACollector:
-    """Collects TA analysis results for configured or user-selected symbols."""
+    """Collects TA analysis results for caller-provided symbols."""
 
     def __init__(
         self,
@@ -39,28 +42,35 @@ class TACollector:
         candidate_repository: CandidateRepository,
         snapshot_repository: SnapshotRepository,
         config: GatewayConfig,
-        default_symbols: list[str],
     ) -> None:
         self._orchestrator = ta_orchestrator
         self._candidate_repo = candidate_repository
         self._snapshot_repo = snapshot_repository
         self._config = config
-        self._default_symbols = default_symbols
 
     async def collect(
         self,
         *,
-        symbols: Optional[list[str]] = None,
+        symbols: list[str],
         trace_id: Optional[str] = None,
     ) -> TAResult:
-        """Run TA analysis for the given symbols.
+        """Run TA analysis for the given symbols with bounded concurrency.
 
         Args:
-            symbols: User-selected symbols from dashboard. If None,
-                     falls back to default_symbols from TAConfig.
+            symbols: Symbols to analyse. Provided by the caller
+                     (dashboard/API) - never hardcoded.
             trace_id: Distributed trace ID for correlation.
         """
-        active_symbols = symbols if symbols else self._default_symbols
+        if not symbols:
+            logger.warning(
+                "ta_collect_called_with_empty_symbols",
+                extra={"trace_id": trace_id},
+            )
+            return TAResult(
+                symbol_results=[],
+                collected_at=datetime.now(UTC),
+                duration_ms=0.0,
+            )
 
         start = time.monotonic()
         htf = Timeframe(self._config.ta_htf_timeframe)
@@ -75,13 +85,13 @@ class TACollector:
                     symbol, htf, ltf, lookback, trace_id=trace_id,
                 )
 
-        tasks = [_analyze_symbol(s) for s in active_symbols]
+        tasks = [_analyze_symbol(s) for s in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         symbol_results: list[TASymbolResult] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                symbol = active_symbols[i]
+                symbol = symbols[i]
                 logger.error(
                     "ta_symbol_analysis_exception",
                     extra={
@@ -109,10 +119,9 @@ class TACollector:
         logger.info(
             "ta_collection_completed",
             extra={
-                "symbols_requested": active_symbols,
-                "symbols_total": len(active_symbols),
+                "symbols_requested": symbols,
+                "symbols_total": len(symbols),
                 "symbols_success": sum(1 for r in symbol_results if r.status == "success"),
-                "using_defaults": symbols is None,
                 "duration_ms": round(elapsed_ms, 1),
                 "trace_id": trace_id,
             },

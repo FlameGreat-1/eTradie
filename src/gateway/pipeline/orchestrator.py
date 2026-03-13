@@ -76,14 +76,14 @@ class PipelineOrchestrator:
     async def run_cycle(
         self,
         *,
-        symbols: Optional[list[str]] = None,
+        symbols: list[str],
         trace_id: Optional[str] = None,
     ) -> list[GatewayOutput]:
         """Execute a complete analysis cycle.
 
         Args:
-            symbols: User-selected symbols from dashboard. If None,
-                     falls back to default_symbols from TAConfig.
+            symbols: Symbols to analyse. Provided by the caller
+                     (dashboard/API) - the gateway does not own symbols.
             trace_id: Distributed trace ID for correlation.
 
         Returns a list of GatewayOutput, one per symbol that had candidates.
@@ -105,6 +105,7 @@ class PipelineOrchestrator:
         try:
             async with asyncio.timeout(self._config.cycle_timeout_seconds):
                 outputs = await self._execute_pipeline(tracker, symbols=symbols)
+
 
         except asyncio.TimeoutError:
             tracker.fail(
@@ -172,7 +173,7 @@ class PipelineOrchestrator:
         self,
         tracker: CycleTracker,
         *,
-        symbols: Optional[list[str]] = None,
+        symbols: list[str],
     ) -> list[GatewayOutput]:
         """Core pipeline execution."""
         trace_id = tracker.trace_id
