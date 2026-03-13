@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 
 class TACollector:
-    """Collects TA analysis results for all configured symbols."""
+    """Collects TA analysis results for configured or user-selected symbols."""
 
     def __init__(
         self,
@@ -39,20 +39,29 @@ class TACollector:
         candidate_repository: CandidateRepository,
         snapshot_repository: SnapshotRepository,
         config: GatewayConfig,
-        symbols: list[str],
+        default_symbols: list[str],
     ) -> None:
         self._orchestrator = ta_orchestrator
         self._candidate_repo = candidate_repository
         self._snapshot_repo = snapshot_repository
         self._config = config
-        self._symbols = symbols
+        self._default_symbols = default_symbols
 
     async def collect(
         self,
         *,
+        symbols: Optional[list[str]] = None,
         trace_id: Optional[str] = None,
     ) -> TAResult:
-        """Run TA analysis for all symbols with bounded concurrency."""
+        """Run TA analysis for the given symbols.
+
+        Args:
+            symbols: User-selected symbols from dashboard. If None,
+                     falls back to default_symbols from TAConfig.
+            trace_id: Distributed trace ID for correlation.
+        """
+        active_symbols = symbols if symbols else self._default_symbols
+
         start = time.monotonic()
         htf = Timeframe(self._config.ta_htf_timeframe)
         ltf = Timeframe(self._config.ta_ltf_timeframe)
@@ -66,13 +75,13 @@ class TACollector:
                     symbol, htf, ltf, lookback, trace_id=trace_id,
                 )
 
-        tasks = [_analyze_symbol(s) for s in self._symbols]
+        tasks = [_analyze_symbol(s) for s in active_symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         symbol_results: list[TASymbolResult] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                symbol = self._symbols[i]
+                symbol = active_symbols[i]
                 logger.error(
                     "ta_symbol_analysis_exception",
                     extra={
@@ -100,8 +109,10 @@ class TACollector:
         logger.info(
             "ta_collection_completed",
             extra={
-                "symbols_total": len(self._symbols),
+                "symbols_requested": active_symbols,
+                "symbols_total": len(active_symbols),
                 "symbols_success": sum(1 for r in symbol_results if r.status == "success"),
+                "using_defaults": symbols is None,
                 "duration_ms": round(elapsed_ms, 1),
                 "trace_id": trace_id,
             },

@@ -76,9 +76,15 @@ class PipelineOrchestrator:
     async def run_cycle(
         self,
         *,
+        symbols: Optional[list[str]] = None,
         trace_id: Optional[str] = None,
     ) -> list[GatewayOutput]:
-        """Execute a complete analysis cycle for all symbols.
+        """Execute a complete analysis cycle.
+
+        Args:
+            symbols: User-selected symbols from dashboard. If None,
+                     falls back to default_symbols from TAConfig.
+            trace_id: Distributed trace ID for correlation.
 
         Returns a list of GatewayOutput, one per symbol that had candidates.
         """
@@ -89,6 +95,7 @@ class PipelineOrchestrator:
             "cycle_started",
             extra={
                 "cycle_id": tracker.cycle_id,
+                "symbols_override": symbols,
                 "trace_id": tracker.trace_id,
             },
         )
@@ -97,7 +104,7 @@ class PipelineOrchestrator:
 
         try:
             async with asyncio.timeout(self._config.cycle_timeout_seconds):
-                outputs = await self._execute_pipeline(tracker)
+                outputs = await self._execute_pipeline(tracker, symbols=symbols)
 
         except asyncio.TimeoutError:
             tracker.fail(
@@ -164,6 +171,8 @@ class PipelineOrchestrator:
     async def _execute_pipeline(
         self,
         tracker: CycleTracker,
+        *,
+        symbols: Optional[list[str]] = None,
     ) -> list[GatewayOutput]:
         """Core pipeline execution."""
         trace_id = tracker.trace_id
@@ -175,7 +184,7 @@ class PipelineOrchestrator:
         try:
             async with asyncio.timeout(self._config.ta_macro_parallel_timeout_seconds):
                 ta_result, macro_result = await asyncio.gather(
-                    self._ta_collector.collect(trace_id=trace_id),
+                    self._ta_collector.collect(symbols=symbols, trace_id=trace_id),
                     self._macro_collector.collect(trace_id=trace_id),
                 )
         except asyncio.TimeoutError:

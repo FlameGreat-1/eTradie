@@ -49,14 +49,16 @@ class GatewayContainer:
         self._engine = engine
         self._config = get_gateway_config()
 
-        # TA Collector
-        symbols = list(engine.ta_config.default_symbols)
+        # TA Collector - default_symbols used as fallback only.
+        # User-selected symbols from dashboard override these at runtime
+        # via run_cycle(symbols=[...]).
+        default_symbols = list(engine.ta_config.default_symbols)
         self.ta_collector = TACollector(
             ta_orchestrator=engine.ta_orchestrator,
             candidate_repository=engine.candidate_repository,
             snapshot_repository=engine.snapshot_repository,
             config=self._config,
-            symbols=symbols,
+            default_symbols=default_symbols,
         )
 
         # Macro Collector
@@ -101,7 +103,7 @@ class GatewayContainer:
         logger.info(
             "gateway_container_built",
             extra={
-                "symbols": symbols,
+                "default_symbols": default_symbols,
                 "cycle_interval": self._config.cycle_interval_seconds,
                 "cycle_timeout": self._config.cycle_timeout_seconds,
                 "execution_available": execution is not None,
