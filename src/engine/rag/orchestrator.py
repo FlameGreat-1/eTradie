@@ -5,7 +5,6 @@ from uuid import UUID
 
 from engine.config import RAGConfig
 from engine.rag.constants import RetrievalStrategy
-from engine.rag.embeddings.base import BaseEmbeddingProvider
 from engine.rag.models.context_bundle import ContextBundle
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.rag.retrieval.assembler import assemble_context_bundle
@@ -125,9 +124,11 @@ class RAGOrchestrator:
         total_after_gaps = len(chunks)
 
         # Phase 3: Reranking (applied to the full set including gap fills)
+        # Pass mandatory requirements so the reranker preserves gap-filled
+        # chunks that meet mandatory minimums instead of truncating them.
         if self._config.rerank_enabled:
             chunks = self._reranker.rerank(
-                chunks, strategy=effective_strategy,
+                chunks, strategy=effective_strategy, mandatory=mandatory,
             )
 
         version_map = await self._build_version_map(chunks)
