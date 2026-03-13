@@ -285,27 +285,25 @@ def register_ta_jobs(
     scheduler: SchedulerManager,
     *,
     ta_config: TAConfig,
-    orchestrator: TAOrchestrator,
     broker_client: BrokerBase,
     candle_repository: CandleRepository,
 ) -> None:
     """
-    Register all TA scheduler jobs.
+    Register TA data infrastructure jobs.
 
-    Follows the same pattern as ``register_macro_jobs`` in
-    ``engine.macro.scheduler_jobs``: reads symbols and timeframes
-    from configuration so nothing is hardcoded.
+    Keeps raw price data warm and synced. Does NOT trigger analysis
+    (SMC/SnD detection) — that is the gateway's responsibility per
+    GATEWAY.md: the gateway runs TA + Macro in parallel as the sole
+    orchestrator of the analysis pipeline.
 
     Jobs registered per symbol:
     - ``candle_refresh`` – one per HTF + LTF timeframe
-    - ``analysis_trigger`` – one per symbol (HTF/LTF pair)
     - ``broker_sync`` – one per HTF timeframe (hourly reconciliation)
     - ``backfill`` – one per HTF + LTF timeframe (if enabled, runs once then long interval)
     """
     symbols = ta_config.default_symbols
     htf_timeframes = ta_config.htf_timeframes
     ltf_timeframes = ta_config.ltf_timeframes
-    analysis_interval = ta_config.analysis_interval_seconds
     lookback = ta_config.candle_lookback_periods
     all_timeframes = htf_timeframes + ltf_timeframes
 
@@ -326,21 +324,11 @@ def register_ta_jobs(
                 },
             )
 
-        # ── Analysis trigger job ──
-        htf = htf_timeframes[0] if htf_timeframes else Timeframe.H4
-        ltf = ltf_timeframes[0] if ltf_timeframes else Timeframe.M15
-
-        scheduler.add_interval_job(
-            _analysis_trigger,
-            job_id=f"analysis_trigger_{symbol}_{htf.value}_{ltf.value}",
-            seconds=analysis_interval,
-            kwargs={
-                "symbol": symbol,
-                "htf_timeframe": htf,
-                "ltf_timeframe": ltf,
-                "orchestrator": orchestrator,
-            },
-        )
+        # NOTE: Analysis trigger (SMC/SnD detection) is NOT registered here.
+        # Per GATEWAY.md, the gateway is the sole orchestrator that triggers
+        # TA analysis via TACollector -> TAOrchestrator.analyze().
+        # The TA scheduler only handles data infrastructure: candle refresh,
+        # backfill, and broker sync.
 
         # ── Broker sync jobs (one per HTF, every hour) ──
         for tf in htf_timeframes:
@@ -379,7 +367,6 @@ def register_ta_jobs(
 
     total_jobs = len(symbols) * (
         len(all_timeframes)                        # candle refresh
-        + 1                                         # analysis trigger
         + len(htf_timeframes)                       # broker sync
         + (len(all_timeframes) if ta_config.backfill_on_startup else 0)  # backfill
     )
