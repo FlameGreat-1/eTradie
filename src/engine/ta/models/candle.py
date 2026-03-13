@@ -10,7 +10,7 @@ from engine.ta.constants import Timeframe, CandleType
 
 class Candle(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=2, max_length=20)
     timeframe: Timeframe
     timestamp: datetime
     open: float = Field(gt=0)
@@ -23,7 +23,7 @@ class Candle(FrozenModel):
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         normalized = v.upper().replace("/", "").replace("_", "")
-        if len(normalized) < 6:
+        if len(normalized) < 2:
             raise ValueError(f"Invalid symbol: {v}")
         return normalized
     
@@ -173,7 +173,7 @@ class Candle(FrozenModel):
 
 class CandleSequence(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=2, max_length=20)
     timeframe: Timeframe
     candles: list[Candle] = Field(min_length=1)
     

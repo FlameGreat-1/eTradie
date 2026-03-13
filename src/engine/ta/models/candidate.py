@@ -10,7 +10,7 @@ from engine.ta.constants import Timeframe, Direction, CandidatePattern
 
 class TechnicalCandidate(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=2, max_length=20)
     timeframe: Timeframe
     pattern: CandidatePattern
     direction: Direction
@@ -84,7 +84,7 @@ class TechnicalCandidate(FrozenModel):
 
 class SMCCandidate(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=2, max_length=20)
     timeframe: Timeframe
     pattern: CandidatePattern
     direction: Direction
@@ -195,7 +195,7 @@ class SMCCandidate(FrozenModel):
 
 class SnDCandidate(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=2, max_length=20)
     timeframe: Timeframe
     pattern: CandidatePattern
     direction: Direction
