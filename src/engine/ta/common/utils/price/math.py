@@ -7,27 +7,45 @@ _JPY_PAIRS: Final[set[str]] = {"USDJPY", "EURJPY", "GBPJPY", "AUDJPY", "NZDJPY",
 
 _METAL_PAIRS: Final[set[str]] = {"XAUUSD", "XAGUSD"}
 
+# Index instruments use point-based pricing (1 point = 1 unit of price movement).
+# The pip value is set to 1.0 so that calculate_pips() returns the raw point distance.
+_INDEX_PATTERNS: Final[tuple[str, ...]] = (
+    "US30", "US500", "US2000", "USTEC", "NAS100", "SPX", "SPX500",
+    "DJ30", "NDX", "NDX100",
+    "DE40", "DAX", "UK100", "FTSE", "FR40", "EU50",
+    "JP225", "AU200", "HK50", "CN50",
+    "VIX",
+)
+
 _PIP_DECIMALS: Final[dict[str, int]] = {
     "JPY": 2,
     "METAL": 2,
+    "INDEX": 0,
     "STANDARD": 4,
 }
 
 _POINT_MULTIPLIERS: Final[dict[str, int]] = {
     "JPY": 100,
     "METAL": 100,
+    "INDEX": 1,
     "STANDARD": 10000,
 }
 
 
 def _get_pair_type(symbol: str) -> str:
-    symbol_upper = symbol.upper().replace("/", "")
+    symbol_upper = symbol.upper().replace("/", "").replace("_", "")
     
     if symbol_upper in _METAL_PAIRS:
         return "METAL"
     
     if symbol_upper in _JPY_PAIRS or symbol_upper.endswith("JPY"):
         return "JPY"
+    
+    # Check if the symbol matches any known index pattern.
+    # Supports both exact matches (US30) and broker suffixes (US30.raw, US500_STP).
+    for pattern in _INDEX_PATTERNS:
+        if symbol_upper == pattern or symbol_upper.startswith(pattern):
+            return "INDEX"
     
     return "STANDARD"
 
@@ -39,6 +57,8 @@ def get_pip_value(symbol: str) -> Decimal:
         return Decimal("0.01")
     elif pair_type == "METAL":
         return Decimal("0.01")
+    elif pair_type == "INDEX":
+        return Decimal("1.0")
     else:
         return Decimal("0.0001")
 
