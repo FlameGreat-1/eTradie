@@ -40,18 +40,30 @@ class Reranker:
         top_k: int | None = None,
         mandatory: MandatoryRequirements | None = None,
     ) -> list[RetrievedChunk]:
-        """Rerank chunks by weighted score, preserving mandatory minimums.
+        """Rerank chunks by weighted score, never limiting below mandatory total.
 
-        After scoring and sorting, the reranker checks whether the top-k
-        selection still satisfies mandatory per-doc-type minimums. If any
-        doc_type falls below its minimum, the highest-scoring chunks from
-        that doc_type are swapped in from the overflow pool.
+        The output floor is the MAXIMUM of:
+        - The configured rerank_top_k (default 25)
+        - The sum of all mandatory per-doc-type minimums
 
-        This prevents the reranker from undoing the GapFiller's work.
+        This ensures the reranker NEVER outputs fewer chunks than the
+        mandatory requirements demand. The knowledge base is the LLM's
+        brain and the reranker must not limit what the LLM needs.
+
+        After the initial top-k selection, mandatory minimums are enforced
+        by swapping in chunks from the overflow pool if any doc_type fell
+        below its required minimum.
         """
         start = time.monotonic()
 
-        effective_top_k = top_k or self._top_k
+        configured_top_k = top_k or self._top_k
+
+        # The output floor is at least the mandatory total so the reranker
+        # never limits what the LLM needs.
+        mandatory_total = (
+            sum(mandatory.doc_type_min_chunks.values()) if mandatory else 0
+        )
+        effective_top_k = max(configured_top_k, mandatory_total)
 
         scored = [
             (chunk, self._compute_weighted_score(chunk))
@@ -60,7 +72,7 @@ class Reranker:
 
         scored.sort(key=lambda x: x[1], reverse=True)
 
-        # Initial selection: top-k by score
+        # Initial selection: top-k by score (floor = mandatory total)
         selected = scored[:effective_top_k]
         overflow = scored[effective_top_k:]
 
@@ -95,6 +107,9 @@ class Reranker:
             strategy=strategy,
             input_count=len(chunks),
             output_count=len(reranked),
+            configured_top_k=configured_top_k,
+            mandatory_total=mandatory_total,
+            effective_top_k=effective_top_k,
             elapsed_s=round(elapsed, 5),
         )
 
@@ -110,8 +125,9 @@ class Reranker:
 
         For each doc_type that is below its mandatory minimum in the
         selected set, find the highest-scoring chunks of that doc_type
-        in the overflow and swap them in (replacing the lowest-scoring
-        chunks in the selected set).
+        in the overflow and ADD them to the selected set. This may
+        increase the total beyond effective_top_k, which is correct
+        because mandatory requirements take precedence over size limits.
         """
         # Count per doc_type in selected
         counts: dict[str, int] = {}
@@ -135,7 +151,8 @@ class Reranker:
             if dt in needed:
                 overflow_by_type.setdefault(dt, []).append(item)
 
-        # Collect chunks to add from overflow
+        # Add mandatory chunks from overflow directly (do NOT remove
+        # existing chunks - mandatory requirements take precedence)
         to_add: list[tuple[RetrievedChunk, float]] = []
         for doc_type, deficit in needed.items():
             available = overflow_by_type.get(doc_type, [])
@@ -144,19 +161,15 @@ class Reranker:
         if not to_add:
             return selected
 
-        # Remove the lowest-scoring items from selected to make room
-        # (only remove as many as we're adding)
         result = list(selected)
-        result.sort(key=lambda x: x[1])  # Sort ascending by score
-        remove_count = min(len(to_add), len(result))
-        result = result[remove_count:]  # Remove lowest-scoring
         result.extend(to_add)
-        result.sort(key=lambda x: x[1], reverse=True)  # Re-sort descending
+        result.sort(key=lambda x: x[1], reverse=True)
 
         logger.debug(
             "mandatory_minimums_enforced",
             deficits=needed,
-            swapped_in=len(to_add),
+            added=len(to_add),
+            total_after=len(result),
         )
 
         return result
