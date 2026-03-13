@@ -6,16 +6,16 @@ from engine.rag.retrieval.retriever import Retriever
 
 
 class HybridStrategy:
-    """Four-bucket retrieval strategy aligned with ALIGNMENT.md architecture.
+    """Multi-bucket retrieval strategy for comprehensive knowledge coverage.
 
-    Retrieves from 4 categories simultaneously:
+    Retrieves from multiple categories simultaneously:
     1. Core rules (master_rulebook, trading_style_rules)
-    2. Framework-specific chunks (smc, snd, wyckoff based on TA output)
+    2. Framework-specific chunks for EACH detected framework
     3. Macro/cross-framework chunks (macro_to_price, dxy, cot)
     4. Scenario examples (chart_scenario_library)
 
-    This ensures the LLM always receives all four knowledge layers
-    needed for correct reasoning per ALIGNMENT.md Section 4.
+    This ensures the LLM always receives all knowledge layers
+    needed for correct reasoning.
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -37,53 +37,91 @@ class HybridStrategy:
         timeframe: str | None = None,
         style: str | None = None,
         setup_family: str | None = None,
+        all_frameworks: list[str] | None = None,
+        all_setup_families: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        # Allocate budget across 4 buckets
-        rule_k = max(1, top_k // 4)
-        framework_k = max(1, top_k // 4)
-        macro_k = max(1, top_k // 4)
-        scenario_k = max(1, top_k - rule_k - framework_k - macro_k)
+        # Generous per-bucket budgets to ensure broad coverage.
+        # The gap filler and reranker will handle final selection.
+        rule_k = max(3, top_k // 3)
+        macro_k = max(3, top_k // 4)
+        scenario_k = max(3, top_k // 4)
+
+        seen_ids: set = set()
+        merged: list[RetrievedChunk] = []
 
         # Bucket 1: Core rules (master_rulebook + trading_style_rules)
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=rule_k + 2,
+            top_k=rule_k + 3,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
             ],
             styles=[style] if style else None,
         )
+        for chunk in rule_chunks:
+            if chunk.chunk_id not in seen_ids:
+                merged.append(chunk)
+                seen_ids.add(chunk.chunk_id)
 
-        # Bucket 2: Framework-specific (SMC, SnD, Wyckoff based on TA output)
-        framework_chunks = await self._retriever.retrieve(
-            query_text,
-            collection=collection,
-            top_k=framework_k + 2,
-            doc_types=[
-                DocumentType.SMC_FRAMEWORK,
-                DocumentType.SND_RULEBOOK,
-                DocumentType.WYCKOFF_GUIDE,
-            ],
-            frameworks=[framework] if framework else None,
-            setup_families=[setup_family] if setup_family else None,
-            directions=[direction] if direction else None,
-            timeframes=[timeframe] if timeframe else None,
+        # Bucket 2: Framework-specific chunks for EACH detected framework
+        framework_doc_map = {
+            "smc": DocumentType.SMC_FRAMEWORK,
+            "snd": DocumentType.SND_RULEBOOK,
+            "wyckoff": DocumentType.WYCKOFF_GUIDE,
+        }
+
+        frameworks_to_retrieve = set()
+        if all_frameworks:
+            for fw in all_frameworks:
+                if fw in framework_doc_map:
+                    frameworks_to_retrieve.add(fw)
+        if framework and framework in framework_doc_map:
+            frameworks_to_retrieve.add(framework)
+        # Always include wyckoff for phase context
+        frameworks_to_retrieve.add("wyckoff")
+
+        # Retrieve from each framework document separately to guarantee
+        # chunks from every relevant framework
+        per_fw_k = max(2, top_k // (len(frameworks_to_retrieve) + 2))
+        all_setup_fams = all_setup_families or (
+            [setup_family] if setup_family else None
         )
 
+        for fw in frameworks_to_retrieve:
+            doc_type = framework_doc_map[fw]
+            fw_chunks = await self._retriever.retrieve(
+                query_text,
+                collection=collection,
+                top_k=per_fw_k + 2,
+                doc_types=[doc_type],
+                setup_families=all_setup_fams,
+                directions=[direction] if direction else None,
+                timeframes=[timeframe] if timeframe else None,
+            )
+            for chunk in fw_chunks:
+                if chunk.chunk_id not in seen_ids:
+                    merged.append(chunk)
+                    seen_ids.add(chunk.chunk_id)
+
         # Bucket 3: Macro/cross-framework (DXY, COT, macro-to-price)
+        macro_doc_types = [
+            DocumentType.MACRO_TO_PRICE_GUIDE,
+            DocumentType.DXY_FRAMEWORK,
+            DocumentType.COT_INTERPRETATION_GUIDE,
+        ]
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=macro_k + 2,
-            doc_types=[
-                DocumentType.MACRO_TO_PRICE_GUIDE,
-                DocumentType.DXY_FRAMEWORK,
-                DocumentType.COT_INTERPRETATION_GUIDE,
-            ],
+            top_k=macro_k + 3,
+            doc_types=macro_doc_types,
             directions=[direction] if direction else None,
         )
+        for chunk in macro_chunks:
+            if chunk.chunk_id not in seen_ids:
+                merged.append(chunk)
+                seen_ids.add(chunk.chunk_id)
 
         # Bucket 4: Scenario examples
         scenario_chunks = await self._retriever.retrieve(
@@ -91,20 +129,14 @@ class HybridStrategy:
             collection=scenario_collection,
             top_k=scenario_k + 2,
             frameworks=[framework] if framework else None,
-            setup_families=[setup_family] if setup_family else None,
+            setup_families=all_setup_fams,
             directions=[direction] if direction else None,
             timeframes=[timeframe] if timeframe else None,
         )
-
-        # Merge with deduplication, preserving bucket priority order
-        seen_ids: set = set()
-        merged: list[RetrievedChunk] = []
-
-        for source in [rule_chunks, framework_chunks, macro_chunks, scenario_chunks]:
-            for chunk in source:
-                if chunk.chunk_id not in seen_ids:
-                    merged.append(chunk)
-                    seen_ids.add(chunk.chunk_id)
+        for chunk in scenario_chunks:
+            if chunk.chunk_id not in seen_ids:
+                merged.append(chunk)
+                seen_ids.add(chunk.chunk_id)
 
         merged.sort(key=lambda c: c.score, reverse=True)
-        return merged[:top_k]
+        return merged
