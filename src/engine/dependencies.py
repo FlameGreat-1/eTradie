@@ -75,7 +75,7 @@ from engine.rag.storage.uow import rag_uow_factory
 from engine.rag.vectorstore.factory import create_vector_store
 
 from engine.processor.config import ProcessorConfig, get_processor_config
-from engine.processor.llm.client import AnthropicClient
+from engine.processor.llm.factory import create_llm_client
 from engine.processor.service import AnalysisProcessor
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
@@ -384,14 +384,15 @@ class Container:
     def build_processor(self) -> None:
         """Build the Processor LLM service.
 
-        Creates the AnthropicClient, repositories, and the concrete
-        AnalysisProcessor that implements the gateway's ProcessorPort.
+        Uses the LLM factory to create the correct provider client
+        based on PROCESSOR_LLM_PROVIDER config. Supports Anthropic,
+        OpenAI, Gemini, and any OpenAI-compatible self-hosted endpoint.
         Must be called after build_rag() since the processor persists
         audit data to the same database.
         """
         self.processor_config = get_processor_config()
 
-        self.processor_llm_client = AnthropicClient(
+        self.processor_llm_client = create_llm_client(
             config=self.processor_config,
         )
 
@@ -419,7 +420,7 @@ class Container:
         if hasattr(self, 'rag_embedding_provider'):
             await self.rag_embedding_provider.close()
         if hasattr(self, 'processor_llm_client'):
-            await self.processor_llm_client._client.close()
+            await self.processor_llm_client.close()
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()
