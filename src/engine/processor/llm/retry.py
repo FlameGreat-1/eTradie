@@ -3,6 +3,8 @@
 Classifies errors as retryable (transient network, rate limit,
 server errors) vs non-retryable (auth, invalid request, content
 filtering). Respects retry budgets and max delay caps.
+
+Provider-agnostic: reads the active provider from config for metrics.
 """
 
 from __future__ import annotations
@@ -15,7 +17,6 @@ from engine.shared.exceptions import ProcessorError
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import LLM_ERRORS_TOTAL
 from engine.processor.config import ProcessorConfig
-from engine.processor.constants import LLM_PROVIDER, PROCESSOR_NAME
 
 logger = get_logger(__name__)
 
@@ -69,7 +70,7 @@ async def retry_llm_call(
     Args:
         fn: Async callable to execute.
         *args: Positional arguments for fn.
-        config: Processor configuration with retry policy.
+        config: Processor configuration with retry policy and provider.
         trace_id: Distributed trace ID for correlation.
         **kwargs: Keyword arguments for fn.
 
@@ -79,6 +80,7 @@ async def retry_llm_call(
     Raises:
         ProcessorError: After all retries exhausted or on non-retryable error.
     """
+    provider = config.llm_provider
     last_exc: Exception | None = None
 
     for attempt in range(config.max_retries + 1):
@@ -90,7 +92,7 @@ async def retry_llm_call(
             error_type = type(exc).__name__
 
             LLM_ERRORS_TOTAL.labels(
-                provider=LLM_PROVIDER,
+                provider=provider,
                 model=config.model_name,
                 error_type=error_type,
             ).inc()
@@ -99,6 +101,7 @@ async def retry_llm_call(
                 logger.error(
                     "llm_non_retryable_error",
                     extra={
+                        "provider": provider,
                         "error_type": error_type,
                         "error": str(exc),
                         "attempt": attempt + 1,
@@ -106,8 +109,8 @@ async def retry_llm_call(
                     },
                 )
                 raise ProcessorError(
-                    f"Non-retryable LLM error: {error_type}: {exc}",
-                    details={"error_type": error_type, "attempt": attempt + 1},
+                    f"Non-retryable LLM error ({provider}): {error_type}: {exc}",
+                    details={"provider": provider, "error_type": error_type, "attempt": attempt + 1},
                 ) from exc
 
             if attempt >= config.max_retries:
@@ -118,6 +121,7 @@ async def retry_llm_call(
             logger.warning(
                 "llm_retryable_error",
                 extra={
+                    "provider": provider,
                     "error_type": error_type,
                     "error": str(exc),
                     "attempt": attempt + 1,
@@ -130,8 +134,9 @@ async def retry_llm_call(
             await asyncio.sleep(delay)
 
     raise ProcessorError(
-        f"LLM call failed after {config.max_retries + 1} attempts: {last_exc}",
+        f"LLM call failed after {config.max_retries + 1} attempts ({provider}): {last_exc}",
         details={
+            "provider": provider,
             "error_type": type(last_exc).__name__ if last_exc else "unknown",
             "total_attempts": config.max_retries + 1,
         },
