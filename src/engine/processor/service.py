@@ -34,7 +34,7 @@ from engine.processor.audit.logger import (
 )
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
-from engine.processor.llm.client import AnthropicClient, LLMResponse
+from engine.processor.llm.client import LLMClient, LLMResponse
 from engine.processor.mapping.output_mapper import map_to_processor_output
 from engine.processor.parsing.response_parser import parse_llm_response
 from engine.processor.prompts.system_prompt import (
@@ -63,7 +63,7 @@ class AnalysisProcessor(ProcessorPort):
         self,
         *,
         config: ProcessorConfig,
-        llm_client: AnthropicClient,
+        llm_client: LLMClient,
         analysis_repo: Optional[AnalysisRepository] = None,
         audit_repo: Optional[AuditRepository] = None,
     ) -> None:
