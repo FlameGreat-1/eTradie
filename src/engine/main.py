@@ -15,6 +15,7 @@ from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
 from engine.processor.constants import LLMProvider
+from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from gateway.config import get_gateway_config
 from gateway.container import GatewayContainer
 
@@ -197,6 +198,7 @@ def create_app() -> FastAPI:
 
         results = []
         for row in rows:
+            display = format_for_dashboard(row.raw_output or {}, row)
             results.append({
                 "analysis_id": row.analysis_id,
                 "pair": row.pair,
@@ -206,12 +208,6 @@ def create_app() -> FastAPI:
                 "confidence": row.confidence,
                 "proceed_to_module_b": row.proceed_to_module_b,
                 "rr_ratio": row.rr_ratio,
-                "entry_price_low": row.entry_price_low,
-                "entry_price_high": row.entry_price_high,
-                "stop_loss_price": row.stop_loss_price,
-                "tp1_price": row.tp1_price,
-                "tp2_price": row.tp2_price,
-                "tp3_price": row.tp3_price,
                 "trading_style": row.trading_style,
                 "session": row.session,
                 "llm_provider": row.llm_provider,
@@ -219,6 +215,10 @@ def create_app() -> FastAPI:
                 "status": row.status,
                 "duration_ms": row.duration_ms,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
+                "display": {
+                    "summary": display["summary"],
+                    "analyzed_by": display["analyzed_by"],
+                },
             })
 
         return {"analyses": results, "count": len(results)}
@@ -259,6 +259,8 @@ def create_app() -> FastAPI:
                 "validation_errors": a.validation_errors,
             }
 
+        display = format_for_dashboard(row.raw_output or {}, row)
+
         return {
             "analysis_id": row.analysis_id,
             "pair": row.pair,
@@ -268,21 +270,23 @@ def create_app() -> FastAPI:
             "confidence": row.confidence,
             "proceed_to_module_b": row.proceed_to_module_b,
             "rr_ratio": row.rr_ratio,
-            "entry_price_low": row.entry_price_low,
-            "entry_price_high": row.entry_price_high,
-            "stop_loss_price": row.stop_loss_price,
-            "tp1_price": row.tp1_price,
-            "tp2_price": row.tp2_price,
-            "tp3_price": row.tp3_price,
             "trading_style": row.trading_style,
             "session": row.session,
             "llm_provider": row.llm_provider,
             "llm_model": row.llm_model,
             "status": row.status,
-            "error_message": row.error_message,
-            "duration_ms": row.duration_ms,
             "created_at": row.created_at.isoformat() if row.created_at else None,
-            "raw_output": row.raw_output,
+            "display": {
+                "summary": display["summary"],
+                "reasoning": display["reasoning"],
+                "macro_summary": display["macro_summary"],
+                "technical_summary": display["technical_summary"],
+                "trade_plan": display["trade_plan"],
+                "confluence_breakdown": display["confluence_breakdown"],
+                "risk_info": display["risk_info"],
+                "event_warnings": display["event_warnings"],
+                "analyzed_by": display["analyzed_by"],
+            },
             "audit": audit_data,
         }
 
