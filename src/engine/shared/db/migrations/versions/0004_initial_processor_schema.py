@@ -38,6 +38,8 @@ def upgrade() -> None:
         sa.Column("tp3_price", sa.Float, nullable=True),
         sa.Column("trading_style", sa.String(20), nullable=False, server_default=""),
         sa.Column("session", sa.String(30), nullable=False, server_default=""),
+        sa.Column("llm_provider", sa.String(20), nullable=False, server_default=""),
+        sa.Column("llm_model", sa.String(64), nullable=False, server_default=""),
         sa.Column("status", sa.String(30), nullable=False, server_default="success"),
         sa.Column("error_message", sa.Text, nullable=True),
         sa.Column("duration_ms", sa.Float, nullable=False, server_default="0.0"),
@@ -53,6 +55,7 @@ def upgrade() -> None:
     op.create_index("ix_ao_trace_id", "analysis_outputs", ["trace_id"])
     op.create_index("ix_ao_created_at", "analysis_outputs", ["created_at"])
     op.create_index("ix_ao_pair_created_at", "analysis_outputs", ["pair", "created_at"])
+    op.create_index("ix_ao_llm_provider", "analysis_outputs", ["llm_provider"])
 
     op.create_table(
         "analysis_audit_logs",

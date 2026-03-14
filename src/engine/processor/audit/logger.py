@@ -29,6 +29,12 @@ def build_analysis_record(
     for i, tp in enumerate(output.take_profits[:3]):
         tp_prices[i] = tp.level
 
+    llm_provider = ""
+    llm_model = ""
+    if raw_output:
+        llm_provider = raw_output.get("_llm_provider", "")
+        llm_model = raw_output.get("_llm_model", "")
+
     return AnalysisRecord(
         analysis_id=output.analysis_id,
         pair=output.pair,
@@ -46,6 +52,8 @@ def build_analysis_record(
         tp3_price=tp_prices[2],
         trading_style=output.trading_style,
         session=output.session,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
         status=status,
         error_message=error_message,
         duration_ms=duration_ms,

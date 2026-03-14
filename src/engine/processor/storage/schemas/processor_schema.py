@@ -52,6 +52,8 @@ class AnalysisOutputRow(ProcessorBase):
     tp3_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     trading_style: Mapped[str] = mapped_column(String(20), nullable=False, server_default="")
     session: Mapped[str] = mapped_column(String(30), nullable=False, server_default="")
+    llm_provider: Mapped[str] = mapped_column(String(20), nullable=False, server_default="", index=True)
+    llm_model: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True, server_default="success")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.0")

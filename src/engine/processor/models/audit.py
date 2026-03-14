@@ -37,6 +37,8 @@ class AnalysisRecord(TimestampedModel):
     tp3_price: Optional[float] = None
     trading_style: str = ""
     session: str = ""
+    llm_provider: str = ""
+    llm_model: str = ""
     status: str = "success"
     error_message: Optional[str] = None
     duration_ms: float = 0.0

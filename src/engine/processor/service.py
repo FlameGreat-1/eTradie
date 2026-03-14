@@ -228,11 +228,13 @@ class AnalysisProcessor(ProcessorPort):
             trace_id=trace_id,
         )
 
-        # Step 5: Build raw response dict for audit
+        # Step 5: Build raw response dict for audit (include provider metadata)
         try:
             raw_dict = orjson.loads(llm_response.text)
         except (orjson.JSONDecodeError, ValueError):
             raw_dict = {"raw_text": llm_response.text[:4096]}
+        raw_dict["_llm_provider"] = llm_response.provider
+        raw_dict["_llm_model"] = llm_response.model
 
         # Step 6: Map to gateway's ProcessorOutput
         processor_output = map_to_processor_output(
@@ -361,6 +363,8 @@ class AnalysisProcessor(ProcessorPort):
                     tp3_price=record.tp3_price,
                     trading_style=record.trading_style,
                     session=record.session,
+                    llm_provider=record.llm_provider,
+                    llm_model=record.llm_model,
                     status=record.status,
                     error_message=record.error_message,
                     duration_ms=record.duration_ms,
