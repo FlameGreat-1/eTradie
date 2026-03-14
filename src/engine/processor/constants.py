@@ -11,6 +11,34 @@ from typing import Final
 
 
 @unique
+class LLMProvider(StrEnum):
+    """Supported LLM providers.
+
+    The system is LLM-agnostic. Users select their provider
+    from the dashboard. Default is ANTHROPIC.
+    SELF_HOSTED covers any OpenAI-compatible API (vLLM, Ollama, etc.).
+    """
+
+    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+    GEMINI = "gemini"
+    SELF_HOSTED = "self_hosted"
+
+
+# Default model per provider. Users can override with ANY model string.
+DEFAULT_MODELS: Final[dict[str, str]] = {
+    LLMProvider.ANTHROPIC: "claude-sonnet-4-20250514",
+    LLMProvider.OPENAI: "gpt-4o",
+    LLMProvider.GEMINI: "gemini-2.5-pro",
+    LLMProvider.SELF_HOSTED: "default",
+}
+
+# System default provider
+DEFAULT_PROVIDER: Final[str] = LLMProvider.ANTHROPIC
+DEFAULT_MODEL: Final[str] = DEFAULT_MODELS[LLMProvider.ANTHROPIC]
+
+
+@unique
 class SetupGrade(StrEnum):
     """Trade setup quality grade as defined in Rulebook Section 6.2."""
 
@@ -88,10 +116,5 @@ MAX_EVIDENCE_ITEMS: Final[int] = 50
 MAX_CITATIONS: Final[int] = 30
 MAX_TAKE_PROFIT_LEVELS: Final[int] = 3
 
-# Anthropic model identifiers
-DEFAULT_MODEL: Final[str] = "claude-sonnet-4-20250514"
-FALLBACK_MODEL: Final[str] = "claude-sonnet-4-20250514"
-
 # Processor identification for metrics labels
 PROCESSOR_NAME: Final[str] = "analysis_processor"
-LLM_PROVIDER: Final[str] = "anthropic"
