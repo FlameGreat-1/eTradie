@@ -30,3 +30,115 @@ It produces a reasoning chain that cites the specific RAG rule or scenario that 
 ---
 
 In one sentence: **the LLM turns structured data + retrieved rules into a reasoned, evidence-backed trade decision that no individual component in the pipeline is capable of producing alone.**
+
+
+
+Exact Module A Analysis Output schema Processor must produce (the canonical output)
+
+The LLM output must be transformed/validated into this JSON structure (this exact fieldset is required by Rulebook & TechSpec — every field must be present). Use these field names and types exactly:
+
+
+THIS IS JUST AN EXAMPLE. WE CAN HAVE SOMETHING BETTER AND POWERFUL:
+
+{
+  "analysis_id": "string",
+  "pair": "EURUSD",
+  "timestamp": "2026-03-02T09:14:32Z",
+  "trading_style": "INTRADAY",
+  "session": "LONDON_OPEN",
+
+  "macro_bias": {
+    "base_currency": {"bias": "BULLISH", "evidence": ["rule_id", "quote", "chunk_id"]},
+    "quote_currency": {"bias": "BEARISH", "evidence": [...]}
+  },
+
+  "dxy_bias": {
+    "direction": "BEARISH",
+    "evidence": [{"doc_id":"master_rulebook_v1","section":"DXY rules","chunk_id":"..."}]
+  },
+
+  "cot_signal": {
+    "summary":"net speculative long increasing",
+    "week_over_week":"increase",
+    "extreme_flag": false,
+    "evidence":[ ... ]
+  },
+
+  "event_risk": [
+    {"event":"NFP","time":"2026-03-05T13:30:00Z","impact":"HIGH"}
+  ],
+
+  "1w_bias": {"structure":"bullish","notes":"HH HL formation"},
+  "1d_bias": {"structure":"choch_bullish","key_levels":[/* price levels */]},
+  "4h_setup": {"type":"OB","zone_id":"OB_20260302_01","quality":"A","bounds":[1.0832,1.0850]},
+
+  "wyckoff_phase": {"phase":"markup","evidence":[ ... ]},
+
+  "confluence_score": {"score": 8.5, "factors": [{"name":"DXY alignment","value":1},{"name":"1D BOS","value":2}, ...]},
+
+  "setup_grade": "A+",            // A+ / A / B / REJECT
+  "direction": "LONG",            // LONG / SHORT / NO SETUP
+
+  "entry_zone": {"low":1.08320,"high":1.08500},
+
+  "stop_loss": {"price":1.07780,"reason":"below OB low + 3 pip buffer","evidence":[ ... ]},
+
+  "take_profits":[
+    {"level":1.09200,"size_pct":40,"basis":"nearest liquidity pool"},
+    {"level":1.09850,"size_pct":30,"basis":"1D structure"},
+    {"level":1.10500,"size_pct":30,"basis":"1W drive"}
+  ],
+
+  "rr_ratio": 5.38,
+  "confidence":"HIGH",           // HIGH / MEDIUM / LOW / NO SETUP
+
+  "rag_sources": [
+    {"doc_id":"smc_framework_v1","chunk_id":"c_023","section":"Order Block validity"}
+  ],
+
+  "proceed_to_module_b":"YES",   // YES / NO
+  "explainable_reasoning":"string (human readable reasoning summary)",
+
+  "audit": {
+    "retrieval": {
+       "query": {/* the retrieval query used */},
+       "top_k": 8,
+       "chunks_returned":[ /* chunk ids and scores */ ]
+    },
+    "citations":[ /* document/chunk -> rule mapping listed here */ ]
+  }
+}
+
+
+Important: this JSON must always be fully populated even when direction: "NO SETUP" — in that case many fields will be null or explicitly "NO SETUP" but the keys must exist (Rulebook mandates non-negotiable output shape).
+
+
+
+THIS IS JUST AN EXAMPLE, WE SHOULD HAVE SOMETHING BETTER:
+
+
+9 — Citation & audit logging (exact fields to persist)
+
+Every successful or NO-SETUP analysis must write a row to rag_retrieval_logs and analysis_audit_log in Postgres with:
+
+analysis_id, pair, timestamp
+
+retrieval_query (json)
+
+retrieval_results (list of chunk summaries & scores)
+
+coverage: boolean + details
+
+conflicts: boolean + details
+
+llm_request: hashed prompt reference id (do not store raw prompt text unless needed) — store prompt_id mapping to prompt template + variables in rag_prompts table
+
+llm_response: the JSON emitted by LLM
+
+citations: list of {doc_id, chunk_id, section, doc_version}
+
+final_decision: proceed_to_module_b yes/no, grade, confidence
+
+verifications: results of post-LLM validation checks
+
+This audit trail is required by the Rulebook (versioning & citation requirements).
