@@ -344,11 +344,11 @@ class RAGConfig(BaseSettings):
 
     # ── Retrieval ───────────────────────────────────────────────────
     retrieval_top_k: int = Field(
-        default=15, ge=1, le=100,
-        description="Number of candidate chunks to retrieve from vector store",
+        default=40, ge=1, le=200,
+        description="Number of candidate chunks to retrieve from vector store per bucket",
     )
     retrieval_score_threshold: float = Field(
-        default=0.25, ge=0.0, le=1.0,
+        default=0.20, ge=0.0, le=1.0,
         description="Minimum similarity score to include a chunk in results",
     )
     retrieval_default_strategy: str = Field(
@@ -362,7 +362,7 @@ class RAGConfig(BaseSettings):
         description="Enable reranking stage after initial retrieval",
     )
     rerank_top_k: int = Field(
-        default=8, ge=1, le=50,
+        default=25, ge=1, le=100,
         description="Number of chunks to keep after reranking",
     )
     rerank_model: str = Field(
@@ -372,11 +372,11 @@ class RAGConfig(BaseSettings):
 
     # ── Coverage & Conflict ─────────────────────────────────────────
     coverage_min_rule_chunks: int = Field(
-        default=2, ge=1, le=10,
+        default=4, ge=1, le=20,
         description="Minimum rulebook chunks required for sufficient coverage",
     )
     coverage_min_framework_chunks: int = Field(
-        default=1, ge=1, le=10,
+        default=3, ge=1, le=20,
         description="Minimum framework-specific chunks required",
     )
     conflict_auto_reject: bool = Field(
@@ -454,10 +454,11 @@ class RAGConfig(BaseSettings):
                 f"chunk_min_size ({self.chunk_min_size}) must be less than "
                 f"chunk_size ({self.chunk_size})"
             )
-        if self.rerank_top_k > self.retrieval_top_k:
+        # rerank_top_k can be less than retrieval_top_k (that is the point)
+        # but should not exceed a reasonable upper bound
+        if self.rerank_top_k > 100:
             raise ValueError(
-                f"rerank_top_k ({self.rerank_top_k}) must not exceed "
-                f"retrieval_top_k ({self.retrieval_top_k})"
+                f"rerank_top_k ({self.rerank_top_k}) must not exceed 100"
             )
         return self
 
