@@ -74,6 +74,12 @@ from engine.rag.services.versioning import VersioningService
 from engine.rag.storage.uow import rag_uow_factory
 from engine.rag.vectorstore.factory import create_vector_store
 
+from engine.processor.config import ProcessorConfig, get_processor_config
+from engine.processor.llm.client import AnthropicClient
+from engine.processor.service import AnalysisProcessor
+from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+from engine.processor.storage.repositories.audit_repository import AuditRepository
+
 
 class Container:
     def __init__(self) -> None:
@@ -375,6 +381,35 @@ class Container:
             uow_factory=uow_factory,
         )
 
+    def build_processor(self) -> None:
+        """Build the Processor LLM service.
+
+        Creates the AnthropicClient, repositories, and the concrete
+        AnalysisProcessor that implements the gateway's ProcessorPort.
+        Must be called after build_rag() since the processor persists
+        audit data to the same database.
+        """
+        self.processor_config = get_processor_config()
+
+        self.processor_llm_client = AnthropicClient(
+            config=self.processor_config,
+        )
+
+        self.processor_analysis_repo = AnalysisRepository(
+            session=self.db.session_factory(),
+        )
+
+        self.processor_audit_repo = AuditRepository(
+            session=self.db.session_factory(),
+        )
+
+        self.processor = AnalysisProcessor(
+            config=self.processor_config,
+            llm_client=self.processor_llm_client,
+            analysis_repo=self.processor_analysis_repo,
+            audit_repo=self.processor_audit_repo,
+        )
+
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
         if hasattr(self, 'mt5_client'):
@@ -383,6 +418,8 @@ class Container:
             await self.rag_vector_store.close()
         if hasattr(self, 'rag_embedding_provider'):
             await self.rag_embedding_provider.close()
+        if hasattr(self, 'processor_llm_client'):
+            await self.processor_llm_client._client.close()
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()

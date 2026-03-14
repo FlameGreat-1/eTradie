@@ -13,6 +13,8 @@ from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
+from gateway.config import get_gateway_config
+from gateway.container import GatewayContainer
 
 logger = get_logger(__name__)
 
@@ -83,6 +85,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         broker_client=container.mt5_client,
         candle_repository=container.candle_repository,
     )
+
+    # -- Processor LLM -------------------------------------------------------
+    container.build_processor()
+    logger.info("processor_built", model=container.processor_config.model_name)
+
+    # -- Gateway Orchestration -----------------------------------------------
+    gateway_config = get_gateway_config()
+    if gateway_config.enabled:
+        gateway = GatewayContainer(
+            engine=container,
+            processor=container.processor,
+        )
+        app.state.gateway = gateway
+        gateway.register_scheduler()
+        logger.info(
+            "gateway_started",
+            cycle_interval=gateway_config.cycle_interval_seconds,
+        )
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
