@@ -344,7 +344,7 @@ class RAGConfig(BaseSettings):
 
     # ── Retrieval ───────────────────────────────────────────────────
     retrieval_top_k: int = Field(
-        default=40, ge=1, le=200,
+        default=80, ge=1, le=500,
         description="Number of candidate chunks to retrieve from vector store per bucket",
     )
     retrieval_score_threshold: float = Field(
@@ -362,7 +362,7 @@ class RAGConfig(BaseSettings):
         description="Enable reranking stage after initial retrieval",
     )
     rerank_top_k: int = Field(
-        default=25, ge=1, le=100,
+        default=70, ge=1, le=200,
         description="Number of chunks to keep after reranking",
     )
     rerank_model: str = Field(

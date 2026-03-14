@@ -317,15 +317,15 @@ class RAGOrchestrator:
                     setup_family=family,
                     direction=direction,
                     timeframe=timeframe,
-                    limit=3,
+                    limit=15,
                 )
                 for scenario in matched:
                     if scenario.id not in seen_ids:
                         all_scenarios.append(scenario)
                         seen_ids.add(scenario.id)
 
-        # Cap total scenarios to avoid excessive token usage
-        return all_scenarios[:8]
+        # Cap total scenarios — raised to maximise LLM knowledge coverage
+        return all_scenarios[:25]
 
     async def _build_version_map(
         self, chunks: list[RetrievedChunk],
