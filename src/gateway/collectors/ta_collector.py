@@ -1,8 +1,9 @@
 """TA collection adapter.
 
-Calls TAOrchestrator.analyze() for each symbol and collects
-the persisted SMCCandidates, SnDCandidates, and TechnicalSnapshot from
-repositories so the gateway has the full typed output.
+Calls TAOrchestrator.analyze() for each symbol and passes through
+the full multi-timeframe result.  The Gateway does NOT dictate
+timeframes, lookback periods, or any TA-specific configuration.
+The TA engine owns all of that via TAConfig.
 
 The gateway does NOT own a symbol list. Symbols are provided by the
 caller (dashboard/API) at runtime for every cycle.
@@ -16,10 +17,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from engine.shared.logging import get_logger
-from engine.ta.constants import Timeframe
 from engine.ta.orchestrator import TAOrchestrator
-from engine.ta.storage.repositories.candidate import CandidateRepository
-from engine.ta.storage.repositories.snapshot import SnapshotRepository
 from gateway.config import GatewayConfig
 from gateway.constants import PipelineStage
 from gateway.context.models import TAResult, TASymbolResult
@@ -33,19 +31,22 @@ logger = get_logger(__name__)
 
 
 class TACollector:
-    """Collects TA analysis results for caller-provided symbols."""
+    """Collects TA analysis results for caller-provided symbols.
+
+    The collector is a thin adapter between the Gateway pipeline and
+    the TA engine.  It triggers analysis and maps the result into
+    the Gateway's TASymbolResult model.  It does NOT configure the
+    TA engine -- timeframes, lookback, and detection logic are
+    entirely owned by the TA engine.
+    """
 
     def __init__(
         self,
         *,
         ta_orchestrator: TAOrchestrator,
-        candidate_repository: CandidateRepository,
-        snapshot_repository: SnapshotRepository,
         config: GatewayConfig,
     ) -> None:
         self._orchestrator = ta_orchestrator
-        self._candidate_repo = candidate_repository
-        self._snapshot_repo = snapshot_repository
         self._config = config
 
     async def collect(
@@ -58,7 +59,7 @@ class TACollector:
 
         Args:
             symbols: Symbols to analyse. Provided by the caller
-                     (dashboard/API) - never hardcoded.
+                     (dashboard/API) -- never hardcoded.
             trace_id: Distributed trace ID for correlation.
         """
         if not symbols:
@@ -73,17 +74,11 @@ class TACollector:
             )
 
         start = time.monotonic()
-        htf = Timeframe(self._config.ta_htf_timeframe)
-        ltf = Timeframe(self._config.ta_ltf_timeframe)
-        lookback = self._config.ta_lookback_periods
-
         semaphore = asyncio.Semaphore(self._config.max_concurrent_symbols)
 
         async def _analyze_symbol(symbol: str) -> TASymbolResult:
             async with semaphore:
-                return await self._analyze_single(
-                    symbol, htf, ltf, lookback, trace_id=trace_id,
-                )
+                return await self._analyze_single(symbol, trace_id=trace_id)
 
         tasks = [_analyze_symbol(s) for s in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -106,8 +101,6 @@ class TACollector:
                 ).inc()
                 symbol_results.append(TASymbolResult(
                     symbol=symbol,
-                    htf_timeframe=self._config.ta_htf_timeframe,
-                    ltf_timeframe=self._config.ta_ltf_timeframe,
                     status="error",
                     error=str(result),
                 ))
@@ -136,94 +129,47 @@ class TACollector:
     async def _analyze_single(
         self,
         symbol: str,
-        htf: Timeframe,
-        ltf: Timeframe,
-        lookback: int,
         *,
         trace_id: Optional[str] = None,
     ) -> TASymbolResult:
-        """Analyze a single symbol and return structured result."""
+        """Analyze a single symbol via the TA orchestrator.
+
+        The orchestrator owns all TA logic: timeframe selection,
+        candle fetching, pattern detection, snapshot building,
+        alignment, and persistence.  This method simply maps
+        the orchestrator's result dict into a TASymbolResult.
+        """
         sym_start = time.monotonic()
 
         try:
-            result = await self._orchestrator.analyze(
-                symbol=symbol,
-                htf_timeframe=htf,
-                ltf_timeframe=ltf,
-                lookback_periods=lookback,
-            )
+            result = await self._orchestrator.analyze(symbol=symbol)
 
             sym_elapsed = time.monotonic() - sym_start
             GATEWAY_TA_COLLECT_DURATION.labels(symbol=symbol).observe(sym_elapsed)
 
             status = result.get("status", "error")
 
-            smc_candidates: list[dict] = []
-            snd_candidates: list[dict] = []
-            snapshot_data: Optional[dict] = None
+            smc_candidates = result.get("smc_candidates", [])
+            snd_candidates = result.get("snd_candidates", [])
 
             if status == "success":
-                smc_count = result.get("smc_candidates", 0)
-                snd_count = result.get("snd_candidates", 0)
-
-                GATEWAY_TA_CANDIDATES_PER_CYCLE.labels(framework="smc").observe(smc_count)
-                GATEWAY_TA_CANDIDATES_PER_CYCLE.labels(framework="snd").observe(snd_count)
-
-                try:
-                    smc_raw = await self._candidate_repo.get_latest_smc_candidates(
-                        symbol=symbol,
-                        timeframe=htf.value,
-                        limit=smc_count or 10,
-                    )
-                    smc_candidates = [
-                        c.model_dump(mode="json") if hasattr(c, "model_dump") else c
-                        for c in smc_raw
-                    ]
-                except Exception as exc:
-                    logger.warning(
-                        "ta_smc_candidate_fetch_failed",
-                        extra={"symbol": symbol, "error": str(exc)},
-                    )
-
-                try:
-                    snd_raw = await self._candidate_repo.get_latest_snd_candidates(
-                        symbol=symbol,
-                        timeframe=htf.value,
-                        limit=snd_count or 10,
-                    )
-                    snd_candidates = [
-                        c.model_dump(mode="json") if hasattr(c, "model_dump") else c
-                        for c in snd_raw
-                    ]
-                except Exception as exc:
-                    logger.warning(
-                        "ta_snd_candidate_fetch_failed",
-                        extra={"symbol": symbol, "error": str(exc)},
-                    )
-
-                try:
-                    snap = await self._snapshot_repo.get_latest(
-                        symbol=symbol,
-                        timeframe=htf.value,
-                    )
-                    if snap is not None:
-                        snapshot_data = snap if isinstance(snap, dict) else (
-                            snap.model_dump(mode="json") if hasattr(snap, "model_dump") else {}
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        "ta_snapshot_fetch_failed",
-                        extra={"symbol": symbol, "error": str(exc)},
-                    )
+                GATEWAY_TA_CANDIDATES_PER_CYCLE.labels(framework="smc").observe(
+                    result.get("smc_candidates_count", 0),
+                )
+                GATEWAY_TA_CANDIDATES_PER_CYCLE.labels(framework="snd").observe(
+                    result.get("snd_candidates_count", 0),
+                )
 
             return TASymbolResult(
                 symbol=symbol,
-                htf_timeframe=htf.value,
-                ltf_timeframe=ltf.value,
+                htf_timeframes=result.get("htf_timeframes", []),
+                ltf_timeframes=result.get("ltf_timeframes", []),
                 status=status,
                 smc_candidates=smc_candidates,
                 snd_candidates=snd_candidates,
-                snapshot=snapshot_data,
+                snapshots=result.get("snapshots", {}),
+                alignment=result.get("alignment", {}),
+                overall_trend=result.get("overall_trend", "NEUTRAL"),
                 error=result.get("error"),
             )
 
@@ -247,8 +193,6 @@ class TACollector:
 
             return TASymbolResult(
                 symbol=symbol,
-                htf_timeframe=htf.value,
-                ltf_timeframe=ltf.value,
                 status="error",
                 error=str(exc),
             )
