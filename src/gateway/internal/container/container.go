@@ -33,7 +33,7 @@ type Container struct {
 }
 
 // New builds all gateway components in correct dependency order.
-func New(cfg *config.Config, processor ports.ProcessorPort, execution ports.ExecutionPort) (*Container, error) {
+func New(cfg *config.Config, execution ports.ExecutionPort) (*Container, error) {
 	log := observability.Logger("container")
 
 	// Infrastructure.
@@ -43,6 +43,9 @@ func New(cfg *config.Config, processor ports.ProcessorPort, execution ports.Exec
 	}
 
 	engineHTTP := infra.NewEngineHTTPClient(cfg.EngineHTTPURL, cfg.CycleTimeoutSeconds)
+
+	// Processor adapter: calls Python engine via HTTP.
+	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
 
 	// Symbol Store.
 	symStore := symbolstore.NewStore(redisClient, cfg)
