@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Validate that Python Pydantic models match the processor proto contract.
+"""Validate that Python Pydantic models match the engine.proto contract.
 
-Parses proto/processor/v1/processor.proto and verifies that every field
-in ProcessorInput and ProcessorOutput has a corresponding field in the
-Python Pydantic models at src/engine/processor/models/io.py.
+Parses proto/engine/v1/engine.proto and verifies that the ProcessLLMResponse
+fields match ProcessorOutput in src/engine/processor/models/io.py.
 
-Run this in CI to catch contract drift before it reaches production:
+The engine.proto is the SINGLE SOURCE OF TRUTH for the contract between
+the Go gateway and the Python engine. Both sides must stay in sync.
+
+Run this in CI to catch drift before it reaches production:
     python scripts/validate_processor_contract.py
+    # or: make contract-check
 
 Exit code 0 = all fields match.
-Exit code 1 = drift detected (fields missing or mismatched).
+Exit code 1 = drift detected.
 """
 
 from __future__ import annotations
@@ -19,15 +22,14 @@ import sys
 from pathlib import Path
 
 # Proto field name -> Python field name mapping.
-# Proto uses snake_case, Python uses snake_case, so most map 1:1.
-# Fields ending in _json in proto map to dict fields in Python
-# (the proto uses bytes for JSON-encoded maps, Python uses dict).
+# Proto uses bytes for JSON-encoded fields, Python uses dict.
 PROTO_TO_PYTHON_FIELD_MAP: dict[str, str] = {
-    "ta_analysis_json": "ta_analysis",
-    "macro_analysis_json": "macro_analysis",
-    "retrieved_knowledge_json": "retrieved_knowledge",
-    "metadata_json": "metadata",
     "raw_response_json": "raw_response",
+}
+
+# Proto message name -> Python class name mapping.
+PROTO_TO_PYTHON_CLASS_MAP: dict[str, str] = {
+    "ProcessLLMResponse": "ProcessorOutput",
 }
 
 
@@ -43,7 +45,7 @@ def parse_proto_messages(proto_path: Path) -> dict[str, list[str]]:
     msg_pattern = re.compile(r"message\s+(\w+)\s*\{([^}]+)\}", re.DOTALL)
     # Match field declarations: type name = number;
     field_pattern = re.compile(
-        r"^\s*(?:repeated\s+)?\w+\s+(\w+)\s*=\s*\d+\s*;",
+        r"^\s*(?:repeated\s+)?(?:map<[^>]+>|\w+)\s+(\w+)\s*=\s*\d+\s*;",
         re.MULTILINE,
     )
 
@@ -100,7 +102,7 @@ def map_proto_field_to_python(proto_field: str) -> str:
 def validate() -> bool:
     """Run the full validation. Returns True if all checks pass."""
     repo_root = Path(__file__).resolve().parent.parent
-    proto_path = repo_root / "proto" / "processor" / "v1" / "processor.proto"
+    proto_path = repo_root / "proto" / "engine" / "v1" / "engine.proto"
     python_path = repo_root / "src" / "engine" / "processor" / "models" / "io.py"
 
     if not proto_path.exists():
@@ -114,17 +116,22 @@ def validate() -> bool:
     proto_messages = parse_proto_messages(proto_path)
     all_ok = True
 
-    for msg_name in ["ProcessorInput", "ProcessorOutput"]:
-        if msg_name not in proto_messages:
-            print(f"ERROR: Message {msg_name} not found in proto file")
+    # Validate ProcessLLMResponse <-> ProcessorOutput
+    validations = [
+        ("ProcessLLMResponse", "ProcessorOutput"),
+    ]
+
+    for proto_msg_name, python_class_name in validations:
+        if proto_msg_name not in proto_messages:
+            print(f"ERROR: Message {proto_msg_name} not found in engine.proto")
             all_ok = False
             continue
 
-        proto_fields = proto_messages[msg_name]
-        python_fields = get_pydantic_fields(msg_name, python_path)
+        proto_fields = proto_messages[proto_msg_name]
+        python_fields = get_pydantic_fields(python_class_name, python_path)
 
         if not python_fields:
-            print(f"ERROR: Class {msg_name} not found in Python models")
+            print(f"ERROR: Class {python_class_name} not found in Python models")
             all_ok = False
             continue
 
@@ -138,26 +145,31 @@ def validate() -> bool:
 
         if missing_in_python:
             print(
-                f"DRIFT: {msg_name} - fields in proto but missing in Python: "
+                f"DRIFT: {proto_msg_name} -> {python_class_name}\n"
+                f"  Fields in proto but missing in Python: "
                 f"{sorted(missing_in_python)}"
             )
             all_ok = False
 
         if extra_in_python:
             print(
-                f"DRIFT: {msg_name} - fields in Python but missing in proto: "
+                f"DRIFT: {proto_msg_name} -> {python_class_name}\n"
+                f"  Fields in Python but missing in proto: "
                 f"{sorted(extra_in_python)}"
             )
             all_ok = False
 
         if not missing_in_python and not extra_in_python:
-            print(f"OK: {msg_name} - {len(proto_fields)} fields match")
+            print(
+                f"OK: {proto_msg_name} -> {python_class_name} "
+                f"({len(proto_fields)} fields match)"
+            )
 
     return all_ok
 
 
 if __name__ == "__main__":
-    print("Validating processor contract (proto <-> Python)...")
+    print("Validating processor contract (engine.proto <-> Python models)...")
     print()
     ok = validate()
     print()
@@ -166,5 +178,5 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print("FAILED: Processor contract drift detected!")
-        print("Update the proto and both implementations to match.")
+        print("Update engine.proto and both implementations to match.")
         sys.exit(1)

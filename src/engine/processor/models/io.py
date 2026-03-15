@@ -1,8 +1,12 @@
 """Processor input/output models and port interface.
 
-CONTRACT SOURCE OF TRUTH: proto/processor/v1/processor.proto
+CONTRACT SOURCE OF TRUTH: proto/engine/v1/engine.proto
 
-These Pydantic models MUST match the proto definition field-for-field.
+The engine.proto defines ProcessLLMRequest and ProcessLLMResponse which
+are the authoritative contract between the Go gateway and this Python
+processor service. These Pydantic models MUST match those proto messages
+field-for-field.
+
 The Go gateway serializes to JSON matching the proto schema, and this
 Python service deserializes from that JSON into these models.
 
@@ -11,7 +15,7 @@ To verify parity, run:
     # or: make contract-check
 
 If you add, remove, or rename a field here, you MUST also update:
-  1. proto/processor/v1/processor.proto (the contract)
+  1. proto/engine/v1/engine.proto (ProcessLLMResponse)
   2. src/gateway/internal/models/processor.go (Go side)
   3. Run `make proto-gen` to regenerate Go proto types
   4. Run `make contract-check` to verify Python parity
@@ -33,7 +37,7 @@ class ProcessorInput(FrozenModel):
     Combines TA output, Macro output, and RAG-retrieved knowledge
     into a single structured context for the LLM to reason over.
 
-    Proto: processor.v1.ProcessorInput
+    Proto: engine.v1.ProcessLLMRequest (processor_input_json field)
     """
 
     symbol: str
@@ -49,7 +53,7 @@ class ProcessorOutput(FrozenModel):
     The gateway does NOT decide trade validity; the processor does.
     Guards run AFTER the processor to enforce hard safety rules.
 
-    Proto: processor.v1.ProcessorOutput
+    Proto: engine.v1.ProcessLLMResponse
     """
 
     trade_valid: bool = False

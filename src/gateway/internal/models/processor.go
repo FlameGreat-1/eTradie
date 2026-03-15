@@ -3,10 +3,11 @@ package models
 // ProcessorInput is the payload sent to the Processor LLM.
 // Combines TA output, Macro output, and RAG-retrieved knowledge.
 //
-// CONTRACT SOURCE OF TRUTH: proto/processor/v1/processor.proto
+// CONTRACT SOURCE OF TRUTH: proto/engine/v1/engine.proto
+// Proto message: ProcessLLMRequest (processor_input_json field)
 //
 // If you add, remove, or rename a field here, you MUST also update:
-//   1. proto/processor/v1/processor.proto (the contract)
+//   1. proto/engine/v1/engine.proto (ProcessLLMRequest)
 //   2. src/engine/processor/models/io.py (Python side)
 //   3. Run `make contract-check` to verify parity
 type ProcessorInput struct {
@@ -21,10 +22,11 @@ type ProcessorInput struct {
 // The gateway does NOT decide trade validity; the processor does.
 // Guards run AFTER the processor to enforce hard safety rules.
 //
-// CONTRACT SOURCE OF TRUTH: proto/processor/v1/processor.proto
+// CONTRACT SOURCE OF TRUTH: proto/engine/v1/engine.proto
+// Proto message: ProcessLLMResponse
 //
 // If you add, remove, or rename a field here, you MUST also update:
-//   1. proto/processor/v1/processor.proto (the contract)
+//   1. proto/engine/v1/engine.proto (ProcessLLMResponse)
 //   2. src/engine/processor/models/io.py (Python side)
 //   3. Run `make contract-check` to verify parity
 type ProcessorOutput struct {
