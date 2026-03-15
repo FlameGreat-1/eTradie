@@ -1,134 +1,20 @@
-use Go for the /gateway/ service.
+Now I have the complete picture. Here are **all the broken imports** in `src/engine/processor/`:
 
-Given our current stack:
+| File | Broken Import |
+|------|--------------|
+| `service.py` | `from gateway.context.models import ProcessorInput, ProcessorOutput` |
+| `service.py` | `from gateway.routing.processor_port import ProcessorPort` |
+| `mapping/output_mapper.py` | `from gateway.context.models import ProcessorOutput` |
+| `prompts/system_prompt.py` | `from gateway.context.models import ProcessorInput` |
 
-Module A (Analysis: TA + Macro + RAG + LLM) → Python
+These files import `ProcessorInput`, `ProcessorOutput`, and `ProcessorPort` from the old Python gateway which no longer exists at `src/gateway/`.
 
-Module B (Execution engine) → Go
+**The fix**: These models and the interface need to live in the Python engine's own codebase, not in the gateway. I need to create `src/engine/processor/models/gateway_models.py` (or similar) that defines `ProcessorInput`, `ProcessorOutput`, and `ProcessorPort` locally within the engine. Then update the 3 files to import from there.
 
-Module C (Post-trade / monitoring) → Go
+This is the correct approach because:
+- The Go gateway sends JSON via HTTP to `/internal/processor/process`
+- The Python engine receives it as a dict and passes it to `AnalysisProcessor`
+- The processor needs its own definition of these types
+- No cross-boundary import dependency
 
-The Gateway sits between all of them, so it should match the runtime characteristics of the execution side, not the analysis side.
-
-
-
-1. Concurrency (very important)
-
-Your gateway must run things in parallel
-
-TA service
-MACRO service
-RAG retrieval
-LLM call
-Execution engine
-Trade management
-
-Go handles this natively with goroutines.
-
-
-
-2. Low Latency
-
-Gateway sits in the critical path.
-
-If the gateway is slow, the whole system is slow.
-
-Go advantages:
-
-compiled
-
-low memory
-
-high throughput
-
-fast networking
-
-
-
-3. Production Reliability
-
-Gateways usually handle:
-
-timeouts
-retries
-circuit breakers
-rate limits
-service discovery
-
-Go is excellent for this kind of infrastructure service.
-
-That’s why many gateways are written in Go:
-
-Kong API Gateway
-
-Traefik
-
-Caddy
-
-All Go.
-
-
-
-4. Natural Fit With Module B and C
-
-Your trading system stack becomes cleaner:
-
-Python → intelligence layer
-Go → infrastructure + execution
-
-So:
-
-Python
-  Module A (analysis)
-
-Go
-  Gateway
-  Module B
-  Module C
-
-This separation is very common in AI systems.
-
-
-
-Gateway → Go
-
-It will give us:
-
-better concurrency
-
-lower latency
-
-cleaner architecture
-
-easier scaling
-
-AND SO MANY OTHER THINGS I DIDN'T TOUCH HERE.
-
-
-
-PLEASE NOTE: THIS IS CRITICAL, THE FASTAPI (MODULE A ) AND GATEWAY WILL NOW COMMUNICATE VIA PROTO.
-
-using Protocol Buffers (gRPC) is actually the best and most efficient way for your Go gateway to communicate with Python services.
-
-But let’s examine the options so you understand why gRPC is the right choice.
-
-1️⃣ The Core Problem
-
-Your architecture mixes two languages:
-
-Go → Gateway, Module B, Module C
-
-Python → TA, Macro, RAG, LLM processor
-
-So communication must be:
-
-language-agnostic
-
-fast
-
-stable
-
-typed
-
-
-It is the exact approach used in many production microservice systems.
+Let me implement this step by step. First, create the local models:
