@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -19,8 +18,6 @@ import (
 	"github.com/flamegreat/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat/etradie/src/gateway/internal/querybuilder"
 	"github.com/flamegreat/etradie/src/gateway/internal/routing"
-
-	enginev1 "github.com/flamegreat/etradie/proto/engine/v1"
 )
 
 // Orchestrator runs the full analysis pipeline.
