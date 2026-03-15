@@ -2,7 +2,6 @@ package collectors
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -11,21 +10,19 @@ import (
 	"github.com/flamegreat/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat/etradie/src/gateway/internal/models"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-
-	enginev1 "github.com/flamegreat/etradie/proto/engine/v1"
 )
 
 // MacroCollector calls the Python engine to collect all 8 macro datasets
-// in a single gRPC call (the Python side runs them in parallel).
+// via a single HTTP call (the Python side runs them in parallel).
 type MacroCollector struct {
-	engine enginev1.EngineServiceClient
+	engine *infra.EngineHTTPClient
 	log    zerolog.Logger
 }
 
-// NewMacroCollector creates a MacroCollector backed by the engine gRPC client.
-func NewMacroCollector(engineConn *infra.EngineClient) *MacroCollector {
+// NewMacroCollector creates a MacroCollector backed by the engine HTTP client.
+func NewMacroCollector(engine *infra.EngineHTTPClient) *MacroCollector {
 	return &MacroCollector{
-		engine: enginev1.NewEngineServiceClient(engineConn.Conn),
+		engine: engine,
 		log:    observability.Logger("macro_collector"),
 	}
 }
@@ -34,40 +31,38 @@ func NewMacroCollector(engineConn *infra.EngineClient) *MacroCollector {
 func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.MacroResult, error) {
 	start := time.Now()
 
-	resp, err := c.engine.CollectMacro(ctx, &enginev1.CollectMacroRequest{
-		TraceId: traceID,
-	})
+	reqBody := map[string]interface{}{
+		"trace_id": traceID,
+	}
+
+	resp, err := c.engine.PostJSON(ctx, "/internal/macro/collect", reqBody)
 
 	elapsedMs := float64(time.Since(start).Milliseconds())
 	observability.GatewayMacroCollectDuration.Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		observability.GatewayStageErrors.WithLabelValues(
-			constants.StageMacroCollector.String(), "grpc_error",
+			constants.StageMacroCollector.String(), "http_error",
 		).Inc()
 		c.log.Error().
 			Err(err).
 			Str("trace_id", traceID).
-			Msg("macro_collection_grpc_failed")
+			Msg("macro_collection_http_failed")
 		return nil, err
 	}
 
 	result := &models.MacroResult{
-		CentralBank: unmarshalDataset(resp.GetCentralBankJson()),
-		COT:         unmarshalDataset(resp.GetCotJson()),
-		Economic:    unmarshalDataset(resp.GetEconomicJson()),
-		News:        unmarshalDataset(resp.GetNewsJson()),
-		Calendar:    unmarshalDataset(resp.GetCalendarJson()),
-		DXY:         unmarshalDataset(resp.GetDxyJson()),
-		Intermarket: unmarshalDataset(resp.GetIntermarketJson()),
-		Sentiment:   unmarshalDataset(resp.GetSentimentJson()),
+		CentralBank: getDatasetMap(resp, "central_bank"),
+		COT:         getDatasetMap(resp, "cot"),
+		Economic:    getDatasetMap(resp, "economic"),
+		News:        getDatasetMap(resp, "news"),
+		Calendar:    getDatasetMap(resp, "calendar"),
+		DXY:         getDatasetMap(resp, "dxy"),
+		Intermarket: getDatasetMap(resp, "intermarket"),
+		Sentiment:   getDatasetMap(resp, "sentiment"),
 		CollectedAt: time.Now().UTC(),
 		DurationMs:  elapsedMs,
-		Errors:      resp.GetErrors(),
-	}
-
-	if result.Errors == nil {
-		result.Errors = make(map[string]string)
+		Errors:      getErrorsMap(resp),
 	}
 
 	available := result.AvailableDatasets()
@@ -86,13 +81,32 @@ func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.M
 	return result, nil
 }
 
-func unmarshalDataset(data []byte) map[string]interface{} {
-	if len(data) == 0 {
+func getDatasetMap(resp map[string]interface{}, key string) map[string]interface{} {
+	v, ok := resp[key]
+	if !ok || v == nil {
 		return nil
 	}
-	var out map[string]interface{}
-	if err := json.Unmarshal(data, &out); err != nil {
+	m, ok := v.(map[string]interface{})
+	if !ok {
 		return nil
+	}
+	return m
+}
+
+func getErrorsMap(resp map[string]interface{}) map[string]string {
+	v, ok := resp["errors"]
+	if !ok || v == nil {
+		return make(map[string]string)
+	}
+	raw, ok := v.(map[string]interface{})
+	if !ok {
+		return make(map[string]string)
+	}
+	out := make(map[string]string, len(raw))
+	for k, val := range raw {
+		if s, ok := val.(string); ok {
+			out[k] = s
+		}
 	}
 	return out
 }
