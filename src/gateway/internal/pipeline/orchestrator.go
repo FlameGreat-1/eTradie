@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -57,18 +58,74 @@ func NewOrchestrator(
 	}
 }
 
-// RunCycle executes a complete analysis cycle.
+// RunCycle executes a complete analysis cycle with retry support.
+// On timeout or transient failure, the cycle is retried up to
+// cfg.MaxCycleRetries times with exponential backoff.
+// Panics are recovered but NOT retried (they indicate bugs).
 func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID string) []*models.GatewayOutput {
+	var outputs []*models.GatewayOutput
+
+	for attempt := 0; attempt <= o.cfg.MaxCycleRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff with cap before retrying.
+			delay := o.cfg.RetryBackoffBaseSeconds * math.Pow(2, float64(attempt-1))
+			if delay > 30.0 {
+				delay = 30.0
+			}
+			o.log.Warn().
+				Int("attempt", attempt+1).
+				Int("max_retries", o.cfg.MaxCycleRetries).
+				Float64("backoff_seconds", delay).
+				Strs("symbols", symbols).
+				Msg("cycle_retrying")
+
+			select {
+			case <-ctx.Done():
+				// Parent context cancelled (e.g. shutdown), do not retry.
+				o.log.Info().Msg("cycle_retry_cancelled_parent_context_done")
+				return outputs
+			case <-time.After(time.Duration(delay * float64(time.Second))):
+				// Backoff elapsed, proceed with retry.
+			}
+		}
+
+		result, shouldRetry := o.runSingleAttempt(ctx, symbols, traceID, attempt)
+		outputs = result
+
+		if !shouldRetry {
+			return outputs
+		}
+		// shouldRetry is true: loop continues if attempts remain.
+	}
+
+	// All retries exhausted. outputs contains the last attempt's result.
+	o.log.Error().
+		Int("total_attempts", o.cfg.MaxCycleRetries+1).
+		Strs("symbols", symbols).
+		Msg("cycle_all_retries_exhausted")
+
+	return outputs
+}
+
+// runSingleAttempt executes one cycle attempt. Returns the outputs and
+// whether the caller should retry (true = retryable failure).
+func (o *Orchestrator) runSingleAttempt(
+	ctx context.Context,
+	symbols []string,
+	traceID string,
+	attempt int,
+) (outputs []*models.GatewayOutput, shouldRetry bool) {
 	tracker := NewCycleTracker(traceID)
 	observability.GatewayActiveCycles.Inc()
 
 	o.log.Info().
 		Str("cycle_id", tracker.CycleID()).
 		Strs("symbols", symbols).
+		Int("attempt", attempt+1).
 		Str("trace_id", tracker.TraceID()).
 		Msg("cycle_started")
 
-	var outputs []*models.GatewayOutput
+	panicked := false
 
 	func() {
 		defer func() {
@@ -77,6 +134,7 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 				tracker.Fail(fmt.Sprintf("panic: %v", r), "unhandled", false)
 				observability.GatewayStageErrors.WithLabelValues("cycle", "panic").Inc()
 				outputs = append(outputs, buildErrorOutput(tracker))
+				panicked = true
 			}
 		}()
 
@@ -97,6 +155,7 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 					Str("phase_reached", tracker.Phase().String()).
 					Str("trace_id", tracker.TraceID()).
 					Msg("cycle_timed_out")
+				shouldRetry = true
 			} else {
 				tracker.Fail(err.Error(), "unhandled", false)
 				observability.GatewayStageErrors.WithLabelValues("cycle", "error").Inc()
@@ -106,6 +165,11 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 					Str("phase_reached", tracker.Phase().String()).
 					Str("trace_id", tracker.TraceID()).
 					Msg("cycle_unhandled_error")
+				shouldRetry = true
+			}
+			// Preserve any partial results from the pipeline, then append the error.
+			if len(result) > 0 {
+				outputs = append(outputs, result...)
 			}
 			outputs = append(outputs, buildErrorOutput(tracker))
 			return
@@ -131,10 +195,17 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 		Str("outcome", outcome).
 		Float64("duration_ms", tracker.ElapsedMs()).
 		Int("outputs_count", len(outputs)).
+		Int("attempt", attempt+1).
+		Bool("will_retry", shouldRetry).
 		Str("trace_id", tracker.TraceID()).
 		Msg("cycle_finished")
 
-	return outputs
+	// Never retry panics - they indicate bugs, not transient failures.
+	if panicked {
+		shouldRetry = false
+	}
+
+	return outputs, shouldRetry
 }
 
 func (o *Orchestrator) executePipeline(
@@ -186,8 +257,9 @@ func (o *Orchestrator) executePipeline(
 		return []*models.GatewayOutput{buildNoDataOutput(tracker)}, nil
 	}
 
-	// Phase 2-6: Process each symbol that has candidates.
-	var outputs []*models.GatewayOutput
+	// Phase 2-6: Process symbols with candidates concurrently,
+	// bounded by MaxConcurrentSymbols.
+	var candidateResults []models.TASymbolResult
 	for i := range taResult.SymbolResults {
 		sr := &taResult.SymbolResults[i]
 		if sr.Status != "success" {
@@ -196,19 +268,80 @@ func (o *Orchestrator) executePipeline(
 		if len(sr.SMCCandidates) == 0 && len(sr.SnDCandidates) == 0 {
 			continue
 		}
-		output := o.processSymbol(ctx, tracker, sr, macroResult)
-		outputs = append(outputs, output)
+		candidateResults = append(candidateResults, *sr)
 	}
+
+	if len(candidateResults) == 0 {
+		tracker.Complete(constants.OutcomeNoSetup)
+		return []*models.GatewayOutput{buildNoDataOutput(tracker)}, nil
+	}
+
+	// Process symbols concurrently with bounded parallelism.
+	var (
+		outputsMu sync.Mutex
+		outputs   []*models.GatewayOutput
+		symWg     sync.WaitGroup
+		sem       = make(chan struct{}, o.cfg.MaxConcurrentSymbols)
+	)
+
+	for idx := range candidateResults {
+		sr := &candidateResults[idx]
+
+		// Check if the cycle context is already cancelled before launching.
+		if ctx.Err() != nil {
+			o.log.Warn().
+				Str("symbol", sr.Symbol).
+				Str("trace_id", traceID).
+				Msg("cycle_context_cancelled_skipping_symbol")
+			break
+		}
+
+		symWg.Add(1)
+		go func(symResult *models.TASymbolResult) {
+			defer symWg.Done()
+
+			// Acquire semaphore slot (bounded concurrency).
+			select {
+			case sem <- struct{}{}:
+				// Slot acquired.
+			case <-ctx.Done():
+				// Cycle timed out while waiting for a slot.
+				o.log.Warn().
+					Str("symbol", symResult.Symbol).
+					Str("trace_id", traceID).
+					Msg("cycle_timeout_waiting_for_semaphore")
+				return
+			}
+			defer func() { <-sem }()
+
+			output := o.processSymbol(ctx, tracker, symResult, macroResult)
+
+			outputsMu.Lock()
+			outputs = append(outputs, output)
+			outputsMu.Unlock()
+		}(sr)
+	}
+
+	symWg.Wait()
 
 	if len(outputs) == 0 {
 		tracker.Complete(constants.OutcomeNoSetup)
 		return []*models.GatewayOutput{buildNoDataOutput(tracker)}, nil
 	}
 
+	// Determine overall outcome from collected outputs.
 	if len(outputs) == 1 {
 		tracker.Complete(outputs[0].CycleOutcome)
 	} else {
-		tracker.Complete(constants.OutcomeNoSetup)
+		// With multiple symbols, use the best outcome.
+		bestOutcome := constants.OutcomeNoSetup
+		for _, out := range outputs {
+			if out.CycleOutcome == constants.OutcomeTradeApproved {
+				bestOutcome = constants.OutcomeTradeApproved
+				break
+			}
+		}
+		tracker.Complete(bestOutcome)
 	}
 	return outputs, nil
 }
@@ -223,13 +356,11 @@ func (o *Orchestrator) processSymbol(
 	symbol := symResult.Symbol
 
 	// Phase 2: Build RAG query.
-	tracker.TransitionTo(constants.PhaseBuildingQuery)
 	phaseStart := time.Now()
 	queryParams := o.queryBuilder.Build(symResult, macroResult, "", traceID)
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseBuildingQuery.String()).Observe(time.Since(phaseStart).Seconds())
 
 	// Phase 3: RAG retrieval.
-	tracker.TransitionTo(constants.PhaseRetrievingRAG)
 	phaseStart = time.Now()
 
 	ragCtx, ragCancel := context.WithTimeout(ctx, time.Duration(o.cfg.RAGTimeoutSeconds)*time.Second)
@@ -246,13 +377,11 @@ func (o *Orchestrator) processSymbol(
 	}
 
 	// Phase 4: Assemble context.
-	tracker.TransitionTo(constants.PhaseAssemblingCtx)
 	phaseStart = time.Now()
 	processorInput := o.assembler.Assemble(symbol, symResult, macroResult, ragBundle, traceID)
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseAssemblingCtx.String()).Observe(time.Since(phaseStart).Seconds())
 
 	// Phase 5: Processor LLM.
-	tracker.TransitionTo(constants.PhaseProcessingLLM)
 	phaseStart = time.Now()
 
 	procCtx, procCancel := context.WithTimeout(ctx, time.Duration(o.cfg.ProcessorTimeoutSeconds)*time.Second)
@@ -269,7 +398,6 @@ func (o *Orchestrator) processSymbol(
 	}
 
 	// Phase 6: Guards + Routing.
-	tracker.TransitionTo(constants.PhaseEvaluatingGuards)
 	phaseStart = time.Now()
 
 	routeResult := o.router.Route(ctx, processorOutput, symResult, macroResult, traceID)
