@@ -29,7 +29,7 @@ type GRPCServer struct {
 	orchestrator *pipeline.Orchestrator
 	symbolStore  *symbolstore.Store
 	redis        *infra.RedisClient
-	engine       *infra.EngineClient
+	engine       *infra.EngineHTTPClient
 	port         int
 	log          zerolog.Logger
 }
@@ -40,7 +40,7 @@ func NewGRPCServer(
 	orchestrator *pipeline.Orchestrator,
 	symbolStore *symbolstore.Store,
 	redis *infra.RedisClient,
-	engine *infra.EngineClient,
+	engine *infra.EngineHTTPClient,
 ) *GRPCServer {
 	s := &GRPCServer{
 		orchestrator: orchestrator,
