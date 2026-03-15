@@ -27,6 +27,7 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/server"
 	"github.com/flamegreat/etradie/src/execution/internal/sizing"
 	"github.com/flamegreat/etradie/src/execution/internal/state"
+	"github.com/flamegreat/etradie/src/execution/internal/store"
 	"github.com/flamegreat/etradie/src/execution/internal/validator"
 )
 
@@ -68,8 +69,9 @@ func main() {
 		log.Fatal().Err(err).Msg("database_ping_failed")
 	}
 
-	if _, err := pool.Exec(ctx, audit.CreateTableSQL()); err != nil {
-		log.Fatal().Err(err).Msg("audit_table_creation_failed")
+	// Create all execution tables (audit logs + pnl tracker).
+	if _, err := pool.Exec(ctx, store.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("schema_creation_failed")
 	}
 
 	// Select broker implementation.
@@ -82,12 +84,15 @@ func main() {
 		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
 	}
 
+	// Build stores from shared pool.
+	auditStore := store.NewAuditStore(pool)
+	pnlStore := store.NewPnLStore(pool)
+
 	// Build components in dependency order.
-	sm := state.NewManager(bp)
+	sm := state.NewManager(bp, pnlStore)
 	v := validator.NewValidator(cfg, sm, bp)
 	s := sizing.NewEngine(cfg, bp)
 	e := executor.NewExecutor(bp, cfg.BrokerTimeoutMs)
-	auditStore := audit.NewStore(pool)
 	al := audit.NewLogger(auditStore)
 	n := notify.NewNotifier()
 
