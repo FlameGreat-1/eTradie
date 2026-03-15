@@ -108,10 +108,10 @@ def parse_llm_response(
 
     for err in validation_errors:
         TRADE_PLAN_VALIDATION_FAILURES.labels(rule=_error_to_rule(err)).inc()
-        if _is_fatal_validation_error(err):
-            fatal_errors.append(err)
-        else:
+        if _is_non_fatal_warning(err):
             warnings.append(err)
+        else:
+            fatal_errors.append(err)
 
     if fatal_errors:
         TRADE_PLAN_GENERATED_TOTAL.labels(status="validation_error").inc()
@@ -167,20 +167,39 @@ def _extract_json(raw_text: str) -> str:
     return stripped
 
 
-def _is_fatal_validation_error(error: str) -> bool:
-    """Determine if a validation error is fatal (blocks processing)."""
-    fatal_patterns = [
-        "analysis_id is empty",
-        "pair is empty",
-        "direction",
-        "entry_zone has null bounds",
-        "stop_loss.price is null",
-        "take_profits is empty",
-        "rr_ratio is null",
-        "proceed_to_module_b is YES but",
-    ]
+def _is_non_fatal_warning(error: str) -> bool:
+    """Determine if a validation error is a non-fatal warning.
+
+    Whitelist approach: only reasoning and citation issues are warnings.
+    Everything else is fatal because it means the LLM produced data
+    that would cause Module B to execute a broken trade.
+
+    Non-fatal (warnings):
+    - explainable_reasoning is empty or too long (cosmetic)
+    - rag_sources empty or exceeds max count (audit concern, not trade-critical)
+
+    Fatal (everything else):
+    - Identity: missing analysis_id, pair, trading_style
+    - Direction: invalid enum, inconsistent with grade
+    - Confluence: score out of bounds
+    - Grade: invalid enum, score/grade mismatch
+    - Trade construction: null entry/SL/TP, negative prices, inverted zone
+    - R:R: null, negative, below minimum for style
+    - Proceed: YES with wrong grade or NO SETUP direction
+    - TP structure: wrong count, percentages don't sum to 100%, negative levels
+    """
     error_lower = error.lower()
-    return any(p.lower() in error_lower for p in fatal_patterns)
+
+    # Reasoning length/presence is cosmetic - doesn't affect trade execution.
+    if "explainable_reasoning" in error_lower:
+        return True
+
+    # Citation count is an audit concern - doesn't affect trade execution.
+    if "rag_sources" in error_lower:
+        return True
+
+    # Everything else is trade-critical and must block execution.
+    return False
 
 
 def _error_to_rule(error: str) -> str:

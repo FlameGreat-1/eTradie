@@ -30,7 +30,8 @@ def map_to_processor_output(
         raw_response: The raw LLM response dict for audit.
 
     Returns:
-        ProcessorOutput compatible with the gateway's routing layer.
+        ProcessorOutput compatible with the gateway's routing layer
+        and containing all execution-critical fields for Module B.
     """
     trade_valid = (
         analysis.direction in ("LONG", "SHORT")
@@ -41,15 +42,31 @@ def map_to_processor_output(
     confidence_float = _confidence_to_float(analysis.confidence)
     risk_pct = _grade_to_risk_percent(analysis.setup_grade)
 
+    # Midpoint entry price kept for backward compatibility with guards.
     entry_price = None
     if analysis.entry_zone.low is not None and analysis.entry_zone.high is not None:
         entry_price = (analysis.entry_zone.low + analysis.entry_zone.high) / 2
 
+    # Legacy single take_profit field: last TP level for backward compat.
     take_profit = None
     if analysis.take_profits:
         last_tp = analysis.take_profits[-1]
         if last_tp.level is not None:
             take_profit = last_tp.level
+
+    # Extract individual TP levels with their position sizing percentages.
+    tp1_price, tp1_pct = None, 0
+    tp2_price, tp2_pct = None, 0
+    tp3_price, tp3_pct = None, 0
+    if len(analysis.take_profits) >= 1:
+        tp1_price = analysis.take_profits[0].level
+        tp1_pct = analysis.take_profits[0].size_pct
+    if len(analysis.take_profits) >= 2:
+        tp2_price = analysis.take_profits[1].level
+        tp2_pct = analysis.take_profits[1].size_pct
+    if len(analysis.take_profits) >= 3:
+        tp3_price = analysis.take_profits[2].level
+        tp3_pct = analysis.take_profits[2].size_pct
 
     rejection_rules: list[str] = []
     if not trade_valid and analysis.direction == "NO SETUP":
@@ -70,6 +87,20 @@ def map_to_processor_output(
         take_profit=take_profit,
         rejection_rules=rejection_rules,
         raw_response=raw_response or {},
+        # Execution-critical fields for Module B.
+        entry_zone_low=analysis.entry_zone.low,
+        entry_zone_high=analysis.entry_zone.high,
+        tp1_price=tp1_price,
+        tp1_pct=tp1_pct,
+        tp2_price=tp2_price,
+        tp2_pct=tp2_pct,
+        tp3_price=tp3_price,
+        tp3_pct=tp3_pct,
+        trading_style=analysis.trading_style,
+        session=analysis.session,
+        rr_ratio=analysis.rr_ratio,
+        confluence_score=analysis.confluence_score.score,
+        analysis_id=analysis.analysis_id,
     )
 
 
