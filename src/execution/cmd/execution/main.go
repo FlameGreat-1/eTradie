@@ -17,7 +17,9 @@ import (
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
+	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat/etradie/src/execution/internal/broker/mock"
+	"github.com/flamegreat/etradie/src/execution/internal/broker/mt5"
 	"github.com/flamegreat/etradie/src/execution/internal/config"
 	"github.com/flamegreat/etradie/src/execution/internal/executor"
 	"github.com/flamegreat/etradie/src/execution/internal/notify"
@@ -40,6 +42,7 @@ func main() {
 
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
+		Str("broker_mode", cfg.BrokerMode).
 		Str("execution_mode", cfg.DefaultExecutionMode).
 		Int("max_concurrent", cfg.MaxConcurrentTrades).
 		Msg("execution_engine_starting")
@@ -69,8 +72,17 @@ func main() {
 		log.Fatal().Err(err).Msg("audit_table_creation_failed")
 	}
 
+	// Select broker implementation.
+	var bp broker.Port
+	if cfg.IsMT5Mode() {
+		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
+		log.Info().Str("url", cfg.BrokerBridgeURL).Msg("broker_mt5_bridge_configured")
+	} else {
+		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
+		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
+	}
+
 	// Build components in dependency order.
-	bp := mockbroker.NewBroker(10000.0)
 	sm := state.NewManager(bp)
 	v := validator.NewValidator(cfg, sm, bp)
 	s := sizing.NewEngine(cfg, bp)
