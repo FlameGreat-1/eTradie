@@ -104,7 +104,7 @@ class QueryBuilder:
             framework=ta_signals.framework,
             setup_family=primary_setup_family,
             direction=ta_signals.direction,
-            timeframe=ta_signals.htf_timeframe,
+            timeframe=ta_signals.htf_timeframes[0] if ta_signals.htf_timeframes else None,
             style=style,
             symbol=ta_result.symbol,
             all_frameworks=all_frameworks,
