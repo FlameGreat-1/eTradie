@@ -52,6 +52,7 @@ class ProcessorOutput(FrozenModel):
 
     The gateway does NOT decide trade validity; the processor does.
     Guards run AFTER the processor to enforce hard safety rules.
+    When guards pass, this is forwarded to Module B for execution.
 
     Proto: engine.v1.ProcessLLMResponse
     """
@@ -68,6 +69,28 @@ class ProcessorOutput(FrozenModel):
     take_profit: Optional[float] = None
     rejection_rules: list[str] = Field(default_factory=list)
     raw_response: dict = Field(default_factory=dict)
+
+    # Execution-critical fields for Module B.
+    # entry_price above is the midpoint (kept for backward compat with guards);
+    # these provide the actual zone boundaries for limit order placement.
+    entry_zone_low: Optional[float] = None
+    entry_zone_high: Optional[float] = None
+
+    # All three TP levels with position sizing percentages.
+    # Module B needs these for partial close management.
+    tp1_price: Optional[float] = None
+    tp1_pct: int = 0
+    tp2_price: Optional[float] = None
+    tp2_pct: int = 0
+    tp3_price: Optional[float] = None
+    tp3_pct: int = 0
+
+    # Context required by Module B's pre-execution validator.
+    trading_style: Optional[str] = None
+    session: Optional[str] = None
+    rr_ratio: Optional[float] = None
+    confluence_score: float = 0.0
+    analysis_id: Optional[str] = None
 
 
 class ProcessorPort(abc.ABC):
