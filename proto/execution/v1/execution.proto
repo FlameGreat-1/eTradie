@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package execution.v1;
+
+option go_package = "github.com/flamegreat/etradie/proto/execution/v1;executionv1";
+
+// ExecutionService is the gRPC contract between the Go gateway and
+// the Module B execution engine. The gateway is the client; Module B
+// implements this server. Triggered when a trade passes all guards.
+service ExecutionService {
+  // ExecuteTrade validates pre-execution checks, calculates position
+  // size, and places the order (limit or instant mode).
+  rpc ExecuteTrade(ExecuteTradeRequest) returns (ExecuteTradeResponse);
+
+  // CancelPendingOrder cancels a pending limit order or disarms an
+  // instant-mode watcher. Called when structure breaks or thesis changes.
+  rpc CancelPendingOrder(CancelOrderRequest) returns (CancelOrderResponse);
+
+  // GetExecutionState returns current open positions, pending orders,
+  // daily/weekly P&L, and concurrent trade count. Used by the dashboard
+  // and by the gateway for pre-flight awareness.
+  rpc GetExecutionState(GetStateRequest) returns (GetStateResponse);
+}
+
+// ExecuteTradeRequest carries everything Module B needs from the gateway.
+// Maps 1:1 from ProcessorOutput fields. No macro reasoning, no RAG
+// citations, no evidence chains. Pure execution data.
+message ExecuteTradeRequest {
+  string symbol = 1;
+  string direction = 2;          // "LONG" or "SHORT"
+  double entry_zone_low = 3;
+  double entry_zone_high = 4;
+  double stop_loss = 5;
+  double tp1_price = 6;
+  int32  tp1_pct = 7;            // e.g. 40
+  double tp2_price = 8;
+  int32  tp2_pct = 9;            // e.g. 30
+  double tp3_price = 10;
+  int32  tp3_pct = 11;           // e.g. 30
+  double rr_ratio = 12;
+  string grade = 13;             // "A+", "A", "B"
+  double risk_percentage = 14;   // 1.0 or 0.5
+  string trading_style = 15;     // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+  string session = 16;           // "LONDON_OPEN", "LONDON_NY_OVERLAP", etc.
+  double confluence_score = 17;
+  double confidence = 18;
+  string analysis_id = 19;       // Links back to Module A output
+  string trace_id = 20;
+}
+
+message ExecuteTradeResponse {
+  bool   accepted = 1;           // true if order was placed or watcher armed
+  string status = 2;             // "LIMIT_ORDER_PLACED", "WATCHER_ARMED", "REJECTED", "QUEUED", "LOCKED", "PAUSED"
+  string order_id = 3;           // Broker order ID (limit) or watcher ID (instant)
+  string rejection_reason = 4;   // Which check failed, empty if accepted
+  int32  rejection_check = 5;    // Check number (4-13) that failed, 0 if accepted
+
+  // Sizing breakdown (populated when accepted).
+  double lot_size = 6;
+  double risk_amount = 7;        // Dollar amount risked
+  double account_balance = 8;    // Balance at time of calculation
+  double sl_distance_pips = 9;
+  double pip_value = 10;
+
+  // Order details (populated when accepted).
+  string execution_mode = 11;    // "LIMIT" or "INSTANT"
+  double entry_price = 12;       // Actual entry price used (midpoint or OTE)
+  string analysis_id = 13;
+  string trace_id = 14;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;           // Broker order ID or watcher ID
+  string symbol = 2;
+  string reason = 3;             // "STRUCTURE_BREAK", "THESIS_CHANGED", "MANUAL", "TTL_EXPIRED"
+  string trace_id = 4;
+}
+
+message CancelOrderResponse {
+  bool   success = 1;
+  string status = 2;             // "CANCELLED", "NOT_FOUND", "ALREADY_FILLED"
+  string trace_id = 3;
+}
+
+message GetStateRequest {
+  string trace_id = 1;
+}
+
+message GetStateResponse {
+  int32  open_position_count = 1;
+  int32  pending_order_count = 2;
+  double daily_realized_pnl = 3;
+  double weekly_realized_pnl = 4;
+  double account_balance = 5;
+  double account_equity = 6;
+  repeated OpenPosition open_positions = 7;
+  repeated PendingOrder pending_orders = 8;
+  string trace_id = 9;
+}
+
+message OpenPosition {
+  string symbol = 1;
+  string direction = 2;
+  double entry_price = 3;
+  double current_price = 4;
+  double stop_loss = 5;
+  double lot_size = 6;
+  double unrealized_pnl = 7;
+  string order_id = 8;
+  string analysis_id = 9;
+  string trading_style = 10;
+}
+
+message PendingOrder {
+  string symbol = 1;
+  string direction = 2;
+  double entry_price = 3;
+  double stop_loss = 4;
+  double lot_size = 5;
+  string order_id = 6;
+  string analysis_id = 7;
+  string execution_mode = 8;     // "LIMIT" or "INSTANT"
+  string status = 9;             // "PENDING", "WATCHING"
+}
