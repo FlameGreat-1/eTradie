@@ -35,8 +35,8 @@ type Config struct {
 	GuardTimeoutSeconds int `envconfig:"GUARD_TIMEOUT_SECONDS" default:"10"`
 
 	// Retry policy.
-	MaxCycleRetries          int     `envconfig:"MAX_CYCLE_RETRIES" default:"1"`
-	RetryBackoffBaseSeconds  float64 `envconfig:"RETRY_BACKOFF_BASE_SECONDS" default:"2.0"`
+	MaxCycleRetries         int     `envconfig:"MAX_CYCLE_RETRIES" default:"1"`
+	RetryBackoffBaseSeconds float64 `envconfig:"RETRY_BACKOFF_BASE_SECONDS" default:"2.0"`
 
 	// Observability.
 	LogFullContextPayload bool   `envconfig:"LOG_FULL_CONTEXT_PAYLOAD" default:"false"`
@@ -115,15 +115,17 @@ func (c *Config) validate() error {
 	}
 
 	// Timeout budget: sub-phase sum must be less than cycle timeout.
-	subTotal := c.TAMacroParallelTimeoutSeconds +
-		c.RAGTimeoutSeconds +
-		c.ProcessorTimeoutSeconds +
-		c.GuardTimeoutSeconds
+	// Since symbols are processed concurrently (bounded by MaxConcurrentSymbols),
+	// the per-symbol phases (RAG + Processor + Guard) overlap. The worst-case
+	// wall-clock time for the per-symbol phases is a single pass, not N * pass.
+	// Therefore this single-pass check is the correct budget validation.
+	perSymbolTimeout := c.RAGTimeoutSeconds + c.ProcessorTimeoutSeconds + c.GuardTimeoutSeconds
+	subTotal := c.TAMacroParallelTimeoutSeconds + perSymbolTimeout
 	if subTotal >= c.CycleTimeoutSeconds {
 		return fmt.Errorf(
-			"sum of sub-phase timeouts (%ds) must be less than CYCLE_TIMEOUT_SECONDS (%ds) "+
-				"to allow overhead for context assembly and routing",
-			subTotal, c.CycleTimeoutSeconds,
+			"sum of sub-phase timeouts (TA_MACRO=%ds + per_symbol=%ds = %ds) must be less than "+
+				"CYCLE_TIMEOUT_SECONDS (%ds) to allow overhead for context assembly and routing",
+			c.TAMacroParallelTimeoutSeconds, perSymbolTimeout, subTotal, c.CycleTimeoutSeconds,
 		)
 	}
 
