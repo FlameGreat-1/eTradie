@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 
@@ -16,8 +17,7 @@ from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
 from engine.processor.constants import LLMProvider
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
-from gateway.config import get_gateway_config
-from gateway.container import GatewayContainer
+from engine.shared.store import RedisSymbolReader
 
 logger = get_logger(__name__)
 
@@ -88,39 +88,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         model=container.processor_config.model_name,
     )
 
-    # -- Gateway Orchestration -----------------------------------------------
-    # Gateway must be built BEFORE TA data jobs so that SymbolStore
-    # is available as the single source of truth for active symbols.
-    gateway_config = get_gateway_config()
-    gateway = None
-    if gateway_config.enabled:
-        gateway = GatewayContainer(
-            engine=container,
-            processor=container.processor,
-        )
-        app.state.gateway = gateway
-        gateway.register_scheduler()
-        logger.info(
-            "gateway_started",
-            cycle_interval=gateway_config.cycle_interval_seconds,
-        )
-
     # -- TA Data Infrastructure ----------------------------------------------
-    # TA data jobs (candle refresh, backfill, broker sync) read the active
-    # symbol list from SymbolStore on every cycle.  The Gateway owns the
-    # symbol list; the TA engine focuses on whatever symbols are active.
-    if gateway is not None:
-        register_ta_jobs(
-            container.scheduler,
-            symbol_store=gateway.symbol_store,
-            broker_client=container.mt5_client,
-            candle_repository=container.candle_repository,
-        )
-    else:
-        logger.warning(
-            "ta_data_jobs_skipped_gateway_disabled",
-            extra={"reason": "Gateway is disabled, no SymbolStore available"},
-        )
+    # The Go gateway owns the symbol selection via Redis.
+    # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
+    # TA data jobs (candle refresh, backfill, broker sync) use this reader
+    # to know which symbols to fetch data for.
+    symbol_reader = RedisSymbolReader(cache=container.cache)
+    app.state.symbol_reader = symbol_reader
+
+    register_ta_jobs(
+        container.scheduler,
+        symbol_store=symbol_reader,
+        broker_client=container.mt5_client,
+        candle_repository=container.candle_repository,
+    )
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -149,6 +130,44 @@ class ProcessorConfigUpdateRequest(BaseModel):
     max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
     api_key: Optional[str] = Field(default=None, description="API key for the new provider")
     api_base_url: Optional[str] = Field(default=None, description="Base URL for self-hosted")
+
+
+# -- Request schemas for internal gateway endpoints --------------------------
+
+
+class InternalTARequest(BaseModel):
+    symbols: list[str]
+    trace_id: Optional[str] = None
+
+
+class InternalMacroRequest(BaseModel):
+    trace_id: Optional[str] = None
+
+
+class InternalRAGRequest(BaseModel):
+    query_text: str
+    strategy: Optional[str] = None
+    framework: Optional[str] = None
+    setup_family: Optional[str] = None
+    direction: Optional[str] = None
+    timeframe: Optional[str] = None
+    style: Optional[str] = None
+    symbol: Optional[str] = None
+    all_frameworks: list[str] = Field(default_factory=list)
+    all_setup_families: list[str] = Field(default_factory=list)
+    has_smc_candidates: bool = False
+    has_snd_candidates: bool = False
+    has_macro_data: bool = False
+    has_cot_data: bool = False
+    has_rate_decision: bool = False
+    has_high_impact_event: bool = False
+    has_dxy_data: bool = False
+    trace_id: Optional[str] = None
+
+
+class InternalProcessorRequest(BaseModel):
+    processor_input: dict
+    trace_id: Optional[str] = None
 
 
 def create_app() -> FastAPI:
@@ -182,6 +201,175 @@ def create_app() -> FastAPI:
             "scenarios_count": status.vectorstore.scenarios_collection_count,
         }
 
+    # -- Internal endpoints for Go gateway -----------------------------------
+
+    @app.post("/internal/ta/analyze")
+    async def internal_ta_analyze(request: Request, body: InternalTARequest) -> dict:
+        """Run TA analysis for the given symbols.
+
+        Called by the Go gateway. Delegates to TAOrchestrator.analyze()
+        for each symbol and returns the aggregated results.
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "ta_orchestrator"):
+            raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
+
+        results = []
+        for symbol in body.symbols:
+            try:
+                result = await container.ta_orchestrator.analyze(symbol=symbol)
+                results.append(result)
+            except Exception as exc:
+                logger.error(
+                    "internal_ta_analyze_failed",
+                    extra={"symbol": symbol, "error": str(exc), "trace_id": body.trace_id},
+                )
+                results.append({
+                    "status": "error",
+                    "symbol": symbol,
+                    "error": str(exc),
+                    "htf_timeframes": [],
+                    "ltf_timeframes": [],
+                    "snapshots": {},
+                    "smc_candidates": [],
+                    "snd_candidates": [],
+                    "smc_candidates_count": 0,
+                    "snd_candidates_count": 0,
+                    "alignment": {},
+                    "overall_trend": "NEUTRAL",
+                })
+
+        return {"symbol_results": results}
+
+    @app.post("/internal/macro/collect")
+    async def internal_macro_collect(request: Request, body: InternalMacroRequest) -> dict:
+        """Run all 8 macro collectors in parallel.
+
+        Called by the Go gateway. Delegates to each macro collector
+        and returns the aggregated results.
+        """
+        container: Container = request.app.state.container
+
+        collector_map = {
+            "central_bank": container.cb_collector,
+            "cot": container.cot_collector,
+            "economic": container.economic_collector,
+            "news": container.news_collector,
+            "calendar": container.calendar_collector,
+            "dxy": container.dxy_collector,
+            "intermarket": container.intermarket_collector,
+            "sentiment": container.sentiment_collector,
+        }
+
+        tasks = {name: c.collect() for name, c in collector_map.items()}
+        raw_results = await asyncio.gather(
+            *tasks.values(), return_exceptions=True,
+        )
+
+        datasets = {}
+        errors = {}
+        for name, result in zip(tasks.keys(), raw_results):
+            if isinstance(result, Exception):
+                logger.error(
+                    "internal_macro_collector_failed",
+                    extra={"collector": name, "error": str(result), "trace_id": body.trace_id},
+                )
+                datasets[name] = None
+                errors[name] = str(result)
+            else:
+                if isinstance(result, dict):
+                    datasets[name] = result
+                elif hasattr(result, "model_dump"):
+                    datasets[name] = result.model_dump(mode="json")
+                else:
+                    datasets[name] = {"raw": str(result)}
+
+        return {
+            "central_bank": datasets.get("central_bank"),
+            "cot": datasets.get("cot"),
+            "economic": datasets.get("economic"),
+            "news": datasets.get("news"),
+            "calendar": datasets.get("calendar"),
+            "dxy": datasets.get("dxy"),
+            "intermarket": datasets.get("intermarket"),
+            "sentiment": datasets.get("sentiment"),
+            "errors": errors,
+        }
+
+    @app.post("/internal/rag/retrieve")
+    async def internal_rag_retrieve(request: Request, body: InternalRAGRequest) -> dict:
+        """Perform RAG retrieval with the given query parameters.
+
+        Called by the Go gateway. Delegates to RAGOrchestrator.retrieve_context().
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "rag_orchestrator"):
+            raise HTTPException(status_code=503, detail="RAG not initialized")
+
+        try:
+            bundle = await container.rag_orchestrator.retrieve_context(
+                body.query_text,
+                strategy=body.strategy,
+                framework=body.framework,
+                setup_family=body.setup_family,
+                direction=body.direction,
+                timeframe=body.timeframe,
+                style=body.style,
+                trace_id=body.trace_id,
+                symbol=body.symbol,
+                all_frameworks=body.all_frameworks,
+                all_setup_families=body.all_setup_families,
+                has_smc_candidates=body.has_smc_candidates,
+                has_snd_candidates=body.has_snd_candidates,
+                has_macro_data=body.has_macro_data,
+                has_cot_data=body.has_cot_data,
+                has_rate_decision=body.has_rate_decision,
+                has_high_impact_event=body.has_high_impact_event,
+                has_dxy_data=body.has_dxy_data,
+            )
+
+            if hasattr(bundle, "model_dump"):
+                return bundle.model_dump(mode="json")
+            return {"context_bundle": str(bundle)}
+
+        except Exception as exc:
+            logger.error(
+                "internal_rag_retrieve_failed",
+                extra={"error": str(exc), "trace_id": body.trace_id},
+            )
+            raise HTTPException(status_code=500, detail=f"RAG retrieval failed: {exc}")
+
+    @app.post("/internal/processor/process")
+    async def internal_processor_process(request: Request, body: InternalProcessorRequest) -> dict:
+        """Send assembled context to the Processor LLM.
+
+        Called by the Go gateway. Delegates to AnalysisProcessor.
+        The processor_input dict contains ta_analysis, macro_analysis,
+        retrieved_knowledge, and metadata.
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "processor"):
+            raise HTTPException(status_code=503, detail="Processor not initialized")
+
+        try:
+            result = await container.processor.analyze(
+                context=body.processor_input,
+                trace_id=body.trace_id,
+            )
+
+            if hasattr(result, "model_dump"):
+                return result.model_dump(mode="json")
+            if isinstance(result, dict):
+                return result
+            return {"raw": str(result)}
+
+        except Exception as exc:
+            logger.error(
+                "internal_processor_failed",
+                extra={"error": str(exc), "trace_id": body.trace_id},
+            )
+            raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
+
     # -- Analysis dashboard endpoints ----------------------------------------
 
     @app.get("/api/analysis/latest")
@@ -190,11 +378,7 @@ def create_app() -> FastAPI:
         pair: Optional[str] = None,
         limit: int = 20,
     ) -> dict:
-        """List recent analyses for the dashboard.
-
-        Returns the LLM analysis decisions so users can see what
-        the processor analyzed and decided.
-        """
+        """List recent analyses for the dashboard."""
         container: Container = request.app.state.container
         if not hasattr(container, "processor_analysis_repo"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
@@ -236,12 +420,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/analysis/{analysis_id}")
     async def get_analysis_detail(request: Request, analysis_id: str) -> dict:
-        """Full analysis detail including LLM reasoning and raw output.
-
-        This is what the dashboard displays so users can see the
-        complete LLM analysis, reasoning chain, confluence factors,
-        trade construction, and citations.
-        """
+        """Full analysis detail including LLM reasoning and raw output."""
         container: Container = request.app.state.container
         if not hasattr(container, "processor_analysis_repo"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
@@ -327,8 +506,8 @@ def create_app() -> FastAPI:
         """Switch LLM provider or model at runtime from the dashboard.
 
         Rebuilds the LLM client and processor with the new settings.
-        Takes effect on the next analysis cycle. Does not interrupt
-        any currently running cycle.
+        Takes effect on the next analysis cycle (the Go gateway calls
+        /internal/processor/process which uses the latest processor).
         """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
@@ -352,7 +531,6 @@ def create_app() -> FastAPI:
                 detail=f"Unsupported provider '{new_provider}'. Supported: {sorted(valid_providers)}",
             )
 
-        # Build new config with overrides
         config_overrides = {
             "llm_provider": new_provider,
             "model_name": new_model,
@@ -374,7 +552,6 @@ def create_app() -> FastAPI:
             "api_base_url": body.api_base_url or old_cfg.api_base_url,
         }
 
-        # Override API key for the new provider if provided
         if body.api_key:
             key_field = f"{new_provider}_api_key"
             if key_field in config_overrides:
@@ -385,11 +562,9 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid configuration: {exc}")
 
-        # Close old client
         if hasattr(container, "processor_llm_client"):
             await container.processor_llm_client.close()
 
-        # Build new client and processor
         new_client = create_llm_client(new_cfg)
         new_processor = AnalysisProcessor(
             config=new_cfg,
@@ -398,15 +573,13 @@ def create_app() -> FastAPI:
             audit_repo=container.processor_audit_repo,
         )
 
-        # Swap references
         container.processor_config = new_cfg
         container.processor_llm_client = new_client
         container.processor = new_processor
 
-        # Update gateway's orchestrator if gateway is active
-        if hasattr(request.app.state, "gateway"):
-            gw: GatewayContainer = request.app.state.gateway
-            gw.orchestrator._processor = new_processor
+        # The Go gateway calls /internal/processor/process which reads
+        # container.processor directly, so the hot-swap takes effect
+        # on the next gRPC call without any gateway-side update needed.
 
         logger.info(
             "processor_config_updated",
