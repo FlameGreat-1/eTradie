@@ -15,7 +15,7 @@ from engine.processor.constants import (
     RISK_PERCENT_B,
 )
 from engine.processor.models.analysis import AnalysisOutput
-from gateway.context.models import ProcessorOutput
+from engine.processor.models.io import ProcessorOutput
 
 
 def map_to_processor_output(

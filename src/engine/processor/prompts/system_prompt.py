@@ -17,7 +17,7 @@ from typing import Any
 
 import orjson
 
-from gateway.context.models import ProcessorInput
+from engine.processor.models.io import ProcessorInput
 
 _OUTPUT_SCHEMA = """{
   "analysis_id": "<unique string>",
