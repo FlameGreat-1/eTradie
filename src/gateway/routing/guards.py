@@ -181,10 +181,10 @@ class GuardEvaluator:
         processor: ProcessorOutput,
         ta: TASymbolResult,
     ) -> GuardCheckResult:
-        """MR-REJECT-006: Counter-trend without D1 CHoCH = NO SETUP.
+        """MR-REJECT-006: Counter-trend without HTF CHoCH = NO SETUP.
 
         If the processor approved a trade that goes against the HTF trend
-        and there is no D1 CHoCH in the snapshot, reject it.
+        and there is no HTF CHoCH in the snapshot, reject it.
         """
         if not processor.trade_valid:
             return GuardCheckResult(
@@ -220,10 +220,11 @@ class GuardEvaluator:
                 metadata={"choch_count": choch_count},
             )
 
+        htf = ta.htf_timeframe or "HTF"
         return GuardCheckResult(
             rule=GuardRule.COUNTER_TREND_NO_CHOCH,
             verdict=GuardVerdict.REJECT,
-            reason="Counter-trend trade without D1 CHoCH - rejected per MR-REJECT-006",
+            reason=f"Counter-trend trade without {htf} CHoCH - rejected per MR-REJECT-006",
             metadata={"trend": trend, "direction": direction},
         )
 

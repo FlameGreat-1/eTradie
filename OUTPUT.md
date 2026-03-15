@@ -444,3 +444,320 @@ The orchestrator.py method returns:
 ```
 
 ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here is the exact JSON the LLM outputs after every analysis cycle. This is what gets persisted, what the dashboard displays, and what gets mapped to the gateway's ProcessorOutput.
+Example: Trade Approved (LONG EURUSD)
+
+
+
+{
+  "analysis_id": "analysis_EURUSD_20260314_0800_a3f1",
+  "pair": "EURUSD",
+  "timestamp": "2026-03-14T08:00:12Z",
+  "trading_style": "INTRADAY",
+  "session": "LONDON_OPEN",
+
+  "macro_bias": {
+    "base_currency": {
+      "bias": "BULLISH",
+      "evidence": [
+        {"doc_id": "master_rulebook_v1", "chunk_id": "c_041", "section": "Section 4.1 Macro Bias", "rule_id": "MR-4.1", "content_preview": "ECB hawkish tone = bullish EUR signal"}
+      ]
+    },
+    "quote_currency": {
+      "bias": "BEARISH",
+      "evidence": [
+        {"doc_id": "master_rulebook_v1", "chunk_id": "c_042", "section": "Section 4.1 Macro Bias", "rule_id": "MR-4.1", "content_preview": "Fed dovish language = bearish USD signal"}
+      ]
+    }
+  },
+
+  "dxy_bias": {
+    "direction": "BEARISH",
+    "evidence": [
+      {"doc_id": "master_rulebook_v1", "chunk_id": "c_015", "section": "Section 2.2 DXY Rules", "rule_id": "MR-2.2", "content_preview": "Bullish DXY = Bearish USD quote pair. DXY bearish = bullish EURUSD"}
+    ]
+  },
+
+  "cot_signal": {
+    "summary": "Non-commercial net long EUR increasing for 3 consecutive weeks, not at extreme",
+    "week_over_week": "increase",
+    "extreme_flag": false,
+    "evidence": [
+      {"doc_id": "cot_guide_v1", "chunk_id": "c_008", "section": "COT Interpretation", "rule_id": "COT-1", "content_preview": "Net long increasing WoW + not extreme = BULLISH signal"}
+    ]
+  },
+
+  "event_risk": [
+    {"event": "ECB Rate Decision", "time": "2026-03-16T12:45:00Z", "impact": "HIGH", "currency": "EUR"},
+    {"event": "US Retail Sales", "time": "2026-03-15T13:30:00Z", "impact": "HIGH", "currency": "USD"}
+  ],
+
+  "1w_bias": {
+    "structure": "bullish",
+    "key_levels": [1.0720, 1.0950, 1.1050],
+    "notes": "HH-HL formation intact. Price above 1W demand at 1.0720."
+  },
+
+  "1d_bias": {
+    "structure": "choch_bullish",
+    "key_levels": [1.0780, 1.0835, 1.0920],
+    "notes": "1D ChoCH confirmed at 1.0835 with BOS above previous swing high. Demand zone at 1.0780 unmitigated."
+  },
+
+  "4h_setup": {
+    "type": "OB",
+    "zone_id": "OB_EURUSD_4H_20260314_01",
+    "quality": "A",
+    "bounds": [1.0832, 1.0850],
+    "evidence": [
+      {"doc_id": "smc_framework_v1", "chunk_id": "c_023", "section": "Order Block Validity", "rule_id": "SMC-OB-1", "content_preview": "Valid OB: strong impulse departure + BOS + not previously mitigated"}
+    ]
+  },
+
+  "wyckoff_phase": {
+    "phase": "markup",
+    "evidence": [
+      {"doc_id": "wyckoff_guide_v1", "chunk_id": "c_012", "section": "Markup Phase", "rule_id": "WYK-3", "content_preview": "Price rising out of accumulation with increasing volume. HH-HL structure."}
+    ]
+  },
+
+  "confluence_score": {
+    "score": 8.5,
+    "factors": [
+      {"name": "Macro bias aligned", "present": true, "value": 1.0, "notes": "EUR bullish + USD bearish = aligned with LONG"},
+      {"name": "1W structure aligned", "present": true, "value": 1.0, "notes": "Weekly bullish HH-HL intact"},
+      {"name": "1D BOS/ChoCH confirmed", "present": true, "value": 1.0, "notes": "1D ChoCH bullish at 1.0835"},
+      {"name": "Valid SnD zone 4H+", "present": true, "value": 1.0, "notes": "Grade A demand zone at 1.0780"},
+      {"name": "4H OB/FVG at entry", "present": true, "value": 1.0, "notes": "4H OB at 1.0832-1.0850 unmitigated"},
+      {"name": "Liquidity sweep", "present": true, "value": 1.0, "notes": "SSL swept below 1.0830 with rejection wick"},
+      {"name": "COT alignment", "present": true, "value": 1.0, "notes": "Specs net long EUR increasing 3 weeks"},
+      {"name": "Wyckoff phase supports", "present": true, "value": 0.5, "notes": "Markup phase supports longs"},
+      {"name": "No high-impact news 30min", "present": true, "value": 0.0, "notes": "Next event 26+ hours away"},
+      {"name": "Minimum R:R achievable", "present": true, "value": 1.0, "notes": "R:R 5.38 exceeds 1:3 minimum for intraday"}
+    ]
+  },
+
+  "setup_grade": "A",
+  "direction": "LONG",
+
+  "entry_zone": {"low": 1.08320, "high": 1.08500},
+
+  "stop_loss": {
+    "price": 1.07780,
+    "reason": "Below 4H OB low (1.0832) + 1D demand zone (1.0780) with 3 pip buffer. Not on round number.",
+    "evidence": [
+      {"doc_id": "master_rulebook_v1", "chunk_id": "c_067", "section": "Section 8.3 SL Placement", "rule_id": "MR-8.3", "content_preview": "SL placed beyond OB low + spread buffer. Never on round number."}
+    ]
+  },
+
+  "take_profits": [
+    {"level": 1.09200, "size_pct": 40, "basis": "Nearest liquidity pool at previous 4H swing high"},
+    {"level": 1.09850, "size_pct": 30, "basis": "1D structure target at major supply zone"},
+    {"level": 1.10500, "size_pct": 30, "basis": "1W key level and final macro target"}
+  ],
+
+  "rr_ratio": 5.38,
+  "confidence": "HIGH",
+  "proceed_to_module_b": "YES",
+
+  "explainable_reasoning": "EURUSD presents a high-probability long setup. Macro environment is strongly aligned: ECB hawkish tone supports EUR strength while Fed dovish guidance weakens USD. DXY is bearish with descending structure below the 50MA, confirming inverse bullish bias for EURUSD per Rulebook Section 2.2. COT shows non-commercial net long EUR increasing for 3 consecutive weeks without reaching extreme levels, supporting the bullish thesis per COT Interpretation Guide. Weekly structure shows intact HH-HL formation with price above the 1W demand at 1.0720. Daily confirmed a ChoCH bullish at 1.0835 with a BOS above the previous swing high. On the 4H, an unmitigated Grade A order block sits at 1.0832-1.0850 with a liquidity sweep below 1.0830 that rejected sharply, creating a high-quality entry scenario per SMC Framework Section OB-1. Wyckoff analysis identifies the current phase as Markup, supporting continuation longs. All 5 mandatory confluence factors are present plus 3 bonus factors for a total score of 8.5/10 (Grade A). Entry at OTE zone 1.0832-1.0850, SL at 1.0778 below structural invalidation with 3-pip buffer, targeting TP1 at 1.0920 (nearest liquidity), TP2 at 1.0985 (1D supply), TP3 at 1.1050 (1W level). R:R of 5.38 exceeds the 1:3 intraday minimum. No high-impact events within 30 minutes. Proceeding to Module B.",
+
+  "rag_sources": [
+    {"doc_id": "master_rulebook_v1", "chunk_id": "c_041", "section": "Section 4.1 Macro Bias", "relevance_score": 0.95},
+    {"doc_id": "master_rulebook_v1", "chunk_id": "c_015", "section": "Section 2.2 DXY Rules", "relevance_score": 0.93},
+    {"doc_id": "smc_framework_v1", "chunk_id": "c_023", "section": "Order Block Validity", "relevance_score": 0.91},
+    {"doc_id": "master_rulebook_v1", "chunk_id": "c_067", "section": "Section 8.3 SL Placement", "relevance_score": 0.89},
+    {"doc_id": "cot_guide_v1", "chunk_id": "c_008", "section": "COT Interpretation", "relevance_score": 0.87},
+    {"doc_id": "wyckoff_guide_v1", "chunk_id": "c_012", "section": "Markup Phase", "relevance_score": 0.85}
+  ],
+
+  "audit": {
+    "retrieval": {
+      "query_summary": "EURUSD bullish BOS order block fair value gap liquidity sweep Fed dovish ECB hawkish DXY bearish COT EUR net long",
+      "strategy_used": "scenario_first",
+      "top_k": 8,
+      "chunks_returned": [
+        {"doc_id": "master_rulebook_v1", "chunk_id": "c_041", "section": "Section 4.1", "relevance_score": 0.95},
+        {"doc_id": "smc_framework_v1", "chunk_id": "c_023", "section": "OB Validity", "relevance_score": 0.91},
+        {"doc_id": "master_rulebook_v1", "chunk_id": "c_067", "section": "Section 8.3", "relevance_score": 0.89}
+      ]
+    },
+    "citations": [
+      {"doc_id": "master_rulebook_v1", "chunk_id": "c_041", "section": "Section 4.1 Macro Bias", "relevance_score": 0.95},
+      {"doc_id": "master_rulebook_v1", "chunk_id": "c_015", "section": "Section 2.2 DXY", "relevance_score": 0.93},
+      {"doc_id": "smc_framework_v1", "chunk_id": "c_023", "section": "OB Validity", "relevance_score": 0.91}
+    ]
+  }
+}
+
+
+
+
+
+
+Example: NO SETUP (Conflicting Timeframes)
+
+
+{
+  "analysis_id": "analysis_GBPUSD_20260314_0800_b7e2",
+  "pair": "GBPUSD",
+  "timestamp": "2026-03-14T08:00:15Z",
+  "trading_style": "INTRADAY",
+  "session": "LONDON_OPEN",
+
+  "macro_bias": {
+    "base_currency": {"bias": "NEUTRAL", "evidence": [...]},
+    "quote_currency": {"bias": "BEARISH", "evidence": [...]}
+  },
+
+  "dxy_bias": {"direction": "BEARISH", "evidence": [...]},
+
+  "cot_signal": {
+    "summary": "Non-commercial net short GBP, decreasing",
+    "week_over_week": "decrease",
+    "extreme_flag": false,
+    "evidence": [...]
+  },
+
+  "event_risk": [],
+
+  "1w_bias": {"structure": "bearish", "key_levels": [1.2550, 1.2700], "notes": "1W in downtrend, LH-LL"},
+  "1d_bias": {"structure": "bullish", "key_levels": [1.2620, 1.2680], "notes": "1D BOS bullish at 1.2620"},
+  "4h_setup": {"type": null, "zone_id": null, "quality": null, "bounds": [], "evidence": []},
+
+  "wyckoff_phase": {"phase": "ranging", "evidence": [...]},
+
+  "confluence_score": {
+    "score": 3.0,
+    "factors": [
+      {"name": "Macro bias aligned", "present": false, "value": 0.0, "notes": "GBP neutral, not aligned with either direction"},
+      {"name": "1W structure aligned", "present": false, "value": 0.0, "notes": "1W bearish conflicts with 1D bullish"},
+      {"name": "1D BOS/ChoCH confirmed", "present": true, "value": 1.0, "notes": "1D BOS bullish confirmed"},
+      {"name": "Valid SnD zone 4H+", "present": false, "value": 0.0, "notes": "No unmitigated zone identified"},
+      {"name": "4H OB/FVG at entry", "present": false, "value": 0.0, "notes": "No valid OB or FVG at current price"},
+      {"name": "Liquidity sweep", "present": false, "value": 0.0, "notes": "No sweep detected"},
+      {"name": "COT alignment", "present": true, "value": 1.0, "notes": "COT short decreasing supports potential reversal"},
+      {"name": "Wyckoff phase supports", "present": false, "value": 0.0, "notes": "Ranging phase, no directional support"},
+      {"name": "No high-impact news 30min", "present": true, "value": 0.0, "notes": "No events within window"},
+      {"name": "Minimum R:R achievable", "present": true, "value": 1.0, "notes": "Theoretical R:R available but no valid entry zone"}
+    ]
+  },
+
+  "setup_grade": "REJECT",
+  "direction": "NO SETUP",
+
+  "entry_zone": {"low": null, "high": null},
+  "stop_loss": {"price": null, "reason": "", "evidence": []},
+  "take_profits": [],
+  "rr_ratio": null,
+
+  "confidence": "NO SETUP",
+  "proceed_to_module_b": "NO",
+
+  "explainable_reasoning": "GBPUSD does not present a valid setup. The 1W structure is bearish (LH-LL) while the 1D has confirmed a bullish BOS at 1.2620, creating a direct timeframe conflict. Per Rulebook Section 3.2: 'A trade is only valid when 1W, 1D, and 4H all agree on direction. If any one timeframe contradicts the thesis, the setup is rejected.' Additionally, no unmitigated Grade A or B supply/demand zone was identified on the 4H, and no valid order block or FVG exists at current price levels. Macro bias for GBP is neutral, failing the mandatory macro alignment factor. Confluence score of 3.0/10 falls below the 5.0 rejection threshold. Output: NO SETUP.",
+
+  "rag_sources": [
+    {"doc_id": "master_rulebook_v1", "chunk_id": "c_029", "section": "Section 3.2 Timeframe Alignment", "relevance_score": 0.94}
+  ],
+
+  "audit": {
+    "retrieval": {
+      "query_summary": "GBPUSD bearish weekly bullish daily conflict timeframe alignment",
+      "strategy_used": "rule_first",
+      "top_k": 6,
+      "chunks_returned": [
+        {"doc_id": "master_rulebook_v1", "chunk_id": "c_029", "section": "Section 3.2", "relevance_score": 0.94}
+      ]
+    },
+    "citations": [
+      {"doc_id": "master_rulebook_v1", "chunk_id": "c_029", "section": "Section 3.2 Timeframe Alignment", "relevance_score": 0.94}
+    ]
+  }
+}
+
+
+
+
+
+
+
+Detail View (GET /api/analysis/{id}) - full page shows:
+
+
+
+summary:
+  "LONG EURUSD - Grade A - Score 8.5/10"
+
+reasoning:
+  "EURUSD presents a high-probability long setup. Macro environment is
+   strongly aligned: ECB hawkish tone supports EUR strength while Fed
+   dovish guidance weakens USD. DXY is bearish with descending structure
+   below the 50MA, confirming inverse bullish bias for EURUSD..."
+
+macro_summary:
+  "Base currency: BULLISH
+   Quote currency: BEARISH
+   US Dollar (DXY): BEARISH
+   COT: Non-commercial net long EUR increasing for 3 consecutive weeks"
+
+technical_summary:
+  "Weekly: Bullish
+     HH-HL formation intact. Price above 1W demand at 1.0720.
+   Daily: Choch Bullish
+     1D ChoCH confirmed at 1.0835 with BOS above previous swing high.
+   4H Setup: OB (Grade A) at 1.0832 - 1.0850
+   Wyckoff Phase: Markup"
+
+trade_plan:
+  "Direction: LONG
+   Entry Zone: 1.0832 to 1.085
+   Stop Loss: 1.0778 (Below 4H OB low + 1D demand zone with 3 pip buffer)
+   Take Profit 1: 1.092 (close 40% of position) - Nearest liquidity pool
+   Take Profit 2: 1.0985 (close 30% of position) - 1D structure target
+   Take Profit 3: 1.105 (close 30% of position) - 1W key level
+   Reward-to-Risk Ratio: 1:5.4"
+
+confluence_breakdown:
+  "Confluence Score: 8.5/10
+
+     + Macro bias aligned: PRESENT (+1.0) - EUR bullish + USD bearish
+     + 1W structure aligned: PRESENT (+1.0) - Weekly bullish HH-HL intact
+     + 1D BOS/ChoCH confirmed: PRESENT (+1.0) - 1D ChoCH bullish at 1.0835
+     + Valid SnD zone 4H+: PRESENT (+1.0) - Grade A demand zone at 1.0780
+     + 4H OB/FVG at entry: PRESENT (+1.0) - 4H OB at 1.0832-1.0850
+     + Liquidity sweep: PRESENT (+1.0) - SSL swept below 1.0830
+     + COT alignment: PRESENT (+1.0) - Specs net long EUR increasing
+     + Wyckoff phase supports: PRESENT (+0.5) - Markup phase supports longs
+     + No high-impact news 30min: PRESENT - Next event 26+ hours away
+     + Minimum R:R achievable: PRESENT (+1.0) - R:R 5.38 exceeds minimum"
+
+risk_info:
+  "Confidence: HIGH
+   Setup Grade: A
+   Risk Allocation: 1% of account
+   Status: Approved for execution"
+
+event_warnings:
+  "Upcoming High-Impact Events:
+     - ECB Rate Decision (EUR) at 2026-03-16T12:45:00Z
+     - US Retail Sales (USD) at 2026-03-15T13:30:00Z"
+
+analyzed_by:
+  "Analyzed by: Anthropic Claude (claude-sonnet-4-20250514) in 12.3 seconds"
