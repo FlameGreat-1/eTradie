@@ -46,11 +46,6 @@ class GatewayConfig(BaseSettings):
         description="Timeout for the parallel TA + Macro collection phase",
     )
 
-    # -- TA collection -------------------------------------------------------
-    ta_htf_timeframe: str = Field(default="H4", pattern=r"^(M1|M5|M15|M30|H1|H4|D1|W1|MN1)$")
-    ta_ltf_timeframe: str = Field(default="M15", pattern=r"^(M1|M5|M15|M30|H1|H4|D1|W1|MN1)$")
-    ta_lookback_periods: int = Field(default=500, ge=100, le=5000)
-
     # -- RAG -----------------------------------------------------------------
     rag_timeout_seconds: int = Field(
         default=30, ge=5, le=120,
@@ -83,22 +78,6 @@ class GatewayConfig(BaseSettings):
         default=False,
         description="Log the full LLM context payload (dev/debug only)",
     )
-
-    @model_validator(mode="after")
-    def _validate_timeframe_hierarchy(self) -> Self:
-        """HTF must be strictly higher than LTF."""
-        _tf_rank = {
-            "M1": 1, "M5": 2, "M15": 3, "M30": 4,
-            "H1": 5, "H4": 6, "D1": 7, "W1": 8, "MN1": 9,
-        }
-        htf = _tf_rank.get(self.ta_htf_timeframe, 0)
-        ltf = _tf_rank.get(self.ta_ltf_timeframe, 0)
-        if htf <= ltf:
-            raise ValueError(
-                f"ta_htf_timeframe ({self.ta_htf_timeframe}) must be higher "
-                f"than ta_ltf_timeframe ({self.ta_ltf_timeframe})"
-            )
-        return self
 
     @model_validator(mode="after")
     def _validate_timeout_budget(self) -> Self:

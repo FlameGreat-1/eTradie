@@ -25,15 +25,22 @@ from gateway.constants import (
 
 
 class TASymbolResult(FrozenModel):
-    """TA analysis result for a single symbol."""
+    """TA analysis result for a single symbol.
+
+    Contains the full multi-timeframe analysis output from the TA engine.
+    The Gateway does NOT dictate which timeframes are analyzed -- the TA
+    engine owns that decision via TAConfig.
+    """
 
     symbol: str
-    htf_timeframe: str
-    ltf_timeframe: str
+    htf_timeframes: list[str] = Field(default_factory=list)
+    ltf_timeframes: list[str] = Field(default_factory=list)
     status: str  # "success" | "insufficient_data" | "error"
     smc_candidates: list[dict] = Field(default_factory=list)
     snd_candidates: list[dict] = Field(default_factory=list)
-    snapshot: Optional[dict] = None
+    snapshots: dict[str, dict] = Field(default_factory=dict)
+    alignment: dict[str, dict] = Field(default_factory=dict)
+    overall_trend: str = "NEUTRAL"
     error: Optional[str] = None
 
 
