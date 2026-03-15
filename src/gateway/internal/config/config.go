@@ -54,6 +54,11 @@ type Config struct {
 	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-gateway"`
 
+	// Execution engine (Module B).
+	ExecutionEnabled   bool   `envconfig:"EXECUTION_ENABLED" default:"true"`
+	ExecutionAddr      string `envconfig:"EXECUTION_ADDR" default:"localhost:50053"`
+	ExecutionTimeoutMs int    `envconfig:"EXECUTION_TIMEOUT_MS" default:"5000"`
+
 	// HTTP server (health, readiness, metrics).
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8080"`
 
