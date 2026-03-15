@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package engine.v1;
+
+option go_package = "github.com/flamegreat/etradie/proto/engine/v1;enginev1";
+
+// EngineService is the gRPC contract between the Go gateway and the
+// Python engine (Module A). The Python engine implements this server;
+// the Go gateway is the client.
+service EngineService {
+  // AnalyzeTA runs technical analysis for the given symbols.
+  rpc AnalyzeTA(AnalyzeTARequest) returns (AnalyzeTAResponse);
+
+  // CollectMacro runs all 8 macro collectors in parallel.
+  rpc CollectMacro(CollectMacroRequest) returns (CollectMacroResponse);
+
+  // RetrieveRAG performs RAG retrieval with the given query parameters.
+  rpc RetrieveRAG(RetrieveRAGRequest) returns (RetrieveRAGResponse);
+
+  // ProcessLLM sends the assembled context to the Processor LLM.
+  rpc ProcessLLM(ProcessLLMRequest) returns (ProcessLLMResponse);
+}
+
+// AnalyzeTA messages.
+message AnalyzeTARequest {
+  repeated string symbols = 1;
+  string trace_id = 2;
+}
+
+message TASymbolResult {
+  string symbol = 1;
+  repeated string htf_timeframes = 2;
+  repeated string ltf_timeframes = 3;
+  string status = 4;
+  // Candidates and snapshots are JSON-encoded for flexibility.
+  bytes smc_candidates_json = 5;
+  bytes snd_candidates_json = 6;
+  bytes snapshots_json = 7;
+  bytes alignment_json = 8;
+  string overall_trend = 9;
+  string error = 10;
+}
+
+message AnalyzeTAResponse {
+  repeated TASymbolResult symbol_results = 1;
+  double duration_ms = 2;
+}
+
+// CollectMacro messages.
+message CollectMacroRequest {
+  string trace_id = 1;
+}
+
+message CollectMacroResponse {
+  // Each dataset is JSON-encoded; nil means the collector failed or had no data.
+  bytes central_bank_json = 1;
+  bytes cot_json = 2;
+  bytes economic_json = 3;
+  bytes news_json = 4;
+  bytes calendar_json = 5;
+  bytes dxy_json = 6;
+  bytes intermarket_json = 7;
+  bytes sentiment_json = 8;
+  double duration_ms = 9;
+  map<string, string> errors = 10;
+}
+
+// RetrieveRAG messages.
+message RetrieveRAGRequest {
+  string query_text = 1;
+  string strategy = 2;
+  string framework = 3;
+  string setup_family = 4;
+  string direction = 5;
+  string timeframe = 6;
+  string style = 7;
+  string symbol = 8;
+  repeated string all_frameworks = 9;
+  repeated string all_setup_families = 10;
+  bool has_smc_candidates = 11;
+  bool has_snd_candidates = 12;
+  bool has_macro_data = 13;
+  bool has_cot_data = 14;
+  bool has_rate_decision = 15;
+  bool has_high_impact_event = 16;
+  bool has_dxy_data = 17;
+  string trace_id = 18;
+}
+
+message RetrieveRAGResponse {
+  // The full context bundle as JSON for maximum flexibility.
+  bytes context_bundle_json = 1;
+}
+
+// ProcessLLM messages.
+message ProcessLLMRequest {
+  // The full processor input as JSON.
+  bytes processor_input_json = 1;
+  string trace_id = 2;
+}
+
+message ProcessLLMResponse {
+  bool trade_valid = 1;
+  string direction = 2;
+  string symbol = 3;
+  double confidence = 4;
+  string grade = 5;
+  double risk_percentage = 6;
+  string reasoning = 7;
+  double entry_price = 8;
+  double stop_loss = 9;
+  double take_profit = 10;
+  repeated string rejection_rules = 11;
+  bytes raw_response_json = 12;
+}

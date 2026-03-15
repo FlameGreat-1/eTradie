@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package gateway.v1;
+
+option go_package = "github.com/flamegreat/etradie/proto/gateway/v1;gatewayv1";
+
+// GatewayService is the gateway's own gRPC API.
+// Used by the dashboard, CLI, or other internal services to trigger
+// analysis cycles and manage symbol selection.
+service GatewayService {
+  // RunCycle triggers an analysis cycle for the given symbols.
+  rpc RunCycle(RunCycleRequest) returns (RunCycleResponse);
+
+  // SetActiveSymbols updates the user's active symbol selection.
+  rpc SetActiveSymbols(SetActiveSymbolsRequest) returns (SetActiveSymbolsResponse);
+
+  // GetActiveSymbols returns the current active symbol selection.
+  rpc GetActiveSymbols(GetActiveSymbolsRequest) returns (GetActiveSymbolsResponse);
+
+  // GetHealth returns the gateway's health status.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+message RunCycleRequest {
+  // Symbols to analyse. If empty, uses the active symbol selection.
+  repeated string symbols = 1;
+  string trace_id = 2;
+}
+
+message CycleOutput {
+  string cycle_status = 1;
+  string cycle_outcome = 2;
+  string phase_reached = 3;
+  string symbol = 4;
+  double duration_ms = 5;
+  string trace_id = 6;
+  string error = 7;
+  string error_stage = 8;
+  // Full processor output and guard result as JSON.
+  bytes processor_output_json = 9;
+  bytes guard_result_json = 10;
+}
+
+message RunCycleResponse {
+  repeated CycleOutput outputs = 1;
+}
+
+message SetActiveSymbolsRequest {
+  repeated string symbols = 1;
+}
+
+message SetActiveSymbolsResponse {
+  bool success = 1;
+  repeated string active_symbols = 2;
+}
+
+message GetActiveSymbolsRequest {}
+
+message GetActiveSymbolsResponse {
+  repeated string symbols = 1;
+  string source = 2; // "redis" or "gateway_config"
+}
+
+message GetHealthRequest {}
+
+message GetHealthResponse {
+  string status = 1; // "ok" | "degraded"
+  bool redis_connected = 2;
+  bool engine_connected = 3;
+  int32 active_cycles = 4;
+}
