@@ -29,7 +29,7 @@ type Orchestrator struct {
 	assembler      *ctxpkg.Assembler
 	processor      ports.ProcessorPort
 	router         *routing.Router
-	engineClient   enginev1.EngineServiceClient
+	engineHTTP     *infra.EngineHTTPClient
 	log            zerolog.Logger
 }
 
@@ -42,7 +42,7 @@ func NewOrchestrator(
 	assembler *ctxpkg.Assembler,
 	processor ports.ProcessorPort,
 	router *routing.Router,
-	engineConn *infra.EngineClient,
+	engineHTTP *infra.EngineHTTPClient,
 ) *Orchestrator {
 	return &Orchestrator{
 		cfg:            cfg,
@@ -52,7 +52,7 @@ func NewOrchestrator(
 		assembler:      assembler,
 		processor:      processor,
 		router:         router,
-		engineClient:   enginev1.NewEngineServiceClient(engineConn.Conn),
+		engineHTTP:     engineHTTP,
 		log:            observability.Logger("orchestrator"),
 	}
 }
