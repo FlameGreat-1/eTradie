@@ -43,8 +43,8 @@ type Config struct {
 	LogLevel              string `envconfig:"LOG_LEVEL" default:"INFO"`
 	LogJSON               bool   `envconfig:"LOG_JSON" default:"true"`
 
-	// gRPC endpoints for Python engine services.
-	EngineGRPCAddress string `envconfig:"ENGINE_GRPC_ADDRESS" default:"localhost:50051"`
+	// HTTP endpoint for Python engine internal API.
+	EngineHTTPURL string `envconfig:"ENGINE_HTTP_URL" default:"http://localhost:8000"`
 
 	// Redis.
 	RedisURL            string `envconfig:"REDIS_URL" default:"redis://localhost:6379/0"`
