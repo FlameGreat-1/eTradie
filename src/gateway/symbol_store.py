@@ -2,7 +2,7 @@
 
 Stores the user's active symbol list in Redis so that every gateway
 cycle (scheduled or on-demand) uses the same selection until the user
-changes it.  Falls back to TAConfig.default_symbols when no user
+changes it.  Falls back to GatewayConfig.default_symbols when no user
 selection exists.
 
 The gateway is stateless per GATEWAY.md, but the user's symbol
@@ -40,7 +40,7 @@ class SymbolStore:
 
         Priority:
         1. User selection persisted in Redis
-        2. TAConfig.default_symbols (initial defaults)
+        2. GatewayConfig.default_symbols (initial defaults)
         """
         try:
             stored = await self._cache.get(
@@ -66,7 +66,7 @@ class SymbolStore:
         defaults = list(get_gateway_config().default_symbols)
         logger.debug(
             "symbol_store_using_defaults",
-            extra={"symbols": defaults, "source": "ta_config"},
+            extra={"symbols": defaults, "source": "gateway_config"},
         )
         return defaults
 

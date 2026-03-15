@@ -33,11 +33,10 @@ class GatewayContainer:
 
     Requires an already-initialized EngineContainer with:
     - ta_orchestrator
-    - candidate_repository
-    - snapshot_repository
     - All 8 macro collectors
     - rag_orchestrator (via build_rag())
     - scheduler
+    - cache (for SymbolStore)
     """
 
     def __init__(
