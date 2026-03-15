@@ -1,0 +1,183 @@
+package constants
+
+// ValidationCheck identifies which pre-execution check ran.
+type ValidationCheck int32
+
+const (
+	CheckNewsLockout         ValidationCheck = 4
+	CheckSessionFilter       ValidationCheck = 5
+	CheckSamePairPosition    ValidationCheck = 6
+	CheckCorrelatedExposure  ValidationCheck = 7
+	CheckMaxConcurrentTrades ValidationCheck = 8
+	CheckDailyLossLimit      ValidationCheck = 9
+	CheckWeeklyDrawdown      ValidationCheck = 10
+	CheckSpread              ValidationCheck = 11
+	CheckMinRR               ValidationCheck = 12
+	CheckWeekendDayFilter    ValidationCheck = 13
+)
+
+// ValidationOutcome is the result of a failed validation check.
+type ValidationOutcome string
+
+const (
+	OutcomeReject ValidationOutcome = "REJECT"
+	OutcomeQueue  ValidationOutcome = "QUEUE"
+	OutcomeLock   ValidationOutcome = "LOCK"
+	OutcomePause  ValidationOutcome = "PAUSE"
+)
+
+// ExecutionMode is the order placement strategy.
+type ExecutionMode string
+
+const (
+	ModeLimit   ExecutionMode = "LIMIT"
+	ModeInstant ExecutionMode = "INSTANT"
+)
+
+// OrderStatus tracks the lifecycle of an order.
+type OrderStatus string
+
+const (
+	StatusPending          OrderStatus = "PENDING"
+	StatusWatching         OrderStatus = "WATCHING"
+	StatusFilled           OrderStatus = "FILLED"
+	StatusCancelled        OrderStatus = "CANCELLED"
+	StatusExpired          OrderStatus = "EXPIRED"
+	StatusRejected         OrderStatus = "REJECTED"
+	StatusQueued           OrderStatus = "QUEUED"
+	StatusLocked           OrderStatus = "LOCKED"
+	StatusPaused           OrderStatus = "PAUSED"
+	StatusPartiallyFilled  OrderStatus = "PARTIALLY_FILLED"
+)
+
+// AuditAction identifies what Module B did.
+type AuditAction string
+
+const (
+	ActionValidationPassed   AuditAction = "VALIDATION_PASSED"
+	ActionValidationRejected AuditAction = "VALIDATION_REJECTED"
+	ActionLotSizeCalculated  AuditAction = "LOT_SIZE_CALCULATED"
+	ActionLimitOrderPlaced   AuditAction = "LIMIT_ORDER_PLACED"
+	ActionWatcherArmed       AuditAction = "WATCHER_ARMED"
+	ActionMarketOrderFired   AuditAction = "MARKET_ORDER_FIRED"
+	ActionOrderFilled        AuditAction = "ORDER_FILLED"
+	ActionOrderCancelled     AuditAction = "ORDER_CANCELLED"
+	ActionOrderExpired       AuditAction = "ORDER_EXPIRED"
+	ActionDailyLimitLocked   AuditAction = "DAILY_LIMIT_LOCKED"
+	ActionWeeklyPaused       AuditAction = "WEEKLY_PAUSED"
+)
+
+// CancelReason explains why a pending order was cancelled.
+type CancelReason string
+
+const (
+	ReasonStructureBreak CancelReason = "STRUCTURE_BREAK"
+	ReasonThesisChanged  CancelReason = "THESIS_CHANGED"
+	ReasonManual         CancelReason = "MANUAL"
+	ReasonTTLExpired     CancelReason = "TTL_EXPIRED"
+)
+
+// TradingStyle from Rulebook Section 2.4.
+type TradingStyle string
+
+const (
+	StyleScalping    TradingStyle = "SCALPING"
+	StyleIntraday    TradingStyle = "INTRADAY"
+	StyleSwing       TradingStyle = "SWING"
+	StylePositional  TradingStyle = "POSITIONAL"
+)
+
+// Direction for order placement.
+type Direction string
+
+const (
+	DirectionLong  Direction = "LONG"
+	DirectionShort Direction = "SHORT"
+)
+
+// Risk thresholds from Rulebook Section 7.
+const (
+	DailyLossLimitPercent  = 3.0
+	WeeklyDrawdownPercent  = 5.0
+	MonthlyDrawdownPercent = 10.0
+	MaxConcurrentTrades    = 3
+)
+
+// Risk allocation by grade from Rulebook Section 6.2.
+const (
+	RiskPercentAPlus = 1.0
+	RiskPercentA     = 1.0
+	RiskPercentB     = 0.5
+)
+
+// Minimum R:R by style from Rulebook Section 7.3.
+var MinRRByStyle = map[TradingStyle]float64{
+	StyleScalping:   2.0,
+	StyleIntraday:   3.0,
+	StyleSwing:      3.0,
+	StylePositional: 5.0,
+}
+
+// Spread multiplier thresholds from Rulebook Section 10.
+const (
+	SpreadMultiplierNormal   = 2.0
+	SpreadMultiplierScalping = 1.5
+)
+
+// News lockout windows in minutes from Rulebook Section 4.3.
+const (
+	NewsLockoutMinutesNormal   = 30
+	NewsLockoutMinutesScalping = 45
+)
+
+// Session time windows (UTC hours). From Rulebook Section 2.3.
+type SessionWindow struct {
+	Name      string
+	StartHour int
+	EndHour   int
+}
+
+var Sessions = []SessionWindow{
+	{Name: "LONDON_OPEN", StartHour: 7, EndHour: 10},
+	{Name: "LONDON_NY_OVERLAP", StartHour: 12, EndHour: 16},
+	{Name: "NEW_YORK", StartHour: 13, EndHour: 17},
+	{Name: "ASIAN", StartHour: 0, EndHour: 6},
+}
+
+// Friday entry cutoff hours (UTC) by style from Rulebook Section 2.6.
+var FridayCutoffHourByStyle = map[TradingStyle]int{
+	StyleScalping:   12,
+	StyleIntraday:   12,
+	StyleSwing:      14,
+	StylePositional: 24, // No restriction.
+}
+
+// Monday no-entry before London Open (07:00 UTC).
+const MondayNoEntryBeforeHour = 7
+
+// Correlated pair groups from Rulebook Section 7.2.
+// Max 1 trade per group. The strongest setup wins.
+var CorrelatedPairGroups = [][]string{
+	{"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"},       // USD quote group (risk-on basket)
+	{"USDJPY", "USDCHF", "USDCAD"},                   // USD base group
+	{"EURJPY", "GBPJPY", "AUDJPY", "NZDJPY"},         // JPY cross group
+	{"EURGBP", "EURAUD", "EURNZD", "EURCHF", "EURCAD"}, // EUR cross group
+	{"XAUUSD", "XAGUSD"},                              // Metals group
+}
+
+// Position sizing bounds.
+const (
+	MinLotSize     = 0.01
+	DefaultMaxLots = 10.0
+)
+
+// Limit order TTL in 4H candles by style.
+var LimitTTLCandlesByStyle = map[TradingStyle]int{
+	StyleScalping:   1,  // 1 candle (4H) = cancel quickly
+	StyleIntraday:   4,  // 4 candles = ~1 session
+	StyleSwing:      18, // 18 candles = ~3 days
+	StylePositional: 42, // 42 candles = ~7 days
+}
+
+// Instant mode overshoot tolerance as multiplier of entry zone width.
+const DefaultOvershootToleranceMultiplier = 1.5
