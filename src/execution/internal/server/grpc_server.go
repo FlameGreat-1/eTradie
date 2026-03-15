@@ -26,6 +26,16 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/validator"
 )
 
+const (
+	idempotencyTTL      = 1 * time.Hour
+	idempotencyMaxSize  = 10000
+	idempotencyCleanup  = 5 * time.Minute
+)
+
+type idempotencyEntry struct {
+	expiresAt time.Time
+}
+
 // ExecutionServer implements executionv1.ExecutionServiceServer.
 type ExecutionServer struct {
 	executionv1.UnimplementedExecutionServiceServer
@@ -40,9 +50,9 @@ type ExecutionServer struct {
 	notifier  *notify.Notifier
 	log       zerolog.Logger
 
-	// Idempotency: tracks analysis IDs already processed.
 	processedMu sync.RWMutex
-	processed   map[string]struct{}
+	processed   map[string]idempotencyEntry
+	stopCleanup chan struct{}
 }
 
 // NewExecutionServer creates the gRPC server with all dependencies.
@@ -56,18 +66,73 @@ func NewExecutionServer(
 	al *audit.Logger,
 	n *notify.Notifier,
 ) *ExecutionServer {
-	return &ExecutionServer{
-		cfg:       cfg,
-		validator: v,
-		sizer:     s,
-		executor:  e,
-		state:     sm,
-		broker:    bp,
-		audit:     al,
-		notifier:  n,
-		log:       observability.Logger("grpc_server"),
-		processed: make(map[string]struct{}),
+	srv := &ExecutionServer{
+		cfg:         cfg,
+		validator:   v,
+		sizer:       s,
+		executor:    e,
+		state:       sm,
+		broker:      bp,
+		audit:       al,
+		notifier:    n,
+		log:         observability.Logger("grpc_server"),
+		processed:   make(map[string]idempotencyEntry),
+		stopCleanup: make(chan struct{}),
 	}
+	go srv.cleanupLoop()
+	return srv
+}
+
+// cleanupLoop periodically evicts expired idempotency entries.
+func (s *ExecutionServer) cleanupLoop() {
+	ticker := time.NewTicker(idempotencyCleanup)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.evictExpired()
+		case <-s.stopCleanup:
+			return
+		}
+	}
+}
+
+func (s *ExecutionServer) evictExpired() {
+	now := time.Now()
+	s.processedMu.Lock()
+	for k, v := range s.processed {
+		if now.After(v.expiresAt) {
+			delete(s.processed, k)
+		}
+	}
+	s.processedMu.Unlock()
+}
+
+func (s *ExecutionServer) markProcessed(analysisID string) {
+	s.processedMu.Lock()
+	// If at capacity, evict expired first; if still full, skip tracking.
+	if len(s.processed) >= idempotencyMaxSize {
+		now := time.Now()
+		for k, v := range s.processed {
+			if now.After(v.expiresAt) {
+				delete(s.processed, k)
+			}
+		}
+	}
+	s.processed[analysisID] = idempotencyEntry{
+		expiresAt: time.Now().Add(idempotencyTTL),
+	}
+	s.processedMu.Unlock()
+}
+
+func (s *ExecutionServer) isDuplicate(analysisID string) bool {
+	s.processedMu.RLock()
+	entry, exists := s.processed[analysisID]
+	s.processedMu.RUnlock()
+	if !exists {
+		return false
+	}
+	return time.Now().Before(entry.expiresAt)
 }
 
 // ExecuteTrade is the main RPC. Orchestrates the full Module B pipeline.
@@ -83,27 +148,20 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	start := time.Now()
 	traceID := req.GetTraceId()
 
-	// Input validation at gRPC boundary.
 	if err := validateRequest(req); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid request: %s", err.Error())
 	}
 
-	// Idempotency: reject duplicate analysis_id.
 	analysisID := req.GetAnalysisId()
-	if analysisID != "" {
-		s.processedMu.RLock()
-		_, dup := s.processed[analysisID]
-		s.processedMu.RUnlock()
-		if dup {
-			s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
-			return &executionv1.ExecuteTradeResponse{
-				Accepted:        false,
-				Status:          string(constants.StatusRejected),
-				RejectionReason: "duplicate analysis_id: already processed",
-				AnalysisId:      analysisID,
-				TraceId:         traceID,
-			}, nil
-		}
+	if analysisID != "" && s.isDuplicate(analysisID) {
+		s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
+		return &executionv1.ExecuteTradeResponse{
+			Accepted:        false,
+			Status:          string(constants.StatusRejected),
+			RejectionReason: "duplicate analysis_id: already processed",
+			AnalysisId:      analysisID,
+			TraceId:         traceID,
+		}, nil
 	}
 
 	s.log.Info().
@@ -114,17 +172,14 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		Str("trace_id", traceID).
 		Msg("execute_trade_received")
 
-	// Step 1: Parse request.
 	tradeReq := parseRequest(req)
 
-	// Step 2: Refresh state from broker.
 	if err := s.state.Refresh(ctx); err != nil {
 		s.log.Error().Err(err).Str("trace_id", traceID).Msg("state_refresh_failed")
 		s.notifier.NotifyError(req.GetSymbol(), "Failed to refresh broker state")
 		return rejectedResponse(tradeReq, "broker state refresh failed: "+err.Error(), 0, traceID), nil
 	}
 
-	// Step 3: Validate.
 	valResult := s.validator.Validate(ctx, tradeReq)
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
@@ -153,7 +208,6 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogValidationPassed(ctx, tradeReq)
 
-	// Step 4: Calculate position size.
 	sizingResult, err := s.sizer.Calculate(ctx, tradeReq)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", tradeReq.Symbol).Str("trace_id", traceID).Msg("sizing_failed")
@@ -168,10 +222,8 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
 
-	// Step 5: Build order.
 	order := builder.Build(tradeReq, sizingResult, s.cfg)
 
-	// Step 6: Execute.
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", order.Symbol).Str("trace_id", traceID).Msg("execution_failed")
@@ -198,14 +250,11 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		}, nil
 	}
 
-	// Step 7: Audit + notify + mark idempotency.
 	s.audit.LogOrderPlaced(ctx, order)
 	s.notifier.NotifyOrderPlaced(order)
 
 	if analysisID != "" {
-		s.processedMu.Lock()
-		s.processed[analysisID] = struct{}{}
-		s.processedMu.Unlock()
+		s.markProcessed(analysisID)
 	}
 
 	elapsed := time.Since(start).Seconds()
