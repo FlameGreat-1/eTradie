@@ -12,40 +12,75 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/state"
 )
 
-func check4NewsLockout(_ *models.TradeRequest, _ *config.Config, _ *state.Manager, _ broker.Port) models.ValidationResult {
-	// Gateway guard MR-REJECT-001 already evaluated news proximity
-	// during analysis. Execution happens within seconds of guard pass.
-	// Module B trusts the gateway's evaluation.
+// check4NewsLockout: Gateway guard MR-REJECT-001 already evaluates news
+// proximity from MacroResult.Calendar during the analysis pipeline.
+// Execution is triggered within seconds of the guard pass. Module B
+// does not have access to the calendar data (only ProcessorOutput
+// fields arrive via gRPC). Re-fetching calendar data here would add
+// latency and duplicate the macro collector's responsibility.
+// Architectural decision: trust the gateway's evaluation.
+func check4NewsLockout(
+	_ context.Context,
+	_ *models.TradeRequest,
+	_ *config.Config,
+	_ *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	return pass()
 }
 
-func check5SessionFilter(_ *models.TradeRequest, cfg *config.Config, _ *state.Manager, _ broker.Port) models.ValidationResult {
-	now := time.Now().UTC()
+// check5SessionFilter rejects execution when the current UTC time
+// does not fall within any enabled trading session. If no session
+// window is active, the trade is rejected.
+func check5SessionFilter(
+	_ context.Context,
+	_ *models.TradeRequest,
+	cfg *config.Config,
+	_ *state.Manager,
+	_ broker.Port,
+	now time.Time,
+) models.ValidationResult {
 	hour := now.Hour()
 
-	var currentSession string
+	// Find which session window the current hour falls into.
+	var activeSession string
 	for _, s := range constants.Sessions {
 		if hour >= s.StartHour && hour < s.EndHour {
-			currentSession = s.Name
+			activeSession = s.Name
 			break
 		}
 	}
 
-	if currentSession == "" {
-		return pass()
-	}
-
-	if !cfg.IsSessionEnabled(currentSession) {
+	// No session window is active at this hour: reject.
+	if activeSession == "" {
 		return reject(
 			constants.CheckSessionFilter,
-			fmt.Sprintf("session %s is disabled (hour %d UTC)", currentSession, hour),
+			fmt.Sprintf("no trading session active at %d:00 UTC", hour),
+		)
+	}
+
+	// A session is active but not enabled in config: reject.
+	if !cfg.IsSessionEnabled(activeSession) {
+		return reject(
+			constants.CheckSessionFilter,
+			fmt.Sprintf("session %s is disabled (hour %d UTC)", activeSession, hour),
 		)
 	}
 
 	return pass()
 }
 
-func check6SamePairPosition(req *models.TradeRequest, _ *config.Config, sm *state.Manager, _ broker.Port) models.ValidationResult {
+// check6SamePairPosition rejects if there is already an open position
+// or pending order on the same symbol.
+func check6SamePairPosition(
+	_ context.Context,
+	req *models.TradeRequest,
+	_ *config.Config,
+	sm *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	if sm.HasPositionOnPair(req.Symbol) {
 		return reject(
 			constants.CheckSamePairPosition,
@@ -55,7 +90,19 @@ func check6SamePairPosition(req *models.TradeRequest, _ *config.Config, sm *stat
 	return pass()
 }
 
-func check7CorrelatedExposure(req *models.TradeRequest, _ *config.Config, sm *state.Manager, _ broker.Port) models.ValidationResult {
+// check7CorrelatedExposure rejects if there is an open position or
+// pending order on any pair in the same correlation group.
+// Correlation groups are defined in constants.CorrelatedPairGroups.
+// The gateway defines MR-REJECT-005 but does not implement it;
+// Module B is the single owner of this check.
+func check7CorrelatedExposure(
+	_ context.Context,
+	req *models.TradeRequest,
+	_ *config.Config,
+	sm *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	if sm.HasCorrelatedExposure(req.Symbol) {
 		return reject(
 			constants.CheckCorrelatedExposure,
@@ -65,7 +112,16 @@ func check7CorrelatedExposure(req *models.TradeRequest, _ *config.Config, sm *st
 	return pass()
 }
 
-func check8MaxConcurrentTrades(_ *models.TradeRequest, cfg *config.Config, sm *state.Manager, _ broker.Port) models.ValidationResult {
+// check8MaxConcurrentTrades queues the trade if the maximum number
+// of concurrent open positions has been reached.
+func check8MaxConcurrentTrades(
+	_ context.Context,
+	_ *models.TradeRequest,
+	cfg *config.Config,
+	sm *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	count := sm.OpenPositionCount()
 	if count >= cfg.MaxConcurrentTrades {
 		return queue(
@@ -76,7 +132,16 @@ func check8MaxConcurrentTrades(_ *models.TradeRequest, cfg *config.Config, sm *s
 	return pass()
 }
 
-func check9DailyLossLimit(_ *models.TradeRequest, cfg *config.Config, sm *state.Manager, _ broker.Port) models.ValidationResult {
+// check9DailyLossLimit locks execution when the daily realized loss
+// exceeds the configured percentage of account balance.
+func check9DailyLossLimit(
+	_ context.Context,
+	_ *models.TradeRequest,
+	cfg *config.Config,
+	sm *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	loss := sm.DailyLossPercent()
 	if loss >= cfg.DailyLossLimitPct {
 		return lock(
@@ -87,7 +152,16 @@ func check9DailyLossLimit(_ *models.TradeRequest, cfg *config.Config, sm *state.
 	return pass()
 }
 
-func check10WeeklyDrawdown(_ *models.TradeRequest, cfg *config.Config, sm *state.Manager, _ broker.Port) models.ValidationResult {
+// check10WeeklyDrawdown pauses execution when the weekly realized
+// drawdown exceeds the configured percentage of account balance.
+func check10WeeklyDrawdown(
+	_ context.Context,
+	_ *models.TradeRequest,
+	cfg *config.Config,
+	sm *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	dd := sm.WeeklyDrawdownPercent()
 	if dd >= cfg.WeeklyDrawdownPct {
 		return pause(
@@ -98,11 +172,20 @@ func check10WeeklyDrawdown(_ *models.TradeRequest, cfg *config.Config, sm *state
 	return pass()
 }
 
-func check11Spread(req *models.TradeRequest, cfg *config.Config, _ *state.Manager, bp broker.Port) models.ValidationResult {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.BrokerTimeoutMs)*time.Millisecond)
+// check11Spread rejects if the live spread exceeds the configured
+// multiplier of the average spread for the instrument.
+func check11Spread(
+	ctx context.Context,
+	req *models.TradeRequest,
+	cfg *config.Config,
+	_ *state.Manager,
+	bp broker.Port,
+	_ time.Time,
+) models.ValidationResult {
+	brokerCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.BrokerTimeoutMs)*time.Millisecond)
 	defer cancel()
 
-	info, err := bp.GetInstrumentInfo(ctx, req.Symbol)
+	info, err := bp.GetInstrumentInfo(brokerCtx, req.Symbol)
 	if err != nil {
 		return reject(
 			constants.CheckSpread,
@@ -111,6 +194,7 @@ func check11Spread(req *models.TradeRequest, cfg *config.Config, _ *state.Manage
 	}
 
 	if info.AvgSpread <= 0 {
+		// No average spread data available; allow trade through.
 		return pass()
 	}
 
@@ -131,7 +215,16 @@ func check11Spread(req *models.TradeRequest, cfg *config.Config, _ *state.Manage
 	return pass()
 }
 
-func check12MinRR(req *models.TradeRequest, _ *config.Config, _ *state.Manager, _ broker.Port) models.ValidationResult {
+// check12MinRR rejects if the risk-reward ratio from the processor
+// output is below the minimum required for the trading style.
+func check12MinRR(
+	_ context.Context,
+	req *models.TradeRequest,
+	_ *config.Config,
+	_ *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
 	minRR, ok := constants.MinRRByStyle[req.TradingStyle]
 	if !ok {
 		minRR = constants.MinRRByStyle[constants.StyleIntraday]
@@ -147,8 +240,16 @@ func check12MinRR(req *models.TradeRequest, _ *config.Config, _ *state.Manager, 
 	return pass()
 }
 
-func check13WeekendDayFilter(req *models.TradeRequest, _ *config.Config, _ *state.Manager, _ broker.Port) models.ValidationResult {
-	now := time.Now().UTC()
+// check13WeekendDayFilter rejects entries on weekends, Monday before
+// London Open, and Friday after the style-specific cutoff hour.
+func check13WeekendDayFilter(
+	_ context.Context,
+	req *models.TradeRequest,
+	_ *config.Config,
+	_ *state.Manager,
+	_ broker.Port,
+	now time.Time,
+) models.ValidationResult {
 	weekday := now.Weekday()
 	hour := now.Hour()
 

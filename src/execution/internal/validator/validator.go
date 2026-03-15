@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"context"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -12,11 +13,15 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/state"
 )
 
+// checkFunc is the signature for each pre-execution check.
+// Accepts context for broker calls with timeouts.
 type checkFunc func(
+	ctx context.Context,
 	req *models.TradeRequest,
 	cfg *config.Config,
 	sm *state.Manager,
 	bp broker.Port,
+	now time.Time,
 ) models.ValidationResult
 
 // Validator runs the 10 pre-execution checks sequentially.
@@ -27,8 +32,10 @@ type Validator struct {
 	broker broker.Port
 	checks []checkFunc
 	log    zerolog.Logger
+	nowFn  func() time.Time // Injected for testability.
 }
 
+// NewValidator creates a pre-execution validator.
 func NewValidator(cfg *config.Config, sm *state.Manager, bp broker.Port) *Validator {
 	return &Validator{
 		cfg:    cfg,
@@ -46,16 +53,18 @@ func NewValidator(cfg *config.Config, sm *state.Manager, bp broker.Port) *Valida
 			check12MinRR,
 			check13WeekendDayFilter,
 		},
-		log: observability.Logger("validator"),
+		log:   observability.Logger("validator"),
+		nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
 // Validate runs all checks sequentially. Returns on first failure.
-func (v *Validator) Validate(req *models.TradeRequest) models.ValidationResult {
+func (v *Validator) Validate(ctx context.Context, req *models.TradeRequest) models.ValidationResult {
 	start := time.Now()
+	now := v.nowFn()
 
 	for _, check := range v.checks {
-		result := check(req, v.cfg, v.state, v.broker)
+		result := check(ctx, req, v.cfg, v.state, v.broker, now)
 		if !result.Passed {
 			elapsed := time.Since(start).Seconds()
 			observability.ValidationDuration.Observe(elapsed)
