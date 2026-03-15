@@ -51,15 +51,27 @@ class OpenAICompatibleClient(LLMClient):
         model = self._config.model_name
         start = time.monotonic()
 
-        response = await self._client.chat.completions.create(
-            model=model,
-            max_tokens=self._config.max_output_tokens,
-            temperature=self._config.temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=model,
+                max_tokens=self._config.max_output_tokens,
+                temperature=self._config.temperature,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+            )
+        except Exception as exc:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
+            logger.error(
+                "llm_call_failed",
+                extra={"provider": "self_hosted", "model": model, "error": str(exc),
+                       "duration_ms": round(elapsed_ms, 1), "base_url": self._config.api_base_url,
+                       "trace_id": trace_id},
+            )
+            raise
 
         elapsed_ms = (time.monotonic() - start) * 1000
         choice = response.choices[0] if response.choices else None
