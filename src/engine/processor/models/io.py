@@ -1,12 +1,20 @@
 """Processor input/output models and port interface.
 
-These types were previously defined in the gateway package. Now that
-the gateway is a separate Go service, the processor owns its own
-contract types. The Go gateway sends JSON matching these schemas
-via HTTP to /internal/processor/process.
+CONTRACT SOURCE OF TRUTH: proto/processor/v1/processor.proto
 
-All fields are identical to the original gateway.context.models
-definitions to maintain backward compatibility.
+These Pydantic models MUST match the proto definition field-for-field.
+The Go gateway serializes to JSON matching the proto schema, and this
+Python service deserializes from that JSON into these models.
+
+To verify parity, run:
+    python scripts/validate_processor_contract.py
+    # or: make contract-check
+
+If you add, remove, or rename a field here, you MUST also update:
+  1. proto/processor/v1/processor.proto (the contract)
+  2. src/gateway/internal/models/processor.go (Go side)
+  3. Run `make proto-gen` to regenerate Go proto types
+  4. Run `make contract-check` to verify Python parity
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ class ProcessorInput(FrozenModel):
 
     Combines TA output, Macro output, and RAG-retrieved knowledge
     into a single structured context for the LLM to reason over.
+
+    Proto: processor.v1.ProcessorInput
     """
 
     symbol: str
@@ -38,6 +48,8 @@ class ProcessorOutput(FrozenModel):
 
     The gateway does NOT decide trade validity; the processor does.
     Guards run AFTER the processor to enforce hard safety rules.
+
+    Proto: processor.v1.ProcessorOutput
     """
 
     trade_valid: bool = False

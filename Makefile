@@ -36,5 +36,11 @@ proto-gen:
 		--go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		$(PROTO_DIR)/engine/v1/engine.proto \
-		$(PROTO_DIR)/gateway/v1/gateway.proto
+		$(PROTO_DIR)/gateway/v1/gateway.proto \
+		$(PROTO_DIR)/processor/v1/processor.proto
 	@echo "Proto generation complete"
+
+contract-check:
+	@echo "Validating processor contract..."
+	python scripts/validate_processor_contract.py
+	@echo "Contract check complete"

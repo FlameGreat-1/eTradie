@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package processor.v1;
+
+option go_package = "github.com/flamegreat/etradie/proto/processor/v1;processorv1";
+
+// ProcessorInput is the payload sent from the Go gateway to the Python
+// Processor LLM service. This is the SINGLE SOURCE OF TRUTH for the
+// contract between the two services.
+//
+// Both sides must keep their models in sync with this definition:
+//   Go:     src/gateway/internal/models/processor.go
+//   Python: src/engine/processor/models/io.py
+//
+// Run `make proto-gen` to regenerate Go types.
+// Run `python scripts/validate_processor_contract.py` to verify Python parity.
+message ProcessorInput {
+  string symbol = 1;
+  // TA, Macro, RAG, and metadata are JSON-encoded maps for flexibility.
+  // The inner structure varies per analysis cycle and is not constrained
+  // by the proto schema. Only the top-level envelope is enforced.
+  bytes ta_analysis_json = 2;
+  bytes macro_analysis_json = 3;
+  bytes retrieved_knowledge_json = 4;
+  bytes metadata_json = 5;
+}
+
+// ProcessorOutput is the trade decision returned by the Python Processor
+// LLM service to the Go gateway. Every field is explicitly typed to
+// prevent silent drift between Go and Python.
+message ProcessorOutput {
+  bool trade_valid = 1;
+  string direction = 2;
+  string symbol = 3;
+  double confidence = 4;
+  string grade = 5;
+  // risk_percentage uses google.protobuf.DoubleValue semantics:
+  // 0.0 means "not set" since proto3 has no null for scalars.
+  // The Go and Python sides must treat 0.0 as None/nil.
+  double risk_percentage = 6;
+  string reasoning = 7;
+  double entry_price = 8;
+  double stop_loss = 9;
+  double take_profit = 10;
+  repeated string rejection_rules = 11;
+  // Raw LLM response as JSON for audit trail.
+  bytes raw_response_json = 12;
+}
