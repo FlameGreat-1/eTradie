@@ -1,4 +1,4 @@
-.PHONY: build run clean lint fmt vet tidy proto-gen
+.PHONY: build run clean lint fmt vet tidy proto-gen contract-check
 
 GATEWAY_BIN := bin/gateway
 GATEWAY_CMD := ./src/gateway/cmd/gateway
@@ -26,7 +26,12 @@ fmt:
 vet:
 	go vet ./src/gateway/...
 
-lint: vet fmt
+contract-check:
+	@echo "Validating processor contract (engine.proto <-> Python)..."
+	python scripts/validate_processor_contract.py
+	@echo "Contract check complete"
+
+lint: vet fmt contract-check
 	@echo "Lint passed"
 
 proto-gen:
@@ -38,8 +43,3 @@ proto-gen:
 		$(PROTO_DIR)/engine/v1/engine.proto \
 		$(PROTO_DIR)/gateway/v1/gateway.proto
 	@echo "Proto generation complete"
-
-contract-check:
-	@echo "Validating processor contract (engine.proto <-> Python)..."
-	python scripts/validate_processor_contract.py
-	@echo "Contract check complete"
