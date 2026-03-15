@@ -40,15 +40,26 @@ class GeminiClient(LLMClient):
         model = self._config.model_name
         start = time.monotonic()
 
-        response = await self._client.aio.models.generate_content(
-            model=model,
-            contents=user_message,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=self._config.temperature,
-                max_output_tokens=self._config.max_output_tokens,
-            ),
-        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=model,
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=self._config.temperature,
+                    max_output_tokens=self._config.max_output_tokens,
+                ),
+            )
+        except Exception as exc:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
+            logger.error(
+                "llm_call_failed",
+                extra={"provider": "gemini", "model": model, "error": str(exc),
+                       "duration_ms": round(elapsed_ms, 1), "trace_id": trace_id},
+            )
+            raise
 
         elapsed_ms = (time.monotonic() - start) * 1000
         text = response.text or ""
@@ -75,7 +86,11 @@ class GeminiClient(LLMClient):
         )
 
     async def close(self) -> None:
-        pass
+        """Close the underlying genai client HTTP transport."""
+        if hasattr(self._client, '_http_client') and hasattr(self._client._http_client, 'close'):
+            await self._client._http_client.close()
+        elif hasattr(self._client, 'close'):
+            self._client.close()
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
         LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()

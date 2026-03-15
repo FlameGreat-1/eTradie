@@ -35,6 +35,7 @@ from engine.processor.audit.logger import (
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
 from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.retry import retry_llm_call
 from engine.processor.mapping.output_mapper import map_to_processor_output
 from engine.processor.parsing.response_parser import parse_llm_response
 from engine.processor.prompts.system_prompt import (
@@ -203,10 +204,20 @@ class AnalysisProcessor(ProcessorPort):
             },
         )
 
-        # Step 3: Call Claude API
-        llm_response: LLMResponse = await self._llm.call(
-            system_prompt=system_prompt,
-            user_message=user_message,
+        # Step 3: Call LLM API with retry + exponential backoff.
+        # retry_llm_call handles transient failures (rate limits, server
+        # errors, timeouts) with exponential backoff + jitter. Non-retryable
+        # errors (auth, bad request) are raised immediately.
+        async def _llm_call() -> LLMResponse:
+            return await self._llm.call(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                trace_id=trace_id,
+            )
+
+        llm_response: LLMResponse = await retry_llm_call(
+            _llm_call,
+            config=self._config,
             trace_id=trace_id,
         )
 

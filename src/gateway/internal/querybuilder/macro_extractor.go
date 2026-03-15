@@ -306,7 +306,14 @@ func extractSentiment(data map[string]interface{}) map[string]interface{} {
 			allCurrencies[currency] = longPct
 		}
 	}
-	return map[string]interface{}{"all_currencies": allCurrencies}
+	out := map[string]interface{}{"all_currencies": allCurrencies}
+
+	// Populate risk_environment if present in the sentiment data.
+	if riskEnv := getStrDefault(data, "risk_environment", ""); riskEnv != "" {
+		out["risk_environment"] = riskEnv
+	}
+
+	return out
 }
 
 func extractIntermarket(data map[string]interface{}) map[string]interface{} {
@@ -333,14 +340,21 @@ func extractIntermarket(data map[string]interface{}) map[string]interface{} {
 
 func deriveUSDBias(cb map[string]interface{}) string {
 	fedTone := strings.ToUpper(getStrDefault(cb, "fed_tone", "NEUTRAL"))
+
+	// Primary signal: Fed tone.
 	switch fedTone {
 	case "HAWKISH":
 		return "BULLISH"
 	case "DOVISH":
 		return "BEARISH"
-	default:
-		return "NEUTRAL"
 	}
+
+	// Fed tone is neutral or absent. Fall through to secondary signals
+	// which are checked by the caller via DXY and intermarket data
+	// in the MacroSignals struct. The query builder and LLM will
+	// synthesize these. Return NEUTRAL here since we cannot reliably
+	// derive a directional bias from Fed tone alone.
+	return "NEUTRAL"
 }
 
 // Helpers for map[string]interface{} access.

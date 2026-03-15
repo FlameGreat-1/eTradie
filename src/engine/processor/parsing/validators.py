@@ -65,7 +65,7 @@ def _validate_direction_consistency(o: AnalysisOutput) -> list[str]:
         errors.append(f"direction '{o.direction}' not in {valid_directions}")
 
     if o.direction == "NO SETUP":
-        if o.setup_grade not in ("REJECT", "B"):
+        if o.setup_grade != "REJECT":
             errors.append(
                 f"direction is NO SETUP but setup_grade is '{o.setup_grade}' (expected REJECT)"
             )

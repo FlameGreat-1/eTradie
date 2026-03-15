@@ -23,7 +23,7 @@ import (
 type Container struct {
 	Cfg          *config.Config
 	Redis        *infra.RedisClient
-	EngineHTTP   *infra.EngineHTTPClient
+	Engine       *infra.EngineHTTPClient
 	SymbolStore  *symbolstore.Store
 	Orchestrator *pipeline.Orchestrator
 	Scheduler    *pipeline.Scheduler
@@ -88,7 +88,7 @@ func New(cfg *config.Config, execution ports.ExecutionPort) (*Container, error) 
 	return &Container{
 		Cfg:          cfg,
 		Redis:        redisClient,
-		EngineHTTP:   engineHTTP,
+		Engine:       engineHTTP,
 		SymbolStore:  symStore,
 		Orchestrator: orchestrator,
 		Scheduler:    scheduler,
@@ -108,7 +108,7 @@ func (c *Container) Shutdown(ctx context.Context) {
 		c.log.Error().Err(err).Msg("http_server_shutdown_error")
 	}
 
-	c.EngineHTTP.Close()
+	c.Engine.Close()
 
 	if err := c.Redis.Close(); err != nil {
 		c.log.Error().Err(err).Msg("redis_close_error")
