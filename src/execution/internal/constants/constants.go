@@ -38,16 +38,24 @@ const (
 type OrderStatus string
 
 const (
-	StatusPending          OrderStatus = "PENDING"
-	StatusWatching         OrderStatus = "WATCHING"
-	StatusFilled           OrderStatus = "FILLED"
-	StatusCancelled        OrderStatus = "CANCELLED"
-	StatusExpired          OrderStatus = "EXPIRED"
-	StatusRejected         OrderStatus = "REJECTED"
-	StatusQueued           OrderStatus = "QUEUED"
-	StatusLocked           OrderStatus = "LOCKED"
-	StatusPaused           OrderStatus = "PAUSED"
-	StatusPartiallyFilled  OrderStatus = "PARTIALLY_FILLED"
+	StatusPending         OrderStatus = "PENDING"
+	StatusWatching        OrderStatus = "WATCHING"
+	StatusFilled          OrderStatus = "FILLED"
+	StatusCancelled       OrderStatus = "CANCELLED"
+	StatusExpired         OrderStatus = "EXPIRED"
+	StatusRejected        OrderStatus = "REJECTED"
+	StatusQueued          OrderStatus = "QUEUED"
+	StatusLocked          OrderStatus = "LOCKED"
+	StatusPaused          OrderStatus = "PAUSED"
+	StatusPartiallyFilled OrderStatus = "PARTIALLY_FILLED"
+)
+
+// BrokerOrderType distinguishes limit vs market at the broker level.
+type BrokerOrderType string
+
+const (
+	BrokerOrderLimit  BrokerOrderType = "LIMIT"
+	BrokerOrderMarket BrokerOrderType = "MARKET"
 )
 
 // AuditAction identifies what Module B did.
@@ -81,10 +89,10 @@ const (
 type TradingStyle string
 
 const (
-	StyleScalping    TradingStyle = "SCALPING"
-	StyleIntraday    TradingStyle = "INTRADAY"
-	StyleSwing       TradingStyle = "SWING"
-	StylePositional  TradingStyle = "POSITIONAL"
+	StyleScalping   TradingStyle = "SCALPING"
+	StyleIntraday   TradingStyle = "INTRADAY"
+	StyleSwing      TradingStyle = "SWING"
+	StylePositional TradingStyle = "POSITIONAL"
 )
 
 // Direction for order placement.
@@ -94,6 +102,18 @@ const (
 	DirectionLong  Direction = "LONG"
 	DirectionShort Direction = "SHORT"
 )
+
+// BrokerDirection maps internal direction to broker-level BUY/SELL.
+func BrokerDirection(d Direction) string {
+	switch d {
+	case DirectionLong:
+		return "BUY"
+	case DirectionShort:
+		return "SELL"
+	default:
+		return string(d)
+	}
+}
 
 // Risk thresholds from Rulebook Section 7.
 const (
@@ -158,11 +178,11 @@ const MondayNoEntryBeforeHour = 7
 // Correlated pair groups from Rulebook Section 7.2.
 // Max 1 trade per group. The strongest setup wins.
 var CorrelatedPairGroups = [][]string{
-	{"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"},       // USD quote group (risk-on basket)
-	{"USDJPY", "USDCHF", "USDCAD"},                   // USD base group
-	{"EURJPY", "GBPJPY", "AUDJPY", "NZDJPY"},         // JPY cross group
-	{"EURGBP", "EURAUD", "EURNZD", "EURCHF", "EURCAD"}, // EUR cross group
-	{"XAUUSD", "XAGUSD"},                              // Metals group
+	{"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"},           // USD quote group (risk-on basket)
+	{"USDJPY", "USDCHF", "USDCAD"},                       // USD base group
+	{"EURJPY", "GBPJPY", "AUDJPY", "NZDJPY"},             // JPY cross group
+	{"EURGBP", "EURAUD", "EURNZD", "EURCHF", "EURCAD"},   // EUR cross group
+	{"XAUUSD", "XAGUSD"},                                  // Metals group
 }
 
 // Position sizing bounds.

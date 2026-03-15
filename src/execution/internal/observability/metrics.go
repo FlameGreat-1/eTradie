@@ -10,7 +10,7 @@ var (
 	ValidationTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_validation_total",
 		Help: "Total pre-execution validation runs",
-	}, []string{"result"}) // "passed", "rejected", "queued", "locked", "paused"
+	}, []string{"result"})
 
 	ValidationRejections = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_validation_rejections_total",
@@ -44,27 +44,13 @@ var (
 	OrderPlacementTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_order_placement_total",
 		Help: "Total order placements by mode and status",
-	}, []string{"mode", "status"}) // mode: LIMIT/INSTANT, status: success/error
+	}, []string{"mode", "status"})
 
 	OrderPlacementDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "etradie_execution_order_placement_duration_seconds",
 		Help:    "Order placement latency (broker round-trip)",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0},
 	}, []string{"mode"})
-)
-
-// Broker call metrics.
-var (
-	BrokerCallTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "etradie_execution_broker_call_total",
-		Help: "Total broker API calls by operation and status",
-	}, []string{"operation", "status"})
-
-	BrokerCallDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "etradie_execution_broker_call_duration_seconds",
-		Help:    "Broker API call latency",
-		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0},
-	}, []string{"operation"})
 )
 
 // End-to-end execution metrics.
@@ -101,5 +87,13 @@ var (
 	WeeklyPnL = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "etradie_execution_weekly_pnl",
 		Help: "Weekly realized P&L",
+	})
+)
+
+// Audit metrics.
+var (
+	AuditWriteFailures = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "etradie_execution_audit_write_failures_total",
+		Help: "Total audit log write failures to PostgreSQL",
 	})
 )

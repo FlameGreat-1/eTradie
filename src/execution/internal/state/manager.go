@@ -25,7 +25,9 @@ type Manager struct {
 	dailyPnL       float64
 	weeklyPnL      float64
 	dailyResetDay  int // Day of year for daily reset.
+	dailyResetYear int // Year for daily reset (handles year boundary).
 	weeklyResetDay int // Day of year for weekly reset (Monday).
+	weeklyResetYr  int // Year for weekly reset.
 
 	broker broker.Port
 	log    zerolog.Logger
@@ -37,7 +39,9 @@ func NewManager(bp broker.Port) *Manager {
 	return &Manager{
 		broker:         bp,
 		dailyResetDay:  now.YearDay(),
+		dailyResetYear: now.Year(),
 		weeklyResetDay: mondayYearDay(now),
+		weeklyResetYr:  mondayYear(now),
 		log:            observability.Logger("state_manager"),
 	}
 }
@@ -69,17 +73,19 @@ func (m *Manager) Refresh(ctx context.Context) error {
 
 	// Reset daily/weekly P&L counters on day/week boundaries.
 	now := time.Now().UTC()
-	if now.YearDay() != m.dailyResetDay {
+	if now.YearDay() != m.dailyResetDay || now.Year() != m.dailyResetYear {
 		m.dailyPnL = 0
 		m.dailyResetDay = now.YearDay()
+		m.dailyResetYear = now.Year()
 	}
 	currentMonday := mondayYearDay(now)
-	if currentMonday != m.weeklyResetDay {
+	currentMondayYr := mondayYear(now)
+	if currentMonday != m.weeklyResetDay || currentMondayYr != m.weeklyResetYr {
 		m.weeklyPnL = 0
 		m.weeklyResetDay = currentMonday
+		m.weeklyResetYr = currentMondayYr
 	}
 
-	// Update gauges.
 	observability.OpenPositionCount.Set(float64(len(m.positions)))
 	observability.PendingOrderCount.Set(float64(len(m.pendingOrders)))
 	observability.DailyPnL.Set(m.dailyPnL)
@@ -94,26 +100,6 @@ func (m *Manager) Refresh(ctx context.Context) error {
 		Msg("state_refreshed")
 
 	return nil
-}
-
-// AccountBalance returns the last known account balance.
-func (m *Manager) AccountBalance() float64 {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.account == nil {
-		return 0
-	}
-	return m.account.Balance
-}
-
-// AccountEquity returns the last known account equity.
-func (m *Manager) AccountEquity() float64 {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.account == nil {
-		return 0
-	}
-	return m.account.Equity
 }
 
 // OpenPositionCount returns the number of open positions.
@@ -252,4 +238,13 @@ func mondayYearDay(t time.Time) int {
 	}
 	monday := t.AddDate(0, 0, -offset)
 	return monday.YearDay()
+}
+
+func mondayYear(t time.Time) int {
+	offset := int(t.Weekday()) - int(time.Monday)
+	if offset < 0 {
+		offset += 7
+	}
+	monday := t.AddDate(0, 0, -offset)
+	return monday.Year()
 }

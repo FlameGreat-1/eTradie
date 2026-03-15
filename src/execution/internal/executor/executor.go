@@ -50,8 +50,8 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 
 	placement := &models.OrderPlacement{
 		Symbol:     order.Symbol,
-		Direction:  brokerDirection(order.Direction),
-		OrderType:  "LIMIT",
+		Direction:  constants.BrokerDirection(order.Direction),
+		OrderType:  string(constants.BrokerOrderLimit),
 		Price:      order.EntryPrice,
 		StopLoss:   order.StopLoss,
 		TakeProfit: order.TP1Price,
@@ -104,15 +104,13 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 	}, nil
 }
 
-func (e *Executor) armInstant(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
+// armInstant records the watcher as armed and returns the watcher ID.
+// Module C is responsible for watching ticks and firing the market
+// order when price touches the entry level. The arming handoff to
+// Module C happens via gRPC (Module C's responsibility to implement
+// the ArmWatcher RPC). Module B's job ends at recording the intent.
+func (e *Executor) armInstant(_ context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
-
-	// In instant mode, Module B does not place an order at the broker.
-	// It arms a Module C goroutine that watches ticks and fires a
-	// market order when price touches the entry level. The arming
-	// is done via gRPC to Module C. For now, Module B records the
-	// watcher as armed and returns the watcher ID. Module C will
-	// call back to the broker when triggered.
 
 	elapsed := time.Since(start).Seconds()
 	observability.OrderPlacementDuration.WithLabelValues("INSTANT").Observe(elapsed)
@@ -137,15 +135,4 @@ func (e *Executor) armInstant(ctx context.Context, order *models.Order) (*models
 		OrderID:  order.WatcherID,
 		Order:    order,
 	}, nil
-}
-
-func brokerDirection(d constants.Direction) string {
-	switch d {
-	case constants.DirectionLong:
-		return "BUY"
-	case constants.DirectionShort:
-		return "SELL"
-	default:
-		return string(d)
-	}
 }
