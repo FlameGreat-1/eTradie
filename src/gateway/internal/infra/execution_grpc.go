@@ -110,6 +110,7 @@ func buildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeReq
 		Session:         d.Session,
 		ConfluenceScore: d.ConfluenceScore,
 		AnalysisId:      d.AnalysisID,
+		TraceId:         d.AnalysisID, // Trace correlation: analysis_id doubles as trace_id when no explicit trace_id exists.
 		Tp1Pct:          int32(d.TP1Pct),
 		Tp2Pct:          int32(d.TP2Pct),
 		Tp3Pct:          int32(d.TP3Pct),
