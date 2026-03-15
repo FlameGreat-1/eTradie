@@ -2,7 +2,7 @@ services:
   engine:
     build:
       context: .
-      dockerfile: docker/engine/Dockerfile
+      dockerfile: Dockerfile
     container_name: etradie-engine
     restart: unless-stopped
     env_file: .env

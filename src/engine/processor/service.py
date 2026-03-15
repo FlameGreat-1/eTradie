@@ -44,8 +44,7 @@ from engine.processor.prompts.system_prompt import (
 )
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
-from gateway.context.models import ProcessorInput, ProcessorOutput
-from gateway.routing.processor_port import ProcessorPort
+from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
 
 logger = get_logger(__name__)
 

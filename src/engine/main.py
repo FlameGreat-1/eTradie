@@ -17,6 +17,7 @@ from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
 from engine.processor.constants import LLMProvider
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
+from engine.processor.models.io import ProcessorInput
 from engine.shared.store import RedisSymbolReader
 
 logger = get_logger(__name__)
@@ -352,8 +353,9 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
         try:
-            result = await container.processor.analyze(
-                context=body.processor_input,
+            processor_input = ProcessorInput(**body.processor_input)
+            result = await container.processor.process(
+                processor_input,
                 trace_id=body.trace_id,
             )
 
