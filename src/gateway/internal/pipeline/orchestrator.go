@@ -292,35 +292,30 @@ func (o *Orchestrator) retrieveRAG(
 	params *models.RAGQueryParams,
 	traceID string,
 ) (map[string]interface{}, error) {
-	resp, err := o.engineClient.RetrieveRAG(ctx, &enginev1.RetrieveRAGRequest{
-		QueryText:          params.QueryText,
-		Strategy:           params.Strategy,
-		Framework:          params.Framework,
-		SetupFamily:        params.SetupFamily,
-		Direction:          params.Direction,
-		Timeframe:          params.Timeframe,
-		Style:              params.Style,
-		Symbol:             params.Symbol,
-		AllFrameworks:      params.AllFrameworks,
-		AllSetupFamilies:   params.AllSetupFamilies,
-		HasSmcCandidates:   params.HasSMCCandidates,
-		HasSndCandidates:   params.HasSnDCandidates,
-		HasMacroData:       params.HasMacroData,
-		HasCotData:         params.HasCOTData,
-		HasRateDecision:    params.HasRateDecision,
-		HasHighImpactEvent: params.HasHighImpactEvent,
-		HasDxyData:         params.HasDXYData,
-		TraceId:            traceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("RAG retrieval failed: %w", err)
+	reqBody := map[string]interface{}{
+		"query_text":            params.QueryText,
+		"strategy":              params.Strategy,
+		"framework":             params.Framework,
+		"setup_family":          params.SetupFamily,
+		"direction":             params.Direction,
+		"timeframe":             params.Timeframe,
+		"style":                 params.Style,
+		"symbol":                params.Symbol,
+		"all_frameworks":        params.AllFrameworks,
+		"all_setup_families":    params.AllSetupFamilies,
+		"has_smc_candidates":    params.HasSMCCandidates,
+		"has_snd_candidates":    params.HasSnDCandidates,
+		"has_macro_data":        params.HasMacroData,
+		"has_cot_data":          params.HasCOTData,
+		"has_rate_decision":     params.HasRateDecision,
+		"has_high_impact_event": params.HasHighImpactEvent,
+		"has_dxy_data":          params.HasDXYData,
+		"trace_id":              traceID,
 	}
 
-	var bundle map[string]interface{}
-	if len(resp.GetContextBundleJson()) > 0 {
-		if err := json.Unmarshal(resp.GetContextBundleJson(), &bundle); err != nil {
-			return nil, fmt.Errorf("RAG bundle unmarshal: %w", err)
-		}
+	bundle, err := o.engineHTTP.PostJSON(ctx, "/internal/rag/retrieve", reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("RAG retrieval failed: %w", err)
 	}
 	if bundle == nil {
 		bundle = make(map[string]interface{})
