@@ -24,8 +24,9 @@ class TASignals(FrozenModel):
     framework: Optional[str] = None
     setup_families: list[str] = []
     direction: Optional[str] = None
-    htf_timeframe: Optional[str] = None
-    ltf_timeframe: Optional[str] = None
+    htf_timeframes: list[str] = []
+    ltf_timeframes: list[str] = []
+    overall_trend: Optional[str] = None
     session_context: Optional[str] = None
     patterns_detected: list[str] = []
     fib_levels: list[str] = []
@@ -62,7 +63,11 @@ def extract_ta_signals(result: TASymbolResult) -> TASignals:
 
     smc_candidates = result.smc_candidates
     snd_candidates = result.snd_candidates
-    snapshot = result.snapshot or {}
+    # Merge all per-timeframe snapshots into a single dict for signal extraction
+    snapshot: dict = {}
+    for tf_key, tf_snap in result.snapshots.items():
+        snapshot = tf_snap  # Use the last (lowest) TF snapshot for direction fallback
+        break  # Use highest TF snapshot (first in dict) for trend
 
     framework = _determine_framework(smc_candidates, snd_candidates)
     direction = _determine_direction(smc_candidates, snd_candidates, snapshot)
@@ -74,7 +79,6 @@ def extract_ta_signals(result: TASymbolResult) -> TASignals:
     snd_flags = _extract_snd_flags(snd_candidates)
 
     session_context = _extract_session(smc_candidates, snd_candidates)
-    trend = snapshot.get("trend_direction")
 
     prev_highs, prev_lows = _extract_previous_level_counts(snd_candidates)
 
@@ -83,12 +87,13 @@ def extract_ta_signals(result: TASymbolResult) -> TASignals:
         framework=framework,
         setup_families=setup_families,
         direction=direction,
-        htf_timeframe=result.htf_timeframe,
-        ltf_timeframe=result.ltf_timeframe,
+        htf_timeframes=result.htf_timeframes,
+        ltf_timeframes=result.ltf_timeframes,
+        overall_trend=result.overall_trend,
         session_context=session_context,
         patterns_detected=patterns,
         fib_levels=fib_levels,
-        trend_direction=trend,
+        trend_direction=result.overall_trend,
         has_bms=smc_flags.get("bms", False),
         has_choch=smc_flags.get("choch", False),
         has_sms=smc_flags.get("sms", False),

@@ -106,10 +106,10 @@ def _add_ta_signals(parts: list[str], ta: TASignals) -> None:
             parts.append(f"fib {level}")
 
     # Timeframes
-    if ta.htf_timeframe:
-        parts.append(ta.htf_timeframe)
-    if ta.ltf_timeframe:
-        parts.append(ta.ltf_timeframe)
+    for htf in ta.htf_timeframes:
+        parts.append(htf)
+    for ltf in ta.ltf_timeframes:
+        parts.append(ltf)
 
     # Session
     if ta.session_context:

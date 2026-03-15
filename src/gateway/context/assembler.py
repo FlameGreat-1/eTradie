@@ -35,8 +35,9 @@ class ContextAssembler:
 
         metadata = {
             "symbol": symbol,
-            "htf_timeframe": ta_result.htf_timeframe,
-            "ltf_timeframe": ta_result.ltf_timeframe,
+            "htf_timeframes": ta_result.htf_timeframes,
+            "ltf_timeframes": ta_result.ltf_timeframes,
+            "overall_trend": ta_result.overall_trend,
             "rag_strategy": rag_bundle.strategy_used.value,
             "rag_coverage": rag_bundle.coverage_result.value,
             "rag_conflict": rag_bundle.conflict_result.value,
@@ -78,12 +79,14 @@ class ContextAssembler:
         """Build the technical_analysis section of the context."""
         return {
             "symbol": ta.symbol,
-            "htf_timeframe": ta.htf_timeframe,
-            "ltf_timeframe": ta.ltf_timeframe,
+            "htf_timeframes": ta.htf_timeframes,
+            "ltf_timeframes": ta.ltf_timeframes,
             "status": ta.status,
             "smc_candidates": ta.smc_candidates,
             "snd_candidates": ta.snd_candidates,
-            "snapshot": ta.snapshot,
+            "snapshots": ta.snapshots,
+            "alignment": ta.alignment,
+            "overall_trend": ta.overall_trend,
         }
 
     @staticmethod

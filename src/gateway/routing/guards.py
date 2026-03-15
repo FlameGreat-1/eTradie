@@ -183,8 +183,9 @@ class GuardEvaluator:
     ) -> GuardCheckResult:
         """MR-REJECT-006: Counter-trend without HTF CHoCH = NO SETUP.
 
-        If the processor approved a trade that goes against the HTF trend
-        and there is no HTF CHoCH in the snapshot, reject it.
+        If the processor approved a trade that goes against the overall
+        multi-timeframe trend and there is no CHoCH detected on any
+        timeframe, reject it.
         """
         if not processor.trade_valid:
             return GuardCheckResult(
@@ -193,8 +194,7 @@ class GuardEvaluator:
                 reason="Trade not valid, guard not applicable",
             )
 
-        snapshot = ta.snapshot or {}
-        trend = snapshot.get("trend_direction", "NEUTRAL")
+        trend = ta.overall_trend or "NEUTRAL"
         direction = (processor.direction or "").upper()
 
         is_counter = (
@@ -206,26 +206,30 @@ class GuardEvaluator:
             return GuardCheckResult(
                 rule=GuardRule.COUNTER_TREND_NO_CHOCH,
                 verdict=GuardVerdict.PASS,
-                reason="Trade aligns with HTF trend",
+                reason="Trade aligns with overall multi-TF trend",
             )
 
-        choch_events = snapshot.get("choch_events", {})
-        choch_count = choch_events.get("count", 0) if isinstance(choch_events, dict) else 0
+        # Check CHoCH across ALL timeframe snapshots
+        total_choch = 0
+        for tf_key, snapshot in ta.snapshots.items():
+            choch_events = snapshot.get("choch_events", {})
+            choch_count = choch_events.get("count", 0) if isinstance(choch_events, dict) else 0
+            total_choch += choch_count
 
-        if choch_count > 0:
+        if total_choch > 0:
             return GuardCheckResult(
                 rule=GuardRule.COUNTER_TREND_NO_CHOCH,
                 verdict=GuardVerdict.WARN,
-                reason="Counter-trend trade with CHoCH detected - proceed with caution",
-                metadata={"choch_count": choch_count},
+                reason="Counter-trend trade with CHoCH detected across timeframes - proceed with caution",
+                metadata={"total_choch_count": total_choch},
             )
 
-        htf = ta.htf_timeframe or "HTF"
+        htf_label = ta.htf_timeframes[0] if ta.htf_timeframes else "HTF"
         return GuardCheckResult(
             rule=GuardRule.COUNTER_TREND_NO_CHOCH,
             verdict=GuardVerdict.REJECT,
-            reason=f"Counter-trend trade without {htf} CHoCH - rejected per MR-REJECT-006",
-            metadata={"trend": trend, "direction": direction},
+            reason=f"Counter-trend trade without any CHoCH across timeframes - rejected per MR-REJECT-006",
+            metadata={"trend": trend, "direction": direction, "htf_timeframes": ta.htf_timeframes},
         )
 
     @staticmethod

@@ -58,8 +58,6 @@ class GatewayContainer:
         # Symbols are provided by the caller at runtime via run_cycle(symbols=[...]).
         self.ta_collector = TACollector(
             ta_orchestrator=engine.ta_orchestrator,
-            candidate_repository=engine.candidate_repository,
-            snapshot_repository=engine.snapshot_repository,
             config=self._config,
         )
 
