@@ -9,7 +9,9 @@ import (
 
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/container"
+	"github.com/flamegreat/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat/etradie/src/gateway/internal/ports"
 )
 
 func main() {
@@ -34,12 +36,23 @@ func main() {
 		log.Warn().Err(err).Msg("tracing_init_failed_continuing_without_tracing")
 	}
 
-	// Build the gateway container (all dependency wiring).
-	// Execution port is nil until Module B is implemented.
-	// The gateway operates in "analysis-only" mode: it runs the full pipeline
-	// but returns {status: pending} from the execution step.
-	// The processor is wired internally via HTTPProcessorAdapter.
-	c, err := container.New(cfg, nil)
+	// Build execution adapter if enabled.
+	var execPort ports.ExecutionPort
+	var execAdapter *infra.ExecutionGRPCAdapter
+	if cfg.ExecutionEnabled {
+		adapter, err := infra.NewExecutionGRPCAdapter(cfg.ExecutionAddr, cfg.ExecutionTimeoutMs)
+		if err != nil {
+			log.Warn().Err(err).Str("addr", cfg.ExecutionAddr).Msg("execution_adapter_connect_failed_running_without_execution")
+		} else {
+			execPort = adapter
+			execAdapter = adapter
+			log.Info().Str("addr", cfg.ExecutionAddr).Msg("execution_engine_connected")
+		}
+	} else {
+		log.Info().Msg("execution_engine_disabled")
+	}
+
+	c, err := container.New(cfg, execPort, execAdapter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

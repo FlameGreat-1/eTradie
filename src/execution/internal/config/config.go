@@ -16,9 +16,17 @@ type Config struct {
 	// gRPC server.
 	GRPCPort int `envconfig:"GRPC_PORT" default:"50053"`
 
-	// Broker bridge (MT5 Python service).
-	BrokerBridgeAddr string `envconfig:"BROKER_BRIDGE_ADDR" default:"localhost:50054"`
-	BrokerTimeoutMs  int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
+	// Broker selection: "mock" for development, "mt5" for production.
+	BrokerMode string `envconfig:"BROKER_MODE" default:"mock"`
+
+	// MT5 broker bridge (Python FastAPI service that wraps MT5 API).
+	// Points to the same engine service at src/engine/ which already
+	// manages the MT5 connection for TA data.
+	BrokerBridgeURL string `envconfig:"BROKER_BRIDGE_URL" default:"http://localhost:8000"`
+	BrokerTimeoutMs int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
+
+	// Mock broker starting balance (only used when BrokerMode=mock).
+	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
 
 	// Module C address (for instant mode arming).
 	ModuleCAddr string `envconfig:"MODULE_C_ADDR" default:"localhost:50055"`
@@ -88,18 +96,24 @@ func (c *Config) validate() error {
 		return fmt.Errorf("GRPC_PORT and METRICS_PORT must differ, both are %d", c.GRPCPort)
 	}
 
-	if c.BrokerBridgeAddr == "" {
-		return fmt.Errorf("BROKER_BRIDGE_ADDR must not be empty")
+	mode := strings.ToLower(c.BrokerMode)
+	if mode != "mock" && mode != "mt5" {
+		return fmt.Errorf("BROKER_MODE must be mock or mt5, got %q", c.BrokerMode)
+	}
+	c.BrokerMode = mode
+
+	if mode == "mt5" && c.BrokerBridgeURL == "" {
+		return fmt.Errorf("BROKER_BRIDGE_URL must not be empty when BROKER_MODE=mt5")
 	}
 	if c.BrokerTimeoutMs < 500 || c.BrokerTimeoutMs > 30000 {
 		return fmt.Errorf("BROKER_TIMEOUT_MS must be 500..30000, got %d", c.BrokerTimeoutMs)
 	}
 
-	mode := strings.ToUpper(c.DefaultExecutionMode)
-	if mode != string(constants.ModeLimit) && mode != string(constants.ModeInstant) {
+	execMode := strings.ToUpper(c.DefaultExecutionMode)
+	if execMode != string(constants.ModeLimit) && execMode != string(constants.ModeInstant) {
 		return fmt.Errorf("DEFAULT_EXECUTION_MODE must be LIMIT or INSTANT, got %q", c.DefaultExecutionMode)
 	}
-	c.DefaultExecutionMode = mode
+	c.DefaultExecutionMode = execMode
 
 	if c.MinLotSize < 0.01 || c.MinLotSize > 1.0 {
 		return fmt.Errorf("MIN_LOT_SIZE must be 0.01..1.0, got %f", c.MinLotSize)
@@ -184,4 +198,9 @@ func (c *Config) IsSessionEnabled(session string) bool {
 		}
 	}
 	return false
+}
+
+// IsMT5Mode returns true when the broker is configured for MT5.
+func (c *Config) IsMT5Mode() bool {
+	return c.BrokerMode == "mt5"
 }

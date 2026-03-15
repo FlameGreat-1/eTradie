@@ -24,6 +24,7 @@ type Container struct {
 	Cfg          *config.Config
 	Redis        *infra.RedisClient
 	Engine       *infra.EngineHTTPClient
+	Execution    *infra.ExecutionGRPCAdapter
 	SymbolStore  *symbolstore.Store
 	Orchestrator *pipeline.Orchestrator
 	Scheduler    *pipeline.Scheduler
@@ -33,7 +34,7 @@ type Container struct {
 }
 
 // New builds all gateway components in correct dependency order.
-func New(cfg *config.Config, execution ports.ExecutionPort) (*Container, error) {
+func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.ExecutionGRPCAdapter) (*Container, error) {
 	log := observability.Logger("container")
 
 	// Infrastructure.
@@ -89,6 +90,7 @@ func New(cfg *config.Config, execution ports.ExecutionPort) (*Container, error) 
 		Cfg:          cfg,
 		Redis:        redisClient,
 		Engine:       engineHTTP,
+		Execution:    execAdapter,
 		SymbolStore:  symStore,
 		Orchestrator: orchestrator,
 		Scheduler:    scheduler,
@@ -109,6 +111,12 @@ func (c *Container) Shutdown(ctx context.Context) {
 	}
 
 	c.Engine.Close()
+
+	if c.Execution != nil {
+		if err := c.Execution.Close(); err != nil {
+			c.log.Error().Err(err).Msg("execution_adapter_close_error")
+		}
+	}
 
 	if err := c.Redis.Close(); err != nil {
 		c.log.Error().Err(err).Msg("redis_close_error")

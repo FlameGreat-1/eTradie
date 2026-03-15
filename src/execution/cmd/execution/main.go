@@ -12,9 +12,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
+	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
+	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat/etradie/src/execution/internal/broker/mock"
+	"github.com/flamegreat/etradie/src/execution/internal/broker/mt5"
 	"github.com/flamegreat/etradie/src/execution/internal/config"
 	"github.com/flamegreat/etradie/src/execution/internal/executor"
 	"github.com/flamegreat/etradie/src/execution/internal/notify"
@@ -26,7 +31,6 @@ import (
 )
 
 func main() {
-	// Load and validate config.
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "execution: config: %v\n", err)
@@ -38,6 +42,7 @@ func main() {
 
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
+		Str("broker_mode", cfg.BrokerMode).
 		Str("execution_mode", cfg.DefaultExecutionMode).
 		Int("max_concurrent", cfg.MaxConcurrentTrades).
 		Msg("execution_engine_starting")
@@ -59,28 +64,36 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Verify DB connectivity.
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatal().Err(err).Msg("database_ping_failed")
 	}
 
-	// Auto-create audit table.
-	if _, err := pool.Exec(ctx, audit.CreateTable()); err != nil {
+	if _, err := pool.Exec(ctx, audit.CreateTableSQL()); err != nil {
 		log.Fatal().Err(err).Msg("audit_table_creation_failed")
 	}
 
+	// Select broker implementation.
+	var bp broker.Port
+	if cfg.IsMT5Mode() {
+		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
+		log.Info().Str("url", cfg.BrokerBridgeURL).Msg("broker_mt5_bridge_configured")
+	} else {
+		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
+		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
+	}
+
 	// Build components in dependency order.
-	bp := mockbroker.NewBroker(10000.0)
 	sm := state.NewManager(bp)
 	v := validator.NewValidator(cfg, sm, bp)
 	s := sizing.NewEngine(cfg, bp)
 	e := executor.NewExecutor(bp, cfg.BrokerTimeoutMs)
-	al := audit.NewLogger(pool)
+	auditStore := audit.NewStore(pool)
+	al := audit.NewLogger(auditStore)
 	n := notify.NewNotifier()
 
 	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, n)
 
-	// Start metrics HTTP server.
+	// Start metrics + health HTTP server.
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -108,36 +121,30 @@ func main() {
 		log.Fatal().Err(err).Int("port", cfg.GRPCPort).Msg("grpc_listen_failed")
 	}
 
-	log.Info().
-		Int("port", cfg.GRPCPort).
-		Msg("execution_grpc_server_started")
+	grpcServer := grpc.NewServer()
+	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
+	reflection.Register(grpcServer)
+
+	go func() {
+		log.Info().Int("port", cfg.GRPCPort).Msg("execution_grpc_server_started")
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal().Err(err).Msg("grpc_serve_failed")
+		}
+	}()
 
 	// Graceful shutdown.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
 
-	go func() {
-		<-stop
-		log.Info().Msg("shutdown_signal_received")
+	log.Info().Msg("shutdown_signal_received")
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-		_ = httpServer.Shutdown(shutdownCtx)
-		_ = lis.Close()
-		pool.Close()
+	grpcServer.GracefulStop()
+	_ = httpServer.Shutdown(shutdownCtx)
+	pool.Close()
 
-		log.Info().Msg("execution_engine_stopped")
-		os.Exit(0)
-	}()
-
-	// The gRPC server registration will be done when proto generation
-	// is wired. For now, the server struct is fully built and ready.
-	// The ExecutionServer methods (ExecuteTrade, CancelPendingOrder,
-	// GetExecutionState) are implemented and callable.
-	_ = execServer
-	_ = lis
-
-	// Block until shutdown signal.
-	select {}
+	log.Info().Msg("execution_engine_stopped")
 }

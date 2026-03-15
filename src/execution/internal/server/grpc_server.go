@@ -3,12 +3,15 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/builder"
@@ -23,8 +26,10 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/validator"
 )
 
-// ExecutionServer implements the ExecutionService gRPC server.
+// ExecutionServer implements executionv1.ExecutionServiceServer.
 type ExecutionServer struct {
+	executionv1.UnimplementedExecutionServiceServer
+
 	cfg       *config.Config
 	validator *validator.Validator
 	sizer     *sizing.Engine
@@ -34,6 +39,10 @@ type ExecutionServer struct {
 	audit     *audit.Logger
 	notifier  *notify.Notifier
 	log       zerolog.Logger
+
+	// Idempotency: tracks analysis IDs already processed.
+	processedMu sync.RWMutex
+	processed   map[string]struct{}
 }
 
 // NewExecutionServer creates the gRPC server with all dependencies.
@@ -57,11 +66,12 @@ func NewExecutionServer(
 		audit:     al,
 		notifier:  n,
 		log:       observability.Logger("grpc_server"),
+		processed: make(map[string]struct{}),
 	}
 }
 
 // ExecuteTrade is the main RPC. Orchestrates the full Module B pipeline.
-func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeRequest) (resp *ExecuteTradeResponse, err error) {
+func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.ExecuteTradeRequest) (resp *executionv1.ExecuteTradeResponse, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.log.Error().Interface("panic", r).Str("trace_id", req.GetTraceId()).Msg("execute_trade_panic")
@@ -73,11 +83,34 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 	start := time.Now()
 	traceID := req.GetTraceId()
 
+	// Input validation at gRPC boundary.
+	if err := validateRequest(req); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid request: %s", err.Error())
+	}
+
+	// Idempotency: reject duplicate analysis_id.
+	analysisID := req.GetAnalysisId()
+	if analysisID != "" {
+		s.processedMu.RLock()
+		_, dup := s.processed[analysisID]
+		s.processedMu.RUnlock()
+		if dup {
+			s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
+			return &executionv1.ExecuteTradeResponse{
+				Accepted:        false,
+				Status:          string(constants.StatusRejected),
+				RejectionReason: "duplicate analysis_id: already processed",
+				AnalysisId:      analysisID,
+				TraceId:         traceID,
+			}, nil
+		}
+	}
+
 	s.log.Info().
 		Str("symbol", req.GetSymbol()).
 		Str("direction", req.GetDirection()).
 		Str("grade", req.GetGrade()).
-		Str("analysis_id", req.GetAnalysisId()).
+		Str("analysis_id", analysisID).
 		Str("trace_id", traceID).
 		Msg("execute_trade_received")
 
@@ -92,7 +125,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 	}
 
 	// Step 3: Validate.
-	valResult := s.validator.Validate(tradeReq)
+	valResult := s.validator.Validate(ctx, tradeReq)
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
 		s.notifier.NotifyRejected(tradeReq, valResult)
@@ -108,7 +141,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 		observability.ExecutionDuration.Observe(elapsed)
 		observability.ExecutionTotal.WithLabelValues(req.GetSymbol(), req.GetDirection(), string(valResult.Outcome)).Inc()
 
-		return &ExecuteTradeResponse{
+		return &executionv1.ExecuteTradeResponse{
 			Accepted:        false,
 			Status:          string(outcomeToStatus(valResult.Outcome)),
 			RejectionReason: valResult.Reason,
@@ -133,6 +166,8 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 		return rejectedResponse(tradeReq, "sizing failed: "+err.Error(), 0, traceID), nil
 	}
 
+	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
+
 	// Step 5: Build order.
 	order := builder.Build(tradeReq, sizingResult, s.cfg)
 
@@ -154,7 +189,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 		observability.ExecutionDuration.Observe(elapsed)
 		observability.ExecutionTotal.WithLabelValues(req.GetSymbol(), req.GetDirection(), "broker_rejected").Inc()
 
-		return &ExecuteTradeResponse{
+		return &executionv1.ExecuteTradeResponse{
 			Accepted:        false,
 			Status:          string(execResult.Status),
 			RejectionReason: execResult.RejectionReason,
@@ -163,9 +198,15 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 		}, nil
 	}
 
-	// Step 7: Audit + notify.
+	// Step 7: Audit + notify + mark idempotency.
 	s.audit.LogOrderPlaced(ctx, order)
 	s.notifier.NotifyOrderPlaced(order)
+
+	if analysisID != "" {
+		s.processedMu.Lock()
+		s.processed[analysisID] = struct{}{}
+		s.processedMu.Unlock()
+	}
 
 	elapsed := time.Since(start).Seconds()
 	observability.ExecutionDuration.Observe(elapsed)
@@ -184,7 +225,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 		Float64("duration_ms", elapsed*1000).
 		Msg("execute_trade_completed")
 
-	return &ExecuteTradeResponse{
+	return &executionv1.ExecuteTradeResponse{
 		Accepted:       true,
 		Status:         string(execResult.Status),
 		OrderId:        execResult.OrderID,
@@ -201,8 +242,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *ExecuteTradeReq
 }
 
 // CancelPendingOrder cancels a pending limit order or disarms a watcher.
-func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *CancelOrderRequest) (*CancelOrderResponse, error) {
+func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *executionv1.CancelOrderRequest) (*executionv1.CancelOrderResponse, error) {
 	traceID := req.GetTraceId()
+
+	if req.GetOrderId() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "order_id is required")
+	}
 
 	s.log.Info().
 		Str("order_id", req.GetOrderId()).
@@ -213,7 +258,7 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *CancelOrd
 
 	if err := s.broker.CancelOrder(ctx, req.GetOrderId()); err != nil {
 		s.log.Error().Err(err).Str("order_id", req.GetOrderId()).Msg("cancel_order_failed")
-		return &CancelOrderResponse{
+		return &executionv1.CancelOrderResponse{
 			Success: false,
 			Status:  "NOT_FOUND",
 			TraceId: traceID,
@@ -222,7 +267,7 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *CancelOrd
 
 	s.audit.LogOrderCancelled(ctx, req.GetOrderId(), req.GetSymbol(), req.GetReason(), traceID)
 
-	return &CancelOrderResponse{
+	return &executionv1.CancelOrderResponse{
 		Success: true,
 		Status:  "CANCELLED",
 		TraceId: traceID,
@@ -230,7 +275,7 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *CancelOrd
 }
 
 // GetExecutionState returns current positions, pending orders, and P&L.
-func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *GetStateRequest) (*GetStateResponse, error) {
+func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv1.GetStateRequest) (*executionv1.GetStateResponse, error) {
 	if err := s.state.Refresh(ctx); err != nil {
 		s.log.Error().Err(err).Msg("get_state_refresh_failed")
 		return nil, status.Errorf(codes.Unavailable, "broker state refresh failed")
@@ -246,9 +291,9 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *GetStateRe
 		equity = account.Equity
 	}
 
-	protoPositions := make([]*OpenPosition, 0, len(positions))
+	protoPositions := make([]*executionv1.OpenPosition, 0, len(positions))
 	for _, p := range positions {
-		protoPositions = append(protoPositions, &OpenPosition{
+		protoPositions = append(protoPositions, &executionv1.OpenPosition{
 			Symbol:        p.Symbol,
 			Direction:     p.Direction,
 			EntryPrice:    p.EntryPrice,
@@ -262,9 +307,9 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *GetStateRe
 		})
 	}
 
-	protoPending := make([]*PendingOrder, 0, len(pending))
+	protoPending := make([]*executionv1.PendingOrder, 0, len(pending))
 	for _, p := range pending {
-		protoPending = append(protoPending, &PendingOrder{
+		protoPending = append(protoPending, &executionv1.PendingOrder{
 			Symbol:        p.Symbol,
 			Direction:     p.Direction,
 			EntryPrice:    p.EntryPrice,
@@ -277,7 +322,7 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *GetStateRe
 		})
 	}
 
-	return &GetStateResponse{
+	return &executionv1.GetStateResponse{
 		OpenPositionCount: int32(len(positions)),
 		PendingOrderCount: int32(len(pending)),
 		DailyRealizedPnl:  s.state.DailyPnL(),
@@ -290,10 +335,36 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *GetStateRe
 	}, nil
 }
 
-func parseRequest(req *ExecuteTradeRequest) *models.TradeRequest {
+func validateRequest(req *executionv1.ExecuteTradeRequest) error {
+	if strings.TrimSpace(req.GetSymbol()) == "" {
+		return fmt.Errorf("symbol is required")
+	}
+	d := strings.ToUpper(req.GetDirection())
+	if d != "LONG" && d != "SHORT" {
+		return fmt.Errorf("direction must be LONG or SHORT, got %q", req.GetDirection())
+	}
+	if req.GetEntryZoneLow() <= 0 || req.GetEntryZoneHigh() <= 0 {
+		return fmt.Errorf("entry_zone_low and entry_zone_high must be positive")
+	}
+	if req.GetEntryZoneLow() > req.GetEntryZoneHigh() {
+		return fmt.Errorf("entry_zone_low must be <= entry_zone_high")
+	}
+	if req.GetStopLoss() <= 0 {
+		return fmt.Errorf("stop_loss must be positive")
+	}
+	if req.GetRiskPercentage() <= 0 || req.GetRiskPercentage() > 5.0 {
+		return fmt.Errorf("risk_percentage must be 0..5, got %.2f", req.GetRiskPercentage())
+	}
+	if req.GetRrRatio() <= 0 {
+		return fmt.Errorf("rr_ratio must be positive")
+	}
+	return nil
+}
+
+func parseRequest(req *executionv1.ExecuteTradeRequest) *models.TradeRequest {
 	return &models.TradeRequest{
 		Symbol:          req.GetSymbol(),
-		Direction:       constants.Direction(req.GetDirection()),
+		Direction:       constants.Direction(strings.ToUpper(req.GetDirection())),
 		EntryZoneLow:    req.GetEntryZoneLow(),
 		EntryZoneHigh:   req.GetEntryZoneHigh(),
 		StopLoss:        req.GetStopLoss(),
@@ -306,8 +377,8 @@ func parseRequest(req *ExecuteTradeRequest) *models.TradeRequest {
 		RRRatio:         req.GetRrRatio(),
 		Grade:           req.GetGrade(),
 		RiskPercentage:  req.GetRiskPercentage(),
-		TradingStyle:    constants.TradingStyle(req.GetTradingStyle()),
-		Session:         req.GetSession(),
+		TradingStyle:    constants.TradingStyle(strings.ToUpper(req.GetTradingStyle())),
+		Session:         strings.ToUpper(req.GetSession()),
 		ConfluenceScore: req.GetConfluenceScore(),
 		Confidence:      req.GetConfidence(),
 		AnalysisID:      req.GetAnalysisId(),
@@ -315,8 +386,8 @@ func parseRequest(req *ExecuteTradeRequest) *models.TradeRequest {
 	}
 }
 
-func rejectedResponse(req *models.TradeRequest, reason string, check int32, traceID string) *ExecuteTradeResponse {
-	return &ExecuteTradeResponse{
+func rejectedResponse(req *models.TradeRequest, reason string, check int32, traceID string) *executionv1.ExecuteTradeResponse {
+	return &executionv1.ExecuteTradeResponse{
 		Accepted:        false,
 		Status:          string(constants.StatusRejected),
 		RejectionReason: reason,
@@ -339,129 +410,4 @@ func outcomeToStatus(outcome constants.ValidationOutcome) constants.OrderStatus 
 	default:
 		return constants.StatusRejected
 	}
-}
-
-// Proto message types referenced in this file. These are temporary
-// type aliases until proto generation is wired. They mirror the
-// proto/execution/v1/execution.proto message definitions exactly.
-type ExecuteTradeRequest struct {
-	Symbol          string
-	Direction       string
-	EntryZoneLow    float64
-	EntryZoneHigh   float64
-	StopLoss        float64
-	Tp1Price        float64
-	Tp1Pct          int32
-	Tp2Price        float64
-	Tp2Pct          int32
-	Tp3Price        float64
-	Tp3Pct          int32
-	RrRatio         float64
-	Grade           string
-	RiskPercentage  float64
-	TradingStyle    string
-	Session         string
-	ConfluenceScore float64
-	Confidence      float64
-	AnalysisId      string
-	TraceId         string
-}
-
-func (r *ExecuteTradeRequest) GetSymbol() string          { return r.Symbol }
-func (r *ExecuteTradeRequest) GetDirection() string        { return r.Direction }
-func (r *ExecuteTradeRequest) GetEntryZoneLow() float64    { return r.EntryZoneLow }
-func (r *ExecuteTradeRequest) GetEntryZoneHigh() float64   { return r.EntryZoneHigh }
-func (r *ExecuteTradeRequest) GetStopLoss() float64        { return r.StopLoss }
-func (r *ExecuteTradeRequest) GetTp1Price() float64        { return r.Tp1Price }
-func (r *ExecuteTradeRequest) GetTp1Pct() int32            { return r.Tp1Pct }
-func (r *ExecuteTradeRequest) GetTp2Price() float64        { return r.Tp2Price }
-func (r *ExecuteTradeRequest) GetTp2Pct() int32            { return r.Tp2Pct }
-func (r *ExecuteTradeRequest) GetTp3Price() float64        { return r.Tp3Price }
-func (r *ExecuteTradeRequest) GetTp3Pct() int32            { return r.Tp3Pct }
-func (r *ExecuteTradeRequest) GetRrRatio() float64         { return r.RrRatio }
-func (r *ExecuteTradeRequest) GetGrade() string            { return r.Grade }
-func (r *ExecuteTradeRequest) GetRiskPercentage() float64  { return r.RiskPercentage }
-func (r *ExecuteTradeRequest) GetTradingStyle() string     { return r.TradingStyle }
-func (r *ExecuteTradeRequest) GetSession() string          { return r.Session }
-func (r *ExecuteTradeRequest) GetConfluenceScore() float64 { return r.ConfluenceScore }
-func (r *ExecuteTradeRequest) GetConfidence() float64      { return r.Confidence }
-func (r *ExecuteTradeRequest) GetAnalysisId() string       { return r.AnalysisId }
-func (r *ExecuteTradeRequest) GetTraceId() string          { return r.TraceId }
-
-type ExecuteTradeResponse struct {
-	Accepted        bool
-	Status          string
-	OrderId         string
-	RejectionReason string
-	RejectionCheck  int32
-	LotSize         float64
-	RiskAmount      float64
-	AccountBalance  float64
-	SlDistancePips  float64
-	PipValue        float64
-	ExecutionMode   string
-	EntryPrice      float64
-	AnalysisId      string
-	TraceId         string
-}
-
-type CancelOrderRequest struct {
-	OrderId string
-	Symbol  string
-	Reason  string
-	TraceId string
-}
-
-func (r *CancelOrderRequest) GetOrderId() string { return r.OrderId }
-func (r *CancelOrderRequest) GetSymbol() string  { return r.Symbol }
-func (r *CancelOrderRequest) GetReason() string  { return r.Reason }
-func (r *CancelOrderRequest) GetTraceId() string { return r.TraceId }
-
-type CancelOrderResponse struct {
-	Success bool
-	Status  string
-	TraceId string
-}
-
-type GetStateRequest struct {
-	TraceId string
-}
-
-func (r *GetStateRequest) GetTraceId() string { return r.TraceId }
-
-type GetStateResponse struct {
-	OpenPositionCount int32
-	PendingOrderCount int32
-	DailyRealizedPnl  float64
-	WeeklyRealizedPnl float64
-	AccountBalance    float64
-	AccountEquity     float64
-	OpenPositions     []*OpenPosition
-	PendingOrders     []*PendingOrder
-	TraceId           string
-}
-
-type OpenPosition struct {
-	Symbol        string
-	Direction     string
-	EntryPrice    float64
-	CurrentPrice  float64
-	StopLoss      float64
-	LotSize       float64
-	UnrealizedPnl float64
-	OrderId       string
-	AnalysisId    string
-	TradingStyle  string
-}
-
-type PendingOrder struct {
-	Symbol        string
-	Direction     string
-	EntryPrice    float64
-	StopLoss      float64
-	LotSize       float64
-	OrderId       string
-	AnalysisId    string
-	ExecutionMode string
-	Status        string
 }
