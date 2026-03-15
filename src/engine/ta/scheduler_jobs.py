@@ -21,9 +21,8 @@ from typing import Any, Callable, Coroutine, Optional
 from engine.shared.logging import get_logger
 from engine.shared.scheduler import SchedulerManager
 from engine.ta.broker.base import BrokerBase
-from engine.config import TAConfig
+from engine.config import TAConfig, get_ta_config
 from engine.ta.constants import Timeframe, TIMEFRAME_MINUTES
-from engine.ta.orchestrator import TAOrchestrator
 from engine.ta.storage.repositories.candle import CandleRepository
 
 logger = get_logger(__name__)
@@ -280,106 +279,165 @@ async def _broker_sync(
 
 
 # ---------------------------------------------------------------------------
+# Dynamic data refresh for active symbols
+# ---------------------------------------------------------------------------
+
+@with_retry(max_retries=2)
+async def _refresh_data_for_active_symbols(
+    symbol_store: object,
+    broker_client: BrokerBase,
+    candle_repository: CandleRepository,
+) -> None:
+    """Refresh candle data for whatever symbols are currently active.
+
+    Reads the active symbol list from SymbolStore on every invocation
+    so that when the user changes their selection, the TA data
+    infrastructure automatically focuses on the new symbols.
+
+    This is the single recurring job that replaces the old per-symbol
+    static registration.  Timeframes come from TAConfig.
+    """
+    ta_config = get_ta_config()
+    htf_timeframes = ta_config.htf_timeframes
+    ltf_timeframes = ta_config.ltf_timeframes
+    all_timeframes = htf_timeframes + ltf_timeframes
+    lookback = ta_config.candle_lookback_periods
+
+    # SymbolStore.get_active_symbols() returns user selection or Gateway defaults
+    symbols: list[str] = await symbol_store.get_active_symbols()
+
+    if not symbols:
+        logger.warning("ta_data_refresh_no_active_symbols")
+        return
+
+    logger.info(
+        "ta_data_refresh_started",
+        extra={
+            "symbols": symbols,
+            "timeframes": [tf.value for tf in all_timeframes],
+        },
+    )
+
+    for symbol in symbols:
+        # Candle refresh for every timeframe
+        for tf in all_timeframes:
+            try:
+                await _candle_refresh(
+                    symbol=symbol,
+                    timeframe=tf,
+                    broker_client=broker_client,
+                    candle_repository=candle_repository,
+                )
+            except Exception as exc:
+                logger.error(
+                    "ta_candle_refresh_failed",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": tf.value,
+                        "error": str(exc),
+                    },
+                )
+
+        # Broker sync for HTF timeframes
+        for tf in htf_timeframes:
+            try:
+                await _broker_sync(
+                    symbol=symbol,
+                    timeframe=tf,
+                    sync_periods=20,
+                    broker_client=broker_client,
+                    candle_repository=candle_repository,
+                )
+            except Exception as exc:
+                logger.error(
+                    "ta_broker_sync_failed",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": tf.value,
+                        "error": str(exc),
+                    },
+                )
+
+        # Backfill if enabled
+        if ta_config.backfill_on_startup:
+            for tf in all_timeframes:
+                try:
+                    await _backfill(
+                        symbol=symbol,
+                        timeframe=tf,
+                        lookback_periods=lookback,
+                        broker_client=broker_client,
+                        candle_repository=candle_repository,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "ta_backfill_failed",
+                        extra={
+                            "symbol": symbol,
+                            "timeframe": tf.value,
+                            "error": str(exc),
+                        },
+                    )
+
+    logger.info(
+        "ta_data_refresh_completed",
+        extra={
+            "symbols": symbols,
+            "timeframes_count": len(all_timeframes),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Job registration
 # ---------------------------------------------------------------------------
 
 def register_ta_jobs(
     scheduler: SchedulerManager,
     *,
-    ta_config: TAConfig,
+    symbol_store: object,
     broker_client: BrokerBase,
     candle_repository: CandleRepository,
 ) -> None:
+    """Register TA data infrastructure as a single dynamic recurring job.
+
+    The job reads the active symbol list from SymbolStore on every
+    invocation.  When the user changes their symbol selection on the
+    dashboard, the next data refresh cycle automatically focuses on
+    the new symbols.  No restart required.
+
+    Timeframes are read from TAConfig (owned by the TA engine).
+    Symbols are read from SymbolStore (owned by the Gateway).
+
+    Does NOT trigger analysis (SMC/SnD detection) -- that is the
+    Gateway's responsibility via TACollector -> TAOrchestrator.analyze().
     """
-    Register TA data infrastructure jobs.
+    ta_config = get_ta_config()
 
-    Keeps raw price data warm and synced. Does NOT trigger analysis
-    (SMC/SnD detection) — that is the gateway's responsibility per
-    GATEWAY.md: the gateway runs TA + Macro in parallel as the sole
-    orchestrator of the analysis pipeline.
+    # Determine refresh interval: use the smallest HTF candle interval
+    # so data is always fresh before the next analysis cycle.
+    min_htf_minutes = min(
+        TIMEFRAME_MINUTES[tf] for tf in ta_config.htf_timeframes
+    ) if ta_config.htf_timeframes else 60
+    refresh_interval_seconds = min_htf_minutes * 60
 
-    Jobs registered per symbol:
-    - ``candle_refresh`` – one per HTF + LTF timeframe
-    - ``broker_sync`` – one per HTF timeframe (hourly reconciliation)
-    - ``backfill`` – one per HTF + LTF timeframe (if enabled, runs once then long interval)
-    """
-    symbols = ta_config.default_symbols
-    htf_timeframes = ta_config.htf_timeframes
-    ltf_timeframes = ta_config.ltf_timeframes
-    lookback = ta_config.candle_lookback_periods
-    all_timeframes = htf_timeframes + ltf_timeframes
-
-    for symbol in symbols:
-        # ── Candle refresh jobs (one per timeframe) ──
-        for tf in all_timeframes:
-            interval_seconds = TIMEFRAME_MINUTES[tf] * 60
-
-            scheduler.add_interval_job(
-                _candle_refresh,
-                job_id=f"candle_refresh_{symbol}_{tf.value}",
-                seconds=interval_seconds,
-                kwargs={
-                    "symbol": symbol,
-                    "timeframe": tf,
-                    "broker_client": broker_client,
-                    "candle_repository": candle_repository,
-                },
-            )
-
-        # NOTE: Analysis trigger (SMC/SnD detection) is NOT registered here.
-        # Per GATEWAY.md, the gateway is the sole orchestrator that triggers
-        # TA analysis via TACollector -> TAOrchestrator.analyze().
-        # The TA scheduler only handles data infrastructure: candle refresh,
-        # backfill, and broker sync.
-
-        # ── Broker sync jobs (one per HTF, every hour) ──
-        for tf in htf_timeframes:
-            sync_interval = max(TIMEFRAME_MINUTES[tf] * 60, 3600)
-
-            scheduler.add_interval_job(
-                _broker_sync,
-                job_id=f"broker_sync_{symbol}_{tf.value}",
-                seconds=sync_interval,
-                kwargs={
-                    "symbol": symbol,
-                    "timeframe": tf,
-                    "sync_periods": 20,
-                    "broker_client": broker_client,
-                    "candle_repository": candle_repository,
-                },
-            )
-
-        # ── Backfill jobs (if enabled, run at long interval) ──
-        if ta_config.backfill_on_startup:
-            for tf in all_timeframes:
-                backfill_interval = 86_400  # once per day
-
-                scheduler.add_interval_job(
-                    _backfill,
-                    job_id=f"backfill_{symbol}_{tf.value}",
-                    seconds=backfill_interval,
-                    kwargs={
-                        "symbol": symbol,
-                        "timeframe": tf,
-                        "lookback_periods": lookback,
-                        "broker_client": broker_client,
-                        "candle_repository": candle_repository,
-                    },
-                )
-
-    total_jobs = len(symbols) * (
-        len(all_timeframes)                        # candle refresh
-        + len(htf_timeframes)                       # broker sync
-        + (len(all_timeframes) if ta_config.backfill_on_startup else 0)  # backfill
+    scheduler.add_interval_job(
+        _refresh_data_for_active_symbols,
+        job_id="ta_data_refresh",
+        seconds=refresh_interval_seconds,
+        kwargs={
+            "symbol_store": symbol_store,
+            "broker_client": broker_client,
+            "candle_repository": candle_repository,
+        },
     )
 
     logger.info(
-        "ta_scheduler_jobs_registered",
+        "ta_data_refresh_job_registered",
         extra={
-            "symbols": symbols,
-            "htf_timeframes": [t.value for t in htf_timeframes],
-            "ltf_timeframes": [t.value for t in ltf_timeframes],
+            "refresh_interval_seconds": refresh_interval_seconds,
+            "htf_timeframes": [t.value for t in ta_config.htf_timeframes],
+            "ltf_timeframes": [t.value for t in ta_config.ltf_timeframes],
             "backfill_enabled": ta_config.backfill_on_startup,
-            "total_jobs": total_jobs,
         },
     )

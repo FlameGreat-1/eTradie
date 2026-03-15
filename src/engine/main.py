@@ -80,14 +80,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_economic=settings.poll_interval_economic_data,
     )
 
-    ta_config = TAConfig()
-    register_ta_jobs(
-        container.scheduler,
-        ta_config=ta_config,
-        broker_client=container.mt5_client,
-        candle_repository=container.candle_repository,
-    )
-
     # -- Processor LLM -------------------------------------------------------
     container.build_processor()
     logger.info(
@@ -97,7 +89,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- Gateway Orchestration -----------------------------------------------
+    # Gateway must be built BEFORE TA data jobs so that SymbolStore
+    # is available as the single source of truth for active symbols.
     gateway_config = get_gateway_config()
+    gateway = None
     if gateway_config.enabled:
         gateway = GatewayContainer(
             engine=container,
@@ -108,6 +103,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info(
             "gateway_started",
             cycle_interval=gateway_config.cycle_interval_seconds,
+        )
+
+    # -- TA Data Infrastructure ----------------------------------------------
+    # TA data jobs (candle refresh, backfill, broker sync) read the active
+    # symbol list from SymbolStore on every cycle.  The Gateway owns the
+    # symbol list; the TA engine focuses on whatever symbols are active.
+    if gateway is not None:
+        register_ta_jobs(
+            container.scheduler,
+            symbol_store=gateway.symbol_store,
+            broker_client=container.mt5_client,
+            candle_repository=container.candle_repository,
+        )
+    else:
+        logger.warning(
+            "ta_data_jobs_skipped_gateway_disabled",
+            extra={"reason": "Gateway is disabled, no SymbolStore available"},
         )
 
     container.scheduler.start()

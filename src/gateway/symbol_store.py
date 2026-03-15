@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from engine.config import get_ta_config
 from engine.shared.cache import RedisCache
 from engine.shared.logging import get_logger
+from gateway.config import get_gateway_config
 from gateway.constants import GATEWAY_CACHE_NAMESPACE
 
 logger = get_logger(__name__)
@@ -63,7 +63,7 @@ class SymbolStore:
                 extra={"error": str(exc)},
             )
 
-        defaults = list(get_ta_config().default_symbols)
+        defaults = list(get_gateway_config().default_symbols)
         logger.debug(
             "symbol_store_using_defaults",
             extra={"symbols": defaults, "source": "ta_config"},

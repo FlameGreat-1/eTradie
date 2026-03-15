@@ -196,13 +196,6 @@ class TAConfig(BaseSettings):
     primary_broker: str = Field(default="mt5")
     fallback_broker: str = Field(default="twelve_data")
 
-    default_symbols: list[str] = Field(
-        default_factory=lambda: [
-            "EURUSD", "GBPUSD", "USDJPY", "USDCHF",
-            "AUDUSD", "NZDUSD", "USDCAD", "XAUUSD",
-        ]
-    )
-
     htf_timeframes: list[Timeframe] = Field(
         default_factory=lambda: [Timeframe.W1, Timeframe.D1, Timeframe.H4, Timeframe.H1]
     )
@@ -230,13 +223,6 @@ class TAConfig(BaseSettings):
         if v not in allowed:
             raise ValueError(f"Broker must be one of {allowed}")
         return v
-
-    @field_validator("default_symbols")
-    @classmethod
-    def validate_symbols(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("At least one symbol must be configured")
-        return [s.upper() for s in v]
 
 
 class RAGConfig(BaseSettings):

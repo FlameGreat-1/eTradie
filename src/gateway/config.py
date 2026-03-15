@@ -26,6 +26,15 @@ class GatewayConfig(BaseSettings):
 
     enabled: bool = Field(default=True, description="Master switch for the gateway service")
 
+    # -- Symbols (Gateway is the authority for active symbols) ---------------
+    default_symbols: list[str] = Field(
+        default_factory=lambda: [
+            "EURUSD", "GBPUSD", "USDJPY", "USDCHF",
+            "AUDUSD", "NZDUSD", "USDCAD", "XAUUSD",
+        ],
+        description="Default symbols when user has not made a selection",
+    )
+
     # -- Cycle timing --------------------------------------------------------
     cycle_interval_seconds: int = Field(
         default=14400, ge=60,
