@@ -2,8 +2,6 @@ package collectors
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -32,7 +30,8 @@ func NewTACollector(engine *infra.EngineHTTPClient, cfg *config.Config) *TAColle
 	}
 }
 
-// Collect runs TA analysis for the given symbols with bounded concurrency.
+// Collect runs TA analysis for the given symbols via a single HTTP call
+// to the Python engine. The Python side processes them in parallel.
 func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
@@ -121,10 +120,10 @@ func (c *TACollector) parseSymbolResults(
 		}
 
 		sr := models.TASymbolResult{
-			Symbol:       getStringField(resultMap, "symbol"),
-			Status:       getStringField(resultMap, "status"),
-			OverallTrend: getStringFieldDefault(resultMap, "overall_trend", "NEUTRAL"),
-			Error:        getStringField(resultMap, "error"),
+			Symbol:        getStringField(resultMap, "symbol"),
+			Status:        getStringField(resultMap, "status"),
+			OverallTrend:  getStringFieldDefault(resultMap, "overall_trend", "NEUTRAL"),
+			Error:         getStringField(resultMap, "error"),
 			HTFTimeframes: getStringSlice(resultMap, "htf_timeframes"),
 			LTFTimeframes: getStringSlice(resultMap, "ltf_timeframes"),
 		}
@@ -220,7 +219,3 @@ func getNestedMapMap(m map[string]interface{}, key string) map[string]map[string
 	}
 	return out
 }
-
-// Ensure fmt import is used.
-var _ = fmt.Sprintf
-var _ sync.Mutex
