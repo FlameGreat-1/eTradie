@@ -138,8 +138,8 @@ YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
    - Below 5: setup_grade "REJECT", direction "NO SETUP"
 
 6. proceed_to_module_b
-   - "YES" only when: setup_grade is A+ or A, all mandatory factors present, R:R meets minimum.
-   - "NO" for everything else.
+   - "YES" when: setup_grade is A+, A, or B, all mandatory factors present, R:R meets minimum.
+   - "NO" for everything else (REJECT grade or missing mandatory factors).
 
 OUTPUT JSON SCHEMA:
 """ + _OUTPUT_SCHEMA

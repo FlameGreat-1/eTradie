@@ -153,9 +153,9 @@ def _validate_rr_ratio(o: AnalysisOutput) -> list[str]:
 def _validate_proceed_consistency(o: AnalysisOutput) -> list[str]:
     errors: list[str] = []
     if o.proceed_to_module_b == "YES":
-        if o.setup_grade not in ("A+", "A"):
+        if o.setup_grade not in ("A+", "A", "B"):
             errors.append(
-                f"proceed_to_module_b is YES but grade is '{o.setup_grade}' (requires A+ or A)"
+                f"proceed_to_module_b is YES but grade is '{o.setup_grade}' (requires A+, A, or B)"
             )
         if o.direction == "NO SETUP":
             errors.append("proceed_to_module_b is YES but direction is NO SETUP")
