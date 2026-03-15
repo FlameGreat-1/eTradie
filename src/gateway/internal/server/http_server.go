@@ -18,12 +18,12 @@ import (
 type HTTPServer struct {
 	server *http.Server
 	redis  *infra.RedisClient
-	engine *infra.EngineClient
+	engine *infra.EngineHTTPClient
 	log    zerolog.Logger
 }
 
 // NewHTTPServer creates the HTTP server.
-func NewHTTPServer(cfg *config.Config, redis *infra.RedisClient, engine *infra.EngineClient) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, redis *infra.RedisClient, engine *infra.EngineHTTPClient) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
 		engine: engine,
