@@ -179,9 +179,9 @@ class AnalysisOutput(TimestampedModel):
     event_risk: list[EventRiskItem] = Field(default_factory=list)
 
     # Technical structure
-    weekly_bias: TimeframeBias = Field(alias="1w_bias")
-    daily_bias: TimeframeBias = Field(alias="1d_bias")
-    four_hour_setup: SetupZone = Field(alias="4h_setup")
+    htf_bias: TimeframeBias
+    mtf_bias: TimeframeBias
+    entry_setup: SetupZone
     wyckoff_phase: WyckoffPhaseOutput
 
     # Scoring

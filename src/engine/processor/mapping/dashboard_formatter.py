@@ -88,29 +88,29 @@ def _build_macro_summary(raw: dict) -> str:
 def _build_technical_summary(raw: dict) -> str:
     parts: list[str] = []
 
-    w = raw.get("1w_bias", {})
-    if w:
-        parts.append(f"Weekly: {w.get('structure', 'N/A').replace('_', ' ').title()}")
-        if w.get("notes"):
-            parts.append(f"  {w['notes']}")
+    htf = raw.get("htf_bias", {})
+    if htf:
+        parts.append(f"HTF Bias: {htf.get('structure', 'N/A').replace('_', ' ').title()}")
+        if htf.get("notes"):
+            parts.append(f"  {htf['notes']}")
 
-    d = raw.get("1d_bias", {})
-    if d:
-        parts.append(f"Daily: {d.get('structure', 'N/A').replace('_', ' ').title()}")
-        if d.get("notes"):
-            parts.append(f"  {d['notes']}")
+    mtf = raw.get("mtf_bias", {})
+    if mtf:
+        parts.append(f"MTF Bias: {mtf.get('structure', 'N/A').replace('_', ' ').title()}")
+        if mtf.get("notes"):
+            parts.append(f"  {mtf['notes']}")
 
-    h4 = raw.get("4h_setup", {})
-    if h4 and h4.get("type"):
-        zone_type = h4["type"]
-        quality = h4.get("quality", "N/A")
-        bounds = h4.get("bounds", [])
-        zone_text = f"4H Setup: {zone_type} (Grade {quality})"
+    entry = raw.get("entry_setup", {})
+    if entry and entry.get("type"):
+        zone_type = entry["type"]
+        quality = entry.get("quality", "N/A")
+        bounds = entry.get("bounds", [])
+        zone_text = f"Entry Setup: {zone_type} (Grade {quality})"
         if bounds and len(bounds) == 2:
             zone_text += f" at {bounds[0]} - {bounds[1]}"
         parts.append(zone_text)
-    elif h4:
-        parts.append("4H Setup: No valid zone identified")
+    elif entry:
+        parts.append("Entry Setup: No valid zone identified")
 
     wyckoff = raw.get("wyckoff_phase", {})
     if wyckoff and wyckoff.get("phase"):

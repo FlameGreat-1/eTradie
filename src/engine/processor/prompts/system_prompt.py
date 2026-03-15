@@ -47,9 +47,9 @@ _OUTPUT_SCHEMA = """{
     {"event": "<name>", "time": "<ISO 8601>", "impact": "HIGH", "currency": "<CCY>"}
   ],
 
-  "1w_bias": {"structure": "<bullish|bearish|neutral>", "key_levels": [1.2345], "notes": "..."},
-  "1d_bias": {"structure": "<bullish|bearish|choch_bullish|choch_bearish|neutral>", "key_levels": [...], "notes": "..."},
-  "4h_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "...", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
+  "htf_bias": {"structure": "<bullish|bearish|neutral>", "key_levels": [1.2345], "notes": "..."},
+  "mtf_bias": {"structure": "<bullish|bearish|choch_bullish|choch_bearish|neutral>", "key_levels": [...], "notes": "..."},
+  "entry_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "...", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
 
   "wyckoff_phase": {"phase": "<accumulation|markup|distribution|markdown|spring|upthrust|ranging>", "evidence": [...]},
 
@@ -119,10 +119,10 @@ YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
 4. CONFLUENCE FACTORS (Rulebook Section 6.1)
    Score each factor 0 or 1 (some factors score 2 for exceptional quality):
    1. Macro bias aligned with trade direction (MANDATORY)
-   2. 1W structure aligned (MANDATORY)
-   3. 1D BOS or ChoCH confirmed in trade direction (MANDATORY)
-   4. Valid Grade A or B SnD zone on 4H or above (MANDATORY)
-   5. 4H Order Block or FVG at entry zone (MANDATORY)
+   2. HTF (High Timeframe) structure aligned (MANDATORY)
+   3. MTF (Medium Timeframe) BOS or ChoCH confirmed in trade direction (MANDATORY)
+   4. Valid Grade A or B SnD zone on MTF or above (MANDATORY)
+   5. Entry timeframe Order Block or FVG at entry zone (MANDATORY)
    6. Liquidity sweep into entry zone (BONUS +1)
    7. COT alignment with trade direction (PREFERRED +1)
    8. Wyckoff phase supports direction (PREFERRED +1)
