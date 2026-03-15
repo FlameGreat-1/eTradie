@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 
-from engine.config import TAConfig, get_rag_config, get_settings
+from engine.config import get_rag_config, get_settings
 from engine.dependencies import Container
 from engine.shared.logging import configure_logging, get_logger
 from engine.shared.metrics.prometheus import APP_INFO

@@ -1,14 +1,18 @@
 """
 TA scheduler job definitions.
 
-Registers all TA-related periodic jobs with the shared SchedulerManager:
-- Candle refresh  – real-time latest candle ingestion per symbol/timeframe
-- Analysis trigger – runs full SMC/SnD detection pipeline
-- Backfill         – fills historical candle gaps on startup or on-demand
-- Broker sync      – periodic reconciliation of stored vs broker data
+Registers TA data infrastructure as a single dynamic recurring job:
+- Candle refresh  -- real-time latest candle ingestion per symbol/timeframe
+- Backfill        -- fills historical candle gaps
+- Broker sync     -- periodic reconciliation of stored vs broker data
 
-All jobs use ``engine.shared.scheduler.SchedulerManager`` and share the
-same lifecycle: config-driven registration via ``register_ta_jobs()``.
+The active symbol list is read from SymbolStore (owned by the Gateway)
+on every invocation.  When the user changes their selection, the next
+data refresh cycle automatically focuses on the new symbols.
+
+Timeframes are read from TAConfig (owned by the TA engine).
+Analysis (SMC/SnD detection) is NOT triggered here -- that is the
+Gateway's responsibility via TACollector -> TAOrchestrator.analyze().
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from typing import Any, Callable, Coroutine, Optional
 from engine.shared.logging import get_logger
 from engine.shared.scheduler import SchedulerManager
 from engine.ta.broker.base import BrokerBase
-from engine.config import TAConfig, get_ta_config
+from engine.config import get_ta_config
 from engine.ta.constants import Timeframe, TIMEFRAME_MINUTES
 from engine.ta.storage.repositories.candle import CandleRepository
 
@@ -121,31 +125,6 @@ async def _candle_refresh(
             "symbol": symbol,
             "timeframe": timeframe.value,
             "timestamp": latest.timestamp.isoformat(),
-        },
-    )
-
-
-@with_retry(max_retries=3)
-async def _analysis_trigger(
-    symbol: str,
-    orchestrator: TAOrchestrator,
-) -> None:
-    """Trigger full multi-timeframe TA analysis for a symbol.
-
-    The orchestrator reads its own TAConfig to determine which
-    timeframes to analyze -- callers do not specify them.
-    """
-    result = await orchestrator.analyze(symbol=symbol)
-
-    logger.info(
-        "analysis_triggered",
-        extra={
-            "symbol": symbol,
-            "htf_timeframes": result.get("htf_timeframes", []),
-            "ltf_timeframes": result.get("ltf_timeframes", []),
-            "status": result.get("status", "unknown"),
-            "smc_candidates": result.get("smc_candidates_count", 0),
-            "snd_candidates": result.get("snd_candidates_count", 0),
         },
     )
 
