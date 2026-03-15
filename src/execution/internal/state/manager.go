@@ -11,10 +11,13 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/models"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	"github.com/flamegreat/etradie/src/execution/internal/store"
 )
 
-// Manager maintains in-memory execution state, refreshed from the
-// broker on every execution attempt. Thread-safe via mutex.
+// Manager maintains execution state with in-memory caching backed by
+// PostgreSQL for P&L persistence. Positions and pending orders are
+// refreshed from the broker on every execution attempt. P&L counters
+// are persisted to survive service restarts. Thread-safe via mutex.
 type Manager struct {
 	mu sync.RWMutex
 
@@ -22,32 +25,55 @@ type Manager struct {
 	pendingOrders []models.BrokerPendingOrder
 	account       *models.AccountInfo
 
-	dailyPnL       float64
-	weeklyPnL      float64
-	dailyResetDay  int // Day of year for daily reset.
-	dailyResetYear int // Year for daily reset (handles year boundary).
-	weeklyResetDay int // Day of year for weekly reset (Monday).
-	weeklyResetYr  int // Year for weekly reset.
+	dailyPnL        float64
+	weeklyPnL       float64
+	dailyPeriodKey  string
+	weeklyPeriodKey string
 
-	broker broker.Port
-	log    zerolog.Logger
+	broker   broker.Port
+	pnlStore *store.PnLStore
+	log      zerolog.Logger
 }
 
-// NewManager creates a state manager backed by the given broker port.
-func NewManager(bp broker.Port) *Manager {
+// NewManager creates a state manager backed by the given broker port
+// and P&L store. Loads current P&L from PostgreSQL on construction
+// so counters survive service restarts.
+func NewManager(bp broker.Port, pnlStore *store.PnLStore) *Manager {
 	now := time.Now().UTC()
-	return &Manager{
-		broker:         bp,
-		dailyResetDay:  now.YearDay(),
-		dailyResetYear: now.Year(),
-		weeklyResetDay: mondayYearDay(now),
-		weeklyResetYr:  mondayYear(now),
-		log:            observability.Logger("state_manager"),
+	m := &Manager{
+		broker:          bp,
+		pnlStore:        pnlStore,
+		dailyPeriodKey:  store.DailyPeriodKey(now),
+		weeklyPeriodKey: store.WeeklyPeriodKey(now),
+		log:             observability.Logger("state_manager"),
 	}
+
+	// Load persisted P&L from PostgreSQL.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	snap, err := pnlStore.LoadCurrent(ctx)
+	if err != nil {
+		m.log.Error().Err(err).Msg("pnl_load_on_startup_failed")
+	} else {
+		m.dailyPnL = snap.DailyPnL
+		m.weeklyPnL = snap.WeeklyPnL
+		m.dailyPeriodKey = snap.DailyPeriodKey
+		m.weeklyPeriodKey = snap.WeeklyPeriodKey
+		m.log.Info().
+			Float64("daily_pnl", snap.DailyPnL).
+			Int("daily_trades", snap.DailyTrades).
+			Float64("weekly_pnl", snap.WeeklyPnL).
+			Int("weekly_trades", snap.WeeklyTrades).
+			Msg("pnl_restored_from_db")
+	}
+
+	return m
 }
 
 // Refresh fetches live state from the broker. Called before every
-// execution attempt to ensure accuracy.
+// execution attempt to ensure accuracy. Detects day/week boundary
+// crossings and reloads P&L from PostgreSQL with new period keys.
 func (m *Manager) Refresh(ctx context.Context) error {
 	account, err := m.broker.GetAccountInfo(ctx)
 	if err != nil {
@@ -71,19 +97,33 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	m.positions = positions
 	m.pendingOrders = pending
 
-	// Reset daily/weekly P&L counters on day/week boundaries.
+	// Detect day/week boundary crossings and reload from DB.
 	now := time.Now().UTC()
-	if now.YearDay() != m.dailyResetDay || now.Year() != m.dailyResetYear {
+	newDailyKey := store.DailyPeriodKey(now)
+	newWeeklyKey := store.WeeklyPeriodKey(now)
+
+	boundaryChanged := false
+	if newDailyKey != m.dailyPeriodKey {
+		m.dailyPeriodKey = newDailyKey
 		m.dailyPnL = 0
-		m.dailyResetDay = now.YearDay()
-		m.dailyResetYear = now.Year()
+		boundaryChanged = true
 	}
-	currentMonday := mondayYearDay(now)
-	currentMondayYr := mondayYear(now)
-	if currentMonday != m.weeklyResetDay || currentMondayYr != m.weeklyResetYr {
+	if newWeeklyKey != m.weeklyPeriodKey {
+		m.weeklyPeriodKey = newWeeklyKey
 		m.weeklyPnL = 0
-		m.weeklyResetDay = currentMonday
-		m.weeklyResetYr = currentMondayYr
+		boundaryChanged = true
+	}
+
+	if boundaryChanged {
+		// Reload from DB to pick up any P&L recorded by other instances
+		// or from trades closed during the new period.
+		snap, err := m.pnlStore.LoadCurrent(ctx)
+		if err != nil {
+			m.log.Error().Err(err).Msg("pnl_reload_on_boundary_failed")
+		} else {
+			m.dailyPnL = snap.DailyPnL
+			m.weeklyPnL = snap.WeeklyPnL
+		}
 	}
 
 	observability.OpenPositionCount.Set(float64(len(m.positions)))
@@ -97,6 +137,8 @@ func (m *Manager) Refresh(ctx context.Context) error {
 		Float64("balance", account.Balance).
 		Float64("daily_pnl", m.dailyPnL).
 		Float64("weekly_pnl", m.weeklyPnL).
+		Str("daily_key", m.dailyPeriodKey).
+		Str("weekly_key", m.weeklyPeriodKey).
 		Msg("state_refreshed")
 
 	return nil
@@ -177,15 +219,23 @@ func (m *Manager) WeeklyDrawdownPercent() float64 {
 	return (-m.weeklyPnL / m.account.Balance) * 100
 }
 
-// RecordPnL adds a realized P&L amount to daily and weekly counters.
-// Called by Module C when a trade closes.
-func (m *Manager) RecordPnL(amount float64) {
+// RecordPnL persists a realized P&L amount to PostgreSQL and updates
+// in-memory counters. Called by Module C when a trade closes.
+// DB write is the source of truth; in-memory is updated only on success.
+func (m *Manager) RecordPnL(ctx context.Context, amount float64) error {
+	if err := m.pnlStore.RecordPnL(ctx, amount); err != nil {
+		m.log.Error().Err(err).Float64("amount", amount).Msg("pnl_persist_failed")
+		return err
+	}
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.dailyPnL += amount
 	m.weeklyPnL += amount
 	observability.DailyPnL.Set(m.dailyPnL)
 	observability.WeeklyPnL.Set(m.weeklyPnL)
+	m.mu.Unlock()
+
+	return nil
 }
 
 // Positions returns a copy of current open positions.
@@ -229,22 +279,4 @@ func (m *Manager) WeeklyPnL() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.weeklyPnL
-}
-
-func mondayYearDay(t time.Time) int {
-	offset := int(t.Weekday()) - int(time.Monday)
-	if offset < 0 {
-		offset += 7
-	}
-	monday := t.AddDate(0, 0, -offset)
-	return monday.YearDay()
-}
-
-func mondayYear(t time.Time) int {
-	offset := int(t.Weekday()) - int(time.Monday)
-	if offset < 0 {
-		offset += 7
-	}
-	monday := t.AddDate(0, 0, -offset)
-	return monday.Year()
 }
