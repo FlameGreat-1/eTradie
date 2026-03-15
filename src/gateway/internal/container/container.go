@@ -23,7 +23,7 @@ import (
 type Container struct {
 	Cfg          *config.Config
 	Redis        *infra.RedisClient
-	Engine       *infra.EngineClient
+	EngineHTTP   *infra.EngineHTTPClient
 	SymbolStore  *symbolstore.Store
 	Orchestrator *pipeline.Orchestrator
 	Scheduler    *pipeline.Scheduler
@@ -42,17 +42,14 @@ func New(cfg *config.Config, processor ports.ProcessorPort, execution ports.Exec
 		return nil, fmt.Errorf("container: redis: %w", err)
 	}
 
-	engineClient, err := infra.NewEngineClient(cfg.EngineGRPCAddress)
-	if err != nil {
-		return nil, fmt.Errorf("container: engine grpc: %w", err)
-	}
+	engineHTTP := infra.NewEngineHTTPClient(cfg.EngineHTTPURL, cfg.CycleTimeoutSeconds)
 
 	// Symbol Store.
 	symStore := symbolstore.NewStore(redisClient, cfg)
 
 	// Collectors.
-	taCollector := collectors.NewTACollector(engineClient, cfg)
-	macroCollector := collectors.NewMacroCollector(engineClient)
+	taCollector := collectors.NewTACollector(engineHTTP, cfg)
+	macroCollector := collectors.NewMacroCollector(engineHTTP)
 
 	// Query Builder.
 	qb := querybuilder.NewBuilder()
@@ -69,15 +66,15 @@ func New(cfg *config.Config, processor ports.ProcessorPort, execution ports.Exec
 	// Pipeline Orchestrator.
 	orchestrator := pipeline.NewOrchestrator(
 		cfg, taCollector, macroCollector, qb, assembler,
-		processor, router, engineClient,
+		processor, router, engineHTTP,
 	)
 
 	// Scheduler.
 	scheduler := pipeline.NewScheduler(orchestrator, symStore, cfg)
 
 	// Servers.
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineClient)
-	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, redisClient, engineClient)
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP)
+	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, redisClient, engineHTTP)
 
 	log.Info().
 		Int("cycle_interval", cfg.CycleIntervalSeconds).
@@ -88,7 +85,7 @@ func New(cfg *config.Config, processor ports.ProcessorPort, execution ports.Exec
 	return &Container{
 		Cfg:          cfg,
 		Redis:        redisClient,
-		Engine:       engineClient,
+		EngineHTTP:   engineHTTP,
 		SymbolStore:  symStore,
 		Orchestrator: orchestrator,
 		Scheduler:    scheduler,
@@ -108,9 +105,7 @@ func (c *Container) Shutdown(ctx context.Context) {
 		c.log.Error().Err(err).Msg("http_server_shutdown_error")
 	}
 
-	if err := c.Engine.Close(); err != nil {
-		c.log.Error().Err(err).Msg("engine_client_close_error")
-	}
+	c.EngineHTTP.Close()
 
 	if err := c.Redis.Close(); err != nil {
 		c.log.Error().Err(err).Msg("redis_close_error")
