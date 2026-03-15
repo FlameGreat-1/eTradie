@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -34,6 +35,8 @@ func NewScheduler(
 }
 
 // Start begins the recurring cycle. Blocks until ctx is cancelled.
+// Applies random jitter (0-10% of interval) to the first tick to
+// prevent thundering herd when multiple gateway instances start.
 func (s *Scheduler) Start(ctx context.Context) {
 	if !s.cfg.Enabled {
 		s.log.Info().Msg("gateway_disabled_skipping_scheduler")
@@ -41,13 +44,35 @@ func (s *Scheduler) Start(ctx context.Context) {
 	}
 
 	interval := time.Duration(s.cfg.CycleIntervalSeconds) * time.Second
+
+	// Apply jitter to the first tick: random delay of 0-10% of the interval.
+	// This prevents all gateway instances from firing their first cycle
+	// at exactly the same time after a coordinated deployment/restart.
+	maxJitter := interval / 10
+	if maxJitter > 0 {
+		jitter := time.Duration(rand.Int63n(int64(maxJitter)))
+		s.log.Info().
+			Int("interval_seconds", s.cfg.CycleIntervalSeconds).
+			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
+			Float64("initial_jitter_seconds", jitter.Seconds()).
+			Msg("gateway_cycle_scheduler_started")
+
+		select {
+		case <-ctx.Done():
+			s.log.Info().Msg("gateway_cycle_scheduler_stopped_during_jitter")
+			return
+		case <-time.After(jitter):
+			// Jitter elapsed, proceed to first cycle.
+		}
+	} else {
+		s.log.Info().
+			Int("interval_seconds", s.cfg.CycleIntervalSeconds).
+			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
+			Msg("gateway_cycle_scheduler_started")
+	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
-	s.log.Info().
-		Int("interval_seconds", s.cfg.CycleIntervalSeconds).
-		Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
-		Msg("gateway_cycle_scheduler_started")
 
 	for {
 		select {
