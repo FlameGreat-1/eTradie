@@ -84,7 +84,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     register_ta_jobs(
         container.scheduler,
         ta_config=ta_config,
-        orchestrator=container.ta_orchestrator,
         broker_client=container.mt5_client,
         candle_repository=container.candle_repository,
     )

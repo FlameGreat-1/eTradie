@@ -263,10 +263,16 @@ class Container:
         self.timeframe_manager = TimeframeManager()
         self.snapshot_builder = SnapshotBuilder(
             swing_analyzer=self.swing_analyzer,
+            session_analyzer=self.session_analyzer,
             liquidity_analyzer=self.liquidity_analyzer,
+            sweep_analyzer=self.sweep_analyzer,
             fibonacci_analyzer=self.fibonacci_analyzer,
+            dealing_range_analyzer=self.dealing_range_analyzer,
         )
-        self.alignment_service = AlignmentService(timeframe_manager=self.timeframe_manager)
+        self.alignment_service = AlignmentService(
+            require_trend_alignment=True,
+            require_zone_nesting=False,
+        )
 
     def _build_smc_framework(self) -> None:
         self.smc_detector = SMCDetector(
@@ -299,9 +305,9 @@ class Container:
             smc_detector=self.smc_detector,
             snd_detector=self.snd_detector,
             snapshot_builder=self.snapshot_builder,
-            candle_analyzer=self.candle_analyzer,
-            swing_analyzer=self.swing_analyzer,
-            fibonacci_analyzer=self.fibonacci_analyzer,
+            alignment_service=self.alignment_service,
+            timeframe_manager=self.timeframe_manager,
+            ta_config=self.ta_config,
         )
 
     async def build_rag(self) -> None:
