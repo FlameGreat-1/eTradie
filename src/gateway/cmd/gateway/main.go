@@ -35,10 +35,11 @@ func main() {
 	}
 
 	// Build the gateway container (all dependency wiring).
-	// Processor and Execution ports are nil until Module B is implemented.
+	// Execution port is nil until Module B is implemented.
 	// The gateway operates in "analysis-only" mode: it runs the full pipeline
 	// but returns {status: pending} from the execution step.
-	c, err := container.New(cfg, nil, nil)
+	// The processor is wired internally via HTTPProcessorAdapter.
+	c, err := container.New(cfg, nil)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}
