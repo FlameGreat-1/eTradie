@@ -129,22 +129,24 @@ async def _candle_refresh(
 @with_retry(max_retries=3)
 async def _analysis_trigger(
     symbol: str,
-    htf_timeframe: Timeframe,
-    ltf_timeframe: Timeframe,
     orchestrator: TAOrchestrator,
 ) -> None:
-    """Trigger full TA analysis for a symbol/timeframe pair."""
-    result = await orchestrator.analyze(
-        symbol, htf_timeframe, ltf_timeframe,
-    )
+    """Trigger full multi-timeframe TA analysis for a symbol.
+
+    The orchestrator reads its own TAConfig to determine which
+    timeframes to analyze -- callers do not specify them.
+    """
+    result = await orchestrator.analyze(symbol=symbol)
 
     logger.info(
         "analysis_triggered",
         extra={
             "symbol": symbol,
-            "htf": htf_timeframe.value,
-            "ltf": ltf_timeframe.value,
+            "htf_timeframes": result.get("htf_timeframes", []),
+            "ltf_timeframes": result.get("ltf_timeframes", []),
             "status": result.get("status", "unknown"),
+            "smc_candidates": result.get("smc_candidates_count", 0),
+            "snd_candidates": result.get("snd_candidates_count", 0),
         },
     )
 

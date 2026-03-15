@@ -204,7 +204,7 @@ class TAConfig(BaseSettings):
     )
 
     htf_timeframes: list[Timeframe] = Field(
-        default_factory=lambda: [Timeframe.D1, Timeframe.H4, Timeframe.H1]
+        default_factory=lambda: [Timeframe.W1, Timeframe.D1, Timeframe.H4, Timeframe.H1]
     )
 
     ltf_timeframes: list[Timeframe] = Field(
