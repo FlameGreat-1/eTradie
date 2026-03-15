@@ -8,26 +8,27 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/constants"
 	"github.com/flamegreat/etradie/src/execution/internal/models"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	"github.com/flamegreat/etradie/src/execution/internal/store"
 )
 
 // Logger orchestrates audit logging by delegating database writes
-// to Store and structured logging to zerolog.
+// to store.AuditStore and structured logging to zerolog.
 type Logger struct {
-	store *Store
-	log   zerolog.Logger
+	auditStore *store.AuditStore
+	log        zerolog.Logger
 }
 
-// NewLogger creates an audit logger backed by the given store.
-func NewLogger(store *Store) *Logger {
+// NewLogger creates an audit logger backed by the given audit store.
+func NewLogger(auditStore *store.AuditStore) *Logger {
 	return &Logger{
-		store: store,
-		log:   observability.Logger("audit_logger"),
+		auditStore: auditStore,
+		log:        observability.Logger("audit_logger"),
 	}
 }
 
 // LogValidationPassed records a successful validation.
 func (l *Logger) LogValidationPassed(ctx context.Context, req *models.TradeRequest) {
-	l.store.Write(ctx, &Entry{
+	l.auditStore.Write(ctx, &store.AuditEntry{
 		Action:          string(constants.ActionValidationPassed),
 		Symbol:          req.Symbol,
 		Direction:       string(req.Direction),
@@ -43,7 +44,7 @@ func (l *Logger) LogValidationPassed(ctx context.Context, req *models.TradeReque
 
 // LogValidationRejected records a failed validation with the check that failed.
 func (l *Logger) LogValidationRejected(ctx context.Context, req *models.TradeRequest, result models.ValidationResult) {
-	l.store.Write(ctx, &Entry{
+	l.auditStore.Write(ctx, &store.AuditEntry{
 		Action:          string(constants.ActionValidationRejected),
 		Symbol:          req.Symbol,
 		Direction:       string(req.Direction),
@@ -61,7 +62,7 @@ func (l *Logger) LogValidationRejected(ctx context.Context, req *models.TradeReq
 
 // LogLotSizeCalculated records the full sizing calculation breakdown.
 func (l *Logger) LogLotSizeCalculated(ctx context.Context, req *models.TradeRequest, sizing *models.SizingResult) {
-	l.store.Write(ctx, &Entry{
+	l.auditStore.Write(ctx, &store.AuditEntry{
 		Action:       string(constants.ActionLotSizeCalculated),
 		Symbol:       req.Symbol,
 		Direction:    string(req.Direction),
@@ -73,7 +74,7 @@ func (l *Logger) LogLotSizeCalculated(ctx context.Context, req *models.TradeRequ
 		Grade:        req.Grade,
 		TradingStyle: string(req.TradingStyle),
 		Details: map[string]interface{}{
-			"account_balance": sizing.AccountBalance,
+			"account_balance":  sizing.AccountBalance,
 			"sl_distance_pips": sizing.SLDistancePips,
 			"pip_value":        sizing.PipValue,
 			"pip_size":         sizing.PipSize,
@@ -90,7 +91,7 @@ func (l *Logger) LogOrderPlaced(ctx context.Context, order *models.Order) {
 		action = constants.ActionWatcherArmed
 	}
 
-	l.store.Write(ctx, &Entry{
+	l.auditStore.Write(ctx, &store.AuditEntry{
 		Action:          string(action),
 		Symbol:          order.Symbol,
 		Direction:       string(order.Direction),
@@ -108,25 +109,25 @@ func (l *Logger) LogOrderPlaced(ctx context.Context, order *models.Order) {
 		RRRatio:         order.RRRatio,
 		ConfluenceScore: order.Confluence,
 		Details: map[string]interface{}{
-			"tp1_price":      order.TP1Price,
-			"tp1_pct":        order.TP1Pct,
-			"tp2_price":      order.TP2Price,
-			"tp2_pct":        order.TP2Pct,
-			"tp3_price":      order.TP3Price,
-			"tp3_pct":        order.TP3Pct,
-			"sl_pips":        order.SLDistancePips,
-			"pip_value":      order.PipValue,
-			"balance":        order.AccountBalance,
-			"ttl_candles":    order.TTLCandles,
-			"broker_order":   order.BrokerOrderID,
-			"watcher_id":     order.WatcherID,
+			"tp1_price":    order.TP1Price,
+			"tp1_pct":      order.TP1Pct,
+			"tp2_price":    order.TP2Price,
+			"tp2_pct":      order.TP2Pct,
+			"tp3_price":    order.TP3Price,
+			"tp3_pct":      order.TP3Pct,
+			"sl_pips":      order.SLDistancePips,
+			"pip_value":    order.PipValue,
+			"balance":      order.AccountBalance,
+			"ttl_candles":  order.TTLCandles,
+			"broker_order": order.BrokerOrderID,
+			"watcher_id":   order.WatcherID,
 		},
 	})
 }
 
 // LogOrderCancelled records an order cancellation.
 func (l *Logger) LogOrderCancelled(ctx context.Context, orderID, symbol, reason, traceID string) {
-	l.store.Write(ctx, &Entry{
+	l.auditStore.Write(ctx, &store.AuditEntry{
 		Action:          string(constants.ActionOrderCancelled),
 		Symbol:          symbol,
 		OrderID:         orderID,
