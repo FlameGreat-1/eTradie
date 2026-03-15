@@ -208,11 +208,15 @@ class AnalysisProcessor(ProcessorPort):
         # retry_llm_call handles transient failures (rate limits, server
         # errors, timeouts) with exponential backoff + jitter. Non-retryable
         # errors (auth, bad request) are raised immediately.
+        async def _llm_call() -> LLMResponse:
+            return await self._llm.call(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                trace_id=trace_id,
+            )
+
         llm_response: LLMResponse = await retry_llm_call(
-            self._llm.call,
-            system_prompt=system_prompt,
-            user_message=user_message,
-            trace_id=trace_id,
+            _llm_call,
             config=self._config,
             trace_id=trace_id,
         )
