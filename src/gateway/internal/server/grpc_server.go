@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto_model "github.com/prometheus/client_model/go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -259,43 +260,28 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 	}, nil
 }
 
-// readGaugeValue reads the current value from a Prometheus Gauge.
+// readGaugeValue reads the current value from a Prometheus Gauge
+// using the official client_model dto package.
 func readGaugeValue(gauge prometheus.Gauge) float64 {
-	var m prometheus.Metric
 	ch := make(chan prometheus.Metric, 1)
 	gauge.Collect(ch)
+
+	var m prometheus.Metric
 	select {
 	case m = <-ch:
 	default:
 		return 0
 	}
 
-	var dto = &prometheusDTO{}
-	if err := m.Write(dto); err != nil {
+	var dto dto_model.Metric
+	if err := m.Write(&dto); err != nil {
 		return 0
 	}
-	if dto.Gauge != nil {
-		return *dto.Gauge.Value
+	if dto.GetGauge() != nil {
+		return dto.GetGauge().GetValue()
 	}
 	return 0
 }
-
-// prometheusDTO is a minimal struct to read Prometheus metric values.
-// Matches the fields of io_prometheus_client.Metric that we need.
-type prometheusDTO struct {
-	Gauge *gaugeDTO
-}
-
-type gaugeDTO struct {
-	Value *float64
-}
-
-func (d *prometheusDTO) GetGauge() *gaugeDTO { return d.Gauge }
-
-// Write implements the prometheus.Metric Write interface target.
-func (d *prometheusDTO) String() string  { return "" }
-func (d *prometheusDTO) Reset()          {}
-func (d *prometheusDTO) ProtoMessage()   {}
 
 func panicRecoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(
