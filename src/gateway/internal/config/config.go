@@ -34,6 +34,10 @@ type Config struct {
 	// Guard evaluation.
 	GuardTimeoutSeconds int `envconfig:"GUARD_TIMEOUT_SECONDS" default:"10"`
 
+	// Result caching TTLs. Set to 0 to disable caching for that collector.
+	TACacheTTLSeconds    int `envconfig:"TA_CACHE_TTL_SECONDS" default:"300"`
+	MacroCacheTTLSeconds int `envconfig:"MACRO_CACHE_TTL_SECONDS" default:"600"`
+
 	// Retry policy.
 	MaxCycleRetries         int     `envconfig:"MAX_CYCLE_RETRIES" default:"1"`
 	RetryBackoffBaseSeconds float64 `envconfig:"RETRY_BACKOFF_BASE_SECONDS" default:"2.0"`
@@ -109,6 +113,14 @@ func (c *Config) validate() error {
 	// Guard bounds.
 	if c.GuardTimeoutSeconds < 2 || c.GuardTimeoutSeconds > 30 {
 		return fmt.Errorf("GUARD_TIMEOUT_SECONDS must be 2..30, got %d", c.GuardTimeoutSeconds)
+	}
+
+	// Cache TTL bounds.
+	if c.TACacheTTLSeconds < 0 || c.TACacheTTLSeconds > 3600 {
+		return fmt.Errorf("TA_CACHE_TTL_SECONDS must be 0..3600, got %d", c.TACacheTTLSeconds)
+	}
+	if c.MacroCacheTTLSeconds < 0 || c.MacroCacheTTLSeconds > 3600 {
+		return fmt.Errorf("MACRO_CACHE_TTL_SECONDS must be 0..3600, got %d", c.MacroCacheTTLSeconds)
 	}
 
 	// Retry bounds.

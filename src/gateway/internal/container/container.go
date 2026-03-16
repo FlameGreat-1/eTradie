@@ -51,9 +51,9 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 	// Symbol Store.
 	symStore := symbolstore.NewStore(redisClient, cfg)
 
-	// Collectors.
-	taCollector := collectors.NewTACollector(engineHTTP, cfg)
-	macroCollector := collectors.NewMacroCollector(engineHTTP)
+	// Collectors (with Redis caching).
+	taCollector := collectors.NewTACollector(engineHTTP, redisClient, cfg)
+	macroCollector := collectors.NewMacroCollector(engineHTTP, redisClient, cfg.MacroCacheTTLSeconds)
 
 	// Query Builder.
 	qb := querybuilder.NewBuilder()

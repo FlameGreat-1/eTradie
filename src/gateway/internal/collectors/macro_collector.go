@@ -2,6 +2,7 @@ package collectors
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,21 +15,36 @@ import (
 
 // MacroCollector calls the Python engine to collect all 8 macro datasets
 // via a single HTTP call (the Python side runs them in parallel).
+// Results are cached in Redis to avoid redundant HTTP calls within
+// the configured TTL window.
 type MacroCollector struct {
-	engine *infra.EngineHTTPClient
-	log    zerolog.Logger
+	engine   *infra.EngineHTTPClient
+	redis    *infra.RedisClient
+	cacheTTL time.Duration
+	log      zerolog.Logger
 }
 
-// NewMacroCollector creates a MacroCollector backed by the engine HTTP client.
-func NewMacroCollector(engine *infra.EngineHTTPClient) *MacroCollector {
+// NewMacroCollector creates a MacroCollector backed by the engine HTTP client
+// with optional Redis caching. If redis is nil or TTL is 0, caching is disabled.
+func NewMacroCollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient, cacheTTLSeconds int) *MacroCollector {
 	return &MacroCollector{
-		engine: engine,
-		log:    observability.Logger("macro_collector"),
+		engine:   engine,
+		redis:    redis,
+		cacheTTL: time.Duration(cacheTTLSeconds) * time.Second,
+		log:      observability.Logger("macro_collector"),
 	}
 }
 
 // Collect runs all 8 macro collectors via the Python engine and returns a MacroResult.
+// macroCacheKey is the fixed cache key for macro results (global, not per-symbol).
+const macroCacheKey = "latest"
+
 func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.MacroResult, error) {
+	// Check cache first.
+	if cached := c.getFromCache(ctx, traceID); cached != nil {
+		return cached, nil
+	}
+
 	start := time.Now()
 
 	reqBody := map[string]interface{}{
@@ -78,7 +94,52 @@ func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.M
 		Str("trace_id", traceID).
 		Msg("macro_collection_completed")
 
+	// Cache successful result.
+	c.storeInCache(ctx, result, traceID)
+
 	return result, nil
+}
+
+func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *models.MacroResult {
+	if c.redis == nil || c.cacheTTL <= 0 {
+		return nil
+	}
+
+	raw, err := c.redis.Get(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey)
+	if err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_read_error")
+		return nil
+	}
+	if raw == nil {
+		return nil
+	}
+
+	rawJSON, err := json.Marshal(raw)
+	if err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_remarshal_error")
+		return nil
+	}
+
+	var result models.MacroResult
+	if err := json.Unmarshal(rawJSON, &result); err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_unmarshal_error")
+		return nil
+	}
+
+	c.log.Info().
+		Str("trace_id", traceID).
+		Msg("macro_result_served_from_cache")
+	return &result
+}
+
+func (c *MacroCollector) storeInCache(ctx context.Context, result *models.MacroResult, traceID string) {
+	if c.redis == nil || c.cacheTTL <= 0 {
+		return
+	}
+
+	if err := c.redis.Set(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey, result, c.cacheTTL); err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_write_error")
+	}
 }
 
 func getDatasetMap(resp map[string]interface{}, key string) map[string]interface{} {

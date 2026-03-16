@@ -2,6 +2,9 @@ package collectors
 
 import (
 	"context"
+	"encoding/json"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -15,29 +18,49 @@ import (
 
 // TACollector calls the Python TA engine via HTTP for each symbol
 // with bounded concurrency, then maps results into gateway models.
+// Results are cached in Redis to avoid redundant HTTP calls within
+// the configured TTL window.
 type TACollector struct {
-	engine *infra.EngineHTTPClient
-	cfg    *config.Config
-	log    zerolog.Logger
+	engine   *infra.EngineHTTPClient
+	redis    *infra.RedisClient
+	cfg      *config.Config
+	cacheTTL time.Duration
+	log      zerolog.Logger
 }
 
-// NewTACollector creates a TACollector backed by the engine HTTP client.
-func NewTACollector(engine *infra.EngineHTTPClient, cfg *config.Config) *TACollector {
+// NewTACollector creates a TACollector backed by the engine HTTP client
+// with optional Redis caching. If redis is nil or TTL is 0, caching is disabled.
+func NewTACollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient, cfg *config.Config) *TACollector {
 	return &TACollector{
-		engine: engine,
-		cfg:    cfg,
-		log:    observability.Logger("ta_collector"),
+		engine:   engine,
+		redis:    redis,
+		cfg:      cfg,
+		cacheTTL: time.Duration(cfg.TACacheTTLSeconds) * time.Second,
+		log:      observability.Logger("ta_collector"),
 	}
 }
 
 // Collect runs TA analysis for the given symbols via a single HTTP call
 // to the Python engine. The Python side processes them in parallel.
+// taCacheKey builds a deterministic cache key from the sorted symbol list.
+func taCacheKey(symbols []string) string {
+	sorted := make([]string, len(symbols))
+	copy(sorted, symbols)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
 func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
 		return &models.TAResult{
 			CollectedAt: time.Now().UTC(),
 		}, nil
+	}
+
+	// Check cache first.
+	if cached := c.getFromCache(ctx, symbols, traceID); cached != nil {
+		return cached, nil
 	}
 
 	start := time.Now()
@@ -79,11 +102,62 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 		Str("trace_id", traceID).
 		Msg("ta_collection_completed")
 
-	return &models.TAResult{
+	result := &models.TAResult{
 		SymbolResults: results,
 		CollectedAt:   time.Now().UTC(),
 		DurationMs:    elapsedMs,
-	}, nil
+	}
+
+	// Cache successful result.
+	c.storeInCache(ctx, symbols, result, traceID)
+
+	return result, nil
+}
+
+func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceID string) *models.TAResult {
+	if c.redis == nil || c.cacheTTL <= 0 {
+		return nil
+	}
+
+	key := taCacheKey(symbols)
+	raw, err := c.redis.Get(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
+	if err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_read_error")
+		return nil
+	}
+	if raw == nil {
+		return nil
+	}
+
+	// raw is interface{} from JSON unmarshal; re-marshal then unmarshal into TAResult.
+	rawJSON, err := json.Marshal(raw)
+	if err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_remarshal_error")
+		return nil
+	}
+
+	var result models.TAResult
+	if err := json.Unmarshal(rawJSON, &result); err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_unmarshal_error")
+		return nil
+	}
+
+	c.log.Info().
+		Strs("symbols", symbols).
+		Str("trace_id", traceID).
+		Msg("ta_result_served_from_cache")
+	return &result
+}
+
+func (c *TACollector) storeInCache(ctx context.Context, symbols []string, result *models.TAResult, traceID string) {
+	if c.redis == nil || c.cacheTTL <= 0 {
+		return
+	}
+
+	key := taCacheKey(symbols)
+	if err := c.redis.Set(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key, result, c.cacheTTL); err != nil {
+		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_write_error")
+	}
 }
 
 func (c *TACollector) parseSymbolResults(
