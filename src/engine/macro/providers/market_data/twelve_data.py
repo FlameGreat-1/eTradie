@@ -16,6 +16,8 @@ _SYMBOLS = {
     "gold": "XAU/USD",
     "silver": "XAG/USD",
     "oil": "CL",
+    "copper": "HG",
+    "natural_gas": "NG",
     "sp500": "SPX",
     "vix": "VIX",
 }
@@ -63,6 +65,8 @@ class TwelveDataProvider(BaseMarketDataProvider):
             gold_price=prices.get("gold"),
             silver_price=prices.get("silver"),
             oil_price=prices.get("oil"),
+            copper=prices.get("copper"),
+            natural_gas=prices.get("natural_gas"),
             sp500=prices.get("sp500"),
             vix=prices.get("vix"),
             snapshot_at=datetime.now(UTC),
