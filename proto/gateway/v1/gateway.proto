@@ -36,9 +36,10 @@ message CycleOutput {
   string trace_id = 6;
   string error = 7;
   string error_stage = 8;
-  // Full processor output and guard result as JSON.
+  // Full processor output, guard result, and execution result as JSON.
   bytes processor_output_json = 9;
   bytes guard_result_json = 10;
+  bytes execution_result_json = 11;
 }
 
 message RunCycleResponse {

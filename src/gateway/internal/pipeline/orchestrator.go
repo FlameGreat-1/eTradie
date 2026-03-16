@@ -410,6 +410,7 @@ func (o *Orchestrator) processSymbol(
 		Symbol:          symbol,
 		ProcessorOutput: processorOutput,
 		GuardResult:     routeResult.GuardResult,
+		ExecutionResult: routeResult.ExecutionResult,
 		DurationMs:      tracker.ElapsedMs(),
 		TraceID:         traceID,
 	}
