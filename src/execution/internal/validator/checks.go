@@ -139,18 +139,20 @@ func check8MaxConcurrentTrades(
 }
 
 // check9DailyLossLimit locks execution when the daily realized loss
-// exceeds the configured percentage of account balance. Uses RuntimeParams
-// from the settings store so dashboard changes take effect immediately.
+// exceeds the configured percentage of account balance. The current
+// loss percentage is read from state.Manager (broker + PostgreSQL).
+// The limit threshold is read from RuntimeParams (settings store)
+// so dashboard changes take effect immediately.
 func check9DailyLossLimit(
 	_ context.Context,
 	_ *models.TradeRequest,
 	_ *config.Config,
 	params *RuntimeParams,
-	_ *state.Manager,
+	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	loss := params.currentDailyLossPct
+	loss := sm.DailyLossPercent()
 	if loss >= params.DailyLossLimitPct {
 		return lock(
 			constants.CheckDailyLossLimit,
@@ -162,18 +164,20 @@ func check9DailyLossLimit(
 
 // check10WeeklyDrawdown pauses execution when the weekly realized
 // drawdown exceeds the configured percentage of account balance.
-// Uses RuntimeParams from the settings store so dashboard changes
-// take effect immediately.
+// The current drawdown percentage is read from state.Manager
+// (broker + PostgreSQL). The limit threshold is read from
+// RuntimeParams (settings store) so dashboard changes take effect
+// immediately.
 func check10WeeklyDrawdown(
 	_ context.Context,
 	_ *models.TradeRequest,
 	_ *config.Config,
 	params *RuntimeParams,
-	_ *state.Manager,
+	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	dd := params.currentWeeklyDrawdownPct
+	dd := sm.WeeklyDrawdownPercent()
 	if dd >= params.WeeklyDrawdownPct {
 		return pause(
 			constants.CheckWeeklyDrawdown,
