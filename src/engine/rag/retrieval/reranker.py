@@ -43,7 +43,7 @@ class Reranker:
         """Rerank chunks by weighted score, never limiting below mandatory total.
 
         The output floor is the MAXIMUM of:
-        - The configured rerank_top_k (default 25)
+        - The configured rerank_top_k (default 130)
         - The sum of all mandatory per-doc-type minimums
 
         This ensures the reranker NEVER outputs fewer chunks than the
