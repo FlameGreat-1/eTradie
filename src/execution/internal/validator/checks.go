@@ -23,6 +23,7 @@ func check4NewsLockout(
 	_ context.Context,
 	_ *models.TradeRequest,
 	_ *config.Config,
+	_ *RuntimeParams,
 	_ *state.Manager,
 	_ broker.Port,
 	_ time.Time,
@@ -37,6 +38,7 @@ func check5SessionFilter(
 	_ context.Context,
 	_ *models.TradeRequest,
 	cfg *config.Config,
+	_ *RuntimeParams,
 	_ *state.Manager,
 	_ broker.Port,
 	now time.Time,
@@ -77,6 +79,7 @@ func check6SamePairPosition(
 	_ context.Context,
 	req *models.TradeRequest,
 	_ *config.Config,
+	_ *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
@@ -99,6 +102,7 @@ func check7CorrelatedExposure(
 	_ context.Context,
 	req *models.TradeRequest,
 	_ *config.Config,
+	_ *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
@@ -113,40 +117,44 @@ func check7CorrelatedExposure(
 }
 
 // check8MaxConcurrentTrades queues the trade if the maximum number
-// of concurrent open positions has been reached.
+// of concurrent open positions has been reached. Uses RuntimeParams
+// from the settings store so dashboard changes take effect immediately.
 func check8MaxConcurrentTrades(
 	_ context.Context,
 	_ *models.TradeRequest,
-	cfg *config.Config,
+	_ *config.Config,
+	params *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
 	count := sm.OpenPositionCount()
-	if count >= cfg.MaxConcurrentTrades {
+	if count >= params.MaxConcurrentTrades {
 		return queue(
 			constants.CheckMaxConcurrentTrades,
-			fmt.Sprintf("at max concurrent trades: %d/%d", count, cfg.MaxConcurrentTrades),
+			fmt.Sprintf("at max concurrent trades: %d/%d", count, params.MaxConcurrentTrades),
 		)
 	}
 	return pass()
 }
 
 // check9DailyLossLimit locks execution when the daily realized loss
-// exceeds the configured percentage of account balance.
+// exceeds the configured percentage of account balance. Uses RuntimeParams
+// from the settings store so dashboard changes take effect immediately.
 func check9DailyLossLimit(
 	_ context.Context,
 	_ *models.TradeRequest,
-	cfg *config.Config,
-	sm *state.Manager,
+	_ *config.Config,
+	params *RuntimeParams,
+	_ *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	loss := sm.DailyLossPercent()
-	if loss >= cfg.DailyLossLimitPct {
+	loss := params.currentDailyLossPct
+	if loss >= params.DailyLossLimitPct {
 		return lock(
 			constants.CheckDailyLossLimit,
-			fmt.Sprintf("daily loss %.2f%% exceeds limit %.2f%%", loss, cfg.DailyLossLimitPct),
+			fmt.Sprintf("daily loss %.2f%% exceeds limit %.2f%%", loss, params.DailyLossLimitPct),
 		)
 	}
 	return pass()
@@ -154,19 +162,22 @@ func check9DailyLossLimit(
 
 // check10WeeklyDrawdown pauses execution when the weekly realized
 // drawdown exceeds the configured percentage of account balance.
+// Uses RuntimeParams from the settings store so dashboard changes
+// take effect immediately.
 func check10WeeklyDrawdown(
 	_ context.Context,
 	_ *models.TradeRequest,
-	cfg *config.Config,
-	sm *state.Manager,
+	_ *config.Config,
+	params *RuntimeParams,
+	_ *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	dd := sm.WeeklyDrawdownPercent()
-	if dd >= cfg.WeeklyDrawdownPct {
+	dd := params.currentWeeklyDrawdownPct
+	if dd >= params.WeeklyDrawdownPct {
 		return pause(
 			constants.CheckWeeklyDrawdown,
-			fmt.Sprintf("weekly drawdown %.2f%% exceeds limit %.2f%%", dd, cfg.WeeklyDrawdownPct),
+			fmt.Sprintf("weekly drawdown %.2f%% exceeds limit %.2f%%", dd, params.WeeklyDrawdownPct),
 		)
 	}
 	return pass()
@@ -178,6 +189,7 @@ func check11Spread(
 	ctx context.Context,
 	req *models.TradeRequest,
 	cfg *config.Config,
+	_ *RuntimeParams,
 	_ *state.Manager,
 	bp broker.Port,
 	_ time.Time,
@@ -221,6 +233,7 @@ func check12MinRR(
 	_ context.Context,
 	req *models.TradeRequest,
 	_ *config.Config,
+	_ *RuntimeParams,
 	_ *state.Manager,
 	_ broker.Port,
 	_ time.Time,
@@ -246,6 +259,7 @@ func check13WeekendDayFilter(
 	_ context.Context,
 	req *models.TradeRequest,
 	_ *config.Config,
+	_ *RuntimeParams,
 	_ *state.Manager,
 	_ broker.Port,
 	now time.Time,

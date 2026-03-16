@@ -13,12 +13,22 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/state"
 )
 
+// RuntimeParams holds dashboard-configurable values resolved from the
+// settings store on every trade. These override the static config
+// defaults so that dashboard changes take effect immediately.
+type RuntimeParams struct {
+	MaxConcurrentTrades int
+	DailyLossLimitPct   float64
+	WeeklyDrawdownPct   float64
+}
+
 // checkFunc is the signature for each pre-execution check.
 // Accepts context for broker calls with timeouts.
 type checkFunc func(
 	ctx context.Context,
 	req *models.TradeRequest,
 	cfg *config.Config,
+	params *RuntimeParams,
 	sm *state.Manager,
 	bp broker.Port,
 	now time.Time,
@@ -58,13 +68,14 @@ func NewValidator(cfg *config.Config, sm *state.Manager, bp broker.Port) *Valida
 	}
 }
 
-// Validate runs all checks sequentially. Returns on first failure.
-func (v *Validator) Validate(ctx context.Context, req *models.TradeRequest) models.ValidationResult {
+// Validate runs all checks sequentially with runtime parameters
+// resolved from the settings store. Returns on first failure.
+func (v *Validator) Validate(ctx context.Context, req *models.TradeRequest, params *RuntimeParams) models.ValidationResult {
 	start := time.Now()
 	now := v.nowFn()
 
 	for _, check := range v.checks {
-		result := check(ctx, req, v.cfg, v.state, v.broker, now)
+		result := check(ctx, req, v.cfg, params, v.state, v.broker, now)
 		if !result.Passed {
 			elapsed := time.Since(start).Seconds()
 			observability.ValidationDuration.Observe(elapsed)
