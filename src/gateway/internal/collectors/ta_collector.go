@@ -40,8 +40,6 @@ func NewTACollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient, cf
 	}
 }
 
-// Collect runs TA analysis for the given symbols via a single HTTP call
-// to the Python engine. The Python side processes them in parallel.
 // taCacheKey builds a deterministic cache key from the sorted symbol list.
 func taCacheKey(symbols []string) string {
 	sorted := make([]string, len(symbols))
@@ -50,6 +48,8 @@ func taCacheKey(symbols []string) string {
 	return strings.Join(sorted, ",")
 }
 
+// Collect runs TA analysis for the given symbols via a single HTTP call
+// to the Python engine. The Python side processes them in parallel.
 func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
@@ -72,6 +72,10 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 	}
 
 	resp, err := c.engine.PostJSON(ctx, "/internal/ta/analyze", reqBody)
+
+	elapsed := time.Since(start)
+	observability.GatewayTACollectDuration.Observe(elapsed.Seconds())
+
 	if err != nil {
 		observability.GatewayStageErrors.WithLabelValues(
 			constants.StageTACollector.String(), "http_error",
@@ -86,7 +90,7 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 	// Parse symbol_results from the response.
 	results := c.parseSymbolResults(resp, symbols, traceID)
 
-	elapsedMs := float64(time.Since(start).Milliseconds())
+	elapsedMs := float64(elapsed.Milliseconds())
 	successCount := 0
 	for i := range results {
 		if results[i].Status == "success" {
