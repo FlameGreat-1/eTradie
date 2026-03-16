@@ -683,21 +683,40 @@ def create_app() -> FastAPI:
             logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
             raise HTTPException(status_code=500, detail=f"Macro collection failed: {exc}")
 
-        # Step 3: RAG retrieval (if available).
-        retrieved_knowledge: dict = {}
-        if hasattr(container, "rag_orchestrator"):
-            try:
-                bundle = await container.rag_orchestrator.retrieve_context(
-                    f"{symbol} trade setup analysis",
-                    symbol=symbol,
-                    trace_id=trace_id,
-                )
-                if hasattr(bundle, "model_dump"):
-                    retrieved_knowledge = bundle.model_dump(mode="json")
-                elif isinstance(bundle, dict):
-                    retrieved_knowledge = bundle
-            except Exception as exc:
-                logger.warning("rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)})
+        # Step 3: RAG retrieval (mandatory).
+        # The RAG knowledge base is the rulebook the LLM reasons over.
+        # Without it the LLM cannot cite rules, score confluence, or
+        # grade setups. RAG failure is a hard stop.
+        if not hasattr(container, "rag_orchestrator"):
+            raise HTTPException(
+                status_code=503,
+                detail="RAG knowledge base not initialized. The LLM cannot reason without the rulebook.",
+            )
+
+        try:
+            bundle = await container.rag_orchestrator.retrieve_context(
+                f"{symbol} trade setup analysis",
+                symbol=symbol,
+                trace_id=trace_id,
+            )
+            if hasattr(bundle, "model_dump"):
+                retrieved_knowledge = bundle.model_dump(mode="json")
+            elif isinstance(bundle, dict):
+                retrieved_knowledge = bundle
+            else:
+                retrieved_knowledge = {}
+        except Exception as exc:
+            logger.error("rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(
+                status_code=500,
+                detail=f"RAG retrieval failed: {exc}. The LLM cannot reason without the knowledge base.",
+            )
+
+        if not retrieved_knowledge:
+            raise HTTPException(
+                status_code=500,
+                detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
+            )
 
         # Step 4: Run processor LLM.
         try:
