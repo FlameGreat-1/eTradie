@@ -15,7 +15,7 @@ from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
 from engine.ta.scheduler_jobs import register_ta_jobs
-from engine.processor.constants import LLMProvider
+from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from engine.processor.models.io import ProcessorInput
 from engine.shared.store import RedisSymbolReader
@@ -391,7 +391,7 @@ def create_app() -> FastAPI:
         if pair:
             rows = await repo.get_latest_by_pair(pair.upper(), limit=limit)
         else:
-            rows = await repo.list_all(limit=limit)
+            rows = await repo.list_recent_all(limit=limit)
 
         results = []
         for row in rows:
@@ -419,6 +419,136 @@ def create_app() -> FastAPI:
             })
 
         return {"analyses": results, "count": len(results)}
+
+    @app.get("/api/analysis/history")
+    async def get_analysis_history(
+        request: Request,
+        pair: Optional[str] = None,
+        status: Optional[str] = None,
+        grade: Optional[str] = None,
+        provider: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict:
+        """Paginated analysis history with filters.
+
+        Query params:
+          pair      - Filter by symbol (e.g. EURUSD)
+          status    - Filter by status (success, no_setup, llm_error, ...)
+          grade     - Filter by setup grade (A+, A, B, REJECT)
+          provider  - Filter by LLM provider (anthropic, openai, ...)
+          since     - ISO 8601 datetime lower bound (inclusive)
+          until     - ISO 8601 datetime upper bound (inclusive)
+          offset    - Pagination offset (default 0)
+          limit     - Page size (default 20, max 100)
+
+        Returns analyses array, total_count, offset, and limit for
+        the frontend to build pagination controls.
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "processor_analysis_repo"):
+            raise HTTPException(status_code=503, detail="Processor not initialized")
+
+        from datetime import datetime as dt, timezone
+
+        since_dt = None
+        until_dt = None
+        if since:
+            try:
+                since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
+        if until:
+            try:
+                until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
+
+        limit = min(limit, 100)
+        if offset < 0:
+            offset = 0
+
+        repo = container.processor_analysis_repo
+        rows, total_count = await repo.list_filtered(
+            pair=pair,
+            status=status,
+            grade=grade,
+            provider=provider,
+            since=since_dt,
+            until=until_dt,
+            offset=offset,
+            limit=limit,
+        )
+
+        results = []
+        for row in rows:
+            display = format_for_dashboard(row.raw_output or {}, row)
+            results.append({
+                "analysis_id": row.analysis_id,
+                "pair": row.pair,
+                "direction": row.direction,
+                "setup_grade": row.setup_grade,
+                "confluence_score": row.confluence_score,
+                "confidence": row.confidence,
+                "proceed_to_module_b": row.proceed_to_module_b,
+                "rr_ratio": row.rr_ratio,
+                "trading_style": row.trading_style,
+                "session": row.session,
+                "llm_provider": row.llm_provider,
+                "llm_model": row.llm_model,
+                "status": row.status,
+                "duration_ms": row.duration_ms,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "display": {
+                    "summary": display["summary"],
+                    "analyzed_by": display["analyzed_by"],
+                },
+            })
+
+        return {
+            "analyses": results,
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit,
+        }
+
+    @app.get("/api/analysis/stats")
+    async def get_analysis_stats(
+        request: Request,
+        pair: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+    ) -> dict:
+        """Aggregate analysis statistics for the dashboard.
+
+        Returns total count, success rate, grade distribution,
+        average confluence score, average duration, and breakdowns
+        by provider and pair. Optionally filtered by pair and date range.
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "processor_analysis_repo"):
+            raise HTTPException(status_code=503, detail="Processor not initialized")
+
+        from datetime import datetime as dt
+
+        since_dt = None
+        until_dt = None
+        if since:
+            try:
+                since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
+        if until:
+            try:
+                until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
+
+        repo = container.processor_analysis_repo
+        stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
+        return stats
 
     @app.get("/api/analysis/{analysis_id}")
     async def get_analysis_detail(request: Request, analysis_id: str) -> dict:
@@ -482,7 +612,170 @@ def create_app() -> FastAPI:
             "audit": audit_data,
         }
 
+    # -- Re-run analysis endpoint --------------------------------------------
+
+    @app.post("/api/analysis/rerun")
+    async def rerun_analysis(
+        request: Request,
+        symbol: str,
+        trace_id: Optional[str] = None,
+    ) -> dict:
+        """Re-trigger analysis for a single symbol on demand.
+
+        Uses the current processor config (provider, model, temperature).
+        Calls the same internal pipeline as the Go gateway but bypasses
+        the scheduler. Useful for testing a new model or re-checking
+        a symbol without waiting for the next scheduled cycle.
+
+        This endpoint calls the Python-side TA, Macro, RAG, and Processor
+        in sequence. It does NOT go through the Go gateway's guards or
+        execution routing (those are gateway-side concerns).
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "processor"):
+            raise HTTPException(status_code=503, detail="Processor not initialized")
+        if not hasattr(container, "ta_orchestrator"):
+            raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
+
+        symbol = symbol.upper().strip()
+        if not symbol:
+            raise HTTPException(status_code=400, detail="Symbol is required")
+
+        # Step 1: Run TA analysis for the symbol.
+        try:
+            ta_result = await container.ta_orchestrator.analyze(symbol=symbol)
+        except Exception as exc:
+            logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(status_code=500, detail=f"TA analysis failed: {exc}")
+
+        if isinstance(ta_result, dict):
+            ta_analysis = ta_result
+        elif hasattr(ta_result, "model_dump"):
+            ta_analysis = ta_result.model_dump(mode="json")
+        else:
+            ta_analysis = {"raw": str(ta_result)}
+
+        # Step 2: Run macro collection.
+        macro_analysis: dict = {}
+        try:
+            collector_map = {
+                "central_bank": container.cb_collector,
+                "cot": container.cot_collector,
+                "economic": container.economic_collector,
+                "news": container.news_collector,
+                "calendar": container.calendar_collector,
+                "dxy": container.dxy_collector,
+                "intermarket": container.intermarket_collector,
+                "sentiment": container.sentiment_collector,
+            }
+            tasks = {name: c.collect() for name, c in collector_map.items()}
+            raw_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            for name, result in zip(tasks.keys(), raw_results):
+                if isinstance(result, Exception):
+                    macro_analysis[name] = None
+                elif isinstance(result, dict):
+                    macro_analysis[name] = result
+                elif hasattr(result, "model_dump"):
+                    macro_analysis[name] = result.model_dump(mode="json")
+                else:
+                    macro_analysis[name] = {"raw": str(result)}
+        except Exception as exc:
+            logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(status_code=500, detail=f"Macro collection failed: {exc}")
+
+        # Step 3: RAG retrieval (mandatory).
+        # The RAG knowledge base is the rulebook the LLM reasons over.
+        # Without it the LLM cannot cite rules, score confluence, or
+        # grade setups. RAG failure is a hard stop.
+        if not hasattr(container, "rag_orchestrator"):
+            raise HTTPException(
+                status_code=503,
+                detail="RAG knowledge base not initialized. The LLM cannot reason without the rulebook.",
+            )
+
+        try:
+            bundle = await container.rag_orchestrator.retrieve_context(
+                f"{symbol} trade setup analysis",
+                symbol=symbol,
+                trace_id=trace_id,
+            )
+            if hasattr(bundle, "model_dump"):
+                retrieved_knowledge = bundle.model_dump(mode="json")
+            elif isinstance(bundle, dict):
+                retrieved_knowledge = bundle
+            else:
+                retrieved_knowledge = {}
+        except Exception as exc:
+            logger.error("rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(
+                status_code=500,
+                detail=f"RAG retrieval failed: {exc}. The LLM cannot reason without the knowledge base.",
+            )
+
+        if not retrieved_knowledge:
+            raise HTTPException(
+                status_code=500,
+                detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
+            )
+
+        # Step 4: Run processor LLM.
+        try:
+            processor_input = ProcessorInput(
+                symbol=symbol,
+                ta_analysis=ta_analysis,
+                macro_analysis=macro_analysis,
+                retrieved_knowledge=retrieved_knowledge,
+                metadata={"symbol": symbol, "source": "dashboard_rerun", "trace_id": trace_id or ""},
+            )
+            result = await container.processor.process(
+                processor_input,
+                trace_id=trace_id,
+            )
+        except Exception as exc:
+            logger.error("rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
+
+        if hasattr(result, "model_dump"):
+            return {"status": "completed", "symbol": symbol, "result": result.model_dump(mode="json")}
+        if isinstance(result, dict):
+            return {"status": "completed", "symbol": symbol, "result": result}
+        return {"status": "completed", "symbol": symbol, "result": {"raw": str(result)}}
+
     # -- Processor config endpoints (LLM provider/model switching) -----------
+
+    @app.get("/api/processor/models")
+    async def get_available_models(request: Request) -> dict:
+        """Available models per provider for the dashboard model selector.
+
+        Returns the model list for each provider plus the currently
+        active provider and model. The user selects a model from this
+        list; the selection is applied via PUT /api/processor/config
+        which persists it as the active model until changed.
+        """
+        container: Container = request.app.state.container
+        if not hasattr(container, "processor_config"):
+            raise HTTPException(status_code=503, detail="Processor not initialized")
+
+        cfg = container.processor_config
+        return {
+            "current_provider": cfg.llm_provider,
+            "current_model": cfg.model_name,
+            "providers": {
+                provider: {
+                    "models": models,
+                    "default_model": DEFAULT_MODELS.get(provider, ""),
+                    "accepts_custom": provider == LLMProvider.SELF_HOSTED,
+                }
+                for provider, models in AVAILABLE_MODELS.items()
+            },
+            "self_hosted": {
+                "models": [],
+                "default_model": DEFAULT_MODELS.get(LLMProvider.SELF_HOSTED, "default"),
+                "accepts_custom": True,
+                "note": "Enter any model name supported by your endpoint",
+                "requires_api_base_url": True,
+            },
+        }
 
     @app.get("/api/processor/config")
     async def get_processor_config(request: Request) -> ProcessorConfigResponse:
