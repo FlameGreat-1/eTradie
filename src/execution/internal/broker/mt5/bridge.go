@@ -64,17 +64,17 @@ func (b *Bridge) GetAccountInfo(ctx context.Context) (*models.AccountInfo, error
 
 func (b *Bridge) GetPositions(ctx context.Context) ([]models.Position, error) {
 	var resp []struct {
-		Symbol        string  `json:"symbol"`
-		Type          int     `json:"type"` // 0=BUY, 1=SELL
-		PriceOpen     float64 `json:"price_open"`
-		PriceCurrent  float64 `json:"price_current"`
-		SL            float64 `json:"sl"`
-		TP            float64 `json:"tp"`
-		Volume        float64 `json:"volume"`
-		Profit        float64 `json:"profit"`
-		Ticket        int64   `json:"ticket"`
-		Comment       string  `json:"comment"`
-		TimeSetup     int64   `json:"time_setup"`
+		Symbol       string  `json:"symbol"`
+		Type         int     `json:"type"` // 0=BUY, 1=SELL
+		PriceOpen    float64 `json:"price_open"`
+		PriceCurrent float64 `json:"price_current"`
+		SL           float64 `json:"sl"`
+		TP           float64 `json:"tp"`
+		Volume       float64 `json:"volume"`
+		Profit       float64 `json:"profit"`
+		Ticket       int64   `json:"ticket"`
+		Comment      string  `json:"comment"`
+		TimeSetup    int64   `json:"time_setup"`
 	}
 
 	if err := b.get(ctx, "/internal/broker/positions", &resp); err != nil {
@@ -151,11 +151,13 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 		Symbol       string  `json:"symbol"`
 		Point        float64 `json:"point"`
 		Digits       int32   `json:"digits"`
-		Spread       int     `json:"spread"` // In points from MT5.
+		Spread       int     `json:"spread"`                // In points from MT5.
 		ContractSize float64 `json:"trade_contract_size"`
 		VolumeMin    float64 `json:"volume_min"`
 		VolumeMax    float64 `json:"volume_max"`
 		VolumeStep   float64 `json:"volume_step"`
+		TickValue    float64 `json:"trade_tick_value"`       // SYMBOL_TRADE_TICK_VALUE: profit per 1 point per 1 lot in account currency.
+		TickSize     float64 `json:"trade_tick_size"`        // SYMBOL_TRADE_TICK_SIZE: smallest price change.
 	}
 
 	if err := b.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", symbol), &resp); err != nil {
@@ -165,28 +167,39 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 	// MT5 point = smallest price increment. Pip size depends on digits.
 	// For 5-digit pairs: pip = point * 10. For 3-digit (JPY): pip = point * 10.
 	// For 2-digit (metals): pip = point.
-	pipSize := resp.Point * 10
+	pipPointRatio := 10.0
 	if resp.Digits <= 2 {
-		pipSize = resp.Point
-	} else if resp.Digits == 3 {
-		pipSize = resp.Point * 10
+		pipPointRatio = 1.0
 	}
+	pipSize := resp.Point * pipPointRatio
 
 	// Spread in price units.
 	spreadPrice := float64(resp.Spread) * resp.Point
 
-	// Pip value = (pip_size / current_price) * contract_size.
-	// For standard forex with USD account, pip value per lot ≈ 10 USD.
-	// The Python bridge should ideally return this calculated, but
-	// we approximate here. The actual pip value depends on the account
-	// currency and current exchange rate.
-	pipValue := pipSize * resp.ContractSize
-	if pipValue > 100 {
-		// For pairs where contract_size * pip_size is large (e.g. XAUUSD),
-		// this is the raw pip value per standard lot.
-		// Keep as-is; the sizing engine uses it directly.
-	} else if pipValue < 0.01 {
-		pipValue = 10.0 // Fallback for standard forex.
+	// Pip value calculation: use MT5's SYMBOL_TRADE_TICK_VALUE for accuracy.
+	// tick_value = profit in account currency for a 1-point move on 1 standard lot.
+	// pip_value = tick_value * (pip_size / tick_size) = tick_value * pipPointRatio
+	// This is exact for ALL pairs including cross-currencies (e.g. EURGBP on USD account).
+	var pipValue float64
+	if resp.TickValue > 0 && resp.TickSize > 0 {
+		// Exact calculation using MT5's pre-computed tick value.
+		pipValue = resp.TickValue * (pipSize / resp.TickSize)
+	} else if resp.TickValue > 0 {
+		// TickSize not provided; assume tick = point.
+		pipValue = resp.TickValue * pipPointRatio
+	} else {
+		// Fallback: approximate. This is ONLY used if the Python bridge
+		// does not return trade_tick_value (old bridge version).
+		// Log a warning because this can produce wrong sizing for
+		// cross-currency pairs.
+		pipValue = pipSize * resp.ContractSize
+		if pipValue < 0.01 {
+			pipValue = 10.0 // Last-resort fallback for standard forex.
+		}
+		b.log.Warn().
+			Str("symbol", symbol).
+			Float64("approx_pip_value", pipValue).
+			Msg("tick_value_not_available_using_approximation")
 	}
 
 	return &models.InstrumentInfo{
@@ -213,21 +226,21 @@ func (b *Bridge) PlaceMarketOrder(ctx context.Context, order *models.OrderPlacem
 
 func (b *Bridge) placeOrder(ctx context.Context, order *models.OrderPlacement, orderType string) (*models.OrderResult, error) {
 	payload := map[string]interface{}{
-		"symbol":     order.Symbol,
-		"direction":  order.Direction,
-		"order_type": orderType,
-		"price":      order.Price,
-		"stop_loss":  order.StopLoss,
+		"symbol":      order.Symbol,
+		"direction":   order.Direction,
+		"order_type":  orderType,
+		"price":       order.Price,
+		"stop_loss":   order.StopLoss,
 		"take_profit": order.TakeProfit,
-		"lot_size":   order.LotSize,
-		"comment":    order.Comment,
+		"lot_size":    order.LotSize,
+		"comment":     order.Comment,
 	}
 
 	var resp struct {
-		OrderID  int64   `json:"order_id"`
-		Price    float64 `json:"price"`
-		Status   string  `json:"status"` // "PLACED", "FILLED", "REJECTED"
-		Error    string  `json:"error"`
+		OrderID int64   `json:"order_id"`
+		Price   float64 `json:"price"`
+		Status  string  `json:"status"` // "PLACED", "FILLED", "REJECTED"
+		Error   string  `json:"error"`
 	}
 
 	if err := b.post(ctx, "/internal/broker/place_order", payload, &resp); err != nil {
