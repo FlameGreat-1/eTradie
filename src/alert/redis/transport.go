@@ -1,14 +1,15 @@
-package alert
+package redis
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-	zerolog "github.com/rs/zerolog"
+	goredis "github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
+
+	"github.com/flamegreat/etradie/src/alert"
 )
 
 const (
@@ -26,8 +27,8 @@ const (
 	defaultHistoryTTL = 7 * 24 * time.Hour
 )
 
-// RedisTransportConfig holds configuration for the Redis transport.
-type RedisTransportConfig struct {
+// TransportConfig holds configuration for the Redis transport.
+type TransportConfig struct {
 	// Channel is the Redis pub/sub channel name. Default: "etradie:alerts".
 	Channel string
 
@@ -45,7 +46,7 @@ type RedisTransportConfig struct {
 	HistoryTTL time.Duration
 }
 
-func (c *RedisTransportConfig) applyDefaults() {
+func (c *TransportConfig) applyDefaults() {
 	if c.Channel == "" {
 		c.Channel = defaultChannel
 	}
@@ -60,7 +61,7 @@ func (c *RedisTransportConfig) applyDefaults() {
 	}
 }
 
-// RedisTransport bridges Redis pub/sub to a local Hub for cross-service
+// Transport bridges Redis pub/sub to a local Hub for cross-service
 // event delivery and persistent event history.
 //
 // Architecture (Option B):
@@ -70,19 +71,19 @@ func (c *RedisTransportConfig) applyDefaults() {
 //     received events into the local Hub for WebSocket fan-out.
 //   - Recent() / RecentFiltered() query the Redis sorted set so
 //     reconnecting dashboards can catch up on missed events.
-type RedisTransport struct {
-	client  *redis.Client
-	hub     *Hub
-	cfg     RedisTransportConfig
-	cancel  context.CancelFunc
-	log     zerolog.Logger
+type Transport struct {
+	client *goredis.Client
+	hub    *alert.Hub
+	cfg    TransportConfig
+	cancel context.CancelFunc
+	log    zerolog.Logger
 }
 
-// NewRedisTransport creates a transport that bridges Redis pub/sub to
+// NewTransport creates a transport that bridges Redis pub/sub to
 // the given local Hub. Call Start() to begin receiving events.
-func NewRedisTransport(client *redis.Client, hub *Hub, cfg RedisTransportConfig) *RedisTransport {
+func NewTransport(client *goredis.Client, hub *alert.Hub, cfg TransportConfig) *Transport {
 	cfg.applyDefaults()
-	return &RedisTransport{
+	return &Transport{
 		client: client,
 		hub:    hub,
 		cfg:    cfg,
@@ -96,7 +97,7 @@ func NewRedisTransport(client *redis.Client, hub *Hub, cfg RedisTransportConfig)
 // Hub receives it and fans out to connected WebSocket clients.
 //
 // Call Close() to stop the subscriber.
-func (t *RedisTransport) Start(ctx context.Context) {
+func (t *Transport) Start(ctx context.Context) {
 	subCtx, cancel := context.WithCancel(ctx)
 	t.cancel = cancel
 
@@ -114,10 +115,10 @@ func (t *RedisTransport) Start(ctx context.Context) {
 // persistent history. The event is also published to the local Hub
 // so local WebSocket clients receive it immediately without waiting
 // for the Redis round-trip.
-func (t *RedisTransport) Publish(ctx context.Context, evt *Event) {
+func (t *Transport) Publish(ctx context.Context, evt *alert.Event) {
 	data, err := json.Marshal(evt)
 	if err != nil {
-		AlertRedisErrors.WithLabelValues("marshal").Inc()
+		alert.AlertRedisErrors.WithLabelValues("marshal").Inc()
 		t.log.Error().Err(err).Str("event_id", evt.ID).Msg("redis_transport_marshal_failed")
 		return
 	}
@@ -127,28 +128,26 @@ func (t *RedisTransport) Publish(ctx context.Context, evt *Event) {
 
 	// Publish to Redis pub/sub channel for other services.
 	if err := t.client.Publish(ctx, t.cfg.Channel, data).Err(); err != nil {
-		AlertRedisErrors.WithLabelValues("publish").Inc()
+		alert.AlertRedisErrors.WithLabelValues("publish").Inc()
 		t.log.Error().Err(err).Str("event_id", evt.ID).Msg("redis_transport_publish_failed")
 		return
 	}
-	AlertRedisPublished.Inc()
+	alert.AlertRedisPublished.Inc()
 
 	// Store in sorted set for history. Score is Unix nanosecond timestamp
 	// for precise ordering. Using nanoseconds avoids score collisions
 	// when multiple events fire within the same millisecond.
 	score := float64(time.Now().UnixNano())
-	if err := t.client.ZAdd(ctx, t.cfg.HistoryKey, redis.Z{
+	if err := t.client.ZAdd(ctx, t.cfg.HistoryKey, goredis.Z{
 		Score:  score,
 		Member: data,
 	}).Err(); err != nil {
-		AlertRedisErrors.WithLabelValues("history_write").Inc()
+		alert.AlertRedisErrors.WithLabelValues("history_write").Inc()
 		t.log.Error().Err(err).Str("event_id", evt.ID).Msg("redis_transport_history_write_failed")
 		return
 	}
 
 	// Trim history to max size (remove oldest entries beyond limit).
-	// ZREMRANGEBYRANK removes elements from index 0 (lowest score/oldest)
-	// up to -(maxHistory+1), keeping only the newest maxHistory entries.
 	excess := t.client.ZCard(ctx, t.cfg.HistoryKey).Val() - t.cfg.MaxHistory
 	if excess > 0 {
 		t.client.ZRemRangeByRank(ctx, t.cfg.HistoryKey, 0, excess-1)
@@ -157,21 +156,20 @@ func (t *RedisTransport) Publish(ctx context.Context, evt *Event) {
 	// Refresh TTL as a safety net against orphaned keys.
 	t.client.Expire(ctx, t.cfg.HistoryKey, t.cfg.HistoryTTL)
 
-	AlertHistorySize.Set(float64(t.client.ZCard(ctx, t.cfg.HistoryKey).Val()))
+	alert.AlertHistorySize.Set(float64(t.client.ZCard(ctx, t.cfg.HistoryKey).Val()))
 }
 
 // Recent returns the last n events from Redis history, ordered oldest
 // to newest. Returns nil if no events exist or on error.
-func (t *RedisTransport) Recent(ctx context.Context, n int64) []*Event {
+func (t *Transport) Recent(ctx context.Context, n int64) []*alert.Event {
 	if n <= 0 {
 		return nil
 	}
 
-	// ZREVRANGE returns newest first; we want oldest-to-newest, so we
-	// fetch the last n and reverse.
+	// ZREVRANGE returns newest first; we reverse to oldest-first.
 	results, err := t.client.ZRevRange(ctx, t.cfg.HistoryKey, 0, n-1).Result()
 	if err != nil {
-		AlertRedisErrors.WithLabelValues("history_read").Inc()
+		alert.AlertRedisErrors.WithLabelValues("history_read").Inc()
 		t.log.Error().Err(err).Msg("redis_transport_recent_failed")
 		return nil
 	}
@@ -180,10 +178,9 @@ func (t *RedisTransport) Recent(ctx context.Context, n int64) []*Event {
 		return nil
 	}
 
-	// Reverse to chronological order (oldest first).
-	events := make([]*Event, 0, len(results))
+	events := make([]*alert.Event, 0, len(results))
 	for i := len(results) - 1; i >= 0; i-- {
-		var evt Event
+		var evt alert.Event
 		if err := json.Unmarshal([]byte(results[i]), &evt); err != nil {
 			t.log.Warn().Err(err).Msg("redis_transport_history_unmarshal_skip")
 			continue
@@ -196,15 +193,14 @@ func (t *RedisTransport) Recent(ctx context.Context, n int64) []*Event {
 
 // RecentFiltered returns the last n events from Redis history that match
 // the given minimum severity, ordered oldest to newest.
-func (t *RedisTransport) RecentFiltered(ctx context.Context, n int64, minSeverity EventSeverity) []*Event {
+func (t *Transport) RecentFiltered(ctx context.Context, n int64, minSeverity alert.EventSeverity) []*alert.Event {
 	if minSeverity == "" {
 		return t.Recent(ctx, n)
 	}
 
-	minRank := severityRank[minSeverity]
+	minRank := alert.SeverityRank(minSeverity)
 
-	// Fetch more than n to account for filtering. We fetch up to 4x
-	// the requested count, capped at the max history size.
+	// Fetch more than n to account for filtering, capped at max history.
 	fetchCount := n * 4
 	if fetchCount > t.cfg.MaxHistory {
 		fetchCount = t.cfg.MaxHistory
@@ -212,22 +208,21 @@ func (t *RedisTransport) RecentFiltered(ctx context.Context, n int64, minSeverit
 
 	results, err := t.client.ZRevRange(ctx, t.cfg.HistoryKey, 0, fetchCount-1).Result()
 	if err != nil {
-		AlertRedisErrors.WithLabelValues("history_read").Inc()
+		alert.AlertRedisErrors.WithLabelValues("history_read").Inc()
 		t.log.Error().Err(err).Msg("redis_transport_recent_filtered_failed")
 		return nil
 	}
 
-	// Walk from newest to oldest, collecting matches up to n.
-	matched := make([]*Event, 0, n)
+	matched := make([]*alert.Event, 0, n)
 	for _, raw := range results {
 		if int64(len(matched)) >= n {
 			break
 		}
-		var evt Event
+		var evt alert.Event
 		if err := json.Unmarshal([]byte(raw), &evt); err != nil {
 			continue
 		}
-		if severityRank[evt.Severity] >= minRank {
+		if alert.SeverityRank(evt.Severity) >= minRank {
 			matched = append(matched, &evt)
 		}
 	}
@@ -240,17 +235,76 @@ func (t *RedisTransport) RecentFiltered(ctx context.Context, n int64, minSeverit
 	return matched
 }
 
+// RecentSince returns events from Redis history that occurred after the
+// given event ID. This enables efficient catch-up: the dashboard sends
+// the last event ID it received, and gets only newer events.
+// Returns events in chronological order (oldest first).
+func (t *Transport) RecentSince(ctx context.Context, lastEventID string, maxCount int64) []*alert.Event {
+	if lastEventID == "" {
+		return t.Recent(ctx, maxCount)
+	}
+
+	// Parse the timestamp prefix from the event ID (format: "20060102150405-hexbytes").
+	timePart := splitEventID(lastEventID)
+	if timePart == "" {
+		return t.Recent(ctx, maxCount)
+	}
+
+	parsedTime, err := time.Parse("20060102150405", timePart)
+	if err != nil {
+		return t.Recent(ctx, maxCount)
+	}
+
+	// Use the parsed time as the minimum score (exclusive).
+	minScore := fmt.Sprintf("(%d", parsedTime.UnixNano())
+
+	results, err := t.client.ZRangeByScore(ctx, t.cfg.HistoryKey, &goredis.ZRangeBy{
+		Min:   minScore,
+		Max:   "+inf",
+		Count: maxCount,
+	}).Result()
+	if err != nil {
+		alert.AlertRedisErrors.WithLabelValues("history_read").Inc()
+		t.log.Error().Err(err).Msg("redis_transport_recent_since_failed")
+		return nil
+	}
+
+	events := make([]*alert.Event, 0, len(results))
+	for _, raw := range results {
+		var evt alert.Event
+		if err := json.Unmarshal([]byte(raw), &evt); err != nil {
+			continue
+		}
+		if evt.ID == lastEventID {
+			continue
+		}
+		events = append(events, &evt)
+	}
+
+	return events
+}
+
+// HistoryCount returns the current number of events in Redis history.
+func (t *Transport) HistoryCount(ctx context.Context) int64 {
+	count, err := t.client.ZCard(ctx, t.cfg.HistoryKey).Result()
+	if err != nil {
+		t.log.Warn().Err(err).Msg("redis_transport_history_count_failed")
+		return 0
+	}
+	return count
+}
+
 // Close stops the background subscriber and releases resources.
-func (t *RedisTransport) Close() {
+func (t *Transport) Close() {
 	if t.cancel != nil {
 		t.cancel()
 	}
 	t.log.Info().Msg("redis_transport_closed")
 }
 
-// subscribeLoop runs the Redis pub/sub subscriber. It reconnects
-// automatically on errors (go-redis handles reconnection internally).
-func (t *RedisTransport) subscribeLoop(ctx context.Context) {
+// subscribeLoop runs the Redis pub/sub subscriber. go-redis handles
+// reconnection internally on transient errors.
+func (t *Transport) subscribeLoop(ctx context.Context) {
 	pubsub := t.client.Subscribe(ctx, t.cfg.Channel)
 	defer pubsub.Close()
 
@@ -269,82 +323,21 @@ func (t *RedisTransport) subscribeLoop(ctx context.Context) {
 				return
 			}
 
-			AlertRedisReceived.Inc()
+			alert.AlertRedisReceived.Inc()
 
-			var evt Event
+			var evt alert.Event
 			if err := json.Unmarshal([]byte(msg.Payload), &evt); err != nil {
-				AlertRedisErrors.WithLabelValues("unmarshal").Inc()
+				alert.AlertRedisErrors.WithLabelValues("unmarshal").Inc()
 				t.log.Warn().Err(err).Msg("redis_subscriber_unmarshal_failed")
 				continue
 			}
 
 			// Feed into local Hub for WebSocket fan-out.
-			// Skip the metrics increment in Hub.Publish since we already
-			// counted this event when it was originally published.
-			t.hub.deliverToSubscribers(&evt)
+			// Use DeliverRemote to avoid double-counting metrics
+			// for events that originated from this same process.
+			t.hub.DeliverRemote(&evt)
 		}
 	}
-}
-
-// HistoryCount returns the current number of events in Redis history.
-func (t *RedisTransport) HistoryCount(ctx context.Context) int64 {
-	count, err := t.client.ZCard(ctx, t.cfg.HistoryKey).Result()
-	if err != nil {
-		t.log.Warn().Err(err).Msg("redis_transport_history_count_failed")
-		return 0
-	}
-	return count
-}
-
-// RecentSince returns events from Redis history that occurred after the
-// given event ID. This enables efficient catch-up: the dashboard sends
-// the last event ID it received, and gets only newer events.
-// Returns events in chronological order (oldest first).
-func (t *RedisTransport) RecentSince(ctx context.Context, lastEventID string, maxCount int64) []*Event {
-	if lastEventID == "" {
-		return t.Recent(ctx, maxCount)
-	}
-
-	// Parse the timestamp prefix from the event ID (format: "20060102150405-hexbytes").
-	// We use this as the minimum score for the range query.
-	parts := splitEventID(lastEventID)
-	if parts == "" {
-		return t.Recent(ctx, maxCount)
-	}
-
-	parsedTime, err := time.Parse("20060102150405", parts)
-	if err != nil {
-		return t.Recent(ctx, maxCount)
-	}
-
-	// Use the parsed time as the minimum score (exclusive).
-	minScore := fmt.Sprintf("(%d", parsedTime.UnixNano())
-
-	results, err := t.client.ZRangeByScore(ctx, t.cfg.HistoryKey, &redis.ZRangeBy{
-		Min:   minScore,
-		Max:   "+inf",
-		Count: maxCount,
-	}).Result()
-	if err != nil {
-		AlertRedisErrors.WithLabelValues("history_read").Inc()
-		t.log.Error().Err(err).Msg("redis_transport_recent_since_failed")
-		return nil
-	}
-
-	events := make([]*Event, 0, len(results))
-	for _, raw := range results {
-		var evt Event
-		if err := json.Unmarshal([]byte(raw), &evt); err != nil {
-			continue
-		}
-		// Skip the event with the given ID itself.
-		if evt.ID == lastEventID {
-			continue
-		}
-		events = append(events, &evt)
-	}
-
-	return events
 }
 
 // splitEventID extracts the timestamp prefix from an event ID.
@@ -353,7 +346,6 @@ func splitEventID(id string) string {
 	if len(id) < 14 {
 		return ""
 	}
-	// Validate that the first 14 chars are digits.
 	for i := 0; i < 14; i++ {
 		if id[i] < '0' || id[i] > '9' {
 			return ""
@@ -362,5 +354,11 @@ func splitEventID(id string) string {
 	return id[:14]
 }
 
-// Ensure strconv is used (for potential future use in score formatting).
-var _ = strconv.Itoa
+// newLogger creates a zerolog logger for the redis transport package.
+func newLogger(component string) zerolog.Logger {
+	return zerolog.New(zerolog.NewConsoleWriter()).With().
+		Timestamp().
+		Str("service", "alert").
+		Str("component", component).
+		Logger()
+}
