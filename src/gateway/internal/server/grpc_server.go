@@ -7,8 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto_model "github.com/prometheus/client_model/go"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -250,7 +249,7 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 	}
 
 	// Read the active cycles count from the Prometheus gauge.
-	activeCycles := int32(readGaugeValue(observability.GatewayActiveCycles))
+	activeCycles := int32(testutil.ToFloat64(observability.GatewayActiveCycles))
 
 	return &gatewayv1.GetHealthResponse{
 		Status:          status,
@@ -260,28 +259,7 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 	}, nil
 }
 
-// readGaugeValue reads the current value from a Prometheus Gauge
-// using the official client_model dto package.
-func readGaugeValue(gauge prometheus.Gauge) float64 {
-	ch := make(chan prometheus.Metric, 1)
-	gauge.Collect(ch)
 
-	var m prometheus.Metric
-	select {
-	case m = <-ch:
-	default:
-		return 0
-	}
-
-	var dto dto_model.Metric
-	if err := m.Write(&dto); err != nil {
-		return 0
-	}
-	if dto.GetGauge() != nil {
-		return dto.GetGauge().GetValue()
-	}
-	return 0
-}
 
 func panicRecoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(
