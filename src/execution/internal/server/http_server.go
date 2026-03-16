@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat/etradie/src/alert"
+	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
 	"github.com/flamegreat/etradie/src/execution/internal/state"
@@ -24,6 +25,7 @@ type HTTPServer struct {
 	state    *state.Manager
 	broker   broker.Port
 	settings *store.SettingsStore
+	auditLog *audit.Logger
 	hub      *alert.Hub
 	log      zerolog.Logger
 }
@@ -34,12 +36,14 @@ func NewHTTPServer(
 	sm *state.Manager,
 	bp broker.Port,
 	ss *store.SettingsStore,
+	al *audit.Logger,
 	hub *alert.Hub,
 ) *HTTPServer {
 	s := &HTTPServer{
 		state:    sm,
 		broker:   bp,
 		settings: ss,
+		auditLog: al,
 		hub:      hub,
 		log:      observability.Logger("http_server"),
 	}
@@ -61,7 +65,7 @@ func NewHTTPServer(
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      mux,
+		Handler:      corsMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -84,6 +88,29 @@ func (s *HTTPServer) Start() error {
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.log.Info().Msg("http_api_server_shutting_down")
 	return s.server.Shutdown(ctx)
+}
+
+// corsMiddleware adds CORS headers for dashboard cross-origin requests.
+// In production, the allowed origin should be restricted to the
+// dashboard domain via a reverse proxy (nginx, Traefik, etc.).
+// This middleware ensures development and direct-access scenarios work.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // GET /api/v1/settings - Read all settings.
@@ -137,7 +164,7 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 		alert.NewEvent(alert.SourceExecution, alert.TypeSettingsUpdated, alert.SeverityInfo,
 			fmt.Sprintf("Settings updated: mode=%s, max_trades=%d", req.ExecutionMode, req.MaxConcurrentTrades)).
 			WithDetails(map[string]interface{}{
-				"execution_mode":       req.ExecutionMode,
+				"execution_mode":        req.ExecutionMode,
 				"max_concurrent_trades": req.MaxConcurrentTrades,
 				"daily_loss_limit_pct":  req.DailyLossLimitPct,
 				"weekly_drawdown_pct":   req.WeeklyDrawdownPct,
@@ -218,6 +245,9 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Write audit log (same as gRPC CancelPendingOrder).
+	s.auditLog.LogOrderCancelled(r.Context(), req.OrderID, req.Symbol, req.Reason, "")
 
 	s.hub.Publish(
 		alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,

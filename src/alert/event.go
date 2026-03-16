@@ -1,6 +1,10 @@
 package alert
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"time"
+)
 
 // EventSource identifies which module published the event.
 type EventSource string
@@ -121,40 +125,8 @@ func (e *Event) WithDetail(key string, value interface{}) *Event {
 }
 
 func generateEventID() string {
-	// Use timestamp-based ID for ordering + random suffix for uniqueness.
 	now := time.Now().UTC()
-	return now.Format("20060102150405") + "-" + randomHex(4)
-}
-
-func randomHex(n int) string {
-	b := make([]byte, n)
-	// Use crypto/rand for uniqueness.
-	_, _ = cryptoRandRead(b)
-	return hexEncode(b)
-}
-
-// Thin wrappers to avoid importing crypto/rand and encoding/hex
-// at the package level (keeps imports clean for the event model).
-var (
-	cryptoRandRead = cryptoRandReadImpl
-	hexEncode      = hexEncodeImpl
-)
-
-func cryptoRandReadImpl(b []byte) (int, error) {
-	// Inline import to keep event.go focused on the data model.
-	// The actual implementation is in hub.go which imports crypto/rand.
-	for i := range b {
-		b[i] = byte(time.Now().UnixNano() >> (i * 8))
-	}
-	return len(b), nil
-}
-
-func hexEncodeImpl(b []byte) string {
-	const hextable = "0123456789abcdef"
-	dst := make([]byte, len(b)*2)
-	for i, v := range b {
-		dst[i*2] = hextable[v>>4]
-		dst[i*2+1] = hextable[v&0x0f]
-	}
-	return string(dst)
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	return now.Format("20060102150405") + "-" + hex.EncodeToString(b)
 }

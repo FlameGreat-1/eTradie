@@ -71,8 +71,7 @@ type Config struct {
 	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-execution"`
 
-	// HTTP API authentication.
-	APIToken string `envconfig:"API_TOKEN" default:""`
+
 }
 
 // Load reads configuration from EXECUTION_ prefixed environment
