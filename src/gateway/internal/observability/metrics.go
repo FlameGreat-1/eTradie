@@ -33,11 +33,14 @@ var GatewayPhaseDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // Collector metrics.
 var (
-	GatewayTACollectDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	// GatewayTACollectDuration tracks the latency of the batch TA collection
+	// HTTP call. The TA collector sends all symbols in a single request to
+	// the Python engine, so this is a plain Histogram (not per-symbol).
+	GatewayTACollectDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "etradie_gateway_ta_collect_duration_seconds",
-		Help:    "TA collection phase latency",
+		Help:    "TA batch collection phase latency",
 		Buckets: []float64{0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0},
-	}, []string{"symbol"})
+	})
 
 	GatewayMacroCollectDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "etradie_gateway_macro_collect_duration_seconds",

@@ -40,8 +40,6 @@ func NewTACollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient, cf
 	}
 }
 
-// Collect runs TA analysis for the given symbols via a single HTTP call
-// to the Python engine. The Python side processes them in parallel.
 // taCacheKey builds a deterministic cache key from the sorted symbol list.
 func taCacheKey(symbols []string) string {
 	sorted := make([]string, len(symbols))
@@ -50,6 +48,8 @@ func taCacheKey(symbols []string) string {
 	return strings.Join(sorted, ",")
 }
 
+// Collect runs TA analysis for the given symbols via a single HTTP call
+// to the Python engine. The Python side processes them in parallel.
 func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
@@ -72,6 +72,10 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 	}
 
 	resp, err := c.engine.PostJSON(ctx, "/internal/ta/analyze", reqBody)
+
+	elapsed := time.Since(start)
+	observability.GatewayTACollectDuration.Observe(elapsed.Seconds())
+
 	if err != nil {
 		observability.GatewayStageErrors.WithLabelValues(
 			constants.StageTACollector.String(), "http_error",
@@ -86,7 +90,7 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 	// Parse symbol_results from the response.
 	results := c.parseSymbolResults(resp, symbols, traceID)
 
-	elapsedMs := float64(time.Since(start).Milliseconds())
+	elapsedMs := float64(elapsed.Milliseconds())
 	successCount := 0
 	for i := range results {
 		if results[i].Status == "success" {
@@ -120,7 +124,7 @@ func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceI
 	}
 
 	key := taCacheKey(symbols)
-	raw, err := c.redis.Get(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
+	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
 	if err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_read_error")
 		return nil
@@ -129,15 +133,9 @@ func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceI
 		return nil
 	}
 
-	// raw is interface{} from JSON unmarshal; re-marshal then unmarshal into TAResult.
-	rawJSON, err := json.Marshal(raw)
-	if err != nil {
-		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_remarshal_error")
-		return nil
-	}
-
+	// Single-pass unmarshal directly into the typed struct.
 	var result models.TAResult
-	if err := json.Unmarshal(rawJSON, &result); err != nil {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_unmarshal_error")
 		return nil
 	}

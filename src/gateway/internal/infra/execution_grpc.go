@@ -3,7 +3,6 @@ package infra
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -22,29 +21,38 @@ type ExecutionGRPCAdapter struct {
 	log    zerolog.Logger
 }
 
-// NewExecutionGRPCAdapter dials the Module B execution engine and
-// returns an adapter that satisfies ports.ExecutionPort.
+// NewExecutionGRPCAdapter creates a gRPC client for Module B's execution engine.
+// Uses grpc.NewClient (non-blocking). The connection is established lazily
+// on the first RPC call. Startup health is verified separately in main.go.
 func NewExecutionGRPCAdapter(addr string, timeoutMs int) (*ExecutionGRPCAdapter, error) {
 	log := observability.Logger("execution_grpc_adapter")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
+	_ = timeoutMs // Retained in signature for config compatibility; per-RPC timeouts are set via context.
 
-	conn, err := grpc.DialContext(ctx, addr,
+	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("execution adapter: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("execution adapter: create client for %s: %w", addr, err)
 	}
 
-	log.Info().Str("addr", addr).Msg("execution_grpc_connected")
+	log.Info().Str("addr", addr).Msg("execution_grpc_client_created")
 
 	return &ExecutionGRPCAdapter{
 		client: executionv1.NewExecutionServiceClient(conn),
 		conn:   conn,
 		log:    log,
 	}, nil
+}
+
+// HealthCheck verifies the execution engine is reachable by calling GetExecutionState.
+func (a *ExecutionGRPCAdapter) HealthCheck(ctx context.Context) bool {
+	_, err := a.client.GetExecutionState(ctx, &executionv1.GetStateRequest{})
+	if err != nil {
+		a.log.Warn().Err(err).Msg("execution_health_check_failed")
+		return false
+	}
+	return true
 }
 
 // Execute converts ProcessorOutput to an ExecuteTradeRequest, calls

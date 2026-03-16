@@ -2,7 +2,8 @@ package pipeline
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -37,6 +38,8 @@ func NewScheduler(
 // Start begins the recurring cycle. Blocks until ctx is cancelled.
 // Applies random jitter (0-10% of interval) to the first tick to
 // prevent thundering herd when multiple gateway instances start.
+// The first cycle fires immediately after the jitter delay, then
+// subsequent cycles fire on the configured interval.
 func (s *Scheduler) Start(ctx context.Context) {
 	if !s.cfg.Enabled {
 		s.log.Info().Msg("gateway_disabled_skipping_scheduler")
@@ -50,7 +53,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	// at exactly the same time after a coordinated deployment/restart.
 	maxJitter := interval / 10
 	if maxJitter > 0 {
-		jitter := time.Duration(rand.Int63n(int64(maxJitter)))
+		jitter := cryptoRandDuration(maxJitter)
 		s.log.Info().
 			Int("interval_seconds", s.cfg.CycleIntervalSeconds).
 			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
@@ -70,6 +73,12 @@ func (s *Scheduler) Start(ctx context.Context) {
 			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
 			Msg("gateway_cycle_scheduler_started")
 	}
+
+	// Fire the first cycle immediately after jitter.
+	// Without this, the gateway would sit idle for the entire interval
+	// (default 4 hours) before performing any analysis - catastrophic
+	// for a trading system that must react to market conditions on startup.
+	s.runCycle(ctx)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -99,4 +108,20 @@ func (s *Scheduler) runCycle(ctx context.Context) {
 		Msg("gateway_scheduled_cycle_starting")
 
 	s.orchestrator.RunCycle(ctx, symbols, "")
+}
+
+// cryptoRandDuration returns a cryptographically random duration in [0, max).
+// Uses crypto/rand for non-deterministic jitter in multi-instance deployments.
+func cryptoRandDuration(max time.Duration) time.Duration {
+	if max <= 0 {
+		return 0
+	}
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		// crypto/rand.Read never returns an error on supported platforms,
+		// but if it does, fall back to zero jitter (safe, just no spread).
+		return 0
+	}
+	n := binary.LittleEndian.Uint64(buf[:])
+	return time.Duration(n % uint64(max))
 }

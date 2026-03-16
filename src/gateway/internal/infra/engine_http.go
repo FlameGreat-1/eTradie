@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -77,12 +78,18 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 	}
 
 	if resp.StatusCode >= 400 {
+		// Redact the response body to prevent sensitive data leakage in logs.
+		safeBody := redactSensitiveJSON(respBody, 500)
 		c.log.Error().
 			Str("path", path).
 			Int("status", resp.StatusCode).
-			Str("body", string(respBody[:min(len(respBody), 500)])).
+			Str("body", safeBody).
 			Msg("engine_http_error_response")
-		return nil, fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, string(respBody[:min(len(respBody), 200)]))
+		errorBody := safeBody
+		if len(errorBody) > 200 {
+			errorBody = errorBody[:200]
+		}
+		return nil, fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, errorBody)
 	}
 
 	var result map[string]interface{}
@@ -120,4 +127,44 @@ func (c *EngineHTTPClient) Close() {
 	c.log.Info().Msg("engine_http_client_closed")
 }
 
+// redactSensitiveJSON scans a JSON response body for sensitive field names
+// and replaces their values with the redacted placeholder. Returns a
+// truncated string safe for logging.
+func redactSensitiveJSON(body []byte, maxLen int) string {
+	if len(body) == 0 {
+		return ""
+	}
 
+	// Try to parse as JSON for field-level redaction.
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(body, &parsed); err == nil {
+		redactMap(parsed)
+		redacted, err := json.Marshal(parsed)
+		if err == nil {
+			if len(redacted) > maxLen {
+				return string(redacted[:maxLen])
+			}
+			return string(redacted)
+		}
+	}
+
+	// Fallback: not valid JSON, just truncate.
+	if len(body) > maxLen {
+		return string(body[:maxLen])
+	}
+	return string(body)
+}
+
+// redactMap recursively redacts sensitive fields in a map.
+func redactMap(m map[string]interface{}) {
+	for key, val := range m {
+		if observability.IsSensitiveField(strings.ToLower(key)) {
+			m[key] = observability.RedactedValue
+			continue
+		}
+		// Recurse into nested maps.
+		if nested, ok := val.(map[string]interface{}); ok {
+			redactMap(nested)
+		}
+	}
+}
