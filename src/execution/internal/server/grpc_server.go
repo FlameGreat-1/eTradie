@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -87,6 +88,12 @@ func NewExecutionServer(
 	return srv
 }
 
+// Close stops the idempotency cleanup goroutine. Must be called
+// during shutdown to prevent goroutine leaks.
+func (s *ExecutionServer) Close() {
+	close(s.stopCleanup)
+}
+
 func (s *ExecutionServer) cleanupLoop() {
 	ticker := time.NewTicker(idempotencyCleanup)
 	defer ticker.Stop()
@@ -151,6 +158,38 @@ func (s *ExecutionServer) resolveExecutionMode(ctx context.Context) constants.Ex
 	return mode
 }
 
+// resolveRuntimeParams reads all dashboard-configurable validation
+// parameters from the settings store. Falls back to config defaults
+// for any value that fails to load. Called on every trade so that
+// dashboard changes take immediate effect.
+func (s *ExecutionServer) resolveRuntimeParams(ctx context.Context) *validator.RuntimeParams {
+	params := &validator.RuntimeParams{
+		MaxConcurrentTrades: s.cfg.MaxConcurrentTrades,
+		DailyLossLimitPct:   s.cfg.DailyLossLimitPct,
+		WeeklyDrawdownPct:   s.cfg.WeeklyDrawdownPct,
+	}
+
+	if val, err := s.settings.Get(ctx, store.KeyMaxConcurrentTrades); err == nil {
+		if n, err := strconv.Atoi(val); err == nil && n >= 1 && n <= 10 {
+			params.MaxConcurrentTrades = n
+		}
+	}
+
+	if val, err := s.settings.Get(ctx, store.KeyDailyLossLimitPct); err == nil {
+		if f, err := strconv.ParseFloat(val, 64); err == nil && f >= 0.5 && f <= 10.0 {
+			params.DailyLossLimitPct = f
+		}
+	}
+
+	if val, err := s.settings.Get(ctx, store.KeyWeeklyDrawdownPct); err == nil {
+		if f, err := strconv.ParseFloat(val, 64); err == nil && f >= 1.0 && f <= 20.0 {
+			params.WeeklyDrawdownPct = f
+		}
+	}
+
+	return params
+}
+
 // ExecuteTrade is the main RPC. Orchestrates the full Module B pipeline.
 func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.ExecuteTradeRequest) (resp *executionv1.ExecuteTradeResponse, err error) {
 	defer func() {
@@ -198,8 +237,9 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		return rejectedResponse(tradeReq, "broker state refresh failed: "+err.Error(), 0, traceID), nil
 	}
 
-	// Step 2: Validate.
-	valResult := s.validator.Validate(ctx, tradeReq)
+	// Step 2: Resolve runtime params from DB and validate.
+	runtimeParams := s.resolveRuntimeParams(ctx)
+	valResult := s.validator.Validate(ctx, tradeReq, runtimeParams)
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
 
