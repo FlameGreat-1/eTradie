@@ -14,6 +14,7 @@ import (
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/alert"
+	"github.com/flamegreat/etradie/src/alert/alertredis"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/builder"
@@ -49,7 +50,7 @@ type ExecutionServer struct {
 	state     *state.Manager
 	broker    broker.Port
 	audit     *audit.Logger
-	hub       *alert.Hub
+	transport *alertredis.Transport
 	settings  *store.SettingsStore
 	log       zerolog.Logger
 
@@ -67,7 +68,7 @@ func NewExecutionServer(
 	sm *state.Manager,
 	bp broker.Port,
 	al *audit.Logger,
-	hub *alert.Hub,
+	transport *alertredis.Transport,
 	ss *store.SettingsStore,
 ) *ExecutionServer {
 	srv := &ExecutionServer{
@@ -78,7 +79,7 @@ func NewExecutionServer(
 		state:       sm,
 		broker:      bp,
 		audit:       al,
-		hub:         hub,
+		transport:   transport,
 		settings:    ss,
 		log:         observability.Logger("grpc_server"),
 		processed:   make(map[string]idempotencyEntry),
@@ -232,7 +233,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	// Step 1: Refresh broker state.
 	if err := s.state.Refresh(ctx); err != nil {
 		s.log.Error().Err(err).Str("trace_id", traceID).Msg("state_refresh_failed")
-		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
 			"Failed to refresh broker state").WithSymbol(req.GetSymbol()).WithTraceID(traceID))
 		return rejectedResponse(tradeReq, "broker state refresh failed: "+err.Error(), 0, traceID), nil
 	}
@@ -243,7 +244,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
 
-		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityWarning,
+		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityWarning,
 			"Trade rejected: "+valResult.Reason).
 			WithSymbol(req.GetSymbol()).WithDirection(req.GetDirection()).WithTraceID(traceID).
 			WithDetails(map[string]interface{}{
@@ -253,12 +254,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 			}))
 
 		if valResult.Outcome == constants.OutcomeLock {
-			s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeDailyLimitLocked, alert.SeverityCritical,
+			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeDailyLimitLocked, alert.SeverityCritical,
 				"Execution locked: daily loss limit reached").
 				WithDetail("daily_loss_pct", s.state.DailyLossPercent()))
 		}
 		if valResult.Outcome == constants.OutcomePause {
-			s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
+			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
 				"Execution paused: weekly drawdown limit reached").
 				WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent()))
 		}
@@ -283,7 +284,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	sizingResult, err := s.sizer.Calculate(ctx, tradeReq)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", tradeReq.Symbol).Str("trace_id", traceID).Msg("sizing_failed")
-		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
 			"Position sizing failed: "+err.Error()).WithSymbol(tradeReq.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
@@ -303,7 +304,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", order.Symbol).Str("trace_id", traceID).Msg("execution_failed")
-		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
 			"Order execution failed: "+err.Error()).WithSymbol(order.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
@@ -334,7 +335,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if order.ExecutionMode == constants.ModeInstant {
 		modeLabel = "Price watcher armed"
 	}
-	s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
+	s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
 		modeLabel+" for "+order.Symbol).
 		WithSymbol(order.Symbol).WithDirection(string(order.Direction)).WithTraceID(traceID).
 		WithDetails(map[string]interface{}{
@@ -411,7 +412,7 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *execution
 
 	s.audit.LogOrderCancelled(ctx, req.GetOrderId(), req.GetSymbol(), req.GetReason(), traceID)
 
-	s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
+	s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
 		fmt.Sprintf("Order %s cancelled: %s", req.GetOrderId(), req.GetReason())).
 		WithSymbol(req.GetSymbol()).WithTraceID(traceID).
 		WithDetails(map[string]interface{}{

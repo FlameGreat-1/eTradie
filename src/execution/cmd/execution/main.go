@@ -15,6 +15,8 @@ import (
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/alert"
+	"github.com/flamegreat/etradie/src/alert/alertredis"
+	"github.com/redis/go-redis/v9"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat/etradie/src/execution/internal/broker/mock"
@@ -83,9 +85,23 @@ func main() {
 		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
 	}
 
-	// ── Shared alert hub (serves all modules) ─────────────────────────
-	hub := alert.NewHub()
-	defer hub.Close()
+	// ── Redis Connection (for shared alerts) ──────────────────────────
+	opts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("redis_url_parse_failed")
+	}
+	rdb := redis.NewClient(opts)
+	defer rdb.Close()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatal().Err(err).Msg("redis_ping_failed")
+	}
+
+	// ── Shared alert transport (serves all modules) ───────────────────
+	alertTransport, err := alertredis.NewTransport(ctx, rdb)
+	if err != nil {
+		log.Fatal().Err(err).Msg("alert_transport_init_failed")
+	}
+	defer alertTransport.Close()
 
 	// ── Stores ────────────────────────────────────────────────────────
 	auditStore := store.NewAuditStore(pool)
@@ -100,7 +116,7 @@ func main() {
 	al := audit.NewLogger(auditStore)
 
 	// ── gRPC server ───────────────────────────────────────────────────
-	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, hub, settingsStore)
+	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
@@ -119,7 +135,7 @@ func main() {
 	}()
 
 	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────
-	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, hub)
+	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport)
 
 	go func() {
 		if err := httpServer.Start(); err != nil {
@@ -128,7 +144,7 @@ func main() {
 	}()
 
 	// ── Publish service started event ─────────────────────────────────
-	hub.Publish(
+	alertTransport.Publish(ctx,
 		alert.NewEvent(alert.SourceExecution, alert.TypeServiceStarted, alert.SeverityInfo,
 			"Execution engine started").
 			WithDetails(map[string]interface{}{
@@ -151,18 +167,18 @@ func main() {
 
 	log.Info().Msg("shutdown_signal_received")
 
-	hub.Publish(
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	alertTransport.Publish(shutdownCtx,
 		alert.NewEvent(alert.SourceExecution, alert.TypeServiceStopping, alert.SeverityInfo,
 			"Execution engine shutting down"),
 	)
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	grpcServer.GracefulStop()
 	execServer.Close()
 	_ = httpServer.Shutdown(shutdownCtx)
-	hub.Close()
+	alertTransport.Close()
 	pool.Close()
 
 	log.Info().Msg("execution_engine_stopped")

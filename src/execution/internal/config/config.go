@@ -65,6 +65,9 @@ type Config struct {
 	DatabaseMaxIdleMs   int    `envconfig:"DATABASE_MAX_IDLE_MS" default:"30000"`
 	DatabaseConnMaxLife int    `envconfig:"DATABASE_CONN_MAX_LIFE_SECONDS" default:"3600"`
 
+	// Redis (shared event notification hub).
+	RedisURL string `envconfig:"REDIS_URL" default:"redis://localhost:6379/1"`
+
 	// Observability.
 	LogLevel        string `envconfig:"LOG_LEVEL" default:"INFO"`
 	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
@@ -170,6 +173,10 @@ func (c *Config) validate() error {
 	}
 	if c.DatabaseMaxConns < 1 || c.DatabaseMaxConns > 100 {
 		return fmt.Errorf("DATABASE_MAX_CONNS must be 1..100, got %d", c.DatabaseMaxConns)
+	}
+
+	if c.RedisURL == "" {
+		return fmt.Errorf("REDIS_URL must not be empty")
 	}
 
 	validLevels := map[string]bool{

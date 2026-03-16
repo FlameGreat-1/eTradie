@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat/etradie/src/alert"
+	"github.com/flamegreat/etradie/src/alert/alertredis"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
@@ -26,8 +27,8 @@ type HTTPServer struct {
 	broker   broker.Port
 	settings *store.SettingsStore
 	auditLog *audit.Logger
-	hub      *alert.Hub
-	log      zerolog.Logger
+	transport *alertredis.Transport
+	log       zerolog.Logger
 }
 
 // NewHTTPServer creates the execution HTTP API server.
@@ -37,15 +38,15 @@ func NewHTTPServer(
 	bp broker.Port,
 	ss *store.SettingsStore,
 	al *audit.Logger,
-	hub *alert.Hub,
+	transport *alertredis.Transport,
 ) *HTTPServer {
 	s := &HTTPServer{
-		state:    sm,
-		broker:   bp,
-		settings: ss,
-		auditLog: al,
-		hub:      hub,
-		log:      observability.Logger("http_server"),
+		state:     sm,
+		broker:    bp,
+		settings:  ss,
+		auditLog:  al,
+		transport: transport,
+		log:       observability.Logger("http_server"),
 	}
 
 	mux := http.NewServeMux()
@@ -56,8 +57,8 @@ func NewHTTPServer(
 	mux.HandleFunc("/api/v1/orders/cancel", s.handleCancelOrder)
 	mux.HandleFunc("/api/v1/account", s.handleAccount)
 
-	// WebSocket notifications (delegates to alert hub).
-	mux.HandleFunc("/ws/notifications", alert.WebSocketHandler(hub))
+	// WebSocket notifications (delegates to local hub via transport).
+	mux.HandleFunc("/ws/notifications", alert.WebSocketHandler(transport.LocalHub()))
 
 	// Ops endpoints.
 	mux.HandleFunc("/health", s.handleHealth)
@@ -159,8 +160,8 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish settings change to all connected dashboards.
-	s.hub.Publish(
+	// Publish settings change to all connected dashboards via Redis.
+	s.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceExecution, alert.TypeSettingsUpdated, alert.SeverityInfo,
 			fmt.Sprintf("Settings updated: mode=%s, max_trades=%d", req.ExecutionMode, req.MaxConcurrentTrades)).
 			WithDetails(map[string]interface{}{
@@ -249,7 +250,7 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	// Write audit log (same as gRPC CancelPendingOrder).
 	s.auditLog.LogOrderCancelled(r.Context(), req.OrderID, req.Symbol, req.Reason, "")
 
-	s.hub.Publish(
+	s.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
 			fmt.Sprintf("Order %s cancelled: %s", req.OrderID, req.Reason)).
 			WithSymbol(req.Symbol).
