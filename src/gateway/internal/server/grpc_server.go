@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -17,6 +18,8 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
+	"github.com/flamegreat/etradie/src/alert"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
@@ -37,6 +40,7 @@ type GRPCServer struct {
 	scheduler     *pipeline.Scheduler
 	redis         *infra.RedisClient
 	engine        *infra.EngineHTTPClient
+	transport     *alertredis.Transport
 	cfg           *config.Config
 	port          int
 	log           zerolog.Logger
@@ -51,6 +55,7 @@ func NewGRPCServer(
 	scheduler *pipeline.Scheduler,
 	redis *infra.RedisClient,
 	engine *infra.EngineHTTPClient,
+	transport *alertredis.Transport,
 ) *GRPCServer {
 	s := &GRPCServer{
 		orchestrator:  orchestrator,
@@ -59,6 +64,7 @@ func NewGRPCServer(
 		scheduler:     scheduler,
 		redis:         redis,
 		engine:        engine,
+		transport:     transport,
 		cfg:           cfg,
 		port:          cfg.GRPCPort,
 		log:           observability.Logger("grpc_server"),
@@ -138,11 +144,9 @@ func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleReques
 }
 
 // SetCycleInterval changes the analysis cycle interval at runtime.
-// Persists to Redis so the setting survives gateway restarts.
 func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCycleIntervalRequest) (*gatewayv1.SetCycleIntervalResponse, error) {
 	newInterval := int(req.GetIntervalSeconds())
 
-	// Validate bounds.
 	if newInterval < 60 {
 		return nil, status.Errorf(codes.InvalidArgument, "interval_seconds must be >= 60, got %d", newInterval)
 	}
@@ -150,18 +154,29 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 		return nil, status.Errorf(codes.InvalidArgument, "interval_seconds must be <= 86400 (24h), got %d", newInterval)
 	}
 
-	// Persist to Redis so it survives restarts.
+	oldInterval := s.scheduler.CurrentIntervalSeconds()
+
 	if err := s.settingsStore.SetCycleInterval(ctx, newInterval); err != nil {
 		s.log.Error().Err(err).Int("interval", newInterval).Msg("set_cycle_interval_persist_failed")
 		return nil, status.Errorf(codes.Internal, "failed to persist interval: %v", err)
 	}
 
-	// Signal the scheduler to reset its ticker immediately.
 	s.scheduler.UpdateInterval(time.Duration(newInterval) * time.Second)
 
 	s.log.Info().
+		Int("old_interval_seconds", oldInterval).
 		Int("new_interval_seconds", newInterval).
 		Msg("cycle_interval_updated_via_dashboard")
+
+	// Publish notification.
+	s.transport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeIntervalChanged, alert.SeverityInfo,
+			fmt.Sprintf("Cycle interval changed from %ds to %ds", oldInterval, newInterval)).
+			WithDetails(map[string]interface{}{
+				"old_interval_seconds": oldInterval,
+				"new_interval_seconds": newInterval,
+			}),
+	)
 
 	return &gatewayv1.SetCycleIntervalResponse{
 		Success:                true,
@@ -176,8 +191,21 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 
 // SetActiveSymbols updates the user's active symbol selection.
 func (s *GRPCServer) SetActiveSymbols(ctx context.Context, req *gatewayv1.SetActiveSymbolsRequest) (*gatewayv1.SetActiveSymbolsResponse, error) {
+	oldSymbols := s.symbolStore.GetActiveSymbols(ctx)
 	ok := s.symbolStore.SetActiveSymbols(ctx, req.GetSymbols())
 	active := s.symbolStore.GetActiveSymbols(ctx)
+
+	if ok {
+		s.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
+				fmt.Sprintf("Active symbols changed: %s", strings.Join(active, ", "))).
+				WithDetails(map[string]interface{}{
+					"old_symbols": oldSymbols,
+					"new_symbols": active,
+				}),
+		)
+	}
+
 	return &gatewayv1.SetActiveSymbolsResponse{
 		Success:       ok,
 		ActiveSymbols: active,
@@ -195,8 +223,22 @@ func (s *GRPCServer) GetActiveSymbols(ctx context.Context, _ *gatewayv1.GetActiv
 
 // ResetActiveSymbols resets symbol selection to config defaults.
 func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetActiveSymbolsRequest) (*gatewayv1.ResetActiveSymbolsResponse, error) {
+	oldSymbols := s.symbolStore.GetActiveSymbols(ctx)
 	ok := s.symbolStore.ResetToDefaults(ctx)
 	active := s.symbolStore.GetActiveSymbols(ctx)
+
+	if ok {
+		s.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
+				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
+				WithDetails(map[string]interface{}{
+					"old_symbols": oldSymbols,
+					"new_symbols": active,
+					"source":      "reset_to_defaults",
+				}),
+		)
+	}
+
 	return &gatewayv1.ResetActiveSymbolsResponse{
 		Success:       ok,
 		ActiveSymbols: active,
@@ -211,26 +253,24 @@ func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetA
 func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatewayConfigRequest) (*gatewayv1.GetGatewayConfigResponse, error) {
 	activeSymbols := s.symbolStore.GetActiveSymbols(ctx)
 
-	// Determine the source of active symbols.
 	source := "gateway_config"
 	persisted := s.settingsStore.Load(ctx)
 	if persisted.CycleIntervalSeconds > 0 {
-		// If settings are persisted, symbols likely are too.
 		source = "redis"
 	}
 
 	return &gatewayv1.GetGatewayConfigResponse{
-		Enabled:                s.cfg.Enabled,
-		CycleIntervalSeconds:   int32(s.scheduler.CurrentIntervalSeconds()),
-		CycleTimeoutSeconds:    int32(s.cfg.CycleTimeoutSeconds),
-		MaxConcurrentSymbols:   int32(s.cfg.MaxConcurrentSymbols),
-		TaCacheTtlSeconds:      int32(s.cfg.TACacheTTLSeconds),
-		MacroCacheTtlSeconds:   int32(s.cfg.MacroCacheTTLSeconds),
-		MaxCycleRetries:        int32(s.cfg.MaxCycleRetries),
-		DefaultSymbols:         s.cfg.DefaultSymbols,
-		ActiveSymbols:          activeSymbols,
-		ActiveSymbolsSource:    source,
-		ExecutionEnabled:       s.cfg.ExecutionEnabled,
+		Enabled:              s.cfg.Enabled,
+		CycleIntervalSeconds: int32(s.scheduler.CurrentIntervalSeconds()),
+		CycleTimeoutSeconds:  int32(s.cfg.CycleTimeoutSeconds),
+		MaxConcurrentSymbols: int32(s.cfg.MaxConcurrentSymbols),
+		TaCacheTtlSeconds:    int32(s.cfg.TACacheTTLSeconds),
+		MacroCacheTtlSeconds: int32(s.cfg.MacroCacheTTLSeconds),
+		MaxCycleRetries:      int32(s.cfg.MaxCycleRetries),
+		DefaultSymbols:       s.cfg.DefaultSymbols,
+		ActiveSymbols:        activeSymbols,
+		ActiveSymbolsSource:  source,
+		ExecutionEnabled:     s.cfg.ExecutionEnabled,
 	}, nil
 }
 
@@ -243,23 +283,20 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 	redisOK := s.redis.HealthCheck(ctx)
 	engineOK := s.engine.HealthCheck(ctx)
 
-	status := "ok"
+	healthStatus := "ok"
 	if !redisOK || !engineOK {
-		status = "degraded"
+		healthStatus = "degraded"
 	}
 
-	// Read the active cycles count from the Prometheus gauge.
 	activeCycles := int32(testutil.ToFloat64(observability.GatewayActiveCycles))
 
 	return &gatewayv1.GetHealthResponse{
-		Status:          status,
+		Status:          healthStatus,
 		RedisConnected:  redisOK,
 		EngineConnected: engineOK,
 		ActiveCycles:    activeCycles,
 	}, nil
 }
-
-
 
 func panicRecoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(

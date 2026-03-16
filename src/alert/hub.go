@@ -12,16 +12,46 @@ import (
 
 const subscriberBufferSize = 128
 
-// Subscriber receives events from the hub.
-type Subscriber struct {
-	C      chan *Event
-	id     string
-	closed atomic.Bool
+// severityRank maps severity to a numeric rank for comparison.
+var severityRankMap = map[EventSeverity]int{
+	SeverityInfo:     0,
+	SeverityWarning:  1,
+	SeverityError:    2,
+	SeverityCritical: 3,
 }
 
-// Hub is the central pub/sub dispatcher for all application notifications.
-// Any module publishes events here; all connected dashboard clients
-// receive them via WebSocket. Thread-safe.
+// SeverityRank returns the numeric rank for a severity level.
+// Higher rank means more severe. Used by the redis transport
+// for filtered history queries.
+func SeverityRank(s EventSeverity) int {
+	return severityRankMap[s]
+}
+
+// Subscriber receives events from the hub.
+type Subscriber struct {
+	C  chan *Event
+	id string
+	// minSeverity filters events delivered to this subscriber.
+	// Empty string means no filter (receive all events).
+	minSeverity EventSeverity
+	closed      atomic.Bool
+}
+
+// meetsMinSeverity returns true if the event severity is at or above
+// the subscriber's minimum severity filter.
+func (s *Subscriber) meetsMinSeverity(evt *Event) bool {
+	if s.minSeverity == "" {
+		return true
+	}
+	return severityRankMap[evt.Severity] >= severityRankMap[s.minSeverity]
+}
+
+// Hub is the in-process pub/sub dispatcher for WebSocket clients.
+// Services publish events here for real-time delivery. For cross-service
+// communication and persistence, use redis.Transport which bridges
+// Redis pub/sub to this Hub.
+//
+// Thread-safe. Non-blocking publish (drops events for slow subscribers).
 type Hub struct {
 	mu          sync.RWMutex
 	subscribers map[*Subscriber]struct{}
@@ -36,12 +66,20 @@ func NewHub() *Hub {
 	}
 }
 
-// Subscribe registers a new client. Returns a Subscriber whose C channel
-// receives events. Caller must call Unsubscribe when done.
+// Subscribe registers a new client with no severity filter.
+// Returns a Subscriber whose C channel receives events.
+// Caller must call Unsubscribe when done.
 func (h *Hub) Subscribe() *Subscriber {
+	return h.SubscribeWithFilter("")
+}
+
+// SubscribeWithFilter registers a new client that only receives events
+// at or above the given severity. Pass empty string for all events.
+func (h *Hub) SubscribeWithFilter(minSeverity EventSeverity) *Subscriber {
 	sub := &Subscriber{
-		C:  make(chan *Event, subscriberBufferSize),
-		id: generateSubscriberID(),
+		C:           make(chan *Event, subscriberBufferSize),
+		id:          generateSubscriberID(),
+		minSeverity: minSeverity,
 	}
 
 	h.mu.Lock()
@@ -49,8 +87,11 @@ func (h *Hub) Subscribe() *Subscriber {
 	count := len(h.subscribers)
 	h.mu.Unlock()
 
+	AlertActiveSubscribers.Set(float64(count))
+
 	h.log.Info().
 		Str("subscriber_id", sub.id).
+		Str("min_severity", string(minSeverity)).
 		Int("total_subscribers", count).
 		Msg("subscriber_added")
 
@@ -60,7 +101,7 @@ func (h *Hub) Subscribe() *Subscriber {
 // Unsubscribe removes a client and closes its channel.
 func (h *Hub) Unsubscribe(sub *Subscriber) {
 	if sub.closed.Swap(true) {
-		return // Already closed.
+		return
 	}
 
 	h.mu.Lock()
@@ -69,6 +110,7 @@ func (h *Hub) Unsubscribe(sub *Subscriber) {
 	h.mu.Unlock()
 
 	close(sub.C)
+	AlertActiveSubscribers.Set(float64(count))
 
 	h.log.Info().
 		Str("subscriber_id", sub.id).
@@ -76,11 +118,27 @@ func (h *Hub) Unsubscribe(sub *Subscriber) {
 		Msg("subscriber_removed")
 }
 
-// Publish sends an event to all connected subscribers. Non-blocking:
-// if a subscriber's buffer is full, the event is dropped for that
-// subscriber (logged as warning). Publishing must never block the
-// caller (execution pipeline, gateway, etc.).
+// Publish fans out an event to all connected subscribers whose severity
+// filter matches. Increments the published metric. Non-blocking: if a
+// subscriber's buffer is full, the event is dropped for that subscriber
+// and a metric is incremented.
+// Publishing must never block the caller (pipeline, gateway, etc.).
 func (h *Hub) Publish(evt *Event) {
+	AlertEventsPublished.WithLabelValues(string(evt.Source), evt.Type, string(evt.Severity)).Inc()
+	h.deliverToSubscribers(evt)
+}
+
+// DeliverRemote fans out an event received from Redis pub/sub to local
+// WebSocket subscribers. Does NOT increment the published metric to
+// avoid double-counting events that were already counted when the
+// originating service called Publish.
+func (h *Hub) DeliverRemote(evt *Event) {
+	h.deliverToSubscribers(evt)
+}
+
+// deliverToSubscribers is the shared fan-out logic used by both
+// Publish (local events) and DeliverRemote (Redis events).
+func (h *Hub) deliverToSubscribers(evt *Event) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -88,9 +146,13 @@ func (h *Hub) Publish(evt *Event) {
 		if sub.closed.Load() {
 			continue
 		}
+		if !sub.meetsMinSeverity(evt) {
+			continue
+		}
 		select {
 		case sub.C <- evt:
 		default:
+			AlertEventsDropped.WithLabelValues(sub.id).Inc()
 			h.log.Warn().
 				Str("subscriber_id", sub.id).
 				Str("event_type", evt.Type).
@@ -118,6 +180,7 @@ func (h *Hub) Close() {
 	}
 	h.mu.Unlock()
 
+	AlertActiveSubscribers.Set(0)
 	h.log.Info().Msg("alert_hub_closed")
 }
 
@@ -128,7 +191,6 @@ func generateSubscriberID() string {
 }
 
 // newLogger creates a zerolog logger for the alert package.
-// Standalone to avoid importing execution's observability package.
 func newLogger(component string) zerolog.Logger {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 	return zerolog.New(os.Stdout).With().
