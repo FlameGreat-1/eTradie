@@ -17,7 +17,7 @@ from typing import Any
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.shared.models.events import EventImpact, EventType
+from engine.shared.models.events import EventImpact, EventType, InflationType
 from engine.macro.models.provider.economic import EconomicRelease
 from engine.macro.providers.economic_data.base import (
     BaseEconomicDataProvider,
@@ -26,15 +26,12 @@ from engine.macro.providers.economic_data.base import (
 
 logger = get_logger(__name__)
 
-# TradingEconomics Importance: 1=Low, 2=Medium, 3=High
 _IMPORTANCE_MAP: dict[int, EventImpact] = {
     3: EventImpact.HIGH,
     2: EventImpact.MEDIUM,
     1: EventImpact.LOW,
 }
 
-# Map TE Category field → EventType enum.
-# TE uses human-readable category names; we match on substrings.
 _CATEGORY_MAP: dict[str, EventType] = {
     "Interest Rate": EventType.RATE_DECISION,
     "Inflation Rate": EventType.CPI,
@@ -62,7 +59,6 @@ _CATEGORY_MAP: dict[str, EventType] = {
     "Industrial Production": EventType.MANUFACTURING,
 }
 
-# Map TradingEconomics country names → Currency enum values.
 _COUNTRY_CURRENCY_MAP: dict[str, Currency] = {
     "United States": Currency.USD,
     "Euro Area": Currency.EUR,
@@ -73,6 +69,11 @@ _COUNTRY_CURRENCY_MAP: dict[str, Currency] = {
     "Canada": Currency.CAD,
     "New Zealand": Currency.NZD,
 }
+
+_CORE_INFLATION_KEYWORDS = frozenset({
+    "core", "ex food", "ex energy", "excluding food",
+    "excluding energy", "ex-food", "ex-energy",
+})
 
 
 class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
@@ -133,6 +134,8 @@ class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
         except (ValueError, TypeError):
             release_time = datetime.now(UTC)
 
+        inflation_type = self._classify_inflation_type(indicator, event_name)
+
         return EconomicRelease(
             currency=currency,
             indicator=indicator,
@@ -143,6 +146,7 @@ class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
             surprise=surprise,
             surprise_direction=compute_surprise_direction(actual, forecast),
             impact=impact,
+            inflation_type=inflation_type,
             release_time=release_time,
             source="tradingeconomics",
         )
@@ -155,6 +159,20 @@ class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
             if keyword.lower() in combined.lower():
                 return event_type
         return EventType.OTHER
+
+    @staticmethod
+    def _classify_inflation_type(indicator: EventType, event_name: str) -> InflationType | None:
+        """Classify CPI/PCE/PPI releases as CORE or HEADLINE.
+
+        Core inflation excludes volatile food and energy components and is
+        the primary metric central banks target for policy decisions.
+        """
+        if indicator not in (EventType.CPI, EventType.PPI):
+            return None
+        lower = event_name.lower()
+        if any(kw in lower for kw in _CORE_INFLATION_KEYWORDS):
+            return InflationType.CORE
+        return InflationType.HEADLINE
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:
