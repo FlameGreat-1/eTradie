@@ -33,6 +33,35 @@ DEFAULT_MODELS: Final[dict[str, str]] = {
     LLMProvider.SELF_HOSTED: "default",
 }
 
+# Available models per provider for the dashboard model selector.
+# Users pick from this list; the selected model overrides the default
+# and is persisted until changed. SELF_HOSTED accepts any model string
+# since the user controls the endpoint.
+AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
+    LLMProvider.ANTHROPIC: [
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+    ],
+    LLMProvider.OPENAI: [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4-turbo",
+        "o3",
+        "o3-mini",
+        "o4-mini",
+    ],
+    LLMProvider.GEMINI: [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ],
+}
+
 # System default provider
 DEFAULT_PROVIDER: Final[str] = LLMProvider.ANTHROPIC
 DEFAULT_MODEL: Final[str] = DEFAULT_MODELS[LLMProvider.ANTHROPIC]
