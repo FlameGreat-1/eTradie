@@ -13,11 +13,18 @@ import (
 const subscriberBufferSize = 128
 
 // severityRank maps severity to a numeric rank for comparison.
-var severityRank = map[EventSeverity]int{
+var severityRankMap = map[EventSeverity]int{
 	SeverityInfo:     0,
 	SeverityWarning:  1,
 	SeverityError:    2,
 	SeverityCritical: 3,
+}
+
+// SeverityRank returns the numeric rank for a severity level.
+// Higher rank means more severe. Used by the redis transport
+// for filtered history queries.
+func SeverityRank(s EventSeverity) int {
+	return severityRankMap[s]
 }
 
 // Subscriber receives events from the hub.
@@ -36,12 +43,12 @@ func (s *Subscriber) meetsMinSeverity(evt *Event) bool {
 	if s.minSeverity == "" {
 		return true
 	}
-	return severityRank[evt.Severity] >= severityRank[s.minSeverity]
+	return severityRankMap[evt.Severity] >= severityRankMap[s.minSeverity]
 }
 
 // Hub is the in-process pub/sub dispatcher for WebSocket clients.
 // Services publish events here for real-time delivery. For cross-service
-// communication and persistence, use RedisTransport which bridges
+// communication and persistence, use redis.Transport which bridges
 // Redis pub/sub to this Hub.
 //
 // Thread-safe. Non-blocking publish (drops events for slow subscribers).
@@ -112,12 +119,26 @@ func (h *Hub) Unsubscribe(sub *Subscriber) {
 }
 
 // Publish fans out an event to all connected subscribers whose severity
-// filter matches. Non-blocking: if a subscriber's buffer is full, the
-// event is dropped for that subscriber and a metric is incremented.
+// filter matches. Increments the published metric. Non-blocking: if a
+// subscriber's buffer is full, the event is dropped for that subscriber
+// and a metric is incremented.
 // Publishing must never block the caller (pipeline, gateway, etc.).
 func (h *Hub) Publish(evt *Event) {
 	AlertEventsPublished.WithLabelValues(string(evt.Source), evt.Type, string(evt.Severity)).Inc()
+	h.deliverToSubscribers(evt)
+}
 
+// DeliverRemote fans out an event received from Redis pub/sub to local
+// WebSocket subscribers. Does NOT increment the published metric to
+// avoid double-counting events that were already counted when the
+// originating service called Publish.
+func (h *Hub) DeliverRemote(evt *Event) {
+	h.deliverToSubscribers(evt)
+}
+
+// deliverToSubscribers is the shared fan-out logic used by both
+// Publish (local events) and DeliverRemote (Redis events).
+func (h *Hub) deliverToSubscribers(evt *Event) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
