@@ -1,13 +1,12 @@
 package pipeline
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/flamegreat/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat/etradie/src/gateway/internal/models"
-
-	"crypto/rand"
-	"encoding/hex"
 )
 
 // CycleTracker tracks the lifecycle of a single analysis cycle.
@@ -55,6 +54,9 @@ func (t *CycleTracker) Phase() constants.CyclePhase { return t.phase }
 
 // Status returns the current cycle status.
 func (t *CycleTracker) Status() constants.CycleStatus { return t.status }
+
+// Outcome returns the cycle outcome. Empty string if not yet completed.
+func (t *CycleTracker) Outcome() constants.CycleOutcome { return t.outcome }
 
 // ElapsedMs returns milliseconds since cycle start.
 func (t *CycleTracker) ElapsedMs() float64 {

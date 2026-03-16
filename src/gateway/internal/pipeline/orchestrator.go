@@ -370,13 +370,12 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 2: Build RAG query.
 	phaseStart := time.Now()
-	qbCtx, qbSpan := observability.StartSpan(ctx, "pipeline.build_query",
+	_, qbSpan := observability.StartSpan(ctx, "pipeline.build_query",
 		attribute.String("symbol", symbol),
 	)
 	queryParams := o.queryBuilder.Build(symResult, macroResult, "", traceID)
 	qbSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseBuildingQuery.String()).Observe(time.Since(phaseStart).Seconds())
-	_ = qbCtx // context not needed downstream for query building
 
 	// Phase 3: RAG retrieval.
 	phaseStart = time.Now()
@@ -510,9 +509,15 @@ func buildErrorOutput(tracker *CycleTracker) *models.GatewayOutput {
 }
 
 func buildNoDataOutput(tracker *CycleTracker) *models.GatewayOutput {
+	// Read the outcome from the tracker so the output matches what was
+	// recorded by the caller (OutcomeInsufficientData vs OutcomeNoSetup).
+	outcome := tracker.Outcome()
+	if outcome == "" {
+		outcome = constants.OutcomeInsufficientData
+	}
 	return &models.GatewayOutput{
 		CycleStatus:  constants.StatusCompleted,
-		CycleOutcome: constants.OutcomeInsufficientData,
+		CycleOutcome: outcome,
 		PhaseReached: constants.PhaseCompleted,
 		DurationMs:   tracker.ElapsedMs(),
 		TraceID:      tracker.TraceID(),
