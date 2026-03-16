@@ -47,5 +47,11 @@ CREATE TABLE IF NOT EXISTS execution_pnl_tracker (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pnl_tracker_period ON execution_pnl_tracker (period_type, period_key);
+
+CREATE TABLE IF NOT EXISTS execution_settings (
+    key         VARCHAR(64) PRIMARY KEY,
+    value       TEXT NOT NULL DEFAULT '',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `
 }
