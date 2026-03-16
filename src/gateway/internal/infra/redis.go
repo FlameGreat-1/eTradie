@@ -46,6 +46,13 @@ func NewRedisClient(redisURL string, maxConns int) (*RedisClient, error) {
 	return &RedisClient{client: client, log: log}, nil
 }
 
+// RawClient returns the underlying go-redis client. Used by the alert
+// redis.Transport for pub/sub and sorted set operations that the
+// gateway's RedisClient wrapper doesn't cover.
+func (r *RedisClient) RawClient() *redis.Client {
+	return r.client
+}
+
 func makeKey(namespace, key string) string {
 	return fmt.Sprintf("%s:%s:%s", keyPrefix, namespace, key)
 }
