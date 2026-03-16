@@ -23,6 +23,7 @@ class EconomicReleaseRow(Base):
     surprise: Mapped[float | None] = mapped_column(Float, nullable=True)
     surprise_direction: Mapped[str] = mapped_column(String(10), nullable=False, default="INLINE")
     impact: Mapped[str] = mapped_column(String(10), nullable=False, default="MEDIUM")
+    inflation_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     release_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -33,4 +34,5 @@ class EconomicReleaseRow(Base):
         Index("ix_econ_currency_indicator", "currency", "indicator"),
         Index("ix_econ_release_time", "release_time"),
         Index("ix_econ_currency_release", "currency", "release_time"),
+        Index("ix_econ_inflation_type", "inflation_type", "release_time"),
     )
