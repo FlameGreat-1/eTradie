@@ -105,7 +105,7 @@ func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *mode
 		return nil
 	}
 
-	raw, err := c.redis.Get(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey)
+	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey)
 	if err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_read_error")
 		return nil
@@ -114,14 +114,9 @@ func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *mode
 		return nil
 	}
 
-	rawJSON, err := json.Marshal(raw)
-	if err != nil {
-		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_remarshal_error")
-		return nil
-	}
-
+	// Single-pass unmarshal directly into the typed struct.
 	var result models.MacroResult
-	if err := json.Unmarshal(rawJSON, &result); err != nil {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_unmarshal_error")
 		return nil
 	}
