@@ -37,6 +37,7 @@ class EconomicDataCollector(BaseCollector):
                     surprise=release.surprise,
                     surprise_direction=release.surprise_direction.value,
                     impact=release.impact.value,
+                    inflation_type=release.inflation_type.value if release.inflation_type else None,
                     source=release.source,
                     release_time=release.release_time,
                 )

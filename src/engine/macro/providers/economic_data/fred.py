@@ -16,7 +16,7 @@ from typing import Any
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.shared.models.events import EventImpact, EventType
+from engine.shared.models.events import EventImpact, EventType, InflationType
 from engine.macro.models.provider.economic import EconomicRelease
 from engine.macro.providers.economic_data.base import (
     BaseEconomicDataProvider,
@@ -25,22 +25,24 @@ from engine.macro.providers.economic_data.base import (
 
 logger = get_logger(__name__)
 
-# FRED series IDs mapped to our EventType + human-readable names.
 _FRED_SERIES: list[dict[str, Any]] = [
-    {"series_id": "CPIAUCSL", "indicator": EventType.CPI, "name": "Consumer Price Index (US)", "impact": EventImpact.HIGH},
-    {"series_id": "GDP", "indicator": EventType.GDP, "name": "Gross Domestic Product (US)", "impact": EventImpact.HIGH},
-    {"series_id": "UNRATE", "indicator": EventType.EMPLOYMENT, "name": "Unemployment Rate (US)", "impact": EventImpact.HIGH},
-    {"series_id": "PAYEMS", "indicator": EventType.NFP, "name": "Total Nonfarm Payrolls (US)", "impact": EventImpact.HIGH},
-    {"series_id": "RSXFS", "indicator": EventType.RETAIL_SALES, "name": "Retail Sales (US)", "impact": EventImpact.MEDIUM},
-    {"series_id": "PPIFIS", "indicator": EventType.PPI, "name": "Producer Price Index (US)", "impact": EventImpact.MEDIUM},
-    {"series_id": "INDPRO", "indicator": EventType.MANUFACTURING, "name": "Industrial Production Index (US)", "impact": EventImpact.MEDIUM},
+    {"series_id": "CPIAUCSL", "indicator": EventType.CPI, "name": "Consumer Price Index (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.HEADLINE},
+    {"series_id": "CPILFESL", "indicator": EventType.CPI, "name": "Core CPI ex Food & Energy (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.CORE},
+    {"series_id": "PCEPI", "indicator": EventType.CPI, "name": "PCE Price Index (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.HEADLINE},
+    {"series_id": "PCEPILFE", "indicator": EventType.CPI, "name": "Core PCE ex Food & Energy (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.CORE},
+    {"series_id": "GDP", "indicator": EventType.GDP, "name": "Gross Domestic Product (US)", "impact": EventImpact.HIGH, "inflation_type": None},
+    {"series_id": "UNRATE", "indicator": EventType.EMPLOYMENT, "name": "Unemployment Rate (US)", "impact": EventImpact.HIGH, "inflation_type": None},
+    {"series_id": "PAYEMS", "indicator": EventType.NFP, "name": "Total Nonfarm Payrolls (US)", "impact": EventImpact.HIGH, "inflation_type": None},
+    {"series_id": "RSXFS", "indicator": EventType.RETAIL_SALES, "name": "Retail Sales (US)", "impact": EventImpact.MEDIUM, "inflation_type": None},
+    {"series_id": "PPIFIS", "indicator": EventType.PPI, "name": "Producer Price Index (US)", "impact": EventImpact.MEDIUM, "inflation_type": InflationType.HEADLINE},
+    {"series_id": "INDPRO", "indicator": EventType.MANUFACTURING, "name": "Industrial Production Index (US)", "impact": EventImpact.MEDIUM, "inflation_type": None},
 ]
 
 
 class FREDEconomicProvider(BaseEconomicDataProvider):
     """Fetch latest US economic indicators from the FRED API.
 
-    Only covers United States data — serves as a backup provider for
+    Only covers United States data. Serves as a backup provider for
     US releases when the primary TradingEconomics provider is unavailable.
     """
 
@@ -72,7 +74,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
 
         We need two observations so we can populate both ``actual``
         (latest) and ``previous`` (prior period).  FRED does not provide
-        forecast/consensus values — those fields are left as ``None``.
+        forecast/consensus values so those fields are left as ``None``.
         """
         try:
             raw = await self._http.get(
@@ -110,6 +112,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                 surprise=None,
                 surprise_direction=compute_surprise_direction(actual, None),
                 impact=series_cfg["impact"],
+                inflation_type=series_cfg["inflation_type"],
                 release_time=release_time,
                 source="fred",
             )

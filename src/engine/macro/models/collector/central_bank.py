@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import Field
 
 from engine.shared.models.base import TimestampedModel
-from engine.shared.models.events import CentralBank
+from engine.shared.models.events import CentralBank, MonetaryPolicyAction
 from engine.macro.models.provider.central_bank import (
     CentralBankSpeech,
     ForwardGuidance,
@@ -14,10 +14,20 @@ from engine.macro.models.provider.central_bank import (
 )
 
 
+class PolicyAction(TimestampedModel):
+    bank: CentralBank
+    action: MonetaryPolicyAction
+    description: str = ""
+    detected_at: datetime
+
+
 class CentralBankDataSet(TimestampedModel):
     rate_decisions: list[RateDecision] = []
     speeches: list[CentralBankSpeech] = []
     meeting_minutes: list[MeetingMinutes] = []
     forward_guidance: list[ForwardGuidance] = []
+    policy_actions: list[PolicyAction] = []
     banks_reporting: list[CentralBank] = []
-    collected_at: datetime = Field(default_factory=lambda: __import__("datetime").datetime.now(__import__("datetime").UTC))
+    collected_at: datetime = Field(
+        default_factory=lambda: __import__("datetime").datetime.now(__import__("datetime").UTC),
+    )

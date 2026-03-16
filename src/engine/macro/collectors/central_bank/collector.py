@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from engine.shared.cache import RedisCache
-from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
+from engine.shared.models.events import MonetaryPolicyAction
 from engine.macro.collectors.base import BaseCollector
-from engine.macro.models.collector.central_bank import CentralBankDataSet
-from engine.macro.providers.base import BaseProvider
+from engine.macro.models.collector.central_bank import CentralBankDataSet, PolicyAction
 from engine.macro.storage.schemas.central_bank import CentralBankEventRow
 
 logger = get_logger(__name__)
@@ -20,6 +18,7 @@ class CentralBankCollector(BaseCollector):
     async def _do_collect(self) -> CentralBankDataSet:
         all_events = []
         banks_reporting = []
+        policy_actions: list[PolicyAction] = []
 
         for provider in self._providers:
             try:
@@ -33,6 +32,23 @@ class CentralBankCollector(BaseCollector):
 
         async with self._db.session() as session:
             for event in all_events:
+                policy_action_val = getattr(event, "monetary_policy_action", MonetaryPolicyAction.NONE)
+                balance_sheet_dir = ""
+                if policy_action_val == MonetaryPolicyAction.QE:
+                    balance_sheet_dir = "EXPANDING"
+                elif policy_action_val == MonetaryPolicyAction.QT:
+                    balance_sheet_dir = "CONTRACTING"
+
+                if policy_action_val != MonetaryPolicyAction.NONE:
+                    bank_val = getattr(event, "bank", None)
+                    if bank_val:
+                        policy_actions.append(PolicyAction(
+                            bank=bank_val,
+                            action=policy_action_val,
+                            description=getattr(event, "title", ""),
+                            detected_at=datetime.now(UTC),
+                        ))
+
                 row = CentralBankEventRow(
                     bank=event.bank.value if hasattr(event, "bank") else "",
                     event_type=event.event_type.value if hasattr(event, "event_type") else "CB_SPEECH",
@@ -40,6 +56,8 @@ class CentralBankCollector(BaseCollector):
                     content=getattr(event, "summary", ""),
                     speaker=getattr(event, "speaker", ""),
                     tone=event.tone.value if hasattr(event, "tone") else "NEUTRAL",
+                    policy_action=policy_action_val.value if policy_action_val else "NONE",
+                    balance_sheet_direction=balance_sheet_dir,
                     source_url=getattr(event, "source_url", ""),
                     event_timestamp=getattr(event, "speech_date", None)
                         or getattr(event, "guidance_date", None)
@@ -50,6 +68,7 @@ class CentralBankCollector(BaseCollector):
         dataset = CentralBankDataSet(
             speeches=[e for e in all_events if hasattr(e, "speech_date")],
             forward_guidance=[e for e in all_events if hasattr(e, "guidance_date")],
+            policy_actions=policy_actions,
             banks_reporting=banks_reporting,
             collected_at=datetime.now(UTC),
         )

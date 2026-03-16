@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from engine.shared.logging import get_logger
-from engine.shared.models.events import CBTone, CentralBank, EventType, ProviderCategory
+from engine.shared.models.events import CBTone, CentralBank, EventType, MonetaryPolicyAction, ProviderCategory
 from engine.shared.rss import RSSParser
 from engine.shared.rss.parser import RSSEntry
 from engine.macro.models.provider.central_bank import (
@@ -25,6 +25,16 @@ _DOVISH_KEYWORDS = frozenset({
     "rate cut", "easing", "accommodative", "dovish", "slowdown",
     "below target", "support growth", "rate reduction", "stimulus",
 })
+_QE_KEYWORDS = frozenset({
+    "quantitative easing", "asset purchase", "bond buying",
+    "balance sheet expansion", "reinvestment", "purchase programme",
+    "purchase program", "mbs purchase",
+})
+_QT_KEYWORDS = frozenset({
+    "quantitative tightening", "balance sheet reduction",
+    "runoff", "roll-off", "tapering", "wind down",
+    "balance sheet normalization", "shrinking balance sheet",
+})
 
 
 def classify_tone(text: str) -> CBTone:
@@ -36,6 +46,15 @@ def classify_tone(text: str) -> CBTone:
     if dove_score > hawk_score:
         return CBTone.DOVISH
     return CBTone.NEUTRAL
+
+
+def classify_policy_action(text: str) -> MonetaryPolicyAction:
+    lower = text.lower()
+    if any(kw in lower for kw in _QT_KEYWORDS):
+        return MonetaryPolicyAction.QT
+    if any(kw in lower for kw in _QE_KEYWORDS):
+        return MonetaryPolicyAction.QE
+    return MonetaryPolicyAction.NONE
 
 
 def classify_event_type(title: str) -> EventType:
@@ -78,7 +97,9 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
 
     def _parse_entry(self, entry: RSSEntry) -> CentralBankSpeech | RateDecision | ForwardGuidance:
         event_type = classify_event_type(entry.title)
-        tone = classify_tone(f"{entry.title} {entry.summary}")
+        full_text = f"{entry.title} {entry.summary}"
+        tone = classify_tone(full_text)
+        policy_action = classify_policy_action(full_text)
 
         if event_type == EventType.FORWARD_GUIDANCE:
             return ForwardGuidance(
@@ -86,6 +107,7 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
                 title=entry.title,
                 summary=entry.summary[:2000],
                 tone=tone,
+                monetary_policy_action=policy_action,
                 guidance_date=entry.published_at,
                 source_url=entry.link,
             )
@@ -97,6 +119,7 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
             title=entry.title,
             summary=entry.summary[:2000],
             tone=tone,
+            monetary_policy_action=policy_action,
             speech_date=entry.published_at,
             source_url=entry.link,
         )

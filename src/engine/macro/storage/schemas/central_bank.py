@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,8 @@ class CentralBankEventRow(Base):
     speaker: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     tone: Mapped[str] = mapped_column(String(10), nullable=False, default="NEUTRAL")
     tone_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    policy_action: Mapped[str] = mapped_column(String(10), nullable=False, default="NONE")
+    balance_sheet_direction: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     rate_current: Mapped[float | None] = mapped_column(nullable=True)
     rate_previous: Mapped[float | None] = mapped_column(nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
@@ -33,4 +35,5 @@ class CentralBankEventRow(Base):
         Index("ix_cb_events_bank_timestamp", "bank", "event_timestamp"),
         Index("ix_cb_events_event_type", "event_type"),
         Index("ix_cb_events_created_at", "created_at"),
+        Index("ix_cb_events_policy_action", "policy_action", "event_timestamp"),
     )

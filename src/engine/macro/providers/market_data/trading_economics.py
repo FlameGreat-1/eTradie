@@ -19,13 +19,14 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
 
-# TE market symbols we need — mapped from API Name field to our internal keys.
-# We fetch commodities, index, and bond endpoints separately and merge results.
 _COMMODITY_NAMES: dict[str, str] = {
     "Gold": "gold",
     "Silver": "silver",
     "Crude Oil WTI": "oil",
     "Brent Crude Oil": "oil",
+    "Iron Ore": "iron_ore",
+    "Copper": "copper",
+    "Natural Gas": "natural_gas",
 }
 
 _INDEX_NAMES: dict[str, str] = {
@@ -37,10 +38,11 @@ _INDEX_NAMES: dict[str, str] = {
 
 
 class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
-    """Fetch intermarket data (DXY, Gold, Oil, Bonds, Indices) from TradingEconomics.
+    """Fetch intermarket data from TradingEconomics.
 
-    Acts as backup for TwelveData.  Fetches commodities, index, and bond
-    endpoints and merges into a single IntermarketSnapshot.
+    Acts as backup for TwelveData. Fetches commodities, index, and bond
+    endpoints and merges into a single IntermarketSnapshot. Includes
+    iron ore (AUD proxy) and dairy GDT (NZD proxy) when available.
     """
 
     provider_name = "tradingeconomics_market"
@@ -56,7 +58,6 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
         try:
             prices: dict[str, float | None] = {}
 
-            # Fetch commodities (Gold, Silver, Oil)
             commodities = await self._fetch_endpoint("/markets/commodities")
             for item in commodities:
                 name = str(item.get("Name", ""))
@@ -64,7 +65,6 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
                     if keyword.lower() in name.lower() and key not in prices:
                         prices[key] = self._safe_float(item.get("Last"))
 
-            # Fetch indices (S&P 500, VIX, DXY)
             indices = await self._fetch_endpoint("/markets/index")
             for item in indices:
                 name = str(item.get("Name", ""))
@@ -72,7 +72,6 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
                     if keyword.lower() in name.lower() and key not in prices:
                         prices[key] = self._safe_float(item.get("Last"))
 
-            # Fetch bonds (US 10Y and 2Y yields)
             bonds_10y = await self._fetch_endpoint("/markets/bond", extra_params={"type": "10Y"})
             for item in bonds_10y:
                 if str(item.get("Country", "")).lower() == "united states":
@@ -85,13 +84,36 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
                     prices["us2y"] = self._safe_float(item.get("Last"))
                     break
 
+            bonds_30y = await self._fetch_endpoint("/markets/bond", extra_params={"type": "30Y"})
+            for item in bonds_30y:
+                if str(item.get("Country", "")).lower() == "united states":
+                    prices["us30y"] = self._safe_float(item.get("Last"))
+                    break
+
+            # Dairy GDT index for NZD correlation
+            dairy_gdt: float | None = None
+            try:
+                agri = await self._fetch_endpoint("/markets/commodities")
+                for item in agri:
+                    name = str(item.get("Name", "")).lower()
+                    if "dairy" in name or "milk" in name or "gdt" in name:
+                        dairy_gdt = self._safe_float(item.get("Last"))
+                        break
+            except Exception:
+                pass
+
             snapshot = IntermarketSnapshot(
                 dxy_value=prices.get("dxy"),
                 gold_price=prices.get("gold"),
                 silver_price=prices.get("silver"),
                 oil_price=prices.get("oil"),
+                iron_ore=prices.get("iron_ore"),
+                dairy_gdt=dairy_gdt,
+                copper=prices.get("copper"),
+                natural_gas=prices.get("natural_gas"),
                 us10y_yield=prices.get("us10y"),
                 us2y_yield=prices.get("us2y"),
+                us30y_yield=prices.get("us30y"),
                 sp500=prices.get("sp500"),
                 vix=prices.get("vix"),
                 snapshot_at=datetime.now(UTC),
@@ -110,7 +132,6 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
         *,
         extra_params: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch a single TE markets endpoint and return the parsed list."""
         params: dict[str, str] = {"c": self._api_key, "f": "json"}
         if extra_params:
             params.update(extra_params)
