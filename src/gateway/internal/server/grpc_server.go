@@ -111,6 +111,9 @@ func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleReques
 		if out.GuardResult != nil {
 			co.GuardResultJson, _ = json.Marshal(out.GuardResult)
 		}
+		if out.ExecutionResult != nil {
+			co.ExecutionResultJson, _ = json.Marshal(out.ExecutionResult)
+		}
 		cycleOutputs = append(cycleOutputs, co)
 	}
 

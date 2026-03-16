@@ -30,6 +30,7 @@ type GatewayOutput struct {
 	Symbol          string                     `json:"symbol,omitempty"`
 	ProcessorOutput *ProcessorOutput           `json:"processor_output,omitempty"`
 	GuardResult     *GuardEvaluationResult     `json:"guard_result,omitempty"`
+	ExecutionResult map[string]interface{}     `json:"execution_result,omitempty"`
 	DurationMs      float64                    `json:"duration_ms"`
 	TraceID         string                     `json:"trace_id,omitempty"`
 	Error           string                     `json:"error,omitempty"`
