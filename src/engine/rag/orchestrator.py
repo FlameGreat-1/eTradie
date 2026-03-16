@@ -75,6 +75,15 @@ class RAGOrchestrator:
         has_rate_decision: bool = False,
         has_high_impact_event: bool = False,
         has_dxy_data: bool = False,
+        has_qe_qt: bool = False,
+        has_stagflation: bool = False,
+        has_cot_extremes: bool = False,
+        has_tff_data: bool = False,
+        has_core_inflation: bool = False,
+        has_safe_haven_elevated: bool = False,
+        has_commodity_currencies_weak: bool = False,
+        dxy_momentum: str | None = None,
+        risk_environment: str | None = None,
     ) -> ContextBundle:
         start = time.monotonic()
         effective_strategy = strategy or self._config.retrieval_default_strategy
@@ -90,6 +99,15 @@ class RAGOrchestrator:
             has_rate_decision=has_rate_decision,
             has_high_impact_event=has_high_impact_event,
             has_dxy_data=has_dxy_data,
+            has_qe_qt=has_qe_qt,
+            has_stagflation=has_stagflation,
+            has_cot_extremes=has_cot_extremes,
+            has_tff_data=has_tff_data,
+            has_core_inflation=has_core_inflation,
+            has_safe_haven_elevated=has_safe_haven_elevated,
+            has_commodity_currencies_weak=has_commodity_currencies_weak,
+            dxy_momentum=dxy_momentum,
+            risk_environment=risk_environment,
             style=style,
         )
 
