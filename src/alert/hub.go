@@ -10,20 +10,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	subscriberBufferSize = 128
-	defaultHistorySize   = 500
-)
-
-// Subscriber receives events from the hub.
-type Subscriber struct {
-	C      chan *Event
-	id     string
-	closed atomic.Bool
-	// minSeverity filters events by severity. Only events at or above
-	// this severity are delivered. Zero value (empty string) means all.
-	minSeverity EventSeverity
-}
+const subscriberBufferSize = 128
 
 // severityRank maps severity to a numeric rank for comparison.
 var severityRank = map[EventSeverity]int{
@@ -31,6 +18,16 @@ var severityRank = map[EventSeverity]int{
 	SeverityWarning:  1,
 	SeverityError:    2,
 	SeverityCritical: 3,
+}
+
+// Subscriber receives events from the hub.
+type Subscriber struct {
+	C  chan *Event
+	id string
+	// minSeverity filters events delivered to this subscriber.
+	// Empty string means no filter (receive all events).
+	minSeverity EventSeverity
+	closed      atomic.Bool
 }
 
 // meetsMinSeverity returns true if the event severity is at or above
@@ -42,35 +39,22 @@ func (s *Subscriber) meetsMinSeverity(evt *Event) bool {
 	return severityRank[evt.Severity] >= severityRank[s.minSeverity]
 }
 
-// Hub is the central pub/sub dispatcher for all application notifications.
-// Any module publishes events here; all connected dashboard clients
-// receive them via WebSocket. Thread-safe.
+// Hub is the in-process pub/sub dispatcher for WebSocket clients.
+// Services publish events here for real-time delivery. For cross-service
+// communication and persistence, use RedisTransport which bridges
+// Redis pub/sub to this Hub.
+//
+// Thread-safe. Non-blocking publish (drops events for slow subscribers).
 type Hub struct {
 	mu          sync.RWMutex
 	subscribers map[*Subscriber]struct{}
-	history     []*Event
-	historySize int
-	historyIdx  int
-	historyFull bool
 	log         zerolog.Logger
 }
 
-// NewHub creates a notification hub with a default history ring buffer.
+// NewHub creates a notification hub.
 func NewHub() *Hub {
-	return NewHubWithHistory(defaultHistorySize)
-}
-
-// NewHubWithHistory creates a notification hub with a custom history size.
-// Set historySize to 0 to disable event history.
-func NewHubWithHistory(historySize int) *Hub {
-	var history []*Event
-	if historySize > 0 {
-		history = make([]*Event, historySize)
-	}
 	return &Hub{
 		subscribers: make(map[*Subscriber]struct{}),
-		history:     history,
-		historySize: historySize,
 		log:         newLogger("alert_hub"),
 	}
 }
@@ -110,7 +94,7 @@ func (h *Hub) SubscribeWithFilter(minSeverity EventSeverity) *Subscriber {
 // Unsubscribe removes a client and closes its channel.
 func (h *Hub) Unsubscribe(sub *Subscriber) {
 	if sub.closed.Swap(true) {
-		return // Already closed.
+		return
 	}
 
 	h.mu.Lock()
@@ -127,34 +111,12 @@ func (h *Hub) Unsubscribe(sub *Subscriber) {
 		Msg("subscriber_removed")
 }
 
-// Publish sends an event to all connected subscribers and stores it
-// in the history ring buffer. Non-blocking: if a subscriber's buffer
-// is full, the event is dropped for that subscriber (logged + metric).
-// Publishing must never block the caller.
+// Publish fans out an event to all connected subscribers whose severity
+// filter matches. Non-blocking: if a subscriber's buffer is full, the
+// event is dropped for that subscriber and a metric is incremented.
+// Publishing must never block the caller (pipeline, gateway, etc.).
 func (h *Hub) Publish(evt *Event) {
 	AlertEventsPublished.WithLabelValues(string(evt.Source), evt.Type, string(evt.Severity)).Inc()
-
-	h.mu.Lock()
-	// Store in ring buffer.
-	if h.historySize > 0 && h.history != nil {
-		h.history[h.historyIdx] = evt
-		h.historyIdx++
-		if h.historyIdx >= h.historySize {
-			h.historyIdx = 0
-			h.historyFull = true
-		}
-	}
-	h.mu.Unlock()
-
-	if h.historySize > 0 {
-		var currentSize float64
-		if h.historyFull {
-			currentSize = float64(h.historySize)
-		} else {
-			currentSize = float64(h.historyIdx)
-		}
-		AlertHistorySize.Set(currentSize)
-	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -177,93 +139,6 @@ func (h *Hub) Publish(evt *Event) {
 				Msg("event_dropped_subscriber_buffer_full")
 		}
 	}
-}
-
-// Recent returns the last n events from the history ring buffer,
-// ordered oldest to newest. Returns fewer than n if the buffer
-// doesn't have that many events yet.
-func (h *Hub) Recent(n int) []*Event {
-	if h.historySize == 0 || h.history == nil {
-		return nil
-	}
-
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	var total int
-	if h.historyFull {
-		total = h.historySize
-	} else {
-		total = h.historyIdx
-	}
-
-	if total == 0 {
-		return nil
-	}
-	if n > total {
-		n = total
-	}
-
-	result := make([]*Event, n)
-
-	// Read the last n entries from the ring buffer in chronological order.
-	for i := 0; i < n; i++ {
-		idx := h.historyIdx - n + i
-		if idx < 0 {
-			idx += h.historySize
-		}
-		result[i] = h.history[idx]
-	}
-
-	return result
-}
-
-// RecentFiltered returns the last n events matching the given minimum
-// severity, ordered oldest to newest.
-func (h *Hub) RecentFiltered(n int, minSeverity EventSeverity) []*Event {
-	if minSeverity == "" {
-		return h.Recent(n)
-	}
-
-	if h.historySize == 0 || h.history == nil {
-		return nil
-	}
-
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	var total int
-	if h.historyFull {
-		total = h.historySize
-	} else {
-		total = h.historyIdx
-	}
-
-	if total == 0 {
-		return nil
-	}
-
-	minRank := severityRank[minSeverity]
-	result := make([]*Event, 0, n)
-
-	// Walk backwards from newest to oldest, collecting matches.
-	for i := 0; i < total && len(result) < n; i++ {
-		idx := h.historyIdx - 1 - i
-		if idx < 0 {
-			idx += h.historySize
-		}
-		evt := h.history[idx]
-		if evt != nil && severityRank[evt.Severity] >= minRank {
-			result = append(result, evt)
-		}
-	}
-
-	// Reverse to chronological order (oldest first).
-	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
-		result[i], result[j] = result[j], result[i]
-	}
-
-	return result
 }
 
 // SubscriberCount returns the current number of connected subscribers.
@@ -295,7 +170,6 @@ func generateSubscriberID() string {
 }
 
 // newLogger creates a zerolog logger for the alert package.
-// Standalone to avoid importing execution's observability package.
 func newLogger(component string) zerolog.Logger {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 	return zerolog.New(os.Stdout).With().
