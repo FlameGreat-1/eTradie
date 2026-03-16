@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/flamegreat/etradie/src/alert"
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/container"
 	"github.com/flamegreat/etradie/src/gateway/internal/infra"
@@ -93,6 +96,21 @@ func main() {
 		Int("cycle_interval_seconds", cfg.CycleIntervalSeconds).
 		Msg("gateway_started")
 
+	// Publish SERVICE_STARTED notification so the dashboard knows the gateway is up.
+	c.AlertTransport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeServiceStarted, alert.SeverityInfo,
+			fmt.Sprintf("Gateway started on HTTP:%d gRPC:%d (interval: %ds, symbols: %s)",
+				cfg.HTTPPort, cfg.GRPCPort, cfg.CycleIntervalSeconds,
+				strings.Join(cfg.DefaultSymbols, ", "))).
+			WithDetails(map[string]interface{}{
+				"http_port":              cfg.HTTPPort,
+				"grpc_port":              cfg.GRPCPort,
+				"cycle_interval_seconds": cfg.CycleIntervalSeconds,
+				"symbols":                cfg.DefaultSymbols,
+				"execution_enabled":      cfg.ExecutionEnabled,
+			}),
+	)
+
 	// Wait for shutdown signal or server error.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -105,6 +123,12 @@ func main() {
 			log.Error().Err(err).Msg("server_error")
 		}
 	}
+
+	// Publish SERVICE_STOPPING notification before graceful shutdown begins.
+	c.AlertTransport.Publish(context.Background(),
+		alert.NewEvent(alert.SourceGateway, alert.TypeServiceStopping, alert.SeverityInfo,
+			"Gateway shutting down"),
+	)
 
 	// Graceful shutdown with 30-second deadline.
 	log.Info().Msg("gateway_shutting_down")

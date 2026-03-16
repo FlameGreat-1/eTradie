@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
@@ -21,6 +22,7 @@ type Scheduler struct {
 	symbolStore     *symbolstore.Store
 	settingsStore   *settingsstore.Store
 	cfg             *config.Config
+	transport       *alertredis.Transport
 	intervalSeconds atomic.Int64
 	updateCh        chan time.Duration
 	log             zerolog.Logger
@@ -33,12 +35,14 @@ func NewScheduler(
 	symbolStore *symbolstore.Store,
 	settingsStore *settingsstore.Store,
 	cfg *config.Config,
+	transport *alertredis.Transport,
 ) *Scheduler {
 	s := &Scheduler{
 		orchestrator:  orchestrator,
 		symbolStore:   symbolStore,
 		settingsStore: settingsStore,
 		cfg:           cfg,
+		transport:     transport,
 		updateCh:      make(chan time.Duration, 1),
 		log:           observability.Logger("scheduler"),
 	}

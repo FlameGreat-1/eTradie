@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/flamegreat/etradie/src/alert"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/constants"
@@ -32,6 +35,7 @@ type Orchestrator struct {
 	processor      ports.ProcessorPort
 	router         *routing.Router
 	engineHTTP     *infra.EngineHTTPClient
+	transport      *alertredis.Transport
 	log            zerolog.Logger
 }
 
@@ -45,6 +49,7 @@ func NewOrchestrator(
 	processor ports.ProcessorPort,
 	router *routing.Router,
 	engineHTTP *infra.EngineHTTPClient,
+	transport *alertredis.Transport,
 ) *Orchestrator {
 	return &Orchestrator{
 		cfg:            cfg,
@@ -55,6 +60,7 @@ func NewOrchestrator(
 		processor:      processor,
 		router:         router,
 		engineHTTP:     engineHTTP,
+		transport:      transport,
 		log:            observability.Logger("orchestrator"),
 	}
 }
@@ -79,6 +85,19 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 				Float64("backoff_seconds", delay).
 				Strs("symbols", symbols).
 				Msg("cycle_retrying")
+
+			o.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeCycleRetrying, alert.SeverityWarning,
+					fmt.Sprintf("Cycle retrying attempt %d/%d after %.1fs backoff",
+						attempt+1, o.cfg.MaxCycleRetries+1, delay)).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"attempt":     attempt + 1,
+						"max_retries": o.cfg.MaxCycleRetries,
+						"backoff":     delay,
+						"symbols":     symbols,
+					}),
+			)
 
 			select {
 			case <-ctx.Done():
@@ -130,6 +149,19 @@ func (o *Orchestrator) runSingleAttempt(
 		Int("attempt", attempt+1).
 		Msg("cycle_started")
 
+	o.transport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeCycleStarted, alert.SeverityInfo,
+			fmt.Sprintf("Analysis cycle started for %s (attempt %d)",
+				strings.Join(symbols, ", "), attempt+1)).
+			WithTraceID(tracker.TraceID()).
+			WithDetails(map[string]interface{}{
+				"symbols":      symbols,
+				"attempt":      attempt + 1,
+				"cycle_id":     tracker.CycleID(),
+				"interval":     o.cfg.CycleIntervalSeconds,
+			}),
+	)
+
 	panicked := false
 
 	func() {
@@ -161,6 +193,19 @@ func (o *Orchestrator) runSingleAttempt(
 					Str("trace_id", tracker.TraceID()).
 					Msg("cycle_timed_out")
 				shouldRetry = true
+
+				o.transport.Publish(ctx,
+					alert.NewEvent(alert.SourceGateway, alert.TypeCycleFailed, alert.SeverityError,
+						fmt.Sprintf("Cycle timed out after %ds (phase: %s)",
+							o.cfg.CycleTimeoutSeconds, tracker.Phase().String())).
+						WithTraceID(tracker.TraceID()).
+						WithDetails(map[string]interface{}{
+							"error":         fmt.Sprintf("timeout after %ds", o.cfg.CycleTimeoutSeconds),
+							"phase_reached": tracker.Phase().String(),
+							"duration_ms":   tracker.ElapsedMs(),
+							"cycle_id":      tracker.CycleID(),
+						}),
+				)
 			} else {
 				tracker.Fail(err.Error(), "unhandled", false)
 				observability.GatewayStageErrors.WithLabelValues("cycle", "error").Inc()
@@ -171,6 +216,19 @@ func (o *Orchestrator) runSingleAttempt(
 					Str("trace_id", tracker.TraceID()).
 					Msg("cycle_unhandled_error")
 				shouldRetry = true
+
+				o.transport.Publish(ctx,
+					alert.NewEvent(alert.SourceGateway, alert.TypeCycleFailed, alert.SeverityError,
+						fmt.Sprintf("Cycle failed: %s (phase: %s)",
+							err.Error(), tracker.Phase().String())).
+						WithTraceID(tracker.TraceID()).
+						WithDetails(map[string]interface{}{
+							"error":         err.Error(),
+							"phase_reached": tracker.Phase().String(),
+							"duration_ms":   tracker.ElapsedMs(),
+							"cycle_id":      tracker.CycleID(),
+						}),
+				)
 			}
 			// Preserve any partial results from the pipeline, then append the error.
 			if len(result) > 0 {
@@ -202,6 +260,28 @@ func (o *Orchestrator) runSingleAttempt(
 		Int("attempt", attempt+1).
 		Bool("will_retry", shouldRetry).
 		Msg("cycle_finished")
+
+	// Publish CYCLE_COMPLETED for successful completions (not retrying).
+	if !shouldRetry && state.Status == constants.StatusCompleted {
+		var processedSymbols []string
+		for _, out := range outputs {
+			if out.Symbol != "" {
+				processedSymbols = append(processedSymbols, out.Symbol)
+			}
+		}
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeCycleCompleted, alert.SeverityInfo,
+				fmt.Sprintf("Cycle completed: %s (%.0fms)", outcome, tracker.ElapsedMs())).
+				WithTraceID(tracker.TraceID()).
+				WithDetails(map[string]interface{}{
+					"outcome":           outcome,
+					"duration_ms":       tracker.ElapsedMs(),
+					"symbols_processed": processedSymbols,
+					"outputs_count":     len(outputs),
+					"cycle_id":          tracker.CycleID(),
+				}),
+		)
+	}
 
 	// Never retry panics - they indicate bugs, not transient failures.
 	if panicked {
@@ -251,11 +331,27 @@ func (o *Orchestrator) executePipeline(
 	if taErr != nil {
 		observability.SetSpanError(collectSpan, taErr)
 		collectSpan.End()
+
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeTACollectionFailed, alert.SeverityError,
+				fmt.Sprintf("TA collection failed: %s", taErr.Error())).
+				WithTraceID(traceID).
+				WithDetail("error", taErr.Error()),
+		)
+
 		return nil, fmt.Errorf("TA collection failed: %w", taErr)
 	}
 	if macroErr != nil {
 		observability.SetSpanError(collectSpan, macroErr)
 		collectSpan.End()
+
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeMacroCollectionFailed, alert.SeverityError,
+				fmt.Sprintf("Macro collection failed: %s", macroErr.Error())).
+				WithTraceID(traceID).
+				WithDetail("error", macroErr.Error()),
+		)
+
 		return nil, fmt.Errorf("Macro collection failed: %w", macroErr)
 	}
 	collectSpan.End()
@@ -398,6 +494,15 @@ func (o *Orchestrator) processSymbol(
 		observability.SetSpanError(ragSpan, err)
 		ragSpan.End()
 		observability.GatewayStageErrors.WithLabelValues(constants.StageRAGRetrieval.String(), "error").Inc()
+
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeRAGRetrievalFailed, alert.SeverityError,
+				fmt.Sprintf("RAG retrieval failed for %s: %s", symbol, err.Error())).
+				WithSymbol(symbol).
+				WithTraceID(traceID).
+				WithDetail("error", err.Error()),
+		)
+
 		return buildSymbolErrorOutput(tracker, symbol, err)
 	}
 	ragSpan.End()
@@ -429,9 +534,40 @@ func (o *Orchestrator) processSymbol(
 		observability.SetSpanError(procSpan, err)
 		procSpan.End()
 		observability.GatewayStageErrors.WithLabelValues(constants.StageProcessorLLM.String(), "error").Inc()
+
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeProcessorLLMFailed, alert.SeverityError,
+				fmt.Sprintf("Processor LLM failed for %s: %s", symbol, err.Error())).
+				WithSymbol(symbol).
+				WithTraceID(traceID).
+				WithDetail("error", err.Error()),
+		)
+
 		return buildSymbolErrorOutput(tracker, symbol, err)
 	}
 	procSpan.End()
+
+	// Publish ANALYSIS_COMPLETE: processor returned a decision for this symbol.
+	analysisMsg := fmt.Sprintf("Analysis complete for %s: trade_valid=%t", symbol, processorOutput.TradeValid)
+	analysisDetails := map[string]interface{}{
+		"trade_valid": processorOutput.TradeValid,
+		"confidence":  processorOutput.Confidence,
+		"grade":       processorOutput.Grade,
+	}
+	if processorOutput.TradeValid {
+		analysisMsg = fmt.Sprintf("Analysis complete for %s: %s %s (grade: %s, confidence: %.1f%%)",
+			symbol, processorOutput.Direction, processorOutput.Symbol,
+			processorOutput.Grade, processorOutput.Confidence*100)
+		analysisDetails["direction"] = processorOutput.Direction
+		analysisDetails["trading_style"] = processorOutput.TradingStyle
+	}
+	o.transport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeAnalysisComplete, alert.SeverityInfo, analysisMsg).
+			WithSymbol(symbol).
+			WithDirection(processorOutput.Direction).
+			WithTraceID(traceID).
+			WithDetails(analysisDetails),
+	)
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()

@@ -107,3 +107,4 @@ The execution service creates its own Hub and serves WebSocket on its HTTP port.
 ---
 
 That's the complete audit. The gateway needs the alert Hub wired in, all 17 event types published from the right places, and the 4 gaps in `src/alert/` addressed.
+
