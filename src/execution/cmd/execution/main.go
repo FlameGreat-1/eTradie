@@ -119,7 +119,7 @@ func main() {
 	}()
 
 	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────
-	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, hub)
+	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, hub)
 
 	go func() {
 		if err := httpServer.Start(); err != nil {

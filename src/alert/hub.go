@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -31,14 +30,6 @@ type Hub struct {
 
 // NewHub creates a notification hub.
 func NewHub() *Hub {
-	// Override the event ID generator with proper crypto/rand.
-	cryptoRandRead = func(b []byte) (int, error) {
-		return rand.Read(b)
-	}
-	hexEncode = func(b []byte) string {
-		return hex.EncodeToString(b)
-	}
-
 	return &Hub{
 		subscribers: make(map[*Subscriber]struct{}),
 		log:         newLogger("alert_hub"),
@@ -145,18 +136,4 @@ func newLogger(component string) zerolog.Logger {
 		Str("service", "alert").
 		Str("component", component).
 		Logger()
-}
-
-// SetLogLevel configures the alert package log level.
-func SetLogLevel(level string) {
-	switch strings.ToUpper(level) {
-	case "DEBUG":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "WARN":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	case "ERROR":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	default:
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
 }

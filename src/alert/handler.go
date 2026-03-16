@@ -3,6 +3,7 @@ package alert
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -19,9 +20,23 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 4096,
 	CheckOrigin: func(r *http.Request) bool {
-		// In production, restrict to dashboard origin.
-		// For now, allow all origins during development.
-		return true
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Non-browser clients (gRPC tools, curl).
+		}
+		// Allow localhost for development.
+		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+			return true
+		}
+		// In production, validate that the origin matches the request
+		// host. The reverse proxy (nginx/Traefik) should set the Host
+		// header to the actual domain. This prevents cross-site WS
+		// hijacking while allowing same-origin dashboard connections.
+		host := r.Host
+		if host != "" && strings.Contains(origin, host) {
+			return true
+		}
+		return false
 	},
 }
 
