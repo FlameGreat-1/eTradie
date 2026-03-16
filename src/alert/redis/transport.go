@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -356,7 +357,8 @@ func splitEventID(id string) string {
 
 // newLogger creates a zerolog logger for the redis transport package.
 func newLogger(component string) zerolog.Logger {
-	return zerolog.New(zerolog.NewConsoleWriter()).With().
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
+	return zerolog.New(os.Stdout).With().
 		Timestamp().
 		Str("service", "alert").
 		Str("component", component).
