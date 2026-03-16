@@ -119,11 +119,15 @@ func (o *Orchestrator) runSingleAttempt(
 	tracker := NewCycleTracker(traceID)
 	observability.GatewayActiveCycles.Inc()
 
-	o.log.Info().
-		Str("cycle_id", tracker.CycleID()).
+	// Create a scoped logger with trace_id and cycle_id bound for the
+	// entire cycle execution. Every log line within this attempt
+	// automatically includes both IDs for production log correlation.
+	cycleLog := observability.WithTraceID(o.log, tracker.TraceID())
+	cycleLog = observability.WithCycleID(cycleLog, tracker.CycleID())
+
+	cycleLog.Info().
 		Strs("symbols", symbols).
 		Int("attempt", attempt+1).
-		Str("trace_id", tracker.TraceID()).
 		Msg("cycle_started")
 
 	panicked := false
@@ -131,7 +135,7 @@ func (o *Orchestrator) runSingleAttempt(
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				observability.LogPanicRecovery(o.log, r, "run_cycle")
+				observability.LogPanicRecovery(cycleLog, r, "run_cycle")
 				tracker.Fail(fmt.Sprintf("panic: %v", r), "unhandled", false)
 				observability.GatewayStageErrors.WithLabelValues("cycle", "panic").Inc()
 				outputs = append(outputs, buildErrorOutput(tracker))
@@ -190,15 +194,13 @@ func (o *Orchestrator) runSingleAttempt(
 	}
 	observability.GatewayCycleTotal.WithLabelValues(status, outcome).Inc()
 
-	o.log.Info().
-		Str("cycle_id", tracker.CycleID()).
+	cycleLog.Info().
 		Str("status", status).
 		Str("outcome", outcome).
 		Float64("duration_ms", tracker.ElapsedMs()).
 		Int("outputs_count", len(outputs)).
 		Int("attempt", attempt+1).
 		Bool("will_retry", shouldRetry).
-		Str("trace_id", tracker.TraceID()).
 		Msg("cycle_finished")
 
 	// Never retry panics - they indicate bugs, not transient failures.
