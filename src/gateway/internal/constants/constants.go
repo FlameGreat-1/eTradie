@@ -78,16 +78,15 @@ func (v GuardVerdict) String() string { return string(v) }
 type GuardRule string
 
 const (
-	RuleNewsProximity        GuardRule = "MR-REJECT-001"
-	RuleSessionRestriction   GuardRule = "MR-REJECT-002"
-	RuleDailyLossLimit       GuardRule = "MR-REJECT-003"
-	RuleSpreadTooWide        GuardRule = "MR-REJECT-004"
-	RuleCorrelationLimit     GuardRule = "MR-REJECT-005"
-	RuleCounterTrendNoChoch  GuardRule = "MR-REJECT-006"
-	RuleMaxConcurrentTrades  GuardRule = "MR-REJECT-007"
-	RuleWeekendGapRisk       GuardRule = "MR-REJECT-008"
-	RuleLowLiquidityHours    GuardRule = "MR-REJECT-009"
-	RuleDrawdownCircuitBreak GuardRule = "MR-REJECT-010"
+	RuleNewsProximity       GuardRule = "MR-REJECT-001"
+	RuleSessionRestriction  GuardRule = "MR-REJECT-002"
+	RuleCounterTrendNoChoch GuardRule = "MR-REJECT-006"
+	RuleWeekendGapRisk      GuardRule = "MR-REJECT-008"
+	RuleLowLiquidityHours   GuardRule = "MR-REJECT-009"
+	// MR-REJECT-003 (daily loss limit), MR-REJECT-004 (spread),
+	// MR-REJECT-005 (correlation), MR-REJECT-007 (max concurrent),
+	// MR-REJECT-010 (weekly drawdown) are owned by Module B's
+	// pre-execution validator which has live broker state access.
 )
 
 func (r GuardRule) String() string { return string(r) }

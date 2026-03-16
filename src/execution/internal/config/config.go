@@ -70,8 +70,6 @@ type Config struct {
 	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
 	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-execution"`
-
-
 }
 
 // Load reads configuration from EXECUTION_ prefixed environment
