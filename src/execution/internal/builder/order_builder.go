@@ -11,17 +11,6 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/models"
 )
 
-// Build constructs a complete Order using the config's default execution mode.
-// Convenience wrapper around BuildWithMode for callers that don't resolve
-// the mode from the settings store.
-func Build(
-	req *models.TradeRequest,
-	sizing *models.SizingResult,
-	cfg *config.Config,
-) *models.Order {
-	return BuildWithMode(req, sizing, cfg, cfg.ExecutionMode())
-}
-
 // BuildWithMode constructs a complete Order from a validated TradeRequest,
 // SizingResult, and an explicitly provided execution mode. The mode is
 // resolved by the caller (grpc_server reads it from the settings store

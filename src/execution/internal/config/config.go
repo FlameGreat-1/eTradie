@@ -32,14 +32,14 @@ type Config struct {
 	// Module C address (for instant mode arming).
 	ModuleCAddr string `envconfig:"MODULE_C_ADDR" default:"localhost:50055"`
 
-	// Default execution mode. Dashboard can override per pair.
+	// Default execution mode. Dashboard can override via settings store.
 	DefaultExecutionMode string `envconfig:"DEFAULT_EXECUTION_MODE" default:"LIMIT"`
 
 	// Position sizing.
 	MinLotSize float64 `envconfig:"MIN_LOT_SIZE" default:"0.01"`
 	MaxLotSize float64 `envconfig:"MAX_LOT_SIZE" default:"10.0"`
 
-	// Risk controls.
+	// Risk controls (defaults; dashboard can override via settings store).
 	MaxConcurrentTrades int     `envconfig:"MAX_CONCURRENT_TRADES" default:"3"`
 	DailyLossLimitPct   float64 `envconfig:"DAILY_LOSS_LIMIT_PCT" default:"3.0"`
 	WeeklyDrawdownPct   float64 `envconfig:"WEEKLY_DRAWDOWN_PCT" default:"5.0"`
@@ -58,7 +58,7 @@ type Config struct {
 	// Instant mode.
 	OvershootToleranceMultiplier float64 `envconfig:"OVERSHOOT_TOLERANCE_MULTIPLIER" default:"1.5"`
 
-	// Database (execution audit log).
+	// Database (execution audit log, pnl tracker, settings).
 	DatabaseURL         string `envconfig:"DATABASE_URL" required:"true"`
 	DatabaseMaxConns    int    `envconfig:"DATABASE_MAX_CONNS" default:"10"`
 	DatabaseMinConns    int    `envconfig:"DATABASE_MIN_CONNS" default:"2"`
@@ -70,7 +70,9 @@ type Config struct {
 	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
 	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-execution"`
-	MetricsPort     int    `envconfig:"METRICS_PORT" default:"9091"`
+
+	// HTTP API authentication.
+	APIToken string `envconfig:"API_TOKEN" default:""`
 }
 
 // Load reads configuration from EXECUTION_ prefixed environment
@@ -90,15 +92,11 @@ func (c *Config) validate() error {
 	if c.GRPCPort < 1024 || c.GRPCPort > 65535 {
 		return fmt.Errorf("GRPC_PORT must be 1024..65535, got %d", c.GRPCPort)
 	}
-	if c.MetricsPort < 1024 || c.MetricsPort > 65535 {
-		return fmt.Errorf("METRICS_PORT must be 1024..65535, got %d", c.MetricsPort)
-	}
 	if c.HTTPPort < 1024 || c.HTTPPort > 65535 {
 		return fmt.Errorf("HTTP_PORT must be 1024..65535, got %d", c.HTTPPort)
 	}
-	ports := map[int]string{c.GRPCPort: "GRPC_PORT", c.HTTPPort: "HTTP_PORT", c.MetricsPort: "METRICS_PORT"}
-	if len(ports) < 3 {
-		return fmt.Errorf("GRPC_PORT, HTTP_PORT, and METRICS_PORT must all differ")
+	if c.GRPCPort == c.HTTPPort {
+		return fmt.Errorf("GRPC_PORT and HTTP_PORT must differ (both are %d)", c.GRPCPort)
 	}
 
 	mode := strings.ToLower(c.BrokerMode)

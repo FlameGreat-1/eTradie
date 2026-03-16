@@ -160,6 +160,7 @@ func main() {
 	defer cancel()
 
 	grpcServer.GracefulStop()
+	execServer.Close()
 	_ = httpServer.Shutdown(shutdownCtx)
 	hub.Close()
 	pool.Close()
