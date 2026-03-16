@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -26,20 +27,23 @@ var upgrader = websocket.Upgrader{
 		if origin == "" {
 			return true // Non-browser clients (gRPC tools, curl).
 		}
-		// Allow localhost for development.
 		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 			return true
 		}
-		// In production, validate that the origin matches the request
-		// host. The reverse proxy (nginx/Traefik) should set the Host
-		// header to the actual domain. This prevents cross-site WS
-		// hijacking while allowing same-origin dashboard connections.
 		host := r.Host
 		if host != "" && strings.Contains(origin, host) {
 			return true
 		}
 		return false
 	},
+}
+
+// HistoryProvider is the interface for fetching persistent event history.
+// Implemented by redis.Transport.
+type HistoryProvider interface {
+	Recent(ctx context.Context, n int64) []*Event
+	RecentFiltered(ctx context.Context, n int64, minSeverity EventSeverity) []*Event
+	RecentSince(ctx context.Context, lastEventID string, maxCount int64) []*Event
 }
 
 // WebSocketHandler returns an http.HandlerFunc that upgrades HTTP
@@ -81,17 +85,6 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 	}
 }
 
-// HistoryProvider is the interface for fetching event history.
-// Implemented by redis.Transport.
-type HistoryProvider interface {
-	Recent(ctx context.Context, n int64) []*Event
-	RecentFiltered(ctx context.Context, n int64, minSeverity EventSeverity) []*Event
-	RecentSince(ctx context.Context, lastEventID string, maxCount int64) []*Event
-}
-
-// We need context for the HistoryProvider methods.
-import "context"
-
 // RecentEventsHandler returns an http.HandlerFunc that serves the
 // event history REST endpoint.
 //
@@ -108,7 +101,6 @@ func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
 			return
 		}
 
-		// Parse count parameter.
 		count := int64(50)
 		if countStr := r.URL.Query().Get("count"); countStr != "" {
 			if parsed, err := strconv.ParseInt(countStr, 10, 64); err == nil && parsed > 0 {
@@ -119,7 +111,6 @@ func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
 			count = 500
 		}
 
-		// Parse severity filter.
 		minSeverity := parseSeverityParam(r.URL.Query().Get("severity"))
 
 		var events []*Event
@@ -237,7 +228,6 @@ func writePump(conn *websocket.Conn, sub *Subscriber, log zerolog.Logger) {
 		select {
 		case evt, ok := <-sub.C:
 			if !ok {
-				// Channel closed; subscriber was removed.
 				_ = conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
