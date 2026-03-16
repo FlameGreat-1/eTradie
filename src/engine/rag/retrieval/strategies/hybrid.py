@@ -6,17 +6,19 @@ from engine.rag.retrieval.retriever import Retriever
 
 
 class HybridStrategy:
-    """Equal-weight multi-bucket retrieval for comprehensive knowledge coverage.
+    """Weighted multi-bucket retrieval for comprehensive knowledge coverage.
 
     The LLM processes TA + Macro + RAG knowledge ALL TOGETHER in a single
-    pass. It does not analyze TA separately from macro. Therefore every
-    knowledge category receives EQUAL retrieval budget.
+    pass. It does not analyze TA separately from macro.
 
-    Retrieves from all categories with equal weight:
-    1. Core rules (master_rulebook, trading_style_rules)
-    2. Framework-specific chunks for EACH detected framework
-    3. Macro/cross-framework chunks (macro_to_price, dxy, cot)
-    4. Scenario examples (chart_scenario_library)
+    Budget allocation prioritises core analytical knowledge over examples:
+    1. Core rules (master_rulebook, trading_style_rules)       ~25%
+    2. Framework-specific chunks (SMC, SnD, Wyckoff)           ~33%
+    3. Macro/cross-framework chunks (macro_to_price, dxy, cot) ~33%
+    4. Scenario examples (chart_scenario_library)               ~9%
+
+    Scenarios are supplementary reasoning examples. The mandatory minimum
+    system guarantees their baseline (13 chunks) regardless of allocation.
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -41,8 +43,13 @@ class HybridStrategy:
         all_frameworks: list[str] | None = None,
         all_setup_families: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        # Equal budget per category - no prioritization
-        per_category_k = max(3, top_k // 4)
+        # Weighted budget: frameworks and macro get the lion's share,
+        # scenarios get a smaller allocation since they are supplementary
+        # examples and the mandatory minimum system backstops them.
+        rules_k = max(3, top_k // 4)           # ~25%
+        framework_k = max(3, top_k // 3)       # ~33%
+        macro_k = max(3, top_k // 3)           # ~33%
+        scenario_k = max(3, top_k // 10)       # ~9%
 
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
@@ -51,7 +58,7 @@ class HybridStrategy:
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=per_category_k + 2,
+            top_k=rules_k + 2,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -80,7 +87,7 @@ class HybridStrategy:
         # Always include wyckoff for phase context
         frameworks_to_retrieve.add("wyckoff")
 
-        per_fw_k = max(2, per_category_k // max(1, len(frameworks_to_retrieve)))
+        per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
         all_setup_fams = all_setup_families or (
             [setup_family] if setup_family else None
         )
@@ -105,7 +112,7 @@ class HybridStrategy:
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=per_category_k + 2,
+            top_k=macro_k + 2,
             doc_types=[
                 DocumentType.MACRO_TO_PRICE_GUIDE,
                 DocumentType.DXY_FRAMEWORK,
@@ -118,11 +125,11 @@ class HybridStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Category 4: Scenario examples
+        # Category 4: Scenario examples (supplementary, not core knowledge)
         scenario_chunks = await self._retriever.retrieve(
             query_text,
             collection=scenario_collection,
-            top_k=per_category_k + 2,
+            top_k=scenario_k + 2,
             frameworks=[framework] if framework else None,
             setup_families=all_setup_fams,
             directions=[direction] if direction else None,
