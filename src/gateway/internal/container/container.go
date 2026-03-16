@@ -16,21 +16,23 @@ import (
 	"github.com/flamegreat/etradie/src/gateway/internal/querybuilder"
 	"github.com/flamegreat/etradie/src/gateway/internal/routing"
 	"github.com/flamegreat/etradie/src/gateway/internal/server"
+	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat/etradie/src/gateway/internal/symbolstore"
 )
 
 // Container holds all gateway components and manages their lifecycle.
 type Container struct {
-	Cfg          *config.Config
-	Redis        *infra.RedisClient
-	Engine       *infra.EngineHTTPClient
-	Execution    *infra.ExecutionGRPCAdapter
-	SymbolStore  *symbolstore.Store
-	Orchestrator *pipeline.Orchestrator
-	Scheduler    *pipeline.Scheduler
-	HTTPServer   *server.HTTPServer
-	GRPCServer   *server.GRPCServer
-	log          zerolog.Logger
+	Cfg           *config.Config
+	Redis         *infra.RedisClient
+	Engine        *infra.EngineHTTPClient
+	Execution     *infra.ExecutionGRPCAdapter
+	SymbolStore   *symbolstore.Store
+	SettingsStore *settingsstore.Store
+	Orchestrator  *pipeline.Orchestrator
+	Scheduler     *pipeline.Scheduler
+	HTTPServer    *server.HTTPServer
+	GRPCServer    *server.GRPCServer
+	log           zerolog.Logger
 }
 
 // New builds all gateway components in correct dependency order.
@@ -48,8 +50,11 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 	// Processor adapter: calls Python engine via HTTP.
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
 
-	// Symbol Store.
+	// Symbol Store (Redis-backed, survives restarts).
 	symStore := symbolstore.NewStore(redisClient, cfg)
+
+	// Settings Store (Redis-backed, survives restarts).
+	settStore := settingsstore.NewStore(redisClient)
 
 	// Collectors (with Redis caching).
 	taCollector := collectors.NewTACollector(engineHTTP, redisClient, cfg)
@@ -73,30 +78,34 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 		processor, router, engineHTTP,
 	)
 
-	// Scheduler.
-	scheduler := pipeline.NewScheduler(orchestrator, symStore, cfg)
+	// Scheduler (with SettingsStore for persisted interval overrides).
+	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg)
+
+	// Load any dashboard-set interval override from Redis before starting.
+	scheduler.LoadPersistedInterval(context.Background())
 
 	// Servers.
 	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP)
-	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, redisClient, engineHTTP)
+	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP)
 
 	log.Info().
-		Int("cycle_interval", cfg.CycleIntervalSeconds).
+		Int("cycle_interval", scheduler.CurrentIntervalSeconds()).
 		Int("cycle_timeout", cfg.CycleTimeoutSeconds).
 		Bool("execution_available", execution != nil).
 		Msg("gateway_container_built")
 
 	return &Container{
-		Cfg:          cfg,
-		Redis:        redisClient,
-		Engine:       engineHTTP,
-		Execution:    execAdapter,
-		SymbolStore:  symStore,
-		Orchestrator: orchestrator,
-		Scheduler:    scheduler,
-		HTTPServer:   httpServer,
-		GRPCServer:   grpcServer,
-		log:          log,
+		Cfg:           cfg,
+		Redis:         redisClient,
+		Engine:        engineHTTP,
+		Execution:     execAdapter,
+		SymbolStore:   symStore,
+		SettingsStore: settStore,
+		Orchestrator:  orchestrator,
+		Scheduler:     scheduler,
+		HTTPServer:    httpServer,
+		GRPCServer:    grpcServer,
+		log:           log,
 	}, nil
 }
 
