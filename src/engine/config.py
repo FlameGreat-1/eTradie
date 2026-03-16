@@ -330,7 +330,7 @@ class RAGConfig(BaseSettings):
 
     # ── Retrieval ───────────────────────────────────────────────────
     retrieval_top_k: int = Field(
-        default=80, ge=1, le=500,
+        default=150, ge=1, le=500,
         description="Number of candidate chunks to retrieve from vector store per bucket",
     )
     retrieval_score_threshold: float = Field(
@@ -348,7 +348,7 @@ class RAGConfig(BaseSettings):
         description="Enable reranking stage after initial retrieval",
     )
     rerank_top_k: int = Field(
-        default=70, ge=1, le=200,
+        default=130, ge=1, le=200,
         description="Number of chunks to keep after reranking",
     )
     rerank_model: str = Field(
@@ -442,9 +442,9 @@ class RAGConfig(BaseSettings):
             )
         # rerank_top_k can be less than retrieval_top_k (that is the point)
         # but should not exceed a reasonable upper bound
-        if self.rerank_top_k > 100:
+        if self.rerank_top_k > 200:
             raise ValueError(
-                f"rerank_top_k ({self.rerank_top_k}) must not exceed 100"
+                f"rerank_top_k ({self.rerank_top_k}) must not exceed 200"
             )
         return self
 
