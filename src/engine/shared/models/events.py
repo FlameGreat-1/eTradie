@@ -84,6 +84,47 @@ class RiskSentiment(StrEnum):
 
 
 @unique
+class RiskEnvironment(StrEnum):
+    RISK_ON = "RISK_ON"
+    RISK_OFF = "RISK_OFF"
+    NEUTRAL = "NEUTRAL"
+    STAGFLATION = "STAGFLATION"
+
+
+@unique
+class InflationType(StrEnum):
+    HEADLINE = "HEADLINE"
+    CORE = "CORE"
+
+
+@unique
+class MonetaryPolicyAction(StrEnum):
+    QE = "QE"
+    QT = "QT"
+    NONE = "NONE"
+
+
+@unique
+class DXYMomentum(StrEnum):
+    STRONG_UP = "STRONG_UP"
+    UP = "UP"
+    FLAT = "FLAT"
+    DOWN = "DOWN"
+    STRONG_DOWN = "STRONG_DOWN"
+
+
+@unique
+class COTSignalStrength(StrEnum):
+    EXTREME_LONG = "EXTREME_LONG"
+    STRONG_LONG = "STRONG_LONG"
+    MODERATE_LONG = "MODERATE_LONG"
+    NEUTRAL = "NEUTRAL"
+    MODERATE_SHORT = "MODERATE_SHORT"
+    STRONG_SHORT = "STRONG_SHORT"
+    EXTREME_SHORT = "EXTREME_SHORT"
+
+
+@unique
 class TrendDirection(StrEnum):
     UP = "UP"
     DOWN = "DOWN"
