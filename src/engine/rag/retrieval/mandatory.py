@@ -138,30 +138,30 @@ def compute_mandatory_requirements(
 
     # 1. Master rulebook: rejection rules, confluence scoring, risk rules,
     #    output format, session rules. Governs EVERY decision.
-    min_chunks[DocumentType.MASTER_RULEBOOK] = 5
+    min_chunks[DocumentType.MASTER_RULEBOOK] = 15
     force_types.add(DocumentType.MASTER_RULEBOOK)
     rule_patterns.extend(["MR-REJECT", "MR-RISK", "MR-PHIL", "MR-AI"])
 
     # 2. Trading style rules: TP structure, R:R, session, management.
-    min_chunks[DocumentType.TRADING_STYLE_RULES] = 3
+    min_chunks[DocumentType.TRADING_STYLE_RULES] = 13
     force_types.add(DocumentType.TRADING_STYLE_RULES)
     rule_patterns.extend(["STYLE-RR", "STYLE-RISK", "STYLE-SESSION", "STYLE-AVOID"])
 
     # 3. SMC framework: even without SMC candidates, the LLM needs to
     #    understand SMC structure to interpret the technical snapshot
     #    (BOS events, swing points, liquidity sweeps are always present).
-    min_chunks[DocumentType.SMC_FRAMEWORK] = 2
+    min_chunks[DocumentType.SMC_FRAMEWORK] = 12
     force_types.add(DocumentType.SMC_FRAMEWORK)
     detected_fw.add("smc")
 
     # 4. SnD framework: even without SnD candidates, the LLM needs zone
     #    identification rules to understand why zones were or were not found.
-    min_chunks[DocumentType.SND_RULEBOOK] = 2
+    min_chunks[DocumentType.SND_RULEBOOK] = 12
     force_types.add(DocumentType.SND_RULEBOOK)
     detected_fw.add("snd")
 
     # 5. Wyckoff guide: contextual confirmation needed on every cycle.
-    min_chunks[DocumentType.WYCKOFF_GUIDE] = 2
+    min_chunks[DocumentType.WYCKOFF_GUIDE] = 12
     force_types.add(DocumentType.WYCKOFF_GUIDE)
     detected_fw.add("wyckoff")
 
@@ -170,26 +170,26 @@ def compute_mandatory_requirements(
     #    For non-USD crosses: global risk sentiment context (DXY-PAIR-008).
     #    For metals: strong inverse correlation (DXY-PAIR-009).
     #    The LLM must always know DXY rules to correctly weight DXY data.
-    min_chunks[DocumentType.DXY_FRAMEWORK] = 2
+    min_chunks[DocumentType.DXY_FRAMEWORK] = 12
     force_types.add(DocumentType.DXY_FRAMEWORK)
     detected_fw.add("dxy")
 
     # 7. COT interpretation guide: even without COT data, the LLM needs
     #    to know COT rules to understand what the absence of COT means
     #    and to correctly score confluence (COT is a PREFERRED factor).
-    min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 2
+    min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 12
     force_types.add(DocumentType.COT_INTERPRETATION_GUIDE)
     detected_fw.add("cot")
 
     # 8. Macro-to-price guide: the LLM always needs macro translation
     #    rules. Even neutral macro is a signal (MACRO-BIAS-003).
-    min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 3
+    min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 13
     force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
     detected_fw.add("macro")
     rule_patterns.extend(["MACRO-BIAS", "MACRO-LIMIT"])
 
     # 9. Chart scenarios: reasoning examples always valuable.
-    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 3
+    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 13
     force_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
 
     # =====================================================================
