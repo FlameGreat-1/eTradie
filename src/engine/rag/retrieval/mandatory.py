@@ -97,6 +97,15 @@ def compute_mandatory_requirements(
     has_rate_decision: bool = False,
     has_high_impact_event: bool = False,
     has_dxy_data: bool = False,
+    has_qe_qt: bool = False,
+    has_stagflation: bool = False,
+    has_cot_extremes: bool = False,
+    has_tff_data: bool = False,
+    has_core_inflation: bool = False,
+    has_safe_haven_elevated: bool = False,
+    has_commodity_currencies_weak: bool = False,
+    dxy_momentum: str | None = None,
+    risk_environment: str | None = None,
     style: str | None = None,
 ) -> MandatoryRequirements:
     """Compute mandatory retrieval requirements from TA+Macro signals.
@@ -231,6 +240,53 @@ def compute_mandatory_requirements(
     if has_cot_data:
         _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 3)
         rule_patterns.extend(["COT-EXTREME", "COT-SHIFT", "COT-TECH", "COT-TREND"])
+
+    # QE/QT detected -> balance sheet policy directly impacts currency
+    if has_qe_qt:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 5)
+        rule_patterns.extend(["MACRO-CB", "MACRO-QE", "MACRO-QT", "MACRO-BALANCE"])
+
+    # Stagflation -> high uncertainty regime, need full macro + risk rules
+    if has_stagflation:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 5)
+        _raise_min(min_chunks, DocumentType.MASTER_RULEBOOK, 6)
+        rule_patterns.extend(["MACRO-STAGFLATION", "MR-RISK"])
+
+    # COT extremes -> contrarian reversal risk, need COT + risk rules
+    if has_cot_extremes:
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 4)
+        rule_patterns.extend(["COT-EXTREME", "COT-CONTRARIAN"])
+
+    # TFF leveraged funds data -> institutional positioning context
+    if has_tff_data:
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 4)
+        rule_patterns.append("COT-TFF")
+
+    # Core inflation data -> central bank policy implications
+    if has_core_inflation:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        rule_patterns.extend(["MACRO-CPI", "MACRO-INFLATION"])
+
+    # Safe haven demand elevated -> risk-off regime rules
+    if has_safe_haven_elevated:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        rule_patterns.extend(["MACRO-RISK", "MACRO-SAFE-HAVEN"])
+
+    # Commodity currencies weak -> risk-off, need intermarket rules
+    if has_commodity_currencies_weak:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        rule_patterns.append("MACRO-COMMODITY")
+
+    # DXY momentum active -> need more DXY framework knowledge
+    if dxy_momentum and dxy_momentum.upper() not in ("", "FLAT"):
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 4)
+        rule_patterns.extend(["DXY-MOMENTUM", "DXY-TREND"])
+
+    # Non-neutral risk environment -> need macro + risk rules
+    if risk_environment and risk_environment.upper() not in ("", "NEUTRAL"):
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        _raise_min(min_chunks, DocumentType.MASTER_RULEBOOK, 6)
+        rule_patterns.append("MACRO-RISK")
 
     requirements = MandatoryRequirements(
         doc_type_min_chunks=min_chunks,
