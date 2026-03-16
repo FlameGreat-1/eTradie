@@ -28,9 +28,6 @@ service GatewayService {
   // GetGatewayConfig returns the current runtime-configurable settings.
   rpc GetGatewayConfig(GetGatewayConfigRequest) returns (GetGatewayConfigResponse);
 
-  // GetLastCycleResult returns the most recent scheduled cycle output.
-  rpc GetLastCycleResult(GetLastCycleResultRequest) returns (GetLastCycleResultResponse);
-
   // GetHealth returns the gateway's health status.
   rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
 }
@@ -108,15 +105,6 @@ message GetGatewayConfigResponse {
   repeated string active_symbols = 9;
   string active_symbols_source = 10;
   bool execution_enabled = 11;
-}
-
-message GetLastCycleResultRequest {}
-
-message GetLastCycleResultResponse {
-  // Empty if no cycle has completed yet.
-  repeated CycleOutput outputs = 1;
-  string completed_at = 2; // ISO 8601 timestamp
-  bool has_result = 3;
 }
 
 message GetHealthRequest {}
