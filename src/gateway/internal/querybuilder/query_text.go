@@ -147,11 +147,34 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 		*parts = append(*parts, macro.RateChangeBank+" rate "+macro.RateChangeDirection)
 	}
 
+	if macro.HasQEQT {
+		action := strings.ToLower(macro.QEQTAction)
+		bank := macro.QEQTBank
+		if bank == "" {
+			bank = "central bank"
+		}
+		*parts = append(*parts, fmt.Sprintf("%s %s", bank, action))
+		if macro.BalanceSheetDir != "" {
+			*parts = append(*parts, "balance sheet "+strings.ToLower(macro.BalanceSheetDir))
+		}
+		if action == "qe" {
+			*parts = append(*parts, "quantitative easing asset purchases")
+		} else if action == "qt" {
+			*parts = append(*parts, "quantitative tightening balance sheet reduction")
+		}
+	}
+
 	if macro.DXYValue != nil {
 		*parts = append(*parts, fmt.Sprintf("DXY %v", *macro.DXYValue))
 	}
 	if macro.DXYTrend != "" {
 		*parts = append(*parts, "DXY trend "+macro.DXYTrend)
+	}
+	if macro.DXYMomentum != "" && macro.DXYMomentum != "FLAT" {
+		*parts = append(*parts, "DXY momentum "+strings.ToLower(macro.DXYMomentum))
+	}
+	if macro.DXYBias != "" && macro.DXYBias != "NEUTRAL" {
+		*parts = append(*parts, "DXY bias "+strings.ToLower(macro.DXYBias))
 	}
 
 	if macro.HasNFP {
@@ -186,6 +209,24 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 		*parts = append(*parts, event)
 	}
 
+	// Core vs headline inflation distinction.
+	for _, coreRelease := range macro.CoreInflationData {
+		indicator := getStrDefault(coreRelease, "indicator_name", "")
+		if indicator == "" {
+			indicator = getStrDefault(coreRelease, "indicator", "")
+		}
+		currency := getStrDefault(coreRelease, "currency", "")
+		surprise := getStrDefault(coreRelease, "surprise", "")
+		if indicator != "" {
+			entry := fmt.Sprintf("core inflation %s %s", currency, indicator)
+			if surprise != "" && surprise != "INLINE" {
+				entry += " " + strings.ToLower(surprise)
+			}
+			*parts = append(*parts, entry)
+		}
+	}
+
+	// COT enriched signals.
 	addCOTSignal(parts, "EUR", macro.COTNetEUR)
 	addCOTSignal(parts, "GBP", macro.COTNetGBP)
 	addCOTSignal(parts, "JPY", macro.COTNetJPY)
@@ -193,6 +234,51 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 	addCOTSignal(parts, "CAD", macro.COTNetCAD)
 	addCOTSignal(parts, "NZD", macro.COTNetNZD)
 	addCOTSignal(parts, "CHF", macro.COTNetCHF)
+
+	// COT week-over-week shifts.
+	for currency, shift := range macro.COTWoWShifts {
+		if math.Abs(shift) >= 5000 {
+			dir := "increasing"
+			if shift < 0 {
+				dir = "decreasing"
+			}
+			*parts = append(*parts, fmt.Sprintf("%s COT wow %s %d", strings.ToUpper(currency), dir, int(shift)))
+		}
+	}
+
+	// COT extreme positioning.
+	for _, currency := range macro.COTExtremesFlagged {
+		*parts = append(*parts, fmt.Sprintf("%s COT extreme positioning contrarian risk", strings.ToUpper(currency)))
+	}
+
+	// COT enriched per-position signals.
+	for _, pos := range macro.COTPositions {
+		if pos.ExtremeFlag {
+			*parts = append(*parts, fmt.Sprintf("%s COT 52-week extreme percentile %.0f signal %s",
+				pos.Currency, pos.PercentileRank, strings.ToLower(pos.SignalStrength)))
+		}
+		if pos.Divergence {
+			*parts = append(*parts, fmt.Sprintf("%s COT commercial speculator divergence contrarian", pos.Currency))
+		}
+		if pos.LeveragedNet != 0 && math.Abs(pos.LeveragedNet) >= 5000 {
+			dir := "net long"
+			if pos.LeveragedNet < 0 {
+				dir = "net short"
+			}
+			*parts = append(*parts, fmt.Sprintf("%s TFF leveraged funds %s %d", pos.Currency, dir, int(pos.LeveragedNet)))
+		}
+		if pos.AssetManagerNet != 0 && math.Abs(pos.AssetManagerNet) >= 5000 {
+			dir := "net long"
+			if pos.AssetManagerNet < 0 {
+				dir = "net short"
+			}
+			*parts = append(*parts, fmt.Sprintf("%s TFF asset managers %s %d", pos.Currency, dir, int(pos.AssetManagerNet)))
+		}
+	}
+
+	if macro.COTHasTFFData {
+		*parts = append(*parts, "TFF leveraged funds data available")
+	}
 
 	for _, surprise := range macro.EconomicSurprises {
 		indicator := getStrDefault(surprise, "indicator_name", "")
@@ -202,8 +288,30 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 		direction := getStrDefault(surprise, "direction", "")
 		impact := getStrDefault(surprise, "impact", "")
 		if indicator != "" && direction != "" && strings.ToUpper(impact) == "HIGH" {
-			*parts = append(*parts, fmt.Sprintf("%s %s surprise", indicator, strings.ToLower(direction)))
+			entry := fmt.Sprintf("%s %s surprise", indicator, strings.ToLower(direction))
+			inflationType := getStrDefault(surprise, "inflation_type", "")
+			if inflationType != "" {
+				entry += " " + strings.ToLower(inflationType)
+			}
+			*parts = append(*parts, entry)
 		}
+	}
+
+	// Risk environment signals.
+	if macro.StagflationDetected {
+		*parts = append(*parts, "stagflation detected high inflation negative growth")
+	}
+	if macro.SafeHavenElevated {
+		*parts = append(*parts, "safe haven demand elevated JPY CHF gold")
+	}
+	if macro.CommodityCurrenciesWeak {
+		*parts = append(*parts, "commodity currencies weak AUD NZD CAD risk-off")
+	}
+	if macro.RiskYieldCurveInverted {
+		*parts = append(*parts, "yield curve inverted recession signal risk-off")
+	}
+	if macro.RiskEnvironment != "" && macro.RiskEnvironment != "NEUTRAL" {
+		*parts = append(*parts, "risk environment "+strings.ToLower(macro.RiskEnvironment))
 	}
 
 	if macro.VIX != nil && *macro.VIX > 25 {
@@ -212,11 +320,25 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 	if macro.YieldCurveInverted != nil && *macro.YieldCurveInverted {
 		*parts = append(*parts, "yield curve inverted recession signal")
 	}
+
+	// Intermarket commodity correlations.
 	if macro.GoldPrice != nil {
 		*parts = append(*parts, "gold")
 	}
 	if macro.OilPrice != nil {
-		*parts = append(*parts, "oil")
+		*parts = append(*parts, "oil crude CAD correlation")
+	}
+	if macro.IronOre != nil {
+		*parts = append(*parts, fmt.Sprintf("iron ore %.1f AUD China proxy", *macro.IronOre))
+	}
+	if macro.DairyGDT != nil {
+		*parts = append(*parts, fmt.Sprintf("dairy GDT %.1f NZD correlation", *macro.DairyGDT))
+	}
+	if macro.Copper != nil {
+		*parts = append(*parts, "copper global growth proxy")
+	}
+	if macro.NaturalGas != nil {
+		*parts = append(*parts, "natural gas energy")
 	}
 
 	for currency, longPct := range macro.RetailSentiment {

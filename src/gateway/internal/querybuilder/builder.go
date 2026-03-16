@@ -41,14 +41,16 @@ func (b *Builder) Build(
 
 	hasMacro := macroSignals.FedTone != "" || macroSignals.ECBTone != "" ||
 		macroSignals.BOETone != "" || macroSignals.BOJTone != "" ||
-		macroSignals.MacroBiasUSD != ""
+		macroSignals.MacroBiasUSD != "" || macroSignals.HasQEQT ||
+		macroSignals.StagflationDetected || macroSignals.RiskEnvironment != ""
 
 	hasCOT := macroSignals.COTNetEUR != nil || macroSignals.COTNetGBP != nil ||
 		macroSignals.COTNetJPY != nil || macroSignals.COTNetAUD != nil ||
 		macroSignals.COTNetCAD != nil || macroSignals.COTNetNZD != nil ||
-		macroSignals.COTNetCHF != nil
+		macroSignals.COTNetCHF != nil || len(macroSignals.COTExtremesFlagged) > 0 ||
+		macroSignals.COTHasTFFData
 
-	hasDXY := macroSignals.DXYValue != nil
+	hasDXY := macroSignals.DXYValue != nil || macroSignals.DXYMomentum != ""
 	hasHighImpact := len(macroSignals.HighImpactEventsWithin24h) > 0
 
 	var timeframe string
@@ -91,6 +93,12 @@ func (b *Builder) Build(
 		Bool("has_macro", params.HasMacroData).
 		Bool("has_cot", params.HasCOTData).
 		Bool("has_dxy", params.HasDXYData).
+		Bool("has_qe_qt", macroSignals.HasQEQT).
+		Bool("stagflation", macroSignals.StagflationDetected).
+		Int("cot_extremes", len(macroSignals.COTExtremesFlagged)).
+		Bool("has_tff", macroSignals.COTHasTFFData).
+		Str("risk_environment", macroSignals.RiskEnvironment).
+		Str("dxy_momentum", macroSignals.DXYMomentum).
 		Str("trace_id", traceID).
 		Msg("rag_query_built")
 
@@ -105,6 +113,15 @@ func selectStrategy(ta *TASignals, macro *MacroSignals) string {
 		return "rule_first"
 	}
 	if macro.HasRateChange {
+		return "rule_first"
+	}
+	if macro.HasQEQT {
+		return "rule_first"
+	}
+	if macro.StagflationDetected {
+		return "rule_first"
+	}
+	if len(macro.COTExtremesFlagged) > 0 {
 		return "rule_first"
 	}
 	if ta.Framework != "" && len(ta.SetupFamilies) > 0 && ta.Direction != "" {
@@ -128,16 +145,24 @@ func collectAllFrameworks(ta *TASignals, macro *MacroSignals) []string {
 
 	frameworks["wyckoff"] = struct{}{}
 
-	if macro.DXYValue != nil || macro.DXYTrend != "" {
+	if macro.DXYValue != nil || macro.DXYTrend != "" || macro.DXYMomentum != "" {
 		frameworks["dxy"] = struct{}{}
 	}
 	if macro.COTNetEUR != nil || macro.COTNetGBP != nil || macro.COTNetJPY != nil ||
 		macro.COTNetAUD != nil || macro.COTNetCAD != nil || macro.COTNetNZD != nil ||
-		macro.COTNetCHF != nil {
+		macro.COTNetCHF != nil || len(macro.COTExtremesFlagged) > 0 || macro.COTHasTFFData {
 		frameworks["cot"] = struct{}{}
 	}
-	if macro.FedTone != "" || macro.ECBTone != "" || macro.BOETone != "" || macro.BOJTone != "" {
+	if macro.FedTone != "" || macro.ECBTone != "" || macro.BOETone != "" || macro.BOJTone != "" || macro.HasQEQT {
 		frameworks["macro"] = struct{}{}
+	}
+	if macro.IronOre != nil || macro.DairyGDT != nil || macro.Copper != nil ||
+		macro.OilPrice != nil || macro.GoldPrice != nil || macro.NaturalGas != nil {
+		frameworks["intermarket"] = struct{}{}
+	}
+	if macro.StagflationDetected || macro.SafeHavenElevated || macro.CommodityCurrenciesWeak ||
+		(macro.RiskEnvironment != "" && macro.RiskEnvironment != "NEUTRAL") {
+		frameworks["risk_environment"] = struct{}{}
 	}
 
 	out := make([]string, 0, len(frameworks))
