@@ -111,18 +111,8 @@ func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleReques
 		if out.GuardResult != nil {
 			co.GuardResultJson, _ = json.Marshal(out.GuardResult)
 		}
-		// ExecutionResult is serialized here. After `make proto` regenerates
-		// the .pb.go with field 11 (execution_result_json), replace this
-		// block with: co.ExecutionResultJson, _ = json.Marshal(out.ExecutionResult)
-		// For now, we embed it in the CycleOutput's proto unknown fields
-		// mechanism won't work, so we log it and the model/cycle.go field
-		// ensures JSON serialization works for non-gRPC consumers.
 		if out.ExecutionResult != nil {
-			s.log.Info().
-				Str("symbol", out.Symbol).
-				Interface("execution_result", out.ExecutionResult).
-				Str("trace_id", out.TraceID).
-				Msg("execution_result_available")
+			co.ExecutionResultJson, _ = json.Marshal(out.ExecutionResult)
 		}
 		cycleOutputs = append(cycleOutputs, co)
 	}

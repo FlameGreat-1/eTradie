@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/flamegreat/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
@@ -219,7 +220,12 @@ func (o *Orchestrator) executePipeline(
 	tracker.TransitionTo(constants.PhaseCollectParallel)
 	phaseStart := time.Now()
 
-	parallelCtx, parallelCancel := context.WithTimeout(ctx, time.Duration(o.cfg.TAMacroParallelTimeoutSeconds)*time.Second)
+	collectCtx, collectSpan := observability.StartSpan(ctx, "pipeline.collect_parallel",
+		attribute.StringSlice("symbols", symbols),
+		attribute.String("trace_id", traceID),
+	)
+
+	parallelCtx, parallelCancel := context.WithTimeout(collectCtx, time.Duration(o.cfg.TAMacroParallelTimeoutSeconds)*time.Second)
 	defer parallelCancel()
 
 	var taResult *models.TAResult
@@ -241,17 +247,24 @@ func (o *Orchestrator) executePipeline(
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseCollectParallel.String()).Observe(time.Since(phaseStart).Seconds())
 
 	if taErr != nil {
+		observability.SetSpanError(collectSpan, taErr)
+		collectSpan.End()
 		return nil, fmt.Errorf("TA collection failed: %w", taErr)
 	}
 	if macroErr != nil {
+		observability.SetSpanError(collectSpan, macroErr)
+		collectSpan.End()
 		return nil, fmt.Errorf("Macro collection failed: %w", macroErr)
 	}
+	collectSpan.End()
 
 	if !taResult.HasCandidates() {
 		tracker.Complete(constants.OutcomeInsufficientData)
+		successful := taResult.SuccessfulSymbols()
 		o.log.Info().
 			Str("cycle_id", tracker.CycleID()).
 			Int("symbols_analysed", len(taResult.SymbolResults)).
+			Strs("successful_symbols", successful).
 			Str("trace_id", traceID).
 			Msg("cycle_no_candidates")
 		return []*models.GatewayOutput{buildNoDataOutput(tracker)}, nil
@@ -357,14 +370,23 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 2: Build RAG query.
 	phaseStart := time.Now()
+	qbCtx, qbSpan := observability.StartSpan(ctx, "pipeline.build_query",
+		attribute.String("symbol", symbol),
+	)
 	queryParams := o.queryBuilder.Build(symResult, macroResult, "", traceID)
+	qbSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseBuildingQuery.String()).Observe(time.Since(phaseStart).Seconds())
+	_ = qbCtx // context not needed downstream for query building
 
 	// Phase 3: RAG retrieval.
 	phaseStart = time.Now()
 
 	ragCtx, ragCancel := context.WithTimeout(ctx, time.Duration(o.cfg.RAGTimeoutSeconds)*time.Second)
 	defer ragCancel()
+	ragCtx, ragSpan := observability.StartSpan(ragCtx, "pipeline.rag_retrieval",
+		attribute.String("symbol", symbol),
+		attribute.String("strategy", queryParams.Strategy),
+	)
 
 	ragBundle, err := o.retrieveRAG(ragCtx, queryParams, traceID)
 	ragElapsed := time.Since(phaseStart).Seconds()
@@ -372,13 +394,20 @@ func (o *Orchestrator) processSymbol(
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseRetrievingRAG.String()).Observe(ragElapsed)
 
 	if err != nil {
+		observability.SetSpanError(ragSpan, err)
+		ragSpan.End()
 		observability.GatewayStageErrors.WithLabelValues(constants.StageRAGRetrieval.String(), "error").Inc()
 		return buildSymbolErrorOutput(tracker, symbol, err)
 	}
+	ragSpan.End()
 
 	// Phase 4: Assemble context.
 	phaseStart = time.Now()
+	_, asmSpan := observability.StartSpan(ctx, "pipeline.assemble_context",
+		attribute.String("symbol", symbol),
+	)
 	processorInput := o.assembler.Assemble(symbol, symResult, macroResult, ragBundle, traceID)
+	asmSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseAssemblingCtx.String()).Observe(time.Since(phaseStart).Seconds())
 
 	// Phase 5: Processor LLM.
@@ -386,6 +415,9 @@ func (o *Orchestrator) processSymbol(
 
 	procCtx, procCancel := context.WithTimeout(ctx, time.Duration(o.cfg.ProcessorTimeoutSeconds)*time.Second)
 	defer procCancel()
+	procCtx, procSpan := observability.StartSpan(procCtx, "pipeline.processor_llm",
+		attribute.String("symbol", symbol),
+	)
 
 	processorOutput, err := o.processor.Process(procCtx, processorInput)
 	procElapsed := time.Since(phaseStart).Seconds()
@@ -393,14 +425,22 @@ func (o *Orchestrator) processSymbol(
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseProcessingLLM.String()).Observe(procElapsed)
 
 	if err != nil {
+		observability.SetSpanError(procSpan, err)
+		procSpan.End()
 		observability.GatewayStageErrors.WithLabelValues(constants.StageProcessorLLM.String(), "error").Inc()
 		return buildSymbolErrorOutput(tracker, symbol, err)
 	}
+	procSpan.End()
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()
+	routeCtx, routeSpan := observability.StartSpan(ctx, "pipeline.guards_and_routing",
+		attribute.String("symbol", symbol),
+		attribute.Bool("trade_valid", processorOutput.TradeValid),
+	)
 
-	routeResult := o.router.Route(ctx, processorOutput, symResult, macroResult, traceID)
+	routeResult := o.router.Route(routeCtx, processorOutput, symResult, macroResult, traceID)
+	routeSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseEvaluatingGuards.String()).Observe(time.Since(phaseStart).Seconds())
 
 	return &models.GatewayOutput{
