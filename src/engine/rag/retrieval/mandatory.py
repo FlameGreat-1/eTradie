@@ -97,6 +97,15 @@ def compute_mandatory_requirements(
     has_rate_decision: bool = False,
     has_high_impact_event: bool = False,
     has_dxy_data: bool = False,
+    has_qe_qt: bool = False,
+    has_stagflation: bool = False,
+    has_cot_extremes: bool = False,
+    has_tff_data: bool = False,
+    has_core_inflation: bool = False,
+    has_safe_haven_elevated: bool = False,
+    has_commodity_currencies_weak: bool = False,
+    dxy_momentum: str | None = None,
+    risk_environment: str | None = None,
     style: str | None = None,
 ) -> MandatoryRequirements:
     """Compute mandatory retrieval requirements from TA+Macro signals.
@@ -129,30 +138,30 @@ def compute_mandatory_requirements(
 
     # 1. Master rulebook: rejection rules, confluence scoring, risk rules,
     #    output format, session rules. Governs EVERY decision.
-    min_chunks[DocumentType.MASTER_RULEBOOK] = 5
+    min_chunks[DocumentType.MASTER_RULEBOOK] = 15
     force_types.add(DocumentType.MASTER_RULEBOOK)
     rule_patterns.extend(["MR-REJECT", "MR-RISK", "MR-PHIL", "MR-AI"])
 
     # 2. Trading style rules: TP structure, R:R, session, management.
-    min_chunks[DocumentType.TRADING_STYLE_RULES] = 3
+    min_chunks[DocumentType.TRADING_STYLE_RULES] = 13
     force_types.add(DocumentType.TRADING_STYLE_RULES)
     rule_patterns.extend(["STYLE-RR", "STYLE-RISK", "STYLE-SESSION", "STYLE-AVOID"])
 
     # 3. SMC framework: even without SMC candidates, the LLM needs to
     #    understand SMC structure to interpret the technical snapshot
     #    (BOS events, swing points, liquidity sweeps are always present).
-    min_chunks[DocumentType.SMC_FRAMEWORK] = 2
+    min_chunks[DocumentType.SMC_FRAMEWORK] = 12
     force_types.add(DocumentType.SMC_FRAMEWORK)
     detected_fw.add("smc")
 
     # 4. SnD framework: even without SnD candidates, the LLM needs zone
     #    identification rules to understand why zones were or were not found.
-    min_chunks[DocumentType.SND_RULEBOOK] = 2
+    min_chunks[DocumentType.SND_RULEBOOK] = 12
     force_types.add(DocumentType.SND_RULEBOOK)
     detected_fw.add("snd")
 
     # 5. Wyckoff guide: contextual confirmation needed on every cycle.
-    min_chunks[DocumentType.WYCKOFF_GUIDE] = 2
+    min_chunks[DocumentType.WYCKOFF_GUIDE] = 12
     force_types.add(DocumentType.WYCKOFF_GUIDE)
     detected_fw.add("wyckoff")
 
@@ -161,26 +170,26 @@ def compute_mandatory_requirements(
     #    For non-USD crosses: global risk sentiment context (DXY-PAIR-008).
     #    For metals: strong inverse correlation (DXY-PAIR-009).
     #    The LLM must always know DXY rules to correctly weight DXY data.
-    min_chunks[DocumentType.DXY_FRAMEWORK] = 2
+    min_chunks[DocumentType.DXY_FRAMEWORK] = 12
     force_types.add(DocumentType.DXY_FRAMEWORK)
     detected_fw.add("dxy")
 
     # 7. COT interpretation guide: even without COT data, the LLM needs
     #    to know COT rules to understand what the absence of COT means
     #    and to correctly score confluence (COT is a PREFERRED factor).
-    min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 2
+    min_chunks[DocumentType.COT_INTERPRETATION_GUIDE] = 12
     force_types.add(DocumentType.COT_INTERPRETATION_GUIDE)
     detected_fw.add("cot")
 
     # 8. Macro-to-price guide: the LLM always needs macro translation
     #    rules. Even neutral macro is a signal (MACRO-BIAS-003).
-    min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 3
+    min_chunks[DocumentType.MACRO_TO_PRICE_GUIDE] = 13
     force_types.add(DocumentType.MACRO_TO_PRICE_GUIDE)
     detected_fw.add("macro")
     rule_patterns.extend(["MACRO-BIAS", "MACRO-LIMIT"])
 
     # 9. Chart scenarios: reasoning examples always valuable.
-    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 3
+    min_chunks[DocumentType.CHART_SCENARIO_LIBRARY] = 13
     force_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
 
     # =====================================================================
@@ -190,47 +199,94 @@ def compute_mandatory_requirements(
 
     # SMC candidates detected -> need more SMC knowledge
     if has_smc_candidates:
-        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 4)
+        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 16)
         rule_patterns.extend(["SMC-ENTRY", "SMC-OB", "SMC-LIQ", "SMC-INV"])
 
     # SnD candidates detected -> need more SnD knowledge
     if has_snd_candidates:
-        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 4)
+        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 16)
         rule_patterns.extend(["SND-ENTRY", "SND-ZONE", "SND-INV", "SND-FILTER"])
 
     # Both frameworks -> LLM must cross-reference, need even more
     if has_smc_candidates and has_snd_candidates:
-        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 5)
-        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 5)
+        _raise_min(min_chunks, DocumentType.SMC_FRAMEWORK, 18)
+        _raise_min(min_chunks, DocumentType.SND_RULEBOOK, 18)
 
     # USD pair -> DXY is mandatory directional anchor
     if is_usd:
-        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 3)
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 15)
         rule_patterns.extend(["DXY-TREND", "DXY-PAIR", "DXY-STRUCT"])
 
     # Metal -> extra DXY weight (strong inverse correlation)
     if is_metal:
-        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 4)
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 17)
         rule_patterns.append("DXY-PAIR-009")
 
     # DXY data present (always collected) -> ensure DXY rules available
     if has_dxy_data:
-        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 3)
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 15)
 
     # Rate decisions -> highest-impact macro events
     if has_rate_decision:
-        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 4)
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
         rule_patterns.extend(["MACRO-CB", "MACRO-RATE", "MACRO-EVENT"])
 
     # High-impact events -> need event rules
     if has_high_impact_event:
-        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 3)
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 16)
         rule_patterns.append("MACRO-EVENT")
 
     # COT data present -> need full COT interpretation
     if has_cot_data:
-        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 3)
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 15)
         rule_patterns.extend(["COT-EXTREME", "COT-SHIFT", "COT-TECH", "COT-TREND"])
+
+    # QE/QT detected -> balance sheet policy directly impacts currency
+    if has_qe_qt:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
+        rule_patterns.extend(["MACRO-CB", "MACRO-QE", "MACRO-QT", "MACRO-BALANCE"])
+
+    # Stagflation -> high uncertainty regime, need full macro + risk rules
+    if has_stagflation:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
+        _raise_min(min_chunks, DocumentType.MASTER_RULEBOOK, 18)
+        rule_patterns.extend(["MACRO-STAGFLATION", "MR-RISK"])
+
+    # COT extremes -> contrarian reversal risk, need COT + risk rules
+    if has_cot_extremes:
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 16)
+        rule_patterns.extend(["COT-EXTREME", "COT-CONTRARIAN"])
+
+    # TFF leveraged funds data -> institutional positioning context
+    if has_tff_data:
+        _raise_min(min_chunks, DocumentType.COT_INTERPRETATION_GUIDE, 16)
+        rule_patterns.append("COT-TFF")
+
+    # Core inflation data -> central bank policy implications
+    if has_core_inflation:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
+        rule_patterns.extend(["MACRO-CPI", "MACRO-INFLATION"])
+
+    # Safe haven demand elevated -> risk-off regime rules
+    if has_safe_haven_elevated:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
+        rule_patterns.extend(["MACRO-RISK", "MACRO-SAFE-HAVEN"])
+
+    # Commodity currencies weak -> risk-off, need intermarket rules
+    if has_commodity_currencies_weak:
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 16)
+        rule_patterns.append("MACRO-COMMODITY")
+
+    # DXY momentum active -> need more DXY framework knowledge
+    if dxy_momentum and dxy_momentum.upper() not in ("", "FLAT"):
+        _raise_min(min_chunks, DocumentType.DXY_FRAMEWORK, 16)
+        rule_patterns.extend(["DXY-MOMENTUM", "DXY-TREND"])
+
+    # Non-neutral risk environment -> need macro + risk rules
+    if risk_environment and risk_environment.upper() not in ("", "NEUTRAL"):
+        _raise_min(min_chunks, DocumentType.MACRO_TO_PRICE_GUIDE, 17)
+        _raise_min(min_chunks, DocumentType.MASTER_RULEBOOK, 18)
+        rule_patterns.append("MACRO-RISK")
 
     requirements = MandatoryRequirements(
         doc_type_min_chunks=min_chunks,

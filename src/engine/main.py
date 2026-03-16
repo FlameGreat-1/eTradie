@@ -20,6 +20,7 @@ from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProv
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from engine.processor.models.io import ProcessorInput
 from engine.shared.store import RedisSymbolReader
+from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 
 logger = get_logger(__name__)
 
@@ -706,8 +707,8 @@ def create_app() -> FastAPI:
         # This replicates what the Go gateway's macro_extractor.go and
         # assembler.go do, so the rerun endpoint produces identical
         # RAG queries and processor metadata as the normal pipeline.
-        macro_signals = _derive_macro_signals(macro_analysis)
-        ta_signals = _derive_ta_signals(ta_analysis)
+        macro_signals = derive_macro_signals(macro_analysis)
+        ta_signals = derive_ta_signals(ta_analysis)
 
         # Build a rich query text matching the Go gateway's BuildQueryText.
         query_parts: list[str] = [symbol]
