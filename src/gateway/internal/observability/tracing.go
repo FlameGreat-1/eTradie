@@ -107,10 +107,4 @@ func SetSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-// ShutdownTracing flushes pending spans and shuts down the provider.
-func ShutdownTracing(ctx context.Context) error {
-	if provider == nil {
-		return nil
-	}
-	return provider.Shutdown(ctx)
-}
+
