@@ -1,25 +1,36 @@
-YOU HAVE TO BE 100% CERTAIN AND SURE THAT YOU ARE IMPLEMENTING THEM IN THE EXACT PLACE THEY ARE SUPPOSED TO BE. DO NOT IMPLEMENT IN A WRONG LOCATION.
 
 
----
+I have examined Part 3 thoroughly from beginning to end.
 
-#### What's Actually Missing for Dashboard Integration
+#### What Needs Updating
 
-After examining the **complete** codebase, the picture is much clearer. The system already has extensive coverage. Here are the **genuine gaps**:
+**`rerun_analysis`** - Step 3 (RAG retrieval) calls `retrieve_context()` with only `symbol` and `trace_id`. It does NOT pass any of the enriched macro signal flags. This is a dashboard rerun endpoint that bypasses the Go gateway, so it needs to derive these flags from the TA and macro results it already has in-hand (Steps 1 and 2). Currently it's a bare-bones RAG call with no context about what macro/TA data is available.
 
-**1. Analysis Statistics/Aggregates Endpoint** - STILL MISSING
-The `AnalysisRepository` only has `get_latest_by_pair` and `get_by_analysis_id`. No aggregation queries exist (success rate, grade distribution, average score, provider usage). The dashboard needs a `GET /api/analysis/stats` endpoint. This requires adding a new repository method.
+#### What Does NOT Need Changes
 
-**2. Analysis History with Pagination/Filtering** - PARTIALLY MISSING
-`GET /api/analysis/latest` exists but has no `offset`/cursor pagination, no date range filtering (`since`/`until`), no status filtering, no grade filtering. For a production dashboard browsing hundreds of analyses, this needs enhancement.
+- **`get_available_models`** - Processor config endpoint, no macro changes
+- **`get_processor_config`** - Processor config endpoint, no macro changes
+- **`update_processor_config`** - Processor config hot-swap, no macro changes
+- **`metrics_app` mount** - Fine
+- **`return app`** - Fine
 
-**3. Available Models Per Provider** - MISSING
-`GET /api/processor/config` returns the current config but doesn't expose what models are available per provider. The `DEFAULT_MODELS` dict in `constants.py` has defaults, but the dashboard's model selector needs a `GET /api/processor/models` endpoint.
-THE USER SHOULD ABLE TO SELECT THE MODEL THEY WANT TO USE. WHEN THEY SELECT A PARTICULAR MODEL, IT SHOULD OVERIDE THE DEFAULT AND BE PERSISTED.
+#### Summary of ALL Changes Needed Across All 3 Parts
 
-FOR EXAMPLE, IF THE SELECT GPT-4.0 THEN IT SHOULD OVERIDE THE DEFAULT AND ONLY THE GPT-4.0 WILL ALWAYS BE USED UNTIL THE USER CHANGES IT
+1. **`InternalRAGRequest`** (Part 1) - Add new fields: `has_qe_qt`, `has_stagflation`, `has_cot_extremes`, `has_tff_data`, `has_core_inflation`, `has_safe_haven_elevated`, `has_commodity_currencies_weak`, `dxy_momentum`, `risk_environment`
+2. **`internal_rag_retrieve`** (Part 2) - Pass the new fields through to `retrieve_context()`
+3. **`rerun_analysis`** (Part 3) - Step 3 RAG call needs to derive and pass the enriched macro flags from the TA/macro results collected in Steps 1 and 2
+
+That's 3 precise locations. Everything else in the 3 parts stays exactly as-is.
+
+Waiting for your permission.
 
 
-**7. Re-run Analysis** - GENUINELY MISSING
-No endpoint to re-trigger analysis for a specific symbol on demand (outside the scheduled cycle). The gRPC `RunCycle` can trigger a full cycle, but there's no lightweight "re-analyze this one symbol with the current processor config" REST endpoint accessible from the dashboard.
 
+
+Yes, exactly 3 locations:
+
+1. **`InternalRAGRequest` class** - add the new fields to the Pydantic schema
+2. **`internal_rag_retrieve` function** - pass those new fields to `retrieve_context()`
+3. **`rerun_analysis` function** - derive the enriched flags from TA/macro results and pass them to `retrieve_context()`
+
+Everything else in the entire `main.py` stays untouched.

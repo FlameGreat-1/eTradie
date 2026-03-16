@@ -145,7 +145,6 @@ class InternalTARequest(BaseModel):
 class InternalMacroRequest(BaseModel):
     trace_id: Optional[str] = None
 
-
 class InternalRAGRequest(BaseModel):
     query_text: str
     strategy: Optional[str] = None
@@ -164,7 +163,17 @@ class InternalRAGRequest(BaseModel):
     has_rate_decision: bool = False
     has_high_impact_event: bool = False
     has_dxy_data: bool = False
+    has_qe_qt: bool = False
+    has_stagflation: bool = False
+    has_cot_extremes: bool = False
+    has_tff_data: bool = False
+    has_core_inflation: bool = False
+    has_safe_haven_elevated: bool = False
+    has_commodity_currencies_weak: bool = False
+    dxy_momentum: Optional[str] = None
+    risk_environment: Optional[str] = None
     trace_id: Optional[str] = None
+
 
 
 class InternalProcessorRequest(BaseModel):
@@ -298,6 +307,7 @@ def create_app() -> FastAPI:
             "errors": errors,
         }
 
+
     @app.post("/internal/rag/retrieve")
     async def internal_rag_retrieve(request: Request, body: InternalRAGRequest) -> dict:
         """Perform RAG retrieval with the given query parameters.
@@ -328,6 +338,15 @@ def create_app() -> FastAPI:
                 has_rate_decision=body.has_rate_decision,
                 has_high_impact_event=body.has_high_impact_event,
                 has_dxy_data=body.has_dxy_data,
+                has_qe_qt=body.has_qe_qt,
+                has_stagflation=body.has_stagflation,
+                has_cot_extremes=body.has_cot_extremes,
+                has_tff_data=body.has_tff_data,
+                has_core_inflation=body.has_core_inflation,
+                has_safe_haven_elevated=body.has_safe_haven_elevated,
+                has_commodity_currencies_weak=body.has_commodity_currencies_weak,
+                dxy_momentum=body.dxy_momentum,
+                risk_environment=body.risk_environment,
             )
 
             if hasattr(bundle, "model_dump"):
@@ -611,6 +630,7 @@ def create_app() -> FastAPI:
             "audit": audit_data,
         }
 
+
     # -- Re-run analysis endpoint --------------------------------------------
 
     @app.post("/api/analysis/rerun")
@@ -682,6 +702,65 @@ def create_app() -> FastAPI:
             logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
             raise HTTPException(status_code=500, detail=f"Macro collection failed: {exc}")
 
+        # Derive enriched macro signal flags from collected data.
+        # This replicates what the Go gateway's macro_extractor.go and
+        # assembler.go do, so the rerun endpoint produces identical
+        # RAG queries and processor metadata as the normal pipeline.
+        macro_signals = _derive_macro_signals(macro_analysis)
+        ta_signals = _derive_ta_signals(ta_analysis)
+
+        # Build a rich query text matching the Go gateway's BuildQueryText.
+        query_parts: list[str] = [symbol]
+        if ta_signals["direction"]:
+            dir_word = {"long": "bullish", "short": "bearish", "neutral": "neutral"}.get(
+                ta_signals["direction"], ta_signals["direction"],
+            )
+            query_parts.append(dir_word)
+        if ta_signals["overall_trend"] and ta_signals["overall_trend"] != "NEUTRAL":
+            query_parts.append(f"trend {ta_signals['overall_trend'].lower()}")
+        if ta_signals["framework"]:
+            query_parts.append(ta_signals["framework"].upper())
+        for pattern in ta_signals["patterns"]:
+            query_parts.append(pattern.lower().replace("_", " "))
+        for family in ta_signals["setup_families"]:
+            query_parts.append(family.replace("_", " "))
+        if macro_signals["fed_tone"]:
+            query_parts.append(f"Fed {macro_signals['fed_tone'].lower()}")
+        if macro_signals["ecb_tone"]:
+            query_parts.append(f"ECB {macro_signals['ecb_tone'].lower()}")
+        if macro_signals["has_qe_qt"]:
+            action = macro_signals.get("qe_qt_action", "qe").lower()
+            bank = macro_signals.get("qe_qt_bank", "central bank")
+            query_parts.append(f"{bank} {action}")
+            if macro_signals.get("balance_sheet_direction"):
+                query_parts.append(f"balance sheet {macro_signals['balance_sheet_direction'].lower()}")
+            if action == "qe":
+                query_parts.append("quantitative easing asset purchases")
+            elif action == "qt":
+                query_parts.append("quantitative tightening balance sheet reduction")
+        if macro_signals["has_rate_decision"]:
+            query_parts.append("rate decision interest rate")
+        if macro_signals["has_nfp"]:
+            query_parts.append("NFP non-farm payrolls")
+        if macro_signals["has_cpi"]:
+            query_parts.append("CPI consumer price index inflation")
+        if macro_signals["dxy_momentum"] and macro_signals["dxy_momentum"] != "FLAT":
+            query_parts.append(f"DXY momentum {macro_signals['dxy_momentum'].lower()}")
+        if macro_signals["cot_extremes"]:
+            for ccy in macro_signals["cot_extremes"]:
+                query_parts.append(f"{ccy} COT extreme positioning contrarian risk")
+        if macro_signals["has_tff_data"]:
+            query_parts.append("TFF leveraged funds data available")
+        if macro_signals["stagflation_detected"]:
+            query_parts.append("stagflation detected high inflation negative growth")
+        if macro_signals["safe_haven_elevated"]:
+            query_parts.append("safe haven demand elevated JPY CHF gold")
+        if macro_signals["commodity_currencies_weak"]:
+            query_parts.append("commodity currencies weak AUD NZD CAD risk-off")
+        if macro_signals["risk_environment"] and macro_signals["risk_environment"] != "NEUTRAL":
+            query_parts.append(f"risk environment {macro_signals['risk_environment'].lower()}")
+        query_text = " ".join(query_parts)
+
         # Step 3: RAG retrieval (mandatory).
         # The RAG knowledge base is the rulebook the LLM reasons over.
         # Without it the LLM cannot cite rules, score confluence, or
@@ -694,9 +773,33 @@ def create_app() -> FastAPI:
 
         try:
             bundle = await container.rag_orchestrator.retrieve_context(
-                f"{symbol} trade setup analysis",
-                symbol=symbol,
+                query_text,
+                strategy=None,
+                framework=ta_signals["framework"] or None,
+                setup_family=ta_signals["setup_families"][0] if ta_signals["setup_families"] else None,
+                direction=ta_signals["direction"] or None,
+                timeframe=None,
+                style=None,
                 trace_id=trace_id,
+                symbol=symbol,
+                all_frameworks=ta_signals["all_frameworks"],
+                all_setup_families=ta_signals["setup_families"],
+                has_smc_candidates=ta_signals["has_smc"],
+                has_snd_candidates=ta_signals["has_snd"],
+                has_macro_data=macro_signals["has_macro_data"],
+                has_cot_data=macro_signals["has_cot_data"],
+                has_rate_decision=macro_signals["has_rate_decision"],
+                has_high_impact_event=macro_signals["has_high_impact_event"],
+                has_dxy_data=macro_signals["has_dxy_data"],
+                has_qe_qt=macro_signals["has_qe_qt"],
+                has_stagflation=macro_signals["stagflation_detected"],
+                has_cot_extremes=len(macro_signals["cot_extremes"]) > 0,
+                has_tff_data=macro_signals["has_tff_data"],
+                has_core_inflation=macro_signals["has_core_inflation"],
+                has_safe_haven_elevated=macro_signals["safe_haven_elevated"],
+                has_commodity_currencies_weak=macro_signals["commodity_currencies_weak"],
+                dxy_momentum=macro_signals["dxy_momentum"] or None,
+                risk_environment=macro_signals["risk_environment"] or None,
             )
             if hasattr(bundle, "model_dump"):
                 retrieved_knowledge = bundle.model_dump(mode="json")
@@ -717,6 +820,46 @@ def create_app() -> FastAPI:
                 detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
             )
 
+        # Build enriched metadata matching the Go gateway's assembler.go output.
+        available_datasets = [
+            name for name in [
+                "central_bank", "cot", "economic", "news",
+                "calendar", "dxy", "intermarket", "sentiment",
+            ]
+            if macro_analysis.get(name) is not None
+        ]
+        metadata: dict = {
+            "symbol": symbol,
+            "source": "dashboard_rerun",
+            "trace_id": trace_id or "",
+            "overall_trend": ta_signals["overall_trend"],
+            "macro_datasets_available": available_datasets,
+        }
+        if macro_signals["risk_environment"]:
+            metadata["risk_environment"] = macro_signals["risk_environment"]
+        metadata["stagflation_detected"] = macro_signals["stagflation_detected"]
+        metadata["safe_haven_elevated"] = macro_signals["safe_haven_elevated"]
+        metadata["commodity_currencies_weak"] = macro_signals["commodity_currencies_weak"]
+        if macro_signals["dxy_momentum"]:
+            metadata["dxy_momentum"] = macro_signals["dxy_momentum"]
+        metadata["cot_extremes_count"] = len(macro_signals["cot_extremes"])
+        if macro_signals["cot_extremes"]:
+            metadata["cot_extremes_currencies"] = macro_signals["cot_extremes"]
+        metadata["has_tff_data"] = macro_signals["has_tff_data"]
+        metadata["has_qe_qt"] = macro_signals["has_qe_qt"]
+        if macro_signals["has_qe_qt"]:
+            metadata["qe_qt_action"] = macro_signals.get("qe_qt_action", "")
+            metadata["qe_qt_bank"] = macro_signals.get("qe_qt_bank", "")
+            metadata["balance_sheet_direction"] = macro_signals.get("balance_sheet_direction", "")
+        metadata["has_core_inflation"] = macro_signals["has_core_inflation"]
+        # Propagate RAG metadata if present in the bundle.
+        for key in [
+            "strategy_used", "coverage_result", "conflict_result",
+            "total_chunks_returned", "coverage_gaps", "conflict_details",
+        ]:
+            if key in retrieved_knowledge:
+                metadata[f"rag_{key}"] = retrieved_knowledge[key]
+
         # Step 4: Run processor LLM.
         try:
             processor_input = ProcessorInput(
@@ -724,7 +867,7 @@ def create_app() -> FastAPI:
                 ta_analysis=ta_analysis,
                 macro_analysis=macro_analysis,
                 retrieved_knowledge=retrieved_knowledge,
-                metadata={"symbol": symbol, "source": "dashboard_rerun", "trace_id": trace_id or ""},
+                metadata=metadata,
             )
             result = await container.processor.process(
                 processor_input,
