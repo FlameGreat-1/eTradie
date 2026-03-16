@@ -120,9 +120,4 @@ func (c *EngineHTTPClient) Close() {
 	c.log.Info().Msg("engine_http_client_closed")
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
+
