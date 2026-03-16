@@ -3,10 +3,12 @@ package alert
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -43,6 +45,13 @@ var upgrader = websocket.Upgrader{
 // WebSocketHandler returns an http.HandlerFunc that upgrades HTTP
 // connections to WebSocket and streams events from the hub.
 // Each connected dashboard client gets its own subscriber.
+//
+// Supports optional severity filtering via query parameter:
+//
+//	ws://host/ws/notifications?severity=WARNING
+//
+// Only events at or above the given severity are delivered.
+// Valid values: INFO, WARNING, ERROR, CRITICAL. Default: all events.
 func WebSocketHandler(hub *Hub) http.HandlerFunc {
 	log := newLogger("ws_handler")
 
@@ -53,11 +62,15 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 			return
 		}
 
-		sub := hub.Subscribe()
+		// Parse optional severity filter from query string.
+		minSeverity := parseSeverityParam(r.URL.Query().Get("severity"))
+
+		sub := hub.SubscribeWithFilter(minSeverity)
 
 		log.Info().
 			Str("remote", r.RemoteAddr).
 			Str("subscriber_id", sub.id).
+			Str("min_severity", string(minSeverity)).
 			Msg("ws_client_connected")
 
 		// Read pump: handles client close frames and pong responses.
@@ -66,6 +79,125 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 		// Write pump: streams events from subscriber channel to WebSocket.
 		go writePump(conn, sub, log)
 	}
+}
+
+// HistoryProvider is the interface for fetching event history.
+// Implemented by redis.Transport.
+type HistoryProvider interface {
+	Recent(ctx context.Context, n int64) []*Event
+	RecentFiltered(ctx context.Context, n int64, minSeverity EventSeverity) []*Event
+	RecentSince(ctx context.Context, lastEventID string, maxCount int64) []*Event
+}
+
+// We need context for the HistoryProvider methods.
+import "context"
+
+// RecentEventsHandler returns an http.HandlerFunc that serves the
+// event history REST endpoint.
+//
+//	GET /events/recent?count=50&severity=WARNING
+//
+// Returns the last `count` events (default 50, max 500) from Redis
+// history, optionally filtered by minimum severity.
+func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
+	log := newLogger("events_handler")
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Parse count parameter.
+		count := int64(50)
+		if countStr := r.URL.Query().Get("count"); countStr != "" {
+			if parsed, err := strconv.ParseInt(countStr, 10, 64); err == nil && parsed > 0 {
+				count = parsed
+			}
+		}
+		if count > 500 {
+			count = 500
+		}
+
+		// Parse severity filter.
+		minSeverity := parseSeverityParam(r.URL.Query().Get("severity"))
+
+		var events []*Event
+		if minSeverity != "" {
+			events = provider.RecentFiltered(r.Context(), count, minSeverity)
+		} else {
+			events = provider.Recent(r.Context(), count)
+		}
+
+		if events == nil {
+			events = []*Event{}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": events,
+			"count":  len(events),
+		}); err != nil {
+			log.Error().Err(err).Msg("events_recent_encode_failed")
+		}
+	}
+}
+
+// EventsSinceHandler returns an http.HandlerFunc for catch-up after
+// dashboard reconnection.
+//
+//	GET /events/since?last_event_id=20240101120000-abcd1234&count=100
+//
+// Returns events newer than the given event ID, up to `count` (default 100).
+func EventsSinceHandler(provider HistoryProvider) http.HandlerFunc {
+	log := newLogger("events_handler")
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		lastEventID := r.URL.Query().Get("last_event_id")
+
+		count := int64(100)
+		if countStr := r.URL.Query().Get("count"); countStr != "" {
+			if parsed, err := strconv.ParseInt(countStr, 10, 64); err == nil && parsed > 0 {
+				count = parsed
+			}
+		}
+		if count > 500 {
+			count = 500
+		}
+
+		events := provider.RecentSince(r.Context(), lastEventID, count)
+		if events == nil {
+			events = []*Event{}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": events,
+			"count":  len(events),
+		}); err != nil {
+			log.Error().Err(err).Msg("events_since_encode_failed")
+		}
+	}
+}
+
+// parseSeverityParam validates and normalizes a severity query parameter.
+// Returns empty string if invalid (meaning no filter).
+func parseSeverityParam(raw string) EventSeverity {
+	if raw == "" {
+		return ""
+	}
+	normalized := EventSeverity(strings.ToUpper(strings.TrimSpace(raw)))
+	if _, ok := severityRankMap[normalized]; ok {
+		return normalized
+	}
+	return ""
 }
 
 func readPump(conn *websocket.Conn, hub *Hub, sub *Subscriber, log zerolog.Logger) {
