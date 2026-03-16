@@ -64,8 +64,9 @@ func (r *Router) Route(
 	guardResult := r.guards.Evaluate(processorOutput, taResult, macroResult, traceID)
 
 	// Step 3: If guards reject, block execution.
-	if guardResult.OverallVerdict == constants.VerdictReject {
+	if !guardResult.IsApproved() {
 		observability.GatewayNoSetupTotal.WithLabelValues("guard_rejection").Inc()
+		observability.GatewayStageErrors.WithLabelValues(constants.StageGuardEvaluation.String(), "rejected").Inc()
 
 		r.log.Warn().
 			Str("symbol", processorOutput.Symbol).
@@ -124,6 +125,7 @@ func (r *Router) executeTrade(
 
 	result, err := r.execution.Execute(ctx, decision)
 	if err != nil {
+		observability.GatewayStageErrors.WithLabelValues(constants.StageDecisionRouting.String(), "execution_error").Inc()
 		r.log.Error().
 			Str("symbol", decision.Symbol).
 			Err(err).
