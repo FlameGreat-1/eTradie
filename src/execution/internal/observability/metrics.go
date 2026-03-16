@@ -90,6 +90,20 @@ var (
 	})
 )
 
+// Broker bridge metrics.
+var (
+	BrokerCallTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_broker_call_total",
+		Help: "Total broker bridge calls by endpoint and status",
+	}, []string{"endpoint", "status"})
+
+	BrokerCallDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "etradie_execution_broker_call_duration_seconds",
+		Help:    "Broker bridge call latency by endpoint",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0},
+	}, []string{"endpoint"})
+)
+
 // Audit metrics.
 var (
 	AuditWriteFailures = promauto.NewCounter(prometheus.CounterOpts{

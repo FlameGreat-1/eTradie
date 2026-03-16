@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
+	"github.com/flamegreat/etradie/src/alert"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/builder"
@@ -19,12 +20,22 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/constants"
 	"github.com/flamegreat/etradie/src/execution/internal/executor"
 	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/notify"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
 	"github.com/flamegreat/etradie/src/execution/internal/sizing"
 	"github.com/flamegreat/etradie/src/execution/internal/state"
+	"github.com/flamegreat/etradie/src/execution/internal/store"
 	"github.com/flamegreat/etradie/src/execution/internal/validator"
 )
+
+const (
+	idempotencyTTL     = 1 * time.Hour
+	idempotencyMaxSize = 10000
+	idempotencyCleanup = 5 * time.Minute
+)
+
+type idempotencyEntry struct {
+	expiresAt time.Time
+}
 
 // ExecutionServer implements executionv1.ExecutionServiceServer.
 type ExecutionServer struct {
@@ -37,12 +48,13 @@ type ExecutionServer struct {
 	state     *state.Manager
 	broker    broker.Port
 	audit     *audit.Logger
-	notifier  *notify.Notifier
+	hub       *alert.Hub
+	settings  *store.SettingsStore
 	log       zerolog.Logger
 
-	// Idempotency: tracks analysis IDs already processed.
 	processedMu sync.RWMutex
-	processed   map[string]struct{}
+	processed   map[string]idempotencyEntry
+	stopCleanup chan struct{}
 }
 
 // NewExecutionServer creates the gRPC server with all dependencies.
@@ -54,20 +66,89 @@ func NewExecutionServer(
 	sm *state.Manager,
 	bp broker.Port,
 	al *audit.Logger,
-	n *notify.Notifier,
+	hub *alert.Hub,
+	ss *store.SettingsStore,
 ) *ExecutionServer {
-	return &ExecutionServer{
-		cfg:       cfg,
-		validator: v,
-		sizer:     s,
-		executor:  e,
-		state:     sm,
-		broker:    bp,
-		audit:     al,
-		notifier:  n,
-		log:       observability.Logger("grpc_server"),
-		processed: make(map[string]struct{}),
+	srv := &ExecutionServer{
+		cfg:         cfg,
+		validator:   v,
+		sizer:       s,
+		executor:    e,
+		state:       sm,
+		broker:      bp,
+		audit:       al,
+		hub:         hub,
+		settings:    ss,
+		log:         observability.Logger("grpc_server"),
+		processed:   make(map[string]idempotencyEntry),
+		stopCleanup: make(chan struct{}),
 	}
+	go srv.cleanupLoop()
+	return srv
+}
+
+func (s *ExecutionServer) cleanupLoop() {
+	ticker := time.NewTicker(idempotencyCleanup)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.evictExpired()
+		case <-s.stopCleanup:
+			return
+		}
+	}
+}
+
+func (s *ExecutionServer) evictExpired() {
+	now := time.Now()
+	s.processedMu.Lock()
+	for k, v := range s.processed {
+		if now.After(v.expiresAt) {
+			delete(s.processed, k)
+		}
+	}
+	s.processedMu.Unlock()
+}
+
+func (s *ExecutionServer) markProcessed(analysisID string) {
+	s.processedMu.Lock()
+	if len(s.processed) >= idempotencyMaxSize {
+		now := time.Now()
+		for k, v := range s.processed {
+			if now.After(v.expiresAt) {
+				delete(s.processed, k)
+			}
+		}
+	}
+	s.processed[analysisID] = idempotencyEntry{
+		expiresAt: time.Now().Add(idempotencyTTL),
+	}
+	s.processedMu.Unlock()
+}
+
+func (s *ExecutionServer) isDuplicate(analysisID string) bool {
+	s.processedMu.RLock()
+	entry, exists := s.processed[analysisID]
+	s.processedMu.RUnlock()
+	if !exists {
+		return false
+	}
+	return time.Now().Before(entry.expiresAt)
+}
+
+// resolveExecutionMode reads the current execution mode from the DB.
+// Falls back to the config default if the DB read fails.
+func (s *ExecutionServer) resolveExecutionMode(ctx context.Context) constants.ExecutionMode {
+	val, err := s.settings.Get(ctx, store.KeyExecutionMode)
+	if err != nil {
+		return s.cfg.ExecutionMode()
+	}
+	mode := constants.ExecutionMode(strings.ToUpper(val))
+	if mode != constants.ModeLimit && mode != constants.ModeInstant {
+		return s.cfg.ExecutionMode()
+	}
+	return mode
 }
 
 // ExecuteTrade is the main RPC. Orchestrates the full Module B pipeline.
@@ -83,27 +164,20 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	start := time.Now()
 	traceID := req.GetTraceId()
 
-	// Input validation at gRPC boundary.
 	if err := validateRequest(req); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid request: %s", err.Error())
 	}
 
-	// Idempotency: reject duplicate analysis_id.
 	analysisID := req.GetAnalysisId()
-	if analysisID != "" {
-		s.processedMu.RLock()
-		_, dup := s.processed[analysisID]
-		s.processedMu.RUnlock()
-		if dup {
-			s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
-			return &executionv1.ExecuteTradeResponse{
-				Accepted:        false,
-				Status:          string(constants.StatusRejected),
-				RejectionReason: "duplicate analysis_id: already processed",
-				AnalysisId:      analysisID,
-				TraceId:         traceID,
-			}, nil
-		}
+	if analysisID != "" && s.isDuplicate(analysisID) {
+		s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
+		return &executionv1.ExecuteTradeResponse{
+			Accepted:        false,
+			Status:          string(constants.StatusRejected),
+			RejectionReason: "duplicate analysis_id: already processed",
+			AnalysisId:      analysisID,
+			TraceId:         traceID,
+		}, nil
 	}
 
 	s.log.Info().
@@ -114,27 +188,39 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		Str("trace_id", traceID).
 		Msg("execute_trade_received")
 
-	// Step 1: Parse request.
 	tradeReq := parseRequest(req)
 
-	// Step 2: Refresh state from broker.
+	// Step 1: Refresh broker state.
 	if err := s.state.Refresh(ctx); err != nil {
 		s.log.Error().Err(err).Str("trace_id", traceID).Msg("state_refresh_failed")
-		s.notifier.NotifyError(req.GetSymbol(), "Failed to refresh broker state")
+		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+			"Failed to refresh broker state").WithSymbol(req.GetSymbol()).WithTraceID(traceID))
 		return rejectedResponse(tradeReq, "broker state refresh failed: "+err.Error(), 0, traceID), nil
 	}
 
-	// Step 3: Validate.
+	// Step 2: Validate.
 	valResult := s.validator.Validate(ctx, tradeReq)
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
-		s.notifier.NotifyRejected(tradeReq, valResult)
+
+		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityWarning,
+			"Trade rejected: "+valResult.Reason).
+			WithSymbol(req.GetSymbol()).WithDirection(req.GetDirection()).WithTraceID(traceID).
+			WithDetails(map[string]interface{}{
+				"check":       int32(valResult.FailedCheck),
+				"outcome":     string(valResult.Outcome),
+				"analysis_id": tradeReq.AnalysisID,
+			}))
 
 		if valResult.Outcome == constants.OutcomeLock {
-			s.notifier.NotifyDailyLocked(s.state.DailyLossPercent())
+			s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeDailyLimitLocked, alert.SeverityCritical,
+				"Execution locked: daily loss limit reached").
+				WithDetail("daily_loss_pct", s.state.DailyLossPercent()))
 		}
 		if valResult.Outcome == constants.OutcomePause {
-			s.notifier.NotifyWeeklyPaused(s.state.WeeklyDrawdownPercent())
+			s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
+				"Execution paused: weekly drawdown limit reached").
+				WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent()))
 		}
 
 		elapsed := time.Since(start).Seconds()
@@ -153,11 +239,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogValidationPassed(ctx, tradeReq)
 
-	// Step 4: Calculate position size.
+	// Step 3: Calculate position size.
 	sizingResult, err := s.sizer.Calculate(ctx, tradeReq)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", tradeReq.Symbol).Str("trace_id", traceID).Msg("sizing_failed")
-		s.notifier.NotifyError(tradeReq.Symbol, "Position sizing failed: "+err.Error())
+		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+			"Position sizing failed: "+err.Error()).WithSymbol(tradeReq.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
 		observability.ExecutionDuration.Observe(elapsed)
@@ -168,14 +255,16 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
 
-	// Step 5: Build order.
-	order := builder.Build(tradeReq, sizingResult, s.cfg)
+	// Step 4: Resolve execution mode from DB and build order.
+	execMode := s.resolveExecutionMode(ctx)
+	order := builder.BuildWithMode(tradeReq, sizingResult, s.cfg, execMode)
 
-	// Step 6: Execute.
+	// Step 5: Execute.
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", order.Symbol).Str("trace_id", traceID).Msg("execution_failed")
-		s.notifier.NotifyError(order.Symbol, "Order execution failed: "+err.Error())
+		s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
+			"Order execution failed: "+err.Error()).WithSymbol(order.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
 		observability.ExecutionDuration.Observe(elapsed)
@@ -198,14 +287,29 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		}, nil
 	}
 
-	// Step 7: Audit + notify + mark idempotency.
+	// Step 6: Audit + notify + idempotency.
 	s.audit.LogOrderPlaced(ctx, order)
-	s.notifier.NotifyOrderPlaced(order)
+
+	modeLabel := "Limit order placed"
+	if order.ExecutionMode == constants.ModeInstant {
+		modeLabel = "Price watcher armed"
+	}
+	s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
+		modeLabel+" for "+order.Symbol).
+		WithSymbol(order.Symbol).WithDirection(string(order.Direction)).WithTraceID(traceID).
+		WithDetails(map[string]interface{}{
+			"order_id":       order.OrderID,
+			"entry_price":    order.EntryPrice,
+			"stop_loss":      order.StopLoss,
+			"lot_size":       order.LotSize,
+			"risk_amount":    order.RiskAmount,
+			"grade":          order.Grade,
+			"execution_mode": string(order.ExecutionMode),
+			"analysis_id":    order.AnalysisID,
+		}))
 
 	if analysisID != "" {
-		s.processedMu.Lock()
-		s.processed[analysisID] = struct{}{}
-		s.processedMu.Unlock()
+		s.markProcessed(analysisID)
 	}
 
 	elapsed := time.Since(start).Seconds()
@@ -266,6 +370,14 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *execution
 	}
 
 	s.audit.LogOrderCancelled(ctx, req.GetOrderId(), req.GetSymbol(), req.GetReason(), traceID)
+
+	s.hub.Publish(alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
+		fmt.Sprintf("Order %s cancelled: %s", req.GetOrderId(), req.GetReason())).
+		WithSymbol(req.GetSymbol()).WithTraceID(traceID).
+		WithDetails(map[string]interface{}{
+			"order_id": req.GetOrderId(),
+			"reason":   req.GetReason(),
+		}))
 
 	return &executionv1.CancelOrderResponse{
 		Success: true,

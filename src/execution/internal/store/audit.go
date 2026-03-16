@@ -1,4 +1,4 @@
-package audit
+package store
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
 )
 
-const insertSQL = `
+const auditInsertSQL = `
 INSERT INTO execution_audit_logs (
     timestamp, action, symbol, direction, order_id, analysis_id,
     trace_id, execution_mode, entry_price, stop_loss, lot_size,
@@ -26,26 +26,26 @@ INSERT INTO execution_audit_logs (
     $21
 )`
 
-const writeTimeout = 5 * time.Second
+const auditWriteTimeout = 5 * time.Second
 
-// Store handles all PostgreSQL operations for the execution audit log.
+// AuditStore handles all PostgreSQL operations for the execution audit log.
 // Writes are fire-and-forget with error logging and metrics; a failed
 // audit write must never block or fail the execution pipeline.
-type Store struct {
+type AuditStore struct {
 	pool *pgxpool.Pool
 	log  zerolog.Logger
 }
 
-// NewStore creates an audit store backed by the given pgx pool.
-func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{
+// NewAuditStore creates an audit store backed by the given pgx pool.
+func NewAuditStore(pool *pgxpool.Pool) *AuditStore {
+	return &AuditStore{
 		pool: pool,
 		log:  observability.Logger("audit_store"),
 	}
 }
 
-// Entry represents a single audit log row.
-type Entry struct {
+// AuditEntry represents a single audit log row.
+type AuditEntry struct {
 	Action          string
 	Symbol          string
 	Direction       string
@@ -69,13 +69,13 @@ type Entry struct {
 }
 
 // Write persists an audit entry to PostgreSQL.
-func (s *Store) Write(ctx context.Context, e *Entry) {
-	writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
+func (s *AuditStore) Write(ctx context.Context, e *AuditEntry) {
+	writeCtx, cancel := context.WithTimeout(ctx, auditWriteTimeout)
 	defer cancel()
 
 	detailsJSON := marshalDetails(e.Details, s.log)
 
-	_, err := s.pool.Exec(writeCtx, insertSQL,
+	_, err := s.pool.Exec(writeCtx, auditInsertSQL,
 		time.Now().UTC(),
 		e.Action,
 		e.Symbol,
@@ -116,42 +116,6 @@ func (s *Store) Write(ctx context.Context, e *Entry) {
 		Str("symbol", e.Symbol).
 		Str("order_id", e.OrderID).
 		Msg("audit_entry_written")
-}
-
-// CreateTableSQL returns the DDL for the execution_audit_logs table.
-func CreateTableSQL() string {
-	return `
-CREATE TABLE IF NOT EXISTS execution_audit_logs (
-    id              BIGSERIAL PRIMARY KEY,
-    timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    action          VARCHAR(40) NOT NULL,
-    symbol          VARCHAR(20) NOT NULL DEFAULT '',
-    direction       VARCHAR(10) NOT NULL DEFAULT '',
-    order_id        VARCHAR(128) NOT NULL DEFAULT '',
-    analysis_id     VARCHAR(128) NOT NULL DEFAULT '',
-    trace_id        VARCHAR(64) NOT NULL DEFAULT '',
-    execution_mode  VARCHAR(10) NOT NULL DEFAULT '',
-    entry_price     DOUBLE PRECISION NOT NULL DEFAULT 0,
-    stop_loss       DOUBLE PRECISION NOT NULL DEFAULT 0,
-    lot_size        DOUBLE PRECISION NOT NULL DEFAULT 0,
-    risk_amount     DOUBLE PRECISION NOT NULL DEFAULT 0,
-    risk_percent    DOUBLE PRECISION NOT NULL DEFAULT 0,
-    grade           VARCHAR(10) NOT NULL DEFAULT '',
-    trading_style   VARCHAR(20) NOT NULL DEFAULT '',
-    session         VARCHAR(30) NOT NULL DEFAULT '',
-    rr_ratio        DOUBLE PRECISION NOT NULL DEFAULT 0,
-    confluence_score DOUBLE PRECISION NOT NULL DEFAULT 0,
-    rejection_check INTEGER NOT NULL DEFAULT 0,
-    rejection_reason TEXT NOT NULL DEFAULT '',
-    details         JSONB NOT NULL DEFAULT '{}'
-);
-
-CREATE INDEX IF NOT EXISTS idx_exec_audit_symbol ON execution_audit_logs (symbol);
-CREATE INDEX IF NOT EXISTS idx_exec_audit_analysis_id ON execution_audit_logs (analysis_id);
-CREATE INDEX IF NOT EXISTS idx_exec_audit_action ON execution_audit_logs (action);
-CREATE INDEX IF NOT EXISTS idx_exec_audit_timestamp ON execution_audit_logs (timestamp);
-CREATE INDEX IF NOT EXISTS idx_exec_audit_order_id ON execution_audit_logs (order_id);
-`
 }
 
 func marshalDetails(details map[string]interface{}, log zerolog.Logger) []byte {
