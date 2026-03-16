@@ -185,10 +185,6 @@ func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolRes
 			continue
 		}
 
-		// Handle multiple formats the TA engine may return:
-		// Format 1: {"choch_events": {"count": N, ...}}
-		// Format 2: {"choch_events": N} (direct count)
-		// Format 3: {"choch_events": [{...}, {...}]} (list of events)
 		switch v := chochEvents.(type) {
 		case map[string]interface{}:
 			if count, ok := v["count"]; ok {

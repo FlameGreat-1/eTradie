@@ -65,7 +65,6 @@ func (c *TransportConfig) applyDefaults() {
 // Transport bridges Redis pub/sub to a local Hub for cross-service
 // event delivery and persistent event history.
 //
-// Architecture (Option B):
 //   - Publish() sends the event to Redis pub/sub AND stores it in a
 //     Redis sorted set for history/replay.
 //   - A background goroutine subscribes to the Redis channel and feeds

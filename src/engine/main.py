@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
+from datetime import datetime as dt, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from prometheus_client import make_asgi_app
@@ -450,8 +451,6 @@ def create_app() -> FastAPI:
         container: Container = request.app.state.container
         if not hasattr(container, "processor_analysis_repo"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
-
-        from datetime import datetime as dt, timezone
 
         since_dt = None
         until_dt = None

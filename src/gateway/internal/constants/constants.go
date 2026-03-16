@@ -80,10 +80,7 @@ const (
 	RuleCounterTrendNoChoch GuardRule = "MR-REJECT-006"
 	RuleWeekendGapRisk      GuardRule = "MR-REJECT-008"
 	RuleLowLiquidityHours   GuardRule = "MR-REJECT-009"
-	// MR-REJECT-003 (daily loss limit), MR-REJECT-004 (spread),
-	// MR-REJECT-005 (correlation), MR-REJECT-007 (max concurrent),
-	// MR-REJECT-010 (weekly drawdown) are owned by Module B's
-	// pre-execution validator which has live broker state access.
+
 )
 
 func (r GuardRule) String() string { return string(r) }
