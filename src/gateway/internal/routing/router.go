@@ -2,9 +2,13 @@ package routing
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat/etradie/src/alert"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat/etradie/src/gateway/internal/models"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
@@ -22,14 +26,16 @@ type RouteResult struct {
 type Router struct {
 	guards    *GuardEvaluator
 	execution ports.ExecutionPort
+	transport *alertredis.Transport
 	log       zerolog.Logger
 }
 
 // NewRouter creates a DecisionRouter.
-func NewRouter(guards *GuardEvaluator, execution ports.ExecutionPort) *Router {
+func NewRouter(guards *GuardEvaluator, execution ports.ExecutionPort, transport *alertredis.Transport) *Router {
 	return &Router{
 		guards:    guards,
 		execution: execution,
+		transport: transport,
 		log:       observability.Logger("decision_router"),
 	}
 }
@@ -63,6 +69,24 @@ func (r *Router) Route(
 	// Step 2: Run post-processor guards.
 	guardResult := r.guards.Evaluate(processorOutput, taResult, macroResult, traceID)
 
+	// Publish guard warnings (non-blocking checks that passed but flagged).
+	for _, check := range guardResult.Checks {
+		if check.Verdict == constants.VerdictWarn {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
+					fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
+					WithSymbol(processorOutput.Symbol).
+					WithDirection(processorOutput.Direction).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"rule":     string(check.Rule),
+						"reason":   check.Reason,
+						"metadata": check.Metadata,
+					}),
+			)
+		}
+	}
+
 	// Step 3: If guards reject, block execution.
 	if !guardResult.IsApproved() {
 		observability.GatewayNoSetupTotal.WithLabelValues("guard_rejection").Inc()
@@ -73,6 +97,28 @@ func (r *Router) Route(
 			Strs("blocking_rules", guardResult.BlockingRules).
 			Str("trace_id", traceID).
 			Msg("route_guard_rejected")
+
+		// Collect rejection reasons.
+		var reasons []string
+		for _, check := range guardResult.Checks {
+			if check.Verdict == constants.VerdictReject {
+				reasons = append(reasons, check.Reason)
+			}
+		}
+
+		r.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
+				fmt.Sprintf("Trade rejected by guards: %s", strings.Join(guardResult.BlockingRules, ", "))).
+				WithSymbol(processorOutput.Symbol).
+				WithDirection(processorOutput.Direction).
+				WithTraceID(traceID).
+				WithDetails(map[string]interface{}{
+					"blocking_rules": guardResult.BlockingRules,
+					"reasons":        reasons,
+					"confidence":     processorOutput.Confidence,
+					"grade":          processorOutput.Grade,
+				}),
+		)
 
 		return &RouteResult{
 			Outcome:     constants.OutcomeRejectedByGuard,
@@ -101,6 +147,23 @@ func (r *Router) Route(
 		Str("guard_verdict", string(guardResult.OverallVerdict)).
 		Str("trace_id", traceID).
 		Msg("route_trade_approved")
+
+	r.transport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityInfo,
+			fmt.Sprintf("Trade routed to execution: %s %s (grade: %s, confidence: %.1f%%)",
+				symbol, direction, processorOutput.Grade, processorOutput.Confidence*100)).
+			WithSymbol(symbol).
+			WithDirection(direction).
+			WithTraceID(traceID).
+			WithDetails(map[string]interface{}{
+				"confidence":       processorOutput.Confidence,
+				"grade":            processorOutput.Grade,
+				"trading_style":    processorOutput.TradingStyle,
+				"guard_verdict":    string(guardResult.OverallVerdict),
+				"analysis_id":     processorOutput.AnalysisID,
+				"execution_result": execResult,
+			}),
+	)
 
 	return &RouteResult{
 		Outcome:         constants.OutcomeTradeApproved,
@@ -131,6 +194,16 @@ func (r *Router) executeTrade(
 			Err(err).
 			Str("trace_id", traceID).
 			Msg("execution_failed")
+
+		r.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeExecutionCallFailed, alert.SeverityError,
+				fmt.Sprintf("Execution call failed for %s: %s", decision.Symbol, err.Error())).
+				WithSymbol(decision.Symbol).
+				WithDirection(decision.Direction).
+				WithTraceID(traceID).
+				WithDetail("error", err.Error()),
+		)
+
 		return map[string]interface{}{"status": "error", "reason": err.Error()}
 	}
 	return result
