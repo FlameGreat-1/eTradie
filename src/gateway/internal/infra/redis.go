@@ -50,8 +50,30 @@ func makeKey(namespace, key string) string {
 	return fmt.Sprintf("%s:%s:%s", keyPrefix, namespace, key)
 }
 
-// Get retrieves a JSON value from Redis. Returns nil, nil on cache miss.
+// Get retrieves a JSON value from Redis and decodes it into interface{}.
+// Returns nil, nil on cache miss.
 func (r *RedisClient) Get(ctx context.Context, namespace, key string) (interface{}, error) {
+	raw, err := r.GetRaw(ctx, namespace, key)
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return nil, nil
+	}
+
+	var value interface{}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		fullKey := makeKey(namespace, key)
+		return nil, fmt.Errorf("redis: unmarshal key %s: %w", fullKey, err)
+	}
+	return value, nil
+}
+
+// GetRaw retrieves raw JSON bytes from Redis without decoding.
+// Returns nil, nil on cache miss. Callers can unmarshal directly
+// into a typed struct, avoiding the double-serialization overhead
+// of Get() + re-marshal + unmarshal.
+func (r *RedisClient) GetRaw(ctx context.Context, namespace, key string) ([]byte, error) {
 	fullKey := makeKey(namespace, key)
 
 	var lastErr error
@@ -70,12 +92,7 @@ func (r *RedisClient) Get(ctx context.Context, namespace, key string) (interface
 			time.Sleep(backoff(attempt))
 			continue
 		}
-
-		var value interface{}
-		if err := json.Unmarshal(raw, &value); err != nil {
-			return nil, fmt.Errorf("redis: unmarshal key %s: %w", fullKey, err)
-		}
-		return value, nil
+		return raw, nil
 	}
 	return nil, fmt.Errorf("redis: get %s after %d retries: %w", fullKey, maxRetries, lastErr)
 }

@@ -124,7 +124,7 @@ func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceI
 	}
 
 	key := taCacheKey(symbols)
-	raw, err := c.redis.Get(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
+	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
 	if err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_read_error")
 		return nil
@@ -133,15 +133,9 @@ func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceI
 		return nil
 	}
 
-	// raw is interface{} from JSON unmarshal; re-marshal then unmarshal into TAResult.
-	rawJSON, err := json.Marshal(raw)
-	if err != nil {
-		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_remarshal_error")
-		return nil
-	}
-
+	// Single-pass unmarshal directly into the typed struct.
 	var result models.TAResult
-	if err := json.Unmarshal(rawJSON, &result); err != nil {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_unmarshal_error")
 		return nil
 	}
