@@ -60,9 +60,15 @@ func main() {
 	// Health check at startup.
 	redisOK := c.Redis.HealthCheck(ctx)
 	engineOK := c.Engine.HealthCheck(ctx)
+	executionOK := false
+	if c.Execution != nil {
+		executionOK = c.Execution.HealthCheck(ctx)
+	}
 	log.Info().
 		Bool("redis", redisOK).
 		Bool("engine", engineOK).
+		Bool("execution", executionOK).
+		Bool("execution_enabled", cfg.ExecutionEnabled).
 		Msg("startup_health")
 
 	// Start servers and scheduler concurrently.
