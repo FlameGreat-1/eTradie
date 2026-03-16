@@ -84,9 +84,10 @@ type CycleOutput struct {
 	TraceId      string                 `protobuf:"bytes,6,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	Error        string                 `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
 	ErrorStage   string                 `protobuf:"bytes,8,opt,name=error_stage,json=errorStage,proto3" json:"error_stage,omitempty"`
-	// Full processor output and guard result as JSON.
+	// Full processor output, guard result, and execution result as JSON.
 	ProcessorOutputJson []byte `protobuf:"bytes,9,opt,name=processor_output_json,json=processorOutputJson,proto3" json:"processor_output_json,omitempty"`
 	GuardResultJson     []byte `protobuf:"bytes,10,opt,name=guard_result_json,json=guardResultJson,proto3" json:"guard_result_json,omitempty"`
+	ExecutionResultJson []byte `protobuf:"bytes,11,opt,name=execution_result_json,json=executionResultJson,proto3" json:"execution_result_json,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -187,6 +188,13 @@ func (x *CycleOutput) GetProcessorOutputJson() []byte {
 func (x *CycleOutput) GetGuardResultJson() []byte {
 	if x != nil {
 		return x.GuardResultJson
+	}
+	return nil
+}
+
+func (x *CycleOutput) GetExecutionResultJson() []byte {
+	if x != nil {
+		return x.ExecutionResultJson
 	}
 	return nil
 }
@@ -531,7 +539,7 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	"gateway.v1\"F\n" +
 	"\x0fRunCycleRequest\x12\x18\n" +
 	"\asymbols\x18\x01 \x03(\tR\asymbols\x12\x19\n" +
-	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\xe5\x02\n" +
+	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\x99\x03\n" +
 	"\vCycleOutput\x12!\n" +
 	"\fcycle_status\x18\x01 \x01(\tR\vcycleStatus\x12#\n" +
 	"\rcycle_outcome\x18\x02 \x01(\tR\fcycleOutcome\x12#\n" +
@@ -545,7 +553,8 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	"errorStage\x122\n" +
 	"\x15processor_output_json\x18\t \x01(\fR\x13processorOutputJson\x12*\n" +
 	"\x11guard_result_json\x18\n" +
-	" \x01(\fR\x0fguardResultJson\"E\n" +
+	" \x01(\fR\x0fguardResultJson\x122\n" +
+	"\x15execution_result_json\x18\v \x01(\fR\x13executionResultJson\"E\n" +
 	"\x10RunCycleResponse\x121\n" +
 	"\aoutputs\x18\x01 \x03(\v2\x17.gateway.v1.CycleOutputR\aoutputs\"3\n" +
 	"\x17SetActiveSymbolsRequest\x12\x18\n" +
