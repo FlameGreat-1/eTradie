@@ -17,6 +17,17 @@ service GatewayService {
   // GetActiveSymbols returns the current active symbol selection.
   rpc GetActiveSymbols(GetActiveSymbolsRequest) returns (GetActiveSymbolsResponse);
 
+  // ResetActiveSymbols resets symbol selection to config defaults.
+  rpc ResetActiveSymbols(ResetActiveSymbolsRequest) returns (ResetActiveSymbolsResponse);
+
+  // SetCycleInterval changes the analysis cycle interval at runtime.
+  // The scheduler resets its ticker immediately. Persisted in Redis
+  // so the setting survives gateway restarts.
+  rpc SetCycleInterval(SetCycleIntervalRequest) returns (SetCycleIntervalResponse);
+
+  // GetGatewayConfig returns the current runtime-configurable settings.
+  rpc GetGatewayConfig(GetGatewayConfigRequest) returns (GetGatewayConfigResponse);
+
   // GetHealth returns the gateway's health status.
   rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
 }
@@ -60,6 +71,40 @@ message GetActiveSymbolsRequest {}
 message GetActiveSymbolsResponse {
   repeated string symbols = 1;
   string source = 2; // "redis" or "gateway_config"
+}
+
+message ResetActiveSymbolsRequest {}
+
+message ResetActiveSymbolsResponse {
+  bool success = 1;
+  repeated string active_symbols = 2; // The default symbols now active
+}
+
+message SetCycleIntervalRequest {
+  // New interval in seconds. Must be >= 60 and <= 86400 (24 hours).
+  int32 interval_seconds = 1;
+}
+
+message SetCycleIntervalResponse {
+  bool success = 1;
+  int32 current_interval_seconds = 2;
+  string message = 3;
+}
+
+message GetGatewayConfigRequest {}
+
+message GetGatewayConfigResponse {
+  bool enabled = 1;
+  int32 cycle_interval_seconds = 2;
+  int32 cycle_timeout_seconds = 3;
+  int32 max_concurrent_symbols = 4;
+  int32 ta_cache_ttl_seconds = 5;
+  int32 macro_cache_ttl_seconds = 6;
+  int32 max_cycle_retries = 7;
+  repeated string default_symbols = 8;
+  repeated string active_symbols = 9;
+  string active_symbols_source = 10;
+  bool execution_enabled = 11;
 }
 
 message GetHealthRequest {}

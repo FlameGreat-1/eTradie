@@ -4,39 +4,92 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat/etradie/src/gateway/internal/symbolstore"
 )
 
 // Scheduler manages the recurring gateway analysis cycle.
 type Scheduler struct {
-	orchestrator *Orchestrator
-	symbolStore  *symbolstore.Store
-	cfg          *config.Config
-	log          zerolog.Logger
+	orchestrator    *Orchestrator
+	symbolStore     *symbolstore.Store
+	settingsStore   *settingsstore.Store
+	cfg             *config.Config
+	intervalSeconds atomic.Int64
+	updateCh        chan time.Duration
+	log             zerolog.Logger
 }
 
 // NewScheduler creates a gateway cycle scheduler.
+// It loads any persisted interval override from Redis via SettingsStore.
 func NewScheduler(
 	orchestrator *Orchestrator,
 	symbolStore *symbolstore.Store,
+	settingsStore *settingsstore.Store,
 	cfg *config.Config,
 ) *Scheduler {
-	return &Scheduler{
-		orchestrator: orchestrator,
-		symbolStore:  symbolStore,
-		cfg:          cfg,
-		log:          observability.Logger("scheduler"),
+	s := &Scheduler{
+		orchestrator:  orchestrator,
+		symbolStore:   symbolStore,
+		settingsStore: settingsStore,
+		cfg:           cfg,
+		updateCh:      make(chan time.Duration, 1),
+		log:           observability.Logger("scheduler"),
+	}
+
+	// Set the initial interval from config.
+	s.intervalSeconds.Store(int64(cfg.CycleIntervalSeconds))
+
+	return s
+}
+
+// LoadPersistedInterval checks Redis for a dashboard-set interval override
+// and applies it. Must be called after construction, before Start().
+func (s *Scheduler) LoadPersistedInterval(ctx context.Context) {
+	if s.settingsStore == nil {
+		return
+	}
+	persisted := s.settingsStore.GetCycleInterval(ctx)
+	if persisted >= 60 && persisted <= 86400 {
+		s.intervalSeconds.Store(int64(persisted))
+		s.log.Info().
+			Int("persisted_interval_seconds", persisted).
+			Msg("scheduler_loaded_persisted_interval_from_redis")
 	}
 }
 
+// CurrentIntervalSeconds returns the current cycle interval.
+func (s *Scheduler) CurrentIntervalSeconds() int {
+	return int(s.intervalSeconds.Load())
+}
+
+// UpdateInterval changes the cycle interval at runtime.
+// The new interval takes effect immediately (ticker is reset).
+// The caller is responsible for persisting the value in SettingsStore.
+func (s *Scheduler) UpdateInterval(newInterval time.Duration) {
+	newSeconds := int64(newInterval.Seconds())
+	s.intervalSeconds.Store(newSeconds)
+
+	// Non-blocking send: if the channel is full, the scheduler loop
+	// will pick up the atomic value on the next tick anyway.
+	select {
+	case s.updateCh <- newInterval:
+	default:
+	}
+
+	s.log.Info().
+		Int64("new_interval_seconds", newSeconds).
+		Msg("scheduler_interval_updated")
+}
+
 // Start begins the recurring cycle. Blocks until ctx is cancelled.
-// Applies random jitter (0-10% of interval) to the first tick to
+// Applies random jitter (0–10% of interval) to the first tick to
 // prevent thundering herd when multiple gateway instances start.
 // The first cycle fires immediately after the jitter delay, then
 // subsequent cycles fire on the configured interval.
@@ -46,16 +99,14 @@ func (s *Scheduler) Start(ctx context.Context) {
 		return
 	}
 
-	interval := time.Duration(s.cfg.CycleIntervalSeconds) * time.Second
+	interval := time.Duration(s.intervalSeconds.Load()) * time.Second
 
-	// Apply jitter to the first tick: random delay of 0-10% of the interval.
-	// This prevents all gateway instances from firing their first cycle
-	// at exactly the same time after a coordinated deployment/restart.
+	// Apply jitter to the first tick: random delay of 0–10% of the interval.
 	maxJitter := interval / 10
 	if maxJitter > 0 {
 		jitter := cryptoRandDuration(maxJitter)
 		s.log.Info().
-			Int("interval_seconds", s.cfg.CycleIntervalSeconds).
+			Int64("interval_seconds", s.intervalSeconds.Load()).
 			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
 			Float64("initial_jitter_seconds", jitter.Seconds()).
 			Msg("gateway_cycle_scheduler_started")
@@ -69,14 +120,14 @@ func (s *Scheduler) Start(ctx context.Context) {
 		}
 	} else {
 		s.log.Info().
-			Int("interval_seconds", s.cfg.CycleIntervalSeconds).
+			Int64("interval_seconds", s.intervalSeconds.Load()).
 			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
 			Msg("gateway_cycle_scheduler_started")
 	}
 
 	// Fire the first cycle immediately after jitter.
 	// Without this, the gateway would sit idle for the entire interval
-	// (default 4 hours) before performing any analysis - catastrophic
+	// (default 4 hours) before performing any analysis — catastrophic
 	// for a trading system that must react to market conditions on startup.
 	s.runCycle(ctx)
 
@@ -88,6 +139,14 @@ func (s *Scheduler) Start(ctx context.Context) {
 		case <-ctx.Done():
 			s.log.Info().Msg("gateway_cycle_scheduler_stopped")
 			return
+
+		case newInterval := <-s.updateCh:
+			// Dashboard changed the interval. Reset the ticker immediately.
+			ticker.Reset(newInterval)
+			s.log.Info().
+				Float64("new_interval_seconds", newInterval.Seconds()).
+				Msg("scheduler_ticker_reset")
+
 		case <-ticker.C:
 			s.runCycle(ctx)
 		}
@@ -116,12 +175,14 @@ func cryptoRandDuration(max time.Duration) time.Duration {
 	if max <= 0 {
 		return 0
 	}
+
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
-		// crypto/rand.Read never returns an error on supported platforms,
-		// but if it does, fall back to zero jitter (safe, just no spread).
+		// crypto/rand.Read should never fail on supported platforms.
+		// If it does, fall back to zero jitter (safe behavior).
 		return 0
 	}
+
 	n := binary.LittleEndian.Uint64(buf[:])
 	return time.Duration(n % uint64(max))
 }
