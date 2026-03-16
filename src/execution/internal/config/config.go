@@ -13,8 +13,9 @@ import (
 // environment variables with the EXECUTION_ prefix. Validated at
 // startup; the application fails fast on invalid values.
 type Config struct {
-	// gRPC server.
+	// Servers.
 	GRPCPort int `envconfig:"GRPC_PORT" default:"50053"`
+	HTTPPort int `envconfig:"HTTP_PORT" default:"8080"`
 
 	// Broker selection: "mock" for development, "mt5" for production.
 	BrokerMode string `envconfig:"BROKER_MODE" default:"mock"`
@@ -92,8 +93,12 @@ func (c *Config) validate() error {
 	if c.MetricsPort < 1024 || c.MetricsPort > 65535 {
 		return fmt.Errorf("METRICS_PORT must be 1024..65535, got %d", c.MetricsPort)
 	}
-	if c.GRPCPort == c.MetricsPort {
-		return fmt.Errorf("GRPC_PORT and METRICS_PORT must differ, both are %d", c.GRPCPort)
+	if c.HTTPPort < 1024 || c.HTTPPort > 65535 {
+		return fmt.Errorf("HTTP_PORT must be 1024..65535, got %d", c.HTTPPort)
+	}
+	ports := map[int]string{c.GRPCPort: "GRPC_PORT", c.HTTPPort: "HTTP_PORT", c.MetricsPort: "METRICS_PORT"}
+	if len(ports) < 3 {
+		return fmt.Errorf("GRPC_PORT, HTTP_PORT, and METRICS_PORT must all differ")
 	}
 
 	mode := strings.ToLower(c.BrokerMode)
