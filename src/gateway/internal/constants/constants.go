@@ -5,8 +5,6 @@ type CyclePhase string
 
 const (
 	PhaseInitializing     CyclePhase = "INITIALIZING"
-	PhaseCollectingTA     CyclePhase = "COLLECTING_TA"
-	PhaseCollectingMacro  CyclePhase = "COLLECTING_MACRO"
 	PhaseCollectParallel  CyclePhase = "COLLECTING_PARALLEL"
 	PhaseBuildingQuery    CyclePhase = "BUILDING_QUERY"
 	PhaseRetrievingRAG    CyclePhase = "RETRIEVING_RAG"
@@ -28,7 +26,6 @@ const (
 	StatusCompleted CycleStatus = "COMPLETED"
 	StatusFailed    CycleStatus = "FAILED"
 	StatusTimedOut  CycleStatus = "TIMED_OUT"
-	StatusSkipped   CycleStatus = "SKIPPED"
 )
 
 func (s CycleStatus) String() string { return string(s) }
@@ -90,12 +87,6 @@ const (
 )
 
 func (r GuardRule) String() string { return string(r) }
-
-// Scheduler job identifiers.
-const (
-	GatewayCycleJobID  = "gateway_analysis_cycle"
-	GatewayHealthJobID = "gateway_health_check"
-)
 
 // Cache namespaces and key prefixes.
 const (
