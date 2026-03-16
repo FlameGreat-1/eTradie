@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.cot import COTReportRow
@@ -27,10 +27,9 @@ class COTRepository(BaseRepository[COTReportRow]):
         subq = (
             select(
                 self.model.currency,
-                self.model.report_date,
+                func.max(self.model.report_date).label("max_date"),
             )
-            .distinct(self.model.currency)
-            .order_by(self.model.currency, self.model.report_date.desc())
+            .group_by(self.model.currency)
             .subquery()
         )
         stmt = (
@@ -38,7 +37,7 @@ class COTRepository(BaseRepository[COTReportRow]):
             .join(
                 subq,
                 (self.model.currency == subq.c.currency)
-                & (self.model.report_date == subq.c.report_date),
+                & (self.model.report_date == subq.c.max_date),
             )
         )
         return await self.execute_query(stmt)
@@ -70,3 +69,41 @@ class COTRepository(BaseRepository[COTReportRow]):
             .limit(limit)
         )
         return await self.execute_query(stmt)
+
+    async def get_52_week_net_range(self, currency: str) -> tuple[int, int]:
+        stmt = (
+            select(
+                func.min(self.model.non_commercial_net),
+                func.max(self.model.non_commercial_net),
+            )
+            .where(self.model.currency == currency)
+            .order_by(self.model.report_date.desc())
+            .limit(52)
+        )
+        result = await self._session.execute(
+            select(
+                func.min(COTReportRow.non_commercial_net),
+                func.max(COTReportRow.non_commercial_net),
+            ).where(
+                COTReportRow.currency == currency,
+                COTReportRow.report_date >= func.current_date() - 365,
+            )
+        )
+        row = result.one_or_none()
+        if row and row[0] is not None and row[1] is not None:
+            return int(row[0]), int(row[1])
+        return 0, 0
+
+    async def get_previous_net(self, currency: str, current_date: date) -> int | None:
+        stmt = (
+            select(self.model.non_commercial_net)
+            .where(
+                self.model.currency == currency,
+                self.model.report_date < current_date,
+            )
+            .order_by(self.model.report_date.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        val = result.scalar_one_or_none()
+        return int(val) if val is not None else None

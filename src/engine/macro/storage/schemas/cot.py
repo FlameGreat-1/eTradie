@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Index, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,8 +23,17 @@ class COTReportRow(Base):
     commercial_short: Mapped[int] = mapped_column(Integer, nullable=False)
     commercial_net: Mapped[int] = mapped_column(Integer, nullable=False)
     open_interest: Mapped[int] = mapped_column(Integer, nullable=False)
+    leveraged_long: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    leveraged_short: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    leveraged_net: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    asset_manager_long: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    asset_manager_short: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    asset_manager_net: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     wow_change: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    percentile_rank: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
     extreme_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    signal_strength: Mapped[str] = mapped_column(String(20), nullable=False, default="NEUTRAL")
+    divergence_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     report_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
@@ -34,4 +43,5 @@ class COTReportRow(Base):
         UniqueConstraint("currency", "report_date", name="uq_cot_currency_date"),
         Index("ix_cot_currency_date", "currency", "report_date"),
         Index("ix_cot_report_date", "report_date"),
+        Index("ix_cot_extreme_flag", "extreme_flag", "report_date"),
     )

@@ -7,7 +7,7 @@ from typing import Any
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.macro.models.provider.cot import COTPosition, COTReport
+from engine.macro.models.provider.cot import COTPosition, COTReport, TFFPosition
 from engine.macro.providers.cot.base import BaseCOTProvider
 
 logger = get_logger(__name__)
@@ -25,7 +25,8 @@ _CONTRACT_CURRENCY_MAP: dict[str, Currency] = {
     "SILVER": Currency.XAG,
 }
 
-_CFTC_DATASET_ID = "jun7-fc8e"
+_CFTC_LEGACY_DATASET_ID = "jun7-fc8e"
+_CFTC_TFF_DATASET_ID = "gpe5-46if"
 
 
 class CFTCProvider(BaseCOTProvider):
@@ -39,28 +40,28 @@ class CFTCProvider(BaseCOTProvider):
     async def fetch(self) -> COTReport:
         start = time.monotonic()
         try:
-            url = f"{self._base_url}/{_CFTC_DATASET_ID}.json"
-            params = {
-                "$order": "report_date_as_yyyy_mm_dd DESC",
-                "$limit": "50",
-                "$where": "market_and_exchange_names LIKE '%CHICAGO MERCANTILE%'",
-            }
-            raw = await self._http.get(
-                url,
-                provider_name=self.provider_name,
-                category=self.category.value,
-                params=params,
+            legacy_raw = await self._fetch_dataset(
+                _CFTC_LEGACY_DATASET_ID,
+                where="market_and_exchange_names LIKE '%CHICAGO MERCANTILE%'",
             )
-            if not isinstance(raw, list):
-                raw = []
-
-            positions = self._parse_positions(raw)
+            positions = self._parse_legacy_positions(legacy_raw)
             report_date = positions[0].report_date if positions else date.today()
+
+            tff_positions: list[TFFPosition] = []
+            try:
+                tff_raw = await self._fetch_dataset(
+                    _CFTC_TFF_DATASET_ID,
+                    where="market_and_exchange_names LIKE '%CHICAGO MERCANTILE%'",
+                )
+                tff_positions = self._parse_tff_positions(tff_raw)
+            except Exception as exc:
+                logger.warning("cftc_tff_fetch_skipped", error=str(exc))
 
             report = COTReport(
                 report_date=report_date,
                 release_timestamp=datetime.now(UTC),
                 positions=positions,
+                tff_positions=tff_positions,
             )
             self._record_success(time.monotonic() - start)
             return report
@@ -69,7 +70,22 @@ class CFTCProvider(BaseCOTProvider):
             logger.error("cftc_fetch_failed", error=str(exc))
             raise
 
-    def _parse_positions(self, raw_rows: list[dict[str, Any]]) -> list[COTPosition]:
+    async def _fetch_dataset(self, dataset_id: str, *, where: str) -> list[dict[str, Any]]:
+        url = f"{self._base_url}/{dataset_id}.json"
+        params = {
+            "$order": "report_date_as_yyyy_mm_dd DESC",
+            "$limit": "100",
+            "$where": where,
+        }
+        raw = await self._http.get(
+            url,
+            provider_name=self.provider_name,
+            category=self.category.value,
+            params=params,
+        )
+        return raw if isinstance(raw, list) else []
+
+    def _parse_legacy_positions(self, raw_rows: list[dict[str, Any]]) -> list[COTPosition]:
         positions: list[COTPosition] = []
         seen_currencies: set[str] = set()
 
@@ -103,6 +119,43 @@ class CFTCProvider(BaseCOTProvider):
                     commercial_short=c_short,
                     commercial_net=c_long - c_short,
                     open_interest=oi,
+                    report_date=rd,
+                ),
+            )
+        return positions
+
+    def _parse_tff_positions(self, raw_rows: list[dict[str, Any]]) -> list[TFFPosition]:
+        positions: list[TFFPosition] = []
+        seen_currencies: set[str] = set()
+
+        for row in raw_rows:
+            contract_name = row.get("market_and_exchange_names", "")
+            currency = self._map_contract_to_currency(contract_name)
+            if currency is None or currency.value in seen_currencies:
+                continue
+            seen_currencies.add(currency.value)
+
+            lev_long = int(row.get("lev_money_positions_long_all", 0))
+            lev_short = int(row.get("lev_money_positions_short_all", 0))
+            am_long = int(row.get("asset_mgr_positions_long_all", 0))
+            am_short = int(row.get("asset_mgr_positions_short_all", 0))
+            report_date_str = row.get("report_date_as_yyyy_mm_dd", "")
+
+            try:
+                rd = date.fromisoformat(report_date_str)
+            except (ValueError, TypeError):
+                rd = date.today()
+
+            positions.append(
+                TFFPosition(
+                    currency=currency,
+                    contract_name=contract_name[:100],
+                    leveraged_long=lev_long,
+                    leveraged_short=lev_short,
+                    leveraged_net=lev_long - lev_short,
+                    asset_manager_long=am_long,
+                    asset_manager_short=am_short,
+                    asset_manager_net=am_long - am_short,
                     report_date=rd,
                 ),
             )
