@@ -179,18 +179,46 @@ func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolRes
 	}
 
 	totalChoch := 0
-	for _, snapshot := range ta.Snapshots {
-		if chochEvents, ok := snapshot["choch_events"]; ok {
-			if chochMap, ok := chochEvents.(map[string]interface{}); ok {
-				if count, ok := chochMap["count"]; ok {
-					switch c := count.(type) {
-					case float64:
-						totalChoch += int(c)
-					case int:
-						totalChoch += c
-					}
+	for tf, snapshot := range ta.Snapshots {
+		chochEvents, ok := snapshot["choch_events"]
+		if !ok || chochEvents == nil {
+			continue
+		}
+
+		// Handle multiple formats the TA engine may return:
+		// Format 1: {"choch_events": {"count": N, ...}}
+		// Format 2: {"choch_events": N} (direct count)
+		// Format 3: {"choch_events": [{...}, {...}]} (list of events)
+		switch v := chochEvents.(type) {
+		case map[string]interface{}:
+			if count, ok := v["count"]; ok {
+				switch c := count.(type) {
+				case float64:
+					totalChoch += int(c)
+				case int:
+					totalChoch += c
+				case int64:
+					totalChoch += int(c)
 				}
 			}
+		case float64:
+			totalChoch += int(v)
+		case int:
+			totalChoch += v
+		case int64:
+			totalChoch += int(v)
+		case []interface{}:
+			totalChoch += len(v)
+		default:
+			// Unknown format: log for investigation but do not reject.
+			// Silently returning 0 here could incorrectly reject valid
+			// counter-trend trades with CHoCH confirmation.
+			log := observability.Logger("guard_evaluator")
+			log.Warn().
+				Str("timeframe", tf).
+				Str("symbol", ta.Symbol).
+				Str("type", fmt.Sprintf("%T", chochEvents)).
+				Msg("choch_events_unexpected_format")
 		}
 	}
 
