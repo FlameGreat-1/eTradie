@@ -10,7 +10,13 @@ class ScenarioFirstStrategy:
 
     The LLM processes everything together. This strategy gives scenarios
     a slight budget boost because clear patterns benefit from reasoning
-    examples. All other categories still receive substantial equal budgets.
+    examples, but scenarios remain the smallest allocation.
+
+    Budget allocation:
+    - Rules:      ~25% (core rejection and risk rules)
+    - Frameworks: ~33% (core analytical knowledge)
+    - Macro:      ~33% (macro-to-price translation)
+    - Scenarios:   ~9% + 3 boost (reasoning examples for clear patterns)
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -38,11 +44,14 @@ class ScenarioFirstStrategy:
         merged: list[RetrievedChunk] = []
         all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
 
-        # Equal base budget per category, scenarios get a slight boost
-        base_k = max(3, top_k // 4)
-        scenario_k = base_k + 3
+        # Weighted budget: frameworks and macro get the largest share,
+        # scenarios get a small boost for pattern reasoning examples.
+        rules_k = max(3, top_k // 4)              # ~25%
+        framework_k = max(3, top_k // 3)           # ~33%
+        macro_k = max(3, top_k // 3)               # ~33%
+        scenario_k = max(3, top_k // 10) + 3       # ~9% + boost
 
-        # Scenarios
+        # Scenarios (supplementary reasoning examples)
         scenario_chunks = await self._retriever.retrieve(
             query_text,
             collection=scenario_collection,
@@ -61,7 +70,7 @@ class ScenarioFirstStrategy:
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=base_k + 2,
+            top_k=rules_k + 2,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -88,7 +97,7 @@ class ScenarioFirstStrategy:
             frameworks_to_retrieve.add(framework)
         frameworks_to_retrieve.add("wyckoff")
 
-        per_fw_k = max(2, base_k // max(1, len(frameworks_to_retrieve)))
+        per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]
             fw_chunks = await self._retriever.retrieve(
@@ -109,7 +118,7 @@ class ScenarioFirstStrategy:
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=base_k + 2,
+            top_k=macro_k + 2,
             doc_types=[
                 DocumentType.MACRO_TO_PRICE_GUIDE,
                 DocumentType.DXY_FRAMEWORK,
