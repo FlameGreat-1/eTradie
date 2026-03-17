@@ -9,9 +9,13 @@ class MacroBiasStrategy:
     """Macro-boosted retrieval for strong macro signal scenarios.
 
     The LLM processes everything together. This strategy gives macro docs
-    a slight budget boost because strong macro signals need thorough
-    macro-to-price translation rules. All other categories still receive
-    substantial equal budgets.
+    a budget boost because strong macro signals need thorough
+    macro-to-price translation rules.
+
+    Budget allocation (no scenarios - this strategy skips them):
+    - Rules:      ~25% (core rejection and risk rules)
+    - Frameworks: ~35% (core analytical knowledge)
+    - Macro:      ~37% + 3 boost (macro signals need thorough translation)
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -34,9 +38,11 @@ class MacroBiasStrategy:
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
 
-        # Equal base budget per category, macro gets a slight boost
-        base_k = max(3, top_k // 4)
-        macro_k = base_k + 3
+        # Weighted budget: macro gets the largest share + boost,
+        # frameworks get substantial allocation for analytical depth.
+        rules_k = max(3, top_k // 4)                  # ~25%
+        framework_k = max(3, (top_k * 35) // 100)      # ~35%
+        macro_k = max(3, (top_k * 37) // 100) + 3      # ~37% + boost
 
         # Macro docs
         macro_chunks = await self._retriever.retrieve(
@@ -60,7 +66,7 @@ class MacroBiasStrategy:
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=base_k + 2,
+            top_k=rules_k + 2,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -84,7 +90,7 @@ class MacroBiasStrategy:
                     frameworks_to_retrieve.add(fw)
         frameworks_to_retrieve.add("wyckoff")
 
-        per_fw_k = max(2, base_k // max(1, len(frameworks_to_retrieve)))
+        per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]
             fw_chunks = await self._retriever.retrieve(

@@ -10,8 +10,12 @@ class RuleFirstStrategy:
 
     The LLM processes everything together. This strategy gives rules a
     slight budget boost (not exclusive priority) because high-impact
-    events make rejection rules especially critical. All other categories
-    still receive substantial equal budgets.
+    events make rejection rules especially critical.
+
+    Budget allocation (no scenarios - this strategy skips them):
+    - Rules:      ~30% + 3 boost (high-impact events need rejection rules)
+    - Frameworks: ~35% (core analytical knowledge)
+    - Macro:      ~35% (macro-to-price translation)
     """
 
     def __init__(self, *, retriever: Retriever) -> None:
@@ -38,15 +42,17 @@ class RuleFirstStrategy:
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
 
-        # Equal base budget per category, rules get a slight boost
-        base_k = max(3, top_k // 4)
-        rule_k = base_k + 3  # Slight boost for rules during high-impact events
+        # Weighted budget: frameworks and macro get the largest share,
+        # rules get a boost for high-impact event rejection logic.
+        rules_k = max(3, (top_k * 30) // 100) + 3  # ~30% + boost
+        framework_k = max(3, (top_k * 35) // 100)   # ~35%
+        macro_k = max(3, (top_k * 35) // 100)        # ~35%
 
         # Rules (master_rulebook + trading_style_rules)
         rule_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=rule_k,
+            top_k=rules_k,
             doc_types=[
                 DocumentType.MASTER_RULEBOOK,
                 DocumentType.TRADING_STYLE_RULES,
@@ -58,11 +64,11 @@ class RuleFirstStrategy:
                 merged.append(chunk)
                 seen_ids.add(chunk.chunk_id)
 
-        # Macro docs (equally important - LLM processes everything together)
+        # Macro docs
         macro_chunks = await self._retriever.retrieve(
             query_text,
             collection=collection,
-            top_k=base_k + 2,
+            top_k=macro_k + 2,
             doc_types=[
                 DocumentType.MACRO_TO_PRICE_GUIDE,
                 DocumentType.DXY_FRAMEWORK,
@@ -90,7 +96,7 @@ class RuleFirstStrategy:
             frameworks_to_retrieve.add(framework)
         frameworks_to_retrieve.add("wyckoff")
 
-        per_fw_k = max(2, base_k // max(1, len(frameworks_to_retrieve)))
+        per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
         all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]
