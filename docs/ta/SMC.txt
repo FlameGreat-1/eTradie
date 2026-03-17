@@ -1,0 +1,243 @@
+# WADE FX — SMC COMPLETE PATTERNS & RULES
+
+---
+
+## SELL PATTERNS
+
+---
+
+**Pattern 1 — Turtle Soup Short (Standard)**
+
+Price raids a BSL zone (PDH, PWH, PMH, HOD, Old High, Equal Highs) → sweeps 5–20+ pips above the level → single bearish candle closes back below the level → SELL against the sweep → minimum 10 pip SL above the sweep high
+
+---
+
+**Pattern 2 — SH + BMS + RTO (Bearish)**
+
+BSL taken above a key level (Stop Hunt above PDH/PWH/Old High/Equal Highs) → price breaks market structure LOWER confirming the SH was real → price retraces back up to the Bearish Order Block (last bullish candle before the BMS lower) → SELL at the OB → SL above the OB → 1st target: SSL below
+
+---
+
+**Pattern 3 — SMS + BMS + RTO (Bearish Reversal)**
+
+Price in uptrend fails to break the last swing high (SMS — Failure Swing) → price then breaks market structure LOWER confirming trend exhaustion and reversal → price retraces back up to the Bearish Order Block created by the BMS → SELL at the OB → SL above the OB → 1st target: SSL below
+
+---
+
+**Pattern 4 — Bearish AMD**
+
+Asian session consolidates and builds a range → London/NY open manipulates price UPWARD above the Asian range or BSL zone to trap buyers and grab liquidity → price reverses DOWN hard (Distribution phase begins) → SELL on Distribution using any of: Simple RTO to Bearish OB, SH+BMS+RTO, SMS+BMS+RTO
+
+---
+
+**Pattern 5 — Turtle Soup Short + SH + BMS + RTO (Combined)**
+
+BSL raided (Turtle Soup Short trigger) → that same sweep also creates a BMS lower → price retraces to Bearish OB → SELL at OB. Both setups confirm each other simultaneously — highest confluence bearish entry.
+
+---
+
+## BUY PATTERNS
+
+---
+
+**Pattern 6 — Turtle Soup Long (Standard)**
+
+Price raids an SSL zone (PDL, PWL, PML, LOD, Old Low, Equal Lows) → sweeps 5–20+ pips below the level → single bullish candle closes back above the level → BUY against the sweep → minimum 10 pip SL below the sweep low
+
+---
+
+**Pattern 7 — SH + BMS + RTO (Bullish)**
+
+SSL taken below a key level (Stop Hunt below PDL/PWL/Old Low/Equal Lows) → price breaks market structure HIGHER confirming the SH was real → price retraces back down to the Bullish Order Block (last bearish candle before the BMS higher) → BUY at the OB → SL below the OB → 1st target: BSL above
+
+---
+
+**Pattern 8 — SMS + BMS + RTO (Bullish Reversal)**
+
+Price in downtrend fails to break the last swing low (SMS — Failure Swing) → price then breaks market structure HIGHER confirming trend exhaustion and reversal → price retraces back down to the Bullish Order Block created by the BMS → BUY at the OB → SL below the OB → 1st target: BSL above
+
+---
+
+**Pattern 9 — Bullish AMD**
+
+Asian session consolidates and builds a range → London/NY open manipulates price DOWNWARD below the Asian range or SSL zone to trap sellers and grab liquidity → price reverses UP hard (Distribution phase begins) → BUY on Distribution using any of: Simple RTO to Bullish OB, SH+BMS+RTO, SMS+BMS+RTO
+
+---
+
+**Pattern 10 — Turtle Soup Long + SH + BMS + RTO (Combined)**
+
+SSL raided (Turtle Soup Long trigger) → that same sweep also creates a BMS higher → price retraces to Bullish OB → BUY at OB. Both setups confirm each other simultaneously — highest confluence bullish entry.
+
+---
+
+## UNIVERSAL RULES — APPLY TO EVERY SINGLE PATTERN
+
+**Rule 1 — Liquidity Must Be Taken First**
+The market hardly ever reverses without taking liquidity first. Never enter against a move before a Stop Hunt / liquidity grab has occurred. Always wait for the SH to complete before looking for entry.
+
+**Rule 2 — Always Trade in Direction of HTF BMS**
+Every trade must align with the Higher Time Frame Break in Market Structure. If HTF BMS is bullish, only take buy setups. If HTF BMS is bearish, only take sell setups. Never trade against the HTF BMS.
+
+**Rule 3 — After BMS Always Wait for Retracement**
+Never enter on the BMS candle itself. Always wait for price to retrace to the OB or OTE level after the BMS. The retracement to 50% or OTE (0.62 / 0.705 / 0.79) is the entry — not the breakout.
+
+**Rule 4 — Order Block Definition is Strict**
+Bullish OB = the last BEARISH candle before the bullish move that caused the BMS higher. Bearish OB = the last BULLISH candle before the bearish move that caused the BMS lower. SL always goes beyond the OB — below for buys, above for sells.
+
+**Rule 5 — Minimum 3 Confluences Required**
+Never open a trade with fewer than three confluence factors. Minimum three must align from this list: HTF BMS direction, London Open timing, New York Open timing, HTF OB/Liquidity/Structure refined on LTF, combined setups, High Impact News Events, OTE aligning with OB, FVG present at OB, Inducement taken before entry, OB located at Premium or Discount price.
+
+**Rule 6 — OTE Adds Critical Confluence**
+When Fibonacci retracement levels 50%, 62%, 70.5% or 79% align exactly with the Order Block or entry zone — this is OTE (Optimal Trade Entry) and significantly increases probability. OTE alone means nothing — it only counts when it lands on an already valid OB.
+
+**Rule 7 — Session Timing is Confluence**
+Setups triggering at London Open (09:00–11:00 UTC+2) or New York Open (14:00–16:00 UTC+2) carry significantly higher probability. The AMD manipulation phase almost always occurs at these opens. Avoid entries outside these windows unless a clear HTF key level is being retested.
+
+**Rule 8 — AMD Context Must Be Known**
+Before entering any trade identify which phase price is in — Accumulation (Asian range), Manipulation (false move at London/NY open), or Distribution (true direction). Only enter during Distribution. If Manipulation has not yet completed do not enter.
+
+**Rule 9 — Equal Highs/Lows Are Prime Liquidity Targets**
+Equal Highs = retail resistance = BSL resting above → prime target for SH before selling. Equal Lows = retail support = SSL resting below → prime target for SH before buying. When you see equal highs or lows, expect the SH before the real move.
+
+**Rule 10 — High Impact News is a Liquidity Tool**
+Banks use High Impact News Events to execute Stop Hunts. Always check the news calendar. Pairs with multiple high impact news forecasts will move hard during the day/week. A news spike that grabs liquidity and reverses = SH confirmation = potential entry setup.
+
+**Rule 11 — Top-Down Timeframe Execution (Mandatory)**
+Swing Trading: HTF = Weekly/Daily/H4 → Entries on H1/M30/M15. Short Term: HTF = Daily/H4/H1 → Entries on M30/M15. Day Trades/Scalps: HTF = H4/H1/M30 → Entries on M15/M5/M1. Always identify structure on HTF first then refine entry on LTF. HTF key levels = OBs, Liquidity Pools, Market Structure levels.
+
+**Rule 12 — Turtle Soup Minimum SL**
+On any Turtle Soup entry on the lower timeframe, the minimum Stop Loss is 10 pips. Never tighten below this regardless of how clean the sweep looks.
+
+---
+
+## PATTERN RANKING BY CONFLUENCE (Highest to Lowest)
+
+1. Turtle Soup + SH + BMS + RTO (Patterns 5 / 10) — both setups confirming simultaneously
+2. AMD + SH + BMS + RTO (Patterns 4 / 9) — session context + liquidity + structure all aligned
+3. SH + BMS + RTO (Patterns 2 / 7) — core flagship setup
+4. SMS + BMS + RTO (Patterns 3 / 8) — reversal confirmation setup
+5. Turtle Soup standalone (Patterns 1 / 6) — minimum baseline, needs session confluence
+
+---
+
+## CONFLUENCE COMBINATIONS (Explicitly Named in Material)
+
+- BOS + FVG + IDM + RTO
+- SMS + CHoCH + IDM + FVG + RTO
+- OB + BOS + FVG + IDM
+- Turtle Soup + SH + BMS + RTO
+- AMD + SH + BMS + RTO + Session Timing
+
+---
+
+## DEALING RANGE — CORE FRAMEWORK
+
+A Dealing Range is a confined trading region between two points on a chart showing external and internal range liquidity. Everything inside is navigated by these rules:
+
+- Price moves from Premium to Discount and from BSL to SSL — constantly cycling
+- Focus on the LEFT-HAND SIDE of the chart to identify liquidity sources within the range
+- SELL only at Premium price of the range → BUY only at Discount price of the range
+- AVOID equilibrium pricing (the 50% midpoint) — no entries there under any circumstance
+- Use Order Blocks and mean thresholds to identify entry and exit points within the range
+- After a liquidity grab at the upper or lower range extreme → look for reversal entries at premium/discount zones
+- If an OB is left behind with an FVG and a clean BOS or CHoCH → extra confluence to execute with confidence
+- Price always seeks external and internal liquidity around the upper and lower region of the range
+- Only execute AFTER a liquidity sweep at the range extremes — never before the sweep
+
+---
+
+## PREMIUM & DISCOUNT — MANDATORY FILTER
+
+Draw Fibonacci from swing high to swing low (sells) or swing low to swing high (buys):
+- 0% to 50% = DISCOUNT zone (buy zone only)
+- 50% to 100% = PREMIUM zone (sell zone only)
+- Entry points specifically at 61%, 70.5% and 79% Fibonacci levels (OTE)
+- Any Point of Interest (POI) you choose to trade MUST be located at Premium or Discount — never at equilibrium
+- Target: previous low or next liquidity draw on liquidity
+
+---
+
+## FIVE TYPES OF LIQUIDITY
+
+**Type 1 — Open Interest (Institutional Orders)**
+Large institutional orders are the major source of liquidity. Measured by Bid-Ask spreads and trade volume. Widening Bid-Ask spread = imbalance between buyers and sellers = lower liquidity or uncertainty. Wide spread + high volume on one side = potential price shift. Confirmable via Depth of Market (DOM) / order book from broker.
+
+**Type 2 — Buy Stops Liquidity (BSL)**
+Stop losses of sell orders sitting ABOVE: PMH, PWH, PDH, HOD, Old Highs, Equal Highs. When BSL is taken → market reverses DOWN. Banks used BSL to place their sell orders.
+
+**Type 3 — Sell Stops Liquidity (SSL)**
+Stop losses of buy orders sitting BELOW: PML, PWL, PDL, LOD, Old Lows, Equal Lows. When SSL is taken → market reverses UP. Banks used SSL to place their buy orders.
+
+**Type 4 — Compression Liquidity**
+Small, messy, slow-moving candles in a tight range moving either up or down — NOT equal highs and lows (that is consolidation). Indicates weakness of buyers or sellers. Price is collecting pending orders on both sides during compression. After compression ends with a spike → always expect a potential sell-off or buy-off. Most compression liquidity setups are trend continuation. Never confuse with consolidation — compression is directional, consolidation is sideways.
+
+**Type 5 — Inducement (IDM)**
+A false engineered move to trick traders into entering prematurely at the wrong level. Inducement exists at swing highs and lows where stops are placed — mostly internal highs and lows are pure inducement. Price will ALWAYS take out those internal highs/lows before making any significant move toward the real POI. Traders who enter at the inducement get wiped out before price reaches the actual entry zone. Rule: Never enter at the inducement — wait for it to be taken out first, then look for entry at the real POI.
+
+---
+
+## CHANGE OF CHARACTER (CHoCH)
+
+The initial and earliest signal of a shift in order flow. Occurs when a minor demand or supply zone fails to hold — signaling a potential shift in market trend before a full BMS confirms. CHoCH is smaller and earlier than BMS/SMS. It is used as confluence confirmation, not a standalone entry signal. Sequence: CHoCH appears first → BMS confirms → entry on RTO to OB.
+
+---
+
+## FVG — FAIR VALUE GAP (IMBALANCE)
+
+An FVG occurs in a 3-candle sequence when the wick of the first candle does NOT overlap with the wick of the third candle — creating a gap where price delivery was inefficient. Price will always return to fill or mitigate the FVG before continuing in the trend direction. An OB without an FVG is significantly weaker. FVG within FVG (on subsequent timeframe) = extra confluence.
+
+---
+
+## THE 7 RULES OF A TRADEABLE ORDER BLOCK
+
+Not every OB on the chart is valid. Not every valid OB is tradeable. An OB must satisfy ALL of these:
+
+1. Must sponsor a move that BREAKS market structure or SHIFTS market structure (BOS or CHoCH)
+2. Must have an imbalance / FVG associated with it
+3. Must have liquidity or inducement present
+4. Must take out an opposing order block
+5. Must be located at PREMIUM price (sells) or DISCOUNT price (buys)
+6. Must have an imbalance and OB in a subsequent timeframe (BPR — Breaker Point of Reference) — FVG within FVG and OB within OB
+7. Select HTF OBs and refine to LTF for higher trade probability
+
+---
+
+## ADDITIONAL MARKET STRUCTURE RULES
+
+- Cannot assume break of bearish structure until a LOWER HIGH has clearly been broken
+- Cannot assume break of bullish structure until a HIGHER LOW has clearly been broken
+- A liquidity grab = candle that fails to close substantially above/below the level (mostly a wick) — this is NOT a break
+- A break = substantial close above or below the level
+- If price is not making HH+HL or LH+LL — it is ranging, no directional bias
+- Never guess a trend change until structure confirms it
+- Always ask before entering: Where is price coming from? Where is it heading to? — Picking an OB that opposes an already-mitigated HTF OB means your OB will not hold
+
+---
+
+## PRICE RUNS FROM LIQUIDITY TO LIQUIDITY — KEY RULE
+
+Price runs from liquidity to liquidity on every timeframe without exception. Once BSL is cleared → price reverses seeking SSL. Once SSL is cleared → price reverses seeking BSL. The cycle repeats endlessly. Execute once the liquidity grab occurs and always target the next draw on liquidity as your target.
+
+---
+
+## ENTRY CONFIRMATION — LTF (M15/M5/M1)
+
+After identifying the full pattern on HTF (H4/H1/Daily) and confirming the liquidity grab and BMS on mid TF — drop to M15/M5/M1 and wait for ALL of the following:
+
+**Confirmation 1 — Liquidity Has Been Taken**
+On LTF, confirm the Stop Hunt has fully completed — price has swept the BSL or SSL level and closed back inside the range. A wick that does not close back is not confirmed. Wait for the close.
+
+**Confirmation 2 — CHoCH on LTF**
+After the liquidity grab, look for a Change of Character (CHoCH) on M15/M5 — the first sign that order flow is shifting. This is the earliest signal that the reversal is beginning.
+
+**Confirmation 3 — BMS Confirmed**
+After CHoCH, wait for a full Break in Market Structure on LTF confirming the reversal direction. Do not enter on the CHoCH alone — wait for BMS to confirm it.
+
+**Confirmation 4 — Price Returns to LTF Order Block (RTO)**
+After BMS, price retraces to the LTF Order Block (last bearish candle before bullish BMS for buys / last bullish candle before bearish BMS for sells). This is the entry point. Confirm the OB has an FVG associated with it. Confirm the OB is at Premium (sells) or Discount (buys). SL beyond the OB.
+
+**Confirmation 5 — Session Timing**
+Confirm the entry is occurring during London Open (09:00–11:00 UTC+2) or New York Open (14:00–16:00 UTC+2). If it is outside these windows and no HTF key level is being retested — wait for the next session.
+
+**Confirmation 6 — Inducement Has Been Cleared**
+Before entering, confirm that internal inducement (IDM) — internal swing highs/lows — has already been taken out. If inducement has not been swept yet, price is likely to take it out before reaching your OB — wait.
