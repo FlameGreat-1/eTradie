@@ -22,15 +22,40 @@ from typing import Optional
 from engine.config import TAConfig, get_ta_config
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
+from engine.ta.common.analyzers.candles import CandleAnalyzer
+from engine.ta.common.analyzers.compression import CompressionAnalyzer
+from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.timeframe.manager import TimeframeManager
 from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Timeframe
-from engine.ta.models.candle import CandleSequence
+from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
 from engine.ta.models.snapshot import MultiTimeframeSnapshot, TechnicalSnapshot
+from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detector import SMCDetector
+from engine.ta.smc.detectors.bms import BMSDetector
+from engine.ta.smc.detectors.choch import CHOCHDetector
+from engine.ta.smc.detectors.inducement import InducementDetector
+from engine.ta.smc.detectors.sms import SMSDetector
+from engine.ta.smc.zones.breaker import BreakerDetector
+from engine.ta.smc.zones.fvg import FVGDetector
+from engine.ta.smc.zones.mitigation import MitigationDetector
+from engine.ta.smc.zones.order_block import OrderBlockDetector
+from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
+from engine.ta.snd.detectors.mpl import MPLDetector
+from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
+from engine.ta.snd.detectors.qm import QMDetector
+from engine.ta.snd.detectors.rs_flip import RSFlipDetector
+from engine.ta.snd.detectors.sr_flip import SRFlipDetector
+from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
 from engine.ta.storage.repositories.candle import CandleRepository
 from engine.ta.storage.repositories.candidate import CandidateRepository
 from engine.ta.storage.repositories.snapshot import SnapshotRepository
@@ -45,13 +70,16 @@ class TAOrchestrator:
     Coordinates a complete top-down analysis cycle for a single symbol:
 
     1. Fetch candles for every configured timeframe (HTF + LTF).
-    2. Build a TechnicalSnapshot per timeframe via SnapshotBuilder.
-    3. Run SMC detection on every adjacent HTF pair.
-    4. Run SnD detection on every adjacent HTF pair.
-    5. Run SMC/SnD confirmation on every adjacent LTF pair.
-    6. Align all snapshots via AlignmentService.
-    7. Persist every per-timeframe snapshot and all candidates.
-    8. Return a structured multi-timeframe result dict.
+    2. Run per-timeframe structural detection (BMS, CHOCH, SMS, OBs,
+       FVGs, sweeps, inducements, QML/QMH, SR/RS flips, MPL, supply/
+       demand zones, fibonacci, dealing ranges, equal highs/lows).
+    3. Build a fully populated TechnicalSnapshot per timeframe.
+    4. Run SMC detection on every adjacent HTF pair.
+    5. Run SnD detection on every adjacent HTF pair.
+    6. Run SMC/SnD confirmation on every adjacent LTF pair.
+    7. Align all snapshots via AlignmentService.
+    8. Persist every per-timeframe snapshot and all candidates.
+    9. Return a structured multi-timeframe result dict.
 
     The orchestrator reads timeframe lists from TAConfig — it never
     hardcodes which timeframes to analyze.
@@ -82,6 +110,35 @@ class TAOrchestrator:
         self._config = ta_config or get_ta_config()
         self._logger = get_logger(__name__)
 
+        # Per-timeframe structural detectors — reuse the same instances
+        # that the SMC/SnD framework detectors use internally so that
+        # detection logic is identical and there is zero duplication.
+        self._swing_analyzer = snapshot_builder.swing_analyzer
+        self._session_analyzer = snapshot_builder.session_analyzer
+        self._liquidity_analyzer = snapshot_builder.liquidity_analyzer
+        self._sweep_analyzer = snapshot_builder.sweep_analyzer
+        self._fibonacci_analyzer = snapshot_builder.fibonacci_analyzer
+        self._dealing_range_analyzer = snapshot_builder.dealing_range_analyzer
+
+        # SMC primitive detectors — pull from the SMC detector so config
+        # thresholds (displacement pips, sweep pips, etc.) are consistent.
+        self._bms_detector = smc_detector.bms_detector
+        self._choch_detector = smc_detector.choch_detector
+        self._sms_detector = smc_detector.sms_detector
+        self._inducement_detector = smc_detector.inducement_detector
+        self._fvg_detector = smc_detector.fvg_detector
+        self._ob_detector = smc_detector.ob_detector
+        self._breaker_detector = smc_detector.breaker_detector
+        self._mitigation_detector = smc_detector.mitigation_detector
+
+        # SnD primitive detectors — pull from the SnD detector.
+        self._qm_detector = snd_detector.qm_detector
+        self._sr_flip_detector = snd_detector.sr_flip_detector
+        self._rs_flip_detector = snd_detector.rs_flip_detector
+        self._previous_level_detector = snd_detector.previous_level_detector
+        self._mpl_detector = snd_detector.mpl_detector
+        self._supply_demand_detector = snd_detector.supply_demand_detector
+
     # ── Public API ───────────────────────────────────────────────────
 
     async def analyze(
@@ -91,11 +148,6 @@ class TAOrchestrator:
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
-
-        The method reads ``htf_timeframes`` and ``ltf_timeframes`` from
-        TAConfig and iterates every configured timeframe from highest to
-        lowest.  The caller does NOT specify timeframes — the TA engine
-        owns that decision.
 
         Returns a structured dict consumed by the Gateway's TACollector:
         {
@@ -155,10 +207,10 @@ class TAOrchestrator:
                     ltf_timeframes=ltf_timeframes,
                 )
 
-            # ── Phase 2: Build snapshot per timeframe ────────────────
+            # ── Phase 2: Per-timeframe structural detection + snapshot
             snapshots: dict[Timeframe, TechnicalSnapshot] = {}
             for tf, seq in sequences.items():
-                snapshot = self._build_snapshot_for_timeframe(seq)
+                snapshot = self._build_enriched_snapshot(seq)
                 if snapshot is not None:
                     snapshots[tf] = snapshot
 
@@ -216,7 +268,9 @@ class TAOrchestrator:
                 if (
                     lowest_htf in sequences
                     and highest_ltf in sequences
-                    and self.timeframe_manager.is_htf_of(lowest_htf, highest_ltf)
+                    and self.timeframe_manager.is_htf_of(
+                        lowest_htf, highest_ltf,
+                    )
                 ):
                     smc = self._run_smc_detection(
                         sequences[lowest_htf], sequences[highest_ltf],
@@ -229,7 +283,9 @@ class TAOrchestrator:
 
             # ── Phase 6: Align adjacent snapshots ────────────────────
             alignments: dict[str, dict] = {}
-            ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
+            ordered_tfs = [
+                tf for tf in all_timeframes if tf in snapshots
+            ]
             for i in range(len(ordered_tfs) - 1):
                 higher_tf = ordered_tfs[i]
                 lower_tf = ordered_tfs[i + 1]
@@ -261,7 +317,9 @@ class TAOrchestrator:
                 "ta_mtf_analysis_completed",
                 extra={
                     "symbol": symbol,
-                    "timeframes_analyzed": [tf.value for tf in ordered_tfs],
+                    "timeframes_analyzed": [
+                        tf.value for tf in ordered_tfs
+                    ],
                     "snapshots_built": len(snapshots),
                     "smc_candidates": len(all_smc),
                     "snd_candidates": len(all_snd),
@@ -362,20 +420,20 @@ class TAOrchestrator:
             end_time, timeframe, lookback_periods,
         )
 
-        stored_candles = await self.candle_repository.find_by_time_range(
+        stored_rows = await self.candle_repository.find_by_time_range(
             symbol,
             timeframe.value,
             start_time,
             end_time,
         )
 
-        if len(stored_candles) < lookback_periods * 0.8:
+        if len(stored_rows) < lookback_periods * 0.8:
             self._logger.info(
                 "fetching_candles_from_broker",
                 extra={
                     "symbol": symbol,
                     "timeframe": timeframe.value,
-                    "stored_count": len(stored_candles),
+                    "stored_count": len(stored_rows),
                     "required_count": lookback_periods,
                 },
             )
@@ -400,7 +458,7 @@ class TAOrchestrator:
                     exc_info=True,
                 )
 
-        if not stored_candles:
+        if not stored_rows:
             self._logger.warning(
                 "no_candle_data_available",
                 extra={
@@ -410,10 +468,25 @@ class TAOrchestrator:
             )
             return None
 
+        # Convert CandleSchema ORM rows to Candle domain models.
+        candles = [
+            Candle(
+                symbol=row.symbol,
+                timeframe=Timeframe(row.timeframe),
+                timestamp=row.timestamp,
+                open=row.open,
+                high=row.high,
+                low=row.low,
+                close=row.close,
+                volume=row.volume if row.volume is not None else 0.0,
+            )
+            for row in stored_rows
+        ]
+
         return CandleSequence(
             symbol=symbol,
             timeframe=timeframe,
-            candles=stored_candles,
+            candles=candles,
         )
 
     @staticmethod
@@ -422,37 +495,234 @@ class TAOrchestrator:
         timeframe: Timeframe,
         lookback_periods: int,
     ) -> datetime:
-        """Calculate start time using TIMEFRAME_MINUTES — no hardcoded branches."""
+        """Calculate start time using TIMEFRAME_MINUTES."""
         minutes = TIMEFRAME_MINUTES.get(timeframe)
         if minutes is None:
             raise ValueError(f"Unknown timeframe: {timeframe}")
         return end_time - timedelta(minutes=minutes * lookback_periods)
 
+    # ── Per-timeframe structural detection + enriched snapshot ────────
 
-    # ── Snapshot building ────────────────────────────────────────────
-
-    def _build_snapshot_for_timeframe(
+    def _build_enriched_snapshot(
         self,
         sequence: CandleSequence,
     ) -> Optional[TechnicalSnapshot]:
-        """Build a TechnicalSnapshot for a single timeframe's candle data."""
+        """
+        Run ALL per-timeframe structural detection and build a fully
+        populated TechnicalSnapshot.
+        It runs
+        every detector on the single-timeframe candle data and feeds all
+        results into the SnapshotBuilder so the snapshot contains the
+        complete structural context (BMS, CHOCH, SMS, OBs, FVGs, sweeps,
+        inducements, QML/QMH, SR/RS flips, MPL, supply/demand zones,
+        fibonacci retracements, dealing ranges, equal highs/lows).
+        """
         try:
-            snapshot = self.snapshot_builder.build_snapshot(candles=sequence)
+            # ── Swing detection ──────────────────────────────────────
+            swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
+            swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
+
+            # ── SMC structure events ─────────────────────────────────
+            bms_bullish = self._bms_detector.detect_bullish_bms(
+                sequence, swing_lows,
+            )
+            bms_bearish = self._bms_detector.detect_bearish_bms(
+                sequence, swing_highs,
+            )
+            all_bms = bms_bullish + bms_bearish
+
+            choch_bullish = self._choch_detector.detect_bullish_choch(
+                sequence, swing_lows,
+            )
+            choch_bearish = self._choch_detector.detect_bearish_choch(
+                sequence, swing_highs,
+            )
+            all_choch = choch_bullish + choch_bearish
+
+            sms_bullish = self._sms_detector.detect_bullish_sms(
+                sequence, swing_lows,
+            )
+            sms_bearish = self._sms_detector.detect_bearish_sms(
+                sequence, swing_highs,
+            )
+            all_sms = sms_bullish + sms_bearish
+
+            # ── SMC zones ────────────────────────────────────────────
+            fvgs = self._fvg_detector.detect_fvgs(sequence)
+
+            order_blocks = []
+            for bms_event in all_bms:
+                if bms_event.direction == Direction.BULLISH:
+                    ob = self._ob_detector.detect_bullish_ob(
+                        sequence, bms_event,
+                    )
+                else:
+                    ob = self._ob_detector.detect_bearish_ob(
+                        sequence, bms_event,
+                    )
+                if ob is not None:
+                    order_blocks.append(ob)
+
+            breaker_blocks = []
+            for ob in order_blocks:
+                breaker = self._breaker_detector.detect_breaker_from_ob(
+                    sequence, ob,
+                )
+                if breaker is not None:
+                    breaker_blocks.append(breaker)
+
+            # ── SMC liquidity / inducement ───────────────────────────
+            inducement_bullish = self._inducement_detector.detect_bullish_inducement(
+                sequence, swing_lows,
+            )
+            inducement_bearish = self._inducement_detector.detect_bearish_inducement(
+                sequence, swing_highs,
+            )
+            all_inducements = inducement_bullish + inducement_bearish
+
+            liquidity_sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
+                sequence, swing_highs, swing_lows,
+            )
+
+            # ── Liquidity pools and equal highs/lows ─────────────────
+            equal_highs = self._liquidity_analyzer.detect_equal_highs(
+                swing_highs,
+            )
+            equal_lows = self._liquidity_analyzer.detect_equal_lows(
+                swing_lows,
+            )
+            all_equal_highs_lows = equal_highs + equal_lows
+
+            # ── SnD structure events ─────────────────────────────────
+            sr_flips = self._sr_flip_detector.detect_sr_flips(
+                sequence, swing_lows,
+            )
+            rs_flips = self._rs_flip_detector.detect_rs_flips(
+                sequence, swing_highs,
+            )
+
+            qml_levels = self._qm_detector.detect_qml(
+                sequence, swing_highs,
+            )
+            qmh_levels = self._qm_detector.detect_qmh(
+                sequence, swing_lows,
+            )
+            all_qm_levels = qml_levels + qmh_levels
+
+            # ── SnD supply/demand zones ──────────────────────────────
+            supply_zones = []
+            demand_zones = []
+            for qml in qml_levels:
+                for sr_flip in sr_flips:
+                    sz = self._supply_demand_detector.create_supply_zone(
+                        sequence,
+                        qml.level,
+                        qml.timestamp,
+                        sr_flip.original_support_level,
+                        sr_flip.timestamp,
+                    )
+                    supply_zones.append(sz)
+
+            for qmh in qmh_levels:
+                for rs_flip in rs_flips:
+                    dz = self._supply_demand_detector.create_demand_zone(
+                        sequence,
+                        qmh.level,
+                        qmh.timestamp,
+                        rs_flip.original_resistance_level,
+                        rs_flip.timestamp,
+                    )
+                    demand_zones.append(dz)
+
+            # ── Fibonacci retracements ───────────────────────────────
+            fibonacci_retracements = []
+            if swing_highs and swing_lows:
+                latest_high = self._swing_analyzer.get_latest_swing_high(
+                    swing_highs,
+                )
+                latest_low = self._swing_analyzer.get_latest_swing_low(
+                    swing_lows,
+                )
+                if latest_high and latest_low:
+                    is_bullish = (
+                        latest_low.timestamp > latest_high.timestamp
+                    )
+                    fib = self._fibonacci_analyzer.create_retracement(
+                        latest_high, latest_low, is_bullish,
+                    )
+                    fibonacci_retracements.append(fib)
+
+            # ── Dealing ranges (from session data) ───────────────────
+            dealing_ranges = []
+            from engine.ta.constants import Session
+            for session in (Session.ASIA, Session.LONDON, Session.NEW_YORK):
+                session_range = self._session_analyzer.extract_session_range(
+                    sequence, session,
+                )
+                if session_range is not None:
+                    dr = self._dealing_range_analyzer.create_from_session(
+                        session_range,
+                    )
+                    if dr is not None:
+                        dealing_ranges.append(dr)
+
+            # ── Build the fully populated snapshot ────────────────────
+            snapshot = self.snapshot_builder.build_snapshot(
+                candles=sequence,
+                bms_events=all_bms,
+                choch_events=all_choch,
+                sms_events=all_sms,
+                sr_flips=sr_flips,
+                rs_flips=rs_flips,
+                liquidity_sweeps=liquidity_sweeps,
+                inducement_events=all_inducements,
+                equal_highs_lows=all_equal_highs_lows,
+                order_blocks=order_blocks,
+                fvgs=fvgs,
+                breaker_blocks=breaker_blocks,
+                supply_zones=supply_zones,
+                demand_zones=demand_zones,
+                qml_levels=all_qm_levels,
+                fibonacci_retracements=fibonacci_retracements,
+                dealing_ranges=dealing_ranges,
+            )
+
             self._logger.debug(
-                "snapshot_built_for_timeframe",
+                "enriched_snapshot_built",
                 extra={
                     "symbol": sequence.symbol,
                     "timeframe": sequence.timeframe.value,
                     "candle_count": sequence.count,
-                    "swing_highs": len(snapshot.swing_highs),
-                    "swing_lows": len(snapshot.swing_lows),
+                    "swing_highs": len(swing_highs),
+                    "swing_lows": len(swing_lows),
+                    "bms_events": len(all_bms),
+                    "choch_events": len(all_choch),
+                    "sms_events": len(all_sms),
+                    "order_blocks": len(order_blocks),
+                    "fvgs": len(fvgs),
+                    "breaker_blocks": len(breaker_blocks),
+                    "liquidity_sweeps": len(liquidity_sweeps),
+                    "inducements": len(all_inducements),
+                    "equal_highs_lows": len(all_equal_highs_lows),
+                    "sr_flips": len(sr_flips),
+                    "rs_flips": len(rs_flips),
+                    "qm_levels": len(all_qm_levels),
+                    "supply_zones": len(supply_zones),
+                    "demand_zones": len(demand_zones),
+                    "fibonacci_retracements": len(fibonacci_retracements),
+                    "dealing_ranges": len(dealing_ranges),
+                    "total_structure_events": snapshot.total_structure_events,
+                    "total_liquidity_events": snapshot.total_liquidity_events,
+                    "total_zones": snapshot.total_zones,
                     "trend_direction": snapshot.trend_direction.value,
                 },
             )
+
             return snapshot
+
         except Exception as e:
             self._logger.error(
-                "snapshot_build_failed",
+                "enriched_snapshot_build_failed",
                 extra={
                     "symbol": sequence.symbol,
                     "timeframe": sequence.timeframe.value,
@@ -554,11 +824,8 @@ class TAOrchestrator:
         ordered_tfs: list[Timeframe],
     ) -> str:
         """
-        Derive the overall market bias from the highest available timeframe.
-
-        The highest timeframe's trend is the dominant bias. If it is
-        NEUTRAL, we fall through to the next highest until we find a
-        directional bias or exhaust all timeframes.
+        Derive the overall market bias from the highest available
+        timeframe. Falls through to the next highest if NEUTRAL.
         """
         for tf in ordered_tfs:
             snap = snapshots.get(tf)
@@ -582,7 +849,9 @@ class TAOrchestrator:
 
         for candidate in smc_candidates:
             try:
-                await self.candidate_repository.create_smc_candidate(candidate)
+                await self.candidate_repository.create_smc_candidate(
+                    candidate,
+                )
             except Exception as e:
                 self._logger.error(
                     "smc_candidate_persistence_failed",
@@ -596,7 +865,9 @@ class TAOrchestrator:
 
         for candidate in snd_candidates:
             try:
-                await self.candidate_repository.create_snd_candidate(candidate)
+                await self.candidate_repository.create_snd_candidate(
+                    candidate,
+                )
             except Exception as e:
                 self._logger.error(
                     "snd_candidate_persistence_failed",
@@ -617,31 +888,63 @@ class TAOrchestrator:
             },
         )
 
-    async def _persist_snapshot(self, snapshot: TechnicalSnapshot) -> None:
+    async def _persist_snapshot(
+        self, snapshot: TechnicalSnapshot,
+    ) -> None:
         """Persist a single TechnicalSnapshot to storage."""
         try:
             await self.snapshot_repository.create(
                 symbol=snapshot.symbol,
                 timeframe=snapshot.timeframe.value,
                 timestamp=snapshot.timestamp,
-                swing_highs=self._serialize_swing_highs(snapshot.swing_highs),
-                swing_lows=self._serialize_swing_lows(snapshot.swing_lows),
-                bms_events=self._serialize_bms_events(snapshot.bms_events),
-                choch_events=self._serialize_choch_events(snapshot.choch_events),
-                sms_events=self._serialize_sms_events(snapshot.sms_events),
-                order_blocks=self._serialize_order_blocks(snapshot.order_blocks),
+                swing_highs=self._serialize_swing_highs(
+                    snapshot.swing_highs,
+                ),
+                swing_lows=self._serialize_swing_lows(
+                    snapshot.swing_lows,
+                ),
+                bms_events=self._serialize_bms_events(
+                    snapshot.bms_events,
+                ),
+                choch_events=self._serialize_choch_events(
+                    snapshot.choch_events,
+                ),
+                sms_events=self._serialize_sms_events(
+                    snapshot.sms_events,
+                ),
+                order_blocks=self._serialize_order_blocks(
+                    snapshot.order_blocks,
+                ),
                 fair_value_gaps=self._serialize_fvgs(snapshot.fvgs),
-                liquidity_sweeps=self._serialize_sweeps(snapshot.liquidity_sweeps),
-                inducement_events=self._serialize_inducements(snapshot.inducement_events),
-                qm_levels=self._serialize_qm_levels(snapshot.qml_levels),
+                liquidity_sweeps=self._serialize_sweeps(
+                    snapshot.liquidity_sweeps,
+                ),
+                inducement_events=self._serialize_inducements(
+                    snapshot.inducement_events,
+                ),
+                qm_levels=self._serialize_qm_levels(
+                    snapshot.qml_levels,
+                ),
                 sr_flips=self._serialize_sr_flips(snapshot.sr_flips),
                 rs_flips=self._serialize_rs_flips(snapshot.rs_flips),
-                previous_levels=self._serialize_previous_levels(snapshot),
-                mpl_levels=self._serialize_mpl_levels(snapshot.mpl_levels),
-                fakeout_tests=self._serialize_fakeout_tests(snapshot),
-                supply_zones=self._serialize_supply_zones(snapshot.supply_zones),
-                demand_zones=self._serialize_demand_zones(snapshot.demand_zones),
-                fibonacci_retracements=self._serialize_fibonacci(snapshot.fibonacci_retracements),
+                previous_levels=self._serialize_previous_levels(
+                    snapshot.equal_highs_lows,
+                ),
+                mpl_levels=self._serialize_mpl_levels(
+                    snapshot.mpl_levels,
+                ),
+                fakeout_tests=self._serialize_liquidity_grabs(
+                    snapshot.liquidity_grabs,
+                ),
+                supply_zones=self._serialize_supply_zones(
+                    snapshot.supply_zones,
+                ),
+                demand_zones=self._serialize_demand_zones(
+                    snapshot.demand_zones,
+                ),
+                fibonacci_retracements=self._serialize_fibonacci(
+                    snapshot.fibonacci_retracements,
+                ),
             )
         except Exception as e:
             self._logger.error(
@@ -671,8 +974,11 @@ class TAOrchestrator:
             "sms_events": self._serialize_sms_events(snapshot.sms_events),
             "order_blocks": self._serialize_order_blocks(snapshot.order_blocks),
             "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs),
+            "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks),
             "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps),
             "inducement_events": self._serialize_inducements(snapshot.inducement_events),
+            "equal_highs_lows": self._serialize_equal_highs_lows(snapshot.equal_highs_lows),
+            "liquidity_grabs": self._serialize_liquidity_grabs(snapshot.liquidity_grabs),
             "qm_levels": self._serialize_qm_levels(snapshot.qml_levels),
             "sr_flips": self._serialize_sr_flips(snapshot.sr_flips),
             "rs_flips": self._serialize_rs_flips(snapshot.rs_flips),
@@ -680,6 +986,7 @@ class TAOrchestrator:
             "supply_zones": self._serialize_supply_zones(snapshot.supply_zones),
             "demand_zones": self._serialize_demand_zones(snapshot.demand_zones),
             "fibonacci_retracements": self._serialize_fibonacci(snapshot.fibonacci_retracements),
+            "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges),
             "total_structure_events": snapshot.total_structure_events,
             "total_liquidity_events": snapshot.total_liquidity_events,
             "total_zones": snapshot.total_zones,
@@ -811,6 +1118,26 @@ class TAOrchestrator:
         }
 
     @staticmethod
+    def _serialize_breaker_blocks(breaker_blocks: list) -> dict:
+        return {
+            "count": len(breaker_blocks),
+            "data": [
+                {
+                    "upper_bound": bb.upper_bound,
+                    "lower_bound": bb.lower_bound,
+                    "timestamp": bb.timestamp.isoformat(),
+                    "direction": bb.direction.value,
+                    "original_ob_timestamp": bb.original_ob_timestamp.isoformat(),
+                    "broken_timestamp": bb.broken_timestamp.isoformat(),
+                    "mitigated": bb.mitigated,
+                    "timeframe": bb.timeframe.value,
+                    "candle_index": bb.candle_index,
+                }
+                for bb in breaker_blocks
+            ],
+        }
+
+    @staticmethod
     def _serialize_sweeps(sweeps: list) -> dict:
         return {
             "count": len(sweeps),
@@ -821,6 +1148,8 @@ class TAOrchestrator:
                     "liquidity_type": sweep.liquidity_type.value,
                     "sweep_pips": sweep.sweep_pips,
                     "closed_back_inside": sweep.closed_back_inside,
+                    "timeframe": sweep.timeframe.value,
+                    "candle_index": sweep.candle_index,
                 }
                 for sweep in sweeps
             ],
@@ -832,12 +1161,59 @@ class TAOrchestrator:
             "count": len(inducements),
             "data": [
                 {
-                    "price": ind.price,
+                    "inducement_level": ind.inducement_level,
                     "timestamp": ind.timestamp.isoformat(),
                     "direction": ind.direction.value,
                     "cleared": ind.cleared,
+                    "cleared_timestamp": (
+                        ind.cleared_timestamp.isoformat()
+                        if ind.cleared_timestamp
+                        else None
+                    ),
+                    "timeframe": ind.timeframe.value,
+                    "is_internal": ind.is_internal,
+                    "candle_index": ind.candle_index,
                 }
                 for ind in inducements
+            ],
+        }
+
+    @staticmethod
+    def _serialize_equal_highs_lows(equal_highs_lows: list) -> dict:
+        return {
+            "count": len(equal_highs_lows),
+            "data": [
+                {
+                    "price_level": ehl.price_level,
+                    "liquidity_type": ehl.liquidity_type.value,
+                    "touch_count": ehl.touch_count,
+                    "timestamps": [
+                        ts.isoformat() for ts in ehl.timestamps
+                    ],
+                    "tolerance_pips": ehl.tolerance_pips,
+                    "timeframe": ehl.timeframe.value,
+                    "swept": ehl.swept,
+                }
+                for ehl in equal_highs_lows
+            ],
+        }
+
+    @staticmethod
+    def _serialize_liquidity_grabs(liquidity_grabs: list) -> dict:
+        return {
+            "count": len(liquidity_grabs),
+            "data": [
+                {
+                    "grab_price": grab.grab_price,
+                    "grabbed_level": grab.grabbed_level,
+                    "timestamp": grab.timestamp.isoformat(),
+                    "direction": grab.direction.value,
+                    "reversal_price": grab.reversal_price,
+                    "confirmed": grab.confirmed,
+                    "timeframe": grab.timeframe.value,
+                    "candle_index": grab.candle_index,
+                }
+                for grab in liquidity_grabs
             ],
         }
 
@@ -896,6 +1272,23 @@ class TAOrchestrator:
         }
 
     @staticmethod
+    def _serialize_mpl_levels(mpl_levels: list) -> dict:
+        return {
+            "count": len(mpl_levels),
+            "data": [
+                {
+                    "mpl_price": mpl.mpl_price,
+                    "timestamp": mpl.timestamp.isoformat(),
+                    "direction": mpl.direction.value,
+                    "has_internal_structure": mpl.has_internal_structure,
+                    "tested": mpl.tested,
+                    "timeframe": mpl.timeframe.value,
+                }
+                for mpl in mpl_levels
+            ],
+        }
+
+    @staticmethod
     def _serialize_supply_zones(supply_zones: list) -> dict:
         return {
             "count": len(supply_zones),
@@ -944,56 +1337,51 @@ class TAOrchestrator:
                     "swing_high_timestamp": fib.swing_high_timestamp.isoformat(),
                     "swing_low_timestamp": fib.swing_low_timestamp.isoformat(),
                     "is_bullish": fib.is_bullish,
+                    "range_size": fib.range_size,
                 }
                 for fib in fibonacci_retracements
             ],
         }
 
     @staticmethod
-    def _serialize_mpl_levels(mpl_levels: list) -> dict:
+    def _serialize_dealing_ranges(dealing_ranges: list) -> dict:
         return {
-            "count": len(mpl_levels),
+            "count": len(dealing_ranges),
             "data": [
                 {
-                    "mpl_price": mpl.mpl_price,
-                    "timestamp": mpl.timestamp.isoformat(),
-                    "direction": mpl.direction.value,
-                    "has_internal_structure": mpl.has_internal_structure,
-                    "tested": mpl.tested,
-                    "timeframe": mpl.timeframe.value,
+                    "high": dr.high,
+                    "low": dr.low,
+                    "equilibrium": dr.equilibrium,
+                    "start_time": dr.start_time.isoformat(),
+                    "end_time": (
+                        dr.end_time.isoformat()
+                        if dr.end_time
+                        else None
+                    ),
+                    "timeframe": dr.timeframe.value,
+                    "range_size": dr.range_size,
                 }
-                for mpl in mpl_levels
+                for dr in dealing_ranges
             ],
         }
 
     @staticmethod
-    def _serialize_previous_levels(snapshot: TechnicalSnapshot) -> dict:
-        """Serialize equal highs/lows from the snapshot."""
+    def _serialize_previous_levels(equal_highs_lows: list) -> dict:
+        """Serialize equal highs/lows for DB persistence."""
         return {
-            "count": len(snapshot.equal_highs_lows),
+            "count": len(equal_highs_lows),
             "data": [
                 {
-                    "price": ehl.price,
-                    "timestamp": ehl.timestamp.isoformat(),
-                    "direction": ehl.direction.value,
+                    "price_level": ehl.price_level,
+                    "liquidity_type": ehl.liquidity_type.value,
+                    "touch_count": ehl.touch_count,
+                    "timestamps": [
+                        ts.isoformat() for ts in ehl.timestamps
+                    ],
+                    "tolerance_pips": ehl.tolerance_pips,
+                    "timeframe": ehl.timeframe.value,
+                    "swept": ehl.swept,
                 }
-                for ehl in snapshot.equal_highs_lows
-                if hasattr(ehl, "price")
-            ],
-        }
-
-    @staticmethod
-    def _serialize_fakeout_tests(snapshot: TechnicalSnapshot) -> dict:
-        """Serialize liquidity grabs as fakeout tests from the snapshot."""
-        return {
-            "count": len(snapshot.liquidity_grabs),
-            "data": [
-                {
-                    "price": grab.price,
-                    "timestamp": grab.timestamp.isoformat(),
-                    "direction": grab.direction.value,
-                }
-                for grab in snapshot.liquidity_grabs
-                if hasattr(grab, "price")
+                for ehl in equal_highs_lows
             ],
         }
