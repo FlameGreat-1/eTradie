@@ -9,7 +9,7 @@ from engine.ta.constants import Timeframe, Direction, StructureType
 
 
 class StructureEvent(FrozenModel):
-
+    
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     event_type: StructureType
@@ -19,17 +19,17 @@ class StructureEvent(FrozenModel):
     broken_level: float = Field(gt=0)
     broken_level_timestamp: datetime
     candle_index: int = Field(ge=0)
-
+    
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
-
+    
     @computed_field
     @property
     def is_bullish(self) -> bool:
         return self.direction == Direction.BULLISH
-
+    
     @computed_field
     @property
     def is_bearish(self) -> bool:
@@ -37,7 +37,7 @@ class StructureEvent(FrozenModel):
 
 
 class BreakOfStructure(FrozenModel):
-
+    
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
@@ -47,22 +47,22 @@ class BreakOfStructure(FrozenModel):
     breakout_price: float = Field(gt=0)
     candle_index: int = Field(ge=0)
     displacement_pips: float = Field(ge=0)
-
+    
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
-
+    
     @computed_field
     @property
     def is_bullish(self) -> bool:
         return self.direction == Direction.BULLISH
-
+    
     @computed_field
     @property
     def is_bearish(self) -> bool:
         return self.direction == Direction.BEARISH
-
+    
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
             symbol=self.symbol,
@@ -78,7 +78,7 @@ class BreakOfStructure(FrozenModel):
 
 
 class ChangeOfCharacter(FrozenModel):
-
+    
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
@@ -88,22 +88,22 @@ class ChangeOfCharacter(FrozenModel):
     breakout_price: float = Field(gt=0)
     candle_index: int = Field(ge=0)
     is_minor: bool = Field(default=True)
-
+    
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
-
+    
     @computed_field
     @property
     def is_bullish(self) -> bool:
         return self.direction == Direction.BULLISH
-
+    
     @computed_field
     @property
     def is_bearish(self) -> bool:
         return self.direction == Direction.BEARISH
-
+    
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
             symbol=self.symbol,
@@ -119,7 +119,7 @@ class ChangeOfCharacter(FrozenModel):
 
 
 class BreakInMarketStructure(FrozenModel):
-
+    
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
@@ -130,22 +130,22 @@ class BreakInMarketStructure(FrozenModel):
     candle_index: int = Field(ge=0)
     displacement_pips: float = Field(ge=0)
     confirmed: bool = Field(default=False)
-
+    
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
-
+    
     @computed_field
     @property
     def is_bullish(self) -> bool:
         return self.direction == Direction.BULLISH
-
+    
     @computed_field
     @property
     def is_bearish(self) -> bool:
         return self.direction == Direction.BEARISH
-
+    
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
             symbol=self.symbol,
@@ -161,7 +161,7 @@ class BreakInMarketStructure(FrozenModel):
 
 
 class ShiftInMarketStructure(FrozenModel):
-
+    
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
@@ -171,22 +171,22 @@ class ShiftInMarketStructure(FrozenModel):
     reversal_price: float = Field(gt=0)
     candle_index: int = Field(ge=0)
     is_failure_swing: bool = Field(default=True)
-
+    
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
-
+    
     @computed_field
     @property
     def is_bullish(self) -> bool:
         return self.direction == Direction.BULLISH
-
+    
     @computed_field
     @property
     def is_bearish(self) -> bool:
         return self.direction == Direction.BEARISH
-
+    
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
             symbol=self.symbol,
@@ -204,26 +204,28 @@ class ShiftInMarketStructure(FrozenModel):
 class SRFlip(FrozenModel):
     """Support-to-Resistance Flip.
 
-    SR Flip: A Support level (swing low) is broken downward by a single
-    bearish Marubozu. The old Support now becomes Resistance.
+    Detected when a bearish Marubozu breaks a support level (swing low)
+    downward, flipping it into resistance.
 
-    - flip_level = the exact price level where the flip happened
-    - flip_level_timestamp = when that level was originally established
-    - breakout_price = the close price of the Marubozu that broke it
-    - candle_index = index of the breakout Marubozu candle
-    - direction = BEARISH (support broken downward)
+    Fields match what SRFlipDetector constructs:
+    - original_support_level: the swing low price that was broken
+    - original_support_timestamp: when that swing low formed
+    - breakout_candle_index: index of the Marubozu that broke it
+    - breakout_price: close price of the breakout candle
+    - new_resistance_level: same as original_support_level (now resistance)
+    - direction: BEARISH (support broken downward)
+    - is_valid: whether the flip is confirmed
     """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
-    flip_level: float = Field(gt=0)
-    flip_level_timestamp: datetime
+    original_support_level: float = Field(gt=0)
+    original_support_timestamp: datetime
+    breakout_candle_index: int = Field(ge=0)
     breakout_price: float = Field(gt=0)
-    candle_index: int = Field(ge=0)
+    new_resistance_level: float = Field(gt=0)
     direction: Direction = Field(default=Direction.BEARISH)
-    previous_role: str = Field(default="SUPPORT")
-    new_role: str = Field(default="RESISTANCE")
     is_valid: bool = Field(default=True)
 
     @field_validator("symbol")
@@ -231,22 +233,21 @@ class SRFlip(FrozenModel):
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
 
-    @field_validator("previous_role", "new_role")
-    @classmethod
-    def validate_role(cls, v: str) -> str:
-        if v not in ("SUPPORT", "RESISTANCE"):
-            raise ValueError("Role must be SUPPORT or RESISTANCE")
-        return v
+    @computed_field
+    @property
+    def flip_level(self) -> float:
+        """Alias for serializers that read flip_level."""
+        return self.original_support_level
 
-    def model_post_init(self, __context) -> None:
-        if self.previous_role == self.new_role:
-            raise ConfigurationError(
-                "Previous role and new role cannot be the same",
-                details={
-                    "previous_role": self.previous_role,
-                    "new_role": self.new_role,
-                },
-            )
+    @computed_field
+    @property
+    def previous_role(self) -> str:
+        return "SUPPORT"
+
+    @computed_field
+    @property
+    def new_role(self) -> str:
+        return "RESISTANCE"
 
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
@@ -255,36 +256,38 @@ class SRFlip(FrozenModel):
             event_type=StructureType.SR_FLIP,
             timestamp=self.timestamp,
             price=self.breakout_price,
-            direction=self.direction,
-            broken_level=self.flip_level,
-            broken_level_timestamp=self.flip_level_timestamp,
-            candle_index=self.candle_index,
+            direction=Direction.BEARISH,
+            broken_level=self.original_support_level,
+            broken_level_timestamp=self.original_support_timestamp,
+            candle_index=self.breakout_candle_index,
         )
 
 
 class RSFlip(FrozenModel):
     """Resistance-to-Support Flip.
 
-    RS Flip: A Resistance level (swing high) is broken upward by a single
-    bullish Marubozu. The old Resistance now becomes Support.
+    Detected when a bullish Marubozu breaks a resistance level (swing high)
+    upward, flipping it into support.
 
-    - flip_level = the exact price level where the flip happened
-    - flip_level_timestamp = when that level was originally established
-    - breakout_price = the close price of the Marubozu that broke it
-    - candle_index = index of the breakout Marubozu candle
-    - direction = BULLISH (resistance broken upward)
+    Fields match what RSFlipDetector constructs:
+    - original_resistance_level: the swing high price that was broken
+    - original_resistance_timestamp: when that swing high formed
+    - breakout_candle_index: index of the Marubozu that broke it
+    - breakout_price: close price of the breakout candle
+    - new_support_level: same as original_resistance_level (now support)
+    - direction: BULLISH (resistance broken upward)
+    - is_valid: whether the flip is confirmed
     """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     timestamp: datetime
-    flip_level: float = Field(gt=0)
-    flip_level_timestamp: datetime
+    original_resistance_level: float = Field(gt=0)
+    original_resistance_timestamp: datetime
+    breakout_candle_index: int = Field(ge=0)
     breakout_price: float = Field(gt=0)
-    candle_index: int = Field(ge=0)
+    new_support_level: float = Field(gt=0)
     direction: Direction = Field(default=Direction.BULLISH)
-    previous_role: str = Field(default="RESISTANCE")
-    new_role: str = Field(default="SUPPORT")
     is_valid: bool = Field(default=True)
 
     @field_validator("symbol")
@@ -292,22 +295,21 @@ class RSFlip(FrozenModel):
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
 
-    @field_validator("previous_role", "new_role")
-    @classmethod
-    def validate_role(cls, v: str) -> str:
-        if v not in ("SUPPORT", "RESISTANCE"):
-            raise ValueError("Role must be SUPPORT or RESISTANCE")
-        return v
+    @computed_field
+    @property
+    def flip_level(self) -> float:
+        """Alias for serializers that read flip_level."""
+        return self.original_resistance_level
 
-    def model_post_init(self, __context) -> None:
-        if self.previous_role == self.new_role:
-            raise ConfigurationError(
-                "Previous role and new role cannot be the same",
-                details={
-                    "previous_role": self.previous_role,
-                    "new_role": self.new_role,
-                },
-            )
+    @computed_field
+    @property
+    def previous_role(self) -> str:
+        return "RESISTANCE"
+
+    @computed_field
+    @property
+    def new_role(self) -> str:
+        return "SUPPORT"
 
     def to_structure_event(self) -> StructureEvent:
         return StructureEvent(
@@ -316,8 +318,8 @@ class RSFlip(FrozenModel):
             event_type=StructureType.RS_FLIP,
             timestamp=self.timestamp,
             price=self.breakout_price,
-            direction=self.direction,
-            broken_level=self.flip_level,
-            broken_level_timestamp=self.flip_level_timestamp,
-            candle_index=self.candle_index,
+            direction=Direction.BULLISH,
+            broken_level=self.original_resistance_level,
+            broken_level_timestamp=self.original_resistance_timestamp,
+            candle_index=self.breakout_candle_index,
         )
