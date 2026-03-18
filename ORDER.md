@@ -88,4 +88,4 @@ Let me also check one more thing before I start - the `CandleRepository.create()
 
 
 
-SO THAT'S
+SO I THINK WE HAVE UPDATED sr_flip.py, rs_flip.py, structure_event.py, snd/detector.py, orchestrator.py, snd/detector.py
