@@ -14,21 +14,21 @@ logger = get_logger(__name__)
 class SnapshotRepository:
     """
     Repository for TechnicalSnapshot aggregate persistence and versioning.
-    
+
     Provides:
     - Snapshot storage (immutable once created)
     - Version tracking (new analysis = new version)
     - Symbol/timeframe/timestamp queries
     - Latest snapshot retrieval
     - Historical snapshot access
-    
+
     All operations are async for non-blocking I/O.
     """
-    
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._logger = get_logger(__name__)
-    
+
     async def create(
         self,
         symbol: str,
@@ -41,6 +41,7 @@ class SnapshotRepository:
         sms_events: dict,
         order_blocks: dict,
         fair_value_gaps: dict,
+        breaker_blocks: dict,
         liquidity_sweeps: dict,
         inducement_events: dict,
         qm_levels: dict,
@@ -52,12 +53,13 @@ class SnapshotRepository:
         supply_zones: dict,
         demand_zones: dict,
         fibonacci_retracements: dict,
+        dealing_ranges: dict,
         metadata: Optional[dict] = None,
         notes: Optional[str] = None,
     ) -> SnapshotSchema:
         """Create a new technical snapshot."""
         latest_version = await self._get_latest_version(symbol, timeframe)
-        
+
         schema = SnapshotSchema(
             symbol=symbol,
             timeframe=timeframe,
@@ -69,6 +71,7 @@ class SnapshotRepository:
             sms_events=sms_events,
             order_blocks=order_blocks,
             fair_value_gaps=fair_value_gaps,
+            breaker_blocks=breaker_blocks,
             liquidity_sweeps=liquidity_sweeps,
             inducement_events=inducement_events,
             qm_levels=qm_levels,
@@ -80,14 +83,15 @@ class SnapshotRepository:
             supply_zones=supply_zones,
             demand_zones=demand_zones,
             fibonacci_retracements=fibonacci_retracements,
+            dealing_ranges=dealing_ranges,
             metadata=metadata,
             version=latest_version + 1,
             notes=notes,
         )
-        
+
         self.session.add(schema)
         await self.session.flush()
-        
+
         self._logger.debug(
             "snapshot_created",
             extra={
@@ -97,16 +101,16 @@ class SnapshotRepository:
                 "version": schema.version,
             },
         )
-        
+
         return schema
-    
+
     async def get_by_id(self, snapshot_id: UUID) -> Optional[SnapshotSchema]:
         """Retrieve snapshot by ID."""
         result = await self.session.execute(
             select(SnapshotSchema).where(SnapshotSchema.id == snapshot_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def find_by_symbol_timeframe_timestamp(
         self,
         symbol: str,
@@ -127,7 +131,7 @@ class SnapshotRepository:
             .limit(1)
         )
         return result.scalar_one_or_none()
-    
+
     async def get_latest_snapshot(
         self,
         symbol: str,
@@ -146,7 +150,7 @@ class SnapshotRepository:
             .limit(1)
         )
         return result.scalar_one_or_none()
-    
+
     async def find_by_time_range(
         self,
         symbol: str,
@@ -168,13 +172,13 @@ class SnapshotRepository:
             )
             .order_by(SnapshotSchema.timestamp, desc(SnapshotSchema.version))
         )
-        
+
         if limit:
             query = query.limit(limit)
-        
+
         result = await self.session.execute(query)
         return list(result.scalars().all())
-    
+
     async def get_snapshot_count(
         self,
         symbol: str,
@@ -182,7 +186,7 @@ class SnapshotRepository:
     ) -> int:
         """Count total snapshots for symbol/timeframe."""
         from sqlalchemy import func
-        
+
         result = await self.session.execute(
             select(func.count(SnapshotSchema.id)).where(
                 and_(
@@ -192,24 +196,24 @@ class SnapshotRepository:
             )
         )
         return result.scalar_one()
-    
+
     async def delete_by_id(self, snapshot_id: UUID) -> bool:
         """Delete snapshot by ID."""
         snapshot = await self.get_by_id(snapshot_id)
-        
+
         if not snapshot:
             return False
-        
+
         await self.session.delete(snapshot)
         await self.session.flush()
-        
+
         self._logger.debug(
             "snapshot_deleted",
             extra={"snapshot_id": str(snapshot_id)},
         )
-        
+
         return True
-    
+
     async def _get_latest_version(
         self,
         symbol: str,
@@ -217,7 +221,7 @@ class SnapshotRepository:
     ) -> int:
         """Get latest version number for symbol/timeframe."""
         from sqlalchemy import func
-        
+
         result = await self.session.execute(
             select(func.max(SnapshotSchema.version)).where(
                 and_(
@@ -226,6 +230,6 @@ class SnapshotRepository:
                 )
             )
         )
-        
+
         max_version = result.scalar_one_or_none()
         return max_version if max_version is not None else 0

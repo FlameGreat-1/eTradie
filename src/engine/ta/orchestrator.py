@@ -618,7 +618,7 @@ class TAOrchestrator:
                         sequence,
                         qml.level,
                         qml.timestamp,
-                        sr_flip.original_support_level,
+                        sr_flip.new_resistance_level,
                         sr_flip.timestamp,
                     )
                     supply_zones.append(sz)
@@ -629,7 +629,7 @@ class TAOrchestrator:
                         sequence,
                         qmh.level,
                         qmh.timestamp,
-                        rs_flip.original_resistance_level,
+                        rs_flip.new_support_level,
                         rs_flip.timestamp,
                     )
                     demand_zones.append(dz)
@@ -944,6 +944,12 @@ class TAOrchestrator:
                 ),
                 fibonacci_retracements=self._serialize_fibonacci(
                     snapshot.fibonacci_retracements,
+                ),
+                breaker_blocks=self._serialize_breaker_blocks(
+                    snapshot.breaker_blocks,
+                ),
+                dealing_ranges=self._serialize_dealing_ranges(
+                    snapshot.dealing_ranges,
                 ),
             )
         except Exception as e:
