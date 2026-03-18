@@ -614,34 +614,25 @@ class TAOrchestrator:
             demand_zones = []
             for qml in qml_levels:
                 for sr_flip in sr_flips:
-                    # Use the synced fields: level/qml_price and
-                    # original_support_level/flip_level are kept in
-                    # sync by model_post_init.
-                    qml_price = qml.level or qml.qml_price
-                    sr_level = sr_flip.original_support_level or sr_flip.flip_level
-                    if qml_price and sr_level:
-                        sz = self._supply_demand_detector.create_supply_zone(
-                            sequence,
-                            qml_price,
-                            qml.timestamp,
-                            sr_level,
-                            sr_flip.timestamp,
-                        )
-                        supply_zones.append(sz)
+                    sz = self._supply_demand_detector.create_supply_zone(
+                        sequence,
+                        qml.level,
+                        qml.timestamp,
+                        sr_flip.new_resistance_level,
+                        sr_flip.timestamp,
+                    )
+                    supply_zones.append(sz)
 
             for qmh in qmh_levels:
                 for rs_flip in rs_flips:
-                    qmh_price = qmh.level or qmh.qml_price
-                    rs_level = rs_flip.original_resistance_level or rs_flip.flip_level
-                    if qmh_price and rs_level:
-                        dz = self._supply_demand_detector.create_demand_zone(
-                            sequence,
-                            qmh_price,
-                            qmh.timestamp,
-                            rs_level,
-                            rs_flip.timestamp,
-                        )
-                        demand_zones.append(dz)
+                    dz = self._supply_demand_detector.create_demand_zone(
+                        sequence,
+                        qmh.level,
+                        qmh.timestamp,
+                        rs_flip.new_support_level,
+                        rs_flip.timestamp,
+                    )
+                    demand_zones.append(dz)
 
             # ── Fibonacci retracements ───────────────────────────────
             fibonacci_retracements = []
