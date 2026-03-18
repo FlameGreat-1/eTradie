@@ -250,13 +250,26 @@ class BreakerBlock(FrozenModel):
 
 
 class SupplyZone(FrozenModel):
+    """Supply zone bounded by QML (upper) and SR Flip (lower).
+
+    Fields match what SupplyDemandDetector.create_supply_zone() passes:
+    - qml_level, qml_timestamp: the QML price level and when it formed
+    - sr_flip_level, sr_flip_timestamp: the SR Flip level and when it formed
+    - is_valid: whether the zone is confirmed
+
+    upper_bound/lower_bound are derived from max/min of qml and sr_flip.
+    """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
     timestamp: datetime
-    candle_index: int = Field(ge=0)
+    qml_level: float = Field(gt=0)
+    qml_timestamp: datetime
+    sr_flip_level: float = Field(gt=0)
+    sr_flip_timestamp: datetime
+    is_valid: bool = Field(default=True)
     strength: int = Field(ge=1, le=10, default=1)
     tested: bool = Field(default=False)
     test_count: int = Field(ge=0, default=0)
@@ -277,6 +290,12 @@ class SupplyZone(FrozenModel):
                     "lower_bound": self.lower_bound,
                 },
             )
+
+    @computed_field
+    @property
+    def candle_index(self) -> int:
+        """Compatibility alias -- supply zones don't have a single candle index."""
+        return 0
 
     @computed_field
     @property
@@ -302,13 +321,26 @@ class SupplyZone(FrozenModel):
 
 
 class DemandZone(FrozenModel):
+    """Demand zone bounded by RS Flip (upper) and QMH (lower).
+
+    Fields match what SupplyDemandDetector.create_demand_zone() passes:
+    - qmh_level, qmh_timestamp: the QMH price level and when it formed
+    - rs_flip_level, rs_flip_timestamp: the RS Flip level and when it formed
+    - is_valid: whether the zone is confirmed
+
+    upper_bound/lower_bound are derived from max/min of qmh and rs_flip.
+    """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
     timestamp: datetime
-    candle_index: int = Field(ge=0)
+    qmh_level: float = Field(gt=0)
+    qmh_timestamp: datetime
+    rs_flip_level: float = Field(gt=0)
+    rs_flip_timestamp: datetime
+    is_valid: bool = Field(default=True)
     strength: int = Field(ge=1, le=10, default=1)
     tested: bool = Field(default=False)
     test_count: int = Field(ge=0, default=0)
@@ -329,6 +361,12 @@ class DemandZone(FrozenModel):
                     "lower_bound": self.lower_bound,
                 },
             )
+
+    @computed_field
+    @property
+    def candle_index(self) -> int:
+        """Compatibility alias -- demand zones don't have a single candle index."""
+        return 0
 
     @computed_field
     @property
@@ -354,46 +392,32 @@ class DemandZone(FrozenModel):
 
 
 class QuasiModoLevel(FrozenModel):
-    """Quasimodo Level (QML / QMH).
+    """Quasimodo Level (QML for sells, QMH for buys).
 
-    QML (bearish): H -> HH -> break of H level = QML established.
-      - qml_price = H price (the level where Supply zone sits)
-      - h_price / hh_price = H and HH swing high prices
-      - h_timestamp / hh_timestamp = timestamps of H and HH
-      - hh_index = candle index of the HH swing
+    Fields match what QMDetector constructs:
+    - level: the QML/QMH price (first H for sells, first L for buys)
+    - h1_price, h1_timestamp: first swing point price and time
+    - h2_price, h2_timestamp: second swing point price and time
+    - break_candle_index: index of candle that broke the level
+    - break_timestamp: when the break occurred
+    - is_valid: whether the QM structure is confirmed
 
-    QMH (bullish): L -> LL -> break of L level = QMH established.
-      - qml_price = L price (the level where Demand zone sits)
-      - l_price / ll_price = L and LL swing low prices
-      - l_timestamp / ll_timestamp = timestamps of L and LL
-      - ll_index = candle index of the LL swing
+    For bearish QM (QML): H1 -> HH (H2) -> break below H1 = QML
+    For bullish QM (QMH): L1 -> LL (L2) -> break above L1 = QMH
     """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
-    qml_price: float = Field(gt=0)
+    level: float = Field(gt=0)
     timestamp: datetime
-    candle_index: int = Field(ge=0)
     direction: Direction
-
-    # QML (bearish) fields: H -> HH structure
-    h_price: Optional[float] = Field(default=None, gt=0)
-    hh_price: Optional[float] = Field(default=None, gt=0)
-    h_timestamp: Optional[datetime] = None
-    hh_timestamp: Optional[datetime] = None
-    hh_index: Optional[int] = Field(default=None, ge=0)
-
-    # QMH (bullish) fields: L -> LL structure
-    l_price: Optional[float] = Field(default=None, gt=0)
-    ll_price: Optional[float] = Field(default=None, gt=0)
-    l_timestamp: Optional[datetime] = None
-    ll_timestamp: Optional[datetime] = None
-    ll_index: Optional[int] = Field(default=None, ge=0)
-
-    # Break confirmation
-    break_timestamp: Optional[datetime] = None
+    h1_price: float = Field(gt=0)
+    h1_timestamp: datetime
+    h2_price: float = Field(gt=0)
+    h2_timestamp: datetime
+    break_candle_index: int = Field(ge=0)
+    break_timestamp: datetime
     is_valid: bool = Field(default=True)
-
     tested: bool = Field(default=False)
     test_timestamp: Optional[datetime] = None
 
@@ -401,6 +425,54 @@ class QuasiModoLevel(FrozenModel):
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
+
+    @computed_field
+    @property
+    def qml_price(self) -> float:
+        """Alias for serializers that read qml_price."""
+        return self.level
+
+    @computed_field
+    @property
+    def h_price(self) -> float:
+        """Alias for serializers that read h_price."""
+        return self.h1_price
+
+    @computed_field
+    @property
+    def hh_price(self) -> float:
+        """Alias for serializers that read hh_price."""
+        return self.h2_price
+
+    @computed_field
+    @property
+    def h_timestamp(self) -> datetime:
+        """Alias for serializers that read h_timestamp."""
+        return self.h1_timestamp
+
+    @computed_field
+    @property
+    def hh_timestamp(self) -> datetime:
+        """Alias for serializers that read hh_timestamp."""
+        return self.h2_timestamp
+
+    @computed_field
+    @property
+    def candle_index(self) -> int:
+        """Alias for serializers that read candle_index."""
+        return self.break_candle_index
+
+    @computed_field
+    @property
+    def h2_index(self) -> int:
+        """Index alias used by SnDDetector for MPL detection range."""
+        return self.break_candle_index
+
+    @computed_field
+    @property
+    def l2_index(self) -> int:
+        """Index alias used by SnDDetector for MPL detection range (QMH)."""
+        return self.break_candle_index
 
     @computed_field
     @property
@@ -414,14 +486,26 @@ class QuasiModoLevel(FrozenModel):
 
 
 class MiniPriceLevel(FrozenModel):
+    """Mini Price Level (MPL).
+
+    Fields match what MPLDetector constructs:
+    - level: the MPL price (candle high for bearish, candle low for bullish)
+    - is_type1: True if internal engulfing structure exists (circled)
+    - has_internal_structure: same as is_type1
+
+    Two types:
+    - Type 1: MPL with internal engulfing structure (circled on chart)
+    - Type 2: MPL breaks cleanly without internal structure
+    """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
-    mpl_price: float = Field(gt=0)
+    level: float = Field(gt=0)
     timestamp: datetime
     candle_index: int = Field(ge=0)
     direction: Direction
     has_internal_structure: bool = Field(default=False)
+    is_type1: bool = Field(default=False)
     tested: bool = Field(default=False)
     test_timestamp: Optional[datetime] = None
 
@@ -429,6 +513,12 @@ class MiniPriceLevel(FrozenModel):
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
+
+    @computed_field
+    @property
+    def mpl_price(self) -> float:
+        """Alias for serializers that read mpl_price."""
+        return self.level
 
     @computed_field
     @property
