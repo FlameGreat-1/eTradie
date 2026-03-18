@@ -945,6 +945,12 @@ class TAOrchestrator:
                 fibonacci_retracements=self._serialize_fibonacci(
                     snapshot.fibonacci_retracements,
                 ),
+                breaker_blocks=self._serialize_breaker_blocks(
+                    snapshot.breaker_blocks,
+                ),
+                dealing_ranges=self._serialize_dealing_ranges(
+                    snapshot.dealing_ranges,
+                ),
             )
         except Exception as e:
             self._logger.error(
