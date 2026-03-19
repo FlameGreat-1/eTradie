@@ -20,4 +20,17 @@ type RAGQueryParams struct {
 	HasRateDecision   bool     `json:"has_rate_decision"`
 	HasHighImpactEvent bool    `json:"has_high_impact_event"`
 	HasDXYData        bool     `json:"has_dxy_data"`
+
+	// Enriched macro signal fields — must match Python InternalRAGRequest
+	// (engine/main.py). Without these the RAG retriever defaults them to
+	// False/None and never fetches rules specific to these conditions.
+	HasQEQT                   bool   `json:"has_qe_qt"`
+	HasStagflation            bool   `json:"has_stagflation"`
+	HasCOTExtremes            bool   `json:"has_cot_extremes"`
+	HasTFFData                bool   `json:"has_tff_data"`
+	HasCoreInflation          bool   `json:"has_core_inflation"`
+	HasSafeHavenElevated      bool   `json:"has_safe_haven_elevated"`
+	HasCommodityCurrenciesWeak bool  `json:"has_commodity_currencies_weak"`
+	DXYMomentum               string `json:"dxy_momentum,omitempty"`
+	RiskEnvironment           string `json:"risk_environment,omitempty"`
 }

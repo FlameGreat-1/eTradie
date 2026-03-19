@@ -76,6 +76,17 @@ func (b *Builder) Build(
 		HasRateDecision:    macroSignals.HasRateDecision || macroSignals.HasRateChange,
 		HasHighImpactEvent: hasHighImpact,
 		HasDXYData:         hasDXY,
+
+		// Enriched macro signal fields for RAG retrieval optimization.
+		HasQEQT:                    macroSignals.HasQEQT,
+		HasStagflation:             macroSignals.StagflationDetected,
+		HasCOTExtremes:             len(macroSignals.COTExtremesFlagged) > 0,
+		HasTFFData:                 macroSignals.COTHasTFFData,
+		HasCoreInflation:           len(macroSignals.CoreInflationData) > 0,
+		HasSafeHavenElevated:       macroSignals.SafeHavenElevated,
+		HasCommodityCurrenciesWeak: macroSignals.CommodityCurrenciesWeak,
+		DXYMomentum:                macroSignals.DXYMomentum,
+		RiskEnvironment:            macroSignals.RiskEnvironment,
 	}
 
 	b.log.Debug().

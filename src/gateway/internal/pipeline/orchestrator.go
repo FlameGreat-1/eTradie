@@ -616,6 +616,18 @@ func (o *Orchestrator) retrieveRAG(
 		"has_rate_decision":     params.HasRateDecision,
 		"has_high_impact_event": params.HasHighImpactEvent,
 		"has_dxy_data":          params.HasDXYData,
+
+		// Enriched macro signal fields — match Python InternalRAGRequest.
+		"has_qe_qt":                    params.HasQEQT,
+		"has_stagflation":              params.HasStagflation,
+		"has_cot_extremes":             params.HasCOTExtremes,
+		"has_tff_data":                 params.HasTFFData,
+		"has_core_inflation":           params.HasCoreInflation,
+		"has_safe_haven_elevated":      params.HasSafeHavenElevated,
+		"has_commodity_currencies_weak": params.HasCommodityCurrenciesWeak,
+		"dxy_momentum":                 params.DXYMomentum,
+		"risk_environment":             params.RiskEnvironment,
+
 		"trace_id":              traceID,
 	}
 
