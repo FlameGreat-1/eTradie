@@ -1,35 +1,9 @@
-services:
-  engine:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: etradie-engine
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - etradie-net
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
-        reservations:
-          memory: 256M
-          cpus: "0.5"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+version: '3.8'
 
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # INFRASTRUCTURE DATABASES
+  # ─────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: etradie-postgres
@@ -47,10 +21,9 @@ services:
       - etradie-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-etradie} -d ${POSTGRES_DB:-etradie}"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 10s
     deploy:
       resources:
         limits:
@@ -72,7 +45,7 @@ services:
       - etradie-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     deploy:
@@ -80,6 +53,127 @@ services:
         limits:
           memory: 128M
 
+  chromadb:
+    image: chromadb/chroma:0.4.24
+    container_name: etradie-chromadb
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    networks:
+      - etradie-net
+
+  # ─────────────────────────────────────────────────────────────────
+  # MIGRATIONS
+  # ─────────────────────────────────────────────────────────────────
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etradie-migrator
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - etradie-net
+    # Runs alembic upgrade, then shuts itself down automatically
+    command: ["alembic", "upgrade", "head"]
+
+  # ─────────────────────────────────────────────────────────────────
+  # PYTHON INTELLIGENCE ENGINE
+  # ─────────────────────────────────────────────────────────────────
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etradie-engine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./knowledge:/app/knowledge:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    
+  # ─────────────────────────────────────────────────────────────────
+  # GO GATEWAY API
+  # ─────────────────────────────────────────────────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
+    container_name: etradie-gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
+      - GATEWAY_EXECUTION_ADDR=execution:50053
+    ports:
+      - "8080:8080"
+      - "50052:50052"
+    depends_on:
+      engine:
+        condition: service_healthy
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────────
+  # GO STATELESS EXECUTION ENGINE
+  # ─────────────────────────────────────────────────────────────────
+  execution:
+    build:
+      context: .
+      dockerfile: src/execution/Dockerfile
+    container_name: etradie-execution
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - EXECUTION_BROKER_BRIDGE_URL=http://engine:8000
+      - EXECUTION_MODULE_C_ADDR=gateway:50052
+    ports:
+      - "50053:50053"
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────────
+  # OBSERVABILITY
+  # ─────────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: etradie-prometheus
@@ -96,10 +190,35 @@ services:
         limits:
           memory: 128M
 
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: etradie-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - prometheus
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 volumes:
   postgres_data:
     driver: local
   prometheus_data:
+    driver: local
+  chromadb_data:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:

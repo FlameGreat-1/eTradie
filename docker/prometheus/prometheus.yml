@@ -10,3 +10,19 @@ scrape_configs:
         labels:
           service: "etradie-engine"
           environment: "development"
+
+  - job_name: "etradie-gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["gateway:8080"]
+        labels:
+          service: "etradie-gateway"
+          environment: "development"
+
+  - job_name: "etradie-execution"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["execution:8080"]
+        labels:
+          service: "etradie-execution"
+          environment: "development"

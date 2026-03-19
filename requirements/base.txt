@@ -40,3 +40,12 @@ structlog==24.4.0
 orjson==3.10.15
 python-dateutil==2.9.0
 tenacity==9.0.0
+
+# ── AI & Language Models ─────────────────────────────────────
+openai>=1.14.0
+anthropic>=0.21.0
+google-genai>=0.2.0
+
+# ── RAG & Embeddings ─────────────────────────────────────────
+sentence-transformers>=2.5.1
+chromadb>=0.4.24
