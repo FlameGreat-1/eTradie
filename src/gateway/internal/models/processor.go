@@ -65,4 +65,10 @@ type ProcessorOutput struct {
 	RRRatio         *float64 `json:"rr_ratio,omitempty"`
 	ConfluenceScore float64  `json:"confluence_score"`
 	AnalysisID      string   `json:"analysis_id,omitempty"`
+
+	// Execution control: sent to Module B so it knows which mode to use
+	// and whether the LTF confirmation already exists (pre-confirmed fast path).
+	ExecutionMode string `json:"execution_mode,omitempty"` // "LIMIT" or "INSTANT"
+	LTFConfirmed  bool   `json:"ltf_confirmed"`
+	SetupType     string `json:"setup_type,omitempty"`
 }

@@ -42,6 +42,7 @@ type Order struct {
 	Grade        string
 	Confluence   float64
 	Confidence   float64
+	SetupType    string
 
 	// Limit mode specifics.
 	TTLCandles int
@@ -49,6 +50,7 @@ type Order struct {
 	// Instant mode specifics.
 	WatcherID          string
 	OvershootTolerance float64
+	LTFConfirmed       bool
 
 	// Timestamps.
 	CreatedAt time.Time

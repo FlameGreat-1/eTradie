@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/alert/alertredis"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"

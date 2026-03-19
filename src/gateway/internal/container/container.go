@@ -12,6 +12,7 @@ import (
 	"github.com/flamegreat/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat/etradie/src/gateway/internal/context"
 	"github.com/flamegreat/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat/etradie/src/gateway/internal/management"
 	"github.com/flamegreat/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat/etradie/src/gateway/internal/pipeline"
 	"github.com/flamegreat/etradie/src/gateway/internal/ports"
@@ -34,6 +35,7 @@ type Container struct {
 	Scheduler      *pipeline.Scheduler
 	HTTPServer     *server.HTTPServer
 	GRPCServer     *server.GRPCServer
+	Management     *management.Client
 	AlertHub       *alert.Hub
 	AlertTransport *alertredis.Transport
 	log            zerolog.Logger
@@ -93,14 +95,25 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 	// Load any dashboard-set interval override from Redis before starting.
 	scheduler.LoadPersistedInterval(context.Background())
 
+	// Management Client (Module C).
+	var mgmtClient *management.Client
+	if cfg.ManagementEnabled {
+		mgmtClient, err = management.NewClient(cfg.ManagementAddr, cfg.ManagementTimeoutMs)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed_to_connect_to_management_engine")
+			// We don't fail container creation if management is down, Gateway can still route to Execution.
+		}
+	}
+
 	// Servers.
 	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport)
-	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport)
+	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient)
 
 	log.Info().
 		Int("cycle_interval", scheduler.CurrentIntervalSeconds()).
 		Int("cycle_timeout", cfg.CycleTimeoutSeconds).
 		Bool("execution_available", execution != nil).
+		Bool("management_available", mgmtClient != nil).
 		Msg("gateway_container_built")
 
 	return &Container{
@@ -114,6 +127,7 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 		Scheduler:      scheduler,
 		HTTPServer:     httpServer,
 		GRPCServer:     grpcServer,
+		Management:     mgmtClient,
 		AlertHub:       hub,
 		AlertTransport: transport,
 		log:            log,
@@ -135,6 +149,12 @@ func (c *Container) Shutdown(ctx context.Context) {
 	if c.Execution != nil {
 		if err := c.Execution.Close(); err != nil {
 			c.log.Error().Err(err).Msg("execution_adapter_close_error")
+		}
+	}
+
+	if c.Management != nil {
+		if err := c.Management.Close(); err != nil {
+			c.log.Error().Err(err).Msg("management_client_close_error")
 		}
 	}
 

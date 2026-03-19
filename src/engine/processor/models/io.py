@@ -92,6 +92,10 @@ class ProcessorOutput(FrozenModel):
     confluence_score: float = 0.0
     analysis_id: Optional[str] = None
 
+    # Execution control overrides explicitly set by the AI processor.
+    execution_mode: Optional[str] = None
+    ltf_confirmed: bool = False
+
 
 class ProcessorPort(abc.ABC):
     """Abstract interface for the Processor LLM.

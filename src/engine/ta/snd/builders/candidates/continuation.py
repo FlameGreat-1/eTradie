@@ -90,15 +90,14 @@ class ContinuationCandidateBuilder:
             )
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BEARISH,
             qml.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_continuation_confluences(
             qml,
@@ -131,8 +130,8 @@ class ContinuationCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
             previous_highs_count=previous_highs.touch_count,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={
                 "confluences": confluences,
@@ -192,15 +191,14 @@ class ContinuationCandidateBuilder:
             )
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BULLISH,
             qmh.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_continuation_confluences(
             qmh,
@@ -233,8 +231,8 @@ class ContinuationCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
             previous_lows_count=previous_lows.touch_count,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={
                 "confluences": confluences,

@@ -46,3 +46,4 @@ Thumbs.db
 
 # ── Security reports ────────────────────────────────────────
 bandit-report.json
+torch/

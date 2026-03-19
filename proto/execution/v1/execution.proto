@@ -46,6 +46,16 @@ message ExecuteTradeRequest {
   double confidence = 18;
   string analysis_id = 19;       // Links back to Module A output
   string trace_id = 20;
+
+  // Execution mode override. If set, Execution uses this instead of
+  // resolving from the settings DB. Values: "LIMIT", "INSTANT".
+  string execution_mode = 21;
+
+  // LTF confirmation status from the TA candidate. When true AND mode
+  // is INSTANT, Execution fires the market order immediately (pre-
+  // confirmed fast path) without spawning a price watcher.
+  bool   ltf_confirmed = 22;
+  string setup_type = 23;        // Passes the structural TA setup type (e.g., OB, FVG)
 }
 
 message ExecuteTradeResponse {

@@ -134,4 +134,8 @@ message ProcessLLMResponse {
   double rr_ratio = 23;
   double confluence_score = 24;
   string analysis_id = 25;
+
+  // Execution control overrides explicitly set by the AI processor.
+  string execution_mode = 26;
+  bool   ltf_confirmed = 27;
 }

@@ -39,4 +39,8 @@ type Port interface {
 
 	// CancelOrder cancels a pending order by broker order ID.
 	CancelOrder(ctx context.Context, brokerOrderID string) error
+
+	// GetTickPrice returns the latest bid/ask for a symbol.
+	// Used by the watcher engine to detect POI zone touches.
+	GetTickPrice(ctx context.Context, symbol string) (*models.TickPrice, error)
 }

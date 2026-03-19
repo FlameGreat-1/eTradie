@@ -29,8 +29,8 @@ type Config struct {
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
 
-	// Module C address (for instant mode arming).
-	ModuleCAddr string `envconfig:"MODULE_C_ADDR" default:"localhost:50055"`
+	// Gateway address (for instant mode confirmation callbacks).
+	GatewayAddr string `envconfig:"GATEWAY_ADDR" default:"localhost:50052"`
 
 	// Default execution mode. Dashboard can override via settings store.
 	DefaultExecutionMode string `envconfig:"DEFAULT_EXECUTION_MODE" default:"LIMIT"`
@@ -55,8 +55,11 @@ type Config struct {
 	// Session enablement (comma-separated).
 	EnabledSessions []string `envconfig:"ENABLED_SESSIONS" default:"LONDON_OPEN,LONDON_NY_OVERLAP,NEW_YORK"`
 
-	// Instant mode.
-	OvershootToleranceMultiplier float64 `envconfig:"OVERSHOOT_TOLERANCE_MULTIPLIER" default:"1.5"`
+	// Instant mode watcher.
+	OvershootToleranceMultiplier   float64 `envconfig:"OVERSHOOT_TOLERANCE_MULTIPLIER" default:"1.5"`
+	WatcherPollIntervalMs          int     `envconfig:"WATCHER_POLL_INTERVAL_MS" default:"500"`
+	WatcherTimeoutMinutes          int     `envconfig:"WATCHER_TIMEOUT_MINUTES" default:"45"`
+	WatcherConfirmPollIntervalSecs int     `envconfig:"WATCHER_CONFIRM_POLL_INTERVAL_SECS" default:"300"`
 
 	// Database (execution audit log, pnl tracker, settings).
 	DatabaseURL         string `envconfig:"DATABASE_URL" required:"true"`
@@ -166,6 +169,18 @@ func (c *Config) validate() error {
 
 	if c.OvershootToleranceMultiplier < 1.0 || c.OvershootToleranceMultiplier > 3.0 {
 		return fmt.Errorf("OVERSHOOT_TOLERANCE_MULTIPLIER must be 1.0..3.0, got %f", c.OvershootToleranceMultiplier)
+	}
+	if c.WatcherPollIntervalMs < 100 || c.WatcherPollIntervalMs > 5000 {
+		return fmt.Errorf("WATCHER_POLL_INTERVAL_MS must be 100..5000, got %d", c.WatcherPollIntervalMs)
+	}
+	if c.WatcherTimeoutMinutes < 5 || c.WatcherTimeoutMinutes > 120 {
+		return fmt.Errorf("WATCHER_TIMEOUT_MINUTES must be 5..120, got %d", c.WatcherTimeoutMinutes)
+	}
+	if c.WatcherConfirmPollIntervalSecs < 60 || c.WatcherConfirmPollIntervalSecs > 600 {
+		return fmt.Errorf("WATCHER_CONFIRM_POLL_INTERVAL_SECS must be 60..600, got %d", c.WatcherConfirmPollIntervalSecs)
+	}
+	if c.GatewayAddr == "" {
+		return fmt.Errorf("GATEWAY_ADDR must not be empty")
 	}
 
 	if c.DatabaseURL == "" {

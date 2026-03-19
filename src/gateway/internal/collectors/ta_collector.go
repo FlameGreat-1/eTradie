@@ -50,7 +50,7 @@ func taCacheKey(symbols []string) string {
 
 // Collect runs TA analysis for the given symbols via a single HTTP call
 // to the Python engine. The Python side processes them in parallel.
-func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string) (*models.TAResult, error) {
+func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string, bypassCache bool) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
 		return &models.TAResult{
@@ -58,9 +58,11 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 		}, nil
 	}
 
-	// Check cache first.
-	if cached := c.getFromCache(ctx, symbols, traceID); cached != nil {
-		return cached, nil
+	// Check cache first (unless bypassing).
+	if !bypassCache {
+		if cached := c.getFromCache(ctx, symbols, traceID); cached != nil {
+			return cached, nil
+		}
 	}
 
 	start := time.Now()

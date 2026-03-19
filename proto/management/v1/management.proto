@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package management.v1;
+
+option go_package = "github.com/flamegreat/etradie/proto/management/v1;managementv1";
+
+// ManagementService is the gRPC contract for Module C (Trade Management).
+// The Gateway is the primary client. Module C implements this server.
+// Triggered when a trade is FILLED at the broker (Step 7 of the architecture).
+service ManagementService {
+  // RegisterFilledTrade is called by the Gateway immediately after the
+  // Execution service confirms an order is FILLED. This transfers full
+  // ownership of the trade to Module C for lifecycle management:
+  // break-even, trailing, partial closes, EOD protocols, and journaling.
+  rpc RegisterFilledTrade(RegisterFilledTradeRequest) returns (RegisterFilledTradeResponse);
+
+  // UpdateTradeStatus allows Module C to report TP/SL hits, partial
+  // closes, and final closures back to the Gateway for orchestration
+  // awareness and dashboard visibility.
+  rpc UpdateTradeStatus(UpdateTradeStatusRequest) returns (UpdateTradeStatusResponse);
+
+  // GetManagedTrades returns all trades currently under Module C management.
+  rpc GetManagedTrades(GetManagedTradesRequest) returns (GetManagedTradesResponse);
+
+  // GetTradeJournal returns closed trade history with full journal detail.
+  rpc GetTradeJournal(GetTradeJournalRequest) returns (GetTradeJournalResponse);
+
+  // GetPerformanceMetrics returns real-time analytics (win rate, expectancy, etc.).
+  rpc GetPerformanceMetrics(GetPerformanceMetricsRequest) returns (GetPerformanceMetricsResponse);
+
+  // GetHealth returns the management service's health status.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+// RegisterFilledTradeRequest carries everything Module C needs to take
+// ownership of a filled trade. Maps from the Gateway's orchestration context.
+message RegisterFilledTradeRequest {
+  string symbol = 1;
+  string direction = 2;              // "BUY" or "SELL"
+  string broker_order_id = 3;        // MT5 ticket number
+  double fill_price = 4;             // Actual entry price at broker
+  double stop_loss = 5;              // Initial SL from Module A
+  double tp1_price = 6;
+  int32  tp1_pct = 7;                // e.g. 40
+  double tp2_price = 8;
+  int32  tp2_pct = 9;                // e.g. 30
+  double tp3_price = 10;
+  int32  tp3_pct = 11;               // e.g. 30
+  double lot_size = 12;              // Total filled lot size
+  double rr_ratio = 13;
+  double risk_amount = 14;           // Dollar risk at entry
+  double risk_percent = 15;          // 1.0 or 0.5
+  string grade = 16;                 // "A+", "A", "B"
+  string trading_style = 17;         // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+  string session = 18;               // Session at time of entry
+  double confluence_score = 19;
+  string analysis_id = 20;           // Links back to Module A output
+  string trace_id = 21;
+  double slippage = 22;
+  string setup_type = 23;            // "OB", "FVG", "SND_ZONE", "LIQUIDITY_SWEEP", etc.
+  string execution_mode = 24;        // "LIMIT" or "INSTANT"
+}
+
+message RegisterFilledTradeResponse {
+  bool   success = 1;
+  string trade_id = 2;               // Module C's internal trade tracking ID
+  string message = 3;
+}
+
+// UpdateTradeStatusRequest is sent by Module C back to the Gateway
+// when significant trade events occur (TP hits, SL adjustments, closures).
+message UpdateTradeStatusRequest {
+  string trade_id = 1;
+  string event_type = 2;             // "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT", "BREAKEVEN_SET",
+                                     // "TRAILING_SL_MOVED", "PARTIAL_CLOSE", "TRADE_CLOSED",
+                                     // "EOD_CLOSURE", "INVALIDATION_CLOSURE"
+  string symbol = 3;
+  double current_price = 4;
+  double new_stop_loss = 5;          // Updated SL (for BE/trail events)
+  double closed_lot_size = 6;        // For partial closes
+  double realized_pnl = 7;          // P&L from partial or full close
+  double r_multiple = 8;             // Realized R-multiple
+  string reason = 9;                 // Human-readable reason
+  string trace_id = 10;
+}
+
+message UpdateTradeStatusResponse {
+  bool success = 1;
+}
+
+// GetManagedTradesRequest retrieves all actively managed trades.
+message GetManagedTradesRequest {
+  string trace_id = 1;
+}
+
+message GetManagedTradesResponse {
+  repeated ManagedTrade trades = 1;
+}
+
+message ManagedTrade {
+  string trade_id = 1;
+  string symbol = 2;
+  string direction = 3;
+  double entry_price = 4;
+  double current_price = 5;
+  double stop_loss = 6;
+  double tp1_price = 7;
+  double tp2_price = 8;
+  double tp3_price = 9;
+  double total_lot_size = 10;
+  double remaining_lot_size = 11;
+  double unrealized_pnl = 12;
+  double realized_pnl = 13;
+  string trading_style = 14;
+  string status = 15;                // "ACTIVE", "BREAKEVEN", "TRAILING", "CLOSING"
+  bool   breakeven_set = 16;
+  bool   tp1_hit = 17;
+  bool   tp2_hit = 18;
+  string broker_order_id = 19;
+  string analysis_id = 20;
+  string opened_at = 21;             // RFC3339
+}
+
+// GetTradeJournalRequest retrieves closed trade journal entries.
+message GetTradeJournalRequest {
+  int32  limit = 1;                  // Max entries to return (default 50)
+  int32  offset = 2;                 // Pagination offset
+  string symbol_filter = 3;          // Optional: filter by symbol
+  string style_filter = 4;           // Optional: filter by trading style
+  string trace_id = 5;
+}
+
+message GetTradeJournalResponse {
+  repeated JournalEntry entries = 1;
+  int32 total_count = 2;
+}
+
+message JournalEntry {
+  string trade_id = 1;
+  string symbol = 2;
+  string direction = 3;
+  double entry_price = 4;
+  double exit_price = 5;
+  double stop_loss = 6;
+  double lot_size = 7;
+  double gross_pnl = 8;
+  double r_multiple = 9;
+  double confluence_score = 10;
+  string grade = 11;
+  string setup_type = 12;
+  string trading_style = 13;
+  string outcome = 14;               // "WIN", "LOSS", "BREAKEVEN"
+  string opened_at = 15;
+  string closed_at = 16;
+  int32  duration_minutes = 17;
+  int32  sl_adjustment_count = 18;
+  int32  partial_close_count = 19;
+  string analysis_id = 20;
+}
+
+// GetPerformanceMetricsRequest retrieves real-time analytics.
+message GetPerformanceMetricsRequest {
+  string period = 1;                 // "DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"
+  string trace_id = 2;
+}
+
+message GetPerformanceMetricsResponse {
+  double win_rate = 1;
+  double avg_r_multiple = 2;
+  double expectancy = 3;
+  int32  total_trades = 4;
+  int32  wins = 5;
+  int32  losses = 6;
+  int32  breakevens = 7;
+  double total_pnl = 8;
+  int32  max_consecutive_wins = 9;
+  int32  max_consecutive_losses = 10;
+  double max_drawdown_pct = 11;
+  double best_trade_r = 12;
+  double worst_trade_r = 13;
+  map<string, double> win_rate_by_symbol = 14;
+  map<string, double> win_rate_by_style = 15;
+  map<string, double> win_rate_by_setup = 16;
+  map<string, double> win_rate_by_session = 17;
+}
+
+message GetHealthRequest {}
+
+message GetHealthResponse {
+  string status = 1;                 // "ok" | "degraded"
+  bool   db_connected = 2;
+  bool   broker_connected = 3;
+  int32  active_trades = 4;
+}

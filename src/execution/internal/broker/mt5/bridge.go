@@ -282,6 +282,24 @@ func (b *Bridge) CancelOrder(ctx context.Context, brokerOrderID string) error {
 	return nil
 }
 
+func (b *Bridge) GetTickPrice(ctx context.Context, symbol string) (*models.TickPrice, error) {
+	var resp struct {
+		Bid  float64 `json:"bid"`
+		Ask  float64 `json:"ask"`
+		Time int64   `json:"time"`
+	}
+
+	if err := b.get(ctx, fmt.Sprintf("/internal/broker/tick_price?symbol=%s", symbol), &resp); err != nil {
+		return nil, fmt.Errorf("get tick price for %s: %w", symbol, err)
+	}
+
+	return &models.TickPrice{
+		Bid:       resp.Bid,
+		Ask:       resp.Ask,
+		Timestamp: time.Unix(resp.Time, 0).UTC(),
+	}, nil
+}
+
 // get performs an HTTP GET and decodes the JSON response.
 func (b *Bridge) get(ctx context.Context, path string, dest interface{}) error {
 	start := time.Now()

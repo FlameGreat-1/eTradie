@@ -92,7 +92,7 @@ class ReversalBuilder:
         
         current_price = ltf_sequence.candles[-1].close
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             None,
             ltf_choch,
             ltf_bms,
@@ -100,8 +100,7 @@ class ReversalBuilder:
             inducement_events,
             ltf_sequence,
             current_price,
-        ):
-            return None
+        )
         
         confluences = self._count_sms_confluences(
             htf_sms,
@@ -144,8 +143,8 @@ class ReversalBuilder:
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
             inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={"confluences": confluences, "pattern_type": "reversal"},
@@ -196,7 +195,7 @@ class ReversalBuilder:
         
         current_price = ltf_sequence.candles[-1].close
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             None,
             ltf_choch,
             ltf_bms,
@@ -204,8 +203,7 @@ class ReversalBuilder:
             inducement_events,
             ltf_sequence,
             current_price,
-        ):
-            return None
+        )
         
         confluences = self._count_sms_confluences(
             htf_sms,
@@ -248,8 +246,8 @@ class ReversalBuilder:
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
             inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={"confluences": confluences, "pattern_type": "reversal"},

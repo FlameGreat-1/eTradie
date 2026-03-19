@@ -122,6 +122,9 @@ func buildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeReq
 		Tp1Pct:          int32(d.TP1Pct),
 		Tp2Pct:          int32(d.TP2Pct),
 		Tp3Pct:          int32(d.TP3Pct),
+		ExecutionMode:   d.ExecutionMode,
+		LtfConfirmed:    d.LTFConfirmed,
+		SetupType:       d.SetupType,
 	}
 
 	// Safely dereference pointer fields.

@@ -51,6 +51,7 @@ func BuildWithMode(
 		Grade:          req.Grade,
 		Confluence:     req.ConfluenceScore,
 		Confidence:     req.Confidence,
+		SetupType:      req.SetupType,
 		CreatedAt:      now,
 	}
 
@@ -65,6 +66,10 @@ func BuildWithMode(
 	case constants.ModeInstant:
 		order.WatcherID = fmt.Sprintf("GRT_%s_%s", req.Symbol, orderID[4:])
 		order.OvershootTolerance = req.EntryZoneWidth() * cfg.OvershootToleranceMultiplier
+		
+		// If the Gateway already confirmed this setup (e.g. LTF structure existed 
+		// at analysis time), we start the watcher in a pre-confirmed state.
+		order.LTFConfirmed = req.LTFConfirmed
 	}
 
 	return order

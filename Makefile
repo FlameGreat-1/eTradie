@@ -9,6 +9,9 @@
 .DEFAULT_GOAL := help
 .SILENT:
 
+# Force bash shell instead of Ubuntu's default dash shell for 'echo -e' support
+SHELL := /bin/bash
+
 # ============================================================================
 # COLORS & FORMATTING
 # ============================================================================
@@ -32,8 +35,10 @@ PROTO_DIR := $(PROJECT_ROOT)/proto
 
 GATEWAY_BIN := bin/gateway
 EXECUTION_BIN := bin/execution
+MANAGEMENT_BIN := bin/management
 GATEWAY_CMD := ./src/gateway/cmd/gateway
 EXECUTION_CMD := ./src/execution/cmd/execution
+MANAGEMENT_CMD := ./src/management/cmd/management
 
 # ============================================================================
 # GO CONFIGURATION
@@ -82,23 +87,24 @@ menu: ## Start the interactive guided menu
 	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "5" "Build Gateway (Go)" "make build-gateway"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "6" "Build Execution (Go)" "make build-execution"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "7" "Build All Go Binaries" "make build-all-go"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "8" "Generate Protobufs" "make proto-gen"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "7" "Build Management (Go)" "make build-management"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "8" "Build All Go Binaries" "make build-all-go"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "9" "Generate Protobufs" "make proto-gen"; \
 	echo -e ""; \
 	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(CYAN)│$(NC) $(BOLD)DATABASE & CODE QUALITY$(NC)                                                      $(CYAN)│$(NC)"; \
 	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "9"  "Run Alembic DB Migrations" "make db-migrate"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "10" "Downgrade DB 1 Revision" "make db-downgrade"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "11" "Format Codes (Go/Python)" "make fmt"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "12" "Lint Codes" "make lint"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "10" "Run Alembic DB Migrations" "make db-migrate"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "11" "Downgrade DB 1 Revision" "make db-downgrade"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "12" "Format Codes (Go/Python)" "make fmt"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "13" "Lint Codes" "make lint"; \
 	echo -e ""; \
 	echo -e "$(BLUE)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(BLUE)│$(NC) $(BOLD)OTHER OPTIONS$(NC)                                                                $(BLUE)│$(NC)"; \
 	echo -e "$(BLUE)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(RED)%s$(NC)\n" "0" "Exit Menu" ""; \
 	echo -e ""; \
-	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-12]:$(NC) "; \
+	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-13]:$(NC) "; \
 	read choice; \
 	echo -e ""; \
 	case $$choice in \
@@ -108,12 +114,13 @@ menu: ## Start the interactive guided menu
 		4) docker-compose logs -f ;; \
 		5) $(MAKE) build-gateway ;; \
 		6) $(MAKE) build-execution ;; \
-		7) $(MAKE) build-all-go ;; \
-		8) $(MAKE) proto-gen ;; \
-		9) $(MAKE) db-migrate ;; \
-		10) $(MAKE) db-downgrade ;; \
-		11) $(MAKE) fmt ;; \
-		12) $(MAKE) lint ;; \
+		7) $(MAKE) build-management ;; \
+		8) $(MAKE) build-all-go ;; \
+		9) $(MAKE) proto-gen ;; \
+		10) $(MAKE) db-migrate ;; \
+		11) $(MAKE) db-downgrade ;; \
+		12) $(MAKE) fmt ;; \
+		13) $(MAKE) lint ;; \
 		0) echo -e "$(GREEN)Goodbye!$(NC)"; exit 0 ;; \
 		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
 	esac;
@@ -151,7 +158,12 @@ build-execution: ## Build Execution binary locally
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(EXECUTION_BIN) $(EXECUTION_CMD)
 	echo -e "$(GREEN)✓ Built $(EXECUTION_BIN)$(NC)"
 
-build-all-go: build-gateway build-execution ## Build all Go binaries
+build-management: ## Build Management binary locally
+	echo -e "$(BLUE)Building Management...$(NC)"
+	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(MANAGEMENT_BIN) $(MANAGEMENT_CMD)
+	echo -e "$(GREEN)✓ Built $(MANAGEMENT_BIN)$(NC)"
+
+build-all-go: build-gateway build-execution build-management ## Build all Go binaries
 
 clean: ## Remove generated binaries
 	echo -e "$(BLUE)Cleaning binaries...$(NC)"
@@ -175,16 +187,17 @@ tidy: ## Go mod tidy for all Go modules
 	go mod tidy
 	cd src/gateway && go mod tidy || true
 	cd src/execution && go mod tidy || true
+	cd src/management && go mod tidy || true
 
 fmt: ## Format Go and Python code
 	echo -e "$(BLUE)Formatting codebase (Go)...$(NC)"
-	gofmt -s -w ./src/gateway/ ./src/execution/
+	gofmt -s -w ./src/gateway/ ./src/execution/ ./src/management/
 	echo -e "$(BLUE)Formatting codebase (Python)...$(NC)"
 	black src/engine/ || echo "$(YELLOW)Python black not installed, skipping...$(NC)"
 	echo -e "$(GREEN)✓ Formatting complete$(NC)"
 
 vet: ## Go vet
-	go vet ./src/gateway/... ./src/execution/...
+	go vet ./src/gateway/... ./src/execution/... ./src/management/...
 
 contract-check: ## Validate Processor proto constraints against Python engine
 	echo -e "$(BLUE)Validating processor contract (engine.proto <-> Python)...$(NC)"
@@ -201,5 +214,6 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		$(PROTO_DIR)/engine/v1/engine.proto \
 		$(PROTO_DIR)/gateway/v1/gateway.proto \
-		$(PROTO_DIR)/execution/v1/execution.proto
+		$(PROTO_DIR)/execution/v1/execution.proto \
+		$(PROTO_DIR)/management/v1/management.proto
 	echo -e "$(GREEN)✓ Proto generation complete$(NC)"

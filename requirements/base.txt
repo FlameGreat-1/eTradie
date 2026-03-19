@@ -47,5 +47,11 @@ anthropic>=0.21.0
 google-genai>=0.2.0
 
 # ── RAG & Embeddings ─────────────────────────────────────────
+# Using local offline wheel for torch:
+# RUN pip install /torch_offline/*.whl (in Dockerfile)
+# Uncomment the below lines for Cloud Deployment (if not copying the local wheel):
+# --extra-index-url https://download.pytorch.org/whl/cpu
+# torch>=2.2.0
+# torchvision>=0.17.0
 sentence-transformers>=2.5.1
 chromadb>=0.4.24

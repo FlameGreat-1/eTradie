@@ -198,6 +198,8 @@ class AnalysisOutput(TimestampedModel):
     # Decision
     confidence: str  # HIGH / MEDIUM / LOW / NO SETUP
     proceed_to_module_b: str  # YES / NO
+    execution_mode: Optional[str] = None  # LIMIT / INSTANT
+    ltf_confirmed: bool = False
     explainable_reasoning: str = ""
 
     # Traceability

@@ -93,7 +93,7 @@ class AMDCandidateBuilder:
         
         current_price = ltf_sequence.candles[-1].close
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sweep,
             ltf_choch,
             ltf_bms,
@@ -101,8 +101,7 @@ class AMDCandidateBuilder:
             inducement_events,
             ltf_sequence,
             current_price,
-        ):
-            return None
+        )
         
         confluences = self._count_amd_confluences(
             amd_context,
@@ -150,8 +149,8 @@ class AMDCandidateBuilder:
             swept_level=ltf_sweep.swept_level if ltf_sweep else None,
             sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
             inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             session_context="AMD_DISTRIBUTION",
@@ -220,7 +219,7 @@ class AMDCandidateBuilder:
         
         current_price = ltf_sequence.candles[-1].close
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sweep,
             ltf_choch,
             ltf_bms,
@@ -228,8 +227,7 @@ class AMDCandidateBuilder:
             inducement_events,
             ltf_sequence,
             current_price,
-        ):
-            return None
+        )
         
         confluences = self._count_amd_confluences(
             amd_context,
@@ -277,8 +275,8 @@ class AMDCandidateBuilder:
             swept_level=ltf_sweep.swept_level if ltf_sweep else None,
             sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
             inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             session_context="AMD_DISTRIBUTION",

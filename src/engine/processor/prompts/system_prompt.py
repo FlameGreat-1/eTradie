@@ -74,6 +74,8 @@ _OUTPUT_SCHEMA = """{
 
   "confidence": "<HIGH|MEDIUM|LOW|NO SETUP>",
   "proceed_to_module_b": "<YES|NO>",
+  "execution_mode": "<LIMIT|INSTANT|null>",
+  "ltf_confirmed": false,
   "explainable_reasoning": "<human-readable reasoning summary>",
 
   "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
@@ -140,6 +142,10 @@ YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
 6. proceed_to_module_b
    - "YES" when: setup_grade is A+, A, or B, all mandatory factors present, R:R meets minimum.
    - "NO" for everything else (REJECT grade or missing mandatory factors).
+
+7. execution_mode & ltf_confirmed
+   - execution_mode: Output "LIMIT" for standard setups. Output "INSTANT" if high volatility, news risk, or immediate entry conditions dictate.
+   - ltf_confirmed: Output true ONLY if the specific TA candidate provided explicitly confirms LTF conditions inside ta_analysis, otherwise output false.
 
 OUTPUT JSON SCHEMA:
 """ + _OUTPUT_SCHEMA

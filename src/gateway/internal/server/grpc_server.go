@@ -26,8 +26,10 @@ import (
 	"github.com/flamegreat/etradie/src/gateway/internal/pipeline"
 	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat/etradie/src/gateway/internal/symbolstore"
+	"github.com/flamegreat/etradie/src/gateway/internal/management"
 
 	gatewayv1 "github.com/flamegreat/etradie/proto/gateway/v1"
+	managementv1 "github.com/flamegreat/etradie/proto/management/v1"
 )
 
 // GRPCServer serves the gateway gRPC API.
@@ -41,6 +43,7 @@ type GRPCServer struct {
 	redis         *infra.RedisClient
 	engine        *infra.EngineHTTPClient
 	transport     *alertredis.Transport
+	mgmtClient    *management.Client
 	cfg           *config.Config
 	port          int
 	log           zerolog.Logger
@@ -56,6 +59,7 @@ func NewGRPCServer(
 	redis *infra.RedisClient,
 	engine *infra.EngineHTTPClient,
 	transport *alertredis.Transport,
+	mgmtClient *management.Client,
 ) *GRPCServer {
 	s := &GRPCServer{
 		orchestrator:  orchestrator,
@@ -65,6 +69,7 @@ func NewGRPCServer(
 		redis:         redis,
 		engine:        engine,
 		transport:     transport,
+		mgmtClient:    mgmtClient,
 		cfg:           cfg,
 		port:          cfg.GRPCPort,
 		log:           observability.Logger("grpc_server"),
@@ -141,6 +146,131 @@ func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleReques
 	}
 
 	return &gatewayv1.RunCycleResponse{Outputs: cycleOutputs}, nil
+}
+
+// ConfirmSetup runs a targeted TA-only confirmation pulse for an
+// instant-mode watcher. Called by Module B's Execution watcher when
+// live price enters the POI zone. Bypasses Macro, RAG, and Processor.
+func (s *GRPCServer) ConfirmSetup(ctx context.Context, req *gatewayv1.ConfirmSetupRequest) (*gatewayv1.ConfirmSetupResponse, error) {
+	symbol := req.GetSymbol()
+	analysisID := req.GetAnalysisId()
+	traceID := req.GetTraceId()
+
+	if symbol == "" || analysisID == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "symbol and analysis_id are required")
+	}
+
+	s.log.Info().
+		Str("symbol", symbol).
+		Str("analysis_id", analysisID).
+		Str("trace_id", traceID).
+		Msg("confirm_setup_received")
+
+	result := s.orchestrator.RunConfirmationPulse(ctx, symbol, analysisID, traceID)
+
+	s.log.Info().
+		Str("symbol", symbol).
+		Str("analysis_id", analysisID).
+		Bool("confirmed", result.Confirmed).
+		Str("reason", result.Reason).
+		Str("trace_id", traceID).
+		Msg("confirm_setup_completed")
+
+	return &gatewayv1.ConfirmSetupResponse{
+		Confirmed:       result.Confirmed,
+		LtfConfirmation: result.LTFConfirmation,
+		Reason:          result.Reason,
+		TraceId:         traceID,
+	}, nil
+}
+
+// NotifyExecutionCompleted is called by Module B when a market order is filled.
+// This is Step 7 of the architecture: Gateway orchestrates handoff to Module C.
+func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv1.NotifyExecutionCompletedRequest) (*gatewayv1.NotifyExecutionCompletedResponse, error) {
+	s.log.Info().
+		Str("symbol", req.GetSymbol()).
+		Str("broker_order_id", req.GetBrokerOrderId()).
+		Float64("fill_price", req.GetFillPrice()).
+		Float64("lot_size", req.GetLotSize()).
+		Str("analysis_id", req.GetAnalysisId()).
+		Str("trace_id", req.GetTraceId()).
+		Msg("execution_handoff_received_from_module_b")
+
+	// Emit an alert event for dashboard visibility.
+	s.transport.Publish(ctx,
+		alert.NewEvent(alert.SourceGateway, alert.TypeExecutionHandoff, alert.SeverityInfo,
+			fmt.Sprintf("Trade filled for %s — handing off to Module C for management.", req.GetSymbol())).
+			WithSymbol(req.GetSymbol()).
+			WithTraceID(req.GetTraceId()).
+			WithDetails(map[string]interface{}{
+				"broker_order_id": req.GetBrokerOrderId(),
+				"fill_price":      req.GetFillPrice(),
+				"slippage":        req.GetSlippage(),
+				"lot_size":        req.GetLotSize(),
+				"analysis_id":     req.GetAnalysisId(),
+			}),
+	)
+
+	if s.mgmtClient == nil {
+		s.log.Warn().
+			Str("symbol", req.GetSymbol()).
+			Msg("management_client_not_configured_skipping_handoff")
+		return &gatewayv1.NotifyExecutionCompletedResponse{Success: true}, nil
+	}
+
+	mgmtReq := &managementv1.RegisterFilledTradeRequest{
+		Symbol:          req.GetSymbol(),
+		Direction:       req.GetDirection(),
+		BrokerOrderId:   req.GetBrokerOrderId(),
+		FillPrice:       req.GetFillPrice(),
+		StopLoss:        req.GetStopLoss(),
+		Tp1Price:        req.GetTp1Price(),
+		Tp1Pct:          req.GetTp1Pct(),
+		Tp2Price:        req.GetTp2Price(),
+		Tp2Pct:          req.GetTp2Pct(),
+		Tp3Price:        req.GetTp3Price(),
+		Tp3Pct:          req.GetTp3Pct(),
+		LotSize:         req.GetLotSize(),
+		RiskAmount:      req.GetRiskAmount(),
+		RiskPercent:     req.GetRiskPercent(),
+		RrRatio:         req.GetRrRatio(),
+		Grade:           req.GetGrade(),
+		TradingStyle:    req.GetTradingStyle(),
+		Session:         req.GetSession(),
+		SetupType:       req.GetSetupType(), // Threaded completely from Module A
+		ExecutionMode:   req.GetExecutionMode(),
+		ConfluenceScore: req.GetConfluenceScore(),
+		Slippage:        req.GetSlippage(),
+		AnalysisId:      req.GetAnalysisId(),
+		TraceId:         req.GetTraceId(),
+	}
+
+	tradeID, err := s.mgmtClient.RegisterFilledTrade(ctx, mgmtReq)
+	if err != nil {
+		s.log.Error().Err(err).
+			Str("symbol", req.GetSymbol()).
+			Str("broker_order_id", req.GetBrokerOrderId()).
+			Msg("failed_to_register_trade_with_management_engine")
+		
+		s.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeError, alert.SeverityHigh,
+				fmt.Sprintf("Failed to handoff filled trade %s to Management: %v", req.GetSymbol(), err)).
+				WithSymbol(req.GetSymbol()).
+				WithTraceID(req.GetTraceId()),
+		)
+		
+		return nil, status.Errorf(codes.Internal, "failed to handoff to management: %v", err)
+	}
+
+	s.log.Info().
+		Str("symbol", req.GetSymbol()).
+		Str("management_trade_id", tradeID).
+		Msg("successfully_handed_off_trade_to_module_c")
+
+	return &gatewayv1.NotifyExecutionCompletedResponse{
+		Success:           true,
+		ManagementTradeId: tradeID,
+	}, nil
 }
 
 // SetCycleInterval changes the analysis cycle interval at runtime.

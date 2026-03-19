@@ -76,3 +76,11 @@ type OrderResult struct {
 	Status        string // "PLACED", "FILLED", "REJECTED"
 	ErrorMessage  string
 }
+
+// TickPrice holds the latest bid/ask for a symbol. Used by the
+// watcher engine to detect when price enters the POI zone.
+type TickPrice struct {
+	Bid       float64
+	Ask       float64
+	Timestamp time.Time
+}

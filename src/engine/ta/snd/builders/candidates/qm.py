@@ -66,15 +66,14 @@ class QMCandidateBuilder:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BEARISH,
             qml.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_qml_confluences(
             qml,
@@ -107,8 +106,8 @@ class QMCandidateBuilder:
             sr_flip_price=sr_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={"confluences": confluences, "pattern_type": "qml_baseline"},
         )
@@ -145,15 +144,14 @@ class QMCandidateBuilder:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BEARISH,
             qml.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_qml_confluences(
             qml,
@@ -191,8 +189,8 @@ class QMCandidateBuilder:
             previous_highs_count=previous_highs.touch_count,
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={
                 "confluences": confluences,
@@ -230,15 +228,14 @@ class QMCandidateBuilder:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BULLISH,
             qmh.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_qmh_confluences(
             qmh,
@@ -271,8 +268,8 @@ class QMCandidateBuilder:
             rs_flip_price=rs_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={"confluences": confluences, "pattern_type": "qmh_baseline"},
         )
@@ -309,15 +306,14 @@ class QMCandidateBuilder:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
         
-        if not self.ltf_validator.validate_all_ltf_confirmations(
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
             breakout_candle_index,
             Direction.BULLISH,
             qmh.level,
             retracement,
-        ):
-            return None
+        )
         
         confluences = self._count_qmh_confluences(
             qmh,
@@ -355,8 +351,8 @@ class QMCandidateBuilder:
             previous_lows_count=previous_lows.touch_count,
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
-            ltf_confirmation=True,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
             metadata={
                 "confluences": confluences,

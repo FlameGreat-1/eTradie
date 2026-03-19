@@ -15,7 +15,7 @@ import (
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/alert/alertredis"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
@@ -29,6 +29,7 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/state"
 	"github.com/flamegreat/etradie/src/execution/internal/store"
 	"github.com/flamegreat/etradie/src/execution/internal/validator"
+	"github.com/flamegreat/etradie/src/execution/internal/watcher"
 )
 
 func main() {
@@ -97,10 +98,11 @@ func main() {
 	}
 
 	// ── Shared alert transport (serves all modules) ───────────────────
-	alertTransport, err := alertredis.NewTransport(ctx, rdb)
-	if err != nil {
-		log.Fatal().Err(err).Msg("alert_transport_init_failed")
-	}
+	alertHub := alert.NewHub()
+	defer alertHub.Close()
+
+	alertTransport := alertredis.NewTransport(rdb, alertHub, alertredis.TransportConfig{})
+	alertTransport.Start(ctx)
 	defer alertTransport.Close()
 
 	// ── Stores ────────────────────────────────────────────────────────
@@ -108,12 +110,26 @@ func main() {
 	pnlStore := store.NewPnLStore(pool)
 	settingsStore := store.NewSettingsStore(pool)
 
+	// ── Gateway gRPC client (for instant-mode confirmation callbacks) ─
+	gwClient, err := watcher.NewGatewayGRPCClient(cfg.GatewayAddr)
+	if err != nil {
+		log.Fatal().Err(err).Str("addr", cfg.GatewayAddr).Msg("gateway_client_init_failed")
+	}
+	defer gwClient.Close()
+
 	// ── Components (dependency order) ─────────────────────────────────
 	sm := state.NewManager(bp, pnlStore)
 	v := validator.NewValidator(cfg, sm, bp)
 	s := sizing.NewEngine(cfg, bp)
-	e := executor.NewExecutor(bp, cfg.BrokerTimeoutMs)
 	al := audit.NewLogger(auditStore)
+
+	wm := watcher.NewManager(bp, gwClient, al, alertTransport, watcher.Config{
+		PollIntervalMs:          cfg.WatcherPollIntervalMs,
+		TimeoutMinutes:          cfg.WatcherTimeoutMinutes,
+		ConfirmPollIntervalSecs: cfg.WatcherConfirmPollIntervalSecs,
+	})
+
+	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
 
 	// ── gRPC server ───────────────────────────────────────────────────
 	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore)
@@ -167,7 +183,7 @@ func main() {
 
 	log.Info().Msg("shutdown_signal_received")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	alertTransport.Publish(shutdownCtx,
@@ -175,9 +191,12 @@ func main() {
 			"Execution engine shutting down"),
 	)
 
+	// Shutdown order: gRPC → watchers → HTTP → alerts → DB.
 	grpcServer.GracefulStop()
+	wm.Shutdown()
 	execServer.Close()
 	_ = httpServer.Shutdown(shutdownCtx)
+	_ = gwClient.Close()
 	alertTransport.Close()
 	pool.Close()
 

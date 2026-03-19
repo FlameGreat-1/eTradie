@@ -110,6 +110,12 @@ func (t *Transport) Start(ctx context.Context) {
 		Msg("redis_transport_started")
 }
 
+// LocalHub returns the in-process Hub wired to this transport.
+// Used by HTTP servers to pass the Hub to the WebSocket handler.
+func (t *Transport) LocalHub() *alert.Hub {
+	return t.hub
+}
+
 // Publish sends an event to the Redis pub/sub channel for real-time
 // cross-service delivery AND stores it in the Redis sorted set for
 // persistent history. The event is also published to the local Hub

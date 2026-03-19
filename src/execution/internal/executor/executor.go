@@ -11,20 +11,24 @@ import (
 	"github.com/flamegreat/etradie/src/execution/internal/constants"
 	"github.com/flamegreat/etradie/src/execution/internal/models"
 	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	"github.com/flamegreat/etradie/src/execution/internal/watcher"
 )
 
-// Executor dispatches orders to the broker (limit) or arms Module C
-// watchers (instant). Single responsibility: order placement.
+// Executor dispatches orders to the broker (limit) or arms watchers
+// (instant) via the WatcherManager. Single responsibility: order dispatch.
 type Executor struct {
 	broker    broker.Port
+	watcher   *watcher.Manager
 	timeoutMs int
 	log       zerolog.Logger
 }
 
-// NewExecutor creates an order executor.
-func NewExecutor(bp broker.Port, brokerTimeoutMs int) *Executor {
+// NewExecutor creates an order executor. The WatcherManager handles
+// all instant-mode monitoring, confirmation, and market order firing.
+func NewExecutor(bp broker.Port, wm *watcher.Manager, brokerTimeoutMs int) *Executor {
 	return &Executor{
 		broker:    bp,
+		watcher:   wm,
 		timeoutMs: brokerTimeoutMs,
 		log:       observability.Logger("executor"),
 	}
@@ -36,7 +40,7 @@ func (e *Executor) Execute(ctx context.Context, order *models.Order) (*models.Ex
 	case constants.ModeLimit:
 		return e.placeLimit(ctx, order)
 	case constants.ModeInstant:
-		return e.armInstant(ctx, order)
+		return e.handleInstant(ctx, order)
 	default:
 		return nil, fmt.Errorf("executor: unknown execution mode %q", order.ExecutionMode)
 	}
@@ -104,17 +108,17 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 	}, nil
 }
 
-// armInstant records the watcher as armed and returns the watcher ID.
-// Module C is responsible for watching ticks and firing the market
-// order when price touches the entry level. The arming handoff to
-// Module C happens via gRPC (Module C's responsibility to implement
-// the ArmWatcher RPC). Module B's job ends at recording the intent.
-func (e *Executor) armInstant(_ context.Context, order *models.Order) (*models.ExecutionResult, error) {
+// handleInstant arms the watcher manager to monitor the entry zone.
+// The watcher autonomously polls tick prices, calls Gateway for LTF
+// confirmation, and fires the market order when conditions are met.
+func (e *Executor) handleInstant(_ context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
+
+	// Arm the watcher — this spawns a background goroutine.
+	e.watcher.Arm(order)
 
 	elapsed := time.Since(start).Seconds()
 	observability.OrderPlacementDuration.WithLabelValues("INSTANT").Observe(elapsed)
-	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "success").Inc()
 
 	e.log.Info().
 		Str("symbol", order.Symbol).
@@ -136,3 +140,4 @@ func (e *Executor) armInstant(_ context.Context, order *models.Order) (*models.E
 		Order:    order,
 	}, nil
 }
+

@@ -88,6 +88,8 @@ def map_to_processor_output(
         rejection_rules=rejection_rules,
         raw_response=raw_response or {},
         # Execution-critical fields for Module B.
+        execution_mode=analysis.execution_mode,
+        ltf_confirmed=analysis.ltf_confirmed,
         entry_zone_low=analysis.entry_zone.low,
         entry_zone_high=analysis.entry_zone.high,
         tp1_price=tp1_price,

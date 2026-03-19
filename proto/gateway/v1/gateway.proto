@@ -11,6 +11,16 @@ service GatewayService {
   // RunCycle triggers an analysis cycle for the given symbols.
   rpc RunCycle(RunCycleRequest) returns (RunCycleResponse);
 
+  // ConfirmSetup runs a targeted TA-only confirmation pulse for an
+  // instant-mode watcher. Bypasses Macro, RAG, and Processor.
+  // Called by Module B's watcher when price enters the POI zone.
+  rpc ConfirmSetup(ConfirmSetupRequest) returns (ConfirmSetupResponse);
+
+  // NotifyExecutionCompleted is called by Module B's watcher immediately
+  // after a market order is successfully FILLED at the broker.
+  // This triggers Step 7 of the architecture: Handoff to Module C.
+  rpc NotifyExecutionCompleted(NotifyExecutionCompletedRequest) returns (NotifyExecutionCompletedResponse);
+
   // SetActiveSymbols updates the user's active symbol selection.
   rpc SetActiveSymbols(SetActiveSymbolsRequest) returns (SetActiveSymbolsResponse);
 
@@ -55,6 +65,23 @@ message CycleOutput {
 
 message RunCycleResponse {
   repeated CycleOutput outputs = 1;
+}
+
+// ConfirmSetupRequest is sent by the Execution watcher when live
+// price enters the POI zone for an instant-mode candidate.
+message ConfirmSetupRequest {
+  string symbol = 1;              // e.g. "EURUSD"
+  string analysis_id = 2;         // Links to the original TA candidate
+  string trace_id = 3;
+}
+
+// ConfirmSetupResponse indicates whether the TA engine confirms
+// the setup's LTF conditions are now met.
+message ConfirmSetupResponse {
+  bool   confirmed = 1;           // true if LTF confirmation now exists
+  bool   ltf_confirmation = 2;    // explicit LTF field from TA
+  string reason = 3;              // Human-readable reason if not confirmed
+  string trace_id = 4;
 }
 
 message SetActiveSymbolsRequest {
@@ -115,3 +142,38 @@ message GetHealthResponse {
   bool engine_connected = 3;
   int32 active_cycles = 4;
 }
+
+message NotifyExecutionCompletedRequest {
+  string symbol = 1;
+  string broker_order_id = 2;
+  double fill_price = 3;
+  double slippage = 4;
+  double lot_size = 5;
+  string analysis_id = 6;
+  string trace_id = 7;
+
+  // Full trade context for Module C handoff — carried from Module B's Order.
+  string direction = 8;              // "BUY" or "SELL"
+  double stop_loss = 9;
+  double tp1_price = 10;
+  int32  tp1_pct = 11;
+  double tp2_price = 12;
+  int32  tp2_pct = 13;
+  double tp3_price = 14;
+  int32  tp3_pct = 15;
+  double risk_amount = 16;
+  double risk_percent = 17;
+  double rr_ratio = 18;
+  string grade = 19;
+  string trading_style = 20;         // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+  string session = 21;
+  double confluence_score = 22;
+  string execution_mode = 23;        // "LIMIT" or "INSTANT"
+  string setup_type = 24;            // Passed back to Gateway for Management Engine consumption
+}
+
+message NotifyExecutionCompletedResponse {
+  bool   success = 1;
+  string management_trade_id = 2;    // Module C's tracking ID, returned for reference
+}
+

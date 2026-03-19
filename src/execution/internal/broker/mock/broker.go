@@ -174,6 +174,49 @@ func (b *Broker) CancelOrder(_ context.Context, brokerOrderID string) error {
 	return fmt.Errorf("order %s not found", brokerOrderID)
 }
 
+func (b *Broker) GetTickPrice(_ context.Context, symbol string) (*models.TickPrice, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	// Return a realistic price based on open positions or pending orders.
+	// For positions: use current price. For pending: use entry price ± spread.
+	for _, p := range b.positions {
+		if strings.EqualFold(p.Symbol, symbol) {
+			spread := 0.00015
+			if strings.HasSuffix(strings.ToUpper(symbol), "JPY") {
+				spread = 0.015
+			}
+			return &models.TickPrice{
+				Bid:       p.CurrentPrice,
+				Ask:       p.CurrentPrice + spread,
+				Timestamp: time.Now().UTC(),
+			}, nil
+		}
+	}
+
+	// No position found — return a synthetic mid-market price.
+	midPrice := 1.10000
+	if strings.HasSuffix(strings.ToUpper(symbol), "JPY") {
+		midPrice = 150.000
+	}
+	if strings.ToUpper(symbol) == "XAUUSD" {
+		midPrice = 2000.00
+	}
+	spread := 0.00015
+	if strings.HasSuffix(strings.ToUpper(symbol), "JPY") {
+		spread = 0.015
+	}
+	if strings.ToUpper(symbol) == "XAUUSD" {
+		spread = 0.30
+	}
+
+	return &models.TickPrice{
+		Bid:       midPrice,
+		Ask:       midPrice + spread,
+		Timestamp: time.Now().UTC(),
+	}, nil
+}
+
 func generateMockID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)

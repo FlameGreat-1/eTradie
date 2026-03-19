@@ -63,6 +63,11 @@ type Config struct {
 	ExecutionAddr      string `envconfig:"EXECUTION_ADDR" default:"localhost:50053"`
 	ExecutionTimeoutMs int    `envconfig:"EXECUTION_TIMEOUT_MS" default:"5000"`
 
+	// Management engine (Module C).
+	ManagementEnabled   bool   `envconfig:"MANAGEMENT_ENABLED" default:"true"`
+	ManagementAddr      string `envconfig:"MANAGEMENT_ADDR" default:"localhost:50054"`
+	ManagementTimeoutMs int    `envconfig:"MANAGEMENT_TIMEOUT_MS" default:"5000"`
+
 	// HTTP server (health, readiness, metrics).
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8080"`
 

@@ -14,7 +14,7 @@ import (
 
 	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
 	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/alert/alertredis"
+	alertredis "github.com/flamegreat/etradie/src/alert/redis"
 	"github.com/flamegreat/etradie/src/execution/internal/audit"
 	"github.com/flamegreat/etradie/src/execution/internal/broker"
 	"github.com/flamegreat/etradie/src/execution/internal/builder"
@@ -296,8 +296,14 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
 
-	// Step 4: Resolve execution mode from DB and build order.
+	// Step 4: Resolve execution mode. Gateway override takes precedence over DB.
 	execMode := s.resolveExecutionMode(ctx)
+	if tradeReq.ExecutionMode != "" {
+		m := constants.ExecutionMode(strings.ToUpper(tradeReq.ExecutionMode))
+		if m == constants.ModeLimit || m == constants.ModeInstant {
+			execMode = m
+		}
+	}
 	order := builder.BuildWithMode(tradeReq, sizingResult, s.cfg, execMode)
 
 	// Step 5: Execute.
@@ -536,6 +542,9 @@ func parseRequest(req *executionv1.ExecuteTradeRequest) *models.TradeRequest {
 		Confidence:      req.GetConfidence(),
 		AnalysisID:      req.GetAnalysisId(),
 		TraceID:         req.GetTraceId(),
+		ExecutionMode:   req.GetExecutionMode(),
+		LTFConfirmed:    req.GetLtfConfirmed(),
+		SetupType:       req.GetSetupType(),
 	}
 }
 

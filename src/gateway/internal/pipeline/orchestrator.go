@@ -318,7 +318,7 @@ func (o *Orchestrator) executePipeline(
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		taResult, taErr = o.taCollector.Collect(parallelCtx, symbols, traceID)
+		taResult, taErr = o.taCollector.Collect(parallelCtx, symbols, traceID, false)
 	}()
 	go func() {
 		defer wg.Done()
@@ -455,6 +455,156 @@ func (o *Orchestrator) executePipeline(
 		tracker.Complete(bestOutcome)
 	}
 	return outputs, nil
+}
+
+// ConfirmationResult holds the outcome of a targeted TA confirmation pulse.
+type ConfirmationResult struct {
+	Confirmed       bool
+	LTFConfirmation bool
+	Reason          string
+}
+
+// RunConfirmationPulse performs a targeted TA-only scan for a single
+// symbol. Bypasses Macro, RAG, Processor, and Guards. Used by the
+// Execution watcher when price enters the POI zone for an instant-mode
+// candidate. This is the critical fast-path for instant order execution.
+func (o *Orchestrator) RunConfirmationPulse(
+	ctx context.Context,
+	symbol string,
+	analysisID string,
+	traceID string,
+) *ConfirmationResult {
+	pulseLog := observability.WithTraceID(o.log, traceID)
+
+	pulseLog.Info().
+		Str("symbol", symbol).
+		Str("analysis_id", analysisID).
+		Msg("confirmation_pulse_started")
+
+	start := time.Now()
+
+	// Call TA engine for this single symbol only, bypassing cache.
+	taResult, err := o.taCollector.Collect(ctx, []string{symbol}, traceID, true)
+	if err != nil {
+		pulseLog.Error().
+			Err(err).
+			Str("symbol", symbol).
+			Msg("confirmation_pulse_ta_failed")
+		return &ConfirmationResult{
+			Confirmed: false,
+			Reason:    fmt.Sprintf("TA collection failed: %s", err.Error()),
+		}
+	}
+
+	if !taResult.HasCandidates() {
+		pulseLog.Info().
+			Str("symbol", symbol).
+			Msg("confirmation_pulse_no_candidates")
+		return &ConfirmationResult{
+			Confirmed: false,
+			Reason:    "TA returned no candidates for symbol",
+		}
+	}
+
+	// Search for the matching analysis_id across all candidates.
+	for i := range taResult.SymbolResults {
+		sr := &taResult.SymbolResults[i]
+		if sr.Status != "success" || !strings.EqualFold(sr.Symbol, symbol) {
+			continue
+		}
+
+		// Search SMC candidates.
+		for _, cand := range sr.SMCCandidates {
+			candID, _ := cand["analysis_id"].(string)
+			if candID == "" {
+				candID, _ = cand["id"].(string)
+			}
+			if candID == analysisID {
+				ltfConfirmed := getBoolField(cand, "ltf_confirmation")
+				elapsed := time.Since(start).Milliseconds()
+				pulseLog.Info().
+					Str("symbol", symbol).
+					Str("analysis_id", analysisID).
+					Bool("ltf_confirmed", ltfConfirmed).
+					Int64("duration_ms", elapsed).
+					Str("framework", "SMC").
+					Msg("confirmation_pulse_candidate_found")
+				return &ConfirmationResult{
+					Confirmed:       ltfConfirmed,
+					LTFConfirmation: ltfConfirmed,
+					Reason:          condReason(ltfConfirmed, "SMC LTF confirmation met", "SMC LTF confirmation not yet met"),
+				}
+			}
+		}
+
+		// Search SnD candidates.
+		for _, cand := range sr.SnDCandidates {
+			candID, _ := cand["analysis_id"].(string)
+			if candID == "" {
+				candID, _ = cand["id"].(string)
+			}
+			if candID == analysisID {
+				ltfConfirmed := getBoolField(cand, "ltf_confirmation")
+				elapsed := time.Since(start).Milliseconds()
+				pulseLog.Info().
+					Str("symbol", symbol).
+					Str("analysis_id", analysisID).
+					Bool("ltf_confirmed", ltfConfirmed).
+					Int64("duration_ms", elapsed).
+					Str("framework", "SnD").
+					Msg("confirmation_pulse_candidate_found")
+				return &ConfirmationResult{
+					Confirmed:       ltfConfirmed,
+					LTFConfirmation: ltfConfirmed,
+					Reason:          condReason(ltfConfirmed, "SnD LTF confirmation met", "SnD LTF confirmation not yet met"),
+				}
+			}
+		}
+	}
+
+	pulseLog.Warn().
+		Str("symbol", symbol).
+		Str("analysis_id", analysisID).
+		Msg("confirmation_pulse_candidate_not_found")
+
+	return &ConfirmationResult{
+		Confirmed: false,
+		Reason:    fmt.Sprintf("candidate %s not found in TA results", analysisID),
+	}
+}
+
+func getBoolField(m map[string]interface{}, key string) bool {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return false
+	}
+	
+	// Handle nested dict (e.g. TA Engine output format: {"confirmed": true})
+	if dict, isDict := v.(map[string]interface{}); isDict {
+		if confirmedField, exists := dict["confirmed"]; exists {
+			if b, isBool := confirmedField.(bool); isBool {
+				return b
+			}
+		}
+		return false
+	}
+	
+	b, ok := v.(bool)
+	if ok {
+		return b
+	}
+	// JSON numbers: some JSON decoders produce float64 for booleans.
+	if f, ok := v.(float64); ok {
+		return f != 0
+	}
+	return false
+}
+
+func condReason(cond bool, ifTrue, ifFalse string) string {
+	if cond {
+		return ifTrue
+	}
+	return ifFalse
 }
 
 func (o *Orchestrator) processSymbol(

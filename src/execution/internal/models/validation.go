@@ -35,6 +35,9 @@ type TradeRequest struct {
 	Confidence      float64
 	AnalysisID      string
 	TraceID         string
+	ExecutionMode   string
+	LTFConfirmed    bool
+	SetupType       string
 }
 
 // EntryPrice returns the midpoint of the entry zone (OTE approximation).
