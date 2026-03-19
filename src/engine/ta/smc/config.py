@@ -15,6 +15,12 @@ class SMCConfig(BaseSettings):
     
     min_displacement_pips: float = Field(default=20.0, ge=10.0, le=100.0)
     
+    # BMS multi-candle confirmation thresholds (base values for H1).
+    # Internally scaled per-timeframe by the BMS detector.
+    bms_strong_displacement_pips: float = Field(default=50.0, ge=20.0, le=200.0)
+    bms_moderate_displacement_pips: float = Field(default=30.0, ge=15.0, le=100.0)
+    bms_weak_confirm_candles: int = Field(default=5, ge=3, le=10)
+    
     min_sweep_pips: float = Field(default=5.0, ge=2.0, le=20.0)
     
     turtle_soup_min_pips: float = Field(default=5.0, ge=2.0, le=20.0)

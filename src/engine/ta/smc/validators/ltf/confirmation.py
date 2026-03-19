@@ -55,7 +55,9 @@ class LTFConfirmationValidator:
         if not choch or not sweep:
             return False
         
-        return choch.timestamp >= sweep.timestamp
+        # Compare candle_index instead of timestamp, because multi-candle confirmations
+        # could delay the official timestamp of the CHOCH past the sweep.
+        return choch.candle_index >= sweep.candle_index
     
     def validate_bms_confirmed(
         self,
@@ -66,7 +68,9 @@ class LTFConfirmationValidator:
         if not bms or not choch:
             return False
         
-        return bms.timestamp >= choch.timestamp and bms.direction == choch.direction
+        # Compare candle_index to decouple the actual breakout moment from the
+        # variable delays caused by dynamic multi-candle confirmations.
+        return bms.candle_index >= choch.candle_index and bms.direction == choch.direction
     
     def validate_rto_to_ob(
         self,

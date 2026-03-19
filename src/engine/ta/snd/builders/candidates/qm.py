@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
@@ -83,9 +84,10 @@ class QMCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
-        stop_loss = qml.level + (0.0020)
-        take_profit = qml.level - (0.0100)
+        stop_loss = qml.level + (20 * pip_val)
+        take_profit = qml.level - (100 * pip_val)
         
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -98,11 +100,13 @@ class QMCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qml_level=qml.level,
+            qml_detected=True,
+            qml_price=qml.level,
             qml_timestamp=qml.timestamp,
-            sr_flip_level=sr_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
+            sr_flip_detected=True,
+            sr_flip_price=sr_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
@@ -159,9 +163,10 @@ class QMCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
-        stop_loss = qml.level + (0.0020)
-        take_profit = qml.level - (0.0100)
+        stop_loss = qml.level + (20 * pip_val)
+        take_profit = qml.level - (100 * pip_val)
         
         pattern_type = CandidatePattern.QML_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QML_KILLER_TYPE2
         
@@ -176,15 +181,16 @@ class QMCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qml_level=qml.level,
+            qml_detected=True,
+            qml_price=qml.level,
             qml_timestamp=qml.timestamp,
-            sr_flip_level=sr_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_highs=True,
+            sr_flip_detected=True,
+            sr_flip_price=sr_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_highs_count=previous_highs.touch_count,
-            has_mpl=mpl is not None,
-            mpl_level=mpl.level if mpl else None,
+            mpl_detected=mpl is not None,
+            mpl_price=mpl.level if mpl else None,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
@@ -242,9 +248,10 @@ class QMCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
-        stop_loss = qmh.level - (0.0020)
-        take_profit = qmh.level + (0.0100)
+        stop_loss = qmh.level - (20 * pip_val)
+        take_profit = qmh.level + (100 * pip_val)
         
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -257,11 +264,13 @@ class QMCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qmh_level=qmh.level,
-            qmh_timestamp=qmh.timestamp,
-            rs_flip_level=rs_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
+            qml_detected=True,
+            qml_price=qmh.level,
+            qml_timestamp=qmh.timestamp,
+            rs_flip_detected=True,
+            rs_flip_price=rs_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
@@ -318,9 +327,10 @@ class QMCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
-        stop_loss = qmh.level - (0.0020)
-        take_profit = qmh.level + (0.0100)
+        stop_loss = qmh.level - (20 * pip_val)
+        take_profit = qmh.level + (100 * pip_val)
         
         pattern_type = CandidatePattern.QMH_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QMH_KILLER_TYPE2
         
@@ -335,15 +345,16 @@ class QMCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qmh_level=qmh.level,
-            qmh_timestamp=qmh.timestamp,
-            rs_flip_level=rs_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_lows=True,
+            qml_detected=True,
+            qml_price=qmh.level,
+            qml_timestamp=qmh.timestamp,
+            rs_flip_detected=True,
+            rs_flip_price=rs_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_lows_count=previous_lows.touch_count,
-            has_mpl=mpl is not None,
-            mpl_level=mpl.level if mpl else None,
+            mpl_detected=mpl is not None,
+            mpl_price=mpl.level if mpl else None,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
             fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
@@ -386,7 +397,7 @@ class QMCandidateBuilder:
             confluences += 2 if mpl.is_type1 else 1
         
         if retracement:
-            if self.ltf_validator.validate_fibonacci_alignment(qml.level, retracement):
+            if self.ltf_validator.check_fibonacci_alignment(qml.level, retracement):
                 confluences += 2
         
         return confluences
@@ -410,7 +421,7 @@ class QMCandidateBuilder:
             confluences += 2 if mpl.is_type1 else 1
         
         if retracement:
-            if self.ltf_validator.validate_fibonacci_alignment(qmh.level, retracement):
+            if self.ltf_validator.check_fibonacci_alignment(qmh.level, retracement):
                 confluences += 2
         
         return confluences

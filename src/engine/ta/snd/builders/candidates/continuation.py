@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
@@ -106,9 +107,10 @@ class ContinuationCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sr_flip_level
-        stop_loss = sr_flip_level + (0.0020)
-        take_profit = qml.level - (0.0050)
+        stop_loss = sr_flip_level + (20 * pip_val)
+        take_profit = qml.level - (50 * pip_val)
         
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -121,12 +123,13 @@ class ContinuationCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qml_level=qml.level,
+            qml_detected=True,
+            qml_price=qml.level,
             qml_timestamp=qml.timestamp,
-            sr_flip_level=sr_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_highs=True,
+            sr_flip_detected=True,
+            sr_flip_price=sr_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_highs_count=previous_highs.touch_count,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
@@ -206,9 +209,10 @@ class ContinuationCandidateBuilder:
             retracement,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = rs_flip_level
-        stop_loss = rs_flip_level - (0.0020)
-        take_profit = qmh.level + (0.0050)
+        stop_loss = rs_flip_level - (20 * pip_val)
+        take_profit = qmh.level + (50 * pip_val)
         
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -221,12 +225,13 @@ class ContinuationCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            qmh_level=qmh.level,
-            qmh_timestamp=qmh.timestamp,
-            rs_flip_level=rs_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_lows=True,
+            qml_detected=True,
+            qml_price=qmh.level,
+            qml_timestamp=qmh.timestamp,
+            rs_flip_detected=True,
+            rs_flip_price=rs_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_lows_count=previous_lows.touch_count,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
@@ -263,7 +268,7 @@ class ContinuationCandidateBuilder:
             confluences += previous_levels.touch_count
         
         if retracement:
-            if self.ltf_validator.validate_fibonacci_alignment(qm_level.level, retracement):
+            if self.ltf_validator.check_fibonacci_alignment(qm_level.level, retracement):
                 confluences += 2
         
         return confluences

@@ -394,28 +394,43 @@ class DemandZone(FrozenModel):
 class QuasiModoLevel(FrozenModel):
     """Quasimodo Level (QML for sells, QMH for buys).
 
-    Fields match what QMDetector constructs:
-    - level: the QML/QMH price (first H for sells, first L for buys)
-    - h1_price, h1_timestamp: first swing point price and time
-    - h2_price, h2_timestamp: second swing point price and time
-    - break_candle_index: index of candle that broke the level
+    Init field names match what QMDetector constructs:
+    - qml_price: the QML/QMH price (first H for sells, first L for buys)
+    - h_price, h_timestamp: first swing high price and time  (bearish QM)
+    - hh_price, hh_timestamp: higher-high price and time     (bearish QM)
+    - hh_index: candle index of the higher-high
+    - l_price, l_timestamp: first swing low price and time   (bullish QM)
+    - ll_price, ll_timestamp: lower-low price and time       (bullish QM)
+    - ll_index: candle index of the lower-low
+    - candle_index: index of candle that broke the level
     - break_timestamp: when the break occurred
     - is_valid: whether the QM structure is confirmed
 
-    For bearish QM (QML): H1 -> HH (H2) -> break below H1 = QML
-    For bullish QM (QMH): L1 -> LL (L2) -> break above L1 = QMH
+    For bearish QM (QML): H -> HH -> break below H = QML
+    For bullish QM (QMH): L -> LL -> break above L = QMH
     """
 
     symbol: str = Field(min_length=6, max_length=10)
     timeframe: Timeframe
-    level: float = Field(gt=0)
+    qml_price: float = Field(gt=0)
     timestamp: datetime
+    candle_index: int = Field(ge=0)
     direction: Direction
-    h1_price: float = Field(gt=0)
-    h1_timestamp: datetime
-    h2_price: float = Field(gt=0)
-    h2_timestamp: datetime
-    break_candle_index: int = Field(ge=0)
+
+    # ── Bearish QM fields (H -> HH -> break) ────────────────────────
+    h_price: Optional[float] = Field(default=None, gt=0)
+    hh_price: Optional[float] = Field(default=None, gt=0)
+    h_timestamp: Optional[datetime] = None
+    hh_timestamp: Optional[datetime] = None
+    hh_index: Optional[int] = Field(default=None, ge=0)
+
+    # ── Bullish QM fields (L -> LL -> break) ─────────────────────────
+    l_price: Optional[float] = Field(default=None, gt=0)
+    ll_price: Optional[float] = Field(default=None, gt=0)
+    l_timestamp: Optional[datetime] = None
+    ll_timestamp: Optional[datetime] = None
+    ll_index: Optional[int] = Field(default=None, ge=0)
+
     break_timestamp: datetime
     is_valid: bool = Field(default=True)
     tested: bool = Field(default=False)
@@ -426,53 +441,55 @@ class QuasiModoLevel(FrozenModel):
     def validate_symbol(cls, v: str) -> str:
         return v.upper().replace("/", "").replace("_", "")
 
-    @computed_field
-    @property
-    def qml_price(self) -> float:
-        """Alias for serializers that read qml_price."""
-        return self.level
+    # ── Computed aliases for backward compatibility ───────────────────
 
     @computed_field
     @property
-    def h_price(self) -> float:
-        """Alias for serializers that read h_price."""
-        return self.h1_price
+    def level(self) -> float:
+        """Alias used by SnD detector/builder code that reads .level."""
+        return self.qml_price
 
     @computed_field
     @property
-    def hh_price(self) -> float:
-        """Alias for serializers that read hh_price."""
-        return self.h2_price
+    def h1_price(self) -> float:
+        """Alias: first swing point price."""
+        return self.h_price if self.h_price is not None else (self.l_price or 0.0)
 
     @computed_field
     @property
-    def h_timestamp(self) -> datetime:
-        """Alias for serializers that read h_timestamp."""
-        return self.h1_timestamp
+    def h2_price(self) -> float:
+        """Alias: second swing point price."""
+        return self.hh_price if self.hh_price is not None else (self.ll_price or 0.0)
 
     @computed_field
     @property
-    def hh_timestamp(self) -> datetime:
-        """Alias for serializers that read hh_timestamp."""
-        return self.h2_timestamp
+    def h1_timestamp(self) -> Optional[datetime]:
+        """Alias: first swing point timestamp."""
+        return self.h_timestamp if self.h_timestamp is not None else self.l_timestamp
 
     @computed_field
     @property
-    def candle_index(self) -> int:
-        """Alias for serializers that read candle_index."""
-        return self.break_candle_index
+    def h2_timestamp(self) -> Optional[datetime]:
+        """Alias: second swing point timestamp."""
+        return self.hh_timestamp if self.hh_timestamp is not None else self.ll_timestamp
 
     @computed_field
     @property
-    def h2_index(self) -> int:
+    def break_candle_index(self) -> int:
+        """Alias for serializers that read break_candle_index."""
+        return self.candle_index
+
+    @computed_field
+    @property
+    def h2_index(self) -> Optional[int]:
         """Index alias used by SnDDetector for MPL detection range."""
-        return self.break_candle_index
+        return self.hh_index if self.hh_index is not None else self.ll_index
 
     @computed_field
     @property
-    def l2_index(self) -> int:
+    def l2_index(self) -> Optional[int]:
         """Index alias used by SnDDetector for MPL detection range (QMH)."""
-        return self.break_candle_index
+        return self.ll_index if self.ll_index is not None else self.hh_index
 
     @computed_field
     @property

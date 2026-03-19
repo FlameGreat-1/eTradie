@@ -148,22 +148,6 @@ class TAOrchestrator:
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
-
-        Returns a structured dict consumed by the Gateway's TACollector:
-        {
-            "status": "success" | "insufficient_data" | "error",
-            "symbol": "EURUSD",
-            "htf_timeframes": ["D1", "H4", "H1"],
-            "ltf_timeframes": ["M30", "M15", "M5", "M1"],
-            "snapshots": { "D1": {…}, "H4": {…}, … },
-            "smc_candidates": [ … ],
-            "snd_candidates": [ … ],
-            "smc_candidates_count": 5,
-            "snd_candidates_count": 3,
-            "alignment": { "D1_H4": {…}, "H4_H1": {…}, … },
-            "overall_trend": "BULLISH" | "BEARISH" | "NEUTRAL",
-            "error": null,
-        }
         """
         htf_timeframes = sorted(
             self._config.htf_timeframes,
@@ -308,7 +292,11 @@ class TAOrchestrator:
                 snapshots, ordered_tfs,
             )
 
-            # ── Phase 8: Persist all results ─────────────────────────
+            # ── Phase 8: Deduplicate candidates across timeframe pairs ─
+            all_smc = self._deduplicate_smc_candidates(all_smc)
+            all_snd = self._deduplicate_snd_candidates(all_snd)
+
+            # ── Phase 9: Persist all results ─────────────────────────
             await self._persist_all_results(
                 snapshots, all_smc, all_snd,
             )
@@ -731,6 +719,59 @@ class TAOrchestrator:
                 exc_info=True,
             )
             return None
+
+    # ── Candidate deduplication ───────────────────────────────────────
+
+    def _deduplicate_smc_candidates(
+        self,
+        candidates: list[SMCCandidate],
+    ) -> list[SMCCandidate]:
+        """Remove duplicate SMC candidates detected across timeframe pairs.
+
+        Deduplicates by (symbol, pattern, direction, entry_price rounded to
+        pip precision) so the same trade setup is only kept once, preferring
+        the first (highest-timeframe) occurrence.
+        """
+        seen: set[tuple] = set()
+        unique: list[SMCCandidate] = []
+        for c in candidates:
+            key = (c.symbol, c.pattern, c.direction, round(c.entry_price, 4))
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        if len(candidates) != len(unique):
+            self._logger.info(
+                "smc_candidates_deduplicated",
+                extra={
+                    "before": len(candidates),
+                    "after": len(unique),
+                    "removed": len(candidates) - len(unique),
+                },
+            )
+        return unique
+
+    def _deduplicate_snd_candidates(
+        self,
+        candidates: list[SnDCandidate],
+    ) -> list[SnDCandidate]:
+        """Remove duplicate SnD candidates detected across timeframe pairs."""
+        seen: set[tuple] = set()
+        unique: list[SnDCandidate] = []
+        for c in candidates:
+            key = (c.symbol, c.pattern, c.direction, round(c.entry_price, 4))
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        if len(candidates) != len(unique):
+            self._logger.info(
+                "snd_candidates_deduplicated",
+                extra={
+                    "before": len(candidates),
+                    "after": len(unique),
+                    "removed": len(candidates) - len(unique),
+                },
+            )
+        return unique
 
     # ── Pattern detection ────────────────────────────────────────────
 

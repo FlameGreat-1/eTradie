@@ -148,13 +148,13 @@ class LTFConfirmationValidator:
         
         return None
     
-    def validate_fibonacci_alignment(
+    def check_fibonacci_alignment(
         self,
         zone_price: float,
         retracement: Optional[FibonacciRetracement],
     ) -> bool:
         """
-        Confirmation 4: Fibonacci Alignment (Optional but 90% Probability).
+        Check if Fibonacci Retracement level precisely aligns with the zone.
         
         If the 50%, 61.8%, 70.5% or 79% Fibonacci retracement level aligns exactly
         with the identified Supply/Demand zone (QML, SR Flip level) - this adds
@@ -163,8 +163,6 @@ class LTFConfirmationValidator:
         Fibonacci alone is meaningless in this system - it only counts when it lands
         precisely on an already valid zone.
         """
-        if not self.config.require_fibonacci_confluence:
-            return True
         
         if not retracement:
             return False
@@ -219,7 +217,8 @@ class LTFConfirmationValidator:
         if not decision_point:
             return False
         
-        if not self.validate_fibonacci_alignment(zone_price, retracement):
+        is_aligned = self.check_fibonacci_alignment(zone_price, retracement)
+        if self.config.require_fibonacci_confluence and not is_aligned:
             return False
         
         return True

@@ -2,6 +2,7 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
@@ -76,9 +77,10 @@ class FakeoutCandidateBuilder:
             sr_flip_level,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sr_flip_level
-        stop_loss = sr_flip_level + (0.0020)
-        take_profit = sr_flip_level - (0.0100)
+        stop_loss = sr_flip_level + (20 * pip_val)
+        take_profit = sr_flip_level - (100 * pip_val)
         
         pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
         
@@ -93,10 +95,10 @@ class FakeoutCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            sr_flip_level=sr_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_highs=previous_highs is not None,
+            sr_flip_detected=True,
+            sr_flip_price=sr_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_highs_count=previous_highs.touch_count if previous_highs else 0,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
@@ -149,9 +151,10 @@ class FakeoutCandidateBuilder:
             rs_flip_level,
         )
         
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = rs_flip_level
-        stop_loss = rs_flip_level - (0.0020)
-        take_profit = rs_flip_level + (0.0100)
+        stop_loss = rs_flip_level - (20 * pip_val)
+        take_profit = rs_flip_level + (100 * pip_val)
         
         pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
         
@@ -166,10 +169,10 @@ class FakeoutCandidateBuilder:
             take_profit=take_profit,
             htf_timeframe=htf_sequence.timeframe,
             ltf_timeframe=ltf_sequence.timeframe,
-            rs_flip_level=rs_flip_level,
-            fakeout_count=len(fakeout_tests),
-            has_compression=True,
-            has_previous_lows=previous_lows is not None,
+            rs_flip_detected=True,
+            rs_flip_price=rs_flip_level,
+            fakeout_detected=len(fakeout_tests) > 0,
+            compression_detected=True,
             previous_lows_count=previous_lows.touch_count if previous_lows else 0,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp,
@@ -207,7 +210,7 @@ class FakeoutCandidateBuilder:
             confluences += previous_levels.touch_count
         
         if retracement:
-            if self.ltf_validator.validate_fibonacci_alignment(zone_price, retracement):
+            if self.ltf_validator.check_fibonacci_alignment(zone_price, retracement):
                 confluences += 2
         
         if any(test.is_diamond_fakeout for test in fakeout_tests):

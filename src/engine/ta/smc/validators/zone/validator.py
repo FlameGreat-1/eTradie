@@ -86,21 +86,16 @@ class ZoneValidator:
         ob: OrderBlock,
         retracement: Optional[FibonacciRetracement],
     ) -> bool:
-        """Rule 5: Must be at Premium (sells) or Discount (buys)."""
+        """Rule 5: Must be at Premium (sells) or Discount (buys) — specifically the OTE pocket (61.8% to 78.6%)."""
         if not self.config.require_premium_discount:
             return True
         
         if not retracement:
             return False
         
-        ob_midpoint = ob.midpoint
-        
-        zone = self.fibonacci_analyzer.get_zone_for_price(ob_midpoint, retracement)
-        
-        if ob.direction == Direction.BULLISH:
-            return zone == PriceZone.DISCOUNT
-        else:
-            return zone == PriceZone.PREMIUM
+        # We enforce that the Order Block midpoint strictly falls inside the OTE pocket
+        # (61.8% - 78.6% Fibonacci retracement), factoring in a 5 pip tolerance.
+        return self.fibonacci_analyzer.is_at_ote(ob.midpoint, retracement)
     
     def validate_zone_freshness(
         self,

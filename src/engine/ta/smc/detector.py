@@ -147,8 +147,8 @@ class SMCDetector:
         htf_swing_highs = self.swing_analyzer.detect_swing_highs(htf_sequence)
         htf_swing_lows = self.swing_analyzer.detect_swing_lows(htf_sequence)
         
-        htf_bms_bullish = self.bms_detector.detect_bullish_bms(htf_sequence, htf_swing_lows)
-        htf_bms_bearish = self.bms_detector.detect_bearish_bms(htf_sequence, htf_swing_highs)
+        htf_bms_bullish = self.bms_detector.detect_bullish_bms(htf_sequence, htf_swing_highs)
+        htf_bms_bearish = self.bms_detector.detect_bearish_bms(htf_sequence, htf_swing_lows)
         
         htf_sms_bullish = self.sms_detector.detect_bullish_sms(htf_sequence, htf_swing_lows)
         htf_sms_bearish = self.sms_detector.detect_bearish_sms(htf_sequence, htf_swing_highs)
@@ -156,11 +156,11 @@ class SMCDetector:
         ltf_swing_highs = self.swing_analyzer.detect_swing_highs(ltf_sequence)
         ltf_swing_lows = self.swing_analyzer.detect_swing_lows(ltf_sequence)
         
-        ltf_bms_bullish = self.bms_detector.detect_bullish_bms(ltf_sequence, ltf_swing_lows)
-        ltf_bms_bearish = self.bms_detector.detect_bearish_bms(ltf_sequence, ltf_swing_highs)
+        ltf_bms_bullish = self.bms_detector.detect_bullish_bms(ltf_sequence, ltf_swing_highs)
+        ltf_bms_bearish = self.bms_detector.detect_bearish_bms(ltf_sequence, ltf_swing_lows)
         
-        ltf_choch_bullish = self.choch_detector.detect_bullish_choch(ltf_sequence, ltf_swing_lows)
-        ltf_choch_bearish = self.choch_detector.detect_bearish_choch(ltf_sequence, ltf_swing_highs)
+        ltf_choch_bullish = self.choch_detector.detect_bullish_choch(ltf_sequence, ltf_swing_highs)
+        ltf_choch_bearish = self.choch_detector.detect_bearish_choch(ltf_sequence, ltf_swing_lows)
         
         ltf_fvgs = self.fvg_detector.detect_fvgs(ltf_sequence)
         

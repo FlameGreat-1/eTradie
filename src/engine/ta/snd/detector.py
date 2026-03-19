@@ -129,8 +129,8 @@ class SnDDetector:
         htf_swing_highs = self.swing_analyzer.detect_swing_highs(htf_sequence)
         htf_swing_lows = self.swing_analyzer.detect_swing_lows(htf_sequence)
         
-        htf_qml_levels = self.qm_detector.detect_qml(htf_sequence, htf_swing_highs)
-        htf_qmh_levels = self.qm_detector.detect_qmh(htf_sequence, htf_swing_lows)
+        htf_qml_levels = self.qm_detector.detect_qml(htf_sequence, htf_swing_highs, htf_swing_lows)
+        htf_qmh_levels = self.qm_detector.detect_qmh(htf_sequence, htf_swing_lows, htf_swing_highs)
         
         htf_previous_highs = self.previous_level_detector.detect_previous_highs(
             htf_sequence,
@@ -182,7 +182,7 @@ class SnDDetector:
                 mpl_levels = self.mpl_detector.detect_bearish_mpl(
                     htf_sequence,
                     qml.level,
-                    qml.h2_index if hasattr(qml, 'h2_index') else 0,
+                    qml.hh_index if hasattr(qml, 'hh_index') else 0,
                 )
                 
                 if self.config.enable_qml_baseline:
@@ -258,7 +258,7 @@ class SnDDetector:
                 mpl_levels = self.mpl_detector.detect_bullish_mpl(
                     htf_sequence,
                     qmh.level,
-                    qmh.l2_index if hasattr(qmh, 'l2_index') else 0,
+                    qmh.ll_index if hasattr(qmh, 'll_index') else 0,
                 )
                 
                 if self.config.enable_qml_baseline:
