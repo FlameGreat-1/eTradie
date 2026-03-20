@@ -3,7 +3,7 @@ package journal
 import "time"
 
 // TradeRecord is the PostgreSQL model for a completed or active trade.
-// Maps to the TRADE JOURNAL ENTRY schema in TradingSystem_TechSpec_v1_0.txt.
+// Maps to the TRADE JOURNAL ENTRY schema.
 type TradeRecord struct {
 	ID              int64     `db:"id"`
 	TradeID         string    `db:"trade_id"`

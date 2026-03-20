@@ -13,7 +13,7 @@ import (
 )
 
 // GatewayGRPCClient implements GatewayPort by calling the Gateway's
-// ConfirmSetup RPC over gRPC. This is the production implementation.
+// ConfirmSetup RPC over gRPC. This is the core implementation.
 type GatewayGRPCClient struct {
 	client gatewayv1.GatewayServiceClient
 	conn   *grpc.ClientConn

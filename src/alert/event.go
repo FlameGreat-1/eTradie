@@ -62,8 +62,9 @@ const (
 	TypeSymbolsChanged        = "SYMBOLS_CHANGED"
 
 	// TA / Market events (Invalidator sources).
-	TypeCandleClosed = "CANDLE_CLOSED"
-	TypeCOTFlip      = "COT_FLIP"
+	TypeCandleClosed        = "CANDLE_CLOSED"
+	TypeCOTFlip             = "COT_FLIP"
+	TypeMacroCalendarUpdate = "MACRO_CALENDAR_UPDATE"
 
 	// Trade manager (Module C) events.
 	TypeTrailingSLMoved  = "TRAILING_SL_MOVED"

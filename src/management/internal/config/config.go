@@ -15,7 +15,7 @@ type Config struct {
 	GRPCPort int `envconfig:"GRPC_PORT" default:"50054"`
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8083"`
 
-	// Broker selection: "mock" for development, "mt5" for production.
+	// Broker selection: "mock" or "mt5".
 	BrokerMode string `envconfig:"BROKER_MODE" default:"mock"`
 
 	// MT5 broker bridge (same Python FastAPI service used by Execution).

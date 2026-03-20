@@ -48,6 +48,14 @@ const (
 	EventStructuralBreak     EventType = "STRUCTURAL_BREAK"
 	EventCOTFlip             EventType = "COT_FLIP"
 	EventSLTightened         EventType = "SL_TIGHTENED"
+	EventNewsProtection      EventType = "NEWS_PROTECTION"
+	EventCorrelationProtection EventType = "CORRELATION_PROTECTION"
+)
+
+// Redis Pub/Sub channels from Rulebook Section 13.
+const (
+	ChannelMacroCalendar = "etradie:alerts:macro_calendar"
+	ChannelTradeClosed   = "etradie:alerts:trade_closed"
 )
 
 // Direction for position tracking.

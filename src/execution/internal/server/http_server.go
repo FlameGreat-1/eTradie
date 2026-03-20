@@ -92,9 +92,8 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 }
 
 // corsMiddleware adds CORS headers for dashboard cross-origin requests.
-// In production, the allowed origin should be restricted to the
-// dashboard domain via a reverse proxy (nginx, Traefik, etc.).
-// This middleware ensures development and direct-access scenarios work.
+// Allowed origins are enforced at the API Gateway / Reverse Proxy layer (Nginx/Traefik).
+// This middleware ensures internal routing and dashboard scenarios work smoothly.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")

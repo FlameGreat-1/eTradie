@@ -44,6 +44,7 @@ class CalendarCollector(BaseCollector):
             sources=sources,
             collected_at=datetime.now(UTC),
         )
+
         await self._cache.set(
             self.cache_namespace, "latest",
             dataset.model_dump(mode="json"),

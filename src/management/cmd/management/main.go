@@ -121,6 +121,8 @@ func main() {
 	// ── Invalidation Engines ──────────────────────────────────────────
 	structuralEngine := invalidator.NewStructuralEngine(bp, journalRepo, alertTransport)
 	macroEngine := invalidator.NewMacroEngine(bp, journalRepo, alertTransport)
+	newsEngine := invalidator.NewNewsEngine(bp, journalRepo, alertTransport)
+	exposureEngine := invalidator.NewExposureEngine(bp, journalRepo, alertTransport, rdb)
 
 	// Subscribe to internal hub for engine signals
 	go func() {
@@ -149,6 +151,29 @@ func main() {
 						}
 					}
 				}
+			case alert.TypeTradeClosed:
+				// When a trade is closed, check for correlation shock.
+				stoppedSymbol := evt.Symbol
+				
+				// Verify if it was an SL hit (loss) by checking outcome in details.
+				isLoss := false
+				if evt.Details != nil {
+					if outcome, ok := evt.Details["outcome"].(string); ok && outcome == string(constants.OutcomeLoss) {
+						isLoss = true
+					}
+				}
+				
+				if isLoss {
+					trades := mgr.GetAllTrades()
+					for _, t := range trades {
+						if t.Status == constants.StatusActive || t.Status == constants.StatusOpen {
+							price, err := mgr.GetPriceForSymbol(ctx, t.Symbol)
+							if err == nil {
+								exposureEngine.EvaluateCorrelationShock(ctx, t, stoppedSymbol, price)
+							}
+						}
+					}
+				}
 			}
 		}
 	}()
@@ -164,6 +189,11 @@ func main() {
 		},
 	)
 	eodScheduler.Start()
+
+	// ── Pre-News Polling Engine (runs checks every minute) ────────────
+	newsEngine.StartPolling(ctx, mgr.GetAllTrades, func(ctx context.Context, symbol string) (float64, error) {
+		return mgr.GetPriceForSymbol(ctx, symbol)
+	})
 
 	// ── Analytics ─────────────────────────────────────────────────────
 	metricsEngine := analytics.NewMetrics(pool)

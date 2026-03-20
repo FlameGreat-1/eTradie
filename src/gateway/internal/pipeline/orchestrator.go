@@ -140,7 +140,7 @@ func (o *Orchestrator) runSingleAttempt(
 
 	// Create a scoped logger with trace_id and cycle_id bound for the
 	// entire cycle execution. Every log line within this attempt
-	// automatically includes both IDs for production log correlation.
+	// automatically includes both IDs for log correlation.
 	cycleLog := observability.WithTraceID(o.log, tracker.TraceID())
 	cycleLog = observability.WithCycleID(cycleLog, tracker.CycleID())
 

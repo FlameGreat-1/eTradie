@@ -45,6 +45,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cache_ok = await container.cache.health_check()
     logger.info("startup_health", db=db_ok, cache=cache_ok)
 
+    # Publish the dynamic Correlation matrix to Redis for the Go Exposure Engine
+    try:
+        from engine.shared.models.currency import get_correlation_config
+        corr_config = get_correlation_config()
+        await container.cache.set(
+            namespace="correlation",
+            key="config",
+            value=corr_config.model_dump(mode="json"),
+            ttl_seconds=86400 * 30,  # Refresh every 30 days or on restart
+        )
+        logger.info("correlation_config_published_to_redis")
+    except Exception as e:
+        logger.error("failed_to_publish_correlation_config", error=str(e))
+
     rag_config = get_rag_config()
     if rag_config.enabled:
         await container.build_rag()
