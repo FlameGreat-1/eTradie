@@ -101,7 +101,7 @@ Define the gRPC interface for Module C to communicate with Module B (Execution) 
 
 #### [NEW] `src/management/internal/eod/`
 *Sub-Module C4: End-of-Period Protocols*
-- [scheduler.go](file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/gateway/internal/pipeline/scheduler.go): Time-based scheduled evaluations.
+- [scheduler.go] eTradie/src/gateway/internal/pipeline/scheduler.go: Time-based scheduled evaluations.
 - `protocols.go`: Evaluates rules at: Scalping (2-hour hard limit or session end), Intraday (16:30 UTC), Swing (Friday 16:00 UTC). Sends forced close orders to Gateway if conditions aren't met.
 
 #### [NEW] `src/management/internal/invalidator/`
@@ -111,7 +111,7 @@ Define the gRPC interface for Module C to communicate with Module B (Execution) 
 
 #### [NEW] `src/management/internal/journal/`
 *Sub-Module C6: Automatic Trade Journal*
-- `repository.go`: PostgreSQL models extending the `TRADE JOURNAL ENTRY` schema in [TradingSystem_TechSpec_v1_0.txt](file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/docs/txt/TradingSystem_TechSpec_v1_0.txt). Every SL adjustment, partial close, and final exit is recorded here.
+- `repository.go`: PostgreSQL models extending the `TRADE JOURNAL ENTRY` schema in [TradingSystem_TechSpec_v1_0.txt](eTradie/docs/txt/TradingSystem_TechSpec_v1_0.txt). Every SL adjustment, partial close, and final exit is recorded here.
 
 #### [NEW] `src/management/internal/analytics/`
 *Sub-Module C7: Performance Analytics Engine*

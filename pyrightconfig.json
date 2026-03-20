@@ -1,0 +1,15 @@
+{
+  "include": ["src"],
+  "extraPaths": ["src"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingModuleSource": false,
+  "venvPath": ".",
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "extraPaths": []
+    }
+  ]
+}

@@ -217,3 +217,9 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 		$(PROTO_DIR)/execution/v1/execution.proto \
 		$(PROTO_DIR)/management/v1/management.proto
 	echo -e "$(GREEN)✓ Proto generation complete$(NC)"
+
+
+test-engine:
+	docker ps -q -f name=etradie-engine | grep -q . && docker compose -f docker-compose.yml exec engine pytest tests/ || (echo "Engine container not running. Start with 'make run' first." && exit 1)
+
+test-all: test-engine test-gateway test-execution
