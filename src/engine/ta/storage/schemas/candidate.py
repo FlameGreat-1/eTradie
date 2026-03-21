@@ -179,7 +179,7 @@ class CandidateSchema(Base):
     compression_candle_count: Mapped[int] = mapped_column(Integer, nullable=True)
     
     # ── Metadata ──
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=True)
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=True)
     
     # ── Status tracking ──
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)

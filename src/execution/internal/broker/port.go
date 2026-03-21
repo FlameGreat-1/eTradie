@@ -3,7 +3,7 @@ package broker
 import (
 	"context"
 
-	"github.com/flamegreat/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
 
 // Port is the abstracted broker interface. Module B depends on this

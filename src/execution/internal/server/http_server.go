@@ -11,13 +11,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/execution/internal/audit"
-	"github.com/flamegreat/etradie/src/execution/internal/broker"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
-	"github.com/flamegreat/etradie/src/execution/internal/state"
-	"github.com/flamegreat/etradie/src/execution/internal/store"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
+	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/state"
+	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
 // HTTPServer serves the dashboard-facing REST API and WebSocket notifications.

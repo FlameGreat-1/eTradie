@@ -7,8 +7,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // Broker is a mock implementation of broker.Port for development

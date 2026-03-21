@@ -84,7 +84,7 @@ class SnapshotRepository:
             demand_zones=demand_zones,
             fibonacci_retracements=fibonacci_retracements,
             dealing_ranges=dealing_ranges,
-            metadata=metadata,
+            meta_data=metadata,
             version=latest_version + 1,
             notes=notes,
         )

@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // Client handles broker execution actions (Modify, Close) over HTTP to the MT5 bridge.

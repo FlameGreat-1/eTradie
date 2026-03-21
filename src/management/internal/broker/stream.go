@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // Stream handles fetching live tick prices and position info from the MT5 bridge.

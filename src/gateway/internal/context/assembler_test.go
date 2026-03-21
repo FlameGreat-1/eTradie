@@ -3,7 +3,7 @@ package context
 import (
 	"testing"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
 // ── Assembler Tests ─────────────────────────────────────────────────────────

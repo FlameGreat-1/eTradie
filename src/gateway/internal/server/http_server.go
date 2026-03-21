@@ -9,11 +9,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/gateway/internal/config"
-	"github.com/flamegreat/etradie/src/gateway/internal/infra"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,

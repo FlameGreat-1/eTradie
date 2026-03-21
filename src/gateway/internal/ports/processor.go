@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
 // ProcessorPort is the abstract interface for the Processor LLM.

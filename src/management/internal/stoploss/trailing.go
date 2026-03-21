@@ -6,11 +6,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 // TrailingEngine implements the style-adaptive trailing stop logic
@@ -61,16 +61,12 @@ func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, check
 	tp1Hit := trade.TP1Hit
 	trade.RUnlock()
 
-	// Get the trailing config for this style.
-	cfg, ok := constants.TrailConfigByStyle[style]
+	// Get the trailing config for this style to ensure it's supported.
+	_, ok := constants.TrailConfigByStyle[style]
 	if !ok {
 		return false, nil
 	}
 
-	// Use the post-TP1 timeframe if TP1 was already hit.
-	_ = cfg.Initial
-	_ = cfg.PostTP1
-	_ = tp1Hit
 	// The timeframe determines how aggressively we trail. Shorter TF
 	// (e.g., 15M for scalping) means tighter stops. We approximate this
 	// with a trailFraction: the fraction of the total move we protect.

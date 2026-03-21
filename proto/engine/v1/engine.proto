@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package engine.v1;
 
-option go_package = "github.com/flamegreat/etradie/proto/engine/v1;enginev1";
+option go_package = "github.com/flamegreat-1/etradie/proto/engine/v1;enginev1";
 
 // EngineService is the gRPC contract between the Go gateway and the
 // Python engine (Module A). The Python engine implements this server;

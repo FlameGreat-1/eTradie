@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flamegreat/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
 
 // Broker is a mock broker for development and testing.

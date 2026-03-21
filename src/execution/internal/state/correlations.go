@@ -3,7 +3,7 @@ package state
 import (
 	"strings"
 
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
 )
 
 // pairToGroups maps each symbol to the indices of its correlated groups.

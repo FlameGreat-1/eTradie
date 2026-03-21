@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 // runWorker is the per-trade monitoring goroutine. It polls the live
@@ -56,6 +56,17 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 			// Update current price.
 			trade.Lock()
 			trade.CurrentPrice = checkPrice
+			
+			// Update observability metrics
+			if trade.EntryPrice > 0 {
+				var pnlDist float64
+				if trade.IsLong() {
+					pnlDist = checkPrice - trade.EntryPrice
+				} else {
+					pnlDist = trade.EntryPrice - checkPrice
+				}
+				trade.UnrealizedPnL = pnlDist * trade.RemainingLotSize // Rough approximation without pip value
+			}
 			trade.Unlock()
 
 			// === Evaluation order (priority-based) ===

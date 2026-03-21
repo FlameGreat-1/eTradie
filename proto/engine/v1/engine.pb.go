@@ -718,8 +718,11 @@ type ProcessLLMResponse struct {
 	RrRatio         float64 `protobuf:"fixed64,23,opt,name=rr_ratio,json=rrRatio,proto3" json:"rr_ratio,omitempty"`
 	ConfluenceScore float64 `protobuf:"fixed64,24,opt,name=confluence_score,json=confluenceScore,proto3" json:"confluence_score,omitempty"`
 	AnalysisId      string  `protobuf:"bytes,25,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Execution control overrides explicitly set by the AI processor.
+	ExecutionMode string `protobuf:"bytes,26,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	LtfConfirmed  bool   `protobuf:"varint,27,opt,name=ltf_confirmed,json=ltfConfirmed,proto3" json:"ltf_confirmed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProcessLLMResponse) Reset() {
@@ -927,6 +930,20 @@ func (x *ProcessLLMResponse) GetAnalysisId() string {
 	return ""
 }
 
+func (x *ProcessLLMResponse) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *ProcessLLMResponse) GetLtfConfirmed() bool {
+	if x != nil {
+		return x.LtfConfirmed
+	}
+	return false
+}
+
 var File_engine_v1_engine_proto protoreflect.FileDescriptor
 
 const file_engine_v1_engine_proto_rawDesc = "" +
@@ -996,7 +1013,7 @@ const file_engine_v1_engine_proto_rawDesc = "" +
 	"\x13context_bundle_json\x18\x01 \x01(\fR\x11contextBundleJson\"`\n" +
 	"\x11ProcessLLMRequest\x120\n" +
 	"\x14processor_input_json\x18\x01 \x01(\fR\x12processorInputJson\x12\x19\n" +
-	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\xb2\x06\n" +
+	"\btrace_id\x18\x02 \x01(\tR\atraceId\"\xfe\x06\n" +
 	"\x12ProcessLLMResponse\x12\x1f\n" +
 	"\vtrade_valid\x18\x01 \x01(\bR\n" +
 	"tradeValid\x12\x1c\n" +
@@ -1029,13 +1046,15 @@ const file_engine_v1_engine_proto_rawDesc = "" +
 	"\brr_ratio\x18\x17 \x01(\x01R\arrRatio\x12)\n" +
 	"\x10confluence_score\x18\x18 \x01(\x01R\x0fconfluenceScore\x12\x1f\n" +
 	"\vanalysis_id\x18\x19 \x01(\tR\n" +
-	"analysisId2\xc1\x02\n" +
+	"analysisId\x12%\n" +
+	"\x0eexecution_mode\x18\x1a \x01(\tR\rexecutionMode\x12#\n" +
+	"\rltf_confirmed\x18\x1b \x01(\bR\fltfConfirmed2\xc1\x02\n" +
 	"\rEngineService\x12F\n" +
 	"\tAnalyzeTA\x12\x1b.engine.v1.AnalyzeTARequest\x1a\x1c.engine.v1.AnalyzeTAResponse\x12O\n" +
 	"\fCollectMacro\x12\x1e.engine.v1.CollectMacroRequest\x1a\x1f.engine.v1.CollectMacroResponse\x12L\n" +
 	"\vRetrieveRAG\x12\x1d.engine.v1.RetrieveRAGRequest\x1a\x1e.engine.v1.RetrieveRAGResponse\x12I\n" +
 	"\n" +
-	"ProcessLLM\x12\x1c.engine.v1.ProcessLLMRequest\x1a\x1d.engine.v1.ProcessLLMResponseB8Z6github.com/flamegreat/etradie/proto/engine/v1;enginev1b\x06proto3"
+	"ProcessLLM\x12\x1c.engine.v1.ProcessLLMRequest\x1a\x1d.engine.v1.ProcessLLMResponseB:Z8github.com/flamegreat-1/etradie/proto/engine/v1;enginev1b\x06proto3"
 
 var (
 	file_engine_v1_engine_proto_rawDescOnce sync.Once

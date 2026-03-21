@@ -10,7 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 const (

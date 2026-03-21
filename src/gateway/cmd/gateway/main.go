@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/gateway/internal/config"
-	"github.com/flamegreat/etradie/src/gateway/internal/container"
-	"github.com/flamegreat/etradie/src/gateway/internal/infra"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat/etradie/src/gateway/internal/ports"
+	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/container"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 )
 
 func main() {

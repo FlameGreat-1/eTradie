@@ -5,10 +5,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
-	"github.com/flamegreat/etradie/src/execution/internal/store"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
 // Logger orchestrates audit logging by delegating database writes

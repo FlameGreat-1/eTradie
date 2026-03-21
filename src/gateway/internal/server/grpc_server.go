@@ -18,18 +18,18 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/gateway/internal/config"
-	"github.com/flamegreat/etradie/src/gateway/internal/infra"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat/etradie/src/gateway/internal/pipeline"
-	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
-	"github.com/flamegreat/etradie/src/gateway/internal/symbolstore"
-	"github.com/flamegreat/etradie/src/gateway/internal/management"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/pipeline"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/management"
 
-	gatewayv1 "github.com/flamegreat/etradie/proto/gateway/v1"
-	managementv1 "github.com/flamegreat/etradie/proto/management/v1"
+	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 )
 
 // GRPCServer serves the gateway gRPC API.
@@ -253,7 +253,7 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 			Msg("failed_to_register_trade_with_management_engine")
 		
 		s.transport.Publish(ctx,
-			alert.NewEvent(alert.SourceGateway, alert.TypeError, alert.SeverityHigh,
+			alert.NewEvent(alert.SourceGateway, alert.TypeManagementHandoffFailed, alert.SeverityError,
 				fmt.Sprintf("Failed to handoff filled trade %s to Management: %v", req.GetSymbol(), err)).
 				WithSymbol(req.GetSymbol()).
 				WithTraceID(req.GetTraceId()),

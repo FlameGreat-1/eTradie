@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flamegreat/etradie/src/execution/internal/config"
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/config"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
 
 // BuildWithMode constructs a complete Order from a validated TradeRequest,

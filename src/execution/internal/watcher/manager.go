@@ -8,13 +8,13 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/execution/internal/audit"
-	"github.com/flamegreat/etradie/src/execution/internal/broker"
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
+	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 )
 
 // GatewayPort is the interface Execution uses to call back to the

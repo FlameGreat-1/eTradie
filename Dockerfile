@@ -10,7 +10,8 @@ COPY requirements/base.txt requirements/base.txt
 # Install PyTorch from local wheel + all pip dependencies first!
 # We do this BEFORE copying src/, so that this heavy installation
 # step is fully cached by Docker even if your source code changes.
-RUN pip install --no-cache-dir --prefix=/install \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --default-timeout=1000 --retries=10 --prefix=/install \
         /torch_offline/*.whl \
         -r requirements/base.txt
 
@@ -36,6 +37,7 @@ WORKDIR /app
 
 # Copy runtime files that are NOT part of the Python package.
 COPY alembic.ini alembic.ini
+COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
 
 # Ownership
 RUN chown -R etradie:etradie /app

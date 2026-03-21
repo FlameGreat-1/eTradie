@@ -11,10 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/analytics"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/monitoring"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/monitoring"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // Server serves the dashboard-facing REST API for Trade Management.

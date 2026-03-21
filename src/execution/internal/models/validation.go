@@ -1,6 +1,6 @@
 package models
 
-import "github.com/flamegreat/etradie/src/execution/internal/constants"
+import "github.com/flamegreat-1/etradie/src/execution/internal/constants"
 
 // ValidationResult holds the outcome of the pre-execution validator.
 // On success, all fields except Passed are zero-valued.

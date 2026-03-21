@@ -76,7 +76,7 @@ class CandidateRepository:
             # Fibonacci / session
             fib_level=candidate.fib_level,
             session_context=candidate.session_context,
-            metadata=candidate.metadata,
+            meta_data=candidate.metadata,
         )
         
         self.session.add(schema)
@@ -149,7 +149,7 @@ class CandidateRepository:
             # Fibonacci / session
             fib_level=candidate.fib_level,
             session_context=candidate.session_context,
-            metadata=candidate.metadata,
+            meta_data=candidate.metadata,
         )
         
         self.session.add(schema)

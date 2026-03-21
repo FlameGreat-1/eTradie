@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	executionv1 "github.com/flamegreat/etradie/proto/execution/v1"
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // ExecutionGRPCAdapter implements ports.ExecutionPort by calling

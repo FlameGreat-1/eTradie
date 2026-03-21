@@ -243,6 +243,138 @@ func (x *RunCycleResponse) GetOutputs() []*CycleOutput {
 	return nil
 }
 
+// ConfirmSetupRequest is sent by the Execution watcher when live
+// price enters the POI zone for an instant-mode candidate.
+type ConfirmSetupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`                           // e.g. "EURUSD"
+	AnalysisId    string                 `protobuf:"bytes,2,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"` // Links to the original TA candidate
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmSetupRequest) Reset() {
+	*x = ConfirmSetupRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmSetupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmSetupRequest) ProtoMessage() {}
+
+func (x *ConfirmSetupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmSetupRequest.ProtoReflect.Descriptor instead.
+func (*ConfirmSetupRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ConfirmSetupRequest) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *ConfirmSetupRequest) GetAnalysisId() string {
+	if x != nil {
+		return x.AnalysisId
+	}
+	return ""
+}
+
+func (x *ConfirmSetupRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+// ConfirmSetupResponse indicates whether the TA engine confirms
+// the setup's LTF conditions are now met.
+type ConfirmSetupResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Confirmed       bool                   `protobuf:"varint,1,opt,name=confirmed,proto3" json:"confirmed,omitempty"`                                    // true if LTF confirmation now exists
+	LtfConfirmation bool                   `protobuf:"varint,2,opt,name=ltf_confirmation,json=ltfConfirmation,proto3" json:"ltf_confirmation,omitempty"` // explicit LTF field from TA
+	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                           // Human-readable reason if not confirmed
+	TraceId         string                 `protobuf:"bytes,4,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ConfirmSetupResponse) Reset() {
+	*x = ConfirmSetupResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmSetupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmSetupResponse) ProtoMessage() {}
+
+func (x *ConfirmSetupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmSetupResponse.ProtoReflect.Descriptor instead.
+func (*ConfirmSetupResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ConfirmSetupResponse) GetConfirmed() bool {
+	if x != nil {
+		return x.Confirmed
+	}
+	return false
+}
+
+func (x *ConfirmSetupResponse) GetLtfConfirmation() bool {
+	if x != nil {
+		return x.LtfConfirmation
+	}
+	return false
+}
+
+func (x *ConfirmSetupResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ConfirmSetupResponse) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
 type SetActiveSymbolsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Symbols       []string               `protobuf:"bytes,1,rep,name=symbols,proto3" json:"symbols,omitempty"`
@@ -252,7 +384,7 @@ type SetActiveSymbolsRequest struct {
 
 func (x *SetActiveSymbolsRequest) Reset() {
 	*x = SetActiveSymbolsRequest{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[3]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +396,7 @@ func (x *SetActiveSymbolsRequest) String() string {
 func (*SetActiveSymbolsRequest) ProtoMessage() {}
 
 func (x *SetActiveSymbolsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[3]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +409,7 @@ func (x *SetActiveSymbolsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetActiveSymbolsRequest.ProtoReflect.Descriptor instead.
 func (*SetActiveSymbolsRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{3}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SetActiveSymbolsRequest) GetSymbols() []string {
@@ -297,7 +429,7 @@ type SetActiveSymbolsResponse struct {
 
 func (x *SetActiveSymbolsResponse) Reset() {
 	*x = SetActiveSymbolsResponse{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[4]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -309,7 +441,7 @@ func (x *SetActiveSymbolsResponse) String() string {
 func (*SetActiveSymbolsResponse) ProtoMessage() {}
 
 func (x *SetActiveSymbolsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[4]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -322,7 +454,7 @@ func (x *SetActiveSymbolsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetActiveSymbolsResponse.ProtoReflect.Descriptor instead.
 func (*SetActiveSymbolsResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{4}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SetActiveSymbolsResponse) GetSuccess() bool {
@@ -347,7 +479,7 @@ type GetActiveSymbolsRequest struct {
 
 func (x *GetActiveSymbolsRequest) Reset() {
 	*x = GetActiveSymbolsRequest{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[5]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -359,7 +491,7 @@ func (x *GetActiveSymbolsRequest) String() string {
 func (*GetActiveSymbolsRequest) ProtoMessage() {}
 
 func (x *GetActiveSymbolsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[5]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -372,7 +504,7 @@ func (x *GetActiveSymbolsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveSymbolsRequest.ProtoReflect.Descriptor instead.
 func (*GetActiveSymbolsRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{5}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{7}
 }
 
 type GetActiveSymbolsResponse struct {
@@ -385,7 +517,7 @@ type GetActiveSymbolsResponse struct {
 
 func (x *GetActiveSymbolsResponse) Reset() {
 	*x = GetActiveSymbolsResponse{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[6]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -397,7 +529,7 @@ func (x *GetActiveSymbolsResponse) String() string {
 func (*GetActiveSymbolsResponse) ProtoMessage() {}
 
 func (x *GetActiveSymbolsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[6]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -410,7 +542,7 @@ func (x *GetActiveSymbolsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveSymbolsResponse.ProtoReflect.Descriptor instead.
 func (*GetActiveSymbolsResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{6}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetActiveSymbolsResponse) GetSymbols() []string {
@@ -427,6 +559,359 @@ func (x *GetActiveSymbolsResponse) GetSource() string {
 	return ""
 }
 
+type ResetActiveSymbolsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetActiveSymbolsRequest) Reset() {
+	*x = ResetActiveSymbolsRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetActiveSymbolsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetActiveSymbolsRequest) ProtoMessage() {}
+
+func (x *ResetActiveSymbolsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetActiveSymbolsRequest.ProtoReflect.Descriptor instead.
+func (*ResetActiveSymbolsRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{9}
+}
+
+type ResetActiveSymbolsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ActiveSymbols []string               `protobuf:"bytes,2,rep,name=active_symbols,json=activeSymbols,proto3" json:"active_symbols,omitempty"` // The default symbols now active
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetActiveSymbolsResponse) Reset() {
+	*x = ResetActiveSymbolsResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetActiveSymbolsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetActiveSymbolsResponse) ProtoMessage() {}
+
+func (x *ResetActiveSymbolsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetActiveSymbolsResponse.ProtoReflect.Descriptor instead.
+func (*ResetActiveSymbolsResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ResetActiveSymbolsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ResetActiveSymbolsResponse) GetActiveSymbols() []string {
+	if x != nil {
+		return x.ActiveSymbols
+	}
+	return nil
+}
+
+type SetCycleIntervalRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// New interval in seconds. Must be >= 60 and <= 86400 (24 hours).
+	IntervalSeconds int32 `protobuf:"varint,1,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SetCycleIntervalRequest) Reset() {
+	*x = SetCycleIntervalRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetCycleIntervalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetCycleIntervalRequest) ProtoMessage() {}
+
+func (x *SetCycleIntervalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetCycleIntervalRequest.ProtoReflect.Descriptor instead.
+func (*SetCycleIntervalRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SetCycleIntervalRequest) GetIntervalSeconds() int32 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
+type SetCycleIntervalResponse struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Success                bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	CurrentIntervalSeconds int32                  `protobuf:"varint,2,opt,name=current_interval_seconds,json=currentIntervalSeconds,proto3" json:"current_interval_seconds,omitempty"`
+	Message                string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *SetCycleIntervalResponse) Reset() {
+	*x = SetCycleIntervalResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetCycleIntervalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetCycleIntervalResponse) ProtoMessage() {}
+
+func (x *SetCycleIntervalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetCycleIntervalResponse.ProtoReflect.Descriptor instead.
+func (*SetCycleIntervalResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SetCycleIntervalResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SetCycleIntervalResponse) GetCurrentIntervalSeconds() int32 {
+	if x != nil {
+		return x.CurrentIntervalSeconds
+	}
+	return 0
+}
+
+func (x *SetCycleIntervalResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetGatewayConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatewayConfigRequest) Reset() {
+	*x = GetGatewayConfigRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayConfigRequest) ProtoMessage() {}
+
+func (x *GetGatewayConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetGatewayConfigRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{13}
+}
+
+type GetGatewayConfigResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Enabled              bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CycleIntervalSeconds int32                  `protobuf:"varint,2,opt,name=cycle_interval_seconds,json=cycleIntervalSeconds,proto3" json:"cycle_interval_seconds,omitempty"`
+	CycleTimeoutSeconds  int32                  `protobuf:"varint,3,opt,name=cycle_timeout_seconds,json=cycleTimeoutSeconds,proto3" json:"cycle_timeout_seconds,omitempty"`
+	MaxConcurrentSymbols int32                  `protobuf:"varint,4,opt,name=max_concurrent_symbols,json=maxConcurrentSymbols,proto3" json:"max_concurrent_symbols,omitempty"`
+	TaCacheTtlSeconds    int32                  `protobuf:"varint,5,opt,name=ta_cache_ttl_seconds,json=taCacheTtlSeconds,proto3" json:"ta_cache_ttl_seconds,omitempty"`
+	MacroCacheTtlSeconds int32                  `protobuf:"varint,6,opt,name=macro_cache_ttl_seconds,json=macroCacheTtlSeconds,proto3" json:"macro_cache_ttl_seconds,omitempty"`
+	MaxCycleRetries      int32                  `protobuf:"varint,7,opt,name=max_cycle_retries,json=maxCycleRetries,proto3" json:"max_cycle_retries,omitempty"`
+	DefaultSymbols       []string               `protobuf:"bytes,8,rep,name=default_symbols,json=defaultSymbols,proto3" json:"default_symbols,omitempty"`
+	ActiveSymbols        []string               `protobuf:"bytes,9,rep,name=active_symbols,json=activeSymbols,proto3" json:"active_symbols,omitempty"`
+	ActiveSymbolsSource  string                 `protobuf:"bytes,10,opt,name=active_symbols_source,json=activeSymbolsSource,proto3" json:"active_symbols_source,omitempty"`
+	ExecutionEnabled     bool                   `protobuf:"varint,11,opt,name=execution_enabled,json=executionEnabled,proto3" json:"execution_enabled,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetGatewayConfigResponse) Reset() {
+	*x = GetGatewayConfigResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatewayConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatewayConfigResponse) ProtoMessage() {}
+
+func (x *GetGatewayConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatewayConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetGatewayConfigResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetGatewayConfigResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetGatewayConfigResponse) GetCycleIntervalSeconds() int32 {
+	if x != nil {
+		return x.CycleIntervalSeconds
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetCycleTimeoutSeconds() int32 {
+	if x != nil {
+		return x.CycleTimeoutSeconds
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetMaxConcurrentSymbols() int32 {
+	if x != nil {
+		return x.MaxConcurrentSymbols
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetTaCacheTtlSeconds() int32 {
+	if x != nil {
+		return x.TaCacheTtlSeconds
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetMacroCacheTtlSeconds() int32 {
+	if x != nil {
+		return x.MacroCacheTtlSeconds
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetMaxCycleRetries() int32 {
+	if x != nil {
+		return x.MaxCycleRetries
+	}
+	return 0
+}
+
+func (x *GetGatewayConfigResponse) GetDefaultSymbols() []string {
+	if x != nil {
+		return x.DefaultSymbols
+	}
+	return nil
+}
+
+func (x *GetGatewayConfigResponse) GetActiveSymbols() []string {
+	if x != nil {
+		return x.ActiveSymbols
+	}
+	return nil
+}
+
+func (x *GetGatewayConfigResponse) GetActiveSymbolsSource() string {
+	if x != nil {
+		return x.ActiveSymbolsSource
+	}
+	return ""
+}
+
+func (x *GetGatewayConfigResponse) GetExecutionEnabled() bool {
+	if x != nil {
+		return x.ExecutionEnabled
+	}
+	return false
+}
+
 type GetHealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -435,7 +920,7 @@ type GetHealthRequest struct {
 
 func (x *GetHealthRequest) Reset() {
 	*x = GetHealthRequest{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[7]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -447,7 +932,7 @@ func (x *GetHealthRequest) String() string {
 func (*GetHealthRequest) ProtoMessage() {}
 
 func (x *GetHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[7]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -460,7 +945,7 @@ func (x *GetHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHealthRequest.ProtoReflect.Descriptor instead.
 func (*GetHealthRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{7}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{15}
 }
 
 type GetHealthResponse struct {
@@ -475,7 +960,7 @@ type GetHealthResponse struct {
 
 func (x *GetHealthResponse) Reset() {
 	*x = GetHealthResponse{}
-	mi := &file_gateway_v1_gateway_proto_msgTypes[8]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +972,7 @@ func (x *GetHealthResponse) String() string {
 func (*GetHealthResponse) ProtoMessage() {}
 
 func (x *GetHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_gateway_proto_msgTypes[8]
+	mi := &file_gateway_v1_gateway_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +985,7 @@ func (x *GetHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHealthResponse.ProtoReflect.Descriptor instead.
 func (*GetHealthResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{8}
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetHealthResponse) GetStatus() string {
@@ -531,6 +1016,287 @@ func (x *GetHealthResponse) GetActiveCycles() int32 {
 	return 0
 }
 
+type NotifyExecutionCompletedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	BrokerOrderId string                 `protobuf:"bytes,2,opt,name=broker_order_id,json=brokerOrderId,proto3" json:"broker_order_id,omitempty"`
+	FillPrice     float64                `protobuf:"fixed64,3,opt,name=fill_price,json=fillPrice,proto3" json:"fill_price,omitempty"`
+	Slippage      float64                `protobuf:"fixed64,4,opt,name=slippage,proto3" json:"slippage,omitempty"`
+	LotSize       float64                `protobuf:"fixed64,5,opt,name=lot_size,json=lotSize,proto3" json:"lot_size,omitempty"`
+	AnalysisId    string                 `protobuf:"bytes,6,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"`
+	TraceId       string                 `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	// Full trade context for Module C handoff — carried from Module B's Order.
+	Direction       string  `protobuf:"bytes,8,opt,name=direction,proto3" json:"direction,omitempty"` // "BUY" or "SELL"
+	StopLoss        float64 `protobuf:"fixed64,9,opt,name=stop_loss,json=stopLoss,proto3" json:"stop_loss,omitempty"`
+	Tp1Price        float64 `protobuf:"fixed64,10,opt,name=tp1_price,json=tp1Price,proto3" json:"tp1_price,omitempty"`
+	Tp1Pct          int32   `protobuf:"varint,11,opt,name=tp1_pct,json=tp1Pct,proto3" json:"tp1_pct,omitempty"`
+	Tp2Price        float64 `protobuf:"fixed64,12,opt,name=tp2_price,json=tp2Price,proto3" json:"tp2_price,omitempty"`
+	Tp2Pct          int32   `protobuf:"varint,13,opt,name=tp2_pct,json=tp2Pct,proto3" json:"tp2_pct,omitempty"`
+	Tp3Price        float64 `protobuf:"fixed64,14,opt,name=tp3_price,json=tp3Price,proto3" json:"tp3_price,omitempty"`
+	Tp3Pct          int32   `protobuf:"varint,15,opt,name=tp3_pct,json=tp3Pct,proto3" json:"tp3_pct,omitempty"`
+	RiskAmount      float64 `protobuf:"fixed64,16,opt,name=risk_amount,json=riskAmount,proto3" json:"risk_amount,omitempty"`
+	RiskPercent     float64 `protobuf:"fixed64,17,opt,name=risk_percent,json=riskPercent,proto3" json:"risk_percent,omitempty"`
+	RrRatio         float64 `protobuf:"fixed64,18,opt,name=rr_ratio,json=rrRatio,proto3" json:"rr_ratio,omitempty"`
+	Grade           string  `protobuf:"bytes,19,opt,name=grade,proto3" json:"grade,omitempty"`
+	TradingStyle    string  `protobuf:"bytes,20,opt,name=trading_style,json=tradingStyle,proto3" json:"trading_style,omitempty"` // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+	Session         string  `protobuf:"bytes,21,opt,name=session,proto3" json:"session,omitempty"`
+	ConfluenceScore float64 `protobuf:"fixed64,22,opt,name=confluence_score,json=confluenceScore,proto3" json:"confluence_score,omitempty"`
+	ExecutionMode   string  `protobuf:"bytes,23,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"` // "LIMIT" or "INSTANT"
+	SetupType       string  `protobuf:"bytes,24,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"`             // Passed back to Gateway for Management Engine consumption
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *NotifyExecutionCompletedRequest) Reset() {
+	*x = NotifyExecutionCompletedRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotifyExecutionCompletedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotifyExecutionCompletedRequest) ProtoMessage() {}
+
+func (x *NotifyExecutionCompletedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotifyExecutionCompletedRequest.ProtoReflect.Descriptor instead.
+func (*NotifyExecutionCompletedRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *NotifyExecutionCompletedRequest) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetBrokerOrderId() string {
+	if x != nil {
+		return x.BrokerOrderId
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetFillPrice() float64 {
+	if x != nil {
+		return x.FillPrice
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetSlippage() float64 {
+	if x != nil {
+		return x.Slippage
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetLotSize() float64 {
+	if x != nil {
+		return x.LotSize
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetAnalysisId() string {
+	if x != nil {
+		return x.AnalysisId
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetDirection() string {
+	if x != nil {
+		return x.Direction
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetStopLoss() float64 {
+	if x != nil {
+		return x.StopLoss
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp1Price() float64 {
+	if x != nil {
+		return x.Tp1Price
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp1Pct() int32 {
+	if x != nil {
+		return x.Tp1Pct
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp2Price() float64 {
+	if x != nil {
+		return x.Tp2Price
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp2Pct() int32 {
+	if x != nil {
+		return x.Tp2Pct
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp3Price() float64 {
+	if x != nil {
+		return x.Tp3Price
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTp3Pct() int32 {
+	if x != nil {
+		return x.Tp3Pct
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetRiskAmount() float64 {
+	if x != nil {
+		return x.RiskAmount
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetRiskPercent() float64 {
+	if x != nil {
+		return x.RiskPercent
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetRrRatio() float64 {
+	if x != nil {
+		return x.RrRatio
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetGrade() string {
+	if x != nil {
+		return x.Grade
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetTradingStyle() string {
+	if x != nil {
+		return x.TradingStyle
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetSession() string {
+	if x != nil {
+		return x.Session
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetConfluenceScore() float64 {
+	if x != nil {
+		return x.ConfluenceScore
+	}
+	return 0
+}
+
+func (x *NotifyExecutionCompletedRequest) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *NotifyExecutionCompletedRequest) GetSetupType() string {
+	if x != nil {
+		return x.SetupType
+	}
+	return ""
+}
+
+type NotifyExecutionCompletedResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Success           bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ManagementTradeId string                 `protobuf:"bytes,2,opt,name=management_trade_id,json=managementTradeId,proto3" json:"management_trade_id,omitempty"` // Module C's tracking ID, returned for reference
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *NotifyExecutionCompletedResponse) Reset() {
+	*x = NotifyExecutionCompletedResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotifyExecutionCompletedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotifyExecutionCompletedResponse) ProtoMessage() {}
+
+func (x *NotifyExecutionCompletedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotifyExecutionCompletedResponse.ProtoReflect.Descriptor instead.
+func (*NotifyExecutionCompletedResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *NotifyExecutionCompletedResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *NotifyExecutionCompletedResponse) GetManagementTradeId() string {
+	if x != nil {
+		return x.ManagementTradeId
+	}
+	return ""
+}
+
 var File_gateway_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_gateway_v1_gateway_proto_rawDesc = "" +
@@ -556,7 +1322,17 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	" \x01(\fR\x0fguardResultJson\x122\n" +
 	"\x15execution_result_json\x18\v \x01(\fR\x13executionResultJson\"E\n" +
 	"\x10RunCycleResponse\x121\n" +
-	"\aoutputs\x18\x01 \x03(\v2\x17.gateway.v1.CycleOutputR\aoutputs\"3\n" +
+	"\aoutputs\x18\x01 \x03(\v2\x17.gateway.v1.CycleOutputR\aoutputs\"i\n" +
+	"\x13ConfirmSetupRequest\x12\x16\n" +
+	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1f\n" +
+	"\vanalysis_id\x18\x02 \x01(\tR\n" +
+	"analysisId\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"\x92\x01\n" +
+	"\x14ConfirmSetupResponse\x12\x1c\n" +
+	"\tconfirmed\x18\x01 \x01(\bR\tconfirmed\x12)\n" +
+	"\x10ltf_confirmation\x18\x02 \x01(\bR\x0fltfConfirmation\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
+	"\btrace_id\x18\x04 \x01(\tR\atraceId\"3\n" +
 	"\x17SetActiveSymbolsRequest\x12\x18\n" +
 	"\asymbols\x18\x01 \x03(\tR\asymbols\"[\n" +
 	"\x18SetActiveSymbolsResponse\x12\x18\n" +
@@ -565,18 +1341,80 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	"\x17GetActiveSymbolsRequest\"L\n" +
 	"\x18GetActiveSymbolsResponse\x12\x18\n" +
 	"\asymbols\x18\x01 \x03(\tR\asymbols\x12\x16\n" +
-	"\x06source\x18\x02 \x01(\tR\x06source\"\x12\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\"\x1b\n" +
+	"\x19ResetActiveSymbolsRequest\"]\n" +
+	"\x1aResetActiveSymbolsResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
+	"\x0eactive_symbols\x18\x02 \x03(\tR\ractiveSymbols\"D\n" +
+	"\x17SetCycleIntervalRequest\x12)\n" +
+	"\x10interval_seconds\x18\x01 \x01(\x05R\x0fintervalSeconds\"\x88\x01\n" +
+	"\x18SetCycleIntervalResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x128\n" +
+	"\x18current_interval_seconds\x18\x02 \x01(\x05R\x16currentIntervalSeconds\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x19\n" +
+	"\x17GetGatewayConfigRequest\"\x99\x04\n" +
+	"\x18GetGatewayConfigResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x124\n" +
+	"\x16cycle_interval_seconds\x18\x02 \x01(\x05R\x14cycleIntervalSeconds\x122\n" +
+	"\x15cycle_timeout_seconds\x18\x03 \x01(\x05R\x13cycleTimeoutSeconds\x124\n" +
+	"\x16max_concurrent_symbols\x18\x04 \x01(\x05R\x14maxConcurrentSymbols\x12/\n" +
+	"\x14ta_cache_ttl_seconds\x18\x05 \x01(\x05R\x11taCacheTtlSeconds\x125\n" +
+	"\x17macro_cache_ttl_seconds\x18\x06 \x01(\x05R\x14macroCacheTtlSeconds\x12*\n" +
+	"\x11max_cycle_retries\x18\a \x01(\x05R\x0fmaxCycleRetries\x12'\n" +
+	"\x0fdefault_symbols\x18\b \x03(\tR\x0edefaultSymbols\x12%\n" +
+	"\x0eactive_symbols\x18\t \x03(\tR\ractiveSymbols\x122\n" +
+	"\x15active_symbols_source\x18\n" +
+	" \x01(\tR\x13activeSymbolsSource\x12+\n" +
+	"\x11execution_enabled\x18\v \x01(\bR\x10executionEnabled\"\x12\n" +
 	"\x10GetHealthRequest\"\xa4\x01\n" +
 	"\x11GetHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12'\n" +
 	"\x0fredis_connected\x18\x02 \x01(\bR\x0eredisConnected\x12)\n" +
 	"\x10engine_connected\x18\x03 \x01(\bR\x0fengineConnected\x12#\n" +
-	"\ractive_cycles\x18\x04 \x01(\x05R\factiveCycles2\xdf\x02\n" +
+	"\ractive_cycles\x18\x04 \x01(\x05R\factiveCycles\"\xf5\x05\n" +
+	"\x1fNotifyExecutionCompletedRequest\x12\x16\n" +
+	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12&\n" +
+	"\x0fbroker_order_id\x18\x02 \x01(\tR\rbrokerOrderId\x12\x1d\n" +
+	"\n" +
+	"fill_price\x18\x03 \x01(\x01R\tfillPrice\x12\x1a\n" +
+	"\bslippage\x18\x04 \x01(\x01R\bslippage\x12\x19\n" +
+	"\blot_size\x18\x05 \x01(\x01R\alotSize\x12\x1f\n" +
+	"\vanalysis_id\x18\x06 \x01(\tR\n" +
+	"analysisId\x12\x19\n" +
+	"\btrace_id\x18\a \x01(\tR\atraceId\x12\x1c\n" +
+	"\tdirection\x18\b \x01(\tR\tdirection\x12\x1b\n" +
+	"\tstop_loss\x18\t \x01(\x01R\bstopLoss\x12\x1b\n" +
+	"\ttp1_price\x18\n" +
+	" \x01(\x01R\btp1Price\x12\x17\n" +
+	"\atp1_pct\x18\v \x01(\x05R\x06tp1Pct\x12\x1b\n" +
+	"\ttp2_price\x18\f \x01(\x01R\btp2Price\x12\x17\n" +
+	"\atp2_pct\x18\r \x01(\x05R\x06tp2Pct\x12\x1b\n" +
+	"\ttp3_price\x18\x0e \x01(\x01R\btp3Price\x12\x17\n" +
+	"\atp3_pct\x18\x0f \x01(\x05R\x06tp3Pct\x12\x1f\n" +
+	"\vrisk_amount\x18\x10 \x01(\x01R\n" +
+	"riskAmount\x12!\n" +
+	"\frisk_percent\x18\x11 \x01(\x01R\vriskPercent\x12\x19\n" +
+	"\brr_ratio\x18\x12 \x01(\x01R\arrRatio\x12\x14\n" +
+	"\x05grade\x18\x13 \x01(\tR\x05grade\x12#\n" +
+	"\rtrading_style\x18\x14 \x01(\tR\ftradingStyle\x12\x18\n" +
+	"\asession\x18\x15 \x01(\tR\asession\x12)\n" +
+	"\x10confluence_score\x18\x16 \x01(\x01R\x0fconfluenceScore\x12%\n" +
+	"\x0eexecution_mode\x18\x17 \x01(\tR\rexecutionMode\x12\x1d\n" +
+	"\n" +
+	"setup_type\x18\x18 \x01(\tR\tsetupType\"l\n" +
+	" NotifyExecutionCompletedResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12.\n" +
+	"\x13management_trade_id\x18\x02 \x01(\tR\x11managementTradeId2\xcc\x06\n" +
 	"\x0eGatewayService\x12E\n" +
-	"\bRunCycle\x12\x1b.gateway.v1.RunCycleRequest\x1a\x1c.gateway.v1.RunCycleResponse\x12]\n" +
+	"\bRunCycle\x12\x1b.gateway.v1.RunCycleRequest\x1a\x1c.gateway.v1.RunCycleResponse\x12Q\n" +
+	"\fConfirmSetup\x12\x1f.gateway.v1.ConfirmSetupRequest\x1a .gateway.v1.ConfirmSetupResponse\x12u\n" +
+	"\x18NotifyExecutionCompleted\x12+.gateway.v1.NotifyExecutionCompletedRequest\x1a,.gateway.v1.NotifyExecutionCompletedResponse\x12]\n" +
 	"\x10SetActiveSymbols\x12#.gateway.v1.SetActiveSymbolsRequest\x1a$.gateway.v1.SetActiveSymbolsResponse\x12]\n" +
-	"\x10GetActiveSymbols\x12#.gateway.v1.GetActiveSymbolsRequest\x1a$.gateway.v1.GetActiveSymbolsResponse\x12H\n" +
-	"\tGetHealth\x12\x1c.gateway.v1.GetHealthRequest\x1a\x1d.gateway.v1.GetHealthResponseB:Z8github.com/flamegreat/etradie/proto/gateway/v1;gatewayv1b\x06proto3"
+	"\x10GetActiveSymbols\x12#.gateway.v1.GetActiveSymbolsRequest\x1a$.gateway.v1.GetActiveSymbolsResponse\x12c\n" +
+	"\x12ResetActiveSymbols\x12%.gateway.v1.ResetActiveSymbolsRequest\x1a&.gateway.v1.ResetActiveSymbolsResponse\x12]\n" +
+	"\x10SetCycleInterval\x12#.gateway.v1.SetCycleIntervalRequest\x1a$.gateway.v1.SetCycleIntervalResponse\x12]\n" +
+	"\x10GetGatewayConfig\x12#.gateway.v1.GetGatewayConfigRequest\x1a$.gateway.v1.GetGatewayConfigResponse\x12H\n" +
+	"\tGetHealth\x12\x1c.gateway.v1.GetHealthRequest\x1a\x1d.gateway.v1.GetHealthResponseB<Z:github.com/flamegreat-1/etradie/proto/gateway/v1;gatewayv1b\x06proto3"
 
 var (
 	file_gateway_v1_gateway_proto_rawDescOnce sync.Once
@@ -590,33 +1428,53 @@ func file_gateway_v1_gateway_proto_rawDescGZIP() []byte {
 	return file_gateway_v1_gateway_proto_rawDescData
 }
 
-var file_gateway_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_gateway_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_gateway_v1_gateway_proto_goTypes = []any{
-	(*RunCycleRequest)(nil),          // 0: gateway.v1.RunCycleRequest
-	(*CycleOutput)(nil),              // 1: gateway.v1.CycleOutput
-	(*RunCycleResponse)(nil),         // 2: gateway.v1.RunCycleResponse
-	(*SetActiveSymbolsRequest)(nil),  // 3: gateway.v1.SetActiveSymbolsRequest
-	(*SetActiveSymbolsResponse)(nil), // 4: gateway.v1.SetActiveSymbolsResponse
-	(*GetActiveSymbolsRequest)(nil),  // 5: gateway.v1.GetActiveSymbolsRequest
-	(*GetActiveSymbolsResponse)(nil), // 6: gateway.v1.GetActiveSymbolsResponse
-	(*GetHealthRequest)(nil),         // 7: gateway.v1.GetHealthRequest
-	(*GetHealthResponse)(nil),        // 8: gateway.v1.GetHealthResponse
+	(*RunCycleRequest)(nil),                  // 0: gateway.v1.RunCycleRequest
+	(*CycleOutput)(nil),                      // 1: gateway.v1.CycleOutput
+	(*RunCycleResponse)(nil),                 // 2: gateway.v1.RunCycleResponse
+	(*ConfirmSetupRequest)(nil),              // 3: gateway.v1.ConfirmSetupRequest
+	(*ConfirmSetupResponse)(nil),             // 4: gateway.v1.ConfirmSetupResponse
+	(*SetActiveSymbolsRequest)(nil),          // 5: gateway.v1.SetActiveSymbolsRequest
+	(*SetActiveSymbolsResponse)(nil),         // 6: gateway.v1.SetActiveSymbolsResponse
+	(*GetActiveSymbolsRequest)(nil),          // 7: gateway.v1.GetActiveSymbolsRequest
+	(*GetActiveSymbolsResponse)(nil),         // 8: gateway.v1.GetActiveSymbolsResponse
+	(*ResetActiveSymbolsRequest)(nil),        // 9: gateway.v1.ResetActiveSymbolsRequest
+	(*ResetActiveSymbolsResponse)(nil),       // 10: gateway.v1.ResetActiveSymbolsResponse
+	(*SetCycleIntervalRequest)(nil),          // 11: gateway.v1.SetCycleIntervalRequest
+	(*SetCycleIntervalResponse)(nil),         // 12: gateway.v1.SetCycleIntervalResponse
+	(*GetGatewayConfigRequest)(nil),          // 13: gateway.v1.GetGatewayConfigRequest
+	(*GetGatewayConfigResponse)(nil),         // 14: gateway.v1.GetGatewayConfigResponse
+	(*GetHealthRequest)(nil),                 // 15: gateway.v1.GetHealthRequest
+	(*GetHealthResponse)(nil),                // 16: gateway.v1.GetHealthResponse
+	(*NotifyExecutionCompletedRequest)(nil),  // 17: gateway.v1.NotifyExecutionCompletedRequest
+	(*NotifyExecutionCompletedResponse)(nil), // 18: gateway.v1.NotifyExecutionCompletedResponse
 }
 var file_gateway_v1_gateway_proto_depIdxs = []int32{
-	1, // 0: gateway.v1.RunCycleResponse.outputs:type_name -> gateway.v1.CycleOutput
-	0, // 1: gateway.v1.GatewayService.RunCycle:input_type -> gateway.v1.RunCycleRequest
-	3, // 2: gateway.v1.GatewayService.SetActiveSymbols:input_type -> gateway.v1.SetActiveSymbolsRequest
-	5, // 3: gateway.v1.GatewayService.GetActiveSymbols:input_type -> gateway.v1.GetActiveSymbolsRequest
-	7, // 4: gateway.v1.GatewayService.GetHealth:input_type -> gateway.v1.GetHealthRequest
-	2, // 5: gateway.v1.GatewayService.RunCycle:output_type -> gateway.v1.RunCycleResponse
-	4, // 6: gateway.v1.GatewayService.SetActiveSymbols:output_type -> gateway.v1.SetActiveSymbolsResponse
-	6, // 7: gateway.v1.GatewayService.GetActiveSymbols:output_type -> gateway.v1.GetActiveSymbolsResponse
-	8, // 8: gateway.v1.GatewayService.GetHealth:output_type -> gateway.v1.GetHealthResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1,  // 0: gateway.v1.RunCycleResponse.outputs:type_name -> gateway.v1.CycleOutput
+	0,  // 1: gateway.v1.GatewayService.RunCycle:input_type -> gateway.v1.RunCycleRequest
+	3,  // 2: gateway.v1.GatewayService.ConfirmSetup:input_type -> gateway.v1.ConfirmSetupRequest
+	17, // 3: gateway.v1.GatewayService.NotifyExecutionCompleted:input_type -> gateway.v1.NotifyExecutionCompletedRequest
+	5,  // 4: gateway.v1.GatewayService.SetActiveSymbols:input_type -> gateway.v1.SetActiveSymbolsRequest
+	7,  // 5: gateway.v1.GatewayService.GetActiveSymbols:input_type -> gateway.v1.GetActiveSymbolsRequest
+	9,  // 6: gateway.v1.GatewayService.ResetActiveSymbols:input_type -> gateway.v1.ResetActiveSymbolsRequest
+	11, // 7: gateway.v1.GatewayService.SetCycleInterval:input_type -> gateway.v1.SetCycleIntervalRequest
+	13, // 8: gateway.v1.GatewayService.GetGatewayConfig:input_type -> gateway.v1.GetGatewayConfigRequest
+	15, // 9: gateway.v1.GatewayService.GetHealth:input_type -> gateway.v1.GetHealthRequest
+	2,  // 10: gateway.v1.GatewayService.RunCycle:output_type -> gateway.v1.RunCycleResponse
+	4,  // 11: gateway.v1.GatewayService.ConfirmSetup:output_type -> gateway.v1.ConfirmSetupResponse
+	18, // 12: gateway.v1.GatewayService.NotifyExecutionCompleted:output_type -> gateway.v1.NotifyExecutionCompletedResponse
+	6,  // 13: gateway.v1.GatewayService.SetActiveSymbols:output_type -> gateway.v1.SetActiveSymbolsResponse
+	8,  // 14: gateway.v1.GatewayService.GetActiveSymbols:output_type -> gateway.v1.GetActiveSymbolsResponse
+	10, // 15: gateway.v1.GatewayService.ResetActiveSymbols:output_type -> gateway.v1.ResetActiveSymbolsResponse
+	12, // 16: gateway.v1.GatewayService.SetCycleInterval:output_type -> gateway.v1.SetCycleIntervalResponse
+	14, // 17: gateway.v1.GatewayService.GetGatewayConfig:output_type -> gateway.v1.GetGatewayConfigResponse
+	16, // 18: gateway.v1.GatewayService.GetHealth:output_type -> gateway.v1.GetHealthResponse
+	10, // [10:19] is the sub-list for method output_type
+	1,  // [1:10] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_gateway_v1_gateway_proto_init() }
@@ -630,7 +1488,7 @@ func file_gateway_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gateway_v1_gateway_proto_rawDesc), len(file_gateway_v1_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

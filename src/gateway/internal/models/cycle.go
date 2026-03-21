@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/constants"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 )
 
 // CycleState tracks the current state of an analysis cycle.

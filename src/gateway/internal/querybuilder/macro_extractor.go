@@ -3,7 +3,7 @@ package querybuilder
 import (
     "strings"
 
-    "github.com/flamegreat/etradie/src/gateway/internal/models"
+    "github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
 // MacroSignals holds extracted macro signals for RAG query construction.

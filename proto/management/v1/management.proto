@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package management.v1;
 
-option go_package = "github.com/flamegreat/etradie/proto/management/v1;managementv1";
+option go_package = "github.com/flamegreat-1/etradie/proto/management/v1;managementv1";
 
 // ManagementService is the gRPC contract for Module C (Trade Management).
 // The Gateway is the primary client. Module C implements this server.

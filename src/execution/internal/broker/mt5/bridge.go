@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 )
 
 // Bridge implements broker.Port by calling the Python MT5 bridge

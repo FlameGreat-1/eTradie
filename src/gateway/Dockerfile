@@ -1,5 +1,5 @@
 # ── Build stage ──────────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /src
 
@@ -7,7 +7,7 @@ WORKDIR /src
 RUN apk add --no-cache git ca-certificates tzdata make
 
 # Cache dependencies
-COPY go.mod go.sum ./
+COPY go.mod go.sum* ./
 RUN go mod download
 
 # Copy the source code

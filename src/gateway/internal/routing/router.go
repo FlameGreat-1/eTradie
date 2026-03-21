@@ -7,12 +7,12 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/gateway/internal/constants"
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat/etradie/src/gateway/internal/ports"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 )
 
 // RouteResult holds the outcome of routing a processor decision.

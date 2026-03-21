@@ -6,11 +6,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 // BreakevenEngine evaluates and executes break-even rules from

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/flamegreat/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
 
 // ── Pure-math Sizing Tests ──────────────────────────────────────────────────

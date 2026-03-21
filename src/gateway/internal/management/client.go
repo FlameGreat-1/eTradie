@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	managementv1 "github.com/flamegreat/etradie/proto/management/v1"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // Client is the Gateway's gRPC client for Module C (Trade Management).

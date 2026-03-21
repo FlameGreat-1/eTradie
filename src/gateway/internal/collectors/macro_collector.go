@@ -7,10 +7,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/constants"
-	"github.com/flamegreat/etradie/src/gateway/internal/infra"
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // MacroCollector calls the Python engine to collect all 8 macro datasets

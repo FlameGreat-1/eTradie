@@ -9,11 +9,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/gateway/internal/config"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat/etradie/src/gateway/internal/settingsstore"
-	"github.com/flamegreat/etradie/src/gateway/internal/symbolstore"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 )
 
 // Scheduler manages the recurring gateway analysis cycle.

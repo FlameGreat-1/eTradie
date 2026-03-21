@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flamegreat/etradie/src/execution/internal/broker"
-	"github.com/flamegreat/etradie/src/execution/internal/config"
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/state"
+	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
+	"github.com/flamegreat-1/etradie/src/execution/internal/config"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 )
 
 // check4NewsLockout: Gateway guard MR-REJECT-001 already evaluates news

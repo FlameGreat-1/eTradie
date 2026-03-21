@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
 
 // ── These tests target the individual check functions directly.

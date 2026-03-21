@@ -9,13 +9,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 // NewsEngine executes the deterministic risk-off protocol before
@@ -96,7 +96,7 @@ func (e *NewsEngine) pollCalendar(ctx context.Context, getTrades func() []*types
 			if timeToEvent >= 4*time.Minute && timeToEvent <= 16*time.Minute {
 				trades := getTrades()
 				for _, t := range trades {
-					if t.Status == constants.StatusActive || t.Status == constants.StatusOpen {
+					if t.Status == constants.StatusActive {
 						price, err := getPrice(ctx, t.Symbol)
 						if err == nil {
 							e.EvaluatePreNewsRiskOff(ctx, t, evt.EventName, timeToEvent, price)

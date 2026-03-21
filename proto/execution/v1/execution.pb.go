@@ -46,8 +46,16 @@ type ExecuteTradeRequest struct {
 	Confidence      float64                `protobuf:"fixed64,18,opt,name=confidence,proto3" json:"confidence,omitempty"`
 	AnalysisId      string                 `protobuf:"bytes,19,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"` // Links back to Module A output
 	TraceId         string                 `protobuf:"bytes,20,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Execution mode override. If set, Execution uses this instead of
+	// resolving from the settings DB. Values: "LIMIT", "INSTANT".
+	ExecutionMode string `protobuf:"bytes,21,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	// LTF confirmation status from the TA candidate. When true AND mode
+	// is INSTANT, Execution fires the market order immediately (pre-
+	// confirmed fast path) without spawning a price watcher.
+	LtfConfirmed  bool   `protobuf:"varint,22,opt,name=ltf_confirmed,json=ltfConfirmed,proto3" json:"ltf_confirmed,omitempty"`
+	SetupType     string `protobuf:"bytes,23,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"` // Passes the structural TA setup type (e.g., OB, FVG)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExecuteTradeRequest) Reset() {
@@ -216,6 +224,27 @@ func (x *ExecuteTradeRequest) GetAnalysisId() string {
 func (x *ExecuteTradeRequest) GetTraceId() string {
 	if x != nil {
 		return x.TraceId
+	}
+	return ""
+}
+
+func (x *ExecuteTradeRequest) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *ExecuteTradeRequest) GetLtfConfirmed() bool {
+	if x != nil {
+		return x.LtfConfirmed
+	}
+	return false
+}
+
+func (x *ExecuteTradeRequest) GetSetupType() string {
+	if x != nil {
+		return x.SetupType
 	}
 	return ""
 }
@@ -878,7 +907,7 @@ var File_execution_v1_execution_proto protoreflect.FileDescriptor
 
 const file_execution_v1_execution_proto_rawDesc = "" +
 	"\n" +
-	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"\xf8\x04\n" +
+	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"\xe3\x05\n" +
 	"\x13ExecuteTradeRequest\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1c\n" +
 	"\tdirection\x18\x02 \x01(\tR\tdirection\x12$\n" +
@@ -903,7 +932,11 @@ const file_execution_v1_execution_proto_rawDesc = "" +
 	"confidence\x12\x1f\n" +
 	"\vanalysis_id\x18\x13 \x01(\tR\n" +
 	"analysisId\x12\x19\n" +
-	"\btrace_id\x18\x14 \x01(\tR\atraceId\"\xe9\x03\n" +
+	"\btrace_id\x18\x14 \x01(\tR\atraceId\x12%\n" +
+	"\x0eexecution_mode\x18\x15 \x01(\tR\rexecutionMode\x12#\n" +
+	"\rltf_confirmed\x18\x16 \x01(\bR\fltfConfirmed\x12\x1d\n" +
+	"\n" +
+	"setup_type\x18\x17 \x01(\tR\tsetupType\"\xe9\x03\n" +
 	"\x14ExecuteTradeResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x19\n" +
@@ -973,7 +1006,7 @@ const file_execution_v1_execution_proto_rawDesc = "" +
 	"\x10ExecutionService\x12U\n" +
 	"\fExecuteTrade\x12!.execution.v1.ExecuteTradeRequest\x1a\".execution.v1.ExecuteTradeResponse\x12Y\n" +
 	"\x12CancelPendingOrder\x12 .execution.v1.CancelOrderRequest\x1a!.execution.v1.CancelOrderResponse\x12R\n" +
-	"\x11GetExecutionState\x12\x1d.execution.v1.GetStateRequest\x1a\x1e.execution.v1.GetStateResponseB>Z<github.com/flamegreat/etradie/proto/execution/v1;executionv1b\x06proto3"
+	"\x11GetExecutionState\x12\x1d.execution.v1.GetStateRequest\x1a\x1e.execution.v1.GetStateResponseB@Z>github.com/flamegreat-1/etradie/proto/execution/v1;executionv1b\x06proto3"
 
 var (
 	file_execution_v1_execution_proto_rawDescOnce sync.Once

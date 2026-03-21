@@ -58,6 +58,8 @@ const (
 	TypeProcessorLLMFailed    = "PROCESSOR_LLM_FAILED"
 	TypeExecutionCallFailed   = "EXECUTION_CALL_FAILED"
 	TypeTradeRouted           = "TRADE_ROUTED"
+	TypeExecutionHandoff      = "EXECUTION_HANDOFF"
+	TypeManagementHandoffFailed = "MANAGEMENT_HANDOFF_FAILED"
 	TypeIntervalChanged       = "INTERVAL_CHANGED"
 	TypeSymbolsChanged        = "SYMBOLS_CHANGED"
 
@@ -67,10 +69,11 @@ const (
 	TypeMacroCalendarUpdate = "MACRO_CALENDAR_UPDATE"
 
 	// Trade manager (Module C) events.
-	TypeTrailingSLMoved  = "TRAILING_SL_MOVED"
-	TypePartialClose     = "PARTIAL_CLOSE"
-	TypeBreakevenSet     = "BREAKEVEN_SET"
-	TypeTradeClosed      = "TRADE_CLOSED"
+	TypeTrailingSLMoved     = "TRAILING_SL_MOVED"
+	TypePartialClose        = "PARTIAL_CLOSE"
+	TypeBreakevenSet        = "BREAKEVEN_SET"
+	TypeTradeClosed         = "TRADE_CLOSED"
+	TypePerformanceReport   = "PERFORMANCE_REPORT"
 
 	// System events.
 	TypeServiceStarted   = "SERVICE_STARTED"

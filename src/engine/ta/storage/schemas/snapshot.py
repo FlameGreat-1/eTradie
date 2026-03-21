@@ -76,7 +76,7 @@ class SnapshotSchema(Base):
 
     dealing_ranges: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=True)
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=True)
 
     version: Mapped[int] = mapped_column(default=1, nullable=False)
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
 )
 
 // Config holds all execution engine configuration. Loaded from

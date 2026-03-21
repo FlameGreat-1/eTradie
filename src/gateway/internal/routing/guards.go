@@ -7,10 +7,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/constants"
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat/etradie/src/gateway/internal/querybuilder"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder"
 )
 
 // GuardEvaluator evaluates all post-processor guard rules.

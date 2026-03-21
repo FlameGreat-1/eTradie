@@ -7,12 +7,12 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 )
 
 type Scalping struct {
@@ -35,7 +35,6 @@ func (p *Scalping) Evaluate(ctx context.Context, trade *types.Trade, currentPric
 	trade.RLock()
 	style := trade.TradingStyle
 	openedAt := trade.OpenedAt
-	tradeID := trade.TradeID
 	brokerID := trade.BrokerOrderID
 	symbol := trade.Symbol
 	status := trade.Status

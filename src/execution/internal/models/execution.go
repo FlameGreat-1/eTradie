@@ -1,6 +1,6 @@
 package models
 
-import "github.com/flamegreat/etradie/src/execution/internal/constants"
+import "github.com/flamegreat-1/etradie/src/execution/internal/constants"
 
 // SizingResult holds the output of the position sizing engine.
 type SizingResult struct {

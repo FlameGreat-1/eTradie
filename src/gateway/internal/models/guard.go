@@ -1,6 +1,6 @@
 package models
 
-import "github.com/flamegreat/etradie/src/gateway/internal/constants"
+import "github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 
 // GuardCheckResult holds the result of a single guard rule evaluation.
 type GuardCheckResult struct {

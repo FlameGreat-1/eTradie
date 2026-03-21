@@ -4,21 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/eod"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/internal/stoploss"
-	"github.com/flamegreat/etradie/src/management/internal/takeprofit"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/stoploss"
+	"github.com/flamegreat-1/etradie/src/management/internal/takeprofit"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 // AlertTransport abstracts the alert publishing interface.
@@ -62,7 +59,7 @@ func NewManager(
 	transport AlertTransport,
 	tickPollMs int,
 ) *Manager {
-	return &Manager{
+	mgr := &Manager{
 		trades:     make(map[string]*types.Trade),
 		cancels:    make(map[string]context.CancelFunc),
 		bp:         bp,
@@ -74,6 +71,17 @@ func NewManager(
 		tickPollMs: tickPollMs,
 		log:        observability.Logger("monitoring"),
 	}
+
+	// This ctx is never cancelled until manager dies, or we can use a dedicated ctx
+	ctx, cancel := context.WithCancel(context.Background())
+	mgr.cancels["_system_gauge_updater"] = cancel
+	mgr.wg.Add(1)
+	go func() {
+		defer mgr.wg.Done()
+		mgr.updateGauges(ctx)
+	}()
+
+	return mgr
 }
 
 // RegisterTrade adds a filled trade to active management and spawns
@@ -101,6 +109,33 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 		Float64("sl", trade.StopLoss).
 		Float64("lot_size", trade.TotalLotSize).
 		Msg("trade_registered_for_management")
+}
+
+// updateGauges periodically aggregates and publishes whole-portfolio PnL.
+func (m *Manager) updateGauges(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			trades := m.GetAllTrades()
+			var totalUnrealized float64
+			var totalRealized float64
+
+			for _, t := range trades {
+				t.RLock()
+				totalUnrealized += t.UnrealizedPnL // updated constantly by workers
+				totalRealized += t.RealizedPnL     // updated on partial closures
+				t.RUnlock()
+			}
+
+			observability.UnrealizedPnL.Set(totalUnrealized)
+			observability.RealizedPnL.Set(totalRealized)
+		}
+	}
 }
 
 // RemoveTrade stops monitoring a trade and removes it from the map.

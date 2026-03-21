@@ -3,10 +3,11 @@ package analytics
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/flamegreat/etradie/src/alert"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/rs/zerolog"
+
+	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // AlertTransport defines the publisher needed to dispatch reports.
@@ -18,6 +19,7 @@ type AlertTransport interface {
 type Reporter struct {
 	metrics   *Metrics
 	transport AlertTransport
+	log       zerolog.Logger
 }
 
 // NewReporter creates a report generator.
@@ -25,6 +27,7 @@ func NewReporter(metrics *Metrics, transport AlertTransport) *Reporter {
 	return &Reporter{
 		metrics:   metrics,
 		transport: transport,
+		log:       observability.Logger("analytics_reporter"),
 	}
 }
 
@@ -41,12 +44,12 @@ func (r *Reporter) GenerateMonthlyReport(ctx context.Context) error {
 func (r *Reporter) generateAndSend(ctx context.Context, period, title string) error {
 	summary, err := r.metrics.Calculate(ctx, period)
 	if err != nil {
-		observability.Logger("analytics_reporter").Error().Err(err).Str("period", period).Msg("failed_to_calculate_report")
+		r.log.Error().Err(err).Str("period", period).Msg("failed_to_calculate_report")
 		return fmt.Errorf("calculate %s metrics: %w", period, err)
 	}
 
 	if summary.TotalTrades == 0 {
-		observability.Logger("analytics_reporter").Info().Str("period", period).Msg("no_trades_for_report")
+		r.log.Info().Str("period", period).Msg("no_trades_for_report")
 		return nil // Nothing to report
 	}
 
@@ -58,7 +61,7 @@ func (r *Reporter) generateAndSend(ctx context.Context, period, title string) er
 	// Dispatch the report via standard alerting transport (goes to Telegram/Discord).
 	r.transport.Publish(ctx, alert.NewEvent(
 		alert.SourceTradeManager,
-		alert.TypeReport,
+		alert.TypePerformanceReport,
 		alert.SeverityInfo,
 		msg,
 	).WithDetails(map[string]interface{}{
@@ -68,6 +71,6 @@ func (r *Reporter) generateAndSend(ctx context.Context, period, title string) er
 		"expectancy":  summary.Expectancy,
 	}))
 
-	observability.Logger("analytics_reporter").Info().Str("period", period).Msg("report_generated_and_sent")
+	r.log.Info().Str("period", period).Msg("report_generated_and_sent")
 	return nil
 }

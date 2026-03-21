@@ -12,7 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // EngineHTTPClient communicates with the Python engine's internal HTTP endpoints.

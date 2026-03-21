@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flamegreat/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 )
 
 // ── IsLong ──────────────────────────────────────────────────────────────────

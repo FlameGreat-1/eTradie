@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flamegreat/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 )
 
 // Trade is the core in-memory representation of a managed trade.

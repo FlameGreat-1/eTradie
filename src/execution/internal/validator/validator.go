@@ -6,11 +6,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/execution/internal/broker"
-	"github.com/flamegreat/etradie/src/execution/internal/config"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
-	"github.com/flamegreat/etradie/src/execution/internal/state"
+	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
+	"github.com/flamegreat-1/etradie/src/execution/internal/config"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 )
 
 // RuntimeParams holds dashboard-configurable values resolved from the

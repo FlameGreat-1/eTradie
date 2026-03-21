@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"github.com/flamegreat/etradie/src/execution/internal/constants"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
 )
 
 // Order is the Unified Order Object per TechSpec B.4.

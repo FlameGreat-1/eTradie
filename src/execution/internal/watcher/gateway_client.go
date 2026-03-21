@@ -8,8 +8,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	gatewayv1 "github.com/flamegreat/etradie/proto/gateway/v1"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
+	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 )
 
 // GatewayGRPCClient implements GatewayPort by calling the Gateway's

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
 // HTTPProcessorAdapter implements ports.ProcessorPort by calling

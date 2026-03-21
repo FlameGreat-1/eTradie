@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
 // SchemaSQL returns the DDL for the management database tables.

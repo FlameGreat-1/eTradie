@@ -172,6 +172,36 @@ services:
           memory: 256M
 
   # ─────────────────────────────────────────────────────────────────
+  # GO TRADE MANAGEMENT ENGINE (MODULE C)
+  # ─────────────────────────────────────────────────────────────────
+  management:
+    build:
+      context: .
+      dockerfile: src/management/Dockerfile
+    container_name: etradie-management
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - MANAGEMENT_GATEWAY_ADDR=gateway:50052
+      - MANAGEMENT_BROKER_BRIDGE_URL=http://engine:8000
+    ports:
+      - "50054:50054"
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────────
   # OBSERVABILITY
   # ─────────────────────────────────────────────────────────────────
   prometheus:

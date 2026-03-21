@@ -1,6 +1,5 @@
 from engine.shared.models.base import FrozenModel, TimestampedModel
 from engine.shared.models.currency import (
-    CORRELATED_GROUPS,
     Currency,
     CurrencyPair,
     parse_pair,
@@ -22,7 +21,6 @@ from engine.shared.models.events import (
 
 __all__ = [
     "CBTone",
-    "CORRELATED_GROUPS",
     "CentralBank",
     "Currency",
     "CurrencyPair",

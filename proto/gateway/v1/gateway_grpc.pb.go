@@ -19,10 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GatewayService_RunCycle_FullMethodName         = "/gateway.v1.GatewayService/RunCycle"
-	GatewayService_SetActiveSymbols_FullMethodName = "/gateway.v1.GatewayService/SetActiveSymbols"
-	GatewayService_GetActiveSymbols_FullMethodName = "/gateway.v1.GatewayService/GetActiveSymbols"
-	GatewayService_GetHealth_FullMethodName        = "/gateway.v1.GatewayService/GetHealth"
+	GatewayService_RunCycle_FullMethodName                 = "/gateway.v1.GatewayService/RunCycle"
+	GatewayService_ConfirmSetup_FullMethodName             = "/gateway.v1.GatewayService/ConfirmSetup"
+	GatewayService_NotifyExecutionCompleted_FullMethodName = "/gateway.v1.GatewayService/NotifyExecutionCompleted"
+	GatewayService_SetActiveSymbols_FullMethodName         = "/gateway.v1.GatewayService/SetActiveSymbols"
+	GatewayService_GetActiveSymbols_FullMethodName         = "/gateway.v1.GatewayService/GetActiveSymbols"
+	GatewayService_ResetActiveSymbols_FullMethodName       = "/gateway.v1.GatewayService/ResetActiveSymbols"
+	GatewayService_SetCycleInterval_FullMethodName         = "/gateway.v1.GatewayService/SetCycleInterval"
+	GatewayService_GetGatewayConfig_FullMethodName         = "/gateway.v1.GatewayService/GetGatewayConfig"
+	GatewayService_GetHealth_FullMethodName                = "/gateway.v1.GatewayService/GetHealth"
 )
 
 // GatewayServiceClient is the client API for GatewayService service.
@@ -35,10 +40,26 @@ const (
 type GatewayServiceClient interface {
 	// RunCycle triggers an analysis cycle for the given symbols.
 	RunCycle(ctx context.Context, in *RunCycleRequest, opts ...grpc.CallOption) (*RunCycleResponse, error)
+	// ConfirmSetup runs a targeted TA-only confirmation pulse for an
+	// instant-mode watcher. Bypasses Macro, RAG, and Processor.
+	// Called by Module B's watcher when price enters the POI zone.
+	ConfirmSetup(ctx context.Context, in *ConfirmSetupRequest, opts ...grpc.CallOption) (*ConfirmSetupResponse, error)
+	// NotifyExecutionCompleted is called by Module B's watcher immediately
+	// after a market order is successfully FILLED at the broker.
+	// This triggers Step 7 of the architecture: Handoff to Module C.
+	NotifyExecutionCompleted(ctx context.Context, in *NotifyExecutionCompletedRequest, opts ...grpc.CallOption) (*NotifyExecutionCompletedResponse, error)
 	// SetActiveSymbols updates the user's active symbol selection.
 	SetActiveSymbols(ctx context.Context, in *SetActiveSymbolsRequest, opts ...grpc.CallOption) (*SetActiveSymbolsResponse, error)
 	// GetActiveSymbols returns the current active symbol selection.
 	GetActiveSymbols(ctx context.Context, in *GetActiveSymbolsRequest, opts ...grpc.CallOption) (*GetActiveSymbolsResponse, error)
+	// ResetActiveSymbols resets symbol selection to config defaults.
+	ResetActiveSymbols(ctx context.Context, in *ResetActiveSymbolsRequest, opts ...grpc.CallOption) (*ResetActiveSymbolsResponse, error)
+	// SetCycleInterval changes the analysis cycle interval at runtime.
+	// The scheduler resets its ticker immediately. Persisted in Redis
+	// so the setting survives gateway restarts.
+	SetCycleInterval(ctx context.Context, in *SetCycleIntervalRequest, opts ...grpc.CallOption) (*SetCycleIntervalResponse, error)
+	// GetGatewayConfig returns the current runtime-configurable settings.
+	GetGatewayConfig(ctx context.Context, in *GetGatewayConfigRequest, opts ...grpc.CallOption) (*GetGatewayConfigResponse, error)
 	// GetHealth returns the gateway's health status.
 	GetHealth(ctx context.Context, in *GetHealthRequest, opts ...grpc.CallOption) (*GetHealthResponse, error)
 }
@@ -55,6 +76,26 @@ func (c *gatewayServiceClient) RunCycle(ctx context.Context, in *RunCycleRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunCycleResponse)
 	err := c.cc.Invoke(ctx, GatewayService_RunCycle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) ConfirmSetup(ctx context.Context, in *ConfirmSetupRequest, opts ...grpc.CallOption) (*ConfirmSetupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfirmSetupResponse)
+	err := c.cc.Invoke(ctx, GatewayService_ConfirmSetup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) NotifyExecutionCompleted(ctx context.Context, in *NotifyExecutionCompletedRequest, opts ...grpc.CallOption) (*NotifyExecutionCompletedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NotifyExecutionCompletedResponse)
+	err := c.cc.Invoke(ctx, GatewayService_NotifyExecutionCompleted_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +122,36 @@ func (c *gatewayServiceClient) GetActiveSymbols(ctx context.Context, in *GetActi
 	return out, nil
 }
 
+func (c *gatewayServiceClient) ResetActiveSymbols(ctx context.Context, in *ResetActiveSymbolsRequest, opts ...grpc.CallOption) (*ResetActiveSymbolsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetActiveSymbolsResponse)
+	err := c.cc.Invoke(ctx, GatewayService_ResetActiveSymbols_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) SetCycleInterval(ctx context.Context, in *SetCycleIntervalRequest, opts ...grpc.CallOption) (*SetCycleIntervalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetCycleIntervalResponse)
+	err := c.cc.Invoke(ctx, GatewayService_SetCycleInterval_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) GetGatewayConfig(ctx context.Context, in *GetGatewayConfigRequest, opts ...grpc.CallOption) (*GetGatewayConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGatewayConfigResponse)
+	err := c.cc.Invoke(ctx, GatewayService_GetGatewayConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gatewayServiceClient) GetHealth(ctx context.Context, in *GetHealthRequest, opts ...grpc.CallOption) (*GetHealthResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetHealthResponse)
@@ -101,10 +172,26 @@ func (c *gatewayServiceClient) GetHealth(ctx context.Context, in *GetHealthReque
 type GatewayServiceServer interface {
 	// RunCycle triggers an analysis cycle for the given symbols.
 	RunCycle(context.Context, *RunCycleRequest) (*RunCycleResponse, error)
+	// ConfirmSetup runs a targeted TA-only confirmation pulse for an
+	// instant-mode watcher. Bypasses Macro, RAG, and Processor.
+	// Called by Module B's watcher when price enters the POI zone.
+	ConfirmSetup(context.Context, *ConfirmSetupRequest) (*ConfirmSetupResponse, error)
+	// NotifyExecutionCompleted is called by Module B's watcher immediately
+	// after a market order is successfully FILLED at the broker.
+	// This triggers Step 7 of the architecture: Handoff to Module C.
+	NotifyExecutionCompleted(context.Context, *NotifyExecutionCompletedRequest) (*NotifyExecutionCompletedResponse, error)
 	// SetActiveSymbols updates the user's active symbol selection.
 	SetActiveSymbols(context.Context, *SetActiveSymbolsRequest) (*SetActiveSymbolsResponse, error)
 	// GetActiveSymbols returns the current active symbol selection.
 	GetActiveSymbols(context.Context, *GetActiveSymbolsRequest) (*GetActiveSymbolsResponse, error)
+	// ResetActiveSymbols resets symbol selection to config defaults.
+	ResetActiveSymbols(context.Context, *ResetActiveSymbolsRequest) (*ResetActiveSymbolsResponse, error)
+	// SetCycleInterval changes the analysis cycle interval at runtime.
+	// The scheduler resets its ticker immediately. Persisted in Redis
+	// so the setting survives gateway restarts.
+	SetCycleInterval(context.Context, *SetCycleIntervalRequest) (*SetCycleIntervalResponse, error)
+	// GetGatewayConfig returns the current runtime-configurable settings.
+	GetGatewayConfig(context.Context, *GetGatewayConfigRequest) (*GetGatewayConfigResponse, error)
 	// GetHealth returns the gateway's health status.
 	GetHealth(context.Context, *GetHealthRequest) (*GetHealthResponse, error)
 	mustEmbedUnimplementedGatewayServiceServer()
@@ -120,11 +207,26 @@ type UnimplementedGatewayServiceServer struct{}
 func (UnimplementedGatewayServiceServer) RunCycle(context.Context, *RunCycleRequest) (*RunCycleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunCycle not implemented")
 }
+func (UnimplementedGatewayServiceServer) ConfirmSetup(context.Context, *ConfirmSetupRequest) (*ConfirmSetupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmSetup not implemented")
+}
+func (UnimplementedGatewayServiceServer) NotifyExecutionCompleted(context.Context, *NotifyExecutionCompletedRequest) (*NotifyExecutionCompletedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method NotifyExecutionCompleted not implemented")
+}
 func (UnimplementedGatewayServiceServer) SetActiveSymbols(context.Context, *SetActiveSymbolsRequest) (*SetActiveSymbolsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetActiveSymbols not implemented")
 }
 func (UnimplementedGatewayServiceServer) GetActiveSymbols(context.Context, *GetActiveSymbolsRequest) (*GetActiveSymbolsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetActiveSymbols not implemented")
+}
+func (UnimplementedGatewayServiceServer) ResetActiveSymbols(context.Context, *ResetActiveSymbolsRequest) (*ResetActiveSymbolsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetActiveSymbols not implemented")
+}
+func (UnimplementedGatewayServiceServer) SetCycleInterval(context.Context, *SetCycleIntervalRequest) (*SetCycleIntervalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetCycleInterval not implemented")
+}
+func (UnimplementedGatewayServiceServer) GetGatewayConfig(context.Context, *GetGatewayConfigRequest) (*GetGatewayConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGatewayConfig not implemented")
 }
 func (UnimplementedGatewayServiceServer) GetHealth(context.Context, *GetHealthRequest) (*GetHealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHealth not implemented")
@@ -168,6 +270,42 @@ func _GatewayService_RunCycle_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GatewayService_ConfirmSetup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmSetupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ConfirmSetup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ConfirmSetup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ConfirmSetup(ctx, req.(*ConfirmSetupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_NotifyExecutionCompleted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NotifyExecutionCompletedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).NotifyExecutionCompleted(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_NotifyExecutionCompleted_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).NotifyExecutionCompleted(ctx, req.(*NotifyExecutionCompletedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GatewayService_SetActiveSymbols_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetActiveSymbolsRequest)
 	if err := dec(in); err != nil {
@@ -204,6 +342,60 @@ func _GatewayService_GetActiveSymbols_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GatewayService_ResetActiveSymbols_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetActiveSymbolsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).ResetActiveSymbols(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_ResetActiveSymbols_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).ResetActiveSymbols(ctx, req.(*ResetActiveSymbolsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_SetCycleInterval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetCycleIntervalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).SetCycleInterval(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_SetCycleInterval_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).SetCycleInterval(ctx, req.(*SetCycleIntervalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_GetGatewayConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGatewayConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).GetGatewayConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_GetGatewayConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).GetGatewayConfig(ctx, req.(*GetGatewayConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GatewayService_GetHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetHealthRequest)
 	if err := dec(in); err != nil {
@@ -234,12 +426,32 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _GatewayService_RunCycle_Handler,
 		},
 		{
+			MethodName: "ConfirmSetup",
+			Handler:    _GatewayService_ConfirmSetup_Handler,
+		},
+		{
+			MethodName: "NotifyExecutionCompleted",
+			Handler:    _GatewayService_NotifyExecutionCompleted_Handler,
+		},
+		{
 			MethodName: "SetActiveSymbols",
 			Handler:    _GatewayService_SetActiveSymbols_Handler,
 		},
 		{
 			MethodName: "GetActiveSymbols",
 			Handler:    _GatewayService_GetActiveSymbols_Handler,
+		},
+		{
+			MethodName: "ResetActiveSymbols",
+			Handler:    _GatewayService_ResetActiveSymbols_Handler,
+		},
+		{
+			MethodName: "SetCycleInterval",
+			Handler:    _GatewayService_SetCycleInterval_Handler,
+		},
+		{
+			MethodName: "GetGatewayConfig",
+			Handler:    _GatewayService_GetGatewayConfig_Handler,
 		},
 		{
 			MethodName: "GetHealth",

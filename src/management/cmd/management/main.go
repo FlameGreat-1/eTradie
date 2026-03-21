@@ -14,23 +14,24 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	managementv1 "github.com/flamegreat/etradie/proto/management/v1"
-	"github.com/flamegreat/etradie/src/alert"
-	alertredis "github.com/flamegreat/etradie/src/alert/redis"
-	"github.com/flamegreat/etradie/src/management/internal/analytics"
-	"github.com/flamegreat/etradie/src/management/internal/broker"
-	"github.com/flamegreat/etradie/src/management/internal/config"
-	"github.com/flamegreat/etradie/src/management/internal/constants"
-	"github.com/flamegreat/etradie/src/management/internal/eod"
-	mhttp "github.com/flamegreat/etradie/src/management/internal/http"
-	"github.com/flamegreat/etradie/src/management/internal/invalidator"
-	"github.com/flamegreat/etradie/src/management/internal/journal"
-	"github.com/flamegreat/etradie/src/management/internal/monitoring"
-	"github.com/flamegreat/etradie/src/management/internal/observability"
-	"github.com/flamegreat/etradie/src/management/internal/server"
-	"github.com/flamegreat/etradie/src/management/internal/stoploss"
-	"github.com/flamegreat/etradie/src/management/internal/takeprofit"
-	"github.com/flamegreat/etradie/src/management/pkg/types"
+	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
+	"github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
+	"github.com/flamegreat-1/etradie/src/management/internal/config"
+	"github.com/flamegreat-1/etradie/src/management/internal/constants"
+	"github.com/flamegreat-1/etradie/src/management/internal/eod"
+	mhttp "github.com/flamegreat-1/etradie/src/management/internal/http"
+	"github.com/flamegreat-1/etradie/src/management/internal/invalidator"
+	"github.com/flamegreat-1/etradie/src/management/internal/journal"
+	"github.com/flamegreat-1/etradie/src/management/internal/monitoring"
+	"github.com/flamegreat-1/etradie/src/management/internal/observability"
+	"github.com/flamegreat-1/etradie/src/management/internal/server"
+	"github.com/flamegreat-1/etradie/src/management/internal/stoploss"
+	"github.com/flamegreat-1/etradie/src/management/internal/takeprofit"
+	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
 func main() {
@@ -81,8 +82,8 @@ func main() {
 		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
 		log.Info().Str("url", cfg.BrokerBridgeURL).Msg("broker_mt5_bridge_configured")
 	} else {
-		// Mock logic is omitted for clean structure. Can be re-injected later.
-		log.Fatal().Msg("mock_broker_not_supported_in_this_build_flavor")
+		bp = mock.NewBroker()
+		log.Info().Msg("broker_mock_configured")
 	}
 
 	// ── Redis Connection (for shared alerts) ──────────────────────────
@@ -121,7 +122,7 @@ func main() {
 	// ── Invalidation Engines ──────────────────────────────────────────
 	structuralEngine := invalidator.NewStructuralEngine(bp, journalRepo, alertTransport)
 	macroEngine := invalidator.NewMacroEngine(bp, journalRepo, alertTransport)
-	newsEngine := invalidator.NewNewsEngine(bp, journalRepo, alertTransport)
+	newsEngine := invalidator.NewNewsEngine(bp, journalRepo, alertTransport, rdb)
 	exposureEngine := invalidator.NewExposureEngine(bp, journalRepo, alertTransport, rdb)
 
 	// Subscribe to internal hub for engine signals
@@ -134,7 +135,7 @@ func main() {
 			case alert.TypeCandleClosed:
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
-					if t.Symbol == evt.Symbol && t.Status == constants.StatusOpen {
+					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
 						price, err := mgr.GetPriceForSymbol(ctx, evt.Symbol)
 						if err == nil {
 							structuralEngine.EvaluateStructuralBreak(ctx, t, evt.Direction, price)
@@ -144,7 +145,7 @@ func main() {
 			case alert.TypeCOTFlip:
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
-					if t.Symbol == evt.Symbol && t.Status == constants.StatusOpen {
+					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
 						price, err := mgr.GetPriceForSymbol(ctx, evt.Symbol)
 						if err == nil {
 							macroEngine.EvaluateCOTFlip(ctx, t, evt.Direction, price)
@@ -166,7 +167,7 @@ func main() {
 				if isLoss {
 					trades := mgr.GetAllTrades()
 					for _, t := range trades {
-						if t.Status == constants.StatusActive || t.Status == constants.StatusOpen {
+						if t.Status != constants.StatusClosed {
 							price, err := mgr.GetPriceForSymbol(ctx, t.Symbol)
 							if err == nil {
 								exposureEngine.EvaluateCorrelationShock(ctx, t, stoppedSymbol, price)
@@ -195,8 +196,31 @@ func main() {
 		return mgr.GetPriceForSymbol(ctx, symbol)
 	})
 
-	// ── Analytics ─────────────────────────────────────────────────────
+	// ── Analytics & Reporting ─────────────────────────────────────────
 	metricsEngine := analytics.NewMetrics(pool)
+	reporter := analytics.NewReporter(metricsEngine, alertTransport)
+
+	// Schedule weekly/monthly reporting goroutine.
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour) // Check every hour to see if it's reporting time.
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case t := <-ticker.C:
+				// Friday 21:00 UTC = Weekly Report
+				if t.Weekday() == time.Friday && t.Hour() == 21 {
+					_ = reporter.GenerateWeeklyReport(ctx)
+				}
+				// Last day of month 23:00 UTC = Monthly Report
+				if isLastDayOfMonth(t) && t.Hour() == 23 {
+					_ = reporter.GenerateMonthlyReport(ctx)
+				}
+			}
+		}
+	}()
 
 	// ── Restore active trades from database on restart ────────────────
 	activeTrades, err := journalRepo.GetActiveTrades(ctx)
@@ -308,4 +332,11 @@ func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
 		Status:           constants.TradeStatus(rec.Status),
 		OpenedAt:         rec.OpenedAt,
 	}
+
+}
+
+// isLastDayOfMonth checks if the given time is the last day of its current month.
+func isLastDayOfMonth(t time.Time) bool {
+	// Add one day and check if the month changed.
+	return t.AddDate(0, 0, 1).Month() != t.Month()
 }

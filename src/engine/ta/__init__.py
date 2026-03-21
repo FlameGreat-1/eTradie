@@ -26,6 +26,3 @@ Architecture:
 - orchestrator.py: Main coordination layer
 """
 
-from engine.ta.orchestrator import TAOrchestrator
-
-__all__ = ["TAOrchestrator"]

@@ -8,10 +8,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/execution/internal/broker"
-	"github.com/flamegreat/etradie/src/execution/internal/models"
-	"github.com/flamegreat/etradie/src/execution/internal/observability"
-	"github.com/flamegreat/etradie/src/execution/internal/store"
+	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
+	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
 // Manager maintains execution state with in-memory caching backed by

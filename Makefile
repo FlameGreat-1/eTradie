@@ -77,10 +77,10 @@ menu: ## Start the interactive guided menu
 	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(CYAN)│$(NC) $(BOLD)DOCKER ORCHESTRATION$(NC)                                                         $(CYAN)│$(NC)"; \
 	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "1" "Start All Services (Detached)" "docker-compose up -d"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "2" "Stop All Services" "docker-compose down"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "3" "Rebuild & Start All Services" "docker-compose up -d --build"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "4" "Tail All Logs" "docker-compose logs -f"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "1" "Start All Services (Detached)" "docker compose up -d"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "2" "Stop All Services" "docker compose down"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "3" "Rebuild & Start All Services" "docker compose up -d --build"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "4" "Tail All Logs" "docker compose logs -f"; \
 	echo -e ""; \
 	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(CYAN)│$(NC) $(BOLD)BUILD & COMPILE (LOCAL)$(NC)                                                      $(CYAN)│$(NC)"; \
@@ -108,10 +108,10 @@ menu: ## Start the interactive guided menu
 	read choice; \
 	echo -e ""; \
 	case $$choice in \
-		1) $(MAKE) db-migrate && docker-compose up -d ;; \
-		2) docker-compose down ;; \
-		3) docker-compose up -d --build ;; \
-		4) docker-compose logs -f ;; \
+		1) $(MAKE) db-migrate && docker compose up -d ;; \
+		2) docker compose down ;; \
+		3) docker compose up -d --build ;; \
+		4) docker compose logs -f ;; \
 		5) $(MAKE) build-gateway ;; \
 		6) $(MAKE) build-execution ;; \
 		7) $(MAKE) build-management ;; \
@@ -128,24 +128,24 @@ menu: ## Start the interactive guided menu
 ##@ Docker Commands
 up: ## Start all Docker containers in background
 	echo -e "$(BLUE)Starting eTradie infrastructure...$(NC)"
-	docker-compose up -d
+	docker compose up -d
 	echo -e "$(GREEN)✓ Containers started$(NC)"
 
 down: ## Stop and remove all Docker containers
 	echo -e "$(BLUE)Stopping eTradie infrastructure...$(NC)"
-	docker-compose down
+	docker compose down
 	echo -e "$(GREEN)✓ Containers stopped$(NC)"
 
 build: ## Rebuild and start all Docker containers
 	echo -e "$(BLUE)Building eTradie infrastructure...$(NC)"
-	docker-compose up -d --build
+	docker compose up -d --build
 	echo -e "$(GREEN)✓ Containers built and started$(NC)"
 
 logs: ## Tail logs for all containers
-	docker-compose logs -f
+	docker compose logs -f
 
 ps: ## View running eTradie containers
-	docker-compose ps
+	docker compose ps
 
 ##@ Go Local Builds
 build-gateway: ## Build Gateway binary locally
@@ -210,8 +210,8 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 	echo -e "$(BLUE)Generating protobuf Go code...$(NC)"
 	protoc \
 		--proto_path=$(PROTO_DIR) \
-		--go_out=. --go_opt=paths=source_relative \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		--go_out=$(PROTO_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_DIR) --go-grpc_opt=paths=source_relative \
 		$(PROTO_DIR)/engine/v1/engine.proto \
 		$(PROTO_DIR)/gateway/v1/gateway.proto \
 		$(PROTO_DIR)/execution/v1/execution.proto \
@@ -220,6 +220,6 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 
 
 test-engine:
-	docker ps -q -f name=etradie-engine | grep -q . && docker compose -f docker-compose.yml exec engine pytest tests/ || (echo "Engine container not running. Start with 'make run' first." && exit 1)
+	docker ps -q -f name=etradie-engine | grep -q . && docker compose -f docker compose.yml exec engine pytest tests/ || (echo "Engine container not running. Start with 'make run' first." && exit 1)
 
 test-all: test-engine test-gateway test-execution

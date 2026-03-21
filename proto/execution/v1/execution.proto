@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package execution.v1;
 
-option go_package = "github.com/flamegreat/etradie/proto/execution/v1;executionv1";
+option go_package = "github.com/flamegreat-1/etradie/proto/execution/v1;executionv1";
 
 // ExecutionService is the gRPC contract between the Go gateway and
 // the Module B execution engine. The gateway is the client; Module B

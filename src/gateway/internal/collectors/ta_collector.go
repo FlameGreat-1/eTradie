@@ -9,11 +9,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/gateway/internal/config"
-	"github.com/flamegreat/etradie/src/gateway/internal/constants"
-	"github.com/flamegreat/etradie/src/gateway/internal/infra"
-	"github.com/flamegreat/etradie/src/gateway/internal/models"
-	"github.com/flamegreat/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
 
 // TACollector calls the Python TA engine via HTTP for each symbol

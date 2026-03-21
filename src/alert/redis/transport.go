@@ -10,7 +10,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/alert"
 )
 
 const (
