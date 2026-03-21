@@ -344,6 +344,312 @@ class ZmqClient(BrokerBase):
         await asyncio.to_thread(_close_sync)
         logger.info("zmq_shutdown_complete")
 
+    # -- Trading methods (Execution + Management bridge) -----------------------
+
+    async def get_account_info(self) -> "AccountInfo":
+        from engine.ta.broker.base import AccountInfo
+
+        raw = await self._request({"command": "ACCOUNT_INFO"})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid account info from ZMQ EA",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        return AccountInfo(
+            balance=float(raw.get("balance", 0)),
+            equity=float(raw.get("equity", 0)),
+            margin=float(raw.get("margin", 0)),
+            free_margin=float(raw.get("margin_free", 0)),
+            currency=raw.get("currency", "USD"),
+        )
+
+    async def get_positions(self) -> list["PositionInfo"]:
+        from engine.ta.broker.base import PositionInfo
+
+        raw = await self._request({"command": "POSITIONS"})
+        if not isinstance(raw, list):
+            raise ProviderResponseError(
+                "Invalid positions response from ZMQ EA",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        positions = []
+        for p in raw:
+            direction = "BUY" if p.get("type", 0) == 0 else "SELL"
+            positions.append(PositionInfo(
+                symbol=p.get("symbol", ""),
+                direction=direction,
+                entry_price=float(p.get("price_open", 0)),
+                current_price=float(p.get("price_current", 0)),
+                stop_loss=float(p.get("sl", 0)),
+                take_profit=float(p.get("tp", 0)),
+                volume=float(p.get("volume", 0)),
+                profit=float(p.get("profit", 0)),
+                ticket=str(p.get("ticket", "")),
+                comment=p.get("comment", ""),
+                open_time=int(p.get("time_setup", 0)),
+            ))
+
+        logger.info("zmq_positions_fetched", extra={"count": len(positions)})
+        return positions
+
+    async def get_pending_orders(self) -> list["PendingOrderInfo"]:
+        from engine.ta.broker.base import PendingOrderInfo
+
+        raw = await self._request({"command": "PENDING_ORDERS"})
+        if not isinstance(raw, list):
+            raise ProviderResponseError(
+                "Invalid pending orders response from ZMQ EA",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        orders = []
+        for o in raw:
+            orders.append(PendingOrderInfo(
+                symbol=o.get("symbol", ""),
+                order_type=int(o.get("type", 2)),
+                price=float(o.get("price_open", 0)),
+                stop_loss=float(o.get("sl", 0)),
+                take_profit=float(o.get("tp", 0)),
+                volume=float(o.get("volume", 0)),
+                ticket=str(o.get("ticket", "")),
+                comment=o.get("comment", ""),
+                open_time=int(o.get("time_setup", 0)),
+            ))
+
+        logger.info("zmq_pending_orders_fetched", extra={"count": len(orders)})
+        return orders
+
+    async def get_position(self, ticket: str) -> "PositionInfo":
+        from engine.ta.broker.base import PositionInfo
+
+        raw = await self._request({"command": "POSITION", "ticket": ticket})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                f"Position {ticket} not found",
+                details={"ticket": ticket},
+            )
+
+        direction = "BUY" if raw.get("type", 0) == 0 else "SELL"
+        return PositionInfo(
+            symbol=raw.get("symbol", ""),
+            direction=direction,
+            entry_price=float(raw.get("price_open", 0)),
+            current_price=float(raw.get("price_current", 0)),
+            stop_loss=float(raw.get("sl", 0)),
+            take_profit=float(raw.get("tp", 0)),
+            volume=float(raw.get("volume", 0)),
+            profit=float(raw.get("profit", 0)),
+            ticket=str(raw.get("ticket", ticket)),
+            comment=raw.get("comment", ""),
+            open_time=int(raw.get("time_setup", 0)),
+        )
+
+    async def get_tick_price(self, symbol: str) -> "TickPrice":
+        from engine.ta.broker.base import TickPrice
+
+        raw = await self._request({"command": "TICK_PRICE", "symbol": symbol})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                f"Tick price not available for {symbol}",
+                details={"symbol": symbol},
+            )
+
+        return TickPrice(
+            bid=float(raw.get("bid", 0)),
+            ask=float(raw.get("ask", 0)),
+            time=int(raw.get("time", 0)),
+        )
+
+    async def place_order(
+        self,
+        *,
+        symbol: str,
+        direction: str,
+        order_type: str,
+        price: float,
+        stop_loss: float,
+        take_profit: float,
+        lot_size: float,
+        comment: str = "",
+    ) -> "OrderResult":
+        from engine.ta.broker.base import OrderResult
+
+        request = {
+            "command": "ORDER_SEND",
+            "symbol": symbol,
+            "direction": direction.upper(),
+            "order_type": order_type.upper(),
+            "price": price,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "lot_size": lot_size,
+            "comment": comment,
+        }
+
+        try:
+            raw = await self._request(request)
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(
+                f"ZMQ place order failed: {e}",
+                details={"symbol": symbol, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        status = raw.get("status", "FILLED" if order_type.upper() == "MARKET" else "PLACED")
+
+        logger.info(
+            "zmq_order_placed",
+            extra={
+                "symbol": symbol,
+                "direction": direction,
+                "order_type": order_type,
+                "lot_size": lot_size,
+                "order_id": raw.get("order_id", 0),
+                "status": status,
+            },
+        )
+
+        return OrderResult(
+            order_id=int(raw.get("order_id", 0)),
+            price=float(raw.get("price", price)),
+            status=status,
+            error=raw.get("error", ""),
+        )
+
+    async def cancel_order(self, order_id: str) -> bool:
+        try:
+            raw = await self._request({"command": "ORDER_CANCEL", "order_id": order_id})
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(
+                f"ZMQ cancel order failed: {e}",
+                details={"order_id": order_id, "error": str(e)},
+            ) from e
+
+        success = True
+        if isinstance(raw, dict) and not raw.get("success", True):
+            raise ProviderResponseError(
+                f"Cancel order failed: {raw.get('error', 'unknown')}",
+                details={"order_id": order_id, "reply": raw},
+            )
+
+        logger.info("zmq_order_cancelled", extra={"order_id": order_id})
+        return success
+
+    async def modify_position(
+        self,
+        *,
+        ticket: str,
+        stop_loss: float,
+        take_profit: float,
+    ) -> bool:
+        request = {
+            "command": "POSITION_MODIFY",
+            "ticket": ticket,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+        }
+
+        try:
+            raw = await self._request(request)
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(
+                f"ZMQ modify position failed: {e}",
+                details={"ticket": ticket, "error": str(e)},
+            ) from e
+
+        if isinstance(raw, dict) and not raw.get("success", True):
+            raise ProviderResponseError(
+                f"Modify position failed: {raw.get('error', 'unknown')}",
+                details={"ticket": ticket, "reply": raw},
+            )
+
+        logger.info(
+            "zmq_position_modified",
+            extra={"ticket": ticket, "stop_loss": stop_loss, "take_profit": take_profit},
+        )
+        return True
+
+    async def close_partial(
+        self,
+        *,
+        ticket: str,
+        volume: float,
+    ) -> dict:
+        request = {
+            "command": "POSITION_CLOSE_PARTIAL",
+            "ticket": ticket,
+            "volume": volume,
+        }
+
+        try:
+            raw = await self._request(request)
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(
+                f"ZMQ partial close failed: {e}",
+                details={"ticket": ticket, "volume": volume, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        if not raw.get("success", True):
+            raise ProviderResponseError(
+                f"Partial close failed: {raw.get('error', 'unknown')}",
+                details={"ticket": ticket, "volume": volume, "reply": raw},
+            )
+
+        logger.info(
+            "zmq_partial_close_executed",
+            extra={"ticket": ticket, "volume": volume, "close_price": raw.get("close_price", 0)},
+        )
+
+        return {
+            "success": True,
+            "close_price": float(raw.get("close_price", 0)),
+        }
+
+    async def close_position(self, ticket: str) -> dict:
+        try:
+            raw = await self._request({"command": "POSITION_CLOSE", "ticket": ticket})
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(
+                f"ZMQ close position failed: {e}",
+                details={"ticket": ticket, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        if not raw.get("success", True):
+            raise ProviderResponseError(
+                f"Close position failed: {raw.get('error', 'unknown')}",
+                details={"ticket": ticket, "reply": raw},
+            )
+
+        logger.info(
+            "zmq_position_closed",
+            extra={"ticket": ticket, "close_price": raw.get("close_price", 0)},
+        )
+
+        return {
+            "success": True,
+            "close_price": float(raw.get("close_price", 0)),
+        }
+
     # -- Parsing ---------------------------------------------------------------
 
     @staticmethod
