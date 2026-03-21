@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import Field
 
@@ -22,6 +22,58 @@ class BrokerCapabilities(FrozenModel):
     max_candles_per_request: int = Field(default=5000, ge=1)
     rate_limit_per_minute: int = Field(default=60, ge=1)
     requires_authentication: bool = Field(default=True)
+
+
+class AccountInfo(FrozenModel):
+    """Live broker account state."""
+    balance: float = Field(ge=0)
+    equity: float
+    margin: float = Field(ge=0)
+    free_margin: float
+    currency: str = Field(default="USD", min_length=2, max_length=5)
+
+
+class PositionInfo(FrozenModel):
+    """Open broker position."""
+    symbol: str
+    direction: str  # "BUY" or "SELL"
+    entry_price: float = Field(gt=0)
+    current_price: float = Field(gt=0)
+    stop_loss: float = Field(ge=0)
+    take_profit: float = Field(ge=0)
+    volume: float = Field(gt=0)
+    profit: float
+    ticket: str
+    comment: str = Field(default="")
+    open_time: int = Field(default=0)  # Unix timestamp
+
+
+class PendingOrderInfo(FrozenModel):
+    """Pending limit/stop order at the broker."""
+    symbol: str
+    order_type: int  # MT5 order type enum
+    price: float = Field(gt=0)
+    stop_loss: float = Field(ge=0)
+    take_profit: float = Field(ge=0)
+    volume: float = Field(gt=0)
+    ticket: str
+    comment: str = Field(default="")
+    open_time: int = Field(default=0)  # Unix timestamp
+
+
+class TickPrice(FrozenModel):
+    """Latest bid/ask for a symbol."""
+    bid: float = Field(gt=0)
+    ask: float = Field(gt=0)
+    time: int = Field(default=0)  # Unix timestamp
+
+
+class OrderResult(FrozenModel):
+    """Broker response after order placement."""
+    order_id: int = Field(default=0)
+    price: float = Field(ge=0, default=0.0)
+    status: str  # "PLACED", "FILLED", "REJECTED"
+    error: str = Field(default="")
 
 
 class BrokerBase(ABC):
@@ -138,3 +190,67 @@ class BrokerBase(ABC):
                 exc_info=True,
             )
             return None
+
+    # -- Trading methods (required by Go Execution + Management) ---------------
+
+    @abstractmethod
+    async def get_account_info(self) -> AccountInfo:
+        """Return live account balance, equity, margin, free margin."""
+
+    @abstractmethod
+    async def get_positions(self) -> list[PositionInfo]:
+        """Return all open positions at the broker."""
+
+    @abstractmethod
+    async def get_pending_orders(self) -> list[PendingOrderInfo]:
+        """Return all pending limit/stop orders at the broker."""
+
+    @abstractmethod
+    async def get_position(self, ticket: str) -> PositionInfo:
+        """Return a single open position by broker ticket."""
+
+    @abstractmethod
+    async def get_tick_price(self, symbol: str) -> TickPrice:
+        """Return the latest bid/ask for a symbol."""
+
+    @abstractmethod
+    async def place_order(
+        self,
+        *,
+        symbol: str,
+        direction: str,
+        order_type: str,
+        price: float,
+        stop_loss: float,
+        take_profit: float,
+        lot_size: float,
+        comment: str = "",
+    ) -> OrderResult:
+        """Place a limit or market order with SL/TP at the broker."""
+
+    @abstractmethod
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel a pending order by broker order ID. Returns True on success."""
+
+    @abstractmethod
+    async def modify_position(
+        self,
+        *,
+        ticket: str,
+        stop_loss: float,
+        take_profit: float,
+    ) -> bool:
+        """Modify SL/TP on an existing open position. Returns True on success."""
+
+    @abstractmethod
+    async def close_partial(
+        self,
+        *,
+        ticket: str,
+        volume: float,
+    ) -> dict[str, Any]:
+        """Partially close a position. Returns close price and success status."""
+
+    @abstractmethod
+    async def close_position(self, ticket: str) -> dict[str, Any]:
+        """Fully close a position at market. Returns close price and success status."""
