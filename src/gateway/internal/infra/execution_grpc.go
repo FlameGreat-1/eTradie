@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
 // ExecutionGRPCAdapter implements ports.ExecutionPort by calling
@@ -67,8 +72,30 @@ func (a *ExecutionGRPCAdapter) Execute(ctx context.Context, decision *models.Pro
 		Str("analysis_id", req.GetAnalysisId()).
 		Msg("calling_execution_service")
 
-	resp, err := a.client.ExecuteTrade(ctx, req)
-	if err != nil {
+	// Use AnalysisID as idempotency key, fallback to UUID
+	idempotencyKey := req.GetAnalysisId()
+	if idempotencyKey == "" {
+		idempotencyKey = uuid.New().String()
+	}
+
+	retryCtx := metadata.AppendToOutgoingContext(ctx, "x-idempotency-key", idempotencyKey)
+
+	var resp *executionv1.ExecuteTradeResponse
+	operation := func() error {
+		var err error
+		resp, err = a.client.ExecuteTrade(retryCtx, req)
+		return err
+	}
+
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Internal
+	}
+
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
 		a.log.Error().Err(err).Str("symbol", req.GetSymbol()).Msg("execution_rpc_failed")
 		return nil, fmt.Errorf("execution RPC: %w", err)
 	}

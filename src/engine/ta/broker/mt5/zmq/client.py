@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import zmq
+import zmq.asyncio as zmq_async
 
 from engine.shared.exceptions import (
     ProviderError,
@@ -35,7 +36,15 @@ from engine.shared.metrics.prometheus import (
     TA_BROKER_ERRORS_TOTAL,
     TA_BROKER_FETCH_DURATION,
 )
-from engine.ta.broker.base import BrokerBase, BrokerCapabilities
+from engine.ta.broker.base import (
+    AccountInfo,
+    BrokerBase,
+    BrokerCapabilities,
+    OrderResult,
+    PendingOrderInfo,
+    PositionInfo,
+    TickPrice,
+)
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
@@ -64,18 +73,18 @@ class ZmqClient(BrokerBase):
         self.config = config
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
-        self._ctx: zmq.Context | None = None  # type: ignore[type-arg]
-        self._socket: zmq.Socket | None = None  # type: ignore[type-arg]
+        self._ctx: zmq_async.Context | None = None  # type: ignore[type-arg]
+        self._socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._lock = asyncio.Lock()
         self._initialized = False
 
     # -- Connection management -------------------------------------------------
 
     def _connect_sync(self) -> None:
-        """Create ZMQ context and REQ socket (called in thread)."""
+        """Create ZMQ context and REQ socket."""
         if self._initialized:
             return
-        self._ctx = zmq.Context()
+        self._ctx = zmq_async.Context()
         self._socket = self._ctx.socket(zmq.REQ)
         self._socket.setsockopt(zmq.RCVTIMEO, self.config.timeout_seconds * 1000)
         self._socket.setsockopt(zmq.SNDTIMEO, self.config.timeout_seconds * 1000)
@@ -87,13 +96,8 @@ class ZmqClient(BrokerBase):
             extra={"endpoint": self._endpoint},
         )
 
-    async def _ensure_connected(self) -> None:
-        async with self._lock:
-            if not self._initialized:
-                await asyncio.to_thread(self._connect_sync)
-
-    def _send_recv_sync(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Send JSON request and receive JSON response (blocking, run in thread)."""
+    async def _send_recv_async(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
+        """Send JSON request and receive JSON response asynchronously."""
         import json
 
         if self._socket is None:
@@ -104,7 +108,7 @@ class ZmqClient(BrokerBase):
 
         payload = json.dumps(request).encode("utf-8")
         try:
-            self._socket.send(payload)
+            await self._socket.send(payload)
         except zmq.Again:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
@@ -112,7 +116,7 @@ class ZmqClient(BrokerBase):
             )
 
         try:
-            raw_reply = self._socket.recv()
+            raw_reply = await self._socket.recv()
         except zmq.Again:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
@@ -131,9 +135,11 @@ class ZmqClient(BrokerBase):
         return reply
 
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Thread-safe async wrapper around the synchronous ZMQ call."""
-        await self._ensure_connected()
-        return await asyncio.to_thread(self._send_recv_sync, request)
+        """Thread-safe async wrapper around the ZMQ call."""
+        async with self._lock:
+            if not self._initialized:
+                self._connect_sync()
+            return await self._send_recv_async(request)
 
     # -- BrokerBase implementation ---------------------------------------------
 
@@ -334,7 +340,7 @@ class ZmqClient(BrokerBase):
             return False
 
     async def shutdown(self) -> None:
-        def _close_sync() -> None:
+        def _close() -> None:
             if self._socket is not None:
                 self._socket.close(linger=0)
                 self._socket = None
@@ -343,13 +349,12 @@ class ZmqClient(BrokerBase):
                 self._ctx = None
             self._initialized = False
 
-        await asyncio.to_thread(_close_sync)
+        _close()
         logger.info("zmq_shutdown_complete")
 
     # -- Trading methods (Execution + Management bridge) -----------------------
 
-    async def get_account_info(self) -> "AccountInfo":
-        from engine.ta.broker.base import AccountInfo
+    async def get_account_info(self) -> AccountInfo:
 
         raw = await self._request({"command": "ACCOUNT_INFO"})
         if not isinstance(raw, dict):
@@ -366,8 +371,7 @@ class ZmqClient(BrokerBase):
             currency=raw.get("currency", "USD"),
         )
 
-    async def get_positions(self) -> list["PositionInfo"]:
-        from engine.ta.broker.base import PositionInfo
+    async def get_positions(self) -> list[PositionInfo]:
 
         raw = await self._request({"command": "POSITIONS"})
         if not isinstance(raw, list):
@@ -396,8 +400,7 @@ class ZmqClient(BrokerBase):
         logger.info("zmq_positions_fetched", extra={"count": len(positions)})
         return positions
 
-    async def get_pending_orders(self) -> list["PendingOrderInfo"]:
-        from engine.ta.broker.base import PendingOrderInfo
+    async def get_pending_orders(self) -> list[PendingOrderInfo]:
 
         raw = await self._request({"command": "PENDING_ORDERS"})
         if not isinstance(raw, list):
@@ -423,8 +426,7 @@ class ZmqClient(BrokerBase):
         logger.info("zmq_pending_orders_fetched", extra={"count": len(orders)})
         return orders
 
-    async def get_position(self, ticket: str) -> "PositionInfo":
-        from engine.ta.broker.base import PositionInfo
+    async def get_position(self, ticket: str) -> PositionInfo:
 
         raw = await self._request({"command": "POSITION", "ticket": ticket})
         if not isinstance(raw, dict):
@@ -448,8 +450,7 @@ class ZmqClient(BrokerBase):
             open_time=int(raw.get("time_setup", 0)),
         )
 
-    async def get_tick_price(self, symbol: str) -> "TickPrice":
-        from engine.ta.broker.base import TickPrice
+    async def get_tick_price(self, symbol: str) -> TickPrice:
 
         raw = await self._request({"command": "TICK_PRICE", "symbol": symbol})
         if not isinstance(raw, dict):
@@ -475,8 +476,7 @@ class ZmqClient(BrokerBase):
         take_profit: float,
         lot_size: float,
         comment: str = "",
-    ) -> "OrderResult":
-        from engine.ta.broker.base import OrderResult
+    ) -> OrderResult:
 
         request = {
             "command": "ORDER_SEND",

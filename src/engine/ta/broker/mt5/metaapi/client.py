@@ -27,7 +27,15 @@ from engine.shared.metrics.prometheus import (
     TA_BROKER_ERRORS_TOTAL,
     TA_BROKER_FETCH_DURATION,
 )
-from engine.ta.broker.base import BrokerBase, BrokerCapabilities
+from engine.ta.broker.base import (
+    AccountInfo,
+    BrokerBase,
+    BrokerCapabilities,
+    OrderResult,
+    PendingOrderInfo,
+    PositionInfo,
+    TickPrice,
+)
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
@@ -320,9 +328,7 @@ class MetaApiClient(BrokerBase):
         """Build URL for MetaApi trade endpoints."""
         return f"{self._BASE_URL}/users/current/accounts/{self._account_id}{path}"
 
-    async def get_account_info(self) -> "AccountInfo":
-        from engine.ta.broker.base import AccountInfo
-
+    async def get_account_info(self) -> AccountInfo:
         raw = await self._api_get("/account-information", category="account")
         if not isinstance(raw, dict):
             raise ProviderResponseError(
@@ -338,9 +344,7 @@ class MetaApiClient(BrokerBase):
             currency=raw.get("currency", "USD"),
         )
 
-    async def get_positions(self) -> list["PositionInfo"]:
-        from engine.ta.broker.base import PositionInfo
-
+    async def get_positions(self) -> list[PositionInfo]:
         raw = await self._api_get("/positions", category="positions")
         if not isinstance(raw, list):
             raise ProviderResponseError(
@@ -368,9 +372,7 @@ class MetaApiClient(BrokerBase):
         logger.info("metaapi_positions_fetched", extra={"count": len(positions)})
         return positions
 
-    async def get_pending_orders(self) -> list["PendingOrderInfo"]:
-        from engine.ta.broker.base import PendingOrderInfo
-
+    async def get_pending_orders(self) -> list[PendingOrderInfo]:
         raw = await self._api_get("/orders", category="orders")
         if not isinstance(raw, list):
             raise ProviderResponseError(
@@ -403,9 +405,7 @@ class MetaApiClient(BrokerBase):
         logger.info("metaapi_pending_orders_fetched", extra={"count": len(orders)})
         return orders
 
-    async def get_position(self, ticket: str) -> "PositionInfo":
-        from engine.ta.broker.base import PositionInfo
-
+    async def get_position(self, ticket: str) -> PositionInfo:
         raw = await self._api_get(f"/positions/{ticket}", category="position")
         if not isinstance(raw, dict):
             raise ProviderResponseError(
@@ -428,9 +428,7 @@ class MetaApiClient(BrokerBase):
             open_time=int(raw.get("time", 0)),
         )
 
-    async def get_tick_price(self, symbol: str) -> "TickPrice":
-        from engine.ta.broker.base import TickPrice
-
+    async def get_tick_price(self, symbol: str) -> TickPrice:
         raw = await self._api_get(
             f"/symbols/{symbol}/current-price",
             category="tick",
@@ -458,9 +456,7 @@ class MetaApiClient(BrokerBase):
         take_profit: float,
         lot_size: float,
         comment: str = "",
-    ) -> "OrderResult":
-        from engine.ta.broker.base import OrderResult
-
+    ) -> OrderResult:
         if order_type.upper() == "MARKET":
             action_type = "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
         else:
@@ -477,6 +473,10 @@ class MetaApiClient(BrokerBase):
             "takeProfit": take_profit,
             "comment": comment,
         }
+
+        if comment:
+            # Use comment (AnalysisID) as the idempotency key for MetaApi.
+            payload["clientId"] = comment
 
         if order_type.upper() != "MARKET" and price > 0:
             payload["openPrice"] = price
@@ -530,6 +530,9 @@ class MetaApiClient(BrokerBase):
             "orderId": order_id,
         }
 
+        # For cancel order, the clientId can be the order_id itself to ensure idempotency.
+        payload["clientId"] = f"cancel_{order_id}"
+
         try:
             raw = await self._api_post("/trade", payload, category="order_cancel")
         except Exception as e:
@@ -558,6 +561,9 @@ class MetaApiClient(BrokerBase):
             "stopLoss": stop_loss,
             "takeProfit": take_profit,
         }
+
+        # Ensure idempotency by hashing the ticket and new parameters
+        payload["clientId"] = f"mod_{ticket}_{stop_loss}_{take_profit}"
 
         try:
             await self._api_post("/trade", payload, category="position_modify")
@@ -588,6 +594,8 @@ class MetaApiClient(BrokerBase):
             "positionId": ticket,
             "volume": volume,
         }
+
+        payload["clientId"] = f"part_{ticket}_{volume}"
 
         try:
             raw = await self._api_post("/trade", payload, category="position_close_partial")

@@ -311,6 +311,7 @@ class Container:
             alignment_service=self.alignment_service,
             timeframe_manager=self.timeframe_manager,
             ta_config=self.ta_config,
+            fallback_client=self.twelve_data_client,
         )
 
     async def build_rag(self) -> None:

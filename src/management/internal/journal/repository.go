@@ -203,6 +203,37 @@ func (r *Repository) UpdateTradePartial(ctx context.Context, tradeID string, rea
 	return nil
 }
 
+// GetTradeByBrokerOrderID returns a trade by its broker order ID (MT5 ticket).
+func (r *Repository) GetTradeByBrokerOrderID(ctx context.Context, brokerOrderID string) (*TradeRecord, error) {
+	if brokerOrderID == "" {
+		return nil, nil // Or an error
+	}
+
+	row := r.pool.QueryRow(ctx, `
+		SELECT trade_id, symbol, direction, entry_price, stop_loss, initial_sl,
+			tp1_price, tp2_price, tp3_price, total_lot_size,
+			risk_amount, risk_percent, confluence_score, grade,
+			setup_type, trading_style, session, execution_mode,
+			slippage, status, analysis_id, broker_order_id, opened_at
+		FROM management_trades
+		WHERE broker_order_id = $1 LIMIT 1`, brokerOrderID)
+
+	t := &TradeRecord{}
+	err := row.Scan(
+		&t.TradeID, &t.Symbol, &t.Direction, &t.EntryPrice, &t.StopLoss, &t.InitialSL,
+		&t.TP1Price, &t.TP2Price, &t.TP3Price, &t.TotalLotSize,
+		&t.RiskAmount, &t.RiskPercent, &t.ConfluenceScore, &t.Grade,
+		&t.SetupType, &t.TradingStyle, &t.Session, &t.ExecutionMode,
+		&t.Slippage, &t.Status, &t.AnalysisID, &t.BrokerOrderID, &t.OpenedAt,
+	)
+
+	if err != nil {
+		return nil, nil // return nil if not found
+	}
+
+	return t, nil
+}
+
 // GetActiveTrades returns all trades with status ACTIVE.
 func (r *Repository) GetActiveTrades(ctx context.Context) ([]*TradeRecord, error) {
 	rows, err := r.pool.Query(ctx, `

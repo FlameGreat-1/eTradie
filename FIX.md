@@ -1,26 +1,33 @@
-NOW, I WANT YOU TO TRULY EXAMINE THE ENTIRE src/engine? PYTHON CODEBASE SERVICES CODEBASE AGAIN FROM THE BEGINNING TO THE END.
+Excellent question — let me check exactly how the `BrokerRegistry` resolves brokers and whether there's any actual failover wiring:
 
-I SEE MANY IMPORT ISSUES AND WE MUST ADDRESS EVERYTHING PERFECTLY
+Viewed registry.py:1-222
 
-SO YOU HAVE TO DO A FULL AND COMPLETE AUDIT OF THE ENTIRE src/engine/ SO THAT WE CAN DECIDE WHAT THE ISSUES IS AND FIX THEM ALL
+Now I can give you the honest, accurate answer. Let me also check how the orchestrator gets its broker:
 
-THIS IS IMPORTANT BECAUSE EVERYTHING MUST ALIGN AND AND COMPLETELY WIRED UP
+Searched for "fallback"
 
-I MEAN EXAMINE ALL FILES WITHOUT OMITTING OR MISSING ANYTHING (ANY FILES) AT ALL
+Here's the **honest, straight answer** based on exactly what the code shows:
 
-AVOID GUESSING. AVOID ASSUMPTION.
+## Twelve Data Is Registered But There's NO Automatic Failover
 
-THIS IS VERY CRITICAL AND IF YOU ASSUME AND GUESS INSTEAD OF EXAMINING ALL THE FILES LIKE I SAID YOU ARE GOING TO MISS OR OMIT THINGS THAT ARE CRITICAL
- AND REMEMBER WE ARE TRYING TO MAKE SURE EVERYTHING IS 100% ALIGN AND SAME WHEN WE ARE DONE 
+Looking at the [BrokerRegistry](cci:2://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/broker/registry.py:16:0-189:33) (which I just re-examined), here's what **actually happens**:
 
-I REPEAT, DO NOT OMIT OR MISS ANY FILES BECAUSE I HAVE SEEN YOU ALWAYS CHOOSE TO EXAMINE ONLY THE ONES YOU LIKE INSTEAD OF OBEYING MY INSTRUCTIONS
+### What IS wired up:
+1. **Registration** (lines 85-109): If `TAConfig.fallback_broker == "twelve_data"` or `TAConfig.primary_broker == "twelve_data"`, the [TwelveDataClient](cci:2://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/broker/twelve_data/client.py:51:0-584:13) gets created and stored in the [_brokers](cci:1://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/broker/registry.py:84:4-108:86) dict
+2. **Manual retrieval** (lines 134-138): Code can call [get_fallback_broker()](cci:1://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/broker/registry.py:136:4-137:62) to get the Twelve Data client by name
+3. **Health checks** (lines 140-167): All registered brokers (including Twelve Data) get health-checked via [health_check_all()](cci:1://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/broker/registry.py:139:4-166:22)
 
-1. VERIFY IF WE HAVE COMPLETELY HANDLED EVERYTHING REGARDING THE EXECUTION EXACTLY AS EXPLAINED AND PLANNED AT THE eTradie/implementation_plan.md  WITHOUT OMITTING ANYTHING. AND THE FLOW IS COMPLETE END TO END.
+### What is NOT wired up:
+The [TAOrchestrator](cci:2://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/orchestrator.py:65:0-1432:9) receives a **single `broker_client: BrokerBase`** in its constructor (line 90). It calls `self.broker_client.fetch_candles(...)` — and that's it. There is **no fallback logic** anywhere in the orchestrator:
 
-2. AND VERIFY IF EVERYTHING IS FULL, COMPLETE, ACCURATE AND FUNCTIONAL IMPLEMENTATION, COMPLETELY WIRED END TO END AND WORKING PERFECTLY
+- **No automatic failover** — if MT5 fails, the orchestrator does NOT automatically try Twelve Data
+- **No retry with fallback** — the [_fetch_sequence()](cci:1://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/orchestrator.py:398:4-477:9) method (lines 399-478) tries the broker once, catches the error, and falls back to **stored database candles** — NOT to Twelve Data
+- The word `"fallback"` appears **zero times** in [orchestrator.py](cci:7://file://wsl.localhost/Ubuntu-24.04/home/softverse/eTradie/src/engine/ta/orchestrator.py:0:0-0:0)
 
-3. VERIFY IF EVERYTHING IS PRODUCTION READY, BEST PRACTICES, ENTERPRISE, INDUSTRY STANDARD, BALZING SPEED, COMPLETELY AND ACCURATELY WIRED END TO END WITH THE GATEWAY
- 
- 4. IF THERE IS DEAD CODES, REDUDANCIES, DUPLICATES, MIX-UP (MIXING DATABASE IN NORMAL CODES AND OTHER KINDS OF MIX-UP), UNCALLED FUNCTIONS, PLACEHOLDERS (EVERYTHING MUST BE FULLY IMPLEMENTED), FLUFF ETC
- 
-THEREFORE, YOU HAVE TO  EVERYTHING IS COMPLETE, ACCURATE, ALINGED 100%, COMPLEELY WIRED END TO END AND WORKING PERFECTLY
+### So what happens if MT5 is unavailable?
+1. The orchestrator tries to fetch candles from the single configured broker → **fails**
+2. It falls back to **whatever candles are already stored in the database** from previous successful fetches
+3. If the database has enough historical data (≥80% of lookback), analysis proceeds on stale data
+4. If the database is empty too → the timeframe is skipped with a `"no_candle_data_available"` warning
+
+**Bottom line:** Twelve Data is **registered in the registry** and **can be retrieved**, but **nothing in the actual analysis pipeline automatically switches to it** when MT5 goes down. It's sitting there ready to be used, but there's no failover orchestration wired up.

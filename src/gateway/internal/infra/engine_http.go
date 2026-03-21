@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
 // EngineHTTPClient communicates with the Python engine's internal HTTP endpoints.
@@ -56,45 +58,71 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		return nil, fmt.Errorf("engine_http: marshal request for %s: %w", path, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("engine_http: create request for %s: %w", path, err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		c.log.Error().
-			Str("path", path).
-			Err(err).
-			Msg("engine_http_request_failed")
-		return nil, fmt.Errorf("engine_http: request %s: %w", path, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("engine_http: read response from %s: %w", path, err)
-	}
-
-	if resp.StatusCode >= 400 {
-		// Redact the response body to prevent sensitive data leakage in logs.
-		safeBody := redactSensitiveJSON(respBody, 500)
-		c.log.Error().
-			Str("path", path).
-			Int("status", resp.StatusCode).
-			Str("body", safeBody).
-			Msg("engine_http_error_response")
-		errorBody := safeBody
-		if len(errorBody) > 200 {
-			errorBody = errorBody[:200]
-		}
-		return nil, fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, errorBody)
-	}
+	// Generate an idempotency key once per logical operation so retries use the same key.
+	idempotencyKey := uuid.New().String()
 
 	var result map[string]interface{}
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("engine_http: unmarshal response from %s: %w", path, err)
+
+	operation := func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return fmt.Errorf("engine_http: create request for %s: %w", path, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Idempotency-Key", idempotencyKey)
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			c.log.Error().
+				Str("path", path).
+				Err(err).
+				Msg("engine_http_request_failed")
+			return fmt.Errorf("engine_http: request %s: %w", path, err)
+		}
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("engine_http: read response from %s: %w", path, err)
+		}
+
+		if resp.StatusCode >= 400 {
+			safeBody := redactSensitiveJSON(respBody, 500)
+			
+			// Log error but don't fail immediately, let it retry if applicable
+			c.log.Error().
+				Str("path", path).
+				Int("status", resp.StatusCode).
+				Str("body", safeBody).
+				Msg("engine_http_error_response")
+				
+			errorBody := safeBody
+			if len(errorBody) > 200 {
+				errorBody = errorBody[:200]
+			}
+			return fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, errorBody)
+		}
+
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return fmt.Errorf("engine_http: unmarshal response from %s: %w", path, err)
+		}
+
+		return nil
+	}
+
+	isRetryable := func(err error) bool {
+		// Retry on network errors or 5xx server errors
+		if strings.Contains(err.Error(), "connection refused") || ctx.Err() != nil {
+			return false // Context canceled is not retryable
+		}
+		if strings.Contains(err.Error(), "returned 5") {
+			return true // 5xx server errors
+		}
+		return strings.Contains(err.Error(), "engine_http: request") // Network/timeout errors
+	}
+
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		return nil, err
 	}
 
 	return result, nil

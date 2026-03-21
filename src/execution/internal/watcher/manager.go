@@ -52,6 +52,7 @@ type Manager struct {
 
 	mu       sync.RWMutex
 	watchers map[string]*Watcher // key: order.WatcherID
+	shuttingDown bool
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
@@ -85,6 +86,14 @@ func NewManager(
 func (m *Manager) Arm(order *models.Order) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.shuttingDown {
+		m.log.Warn().
+			Str("watcher_id", order.WatcherID).
+			Str("symbol", order.Symbol).
+			Msg("manager_shutting_down_cannot_arm")
+		return
+	}
 
 	if _, exists := m.watchers[order.WatcherID]; exists {
 		m.log.Warn().
@@ -151,6 +160,10 @@ func (m *Manager) ActiveCount() int {
 // Shutdown cancels all active watchers and waits for them to finish.
 // Must be called during service shutdown to prevent goroutine leaks.
 func (m *Manager) Shutdown() {
+	m.mu.Lock()
+	m.shuttingDown = true
+	m.mu.Unlock()
+
 	m.log.Info().Int("active_watchers", m.ActiveCount()).Msg("watcher_manager_shutting_down")
 	m.cancel()
 

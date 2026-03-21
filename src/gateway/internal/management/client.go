@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
 // Client is the Gateway's gRPC client for Module C (Trade Management).
@@ -53,8 +58,30 @@ func (c *Client) RegisterFilledTrade(ctx context.Context, req *managementv1.Regi
 	callCtx, cancel := context.WithTimeout(ctx, time.Duration(c.timeoutMs)*time.Millisecond)
 	defer cancel()
 
-	resp, err := c.client.RegisterFilledTrade(callCtx, req)
-	if err != nil {
+	idempotencyKey := req.GetBrokerOrderId()
+	if idempotencyKey == "" {
+		idempotencyKey = uuid.New().String()
+	}
+
+	retryCtx := metadata.AppendToOutgoingContext(callCtx, "x-idempotency-key", idempotencyKey)
+
+	var resp *managementv1.RegisterFilledTradeResponse
+	operation := func() error {
+		var err error
+		resp, err = c.client.RegisterFilledTrade(retryCtx, req)
+		return err
+	}
+
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Internal
+	}
+
+	if err := resilience.Retry(callCtx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		c.log.Error().Err(err).Str("broker_order_id", req.GetBrokerOrderId()).Msg("management_rpc_failed")
 		return "", fmt.Errorf("management register trade: %w", err)
 	}
 

@@ -34,7 +34,7 @@ from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.timeframe.manager import TimeframeManager
-from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Timeframe
+from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
 from engine.ta.models.snapshot import MultiTimeframeSnapshot, TechnicalSnapshot
@@ -97,8 +97,10 @@ class TAOrchestrator:
         alignment_service: AlignmentService,
         timeframe_manager: TimeframeManager,
         ta_config: Optional[TAConfig] = None,
+        fallback_client: Optional[BrokerBase] = None,
     ) -> None:
         self.broker_client = broker_client
+        self.fallback_client = fallback_client
         self.candle_repository = candle_repository
         self.snapshot_repository = snapshot_repository
         self.candidate_repository = candidate_repository
@@ -446,6 +448,35 @@ class TAOrchestrator:
                     exc_info=True,
                 )
 
+                if self.fallback_client:
+                    self._logger.info(
+                        "attempting_fallback_broker",
+                        extra={
+                            "symbol": symbol,
+                            "timeframe": timeframe.value,
+                        },
+                    )
+                    try:
+                        fb_sequence = await self.fallback_client.fetch_candles(
+                            symbol=symbol,
+                            timeframe=timeframe,
+                            start_time=start_time,
+                            end_time=end_time,
+                            count=lookback_periods,
+                        )
+                        if fb_sequence and fb_sequence.count > 0:
+                            return fb_sequence
+                    except Exception as fb_e:
+                        self._logger.error(
+                            "fallback_broker_fetch_failed",
+                            extra={
+                                "symbol": symbol,
+                                "timeframe": timeframe.value,
+                                "error": str(fb_e),
+                            },
+                            exc_info=True,
+                        )
+
         if not stored_rows:
             self._logger.warning(
                 "no_candle_data_available",
@@ -642,7 +673,6 @@ class TAOrchestrator:
 
             # ── Dealing ranges (from session data) ───────────────────
             dealing_ranges = []
-            from engine.ta.constants import Session
             for session in (Session.ASIA, Session.LONDON, Session.NEW_YORK):
                 session_range = self._session_analyzer.extract_session_range(
                     sequence, session,

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time as _time
 from datetime import datetime, timezone
 from typing import Optional, Any
 
@@ -17,7 +18,15 @@ from engine.shared.metrics.prometheus import (
     TA_BROKER_ERRORS_TOTAL,
     PROVIDER_RESPONSE_SIZE,
 )
-from engine.ta.broker.base import BrokerBase, BrokerCapabilities
+from engine.ta.broker.base import (
+    AccountInfo,
+    BrokerBase,
+    BrokerCapabilities,
+    OrderResult,
+    PendingOrderInfo,
+    PositionInfo,
+    TickPrice,
+)
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
@@ -115,7 +124,6 @@ class TwelveDataClient(BrokerBase):
         if end_time:
             params["end_date"] = end_time.strftime("%Y-%m-%d %H:%M:%S")
 
-        import time as _time
         start_timer = _time.monotonic()
 
         try:
@@ -316,6 +324,116 @@ class TwelveDataClient(BrokerBase):
                 extra={"error": str(e)},
             )
             return False
+
+    # -- Trading methods (not supported by Twelve Data) ---------------------
+    #
+    # Twelve Data is a market-data-only REST API.  It does not provide
+    # trading endpoints.  All order/position/account methods raise
+    # ProviderError so the execution layer never accidentally routes
+    # real money through a data-only provider.
+    # -----------------------------------------------------------------------
+
+    _TRADING_NOT_SUPPORTED = (
+        "Twelve Data is a market-data-only provider.  "
+        "Trading operations require the MT5 broker (MetaApi or ZeroMQ)."
+    )
+
+    async def get_account_info(self) -> AccountInfo:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_account_info"},
+        )
+
+    async def get_positions(self) -> list[PositionInfo]:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_positions"},
+        )
+
+    async def get_position(self, ticket: str) -> PositionInfo:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_position", "ticket": ticket},
+        )
+
+    async def get_pending_orders(self) -> list[PendingOrderInfo]:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_pending_orders"},
+        )
+
+    async def get_tick_price(self, symbol: str) -> TickPrice:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_tick_price", "symbol": symbol},
+        )
+
+    async def place_order(
+        self,
+        *,
+        symbol: str,
+        direction: str,
+        order_type: str,
+        price: float,
+        stop_loss: float,
+        take_profit: float,
+        lot_size: float,
+        comment: str = "",
+    ) -> OrderResult:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={
+                "provider": "twelve_data",
+                "operation": "place_order",
+                "symbol": symbol,
+                "direction": direction,
+                "lot_size": lot_size,
+            },
+        )
+
+    async def cancel_order(self, order_id: str) -> bool:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "cancel_order", "order_id": order_id},
+        )
+
+    async def modify_position(
+        self,
+        *,
+        ticket: str,
+        stop_loss: float,
+        take_profit: float,
+    ) -> bool:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={
+                "provider": "twelve_data",
+                "operation": "modify_position",
+                "ticket": ticket,
+            },
+        )
+
+    async def close_partial(
+        self,
+        *,
+        ticket: str,
+        volume: float,
+    ) -> dict[str, Any]:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={
+                "provider": "twelve_data",
+                "operation": "close_partial",
+                "ticket": ticket,
+                "volume": volume,
+            },
+        )
+
+    async def close_position(self, ticket: str) -> dict[str, Any]:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "close_position", "ticket": ticket},
+        )
 
     # ── Private helpers ───────────────────────────────────────────────────
 

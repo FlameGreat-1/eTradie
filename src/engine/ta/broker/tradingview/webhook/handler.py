@@ -1,6 +1,8 @@
 import hashlib
 import hmac
 import ipaddress
+import json
+import time
 from typing import Optional, Any
 
 from pydantic import Field, field_validator
@@ -228,7 +230,6 @@ class TradingViewWebhookHandler:
         signature: Optional[str],
         client_ip: str,
     ) -> TradingViewAlert:
-        import time
         start_time = time.time()
         
         try:
@@ -249,7 +250,6 @@ class TradingViewWebhookHandler:
             if self.config.validate_signature:
                 self.validate_signature(payload, signature or "")
             
-            import json
             payload_dict = json.loads(payload.decode("utf-8"))
             
             alert = self.parse_alert(payload_dict)

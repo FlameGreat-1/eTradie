@@ -58,6 +58,21 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		return nil, status.Errorf(codes.InvalidArgument, "lot_size must be positive")
 	}
 
+	// Idempotency check: see if we already registered this MT5 ticket
+	existingTrade, err := s.journal.GetTradeByBrokerOrderID(ctx, req.GetBrokerOrderId())
+	if err == nil && existingTrade != nil {
+		s.log.Info().
+			Str("broker_order_id", req.GetBrokerOrderId()).
+			Str("trade_id", existingTrade.TradeID).
+			Msg("trade_already_registered_idempotent_return")
+
+		return &managementv1.RegisterFilledTradeResponse{
+			Success: true,
+			TradeId: existingTrade.TradeID,
+			Message: fmt.Sprintf("Trade already registered (idempotent). Monitoring active."),
+		}, nil
+	}
+
 	tradeID := monitoring.GenerateTradeID()
 
 	s.log.Info().
