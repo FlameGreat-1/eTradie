@@ -5,8 +5,8 @@ from engine.shared.exceptions import ConfigurationError
 from engine.shared.http.client import HttpClient
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
-from engine.ta.broker.mt5.client import MT5Client
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.factory import create_mt5_broker
 from engine.ta.broker.twelve_data.client import TwelveDataClient
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
 from engine.config import TAConfig
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class BrokerRegistry:
-    
+
     def __init__(
         self,
         ta_config: TAConfig,
@@ -27,20 +27,20 @@ class BrokerRegistry:
         self.cache = cache
         self._brokers: Dict[str, BrokerBase] = {}
         self._initialized = False
-    
+
     def register_broker(self, broker_id: str, broker: BrokerBase) -> None:
         """Register a pre-configured broker client.
-        
+
         Args:
             broker_id: Unique identifier for the broker (e.g. "mt5", "twelve_data")
             broker: Pre-configured broker client instance
         """
         self._brokers[broker_id] = broker
         logger.info("broker_registered", extra={"broker": broker_id})
-    
+
     async def initialize(self) -> None:
         """Initialize the registry from config if no brokers were pre-registered.
-        
+
         If `register_broker()` was called before `initialize()`, those
         pre-configured clients are used.  Otherwise, the registry falls
         back to creating clients from config (legacy behaviour kept for
@@ -48,12 +48,12 @@ class BrokerRegistry:
         """
         if self._initialized:
             return
-        
+
         try:
             # Only auto-create brokers when none were pre-registered
             if not self._brokers:
                 self._auto_configure_brokers()
-            
+
             if not self._brokers:
                 raise ConfigurationError(
                     "No brokers configured",
@@ -62,9 +62,9 @@ class BrokerRegistry:
                         "fallback_broker": self.ta_config.fallback_broker,
                     },
                 )
-            
+
             self._initialized = True
-            
+
             logger.info(
                 "broker_registry_initialized",
                 extra={
@@ -73,7 +73,7 @@ class BrokerRegistry:
                     "fallback": self.ta_config.fallback_broker,
                 },
             )
-            
+
         except Exception as e:
             logger.error(
                 "broker_registry_initialization_failed",
@@ -81,16 +81,22 @@ class BrokerRegistry:
                 exc_info=True,
             )
             raise
-    
+
     def _auto_configure_brokers(self) -> None:
         """Create broker clients from config (fallback when no pre-registered clients)."""
         if self.ta_config.primary_broker == "mt5":
             mt5_config = MT5Config()
             if mt5_config.enabled:
-                mt5_client = MT5Client(config=mt5_config)
+                mt5_client = create_mt5_broker(
+                    config=mt5_config,
+                    http_client=self.http_client,
+                )
                 self._brokers["mt5"] = mt5_client
-                logger.info("broker_auto_configured", extra={"broker": "mt5"})
-        
+                logger.info(
+                    "broker_auto_configured",
+                    extra={"broker": "mt5", "provider": mt5_config.provider},
+                )
+
         if self.ta_config.fallback_broker == "twelve_data" or self.ta_config.primary_broker == "twelve_data":
             twelve_data_config = TwelveDataConfig()
             if twelve_data_config.enabled:
@@ -101,19 +107,19 @@ class BrokerRegistry:
                 )
                 self._brokers["twelve_data"] = twelve_data_client
                 logger.info("broker_auto_configured", extra={"broker": "twelve_data"})
-    
+
     def get_broker(self, broker_id: Optional[str] = None) -> BrokerBase:
         if not self._initialized:
             raise ConfigurationError(
                 "Broker registry not initialized",
                 details={"call_initialize_first": True},
             )
-        
+
         if broker_id is None:
             broker_id = self.ta_config.primary_broker
-        
+
         broker = self._brokers.get(broker_id)
-        
+
         if broker is None:
             raise ConfigurationError(
                 f"Broker not found: {broker_id}",
@@ -122,23 +128,23 @@ class BrokerRegistry:
                     "available_brokers": list(self._brokers.keys()),
                 },
             )
-        
+
         return broker
-    
+
     def get_primary_broker(self) -> BrokerBase:
         return self.get_broker(self.ta_config.primary_broker)
-    
+
     def get_fallback_broker(self) -> BrokerBase:
         return self.get_broker(self.ta_config.fallback_broker)
-    
+
     async def health_check_all(self) -> Dict[str, bool]:
         results = {}
-        
+
         for broker_id, broker in self._brokers.items():
             try:
                 is_healthy = await broker.health_check()
                 results[broker_id] = is_healthy
-                
+
                 logger.info(
                     "broker_health_check",
                     extra={
@@ -146,10 +152,10 @@ class BrokerRegistry:
                         "healthy": is_healthy,
                     },
                 )
-                
+
             except Exception as e:
                 results[broker_id] = False
-                
+
                 logger.error(
                     "broker_health_check_failed",
                     extra={
@@ -157,20 +163,20 @@ class BrokerRegistry:
                         "error": str(e),
                     },
                 )
-        
+
         return results
-    
+
     async def shutdown(self) -> None:
         for broker_id, broker in self._brokers.items():
             try:
                 if hasattr(broker, "shutdown"):
                     await broker.shutdown()
-                
+
                 logger.info(
                     "broker_shutdown",
                     extra={"broker": broker_id},
                 )
-                
+
             except Exception as e:
                 logger.error(
                     "broker_shutdown_failed",
@@ -179,7 +185,7 @@ class BrokerRegistry:
                         "error": str(e),
                     },
                 )
-        
+
         self._brokers.clear()
         self._initialized = False
 
@@ -193,7 +199,7 @@ async def get_broker_registry(
     cache: Optional[RedisCache] = None,
 ) -> BrokerRegistry:
     global _registry
-    
+
     if _registry is None:
         _registry = BrokerRegistry(
             ta_config=ta_config,
@@ -201,7 +207,7 @@ async def get_broker_registry(
             cache=cache,
         )
         await _registry.initialize()
-    
+
     return _registry
 
 
@@ -211,5 +217,5 @@ def get_broker(broker_id: Optional[str] = None) -> BrokerBase:
             "Broker registry not initialized",
             details={"call_get_broker_registry_first": True},
         )
-    
+
     return _registry.get_broker(broker_id)
