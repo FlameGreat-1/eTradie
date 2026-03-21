@@ -104,6 +104,8 @@ services:
         condition: service_completed_successfully
     networks:
       - etradie-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
