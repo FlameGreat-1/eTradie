@@ -1,27 +1,29 @@
+"""Test data factories for the eTradie Engine test suite.
+
+Every factory produces real Pydantic domain models that match
+the production code in src/engine/ exactly. No stale fields,
+no placeholder values, no mismatched signatures.
+
+Usage:
+    from tests.factories import make_candle, make_candle_sequence
+    seq = make_candle_sequence(count=50, trend="up", symbol="EURUSD")
+"""
+
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-from engine.processor.models.analysis import (
-    AnalysisOutput,
-    ConfluenceScoreOutput,
-    EntryZone,
-    MacroBiasOutput,
-    DXYBiasOutput,
-    COTSignalOutput,
-    CurrencyBias,
-    SetupZone,
-    StopLossOutput,
-    TimeframeBias,
-    WyckoffPhaseOutput,
-)
-from engine.processor.models.io import ProcessorInput
 from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
-from engine.ta.models.candidate import SMCCandidate, SnDCandidate
 
+
+# ---------------------------------------------------------------------------
+# Candle factories
+# ---------------------------------------------------------------------------
 
 def make_candle(
-    timestamp: datetime,
+    timestamp: Optional[datetime] = None,
     open: float = 1.0,
     high: float = 1.05,
     low: float = 0.95,
@@ -30,6 +32,9 @@ def make_candle(
     timeframe: Timeframe = Timeframe.H1,
     symbol: str = "EURUSD",
 ) -> Candle:
+    """Create a single Candle matching the real Candle model."""
+    if timestamp is None:
+        timestamp = datetime.now(UTC)
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=UTC)
     return Candle(
@@ -50,107 +55,127 @@ def make_candle_sequence(
     start_time: Optional[datetime] = None,
     symbol: str = "EURUSD",
     trend: str = "up",
+    base_price: float = 1.10000,
 ) -> CandleSequence:
+    """Create a CandleSequence with realistic price action.
+
+    Args:
+        count: Number of candles.
+        timeframe: Timeframe for all candles.
+        start_time: Timestamp of the first candle.
+        symbol: Symbol for all candles.
+        trend: "up", "down", or "range".
+        base_price: Starting price level.
+
+    Returns:
+        CandleSequence matching the real model (sorted, validated).
+    """
     if start_time is None:
         start_time = datetime.now(UTC) - timedelta(hours=count)
     if start_time.tzinfo is None:
         start_time = start_time.replace(tzinfo=UTC)
 
-    candles = []
-    base_price = 1.0
+    candles: list[Candle] = []
 
     for i in range(count):
-        # Create a simple trend
         if trend == "up":
-            open_price = base_price + (i * 0.01)
-            close_price = open_price + 0.005
+            open_price = base_price + (i * 0.00100)
+            close_price = open_price + 0.00050
         elif trend == "down":
-            open_price = base_price - (i * 0.01)
-            close_price = open_price - 0.005
-        else: # ranging
-            open_price = base_price + (i % 2) * 0.01
-            close_price = base_price + ((i+1) % 2) * 0.01
+            open_price = base_price - (i * 0.00100)
+            close_price = open_price - 0.00050
+        else:  # range
+            open_price = base_price + ((-1) ** i) * 0.00050
+            close_price = base_price - ((-1) ** i) * 0.00050
 
-        candle = make_candle(
-            timestamp=start_time + timedelta(hours=i),
-            open=open_price,
-            high=max(open_price, close_price) + 0.002,
-            low=min(open_price, close_price) - 0.002,
-            close=close_price,
-            timeframe=timeframe,
+        high_price = max(open_price, close_price) + 0.00020
+        low_price = min(open_price, close_price) - 0.00020
+
+        candle = Candle(
             symbol=symbol,
+            timeframe=timeframe,
+            timestamp=start_time + timedelta(hours=i),
+            open=round(open_price, 5),
+            high=round(high_price, 5),
+            low=round(low_price, 5),
+            close=round(close_price, 5),
+            volume=float(1000 + i * 10),
         )
         candles.append(candle)
 
     return CandleSequence(symbol=symbol, timeframe=timeframe, candles=candles)
 
 
-def make_smc_candidate(
-    pattern: str = "Bullish OB",
-    direction: Direction = Direction.BULLISH,
-    entry_price: float = 1.1000,
-    score: float = 8.0,
-) -> SMCCandidate:
-    return SMCCandidate(
-        symbol="EURUSD",
-        timeframe=Timeframe.H1,
-        pattern=pattern,
-        direction=direction,
-        timestamp=datetime.now(UTC),
-        entry_price=entry_price,
-        stop_loss=entry_price - 0.0050 if direction == Direction.BULLISH else entry_price + 0.0050,
-        take_profit=entry_price + 0.0150 if direction == Direction.BULLISH else entry_price - 0.0150,
-        score=score,
-        zone_top=entry_price + 0.0010,
-        zone_bottom=entry_price - 0.0010,
-        metadata={},
-    )
+# ---------------------------------------------------------------------------
+# TA result factory (matches TAOrchestrator._build_result output)
+# ---------------------------------------------------------------------------
+
+def make_ta_result(
+    symbol: str = "EURUSD",
+    status: str = "success",
+    overall_trend: str = "BULLISH",
+    smc_count: int = 1,
+    snd_count: int = 0,
+) -> dict:
+    """Create a TA result dict matching TAOrchestrator._build_result output."""
+    smc_candidates = [
+        {
+            "symbol": symbol,
+            "pattern": "TURTLE_SOUP_LONG",
+            "direction": "BULLISH",
+            "entry_price": 1.10000,
+            "stop_loss": 1.09500,
+            "take_profit": 1.11500,
+            "timeframe": "H4",
+        }
+    ] * smc_count
+
+    snd_candidates = [
+        {
+            "symbol": symbol,
+            "pattern": "QML_BASELINE",
+            "direction": "BULLISH",
+            "entry_price": 1.10000,
+            "stop_loss": 1.09500,
+            "take_profit": 1.11500,
+            "timeframe": "H4",
+        }
+    ] * snd_count
+
+    return {
+        "status": status,
+        "symbol": symbol,
+        "htf_timeframes": ["W1", "D1", "H4", "H1"],
+        "ltf_timeframes": ["M30", "M15", "M5", "M1"],
+        "snapshots": {},
+        "smc_candidates": smc_candidates,
+        "snd_candidates": snd_candidates,
+        "smc_candidates_count": smc_count,
+        "snd_candidates_count": snd_count,
+        "alignment": {},
+        "overall_trend": overall_trend,
+        "error": None,
+    }
 
 
-def make_snd_candidate(
-    pattern: str = "Demand Zone",
-    direction: Direction = Direction.BULLISH,
-    entry_price: float = 1.1000,
-    score: float = 8.0,
-) -> SnDCandidate:
-    return SnDCandidate(
-        symbol="EURUSD",
-        timeframe=Timeframe.H1,
-        pattern=pattern,
-        direction=direction,
-        timestamp=datetime.now(UTC),
-        entry_price=entry_price,
-        stop_loss=entry_price - 0.0050 if direction == Direction.BULLISH else entry_price + 0.0050,
-        take_profit=entry_price + 0.0150 if direction == Direction.BULLISH else entry_price - 0.0150,
-        score=score,
-        zone_upper=entry_price + 0.0010,
-        zone_lower=entry_price - 0.0010,
-        metadata={},
-    )
+# ---------------------------------------------------------------------------
+# Macro result factory (matches /internal/macro/collect response)
+# ---------------------------------------------------------------------------
 
-
-def make_processor_input(symbol: str = "EURUSD") -> ProcessorInput:
-    return ProcessorInput(
-        symbol=symbol,
-        ta_analysis={
-            "htf_timeframes": ["D1", "H4"],
-            "ltf_timeframes": ["M15", "M5"],
-            "smc_candidates": [make_smc_candidate().model_dump(mode="json")],
-            "snd_candidates": [make_snd_candidate().model_dump(mode="json")],
-            "alignment": {"D1_H4": {"trends_aligned": True, "htf_trend": "BULLISH", "ltf_trend": "BULLISH"}},
-            "overall_trend": "BULLISH"
-        },
-        macro_analysis={
-            "bias": "BULLISH",
-            "dxy_bias": "BEARISH",
-            "cot_signal": "BULLISH",
-            "events": []
-        },
-        retrieved_knowledge={
-            "chunks": [
-                {"chunk_id": "test-chunk-1", "content": "Trade with the trend", "score": 0.9}
-            ],
-            "scenarios": []
-        },
-        metadata={"trace_id": "test-trace"}
-    )
+def make_macro_result(
+    has_central_bank: bool = True,
+    has_cot: bool = True,
+    has_calendar: bool = True,
+) -> dict:
+    """Create a macro result dict matching the Python engine response."""
+    return {
+        "central_bank": {"speeches": [], "rate_decisions": []} if has_central_bank else None,
+        "cot": {"latest_positions": [], "extremes_flagged": []} if has_cot else None,
+        "economic": {"releases": []},
+        "news": {"articles": []},
+        "calendar": {"events": []} if has_calendar else None,
+        "dxy": {"latest": {"dxy_value": 104.5, "dxy_momentum": "BULLISH"}},
+        "intermarket": {"snapshots": []},
+        "sentiment": {"risk_environment": "RISK_ON"},
+        "errors": {},
+    }

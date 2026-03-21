@@ -31,8 +31,8 @@ from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.trading_economics import TradingEconomicsSentimentProvider
 
-from engine.ta.broker.mt5.client import MT5Client
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.factory import create_mt5_broker
 from engine.ta.broker.twelve_data.client import TwelveDataClient
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
 from engine.ta.broker.registry import BrokerRegistry
@@ -225,7 +225,10 @@ class Container:
         s = self.settings
 
         mt5_config = MT5Config()
-        self.mt5_client = MT5Client(mt5_config)
+        self.mt5_client = create_mt5_broker(
+            config=mt5_config,
+            http_client=self.http_client,
+        )
 
         twelve_config = TwelveDataConfig(
             api_key=s.twelvedata_api_key,
