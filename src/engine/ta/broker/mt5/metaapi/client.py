@@ -263,6 +263,8 @@ class MetaApiClient(BrokerBase):
             "volume_min": info.get("minVolume", 0.01),
             "volume_max": info.get("maxVolume", 100.0),
             "volume_step": info.get("volumeStep", 0.01),
+            "trade_tick_value": info.get("tradeTickValue", 0.0),
+            "trade_tick_size": info.get("tickSize", 0.0),
         }
 
     async def validate_symbol(self, symbol: str) -> bool:
@@ -295,6 +297,353 @@ class MetaApiClient(BrokerBase):
 
     async def shutdown(self) -> None:
         logger.info("metaapi_shutdown_complete")
+
+    # -- Trading methods (Execution + Management bridge) -----------------------
+
+    async def _api_post(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        category: str = "trade",
+    ) -> Any:
+        """Execute authenticated POST against MetaApi."""
+        return await self._http.post(
+            self._url(path),
+            json_body=payload,
+            provider_name="metaapi",
+            category=category,
+            headers=self._auth_headers,
+            timeout_override=self.config.timeout_seconds,
+        )
+
+    def _trade_url(self, path: str) -> str:
+        """Build URL for MetaApi trade endpoints."""
+        return f"{self._BASE_URL}/users/current/accounts/{self._account_id}{path}"
+
+    async def get_account_info(self) -> "AccountInfo":
+        from engine.ta.broker.base import AccountInfo
+
+        raw = await self._api_get("/account-information", category="account")
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid account info response",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        return AccountInfo(
+            balance=float(raw.get("balance", 0)),
+            equity=float(raw.get("equity", 0)),
+            margin=float(raw.get("margin", 0)),
+            free_margin=float(raw.get("freeMargin", raw.get("margin_free", 0))),
+            currency=raw.get("currency", "USD"),
+        )
+
+    async def get_positions(self) -> list["PositionInfo"]:
+        from engine.ta.broker.base import PositionInfo
+
+        raw = await self._api_get("/positions", category="positions")
+        if not isinstance(raw, list):
+            raise ProviderResponseError(
+                "Invalid positions response",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        positions = []
+        for p in raw:
+            direction = "BUY" if p.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
+            positions.append(PositionInfo(
+                symbol=p.get("symbol", ""),
+                direction=direction,
+                entry_price=float(p.get("openPrice", 0)),
+                current_price=float(p.get("currentPrice", 0)),
+                stop_loss=float(p.get("stopLoss", 0)),
+                take_profit=float(p.get("takeProfit", 0)),
+                volume=float(p.get("volume", 0)),
+                profit=float(p.get("profit", 0)),
+                ticket=str(p.get("id", "")),
+                comment=p.get("comment", ""),
+                open_time=int(p.get("time", 0)),
+            ))
+
+        logger.info("metaapi_positions_fetched", extra={"count": len(positions)})
+        return positions
+
+    async def get_pending_orders(self) -> list["PendingOrderInfo"]:
+        from engine.ta.broker.base import PendingOrderInfo
+
+        raw = await self._api_get("/orders", category="orders")
+        if not isinstance(raw, list):
+            raise ProviderResponseError(
+                "Invalid orders response",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        orders = []
+        _type_map = {
+            "ORDER_TYPE_BUY_LIMIT": 2,
+            "ORDER_TYPE_SELL_LIMIT": 3,
+            "ORDER_TYPE_BUY_STOP": 4,
+            "ORDER_TYPE_SELL_STOP": 5,
+        }
+        for o in raw:
+            order_type_str = o.get("type", "")
+            order_type_int = _type_map.get(order_type_str, 2)
+            orders.append(PendingOrderInfo(
+                symbol=o.get("symbol", ""),
+                order_type=order_type_int,
+                price=float(o.get("openPrice", 0)),
+                stop_loss=float(o.get("stopLoss", 0)),
+                take_profit=float(o.get("takeProfit", 0)),
+                volume=float(o.get("volume", 0)),
+                ticket=str(o.get("id", "")),
+                comment=o.get("comment", ""),
+                open_time=int(o.get("time", 0)),
+            ))
+
+        logger.info("metaapi_pending_orders_fetched", extra={"count": len(orders)})
+        return orders
+
+    async def get_position(self, ticket: str) -> "PositionInfo":
+        from engine.ta.broker.base import PositionInfo
+
+        raw = await self._api_get(f"/positions/{ticket}", category="position")
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                f"Position {ticket} not found",
+                details={"ticket": ticket},
+            )
+
+        direction = "BUY" if raw.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
+        return PositionInfo(
+            symbol=raw.get("symbol", ""),
+            direction=direction,
+            entry_price=float(raw.get("openPrice", 0)),
+            current_price=float(raw.get("currentPrice", 0)),
+            stop_loss=float(raw.get("stopLoss", 0)),
+            take_profit=float(raw.get("takeProfit", 0)),
+            volume=float(raw.get("volume", 0)),
+            profit=float(raw.get("profit", 0)),
+            ticket=str(raw.get("id", ticket)),
+            comment=raw.get("comment", ""),
+            open_time=int(raw.get("time", 0)),
+        )
+
+    async def get_tick_price(self, symbol: str) -> "TickPrice":
+        from engine.ta.broker.base import TickPrice
+
+        raw = await self._api_get(
+            f"/symbols/{symbol}/current-price",
+            category="tick",
+        )
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                f"Tick price not available for {symbol}",
+                details={"symbol": symbol},
+            )
+
+        return TickPrice(
+            bid=float(raw.get("bid", 0)),
+            ask=float(raw.get("ask", 0)),
+            time=int(raw.get("time", 0)),
+        )
+
+    async def place_order(
+        self,
+        *,
+        symbol: str,
+        direction: str,
+        order_type: str,
+        price: float,
+        stop_loss: float,
+        take_profit: float,
+        lot_size: float,
+        comment: str = "",
+    ) -> "OrderResult":
+        from engine.ta.broker.base import OrderResult
+
+        if order_type.upper() == "MARKET":
+            action_type = "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
+        else:
+            action_type = "ORDER_TYPE_BUY_LIMIT" if direction.upper() == "BUY" else "ORDER_TYPE_SELL_LIMIT"
+
+        payload: dict[str, Any] = {
+            "actionType": "ORDER_TYPE_BUY" if order_type.upper() == "MARKET" and direction.upper() == "BUY"
+                else "ORDER_TYPE_SELL" if order_type.upper() == "MARKET" and direction.upper() == "SELL"
+                else "ORDER_TYPE_BUY_LIMIT" if direction.upper() == "BUY"
+                else "ORDER_TYPE_SELL_LIMIT",
+            "symbol": symbol,
+            "volume": lot_size,
+            "stopLoss": stop_loss,
+            "takeProfit": take_profit,
+            "comment": comment,
+        }
+
+        if order_type.upper() != "MARKET" and price > 0:
+            payload["openPrice"] = price
+
+        try:
+            raw = await self._api_post("/trade", payload, category="order_send")
+        except Exception as e:
+            logger.error(
+                "metaapi_place_order_failed",
+                extra={"symbol": symbol, "direction": direction, "error": str(e)},
+            )
+            raise ProviderError(
+                f"Place order failed: {e}",
+                details={"symbol": symbol, "direction": direction, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        status = "FILLED" if order_type.upper() == "MARKET" else "PLACED"
+        string_code = raw.get("stringCode", "")
+        if string_code and "REJECT" in string_code.upper():
+            status = "REJECTED"
+
+        order_id = raw.get("orderId", 0)
+        if not order_id:
+            order_id = raw.get("positionId", 0)
+
+        logger.info(
+            "metaapi_order_placed",
+            extra={
+                "symbol": symbol,
+                "direction": direction,
+                "order_type": order_type,
+                "lot_size": lot_size,
+                "order_id": order_id,
+                "status": status,
+            },
+        )
+
+        return OrderResult(
+            order_id=int(order_id) if order_id else 0,
+            price=float(raw.get("openPrice", price)),
+            status=status,
+            error=raw.get("message", ""),
+        )
+
+    async def cancel_order(self, order_id: str) -> bool:
+        payload = {
+            "actionType": "ORDER_CANCEL",
+            "orderId": order_id,
+        }
+
+        try:
+            raw = await self._api_post("/trade", payload, category="order_cancel")
+        except Exception as e:
+            logger.error(
+                "metaapi_cancel_order_failed",
+                extra={"order_id": order_id, "error": str(e)},
+            )
+            raise ProviderError(
+                f"Cancel order failed: {e}",
+                details={"order_id": order_id, "error": str(e)},
+            ) from e
+
+        logger.info("metaapi_order_cancelled", extra={"order_id": order_id})
+        return True
+
+    async def modify_position(
+        self,
+        *,
+        ticket: str,
+        stop_loss: float,
+        take_profit: float,
+    ) -> bool:
+        payload: dict[str, Any] = {
+            "actionType": "POSITION_MODIFY",
+            "positionId": ticket,
+            "stopLoss": stop_loss,
+            "takeProfit": take_profit,
+        }
+
+        try:
+            await self._api_post("/trade", payload, category="position_modify")
+        except Exception as e:
+            logger.error(
+                "metaapi_modify_position_failed",
+                extra={"ticket": ticket, "error": str(e)},
+            )
+            raise ProviderError(
+                f"Modify position failed: {e}",
+                details={"ticket": ticket, "error": str(e)},
+            ) from e
+
+        logger.info(
+            "metaapi_position_modified",
+            extra={"ticket": ticket, "stop_loss": stop_loss, "take_profit": take_profit},
+        )
+        return True
+
+    async def close_partial(
+        self,
+        *,
+        ticket: str,
+        volume: float,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "actionType": "POSITION_PARTIAL",
+            "positionId": ticket,
+            "volume": volume,
+        }
+
+        try:
+            raw = await self._api_post("/trade", payload, category="position_close_partial")
+        except Exception as e:
+            logger.error(
+                "metaapi_close_partial_failed",
+                extra={"ticket": ticket, "volume": volume, "error": str(e)},
+            )
+            raise ProviderError(
+                f"Partial close failed: {e}",
+                details={"ticket": ticket, "volume": volume, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        logger.info(
+            "metaapi_partial_close_executed",
+            extra={"ticket": ticket, "volume": volume, "close_price": raw.get("closePrice", 0)},
+        )
+
+        return {
+            "success": True,
+            "close_price": float(raw.get("closePrice", 0)),
+        }
+
+    async def close_position(self, ticket: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "actionType": "POSITION_CLOSE_ID",
+            "positionId": ticket,
+        }
+
+        try:
+            raw = await self._api_post("/trade", payload, category="position_close")
+        except Exception as e:
+            logger.error(
+                "metaapi_close_position_failed",
+                extra={"ticket": ticket, "error": str(e)},
+            )
+            raise ProviderError(
+                f"Close position failed: {e}",
+                details={"ticket": ticket, "error": str(e)},
+            ) from e
+
+        if not isinstance(raw, dict):
+            raw = {}
+
+        logger.info(
+            "metaapi_position_closed",
+            extra={"ticket": ticket, "close_price": raw.get("closePrice", 0)},
+        )
+
+        return {
+            "success": True,
+            "close_price": float(raw.get("closePrice", 0)),
+        }
 
     # -- Parsing ---------------------------------------------------------------
 

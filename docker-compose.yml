@@ -155,7 +155,7 @@ services:
     env_file: .env
     environment:
       - EXECUTION_BROKER_BRIDGE_URL=http://engine:8000
-      - EXECUTION_MODULE_C_ADDR=gateway:50052
+      - EXECUTION_GATEWAY_ADDR=gateway:50052
     ports:
       - "50053:50053"
       - "8081:8080"
@@ -184,7 +184,6 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - MANAGEMENT_GATEWAY_ADDR=gateway:50052
       - MANAGEMENT_BROKER_BRIDGE_URL=http://engine:8000
     ports:
       - "50054:50054"

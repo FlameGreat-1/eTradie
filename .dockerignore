@@ -6,6 +6,8 @@
 __pycache__
 *.pyc
 *.pyo
+*.mq5
+*.ex5
 .mypy_cache
 .pytest_cache
 .ruff_cache
@@ -15,5 +17,4 @@ tests
 docker
 *.md
 *.docx
-*.txt
 .pre-commit-config.yaml
