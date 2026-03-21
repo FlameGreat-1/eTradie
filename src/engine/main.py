@@ -1052,6 +1052,296 @@ def create_app() -> FastAPI:
             "max_output_tokens": new_max_tokens,
         }
 
+    # -- Internal broker bridge endpoints (Go Execution + Management) --------
+    # These endpoints proxy broker operations from the Go services through
+    # the Python engine's active broker client (MetaApiClient or ZmqClient).
+    # The Go services call these at EXECUTION_BROKER_BRIDGE_URL and
+    # MANAGEMENT_BROKER_BRIDGE_URL (both http://engine:8000).
+
+    @app.get("/internal/broker/account_info")
+    async def broker_account_info(request: Request) -> dict:
+        """Return live account balance, equity, margin, free margin."""
+        container: Container = request.app.state.container
+        try:
+            info = await container.mt5_client.get_account_info()
+            return {
+                "balance": info.balance,
+                "equity": info.equity,
+                "margin": info.margin,
+                "margin_free": info.free_margin,
+                "currency": info.currency,
+            }
+        except Exception as exc:
+            logger.error("broker_account_info_failed", extra={"error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+
+    @app.get("/internal/broker/positions")
+    async def broker_positions(request: Request) -> list:
+        """Return all open positions at the broker."""
+        container: Container = request.app.state.container
+        try:
+            positions = await container.mt5_client.get_positions()
+            return [
+                {
+                    "symbol": p.symbol,
+                    "type": 0 if p.direction == "BUY" else 1,
+                    "price_open": p.entry_price,
+                    "price_current": p.current_price,
+                    "sl": p.stop_loss,
+                    "tp": p.take_profit,
+                    "volume": p.volume,
+                    "profit": p.profit,
+                    "ticket": int(p.ticket) if p.ticket.isdigit() else 0,
+                    "comment": p.comment,
+                    "time_setup": p.open_time,
+                }
+                for p in positions
+            ]
+        except Exception as exc:
+            logger.error("broker_positions_failed", extra={"error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+
+    @app.get("/internal/broker/pending_orders")
+    async def broker_pending_orders(request: Request) -> list:
+        """Return all pending limit/stop orders at the broker."""
+        container: Container = request.app.state.container
+        try:
+            orders = await container.mt5_client.get_pending_orders()
+            return [
+                {
+                    "symbol": o.symbol,
+                    "type": o.order_type,
+                    "price_open": o.price,
+                    "sl": o.stop_loss,
+                    "tp": o.take_profit,
+                    "volume": o.volume,
+                    "ticket": int(o.ticket) if o.ticket.isdigit() else 0,
+                    "comment": o.comment,
+                    "time_setup": o.open_time,
+                }
+                for o in orders
+            ]
+        except Exception as exc:
+            logger.error("broker_pending_orders_failed", extra={"error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+
+    @app.get("/internal/broker/symbol_info")
+    async def broker_symbol_info(request: Request, symbol: str = "") -> dict:
+        """Return instrument metadata for the Go sizing engine.
+
+        Extends the existing get_symbol_info() with trade_tick_value and
+        trade_tick_size fields that the Go bridge.go uses for pip value
+        calculation.
+        """
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol parameter required")
+        container: Container = request.app.state.container
+        try:
+            info = await container.mt5_client.get_symbol_info(symbol)
+            return info
+        except Exception as exc:
+            logger.error("broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Symbol info unavailable: {exc}")
+
+    @app.get("/internal/broker/tick_price")
+    async def broker_tick_price(request: Request, symbol: str = "") -> dict:
+        """Return latest bid/ask for a symbol.
+
+        Called by both Execution (watcher tick polling) and Management
+        (per-trade monitoring worker) on every tick cycle.
+        """
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol parameter required")
+        container: Container = request.app.state.container
+        try:
+            tick = await container.mt5_client.get_tick_price(symbol)
+            return {
+                "bid": tick.bid,
+                "ask": tick.ask,
+                "time": tick.time,
+            }
+        except Exception as exc:
+            logger.error("broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Tick price unavailable: {exc}")
+
+    @app.post("/internal/broker/place_order")
+    async def broker_place_order(request: Request) -> dict:
+        """Place a limit or market order at the broker.
+
+        Called by Execution Module B's bridge.go placeOrder().
+        """
+        container: Container = request.app.state.container
+        body = await request.json()
+
+        symbol = body.get("symbol", "")
+        direction = body.get("direction", "")
+        order_type = body.get("order_type", "MARKET")
+        price = float(body.get("price", 0))
+        stop_loss = float(body.get("stop_loss", 0))
+        take_profit = float(body.get("take_profit", 0))
+        lot_size = float(body.get("lot_size", 0))
+        comment = body.get("comment", "")
+
+        if not symbol or not direction:
+            raise HTTPException(status_code=400, detail="symbol and direction required")
+
+        try:
+            result = await container.mt5_client.place_order(
+                symbol=symbol,
+                direction=direction,
+                order_type=order_type,
+                price=price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                lot_size=lot_size,
+                comment=comment,
+            )
+            return {
+                "order_id": result.order_id,
+                "price": result.price,
+                "status": result.status,
+                "error": result.error,
+            }
+        except Exception as exc:
+            logger.error(
+                "broker_place_order_failed",
+                extra={"symbol": symbol, "direction": direction, "error": str(exc)},
+            )
+            raise HTTPException(status_code=502, detail=f"Order placement failed: {exc}")
+
+    @app.post("/internal/broker/cancel_order")
+    async def broker_cancel_order(request: Request) -> dict:
+        """Cancel a pending order by broker order ID."""
+        container: Container = request.app.state.container
+        body = await request.json()
+        order_id = str(body.get("order_id", ""))
+
+        if not order_id:
+            raise HTTPException(status_code=400, detail="order_id required")
+
+        try:
+            success = await container.mt5_client.cancel_order(order_id)
+            return {"success": success, "error": ""}
+        except Exception as exc:
+            logger.error("broker_cancel_order_failed", extra={"order_id": order_id, "error": str(exc)})
+            return {"success": False, "error": str(exc)}
+
+    @app.get("/internal/broker/position")
+    async def broker_position(request: Request, ticket: str = "") -> dict:
+        """Return a single open position by broker ticket.
+
+        Called by Management Module C's stream.go GetPosition().
+        """
+        if not ticket:
+            raise HTTPException(status_code=400, detail="ticket parameter required")
+        container: Container = request.app.state.container
+        try:
+            p = await container.mt5_client.get_position(ticket)
+            return {
+                "symbol": p.symbol,
+                "type": 0 if p.direction == "BUY" else 1,
+                "price_open": p.entry_price,
+                "price_current": p.current_price,
+                "sl": p.stop_loss,
+                "tp": p.take_profit,
+                "volume": p.volume,
+                "profit": p.profit,
+                "ticket": int(p.ticket) if p.ticket.isdigit() else 0,
+            }
+        except Exception as exc:
+            logger.error("broker_position_failed", extra={"ticket": ticket, "error": str(exc)})
+            raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
+
+    @app.post("/internal/broker/modify_position")
+    async def broker_modify_position(request: Request) -> dict:
+        """Modify SL/TP on an existing open position.
+
+        Called by Management Module C's client.go ModifyPosition().
+        """
+        container: Container = request.app.state.container
+        body = await request.json()
+
+        ticket = str(body.get("ticket", ""))
+        stop_loss = float(body.get("stop_loss", 0))
+        take_profit = float(body.get("take_profit", 0))
+
+        if not ticket:
+            raise HTTPException(status_code=400, detail="ticket required")
+
+        try:
+            success = await container.mt5_client.modify_position(
+                ticket=ticket,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+            )
+            return {"success": success, "error": ""}
+        except Exception as exc:
+            logger.error(
+                "broker_modify_position_failed",
+                extra={"ticket": ticket, "error": str(exc)},
+            )
+            return {"success": False, "error": str(exc)}
+
+    @app.post("/internal/broker/close_partial")
+    async def broker_close_partial(request: Request) -> dict:
+        """Partially close a position by volume.
+
+        Called by Management Module C's client.go ClosePartial().
+        """
+        container: Container = request.app.state.container
+        body = await request.json()
+
+        ticket = str(body.get("ticket", ""))
+        volume = float(body.get("volume", 0))
+
+        if not ticket or volume <= 0:
+            raise HTTPException(status_code=400, detail="ticket and positive volume required")
+
+        try:
+            result = await container.mt5_client.close_partial(
+                ticket=ticket,
+                volume=volume,
+            )
+            return {
+                "success": result.get("success", False),
+                "close_price": result.get("close_price", 0),
+                "error": result.get("error", ""),
+            }
+        except Exception as exc:
+            logger.error(
+                "broker_close_partial_failed",
+                extra={"ticket": ticket, "volume": volume, "error": str(exc)},
+            )
+            return {"success": False, "close_price": 0, "error": str(exc)}
+
+    @app.post("/internal/broker/close_position")
+    async def broker_close_position(request: Request) -> dict:
+        """Fully close a position at market.
+
+        Called by Management Module C's client.go ClosePosition().
+        """
+        container: Container = request.app.state.container
+        body = await request.json()
+
+        ticket = str(body.get("ticket", ""))
+
+        if not ticket:
+            raise HTTPException(status_code=400, detail="ticket required")
+
+        try:
+            result = await container.mt5_client.close_position(ticket)
+            return {
+                "success": result.get("success", False),
+                "close_price": result.get("close_price", 0),
+                "error": result.get("error", ""),
+            }
+        except Exception as exc:
+            logger.error(
+                "broker_close_position_failed",
+                extra={"ticket": ticket, "error": str(exc)},
+            )
+            return {"success": False, "close_price": 0, "error": str(exc)}
+
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
