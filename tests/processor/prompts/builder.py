@@ -1,3 +1,8 @@
+"""Tests for system prompt and user message construction.
+
+Production module: src/engine/processor/prompts/system_prompt.py
+"""
+
 import json
 
 from engine.processor.models.io import ProcessorInput
@@ -6,47 +11,72 @@ from engine.processor.prompts.system_prompt import (
     build_user_message,
     compute_prompt_hash,
 )
-from engine.ta.constants import Timeframe
-from engine.ta.models.candidate import SMCCandidate
 
 
-def test_build_system_prompt():
-    """System prompt contains constraints and JSON schema."""
-    prompt = build_system_prompt()
-    
-    assert "You are the Analysis Processor" in prompt
-    assert "HALLUCINATION PREVENTION" in prompt
-    assert "analysis_id" in prompt  # Part of schema
+class TestBuildSystemPrompt:
+    def test_contains_role_definition(self):
+        prompt = build_system_prompt()
+        assert "You are the Analysis Processor" in prompt
+
+    def test_contains_hallucination_prevention(self):
+        prompt = build_system_prompt()
+        assert "HALLUCINATION PREVENTION" in prompt
+
+    def test_contains_output_schema(self):
+        prompt = build_system_prompt()
+        assert "analysis_id" in prompt
+        assert "confluence_score" in prompt
+        assert "proceed_to_module_b" in prompt
+
+    def test_contains_grade_rules(self):
+        prompt = build_system_prompt()
+        assert "setup_grade" in prompt
+        assert "REJECT" in prompt
 
 
-def test_build_user_message():
-    """User message accurately serializes ProcessorInput payload."""
-    input_data = ProcessorInput(
-        symbol="EURUSD",
-        ta_analysis={"trend": "BULLISH"},
-        macro_analysis={"bias": "BULLISH"},
-        retrieved_knowledge={"chunks": []},
-        metadata={"trace_id": "test"}
-    )
-    
-    msg = build_user_message(input_data)
-    parsed = json.loads(msg)
-    
-    assert parsed["symbol"] == "EURUSD"
-    assert parsed["ta_analysis"]["trend"] == "BULLISH"
-    assert parsed["metadata"]["trace_id"] == "test"
+class TestBuildUserMessage:
+    def test_serializes_processor_input(self):
+        inp = ProcessorInput(
+            symbol="EURUSD",
+            ta_analysis={"trend": "BULLISH"},
+            macro_analysis={"bias": "BULLISH"},
+            retrieved_knowledge={"chunks": []},
+            metadata={"trace_id": "test-trace"},
+        )
+        msg = build_user_message(inp)
+        parsed = json.loads(msg)
+
+        assert parsed["symbol"] == "EURUSD"
+        assert parsed["ta_analysis"]["trend"] == "BULLISH"
+        assert parsed["macro_analysis"]["bias"] == "BULLISH"
+        assert parsed["retrieved_knowledge"]["chunks"] == []
+        assert parsed["metadata"]["trace_id"] == "test-trace"
+
+    def test_empty_context(self):
+        inp = ProcessorInput(symbol="GBPUSD")
+        msg = build_user_message(inp)
+        parsed = json.loads(msg)
+
+        assert parsed["symbol"] == "GBPUSD"
+        assert parsed["ta_analysis"] == {}
+        assert parsed["macro_analysis"] == {}
 
 
-def test_compute_prompt_hash():
-    """Hash is deterministic and short."""
-    sys = "test system"
-    usr = "test user"
-    
-    hash1 = compute_prompt_hash(sys, usr)
-    hash2 = compute_prompt_hash(sys, usr)
-    
-    assert hash1 == hash2
-    assert len(hash1) == 32
-    
-    hash3 = compute_prompt_hash("test system2", usr)
-    assert hash1 != hash3
+class TestComputePromptHash:
+    def test_deterministic(self):
+        h1 = compute_prompt_hash("sys", "usr")
+        h2 = compute_prompt_hash("sys", "usr")
+        assert h1 == h2
+
+    def test_length_32(self):
+        h = compute_prompt_hash("system", "user")
+        assert len(h) == 32
+
+    def test_different_inputs_different_hash(self):
+        h1 = compute_prompt_hash("sys1", "usr")
+        h2 = compute_prompt_hash("sys2", "usr")
+        assert h1 != h2
+
+    def test_hex_characters_only(self):
+        h = compute_prompt_hash("test", "test")
+        assert all(c in "0123456789abcdef" for c in h)
