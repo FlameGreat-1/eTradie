@@ -263,6 +263,8 @@ class MetaApiClient(BrokerBase):
             "volume_min": info.get("minVolume", 0.01),
             "volume_max": info.get("maxVolume", 100.0),
             "volume_step": info.get("volumeStep", 0.01),
+            "trade_tick_value": info.get("tradeTickValue", 0.0),
+            "trade_tick_size": info.get("tickSize", 0.0),
         }
 
     async def validate_symbol(self, symbol: str) -> bool:

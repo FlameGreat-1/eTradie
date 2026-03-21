@@ -309,6 +309,8 @@ class ZmqClient(BrokerBase):
             "volume_min": reply.get("volume_min", 0.01),
             "volume_max": reply.get("volume_max", 100.0),
             "volume_step": reply.get("volume_step", 0.01),
+            "trade_tick_value": reply.get("trade_tick_value", 0.0),
+            "trade_tick_size": reply.get("trade_tick_size", 0.0),
         }
 
     async def validate_symbol(self, symbol: str) -> bool:
