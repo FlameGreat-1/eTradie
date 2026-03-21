@@ -99,6 +99,14 @@ menu: ## Start the interactive guided menu
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "12" "Format Codes (Go/Python)" "make fmt"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "13" "Lint Codes" "make lint"; \
 	echo -e ""; \
+	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
+	echo -e "$(CYAN)│$(NC) $(BOLD)TESTING & HEALTH$(NC)                                                             $(CYAN)│$(NC)"; \
+	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "14" "Run Python Tests (Local)" "make test-python"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "15" "Run Go Tests" "make test-go"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "16" "Check Service Health" "make health"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "17" "Check Broker Bridge" "make broker-health"; \
+	echo -e ""; \
 	echo -e "$(BLUE)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(BLUE)│$(NC) $(BOLD)OTHER OPTIONS$(NC)                                                                $(BLUE)│$(NC)"; \
 	echo -e "$(BLUE)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
@@ -121,6 +129,10 @@ menu: ## Start the interactive guided menu
 		11) $(MAKE) db-downgrade ;; \
 		12) $(MAKE) fmt ;; \
 		13) $(MAKE) lint ;; \
+		14) $(MAKE) test-python ;; \
+		15) $(MAKE) test-go ;; \
+		16) $(MAKE) health ;; \
+		17) $(MAKE) broker-health ;; \
 		0) echo -e "$(GREEN)Goodbye!$(NC)"; exit 0 ;; \
 		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
 	esac;
@@ -219,7 +231,68 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 	echo -e "$(GREEN)✓ Proto generation complete$(NC)"
 
 
-test-engine:
-	docker ps -q -f name=etradie-engine | grep -q . && docker compose -f docker compose.yml exec engine pytest tests/ || (echo "Engine container not running. Start with 'make run' first." && exit 1)
+##@ Testing
+test-python: ## Run Python engine tests locally (no Docker)
+	echo -e "$(BLUE)Running Python engine tests...$(NC)"
+	cd $(PROJECT_ROOT) && python -m pytest tests/ -v --tb=short
+	echo -e "$(GREEN)✓ Python tests passed$(NC)"
 
-test-all: test-engine test-gateway test-execution
+test-go: ## Run Go unit tests for all services
+	echo -e "$(BLUE)Running Go tests...$(NC)"
+	go test ./src/gateway/... -v -count=1 -timeout 60s
+	go test ./src/execution/... -v -count=1 -timeout 60s
+	go test ./src/management/... -v -count=1 -timeout 60s
+	echo -e "$(GREEN)✓ Go tests passed$(NC)"
+
+test-engine: ## Run Python tests inside Docker container
+	echo -e "$(BLUE)Running engine tests in Docker...$(NC)"
+	docker compose exec engine pytest tests/ -v --tb=short
+	echo -e "$(GREEN)✓ Engine tests passed$(NC)"
+
+test-all: test-python test-go ## Run all tests (Python + Go)
+	echo -e "$(GREEN)✓ All tests passed$(NC)"
+
+##@ Health & Diagnostics
+health: ## Check health of all running services
+	echo -e "$(BLUE)Checking service health...$(NC)"
+	@echo -n "  Engine:     " && curl -sf http://localhost:8000/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  Gateway:    " && curl -sf http://localhost:8080/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  Execution:  " && curl -sf http://localhost:8081/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  Management: " && curl -sf http://localhost:8083/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  PostgreSQL: " && docker compose exec -T postgres pg_isready -U etradie -d etradie >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  Redis:      " && docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  ChromaDB:   " && curl -sf http://localhost:8002/api/v1/heartbeat >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
+
+broker-health: ## Verify broker bridge connectivity (engine must be running)
+	echo -e "$(BLUE)Checking broker bridge endpoints...$(NC)"
+	@echo -n "  account_info:    " && curl -sf http://localhost:8000/internal/broker/account_info >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+	@echo -n "  positions:       " && curl -sf http://localhost:8000/internal/broker/positions >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+	@echo -n "  pending_orders:  " && curl -sf http://localhost:8000/internal/broker/pending_orders >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+	@echo -n "  tick_price:      " && curl -sf "http://localhost:8000/internal/broker/tick_price?symbol=EURUSD" >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+	@echo -n "  symbol_info:     " && curl -sf "http://localhost:8000/internal/broker/symbol_info?symbol=EURUSD" >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+
+install-ea: ## Instructions for installing ZeroMQ EA on MT5 (native mode only)
+	echo -e ""
+	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"
+	echo -e "$(CYAN)│$(NC) $(BOLD)ZeroMQ EA Installation (Native Mode Only)$(NC)                                    $(CYAN)│$(NC)"
+	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"
+	echo -e ""
+	echo -e "  $(YELLOW)Prerequisites:$(NC)"
+	echo -e "    - MT5 terminal installed on Windows PC"
+	echo -e "    - ZeroMQ MQL5 library (Include/Zmq/Zmq.mqh)"
+	echo -e "    - JAson MQL5 library (Include/JAson.mqh)"
+	echo -e ""
+	echo -e "  $(YELLOW)Steps:$(NC)"
+	echo -e "    1. Install ZMQ library: https://github.com/dingmaotu/mql-zmq"
+	echo -e "    2. Install JAson library: https://www.mql5.com/en/code/11134"
+	echo -e "    3. Copy EA to MT5 data folder:"
+	echo -e "       $(GREEN)cp src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5 \\$(NC)"
+	echo -e "       $(GREEN)   '<MT5_DATA_FOLDER>/MQL5/Experts/ZeroMQ_EA.mq5'$(NC)"
+	echo -e "    4. Compile in MetaEditor (F7)"
+	echo -e "    5. Attach to any chart in MT5"
+	echo -e "    6. Enable 'Allow DLL imports' in EA settings"
+	echo -e "    7. Set MT5_PROVIDER=native in .env"
+	echo -e "    8. Set MT5_ZMQ_HOST to the Windows PC IP"
+	echo -e ""
+	echo -e "  $(YELLOW)Cloud mode (metaapi) does not need this EA.$(NC)"
+	echo -e ""
