@@ -184,7 +184,6 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - MANAGEMENT_GATEWAY_ADDR=gateway:50052
       - MANAGEMENT_BROKER_BRIDGE_URL=http://engine:8000
     ports:
       - "50054:50054"
