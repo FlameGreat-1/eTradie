@@ -106,6 +106,7 @@ menu: ## Start the interactive guided menu
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "15" "Run Go Tests" "make test-go"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "16" "Check Service Health" "make health"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "17" "Check Broker Bridge" "make broker-health"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "18" "ZMQ Bridge Test (Native)" "make zmq-test"; \
 	echo -e ""; \
 	echo -e "$(BLUE)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(BLUE)│$(NC) $(BOLD)OTHER OPTIONS$(NC)                                                                $(BLUE)│$(NC)"; \
@@ -133,6 +134,7 @@ menu: ## Start the interactive guided menu
 		15) $(MAKE) test-go ;; \
 		16) $(MAKE) health ;; \
 		17) $(MAKE) broker-health ;; \
+		18) $(MAKE) zmq-test ;; \
 		0) echo -e "$(GREEN)Goodbye!$(NC)"; exit 0 ;; \
 		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
 	esac;
@@ -270,6 +272,79 @@ broker-health: ## Verify broker bridge connectivity (engine must be running)
 	@echo -n "  pending_orders:  " && curl -sf http://localhost:8000/internal/broker/pending_orders >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
 	@echo -n "  tick_price:      " && curl -sf "http://localhost:8000/internal/broker/tick_price?symbol=EURUSD" >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
 	@echo -n "  symbol_info:     " && curl -sf "http://localhost:8000/internal/broker/symbol_info?symbol=EURUSD" >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)FAIL$(NC)"
+
+##@ ZeroMQ Bridge (Native Mode)
+zmq-status: ## Show current MT5 provider configuration
+	echo -e "$(BLUE)MT5 Provider Configuration:$(NC)"
+	@grep -E '^MT5_' .env 2>/dev/null || echo -e "$(YELLOW)  No .env file found. Copy .env.example to .env$(NC)"
+
+zmq-ping: ## Send PING to ZeroMQ EA to verify bridge is alive
+	echo -e "$(BLUE)Pinging ZeroMQ EA...$(NC)"
+	@python3 -c "\
+import asyncio, os, sys; \
+sys.path.insert(0, 'src'); \
+from engine.ta.broker.mt5.config import MT5Config; \
+from engine.ta.broker.mt5.zmq.client import ZmqClient; \
+async def ping(): \
+    cfg = MT5Config(provider='native'); \
+    c = ZmqClient(config=cfg); \
+    ok = await c.health_check(); \
+    print(f'  Endpoint: tcp://{cfg.zmq_host}:{cfg.zmq_port}'); \
+    print(f'  Status:   ' + ('\033[0;32mCONNECTED\033[0m' if ok else '\033[0;31mUNREACHABLE\033[0m')); \
+    await c.shutdown(); \
+    sys.exit(0 if ok else 1); \
+asyncio.run(ping()) \
+"
+
+zmq-test: ## Full ZMQ bridge connectivity test (ping + candle + account)
+	echo -e "$(BLUE)Running ZeroMQ bridge test...$(NC)"
+	@python3 -c "\
+import asyncio, os, sys, json; \
+sys.path.insert(0, 'src'); \
+from engine.ta.broker.mt5.config import MT5Config; \
+from engine.ta.broker.mt5.zmq.client import ZmqClient; \
+from engine.ta.constants import Timeframe; \
+async def test(): \
+    cfg = MT5Config(provider='native'); \
+    c = ZmqClient(config=cfg); \
+    ep = f'tcp://{cfg.zmq_host}:{cfg.zmq_port}'; \
+    print(f'  Endpoint: {ep}'); \
+    print(); \
+    print('  [1/4] PING...', end=' '); \
+    ok = await c.health_check(); \
+    print('\033[0;32mOK\033[0m' if ok else '\033[0;31mFAIL\033[0m'); \
+    if not ok: print('  EA not reachable. Is MT5 running with the EA attached?'); await c.shutdown(); sys.exit(1); \
+    print('  [2/4] ACCOUNT_INFO...', end=' '); \
+    acc = await c.get_account_info(); \
+    print(f'\033[0;32mOK\033[0m  balance={acc.balance} {acc.currency}'); \
+    print('  [3/4] TICK_PRICE EURUSD...', end=' '); \
+    tick = await c.get_tick_price('EURUSD'); \
+    print(f'\033[0;32mOK\033[0m  bid={tick.bid} ask={tick.ask}'); \
+    print('  [4/4] CANDLES EURUSD H1 (5 bars)...', end=' '); \
+    seq = await c.fetch_candles('EURUSD', Timeframe.H1, count=5); \
+    print(f'\033[0;32mOK\033[0m  {seq.count} candles fetched'); \
+    print(); \
+    print('  \033[0;32m\u2713 All ZMQ bridge tests passed\033[0m'); \
+    await c.shutdown(); \
+asyncio.run(test()) \
+"
+
+zmq-tick: ## Fetch live tick price (usage: make zmq-tick SYMBOL=EURUSD)
+	@python3 -c "\
+import asyncio, sys; \
+sys.path.insert(0, 'src'); \
+from engine.ta.broker.mt5.config import MT5Config; \
+from engine.ta.broker.mt5.zmq.client import ZmqClient; \
+async def tick(): \
+    cfg = MT5Config(provider='native'); \
+    c = ZmqClient(config=cfg); \
+    t = await c.get_tick_price('$(SYMBOL)'); \
+    print(f'$(SYMBOL)  bid={t.bid}  ask={t.ask}  spread={t.ask-t.bid:.5f}'); \
+    await c.shutdown(); \
+asyncio.run(tick()) \
+"
+
+SYMBOL ?= EURUSD
 
 install-ea: ## Instructions for installing ZeroMQ EA on MT5 (native mode only)
 	echo -e ""
