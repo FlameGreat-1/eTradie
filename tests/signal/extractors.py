@@ -1,115 +1,146 @@
+"""Tests for signal extraction helpers (macro + TA).
+
+Production module: src/engine/signal_extractors.py
+"""
+
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
-from engine.ta.constants import Direction
 
 
-def test_derive_macro_signals_empty():
-    """Test macro signal derivation with no data."""
-    signals = derive_macro_signals(None)
-    assert signals == {
-        "fed_tone": "NEUTRAL",
-        "has_rate_decision": False,
-        "is_qe": False,
-        "is_qt": False,
-        "cot_extreme": False,
-        "dxy_momentum": "NEUTRAL",
-        "risk_environment": "NEUTRAL",
-        "intermarket_present": False,
-    }
+class TestDeriveMacroSignalsEmpty:
+    def test_empty_dict(self):
+        signals = derive_macro_signals({})
+        assert signals["has_macro_data"] is False
+        assert signals["has_cot_data"] is False
+        assert signals["has_rate_decision"] is False
+        assert signals["has_high_impact_event"] is False
+        assert signals["has_dxy_data"] is False
+        assert signals["has_qe_qt"] is False
+        assert signals["dxy_momentum"] == ""
+        assert signals["risk_environment"] == ""
+        assert signals["cot_extremes"] == []
+        assert signals["fed_tone"] == ""
 
 
-def test_derive_macro_signals_populated():
-    """Test macro signal derivation with populated data."""
-    macro_data = {
-        "fed_tone": "HAWKISH",
-        "events": [{"impact": "HIGH", "event": "FOMC Rate Decision"}],
-        "is_qt": True,
-        "cot_signal": {"extreme_flag": True},
-        "dxy_bias": {"direction": "BULLISH"},
-        "sentiment": {"risk_environment": "RISK_OFF"},
-        "intermarket": {"bonds": "BULLISH"},
-    }
-    signals = derive_macro_signals(macro_data)
-    
-    assert signals["fed_tone"] == "HAWKISH"
-    assert signals["has_rate_decision"] is True
-    assert signals["is_qt"] is True
-    assert signals["cot_extreme"] is True
-    assert signals["dxy_momentum"] == "BULLISH"
-    assert signals["risk_environment"] == "RISK_OFF"
-    assert signals["intermarket_present"] is True
+class TestDeriveMacroSignalsPopulated:
+    def test_central_bank_with_rate_decision(self):
+        macro = {
+            "central_bank": {
+                "rate_decisions": [
+                    {"bank": "FED", "tone": "HAWKISH", "rate_change_bps": 25}
+                ],
+            },
+        }
+        signals = derive_macro_signals(macro)
+        assert signals["has_macro_data"] is True
+        assert signals["fed_tone"] == "HAWKISH"
+        assert signals["has_rate_decision"] is True
+
+    def test_cot_data(self):
+        macro = {
+            "cot": {
+                "latest_positions": [{"currency": "EUR", "net": 50000}],
+                "extremes_flagged": ["EUR", "JPY"],
+            },
+        }
+        signals = derive_macro_signals(macro)
+        assert signals["has_cot_data"] is True
+        assert signals["cot_extremes"] == ["EUR", "JPY"]
+
+    def test_dxy_data(self):
+        macro = {
+            "dxy": {
+                "latest": {"dxy_value": 104.5, "dxy_momentum": "BULLISH"},
+            },
+        }
+        signals = derive_macro_signals(macro)
+        assert signals["has_dxy_data"] is True
+        assert signals["dxy_momentum"] == "BULLISH"
+
+    def test_sentiment_risk_environment(self):
+        macro = {
+            "sentiment": {
+                "risk_environment": "RISK_OFF",
+                "risk_assessment": {
+                    "stagflation_detected": True,
+                    "safe_haven_demand_elevated": True,
+                    "commodity_currencies_weak": False,
+                },
+            },
+        }
+        signals = derive_macro_signals(macro)
+        assert signals["risk_environment"] == "RISK_OFF"
+        assert signals["stagflation_detected"] is True
+        assert signals["safe_haven_elevated"] is True
+        assert signals["commodity_currencies_weak"] is False
 
 
-def test_derive_ta_signals_empty():
-    """Test TA signal derivation with no data."""
-    signals = derive_ta_signals(None)
-    assert signals == {
-        "direction": "NO SETUP",
-        "framework": "",
-        "setup_families": [],
-        "patterns": [],
-        "ltf_confirmed": False,
-    }
+class TestDeriveTASignalsEmpty:
+    def test_empty_dict(self):
+        signals = derive_ta_signals({})
+        assert signals["direction"] == ""
+        assert signals["framework"] == ""
+        assert signals["setup_families"] == []
+        assert signals["patterns"] == []
+        assert signals["has_smc"] is False
+        assert signals["has_snd"] is False
+
+    def test_error_status_returns_defaults(self):
+        signals = derive_ta_signals({"status": "error"})
+        assert signals["direction"] == ""
+        assert signals["has_smc"] is False
 
 
-def test_derive_ta_signals_smc_only():
-    """Test TA signal derivation with only SMC candidates."""
-    ta_data = {
-        "smc_candidates": [
-            {"direction": "LONG", "pattern": "Bullish OB", "ltf_confirmed": True}
-        ],
-        "snd_candidates": [],
-    }
-    signals = derive_ta_signals(ta_data)
-    
-    assert signals["direction"] == "LONG"
-    assert signals["framework"] == "SMC"
-    assert "SMC" in signals["setup_families"]
-    assert "Bullish OB" in signals["patterns"]
-    assert signals["ltf_confirmed"] is True
+class TestDeriveTASignalsSMCOnly:
+    def test_smc_candidates(self):
+        ta = {
+            "status": "success",
+            "smc_candidates": [
+                {"direction": "BULLISH", "pattern": "TURTLE_SOUP_LONG"},
+            ],
+            "snd_candidates": [],
+        }
+        signals = derive_ta_signals(ta)
+        assert signals["direction"] == "long"
+        assert signals["framework"] == "smc"
+        assert signals["has_smc"] is True
+        assert signals["has_snd"] is False
+        assert "TURTLE_SOUP_LONG" in signals["patterns"]
+        assert "turtle_soup" in signals["setup_families"]
 
 
-def test_derive_ta_signals_snd_only():
-    """Test TA signal derivation with only SnD candidates."""
-    ta_data = {
-        "smc_candidates": [],
-        "snd_candidates": [
-            {"direction": "SHORT", "pattern": "Supply Zone", "ltf_confirmed": False}
-        ],
-    }
-    signals = derive_ta_signals(ta_data)
-    
-    assert signals["direction"] == "SHORT"
-    assert signals["framework"] == "SnD"
-    assert "SnD" in signals["setup_families"]
-    assert "Supply Zone" in signals["patterns"]
-    assert signals["ltf_confirmed"] is False
+class TestDeriveTASignalsSnDOnly:
+    def test_snd_candidates(self):
+        ta = {
+            "status": "success",
+            "smc_candidates": [],
+            "snd_candidates": [
+                {"direction": "BEARISH", "pattern": "QML_BASELINE", "qml_detected": True},
+            ],
+        }
+        signals = derive_ta_signals(ta)
+        assert signals["direction"] == "short"
+        assert signals["framework"] == "snd"
+        assert signals["has_snd"] is True
+        assert "qml" in signals["setup_families"]
 
 
-def test_derive_ta_signals_mixed_agreement():
-    """Test TA signal derivation when SMC and SnD agree on direction."""
-    ta_data = {
-        "smc_candidates": [{"direction": "LONG", "pattern": "Bullish OB"}],
-        "snd_candidates": [{"direction": "LONG", "pattern": "Demand Zone"}],
-    }
-    signals = derive_ta_signals(ta_data)
-    
-    assert signals["direction"] == "LONG"
-    assert signals["framework"] == "SMC_SND_CONFLUENCE"
-    assert "SMC" in signals["setup_families"]
-    assert "SnD" in signals["setup_families"]
-    assert "Bullish OB" in signals["patterns"]
-    assert "Demand Zone" in signals["patterns"]
+class TestDeriveTASignalsMixed:
+    def test_both_agree(self):
+        ta = {
+            "status": "success",
+            "smc_candidates": [{"direction": "BULLISH", "pattern": "SH_BMS_RTO_BULLISH"}],
+            "snd_candidates": [{"direction": "BULLISH", "pattern": "QMH_BASELINE"}],
+        }
+        signals = derive_ta_signals(ta)
+        assert signals["direction"] == "long"
+        assert "smc" in signals["all_frameworks"]
+        assert "snd" in signals["all_frameworks"]
 
-
-def test_derive_ta_signals_mixed_conflict():
-    """Test TA signal derivation when SMC and SnD disagree on direction."""
-    ta_data = {
-        "smc_candidates": [{"direction": "LONG", "pattern": "Bullish OB"}],
-        "snd_candidates": [{"direction": "SHORT", "pattern": "Supply Zone"}],
-    }
-    signals = derive_ta_signals(ta_data)
-    
-    # Current simplistic logic takes the majority or first. 
-    # With 1 LONG and 1 SHORT, it defaults to the first one processed (usually SMC).
-    assert signals["direction"] in ["LONG", "SHORT"]
-    assert signals["framework"] == "SMC_SND_CONFLUENCE"
+    def test_both_disagree(self):
+        ta = {
+            "status": "success",
+            "smc_candidates": [{"direction": "BULLISH", "pattern": "AMD_BULLISH"}],
+            "snd_candidates": [{"direction": "BEARISH", "pattern": "QML_BASELINE"}],
+        }
+        signals = derive_ta_signals(ta)
+        assert signals["direction"] == "neutral"
