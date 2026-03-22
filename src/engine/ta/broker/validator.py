@@ -203,11 +203,13 @@ class BrokerDataValidator:
                     },
                 )
             
-            if end_time > datetime.now():
+            from datetime import timezone as _tz
+            _now = datetime.now(_tz.utc) if end_time.tzinfo else datetime.now()
+            if end_time > _now:
                 raise ProviderValidationError(
                     "End time cannot be in the future",
                     details={
                         "end_time": end_time.isoformat(),
-                        "now": datetime.now().isoformat(),
+                        "now": _now.isoformat(),
                     },
                 )

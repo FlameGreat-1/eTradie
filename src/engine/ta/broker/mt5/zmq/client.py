@@ -69,7 +69,7 @@ class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
     def __init__(self, config: MT5Config) -> None:
-        super().__init__()
+        super().__init__(broker_id="mt5")
         self.config = config
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"

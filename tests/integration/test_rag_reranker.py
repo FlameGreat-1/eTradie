@@ -7,7 +7,7 @@ from engine.rag.retrieval.reranker import Reranker
 
 pytestmark = pytest.mark.integration
 
-def _chunk(doc_type="generic", score=0.8, section=None, subsection=None):
+def _chunk(doc_type=DocumentType.MASTER_RULEBOOK, score=0.8, section=None, subsection=None):
     return RetrievedChunk(chunk_id=uuid4(), document_id=uuid4(), doc_type=doc_type, content="Test", score=score, rank=0, section=section, subsection=subsection, metadata={})
 
 @pytest.fixture

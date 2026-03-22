@@ -1,10 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 pytestmark = pytest.mark.integration
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client():
     with patch("engine.main.Container") as MC:
         c = MagicMock()

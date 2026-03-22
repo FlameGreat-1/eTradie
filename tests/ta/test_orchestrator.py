@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, MagicMock, patch
 from datetime import datetime, timezone
 
 from engine.ta.orchestrator import TAOrchestrator
@@ -7,6 +7,21 @@ from engine.ta.broker.base import BrokerBase
 from engine.ta.models.candle import CandleSequence, Candle
 from engine.ta.constants import Timeframe
 from engine.ta.storage.repositories.candle import CandleRepository
+
+
+def _make_sequence(symbol="EURUSD", timeframe=Timeframe.H1):
+    """Create a valid CandleSequence with one dummy candle."""
+    candle = Candle(
+        symbol=symbol,
+        timeframe=timeframe,
+        timestamp=datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
+        open=1.1000,
+        high=1.1050,
+        low=1.0950,
+        close=1.1020,
+        volume=500.0,
+    )
+    return CandleSequence(symbol=symbol, timeframe=timeframe, candles=[candle])
 
 @pytest.fixture
 def mock_broker():
@@ -49,8 +64,7 @@ def orchestrator(
 @pytest.mark.asyncio
 async def test_fetch_sequence_success_primary_broker(orchestrator, mock_broker, mock_fallback_broker):
     # Setup primary broker to succeed
-    expected_sequence = CandleSequence(symbol="EURUSD", timeframe=Timeframe.H1, candles=[])
-    expected_sequence.count = 100
+    expected_sequence = _make_sequence()
     mock_broker.fetch_candles.return_value = expected_sequence
 
     result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100)
@@ -66,8 +80,7 @@ async def test_fetch_sequence_fails_over_to_fallback(orchestrator, mock_broker, 
     mock_broker.fetch_candles.side_effect = Exception("MT5 Connection Refused")
 
     # Setup fallback broker to SUCCEED
-    fallback_sequence = CandleSequence(symbol="EURUSD", timeframe=Timeframe.H1, candles=[])
-    fallback_sequence.count = 100
+    fallback_sequence = _make_sequence()
     mock_fallback_broker.fetch_candles.return_value = fallback_sequence
 
     result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100)

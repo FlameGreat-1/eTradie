@@ -109,55 +109,53 @@ class TestMetaApiExecutionIdempotency:
     """Test idempotency key (clientId) injection on execution endpoints."""
 
     @pytest.mark.asyncio
-    @patch("engine.ta.broker.mt5.metaapi.client.aiohttp.ClientSession.post")
-    async def test_place_order_injects_client_id(self, mock_post, client):
+    async def test_place_order_injects_client_id(self, client):
+        """Test that place_order includes clientId when comment is provided."""
+        mock_post = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
         mock_resp.json = AsyncMock(return_value={"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"})
-        mock_post.return_value.__aenter__.return_value = mock_resp
+        mock_post.return_value.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_post.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        # Call with an analysis ID (comment)
-        from engine.ta.broker.base import OrderType
-        
-        await client.place_order(
-            symbol="EURUSD",
-            order_type=OrderType.BUY,
-            volume=1.0,
-            price=1.10,
-            comment="TEST-ANALYSIS-123"
-        )
-        
-        # Verify post was called
-        mock_post.assert_called_once()
-        _, kwargs = mock_post.call_args
-        
-        # Verify the json payload contains clientId matching the comment
-        payload = kwargs.get("json", {})
-        assert "clientId" in payload
-        assert payload["clientId"] == "TEST-ANALYSIS-123"
+        with patch.object(client, '_api_post', new_callable=AsyncMock) as mock_api_post:
+            mock_api_post.return_value = {"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"}
+
+            await client.place_order(
+                symbol="EURUSD",
+                direction="BUY",
+                order_type="MARKET",
+                price=1.10,
+                stop_loss=1.09,
+                take_profit=1.12,
+                lot_size=1.0,
+                comment="TEST-ANALYSIS-123",
+            )
+
+            mock_api_post.assert_called_once()
+            _, kwargs = mock_api_post.call_args
+            payload = kwargs.get("payload", args[0] if (args := mock_api_post.call_args.args) else {})
+            # The second positional arg to _api_post is the payload dict
+            call_args = mock_api_post.call_args
+            actual_payload = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("payload", {})
+            assert actual_payload.get("clientId") == "TEST-ANALYSIS-123"
 
     @pytest.mark.asyncio
-    @patch("engine.ta.broker.mt5.metaapi.client.aiohttp.ClientSession.post")
-    async def test_place_order_no_comment_omits_client_id(self, mock_post, client):
-        mock_resp = AsyncMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value={"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"})
-        mock_post.return_value.__aenter__.return_value = mock_resp
+    async def test_place_order_no_comment_omits_client_id(self, client):
+        """Test that place_order omits clientId when no comment is provided."""
+        with patch.object(client, '_api_post', new_callable=AsyncMock) as mock_api_post:
+            mock_api_post.return_value = {"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"}
 
-        from engine.ta.broker.base import OrderType
-        
-        # Call WITHOUT an analysis ID (comment)
-        await client.place_order(
-            symbol="EURUSD",
-            order_type=OrderType.BUY,
-            volume=1.0,
-            price=1.10
-        )
-        
-        # Verify post was called
-        mock_post.assert_called_once()
-        _, kwargs = mock_post.call_args
-        
-        # Verify clientId is NOT present
-        payload = kwargs.get("json", {})
-        assert "clientId" not in payload
+            await client.place_order(
+                symbol="EURUSD",
+                direction="BUY",
+                order_type="MARKET",
+                price=1.10,
+                stop_loss=1.09,
+                take_profit=1.12,
+                lot_size=1.0,
+            )
+
+            call_args = mock_api_post.call_args
+            actual_payload = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("payload", {})
+            assert "clientId" not in actual_payload
