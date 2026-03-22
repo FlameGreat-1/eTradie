@@ -1,7 +1,7 @@
 """Tests for MetaApiClient candle parsing and capabilities."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -104,3 +104,60 @@ class TestMetaApiCapabilities:
         assert caps.supports_symbol_info is True
         assert caps.requires_authentication is True
         assert caps.max_candles_per_request == 5000
+
+class TestMetaApiExecutionIdempotency:
+    """Test idempotency key (clientId) injection on execution endpoints."""
+
+    @pytest.mark.asyncio
+    @patch("engine.ta.broker.mt5.metaapi.client.aiohttp.ClientSession.post")
+    async def test_place_order_injects_client_id(self, mock_post, client):
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value={"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"})
+        mock_post.return_value.__aenter__.return_value = mock_resp
+
+        # Call with an analysis ID (comment)
+        from engine.ta.broker.base import OrderType
+        
+        await client.place_order(
+            symbol="EURUSD",
+            order_type=OrderType.BUY,
+            volume=1.0,
+            price=1.10,
+            comment="TEST-ANALYSIS-123"
+        )
+        
+        # Verify post was called
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        
+        # Verify the json payload contains clientId matching the comment
+        payload = kwargs.get("json", {})
+        assert "clientId" in payload
+        assert payload["clientId"] == "TEST-ANALYSIS-123"
+
+    @pytest.mark.asyncio
+    @patch("engine.ta.broker.mt5.metaapi.client.aiohttp.ClientSession.post")
+    async def test_place_order_no_comment_omits_client_id(self, mock_post, client):
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value={"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"})
+        mock_post.return_value.__aenter__.return_value = mock_resp
+
+        from engine.ta.broker.base import OrderType
+        
+        # Call WITHOUT an analysis ID (comment)
+        await client.place_order(
+            symbol="EURUSD",
+            order_type=OrderType.BUY,
+            volume=1.0,
+            price=1.10
+        )
+        
+        # Verify post was called
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        
+        # Verify clientId is NOT present
+        payload = kwargs.get("json", {})
+        assert "clientId" not in payload

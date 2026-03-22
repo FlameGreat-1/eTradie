@@ -261,7 +261,7 @@ class IngestPipeline:
             status="draft",
             checksum=checksum,
             framework_tags=framework_tags,
-            metadata=doc_metadata,
+            meta_data=doc_metadata,
         )
         return await uow.document_repo.add(row)
 
@@ -311,7 +311,7 @@ class IngestPipeline:
                 section=chunk.section,
                 subsection=chunk.subsection,
                 hierarchy_level=chunk.hierarchy_level,
-                metadata=chunk.metadata,
+                meta_data=chunk.metadata,
             )
             created = await uow.chunk_repo.add(row)
             rows.append(created)

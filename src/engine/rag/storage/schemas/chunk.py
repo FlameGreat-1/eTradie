@@ -30,7 +30,7 @@ class ChunkRow(Base):
     subsection: Mapped[str | None] = mapped_column(String(256), nullable=True)
     parent_chunk_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     hierarchy_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )

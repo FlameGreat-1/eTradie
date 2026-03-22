@@ -124,3 +124,44 @@ class TestZmqCapabilities:
         assert caps.requires_authentication is True
         assert caps.max_candles_per_request == 5000
         assert caps.rate_limit_per_minute == 1000
+
+class TestZmqAsyncConnections:
+    """Test ZmqClient natively interacts with zmq.asyncio non-blocking sockets."""
+
+    @pytest.mark.asyncio
+    from unittest.mock import patch, AsyncMock
+    @patch("engine.ta.broker.mt5.zmq.client.zmq_async.Context")
+    async def test_connect_sync_creates_async_context(self, mock_ctx_class, client):
+        # Even though _connect_sync is synchronous, it should instantiate the zmq_async classes
+        mock_ctx = mock_ctx_class.return_value
+        mock_socket = mock_ctx.socket.return_value
+        
+        client._connect_sync()
+        
+        mock_ctx_class.assert_called_once()
+        mock_ctx.socket.assert_called_once()
+        assert client._initialized is True
+        assert client._ctx is mock_ctx
+        assert client._socket is mock_socket
+        
+    @pytest.mark.asyncio    
+    @patch("engine.ta.broker.mt5.zmq.client.zmq_async.Context")
+    async def test_request_thread_safe_async(self, mock_ctx_class, client):
+        import json
+        mock_ctx = mock_ctx_class.return_value
+        mock_socket = mock_ctx.socket.return_value
+        
+        # Mock the recv() to return a JSON bytes representation
+        mock_socket.recv = AsyncMock(return_value=b'{"status": "ok"}')
+        mock_socket.send = AsyncMock()
+        
+        req = {"action": "PING"}
+        reply = await client._request(req)
+        
+        assert reply == {"status": "ok"}
+        
+        # Verify it serialized the request and sent it via the async mock
+        mock_socket.send.assert_called_once()
+        sent_bytes = mock_socket.send.call_args[0][0]
+        assert json.loads(sent_bytes.decode("utf-8")) == req
+

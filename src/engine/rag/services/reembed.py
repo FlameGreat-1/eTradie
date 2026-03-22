@@ -69,7 +69,7 @@ class ReembedService:
             chunk_ids = [r[0] for r in results]
             embeddings = [r[1] for r in results]
             documents = contents[:len(results)]
-            metadatas = [c.metadata if isinstance(c.metadata, dict) else {} for c in chunks[:len(results)]]
+            metadatas = [c.meta_data if isinstance(c.meta_data, dict) else {} for c in chunks[:len(results)]]
 
             await upsert_chunk_vectors(
                 store=self._vector_store,

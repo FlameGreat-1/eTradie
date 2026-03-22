@@ -69,7 +69,7 @@ class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
     def __init__(self, config: MT5Config) -> None:
-        super().__init__(broker_id="mt5")
+        super().__init__()
         self.config = config
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
@@ -132,7 +132,8 @@ class ZmqClient(BrokerBase):
                 details={"reply": reply},
             )
 
-        return reply
+        from typing import cast
+        return cast(dict[str, Any] | list[Any], reply)
 
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Thread-safe async wrapper around the ZMQ call."""

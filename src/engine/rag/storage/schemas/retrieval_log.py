@@ -24,7 +24,7 @@ class RetrievalLogRow(Base):
     conflict_result: Mapped[str] = mapped_column(String(20), nullable=False, default="none_detected")
     duration_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )

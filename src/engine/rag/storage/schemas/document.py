@@ -22,7 +22,7 @@ class DocumentRow(Base):
     checksum: Mapped[str] = mapped_column(String(128), nullable=False)
     active_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     framework_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )

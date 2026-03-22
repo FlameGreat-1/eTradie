@@ -18,20 +18,39 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
+// JournalStore defines the database operations required by the gRPC server.
+type JournalStore interface {
+	InsertTrade(ctx context.Context, t *journal.TradeRecord) error
+	GetTradeByBrokerOrderID(ctx context.Context, brokerOrderID string) (*journal.TradeRecord, error)
+	GetClosedTrades(ctx context.Context, limit, offset int, symbolFilter, styleFilter string) ([]*journal.TradeRecord, int, error)
+}
+
+// TradeMonitor defines the active trade tracking operations required by the gRPC server.
+type TradeMonitor interface {
+	RegisterTrade(t *types.Trade)
+	GetAllTrades() []*types.Trade
+	TradeCount() int
+}
+
+// MetricsCalculator defines the performance analytics operations required by the gRPC server.
+type MetricsCalculator interface {
+	Calculate(ctx context.Context, period string) (*analytics.Summary, error)
+}
+
 // ManagementServer implements the ManagementService gRPC contract.
 type ManagementServer struct {
 	managementv1.UnimplementedManagementServiceServer
-	monitor *monitoring.Manager
-	journal *journal.Repository
-	metrics *analytics.Metrics
+	monitor TradeMonitor
+	journal JournalStore
+	metrics MetricsCalculator
 	log     zerolog.Logger
 }
 
 // NewManagementServer creates the gRPC server implementation.
 func NewManagementServer(
-	monitor *monitoring.Manager,
-	journal *journal.Repository,
-	metrics *analytics.Metrics,
+	monitor TradeMonitor,
+	journal JournalStore,
+	metrics MetricsCalculator,
 ) *ManagementServer {
 	return &ManagementServer{
 		monitor: monitor,

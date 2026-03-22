@@ -28,7 +28,7 @@ class ScenarioRow(Base):
     confluence_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
     style_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
     linked_chunk_ids: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

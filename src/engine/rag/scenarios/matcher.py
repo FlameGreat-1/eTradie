@@ -47,7 +47,7 @@ class ScenarioMatcher:
                 confluence_tags=frozenset(row.confluence_tags) if isinstance(row.confluence_tags, list) else frozenset(),
                 style_tags=frozenset(row.style_tags) if isinstance(row.style_tags, list) else frozenset(),
                 linked_chunk_ids=tuple(),
-                metadata=row.metadata if isinstance(row.metadata, dict) else {},
+                metadata=row.meta_data if isinstance(row.meta_data, dict) else {},
                 is_active=row.is_active,
                 notes=row.notes,
             ))
