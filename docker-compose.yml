@@ -121,7 +121,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 300s
+      start_period: 30s
     
   # ─────────────────────────────────────────────────────────────────
   # GO GATEWAY API

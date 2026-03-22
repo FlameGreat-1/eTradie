@@ -7,10 +7,12 @@ services:
       target: runtime
     volumes:
       - ./src:/app/src:ro
+      - ./model_cache:/home/etradie/.cache
     environment:
       APP_ENV: development
       APP_DEBUG: "true"
       APP_LOG_LEVEL: DEBUG
+      HF_HOME: /home/etradie/.cache/huggingface
     command: >
       uvicorn engine.main:create_app
       --factory
