@@ -117,7 +117,7 @@ menu: ## Start the interactive guided menu
 	echo -e "$(BLUE)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(RED)%s$(NC)\n" "0" "Exit Menu" ""; \
 	echo -e ""; \
-	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-13]:$(NC) "; \
+	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-18]:$(NC) "; \
 	read choice; \
 	echo -e ""; \
 	case $$choice in \
@@ -242,7 +242,7 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 ##@ Testing
 test-python: ## Run Python engine tests locally (no Docker)
 	echo -e "$(BLUE)Running Python engine tests...$(NC)"
-	cd $(PROJECT_ROOT) && python -m pytest tests/ -v --tb=short
+	cd $(PROJECT_ROOT) && python3 -m pytest tests/ -v --tb=short
 	echo -e "$(GREEN)✓ Python tests passed$(NC)"
 
 test-go: ## Run Go unit tests for all services
