@@ -54,9 +54,14 @@ services:
           memory: 128M
 
   chromadb:
-    image: chromadb/chroma:0.4.24
+    image: chromadb/chroma:latest
     container_name: etradie-chromadb
     restart: unless-stopped
+    environment:
+      - CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
+      - CHROMA_SERVER_AUTH_CREDENTIALS=etradie_internal_secure_token_2026
+      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=Authorization
+      - IS_PERSISTENT=TRUE
     ports:
       - "8002:8000"
     volumes:
@@ -112,10 +117,11 @@ services:
           memory: 512M
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 90s
     
   # ─────────────────────────────────────────────────────────────────
   # GO GATEWAY API

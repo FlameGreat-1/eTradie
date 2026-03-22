@@ -46,4 +46,8 @@ Thumbs.db
 
 # ── Security reports ────────────────────────────────────────
 bandit-report.json
+# ── AI Models ────────────────────────────────────────────────
 torch/
+all-MiniLM-L6-v2/
+models/
+.cache/

@@ -77,6 +77,7 @@ from engine.rag.vectorstore.factory import create_vector_store
 from engine.processor.config import ProcessorConfig, get_processor_config
 from engine.processor.llm.factory import create_llm_client
 from engine.processor.service import AnalysisProcessor
+from engine.processor.storage.uow import processor_uow_factory
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
 
@@ -406,19 +407,11 @@ class Container:
             config=self.processor_config,
         )
 
-        self.processor_analysis_repo = AnalysisRepository(
-            session=self.db.session_factory(),
-        )
-
-        self.processor_audit_repo = AuditRepository(
-            session=self.db.session_factory(),
-        )
-
+        uow_factory = processor_uow_factory(self.db)
         self.processor = AnalysisProcessor(
             config=self.processor_config,
             llm_client=self.processor_llm_client,
-            analysis_repo=self.processor_analysis_repo,
-            audit_repo=self.processor_audit_repo,
+            uow_factory=uow_factory,
         )
 
     async def shutdown(self) -> None:

@@ -43,8 +43,8 @@ from engine.processor.prompts.system_prompt import (
     build_user_message,
     compute_prompt_hash,
 )
-from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
-from engine.processor.storage.repositories.audit_repository import AuditRepository
+from engine.processor.storage.uow import ProcessorUOWFactory
+from engine.processor.models.analysis import AnalysisOutput as AO
 from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
 
 logger = get_logger(__name__)
@@ -64,13 +64,11 @@ class AnalysisProcessor(ProcessorPort):
         *,
         config: ProcessorConfig,
         llm_client: LLMClient,
-        analysis_repo: Optional[AnalysisRepository] = None,
-        audit_repo: Optional[AuditRepository] = None,
+        uow_factory: Optional[ProcessorUOWFactory] = None,
     ) -> None:
         self._config = config
         self._llm = llm_client
-        self._analysis_repo = analysis_repo
-        self._audit_repo = audit_repo
+        self._uow_factory = uow_factory
 
     async def process(
         self,
@@ -333,7 +331,7 @@ class AnalysisProcessor(ProcessorPort):
     async def _persist_success(
         self,
         *,
-        analysis_output: object,
+        analysis_output: AO,
         llm_response: LLMResponse,
         prompt_hash: str,
         validation_warnings: list[str],
@@ -342,21 +340,21 @@ class AnalysisProcessor(ProcessorPort):
         trace_id: Optional[str],
     ) -> None:
         """Persist analysis record and audit log on success."""
-        from engine.processor.models.analysis import AnalysisOutput as AO
 
-        ao: AO = analysis_output  # type: ignore[assignment]
+        if not self._uow_factory:
+            return
 
         try:
-            record = build_analysis_record(
-                ao,
-                status="success" if ao.direction != "NO SETUP" else "no_setup",
-                duration_ms=elapsed_ms,
-                trace_id=trace_id,
-                raw_output=raw_dict,
-            )
+            async with self._uow_factory() as uow:
+                record = build_analysis_record(
+                    analysis_output,
+                    status="success" if analysis_output.direction != "NO SETUP" else "no_setup",
+                    duration_ms=elapsed_ms,
+                    trace_id=trace_id,
+                    raw_output=raw_dict,
+                )
 
-            if self._analysis_repo:
-                await self._analysis_repo.save_analysis(
+                await uow.analysis_repo.save_analysis(
                     analysis_id=record.analysis_id,
                     pair=record.pair,
                     direction=record.direction,
@@ -382,17 +380,16 @@ class AnalysisProcessor(ProcessorPort):
                     raw_output=record.raw_output,
                 )
 
-            audit_record = build_audit_log_record(
-                ao,
-                llm_response,
-                prompt_hash=prompt_hash,
-                validation_passed=len(validation_warnings) == 0,
-                validation_errors=validation_warnings,
-                trace_id=trace_id,
-            )
+                audit_record = build_audit_log_record(
+                    analysis_output,
+                    llm_response,
+                    prompt_hash=prompt_hash,
+                    validation_passed=len(validation_warnings) == 0,
+                    validation_errors=validation_warnings,
+                    trace_id=trace_id,
+                )
 
-            if self._audit_repo:
-                await self._audit_repo.save_audit_log(
+                await uow.audit_repo.save_audit_log(
                     analysis_id=audit_record.analysis_id,
                     pair=audit_record.pair,
                     timestamp=audit_record.timestamp,
@@ -424,7 +421,7 @@ class AnalysisProcessor(ProcessorPort):
                 "processor_audit_persist_failed",
                 extra={
                     "error": str(exc),
-                    "analysis_id": ao.analysis_id,
+                    "analysis_id": analysis_output.analysis_id,
                     "trace_id": trace_id,
                 },
                 exc_info=True,
@@ -440,17 +437,20 @@ class AnalysisProcessor(ProcessorPort):
         trace_id: Optional[str],
     ) -> None:
         """Persist an error analysis record."""
-        try:
-            record = build_error_analysis_record(
-                pair=pair,
-                error_message=error_message,
-                status=status,
-                duration_ms=duration_ms,
-                trace_id=trace_id,
-            )
+        if not self._uow_factory:
+            return
 
-            if self._analysis_repo:
-                await self._analysis_repo.save_analysis(
+        try:
+            async with self._uow_factory() as uow:
+                record = build_error_analysis_record(
+                    pair=pair,
+                    error_message=error_message,
+                    status=status,
+                    duration_ms=duration_ms,
+                    trace_id=trace_id,
+                )
+
+                await uow.analysis_repo.save_analysis(
                     analysis_id=record.analysis_id,
                     pair=record.pair,
                     direction=record.direction,

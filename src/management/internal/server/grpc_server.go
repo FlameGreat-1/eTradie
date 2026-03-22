@@ -34,7 +34,7 @@ type TradeMonitor interface {
 
 // MetricsCalculator defines the performance analytics operations required by the gRPC server.
 type MetricsCalculator interface {
-	Calculate(ctx context.Context, period string) (*analytics.Summary, error)
+	Calculate(ctx context.Context, period string) (*analytics.PerformanceSummary, error)
 }
 
 // ManagementServer implements the ManagementService gRPC contract.

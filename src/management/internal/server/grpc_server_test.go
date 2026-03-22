@@ -54,8 +54,8 @@ func (m *mockMonitor) TradeCount() int {
 
 type mockMetrics struct{}
 
-func (m *mockMetrics) Calculate(ctx context.Context, period string) (*analytics.Summary, error) {
-	return &analytics.Summary{}, nil
+func (m *mockMetrics) Calculate(ctx context.Context, period string) (*analytics.PerformanceSummary, error) {
+	return &analytics.PerformanceSummary{}, nil
 }
 
 func TestManagementServer_RegisterFilledTrade_Idempotent(t *testing.T) {
