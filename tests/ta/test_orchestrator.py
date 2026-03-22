@@ -6,7 +6,7 @@ from engine.ta.orchestrator import TAOrchestrator
 from engine.ta.broker.base import BrokerBase
 from engine.ta.models.candle import CandleSequence, Candle
 from engine.ta.constants import Timeframe
-from engine.ta.repositories.candle import CandleRepository
+from engine.ta.storage.repositories.candle import CandleRepository
 
 @pytest.fixture
 def mock_broker():

@@ -1,6 +1,7 @@
 """Tests for ZmqClient candle parsing and capabilities."""
 
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -129,7 +130,6 @@ class TestZmqAsyncConnections:
     """Test ZmqClient natively interacts with zmq.asyncio non-blocking sockets."""
 
     @pytest.mark.asyncio
-    from unittest.mock import patch, AsyncMock
     @patch("engine.ta.broker.mt5.zmq.client.zmq_async.Context")
     async def test_connect_sync_creates_async_context(self, mock_ctx_class, client):
         # Even though _connect_sync is synchronous, it should instantiate the zmq_async classes
