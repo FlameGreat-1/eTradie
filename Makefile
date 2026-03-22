@@ -8,6 +8,7 @@
 .PHONY: help menu
 .DEFAULT_GOAL := help
 .SILENT:
+MAKEFLAGS += --no-print-directory
 
 # Force bash shell instead of Ubuntu's default dash shell for 'echo -e' support
 SHELL := /bin/bash
@@ -23,6 +24,16 @@ CYAN := \033[0;36m
 MAGENTA := \033[0;35m
 BOLD := \033[1m
 NC := \033[0m
+
+.logo:
+	@echo ""
+	@echo -e "       $(MAGENTA)███████╗████████╗██████╗  █████╗ ██████╗ ██╗███████╗$(NC)"
+	@echo -e "       $(MAGENTA)██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██║██╔════╝$(NC)"
+	@echo -e "       $(MAGENTA)█████╗     ██║   ██████╔╝███████║██║  ██║██║█████╗  $(NC)"
+	@echo -e "       $(MAGENTA)██╔══╝     ██║   ██╔══██╗██╔══██║██║  ██║██║██╔══╝  $(NC)"
+	@echo -e "       $(MAGENTA)███████╗   ██║   ██║  ██║██║  ██║██████╔╝██║███████╗$(NC)"
+	@echo -e "       $(MAGENTA)╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝╚══════╝$(NC)"
+	@echo ""
 
 # ============================================================================
 # DIRECTORY STRUCTURE
@@ -66,15 +77,8 @@ help: ## Display comprehensive help message
 ##@ Interactive Menu
 menu: ## Start the interactive guided menu
 	@clear
-	@echo ""; \
-	echo -e "       $(MAGENTA)███████╗████████╗██████╗  █████╗ ██████╗ ██╗███████╗$(NC)"; \
-	echo -e "       $(MAGENTA)██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██║██╔════╝$(NC)"; \
-	echo -e "       $(MAGENTA)█████╗     ██║   ██████╔╝███████║██║  ██║██║█████╗  $(NC)"; \
-	echo -e "       $(MAGENTA)██╔══╝     ██║   ██╔══██╗██╔══██║██║  ██║██║██╔══╝  $(NC)"; \
-	echo -e "       $(MAGENTA)███████╗   ██║   ██║  ██║██║  ██║██████╔╝██║███████╗$(NC)"; \
-	echo -e "       $(MAGENTA)╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝╚══════╝$(NC)"; \
-	echo ""; \
-	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
+	@$(MAKE) .logo
+	@echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(CYAN)│$(NC) $(BOLD)DOCKER ORCHESTRATION$(NC)                                                         $(CYAN)│$(NC)"; \
 	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "1" "Start All Services (Detached)" "docker compose up -d"; \
@@ -141,9 +145,10 @@ menu: ## Start the interactive guided menu
 
 ##@ Docker Commands
 up: ## Start all Docker containers in background
-	echo -e "$(BLUE)Starting eTradie infrastructure...$(NC)"
-	docker compose up -d
-	echo -e "$(GREEN)✓ Containers started$(NC)"
+	@echo -e "$(BLUE)Starting eTradie infrastructure...$(NC)"
+	@docker compose up -d
+	@$(MAKE) .logo
+	@echo -e "$(GREEN)✓ Containers started$(NC)"
 
 down: ## Stop and remove all Docker containers
 	echo -e "$(BLUE)Stopping eTradie infrastructure...$(NC)"
@@ -151,9 +156,10 @@ down: ## Stop and remove all Docker containers
 	echo -e "$(GREEN)✓ Containers stopped$(NC)"
 
 build: ## Rebuild and start all Docker containers
-	echo -e "$(BLUE)Building eTradie infrastructure...$(NC)"
-	docker compose up -d --build
-	echo -e "$(GREEN)✓ Containers built and started$(NC)"
+	@echo -e "$(BLUE)Building eTradie infrastructure...$(NC)"
+	@docker compose up -d --build
+	@$(MAKE) .logo
+	@echo -e "$(GREEN)✓ Containers built and started$(NC)"
 
 logs: ## Tail logs for all containers
 	docker compose logs -f

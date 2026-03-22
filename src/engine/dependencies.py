@@ -374,6 +374,9 @@ class Container:
             config=rc,
             uow_factory=uow_factory,
             vector_store=self.rag_vector_store,
+            ingest_pipeline=self.rag_ingest_pipeline,
+            reembed_service=self.rag_reembed_service,
+            versioning_service=self.rag_versioning_service,
         )
 
         self.rag_health_service = HealthService(

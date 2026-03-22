@@ -26,6 +26,10 @@ class DocumentRepository(BaseRepository[DocumentRow]):
             stmt = stmt.where(self.model.status == status)
         return await self.execute_query(stmt)
 
+    async def get_by_status(self, status: str) -> Sequence[DocumentRow]:
+        stmt = select(self.model).where(self.model.status == status)
+        return await self.execute_query(stmt)
+
     async def get_active_documents(self) -> Sequence[DocumentRow]:
         stmt = (
             select(self.model)

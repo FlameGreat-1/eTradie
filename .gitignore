@@ -51,3 +51,4 @@ torch/
 all-MiniLM-L6-v2/
 models/
 .cache/
+/model_cache/

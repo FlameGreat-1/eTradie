@@ -107,15 +107,30 @@ class BaseChunker(ABC):
         return merged
 
     def _reindex(self, chunks: list[RawChunk]) -> tuple[RawChunk, ...]:
-        return tuple(
-            RawChunk(
+        # Create a mapping from old index to new index
+        # Note: if multiple chunks were merged, they share the same 'old' index
+        # (the index of the first chunk in the merge group).
+        index_map: dict[int, int] = {c.chunk_index: i for i, c in enumerate(chunks)}
+        
+        reindexed: list[RawChunk] = []
+        for i, c in enumerate(chunks):
+            new_parent = None
+            if c.parent_chunk_index is not None:
+                new_parent = index_map.get(c.parent_chunk_index)
+                
+                # If the parent was merged into the current chunk, set parent to None
+                # or if it was merged into any other chunk, index_map will have the new index.
+                if new_parent == i:
+                    new_parent = None
+            
+            reindexed.append(RawChunk(
                 content=c.content,
                 chunk_index=i,
                 section=c.section,
                 subsection=c.subsection,
                 hierarchy_level=c.hierarchy_level,
-                parent_chunk_index=c.parent_chunk_index,
+                parent_chunk_index=new_parent,
                 metadata=c.metadata,
-            )
-            for i, c in enumerate(chunks)
-        )
+            ))
+            
+        return tuple(reindexed)
