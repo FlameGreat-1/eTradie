@@ -98,8 +98,9 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
     if not REDIS_AVAILABLE:
         pytest.skip("Redis not available")
 
-    # Build environment overrides. Read real keys from environment
-    # so the app connects to real infrastructure.
+    # Build environment overrides. Start with infrastructure URLs,
+    # then pass through ALL existing env vars so the test app uses
+    # the exact same configuration as the running Docker services.
     env_overrides = {
         "DATABASE_URL": _DB_URL,
         "REDIS_URL": _REDIS_URL,
@@ -112,21 +113,34 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         "RAG_INGEST_ON_STARTUP": "false",
         "RAG_CHROMA_HOST": _CHROMA_HOST,
         "RAG_CHROMA_PORT": str(_CHROMA_PORT),
-        # Processor config (real provider for config endpoint tests).
-        "PROCESSOR_LLM_PROVIDER": "anthropic",
-        "PROCESSOR_MODEL_NAME": "claude-sonnet-4-20250514",
     }
 
-    # Pass through real API keys from environment if they exist.
-    # These are needed for RAG embeddings and processor LLM.
+    # Pass through ALL RAG_ prefixed env vars from the environment.
+    # This ensures the test uses whatever embedding provider is
+    # currently configured (sentence_transformers or openai).
+    # Critical: RAG_EMBEDDING_PROVIDER, RAG_EMBEDDING_MODEL,
+    # RAG_EMBEDDING_DIMENSIONS must match the ChromaDB collections.
+    for key, val in os.environ.items():
+        if key.startswith("RAG_") and key not in env_overrides:
+            env_overrides[key] = val
+
+    # Pass through all API keys and processor config from environment.
+    # This supports both sentence_transformers (no key needed) and
+    # openai (needs RAG_OPENAI_API_KEY) embedding providers.
     for key in [
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
-        "RAG_OPENAI_API_KEY",
         "NEWSAPI_API_KEY",
         "TWELVEDATA_API_KEY",
         "TRADINGECONOMICS_API_KEY",
         "FRED_API_KEY",
+        "PROCESSOR_LLM_PROVIDER",
+        "PROCESSOR_MODEL_NAME",
+        "PROCESSOR_ANTHROPIC_API_KEY",
+        "PROCESSOR_OPENAI_API_KEY",
+        "PROCESSOR_GEMINI_API_KEY",
+        "PROCESSOR_TEMPERATURE",
+        "PROCESSOR_MAX_OUTPUT_TOKENS",
     ]:
         val = os.getenv(key, "")
         if val:
@@ -134,7 +148,7 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
 
     # Ensure at least a placeholder for required keys in testing mode.
     # Settings validator skips key checks for APP_ENV=testing.
-    if "ANTHROPIC_API_KEY" not in env_overrides:
+    if "ANTHROPIC_API_KEY" not in env_overrides and "PROCESSOR_ANTHROPIC_API_KEY" not in env_overrides:
         env_overrides["ANTHROPIC_API_KEY"] = "sk-test-placeholder"
 
     from unittest.mock import patch
