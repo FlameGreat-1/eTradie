@@ -16,12 +16,16 @@ def reranker():
     return Reranker(config=cfg)
 
 class TestDocTypeBoost:
-    def test_rulebook_outranks_generic(self, reranker):
-        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.85), _chunk(DocumentType.MASTER_RULEBOOK, 0.70)])
+    def test_rulebook_outranks_lower_weighted(self, reranker):
+        # CHART_SCENARIO_LIBRARY: 0.70 * 1.2 = 0.84
+        # MASTER_RULEBOOK:        0.60 * 1.5 = 0.90  -> wins
+        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.70), _chunk(DocumentType.MASTER_RULEBOOK, 0.60)])
         assert ranked[0].doc_type == DocumentType.MASTER_RULEBOOK
 
     def test_smc_boosted(self, reranker):
-        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80), _chunk(DocumentType.SMC_FRAMEWORK, 0.65)])
+        # CHART_SCENARIO_LIBRARY: 0.65 * 1.2 = 0.78
+        # SMC_FRAMEWORK:          0.62 * 1.3 = 0.806 -> wins
+        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.65), _chunk(DocumentType.SMC_FRAMEWORK, 0.62)])
         assert ranked[0].doc_type == DocumentType.SMC_FRAMEWORK
 
 class TestTruncation:
@@ -34,6 +38,7 @@ class TestTruncation:
 
 class TestSectionBonus:
     def test_bonus(self, reranker):
+        # Same doc_type and score; section+subsection bonus (0.03) breaks the tie
         ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80), _chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80, "rules", "entry")])
         assert ranked[0].section == "rules"
 
