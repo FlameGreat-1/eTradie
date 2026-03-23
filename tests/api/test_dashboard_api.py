@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.api.conftest import skip_no_infra
+from tests.api.conftest import skip_no_infra, CHROMA_AVAILABLE
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, skip_no_infra]
 
@@ -28,13 +28,27 @@ class TestHealthEndpoints:
         data = resp.json()
         assert data["status"] == "ok"
 
-    async def test_health_rag_disabled(self, app_client):
-        """GET /health/rag returns disabled when RAG is not initialized."""
+    async def test_health_rag(self, app_client):
+        """GET /health/rag returns real ChromaDB status when available."""
         resp = await app_client.get("/health/rag")
         assert resp.status_code == 200
         data = resp.json()
-        # RAG is disabled in test config (RAG_ENABLED=false).
-        assert data["status"] == "disabled"
+
+        if CHROMA_AVAILABLE:
+            # Real ChromaDB is running with embeddings loaded.
+            assert data["status"] in ("healthy", "degraded")
+            assert "vectorstore_connected" in data
+            assert "database_connected" in data
+            assert "embedding_ready" in data
+            assert "documents_count" in data
+            assert "scenarios_count" in data
+            # Embeddings are already loaded in Docker.
+            if data["status"] == "healthy":
+                assert data["vectorstore_connected"] is True
+                assert data["documents_count"] > 0
+        else:
+            # ChromaDB not available, RAG disabled.
+            assert data["status"] == "disabled"
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +201,35 @@ class TestAnalysisDetail:
         """GET /api/analysis/{id} returns 404 for unknown ID."""
         resp = await seeded_client.get("/api/analysis/NONEXISTENT-ID-12345")
         assert resp.status_code == 404
+
+
+class TestAnalysisRerun:
+    async def test_analysis_rerun_ta_unavailable(self, app_client):
+        """POST /api/analysis/rerun returns 500 when TA broker is unavailable.
+
+        In the test environment, the MT5 broker is not connected (no live
+        terminal). The rerun endpoint should return a 500 error with a
+        clear message about TA analysis failure, NOT a panic or 503.
+        """
+        resp = await app_client.post(
+            "/api/analysis/rerun",
+            params={"symbol": "EURUSD", "trace_id": "test-rerun-001"},
+        )
+        # TA orchestrator will fail because MT5 broker is not connected.
+        # The endpoint should return 500 with "TA analysis failed" message.
+        assert resp.status_code == 500
+        data = resp.json()
+        assert "detail" in data
+        assert "TA" in data["detail"] or "failed" in data["detail"].lower()
+
+    async def test_analysis_rerun_empty_symbol(self, app_client):
+        """POST /api/analysis/rerun with empty symbol returns 400."""
+        resp = await app_client.post(
+            "/api/analysis/rerun",
+            params={"symbol": ""},
+        )
+        assert resp.status_code == 400
+        assert "required" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
