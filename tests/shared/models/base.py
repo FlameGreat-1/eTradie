@@ -46,6 +46,7 @@ def test_frozen_model_whitespace_stripping():
     assert model.name == "test name"
 
 
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 def test_timestamped_model_initialization():
     """Test that TimestampedModel automatically gets id and created_at."""
     model = DummyTimestampedModel(name="timestamp_test")

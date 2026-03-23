@@ -40,6 +40,7 @@ async def test_get_success(http_client, mock_aioresponse):
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 async def test_post_success(http_client, mock_aioresponse):
     """Test successful JSON POST request with body."""
     url = "https://api.example.com/data"
@@ -77,6 +78,7 @@ async def test_timeout_retry_and_exhaustion(http_client, mock_aioresponse):
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 async def test_rate_limit_handling(http_client, mock_aioresponse):
     """Test 429 response is handled with backoff."""
     url = "https://api.example.com/ratelimit"
@@ -103,6 +105,7 @@ async def test_non_retryable_error(http_client, mock_aioresponse):
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 async def test_server_error_retry(http_client, mock_aioresponse):
     """Test 500 Server Error triggers retry."""
     url = "https://api.example.com/500"

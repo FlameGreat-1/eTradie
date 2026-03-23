@@ -165,7 +165,8 @@ async def test_exhausted_retries(cache, mock_redis_client):
 @pytest.mark.asyncio
 async def test_close(cache, mock_redis_client):
     """Graceful shutdown should close pool and client."""
+    cache._pool.disconnect = AsyncMock()
     await cache.close()
     
     mock_redis_client.aclose.assert_called_once()
-    # Can't easily assert pool disconnect because it's mocked via patch instead of DI
+    cache._pool.disconnect.assert_called_once()
