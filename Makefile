@@ -111,13 +111,14 @@ menu: ## Start the interactive guided menu
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "16" "Check Service Health" "make health"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "17" "Check Broker Bridge" "make broker-health"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "18" "ZMQ Bridge Test (Native)" "make zmq-test"; \
+	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "19" "Run E2E Pipeline Tests" "make test-e2e"; \
 	echo -e ""; \
 	echo -e "$(BLUE)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
 	echo -e "$(BLUE)│$(NC) $(BOLD)OTHER OPTIONS$(NC)                                                                $(BLUE)│$(NC)"; \
 	echo -e "$(BLUE)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
 	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(RED)%s$(NC)\n" "0" "Exit Menu" ""; \
 	echo -e ""; \
-	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-18]:$(NC) "; \
+	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-19]:$(NC) "; \
 	read choice; \
 	echo -e ""; \
 	case $$choice in \
@@ -139,6 +140,7 @@ menu: ## Start the interactive guided menu
 		16) $(MAKE) health ;; \
 		17) $(MAKE) broker-health ;; \
 		18) $(MAKE) zmq-test ;; \
+		19) $(MAKE) test-e2e ;; \
 		0) echo -e "$(GREEN)Goodbye!$(NC)"; exit 0 ;; \
 		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
 	esac;
@@ -250,14 +252,21 @@ test-go: ## Run Go unit tests for all services
 	go test ./src/gateway/... -v -count=1 -timeout 60s
 	go test ./src/execution/... -v -count=1 -timeout 60s
 	go test ./src/management/... -v -count=1 -timeout 60s
+	echo -e "$(BLUE)Running Gateway gRPC integration tests...$(NC)"
+	go test ./tests/integration/gateway_grpc/... -v -count=1 -timeout 120s
 	echo -e "$(GREEN)✓ Go tests passed$(NC)"
+
+test-e2e: ## Run E2E pipeline tests (Gateway orchestrator, no infra needed)
+	echo -e "$(BLUE)Running E2E pipeline tests...$(NC)"
+	go test ./tests/e2e/... -v -count=1 -timeout 300s
+	echo -e "$(GREEN)✓ E2E tests passed$(NC)"
 
 test-engine: ## Run Python tests inside Docker container
 	echo -e "$(BLUE)Running engine tests in Docker...$(NC)"
 	docker compose exec engine pytest tests/ -v --tb=short
 	echo -e "$(GREEN)✓ Engine tests passed$(NC)"
 
-test-all: test-python test-go ## Run all tests (Python + Go)
+test-all: test-python test-go test-e2e ## Run all tests (Python + Go + E2E)
 	echo -e "$(GREEN)✓ All tests passed$(NC)"
 
 ##@ Health & Diagnostics
