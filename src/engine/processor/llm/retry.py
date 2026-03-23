@@ -34,6 +34,10 @@ _NON_RETRYABLE_ERROR_TYPES = {
 
 def _is_retryable(exc: Exception) -> bool:
     """Determine if an exception is retryable."""
+    # Direct type matches
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return True
+
     error_type = type(exc).__name__
 
     if error_type in _NON_RETRYABLE_ERROR_TYPES:
@@ -42,7 +46,9 @@ def _is_retryable(exc: Exception) -> bool:
     if hasattr(exc, "status_code"):
         return exc.status_code in _RETRYABLE_STATUS_CODES
 
-    if "timeout" in str(exc).lower() or "connection" in str(exc).lower():
+    # String-based fallback for transient network/timeout issues
+    msg = str(exc).lower()
+    if "timeout" in msg or "connection" in msg:
         return True
 
     if error_type in ("RateLimitError", "InternalServerError", "APIConnectionError", "APITimeoutError"):

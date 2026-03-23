@@ -6,6 +6,7 @@ WORKDIR /build
 # Copy dependency files first for layer caching.
 COPY torch/ /torch_offline/
 COPY requirements/base.txt requirements/base.txt
+COPY requirements/test.txt requirements/test.txt
 
 # Install PyTorch from local wheel + all pip dependencies first!
 # We do this BEFORE copying src/, so that this heavy installation
@@ -13,7 +14,8 @@ COPY requirements/base.txt requirements/base.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --default-timeout=1000 --retries=10 --prefix=/install \
         /torch_offline/*.whl \
-        -r requirements/base.txt
+        -r requirements/base.txt \
+        -r requirements/test.txt
 
 # Now copy project files for the package installation
 COPY pyproject.toml pyproject.toml
@@ -38,6 +40,7 @@ WORKDIR /app
 # Copy runtime files that are NOT part of the Python package.
 COPY alembic.ini alembic.ini
 COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
+COPY tests/ tests/
 
 # Ownership
 RUN chown -R etradie:etradie /app

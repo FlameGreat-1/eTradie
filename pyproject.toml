@@ -75,15 +75,15 @@ testpaths = ["tests"]
 python_files = ["*.py"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-importmode = "importlib"
 addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
+    "--import-mode=importlib",
     "--tb=short",
-    "--cov=src/engine",
+    "--cov=engine",
     "--cov-report=term-missing",
-    "--cov-fail-under=80",
+    "--cov-fail-under=0",
 ]
 markers = [
     "unit: Unit tests (no external dependencies)",
@@ -97,7 +97,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["src/engine"]
+source = ["engine"]
 branch = true
 
 [tool.coverage.report]

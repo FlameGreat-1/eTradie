@@ -242,7 +242,7 @@ proto-gen: ## Generate Protocol Buffer bindings (requires protoc)
 ##@ Testing
 test-python: ## Run Python engine tests locally (no Docker)
 	echo -e "$(BLUE)Running Python engine tests...$(NC)"
-	cd $(PROJECT_ROOT) && python3 -m pytest tests/ -v --tb=short
+	docker compose exec engine python -m pytest tests/ -v --tb=short
 	echo -e "$(GREEN)✓ Python tests passed$(NC)"
 
 test-go: ## Run Go unit tests for all services

@@ -1,8 +1,6 @@
 .git
 .github
 .gitignore
-.env
-.env.*
 __pycache__
 *.pyc
 *.pyo
@@ -13,8 +11,6 @@ __pycache__
 .ruff_cache
 .coverage
 htmlcov
-tests
-docker
 *.md
 *.docx
 .pre-commit-config.yaml

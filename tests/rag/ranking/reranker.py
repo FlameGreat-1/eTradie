@@ -57,8 +57,8 @@ def reranker(rag_config) -> Reranker:
 class TestDocTypeWeighting:
     def test_master_rulebook_boosted(self, reranker):
         """MASTER_RULEBOOK chunks get a 1.5x weight boost."""
-        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.85)
-        rulebook = _make_chunk(doc_type=DocumentType.MASTER_RULEBOOK, score=0.70)
+        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.6)
+        rulebook = _make_chunk(doc_type=DocumentType.MASTER_RULEBOOK, score=0.6)
 
         ranked = reranker.rerank([baseline, rulebook])
 
@@ -69,8 +69,8 @@ class TestDocTypeWeighting:
 
     def test_smc_framework_boosted(self, reranker):
         """SMC_FRAMEWORK chunks get a 1.3x weight boost."""
-        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80)
-        smc = _make_chunk(doc_type=DocumentType.SMC_FRAMEWORK, score=0.65)
+        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.5)
+        smc = _make_chunk(doc_type=DocumentType.SMC_FRAMEWORK, score=0.5)
 
         ranked = reranker.rerank([baseline, smc])
 

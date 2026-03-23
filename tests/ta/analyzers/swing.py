@@ -111,10 +111,33 @@ class TestRangeMarket:
 # ---------------------------------------------------------------------------
 
 
+def _make_swing_seq(symbol="EURUSD", invert=False):
+    """Creates a sequence with a guaranteed peak (or valley if invert=True)."""
+    from tests.factories import make_candle, CandleSequence
+    candles = []
+    base = datetime.now(UTC)
+    for i in range(21):
+        # Create a peak at index 10
+        dist = abs(i - 10)
+        price = 1.1000 - (dist * 0.0010)
+        if invert:
+            price = 2.0 - price
+        
+        candles.append(make_candle(
+            timestamp=base + timedelta(hours=i),
+            open=price - 0.0002,
+            high=price + 0.0002,
+            low=price - 0.0004,
+            close=price - 0.0001,
+            symbol=symbol
+        ))
+    return CandleSequence(symbol=symbol, timeframe=Timeframe.H1, candles=candles)
+
+
 class TestSwingLookups:
     def test_get_latest_swing_high(self, analyzer: SwingAnalyzer):
         """Returns the swing high with the most recent timestamp."""
-        seq = make_candle_sequence(count=50, trend="up")
+        seq = _make_swing_seq()
         highs = analyzer.detect_swing_highs(seq)
         if not highs:
             pytest.skip("No swing highs detected in this sequence")
@@ -125,7 +148,7 @@ class TestSwingLookups:
 
     def test_get_latest_swing_low(self, analyzer: SwingAnalyzer):
         """Returns the swing low with the most recent timestamp."""
-        seq = make_candle_sequence(count=50, trend="down")
+        seq = _make_swing_seq(invert=True)
         lows = analyzer.detect_swing_lows(seq)
         if not lows:
             pytest.skip("No swing lows detected in this sequence")
@@ -136,7 +159,7 @@ class TestSwingLookups:
 
     def test_get_highest_swing_high(self, analyzer: SwingAnalyzer):
         """Returns the swing high with the highest price."""
-        seq = make_candle_sequence(count=50, trend="up")
+        seq = _make_swing_seq()
         highs = analyzer.detect_swing_highs(seq)
         if not highs:
             pytest.skip("No swing highs detected")
@@ -147,7 +170,7 @@ class TestSwingLookups:
 
     def test_get_lowest_swing_low(self, analyzer: SwingAnalyzer):
         """Returns the swing low with the lowest price."""
-        seq = make_candle_sequence(count=50, trend="down")
+        seq = _make_swing_seq(invert=True)
         lows = analyzer.detect_swing_lows(seq)
         if not lows:
             pytest.skip("No swing lows detected")

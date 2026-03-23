@@ -14,12 +14,14 @@ from engine.shared.http.client import CircuitState, HttpClient
 
 
 @pytest.fixture
-def http_client():
-    return HttpClient(
+async def http_client():
+    client = HttpClient(
         max_retries=1,
         cb_failure_threshold=2,
         timeout_seconds=5,
     )
+    yield client
+    await client.close()
 
 
 @pytest.fixture

@@ -28,9 +28,10 @@ class TestSnapshotRepository:
         async with db_manager.session() as session:
             repo = SnapshotRepository(session)
             now = datetime.now(UTC)
+            symbol = f"EURUSD_{uuid4().hex[:6]}"
 
             snapshot = await repo.create(
-                symbol="EURUSD",
+                symbol=symbol,
                 timeframe="H4",
                 timestamp=now,
                 swing_highs={"highs": [{"price": 1.1050, "index": 10}]},
@@ -56,13 +57,13 @@ class TestSnapshotRepository:
             )
 
             assert snapshot.id is not None
-            assert snapshot.symbol == "EURUSD"
+            assert snapshot.symbol == symbol
             assert snapshot.timeframe == "H4"
             assert snapshot.version == 1
 
             fetched = await repo.get_by_id(snapshot.id)
             assert fetched is not None
-            assert fetched.symbol == "EURUSD"
+            assert fetched.symbol == symbol
             assert fetched.swing_highs["highs"][0]["price"] == 1.1050
 
     @pytest.mark.asyncio
@@ -72,11 +73,12 @@ class TestSnapshotRepository:
 
         async with db_manager.session() as session:
             repo = SnapshotRepository(session)
+            symbol = f"GBPUSD_{uuid4().hex[:6]}"
             base = datetime(2024, 6, 1, 12, 0, tzinfo=UTC)
             empty = {}
 
             await repo.create(
-                symbol="GBPUSD", timeframe="D1", timestamp=base,
+                symbol=symbol, timeframe="D1", timestamp=base,
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,
                 fair_value_gaps=empty, breaker_blocks=empty,
@@ -87,7 +89,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
             await repo.create(
-                symbol="GBPUSD", timeframe="D1",
+                symbol=symbol, timeframe="D1",
                 timestamp=base + timedelta(hours=4),
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,
@@ -99,7 +101,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
 
-            latest = await repo.get_latest_snapshot("GBPUSD", "D1")
+            latest = await repo.get_latest_snapshot(symbol, "D1")
             assert latest is not None
             assert latest.timestamp == base + timedelta(hours=4)
 
@@ -111,10 +113,11 @@ class TestSnapshotRepository:
         async with db_manager.session() as session:
             repo = SnapshotRepository(session)
             empty = {}
+            symbol = f"USDJPY_{uuid4().hex[:6]}"
             ts = datetime(2024, 7, 1, 8, 0, tzinfo=UTC)
 
             s1 = await repo.create(
-                symbol="USDJPY", timeframe="H1", timestamp=ts,
+                symbol=symbol, timeframe="H1", timestamp=ts,
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,
                 fair_value_gaps=empty, breaker_blocks=empty,
@@ -125,7 +128,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
             s2 = await repo.create(
-                symbol="USDJPY", timeframe="H1",
+                symbol=symbol, timeframe="H1",
                 timestamp=ts + timedelta(hours=1),
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,

@@ -77,6 +77,12 @@ class TestTimeoutBudget:
 
 
 class TestDefaultModelInference:
+    @pytest.fixture(autouse=True)
+    def clear_env(self, monkeypatch):
+        """Ensure local .env doesn't break default tests."""
+        monkeypatch.delenv("PROCESSOR_MODEL_NAME", raising=False)
+        monkeypatch.delenv("PROCESSOR_LLM_PROVIDER", raising=False)
+
     def test_anthropic_default_model(self):
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.ANTHROPIC,

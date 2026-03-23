@@ -68,6 +68,12 @@ class TestRAGConfig:
 
 
 class TestProcessorConfig:
+    @pytest.fixture(autouse=True)
+    def _clear_env(self, monkeypatch):
+        """Ensure local .env doesn't break default tests."""
+        monkeypatch.delenv("PROCESSOR_MODEL_NAME", raising=False)
+        monkeypatch.delenv("PROCESSOR_LLM_PROVIDER", raising=False)
+
     def test_default_model_from_provider(self):
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.ANTHROPIC,
