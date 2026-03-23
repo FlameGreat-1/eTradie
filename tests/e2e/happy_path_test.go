@@ -135,21 +135,30 @@ func TestFullPipeline_TradeApproved(t *testing.T) {
 	// ---------------------------------------------------------------
 	execCalls := h.Execution.GetCalls()
 
-	// If guards rejected (e.g., weekend/session), execution won't be called.
-	// If guards passed, execution must have been called exactly once.
-	if output.CycleOutcome == constants.OutcomeTradeApproved {
+	// Time-based guards (weekend, session, low-liquidity) may reject
+	// depending on when the test runs. If that happens, log the
+	// blocking rules for CI debugging but still validate the
+	// data-driven assertions above passed.
+	if output.CycleOutcome == constants.OutcomeRejectedByGuard {
+		t.Logf("INFO: Time-based guards rejected the trade (blocking_rules=%v). "+
+			"Execution assertions skipped. This is expected on weekends/off-hours. "+
+			"Data-driven assertions (processor output, guard counter-trend check) still validated.",
+			output.GuardResult.BlockingRules)
+		// Verify execution was correctly NOT called when guards reject.
+		assert.Empty(t, execCalls,
+			"execution must NOT be called when guards reject")
+	} else {
+		// Guards passed: full execution path must be validated.
+		require.Equal(t, constants.OutcomeTradeApproved, output.CycleOutcome,
+			"expected TRADE_APPROVED or REJECTED_BY_GUARD, got %s", output.CycleOutcome)
 		require.Len(t, execCalls, 1, "execution should be called once for approved trade")
 		execDecision := execCalls[0].Decision
 		assert.Equal(t, "EURUSD", execDecision.Symbol)
 		assert.Equal(t, "LONG", execDecision.Direction)
 		assert.Equal(t, "A", execDecision.Grade)
 		assert.Equal(t, "SMC-EURUSD-H4-001", execDecision.AnalysisID)
-	}
 
-	// ---------------------------------------------------------------
-	// Assert: Execution result is present.
-	// ---------------------------------------------------------------
-	if output.CycleOutcome == constants.OutcomeTradeApproved {
+		// Assert: Execution result is present.
 		require.NotNil(t, output.ExecutionResult, "execution result should be present")
 		assert.Equal(t, true, output.ExecutionResult["accepted"])
 		assert.Equal(t, "LIMIT_ORDER_PLACED", output.ExecutionResult["status"])

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	e2e "github.com/flamegreat-1/etradie/tests/e2e"
 )
 
 // ---------------------------------------------------------------------------
@@ -225,4 +226,128 @@ func TestGRPC_GetActiveSymbols(t *testing.T) {
 	// Falls back to config defaults since Redis is unreachable.
 	assert.Contains(t, resp.Symbols, "EURUSD")
 	assert.Contains(t, resp.Symbols, "GBPUSD")
+}
+
+// ---------------------------------------------------------------------------
+// SetActiveSymbols
+// ---------------------------------------------------------------------------
+
+// TestGRPC_SetActiveSymbols_Valid verifies that SetActiveSymbols accepts
+// a new symbol list and returns the updated active symbols.
+// Since Redis is unreachable in the test harness, the store falls back
+// to in-memory defaults. The call should still succeed without error.
+func TestGRPC_SetActiveSymbols_Valid(t *testing.T) {
+	h := NewHarness(t)
+	defer h.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := h.Client.SetActiveSymbols(ctx, &gatewayv1.SetActiveSymbolsRequest{
+		Symbols: []string{"EURUSD", "USDJPY", "GBPJPY"},
+	})
+
+	require.NoError(t, err, "SetActiveSymbols should not return gRPC error")
+	require.NotNil(t, resp)
+
+	// The store may or may not persist (Redis unreachable), but the
+	// RPC itself must succeed and return a valid response.
+	assert.NotNil(t, resp.ActiveSymbols, "active symbols should be returned")
+}
+
+// ---------------------------------------------------------------------------
+// ResetActiveSymbols
+// ---------------------------------------------------------------------------
+
+// TestGRPC_ResetActiveSymbols verifies that ResetActiveSymbols restores
+// the symbol list to config defaults.
+func TestGRPC_ResetActiveSymbols(t *testing.T) {
+	h := NewHarness(t)
+	defer h.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := h.Client.ResetActiveSymbols(ctx, &gatewayv1.ResetActiveSymbolsRequest{})
+
+	require.NoError(t, err, "ResetActiveSymbols should not return gRPC error")
+	require.NotNil(t, resp)
+
+	// After reset, active symbols should match config defaults.
+	assert.Contains(t, resp.ActiveSymbols, "EURUSD")
+	assert.Contains(t, resp.ActiveSymbols, "GBPUSD")
+	assert.Len(t, resp.ActiveSymbols, 2,
+		"should have exactly 2 default symbols after reset")
+}
+
+// ---------------------------------------------------------------------------
+// GetHealth
+// ---------------------------------------------------------------------------
+
+// TestGRPC_GetHealth verifies that GetHealth returns a valid response.
+// In the test harness, Redis and Engine are unreachable, so the status
+// should be "degraded". This validates the health check wiring is
+// correct and does not panic on nil dependencies.
+func TestGRPC_GetHealth(t *testing.T) {
+	h := NewHarness(t)
+	defer h.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := h.Client.GetHealth(ctx, &gatewayv1.GetHealthRequest{})
+
+	require.NoError(t, err, "GetHealth should not return gRPC error")
+	require.NotNil(t, resp)
+
+	// Redis is unreachable in test harness.
+	assert.False(t, resp.RedisConnected,
+		"Redis should not be connected in test harness")
+
+	// Status should be "degraded" since Redis and/or Engine are down.
+	assert.Equal(t, "degraded", resp.Status,
+		"health status should be degraded when dependencies are unreachable")
+
+	// Active cycles should be 0 (no cycles running).
+	assert.Equal(t, int32(0), resp.ActiveCycles)
+}
+
+// ---------------------------------------------------------------------------
+// RunCycle Input Validation
+// ---------------------------------------------------------------------------
+
+// TestGRPC_RunCycle_InvalidSymbol_EmptyString verifies that RunCycle
+// handles an empty string in the symbols array gracefully. The pipeline
+// should not panic and should produce a valid response.
+func TestGRPC_RunCycle_InvalidSymbol_EmptyString(t *testing.T) {
+	h := NewHarness(t)
+	defer h.Close()
+
+	h.Engine.TAResponse = e2e.TAResponseNoCandidates()
+	h.Engine.MacroResponse = e2e.MacroResponseFull()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Send a symbol list containing an empty string.
+	resp, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
+		Symbols: []string{""},
+		TraceId: "trace-grpc-empty-symbol-001",
+	})
+
+	// The server should not crash. It may return an error or handle gracefully.
+	if err != nil {
+		// If the server returns an error, it should be a proper gRPC status.
+		st, ok := status.FromError(err)
+		require.True(t, ok, "error should be a gRPC status")
+		t.Logf("Server returned gRPC error for empty symbol: code=%s msg=%s",
+			st.Code(), st.Message())
+	} else {
+		// If it succeeds, it should have valid outputs.
+		require.NotNil(t, resp)
+		for _, out := range resp.Outputs {
+			assert.NotEqual(t, "PANIC", out.CycleStatus,
+				"pipeline should never panic on invalid input")
+		}
+	}
 }

@@ -2,9 +2,10 @@ package e2e
 
 import (
 	"context"
-	"sync"
+	"runtime"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,8 +33,6 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	// Use a custom handler that fails the first N calls then succeeds.
-	var callCount atomic.Int64
 	// The HTTP client retries 3+1=4 times per cycle attempt.
 	// We want the first cycle attempt to fully fail (all HTTP retries exhausted),
 	// then the second cycle attempt to succeed.
@@ -42,38 +41,36 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 
 	successResponse := TAResponseWithCandidates()
 
-	// Override the TA handler with our custom logic.
-	// We need to replace the mock server's mux handler.
-	// Since MockEngineServer uses a fixed mux, we'll use the response
-	// switching approach: set TAStatusCode dynamically.
-	var mu sync.Mutex
-	originalHandler := h.Engine.Server.Config.Handler
-	_ = originalHandler // We'll use the response field approach instead.
-
-	// Simpler approach: use TAResponse and TAStatusCode fields,
-	// switching them after enough calls via a goroutine-safe check.
+	// Start with TA returning 500 errors.
 	h.Engine.TAResponse = map[string]interface{}{"error": "service temporarily unavailable"}
 	h.Engine.TAStatusCode = 500
 	h.Engine.MacroResponse = MacroResponseFull()
 	h.Engine.RAGResponse = RAGResponseWithChunks()
 	h.Engine.ProcessorResponse = ProcessorResponseTradeValid()
 
+	// Flip flag: set to 1 once the response has been switched.
+	var flipped atomic.Int32
+
 	// Monitor TA calls and flip the response after the threshold.
+	// Uses a polling loop with sleep to avoid CPU starvation.
 	go func() {
 		for {
 			current := h.Engine.TACalls.Load()
 			if current >= failThreshold {
-				mu.Lock()
+				// Flip to success. The mock server reads these fields
+				// per-request in its handler. The write here and the
+				// read in handleTA are on separate goroutines, but
+				// map/int assignments in Go are safe for this pattern
+				// (single writer, handler reads a pointer/int).
 				h.Engine.TAResponse = successResponse
 				h.Engine.TAStatusCode = 0 // Reset to 200.
-				mu.Unlock()
+				flipped.Store(1)
 				return
 			}
+			runtime.Gosched()
+			time.Sleep(1 * time.Millisecond)
 		}
 	}()
-
-	// Increase call count tracking by checking in the test.
-	// The TACalls atomic counter is incremented by the mock server.
 
 	outputs := h.RunCycle([]string{"EURUSD"}, "trace-e2e-retry-success-001")
 
@@ -85,7 +82,13 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 		"TA should be called more than once due to retries")
 
 	// ---------------------------------------------------------------
-	// Assert: Macro was called at least twice (once per cycle attempt).
+	// Assert: Response was flipped (goroutine completed).
+	// ---------------------------------------------------------------
+	assert.Equal(t, int32(1), flipped.Load(),
+		"response should have been flipped to success after threshold")
+
+	// ---------------------------------------------------------------
+	// Assert: Macro was called at least once per cycle attempt.
 	// ---------------------------------------------------------------
 	totalMacroCalls := h.Engine.MacroCalls.Load()
 	assert.GreaterOrEqual(t, totalMacroCalls, int64(1),
@@ -96,7 +99,6 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 	// ---------------------------------------------------------------
 	require.NotEmpty(t, outputs, "should produce outputs")
 
-	// Check if any output is successful.
 	var hasSuccess bool
 	for _, out := range outputs {
 		if out.CycleStatus == constants.StatusCompleted &&
@@ -104,17 +106,8 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 			hasSuccess = true
 		}
 	}
-	// The retry may or may not succeed depending on timing of the
-	// goroutine flipping the response. If it succeeds, great.
-	// If not, the test still validates that retries were attempted.
-	if hasSuccess {
-		t.Log("Retry succeeded: second cycle attempt produced successful output")
-	} else {
-		// Verify retries were at least attempted.
-		assert.Greater(t, totalTACalls, int64(1),
-			"retries should have been attempted")
-		t.Log("Retry timing: response flip may not have been fast enough, but retries were attempted")
-	}
+	assert.True(t, hasSuccess,
+		"retry should succeed: second cycle attempt should produce successful output")
 }
 
 // TestRetry_AllAttemptsExhausted verifies that when all cycle retry
