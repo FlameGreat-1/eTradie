@@ -40,7 +40,11 @@ def _check_db_available() -> bool:
             conn = await asyncpg.connect(url, timeout=3)
             await conn.close()
 
-        asyncio.get_event_loop().run_until_complete(_ping())
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(_ping())
+        finally:
+            loop.close()
         return True
     except Exception:
         return False
