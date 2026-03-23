@@ -150,8 +150,6 @@ def make_ta_result(
         "snapshots": {},
         "smc_candidates": smc_candidates,
         "snd_candidates": snd_candidates,
-        "smc_candidates_count": smc_count,
-        "snd_candidates_count": snd_count,
         "alignment": {},
         "overall_trend": overall_trend,
         "error": None,
