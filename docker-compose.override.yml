@@ -7,6 +7,8 @@ services:
       target: runtime
     volumes:
       - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
       - ./model_cache:/home/etradie/.cache
     environment:
       APP_ENV: development
