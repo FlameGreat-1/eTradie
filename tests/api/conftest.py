@@ -3,11 +3,13 @@
 Provides a real FastAPI app with:
 - Real PostgreSQL (analysis_outputs + analysis_audit_logs tables)
 - Real Redis cache
-- Mocked external services (TA, RAG, Processor, Broker)
+- Real ChromaDB (embeddings already loaded in Docker)
+- Mocked external services (TA broker, Processor LLM) that require
+  live connections not available in test environment
 - httpx.AsyncClient for making requests
 - Seed data for query/filter tests
 
-Tests are skipped automatically if PostgreSQL or Redis are not available.
+Tests are skipped automatically if infrastructure is not available.
 Run with: pytest tests/api/ -v -m integration
 """
 
@@ -16,7 +18,6 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime, timedelta
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -28,6 +29,8 @@ _DB_URL = os.getenv(
     "postgresql+asyncpg://etradie:etradie_dev@localhost:5432/etradie",
 )
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+_CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
+_CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 
 
 def _check_db() -> bool:
@@ -61,8 +64,18 @@ def _check_redis() -> bool:
         return False
 
 
+def _check_chroma() -> bool:
+    try:
+        import httpx
+        resp = httpx.get(f"http://{_CHROMA_HOST}:{_CHROMA_PORT}/api/v1/heartbeat", timeout=3)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
 DB_AVAILABLE = _check_db()
 REDIS_AVAILABLE = _check_redis()
+CHROMA_AVAILABLE = _check_chroma()
 
 skip_no_infra = pytest.mark.skipif(
     not (DB_AVAILABLE and REDIS_AVAILABLE),
@@ -72,14 +85,12 @@ skip_no_infra = pytest.mark.skipif(
 
 @pytest_asyncio.fixture
 async def app_client() -> AsyncGenerator[AsyncClient, None]:
-    """Create a real FastAPI app with mocked external services and return
+    """Create a real FastAPI app with real infrastructure and return
     an httpx.AsyncClient connected to it.
 
-    The app uses real PostgreSQL and Redis but mocks:
-    - TA orchestrator (no real broker/candle data needed)
-    - RAG orchestrator (no real ChromaDB needed)
-    - Processor LLM (no real API keys needed)
-    - MT5 broker client (no real MT5 connection needed)
+    Uses real PostgreSQL, Redis, and ChromaDB (if available).
+    Mocks only:
+    - MT5 broker client (no live MT5 terminal in test environment)
     - Scheduler (not started, no background jobs)
     """
     if not DB_AVAILABLE:
@@ -87,26 +98,51 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
     if not REDIS_AVAILABLE:
         pytest.skip("Redis not available")
 
-    # Patch environment for testing.
+    # Build environment overrides. Read real keys from environment
+    # so the app connects to real infrastructure.
     env_overrides = {
         "DATABASE_URL": _DB_URL,
         "REDIS_URL": _REDIS_URL,
         "APP_ENV": "testing",
         "APP_LOG_LEVEL": "ERROR",
         "JSON_LOGS": "false",
-        # Disable RAG ingest on startup.
-        "RAG_ENABLED": "false",
+        # RAG: connect to real ChromaDB with existing embeddings.
+        # Do NOT re-ingest on startup (data already loaded).
+        "RAG_ENABLED": "true" if CHROMA_AVAILABLE else "false",
         "RAG_INGEST_ON_STARTUP": "false",
-        # Processor config (will be mocked, but config must parse).
+        "RAG_CHROMA_HOST": _CHROMA_HOST,
+        "RAG_CHROMA_PORT": str(_CHROMA_PORT),
+        # Processor config (real provider for config endpoint tests).
         "PROCESSOR_LLM_PROVIDER": "anthropic",
         "PROCESSOR_MODEL_NAME": "claude-sonnet-4-20250514",
-        "ANTHROPIC_API_KEY": "sk-test-fake-key-for-testing",
     }
 
+    # Pass through real API keys from environment if they exist.
+    # These are needed for RAG embeddings and processor LLM.
+    for key in [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "RAG_OPENAI_API_KEY",
+        "NEWSAPI_API_KEY",
+        "TWELVEDATA_API_KEY",
+        "TRADINGECONOMICS_API_KEY",
+        "FRED_API_KEY",
+    ]:
+        val = os.getenv(key, "")
+        if val:
+            env_overrides[key] = val
+
+    # Ensure at least a placeholder for required keys in testing mode.
+    # Settings validator skips key checks for APP_ENV=testing.
+    if "ANTHROPIC_API_KEY" not in env_overrides:
+        env_overrides["ANTHROPIC_API_KEY"] = "sk-test-placeholder"
+
+    from unittest.mock import patch
     with patch.dict(os.environ, env_overrides):
         # Clear cached settings so they pick up test env vars.
-        from engine.config import get_settings
+        from engine.config import get_settings, get_rag_config
         get_settings.cache_clear()
+        get_rag_config.cache_clear()
 
         from engine.main import create_app
         app = create_app()
