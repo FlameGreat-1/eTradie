@@ -100,18 +100,22 @@ func TestFullPipeline_ExecutionPortError(t *testing.T) {
 	assert.Equal(t, int64(1), h.Engine.ProcessorCalls.Load())
 
 	// ---------------------------------------------------------------
-	// Assert: Execution port was called (and failed).
+	// Assert: Execution port behavior depends on guard outcome.
 	// ---------------------------------------------------------------
 	execCalls := h.Execution.GetCalls()
-	// Execution may or may not be called depending on time-based guards.
-	// If guards passed, execution was called.
-	// If guards rejected (weekend/session), execution was not called.
 
 	require.NotEmpty(t, outputs)
 	output := outputs[0]
 
-	if output.CycleOutcome == constants.OutcomeTradeApproved {
+	if output.CycleOutcome == constants.OutcomeRejectedByGuard {
+		t.Logf("INFO: Time-based guards rejected (blocking_rules=%v). "+
+			"Execution error capture assertions skipped. Expected on weekends/off-hours.",
+			output.GuardResult.BlockingRules)
+		assert.Empty(t, execCalls,
+			"execution must NOT be called when guards reject")
+	} else {
 		// Guards passed, execution was attempted and failed.
+		require.Equal(t, constants.OutcomeTradeApproved, output.CycleOutcome)
 		require.NotEmpty(t, execCalls, "execution should have been called")
 		require.NotNil(t, output.ExecutionResult)
 		assert.Equal(t, "error", output.ExecutionResult["status"])
