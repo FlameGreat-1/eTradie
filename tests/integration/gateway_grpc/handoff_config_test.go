@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	e2e "github.com/flamegreat-1/etradie/tests/e2e"
 )
 
 // ---------------------------------------------------------------------------
