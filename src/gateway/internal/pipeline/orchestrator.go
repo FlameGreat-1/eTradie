@@ -155,10 +155,10 @@ func (o *Orchestrator) runSingleAttempt(
 				strings.Join(symbols, ", "), attempt+1)).
 			WithTraceID(tracker.TraceID()).
 			WithDetails(map[string]interface{}{
-				"symbols":      symbols,
-				"attempt":      attempt + 1,
-				"cycle_id":     tracker.CycleID(),
-				"interval":     o.cfg.CycleIntervalSeconds,
+				"symbols":  symbols,
+				"attempt":  attempt + 1,
+				"cycle_id": tracker.CycleID(),
+				"interval": o.cfg.CycleIntervalSeconds,
 			}),
 	)
 
@@ -578,7 +578,7 @@ func getBoolField(m map[string]interface{}, key string) bool {
 	if !ok || v == nil {
 		return false
 	}
-	
+
 	// Handle nested dict (e.g. TA Engine output format: {"confirmed": true})
 	if dict, isDict := v.(map[string]interface{}); isDict {
 		if confirmedField, exists := dict["confirmed"]; exists {
@@ -588,7 +588,7 @@ func getBoolField(m map[string]interface{}, key string) bool {
 		}
 		return false
 	}
-	
+
 	b, ok := v.(bool)
 	if ok {
 		return b
@@ -768,17 +768,17 @@ func (o *Orchestrator) retrieveRAG(
 		"has_dxy_data":          params.HasDXYData,
 
 		// Enriched macro signal fields — match Python InternalRAGRequest.
-		"has_qe_qt":                    params.HasQEQT,
-		"has_stagflation":              params.HasStagflation,
-		"has_cot_extremes":             params.HasCOTExtremes,
-		"has_tff_data":                 params.HasTFFData,
-		"has_core_inflation":           params.HasCoreInflation,
-		"has_safe_haven_elevated":      params.HasSafeHavenElevated,
+		"has_qe_qt":                     params.HasQEQT,
+		"has_stagflation":               params.HasStagflation,
+		"has_cot_extremes":              params.HasCOTExtremes,
+		"has_tff_data":                  params.HasTFFData,
+		"has_core_inflation":            params.HasCoreInflation,
+		"has_safe_haven_elevated":       params.HasSafeHavenElevated,
 		"has_commodity_currencies_weak": params.HasCommodityCurrenciesWeak,
-		"dxy_momentum":                 params.DXYMomentum,
-		"risk_environment":             params.RiskEnvironment,
+		"dxy_momentum":                  params.DXYMomentum,
+		"risk_environment":              params.RiskEnvironment,
 
-		"trace_id":              traceID,
+		"trace_id": traceID,
 	}
 
 	bundle, err := o.engineHTTP.PostJSON(ctx, "/internal/rag/retrieve", reqBody)

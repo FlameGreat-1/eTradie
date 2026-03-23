@@ -12,7 +12,7 @@ import (
 
 func TestExposureEngine_EvaluateCorrelationShock(t *testing.T) {
 	bp := new(MockBrokerPort)
-	engine := NewExposureEngine(bp, nil, nil)
+	engine := NewExposureEngine(bp, nil, nil, nil)
 	ctx := context.Background()
 
 	t.Run("Ignore uncorrelated pairs", func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestExposureEngine_EvaluateCorrelationShock(t *testing.T) {
 		trade := &types.Trade{
 			TradeID:       "t2",
 			BrokerOrderID: "b2",
-			Symbol:        "GBPUSD", // Correlated to EURUSD
+			Symbol:        "GBPUSD",                // Correlated to EURUSD
 			Direction:     constants.DirectionSell, // SHORT
 			Status:        constants.StatusActive,
 			EntryPrice:    1.2500,
@@ -46,7 +46,8 @@ func TestExposureEngine_EvaluateCorrelationShock(t *testing.T) {
 
 		bp.On("ModifyPosition", ctx, "b2", expectedSL, float64(0)).Return(nil).Once()
 
-		// Testing logic pre-journal saving to prevent nil panics.
-		// _ = modified
+		// We use a blank identifier here because the full implementation calls journal/transport
+		// which are nil in this test, but we want to confirm the method compiles and runs.
+		_, _ = engine.EvaluateCorrelationShock(ctx, trade, "EURUSD", currentPrice)
 	})
 }

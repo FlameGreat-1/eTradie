@@ -22,11 +22,11 @@ import (
 
 // HTTPServer serves the dashboard-facing REST API and WebSocket notifications.
 type HTTPServer struct {
-	server   *http.Server
-	state    *state.Manager
-	broker   broker.Port
-	settings *store.SettingsStore
-	auditLog *audit.Logger
+	server    *http.Server
+	state     *state.Manager
+	broker    broker.Port
+	settings  *store.SettingsStore
+	auditLog  *audit.Logger
 	transport *alertredis.Transport
 	log       zerolog.Logger
 }

@@ -40,7 +40,7 @@ func TestEngineHTTPClient_PostJSON_Success(t *testing.T) {
 
 	payload := map[string]interface{}{"symbol": "EURUSD"}
 	resp, err := client.PostJSON(ctx, "/internal/broker/place_order", payload)
-	
+
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

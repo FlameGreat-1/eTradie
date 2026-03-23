@@ -65,7 +65,7 @@ type OrderPlacement struct {
 	StopLoss   float64
 	TakeProfit float64 // TP1 for initial order; partials managed by Module C
 	LotSize    float64
-	Comment    string  // analysis_id for traceability
+	Comment    string // analysis_id for traceability
 }
 
 // OrderResult is the broker's response after order placement.

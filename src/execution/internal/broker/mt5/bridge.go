@@ -151,13 +151,13 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 		Symbol       string  `json:"symbol"`
 		Point        float64 `json:"point"`
 		Digits       int32   `json:"digits"`
-		Spread       int     `json:"spread"`                // In points from MT5.
+		Spread       int     `json:"spread"` // In points from MT5.
 		ContractSize float64 `json:"trade_contract_size"`
 		VolumeMin    float64 `json:"volume_min"`
 		VolumeMax    float64 `json:"volume_max"`
 		VolumeStep   float64 `json:"volume_step"`
-		TickValue    float64 `json:"trade_tick_value"`       // SYMBOL_TRADE_TICK_VALUE: profit per 1 point per 1 lot in account currency.
-		TickSize     float64 `json:"trade_tick_size"`        // SYMBOL_TRADE_TICK_SIZE: smallest price change.
+		TickValue    float64 `json:"trade_tick_value"` // SYMBOL_TRADE_TICK_VALUE: profit per 1 point per 1 lot in account currency.
+		TickSize     float64 `json:"trade_tick_size"`  // SYMBOL_TRADE_TICK_SIZE: smallest price change.
 	}
 
 	if err := b.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", symbol), &resp); err != nil {

@@ -56,7 +56,7 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 			// Update current price.
 			trade.Lock()
 			trade.CurrentPrice = checkPrice
-			
+
 			// Update observability metrics
 			if trade.EntryPrice > 0 {
 				var pnlDist float64

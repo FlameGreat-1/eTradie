@@ -146,9 +146,9 @@ func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult 
 	}
 
 	return models.GuardCheckResult{
-		Rule:    constants.RuleSessionRestriction,
-		Verdict: constants.VerdictReject,
-		Reason:  fmt.Sprintf("Asian session restriction: %s should not be traded 00:00-07:00 UTC", symbol),
+		Rule:     constants.RuleSessionRestriction,
+		Verdict:  constants.VerdictReject,
+		Reason:   fmt.Sprintf("Asian session restriction: %s should not be traded 00:00-07:00 UTC", symbol),
 		Metadata: map[string]interface{}{"hour_utc": hour, "symbol": symbol},
 	}
 }
@@ -228,9 +228,9 @@ func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolRes
 	}
 
 	return models.GuardCheckResult{
-		Rule:    constants.RuleCounterTrendNoChoch,
-		Verdict: constants.VerdictReject,
-		Reason:  "Counter-trend trade without any CHoCH across timeframes - rejected per MR-REJECT-006",
+		Rule:     constants.RuleCounterTrendNoChoch,
+		Verdict:  constants.VerdictReject,
+		Reason:   "Counter-trend trade without any CHoCH across timeframes - rejected per MR-REJECT-006",
 		Metadata: map[string]interface{}{"trend": trend, "direction": direction, "htf_timeframes": ta.HTFTimeframes},
 	}
 }

@@ -1,7 +1,6 @@
 package watcher_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
@@ -18,7 +17,7 @@ func TestManager_ShutdownPreventsNewArms(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		watcher.Config{},
+		watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60},
 	)
 
 	order1 := &models.Order{
@@ -33,7 +32,7 @@ func TestManager_ShutdownPreventsNewArms(t *testing.T) {
 
 	// Arm normally
 	manager.Arm(order1)
-	
+
 	if manager.ActiveCount() != 1 {
 		t.Errorf("expected 1 active watcher, got %d", manager.ActiveCount())
 	}
@@ -59,7 +58,7 @@ func TestManager_Disarm(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		watcher.Config{},
+		watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60},
 	)
 
 	order := &models.Order{
@@ -80,21 +79,21 @@ func TestManager_Disarm(t *testing.T) {
 
 func TestManager_ContextCancellation(t *testing.T) {
 	// A manual context cancellation shouldn't deadlock.
-	manager := watcher.NewManager(nil, nil, nil, nil, watcher.Config{})
-	
+	manager := watcher.NewManager(nil, nil, nil, nil, watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60})
+
 	order := &models.Order{
 		WatcherID: "W-CTX-TEST",
 		Symbol:    "AUDUSD",
 	}
 
 	manager.Arm(order)
-	
+
 	// Calling shutdown internally cancels the manager's context.
-	// Since we mock nothing, the watcher routine will exit very quickly 
+	// Since we mock nothing, the watcher routine will exit very quickly
 	// (usually when it tries to connect to nil interfaces) or block on its Context.
 	// Shutdown waits for active count to hit 0, capping at 10 seconds.
 	manager.Shutdown()
-	
+
 	if manager.ActiveCount() != 0 {
 		t.Errorf("expected clean shutdown, active count is %d", manager.ActiveCount())
 	}

@@ -140,4 +140,3 @@ func (e *Executor) handleInstant(_ context.Context, order *models.Order) (*model
 		Order:    order,
 	}, nil
 }
-

@@ -138,19 +138,23 @@ func (e *ExposureEngine) EvaluateCorrelationShock(ctx context.Context, trade *ty
 
 	reason := fmt.Sprintf("Correlation shock protection: %s hits SL — tightening %s by 50%%", stoppedSymbol, symbol)
 
-	if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
-		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
+	if e.journal != nil {
+		if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
+		}
 	}
-	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
-		TradeID:   tradeID,
-		EventType: string(constants.EventCorrelationProtection),
-		Symbol:    symbol,
-		Price:     currentPrice,
-		NewSL:     newSL,
-		Reason:    reason,
-		Timestamp: time.Now().UTC(),
-	}); err != nil {
-		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_event_failed")
+	if e.journal != nil {
+		if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+			TradeID:   tradeID,
+			EventType: string(constants.EventCorrelationProtection),
+			Symbol:    symbol,
+			Price:     currentPrice,
+			NewSL:     newSL,
+			Reason:    reason,
+			Timestamp: time.Now().UTC(),
+		}); err != nil {
+			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_event_failed")
+		}
 	}
 
 	observability.InvalidationTotal.WithLabelValues(symbol, "CORRELATION_PROTECT").Inc()

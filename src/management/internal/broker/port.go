@@ -52,7 +52,7 @@ type Port interface {
 	ClosePosition(ctx context.Context, ticket string) error
 }
 
-// MT5Broker acts as a union of the Stream and Client implementations 
+// MT5Broker acts as a union of the Stream and Client implementations
 // to satisfy the comprehensive Port interface for the management engine.
 type MT5Broker struct {
 	*Client

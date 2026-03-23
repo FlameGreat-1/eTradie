@@ -50,11 +50,11 @@ type Manager struct {
 	cfg       Config
 	log       zerolog.Logger
 
-	mu       sync.RWMutex
-	watchers map[string]*Watcher // key: order.WatcherID
+	mu           sync.RWMutex
+	watchers     map[string]*Watcher // key: order.WatcherID
 	shuttingDown bool
-	ctx      context.Context
-	cancel   context.CancelFunc
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // NewManager creates a watcher manager. The provided context controls
@@ -223,6 +223,9 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	defer cancel()
 
 	pollInterval := time.Duration(w.cfg.PollIntervalMs) * time.Millisecond
+	if pollInterval <= 0 {
+		pollInterval = 100 * time.Millisecond // Default fallback
+	}
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -305,6 +308,9 @@ func (w *Watcher) isPriceInZone(tick *models.TickPrice) bool {
 // ConfirmPollIntervalSecs) until confirmed or timeout.
 func (w *Watcher) confirmAndExecute(ctx context.Context) bool {
 	confirmInterval := time.Duration(w.cfg.ConfirmPollIntervalSecs) * time.Second
+	if confirmInterval <= 0 {
+		confirmInterval = 1 * time.Second // Default fallback
+	}
 	confirmTicker := time.NewTicker(confirmInterval)
 	defer confirmTicker.Stop()
 
@@ -371,15 +377,17 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	if err != nil {
 		w.log.Error().Err(err).Msg("watcher_market_order_failed")
 
-		w.transport.Publish(ctx,
-			alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityCritical,
-				fmt.Sprintf("CRITICAL: Market order FAILED for %s: %s", w.order.Symbol, err.Error())).
-				WithSymbol(w.order.Symbol).
-				WithDirection(string(w.order.Direction)).
-				WithDetail("watcher_id", w.order.WatcherID).
-				WithDetail("analysis_id", w.order.AnalysisID).
-				WithDetail("error", err.Error()),
-		)
+		if w.transport != nil {
+			w.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityCritical,
+					fmt.Sprintf("CRITICAL: Market order FAILED for %s: %s", w.order.Symbol, err.Error())).
+					WithSymbol(w.order.Symbol).
+					WithDirection(string(w.order.Direction)).
+					WithDetail("watcher_id", w.order.WatcherID).
+					WithDetail("analysis_id", w.order.AnalysisID).
+					WithDetail("error", err.Error()),
+			)
+		}
 		return true // Stop watcher — do NOT retry market orders.
 	}
 
@@ -388,13 +396,15 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 			Str("reason", result.ErrorMessage).
 			Msg("watcher_market_order_rejected")
 
-		w.transport.Publish(ctx,
-			alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityCritical,
-				fmt.Sprintf("Market order REJECTED for %s: %s", w.order.Symbol, result.ErrorMessage)).
-				WithSymbol(w.order.Symbol).
-				WithDirection(string(w.order.Direction)).
-				WithDetail("watcher_id", w.order.WatcherID),
-		)
+		if w.transport != nil {
+			w.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityCritical,
+					fmt.Sprintf("Market order REJECTED for %s: %s", w.order.Symbol, result.ErrorMessage)).
+					WithSymbol(w.order.Symbol).
+					WithDirection(string(w.order.Direction)).
+					WithDetail("watcher_id", w.order.WatcherID),
+			)
+		}
 		return true
 	}
 
@@ -420,21 +430,23 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	// Audit the fill.
 	w.audit.LogOrderPlaced(ctx, w.order)
 
-	w.transport.Publish(ctx,
-		alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
-			fmt.Sprintf("Instant market order FILLED for %s at %.5f", w.order.Symbol, result.FillPrice)).
-			WithSymbol(w.order.Symbol).
-			WithDirection(string(w.order.Direction)).
-			WithDetails(map[string]interface{}{
-				"order_id":        w.order.OrderID,
-				"broker_order_id": result.BrokerOrderID,
-				"fill_price":      result.FillPrice,
-				"slippage":        result.Slippage,
-				"lot_size":        w.order.LotSize,
-				"watcher_id":      w.order.WatcherID,
-				"analysis_id":     w.order.AnalysisID,
-			}),
-	)
+	if w.transport != nil {
+		w.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
+				fmt.Sprintf("Instant market order FILLED for %s at %.5f", w.order.Symbol, result.FillPrice)).
+				WithSymbol(w.order.Symbol).
+				WithDirection(string(w.order.Direction)).
+				WithDetails(map[string]interface{}{
+					"order_id":        w.order.OrderID,
+					"broker_order_id": result.BrokerOrderID,
+					"fill_price":      result.FillPrice,
+					"slippage":        result.Slippage,
+					"lot_size":        w.order.LotSize,
+					"watcher_id":      w.order.WatcherID,
+					"analysis_id":     w.order.AnalysisID,
+				}),
+		)
+	}
 
 	return true
 }
@@ -446,17 +458,19 @@ func (w *Watcher) handleTimeout() {
 
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "timeout").Inc()
 
-	w.transport.Publish(context.Background(),
-		alert.NewEvent(alert.SourceExecution, alert.TypeOrderExpired, alert.SeverityWarning,
-			fmt.Sprintf("Instant watcher timed out for %s after %d minutes",
-				w.order.Symbol, w.cfg.TimeoutMinutes)).
-			WithSymbol(w.order.Symbol).
-			WithDirection(string(w.order.Direction)).
-			WithDetails(map[string]interface{}{
-				"watcher_id":      w.order.WatcherID,
-				"analysis_id":     w.order.AnalysisID,
-				"entry_price":     w.order.EntryPrice,
-				"timeout_minutes": w.cfg.TimeoutMinutes,
-			}),
-	)
+	if w.transport != nil {
+		w.transport.Publish(context.Background(),
+			alert.NewEvent(alert.SourceExecution, alert.TypeOrderExpired, alert.SeverityWarning,
+				fmt.Sprintf("Instant watcher timed out for %s after %d minutes",
+					w.order.Symbol, w.cfg.TimeoutMinutes)).
+				WithSymbol(w.order.Symbol).
+				WithDirection(string(w.order.Direction)).
+				WithDetails(map[string]interface{}{
+					"watcher_id":      w.order.WatcherID,
+					"analysis_id":     w.order.AnalysisID,
+					"entry_price":     w.order.EntryPrice,
+					"timeout_minutes": w.cfg.TimeoutMinutes,
+				}),
+		)
+	}
 }

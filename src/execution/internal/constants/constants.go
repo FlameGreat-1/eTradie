@@ -179,10 +179,10 @@ const MondayNoEntryBeforeHour = 7
 // Max 1 trade per group. The strongest setup wins.
 var CorrelatedPairGroups = [][]string{
 	{"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"},           // USD quote group (risk-on basket)
-	{"USDJPY", "USDCHF", "USDCAD"},                       // USD base group
-	{"EURJPY", "GBPJPY", "AUDJPY", "NZDJPY"},             // JPY cross group
-	{"EURGBP", "EURAUD", "EURNZD", "EURCHF", "EURCAD"},   // EUR cross group
-	{"XAUUSD", "XAGUSD"},                                  // Metals group
+	{"USDJPY", "USDCHF", "USDCAD"},                     // USD base group
+	{"EURJPY", "GBPJPY", "AUDJPY", "NZDJPY"},           // JPY cross group
+	{"EURGBP", "EURAUD", "EURNZD", "EURCHF", "EURCAD"}, // EUR cross group
+	{"XAUUSD", "XAGUSD"},                               // Metals group
 }
 
 // Position sizing bounds.

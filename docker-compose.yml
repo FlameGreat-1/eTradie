@@ -66,6 +66,12 @@ services:
       - chromadb_data:/chroma/chroma
     networks:
       - etradie-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v2/heartbeat || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ─────────────────────────────────────────────────────────────────
   # MIGRATIONS
@@ -102,6 +108,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
+      - ./scripts:/app/scripts:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
       - ./knowledge:/app/knowledge:ro
       - ./model_cache:/home/etradie/.cache

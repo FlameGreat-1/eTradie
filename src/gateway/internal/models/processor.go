@@ -7,9 +7,9 @@ package models
 // Proto message: ProcessLLMRequest (processor_input_json field)
 //
 // If you add, remove, or rename a field here, you MUST also update:
-//   1. proto/engine/v1/engine.proto (ProcessLLMRequest)
-//   2. src/engine/processor/models/io.py (Python side)
-//   3. Run `make contract-check` to verify parity
+//  1. proto/engine/v1/engine.proto (ProcessLLMRequest)
+//  2. src/engine/processor/models/io.py (Python side)
+//  3. Run `make contract-check` to verify parity
 type ProcessorInput struct {
 	Symbol             string                 `json:"symbol"`
 	TAAnalysis         map[string]interface{} `json:"ta_analysis"`
@@ -27,9 +27,9 @@ type ProcessorInput struct {
 // Proto message: ProcessLLMResponse
 //
 // If you add, remove, or rename a field here, you MUST also update:
-//   1. proto/engine/v1/engine.proto (ProcessLLMResponse)
-//   2. src/engine/processor/models/io.py (Python side)
-//   3. Run `make contract-check` to verify parity
+//  1. proto/engine/v1/engine.proto (ProcessLLMResponse)
+//  2. src/engine/processor/models/io.py (Python side)
+//  3. Run `make contract-check` to verify parity
 type ProcessorOutput struct {
 	TradeValid     bool                   `json:"trade_valid"`
 	Direction      string                 `json:"direction,omitempty"`

@@ -269,7 +269,7 @@ health: ## Check health of all running services
 	@echo -n "  Management: " && curl -sf http://localhost:8083/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
 	@echo -n "  PostgreSQL: " && docker compose exec -T postgres pg_isready -U etradie -d etradie >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
 	@echo -n "  Redis:      " && docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
-	@echo -n "  ChromaDB:   " && curl -sf http://localhost:8002/api/v1/heartbeat >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  ChromaDB:   " && curl -sf http://localhost:8002/api/v2/heartbeat >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
 
 broker-health: ## Verify broker bridge connectivity (engine must be running)
 	echo -e "$(BLUE)Checking broker bridge endpoints...$(NC)"
@@ -286,69 +286,14 @@ zmq-status: ## Show current MT5 provider configuration
 
 zmq-ping: ## Send PING to ZeroMQ EA to verify bridge is alive
 	echo -e "$(BLUE)Pinging ZeroMQ EA...$(NC)"
-	@python3 -c "\
-import asyncio, os, sys; \
-sys.path.insert(0, 'src'); \
-from engine.ta.broker.mt5.config import MT5Config; \
-from engine.ta.broker.mt5.zmq.client import ZmqClient; \
-async def ping(): \
-    cfg = MT5Config(provider='native'); \
-    c = ZmqClient(config=cfg); \
-    ok = await c.health_check(); \
-    print(f'  Endpoint: tcp://{cfg.zmq_host}:{cfg.zmq_port}'); \
-    print(f'  Status:   ' + ('\033[0;32mCONNECTED\033[0m' if ok else '\033[0;31mUNREACHABLE\033[0m')); \
-    await c.shutdown(); \
-    sys.exit(0 if ok else 1); \
-asyncio.run(ping()) \
-"
+	@docker compose exec -T engine python3 scripts/zmq_test.py --mode ping
 
 zmq-test: ## Full ZMQ bridge connectivity test (ping + candle + account)
 	echo -e "$(BLUE)Running ZeroMQ bridge test...$(NC)"
-	@python3 -c "\
-import asyncio, os, sys, json; \
-sys.path.insert(0, 'src'); \
-from engine.ta.broker.mt5.config import MT5Config; \
-from engine.ta.broker.mt5.zmq.client import ZmqClient; \
-from engine.ta.constants import Timeframe; \
-async def test(): \
-    cfg = MT5Config(provider='native'); \
-    c = ZmqClient(config=cfg); \
-    ep = f'tcp://{cfg.zmq_host}:{cfg.zmq_port}'; \
-    print(f'  Endpoint: {ep}'); \
-    print(); \
-    print('  [1/4] PING...', end=' '); \
-    ok = await c.health_check(); \
-    print('\033[0;32mOK\033[0m' if ok else '\033[0;31mFAIL\033[0m'); \
-    if not ok: print('  EA not reachable. Is MT5 running with the EA attached?'); await c.shutdown(); sys.exit(1); \
-    print('  [2/4] ACCOUNT_INFO...', end=' '); \
-    acc = await c.get_account_info(); \
-    print(f'\033[0;32mOK\033[0m  balance={acc.balance} {acc.currency}'); \
-    print('  [3/4] TICK_PRICE EURUSD...', end=' '); \
-    tick = await c.get_tick_price('EURUSD'); \
-    print(f'\033[0;32mOK\033[0m  bid={tick.bid} ask={tick.ask}'); \
-    print('  [4/4] CANDLES EURUSD H1 (5 bars)...', end=' '); \
-    seq = await c.fetch_candles('EURUSD', Timeframe.H1, count=5); \
-    print(f'\033[0;32mOK\033[0m  {seq.count} candles fetched'); \
-    print(); \
-    print('  \033[0;32m\u2713 All ZMQ bridge tests passed\033[0m'); \
-    await c.shutdown(); \
-asyncio.run(test()) \
-"
+	@docker compose exec -T engine python3 scripts/zmq_test.py --mode test
 
 zmq-tick: ## Fetch live tick price (usage: make zmq-tick SYMBOL=EURUSD)
-	@python3 -c "\
-import asyncio, sys; \
-sys.path.insert(0, 'src'); \
-from engine.ta.broker.mt5.config import MT5Config; \
-from engine.ta.broker.mt5.zmq.client import ZmqClient; \
-async def tick(): \
-    cfg = MT5Config(provider='native'); \
-    c = ZmqClient(config=cfg); \
-    t = await c.get_tick_price('$(SYMBOL)'); \
-    print(f'$(SYMBOL)  bid={t.bid}  ask={t.ask}  spread={t.ask-t.bid:.5f}'); \
-    await c.shutdown(); \
-asyncio.run(tick()) \
-"
+	@docker compose exec -T engine python3 scripts/zmq_test.py --mode tick --symbol "$(SYMBOL)"
 
 SYMBOL ?= EURUSD
 

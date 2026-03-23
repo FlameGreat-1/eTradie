@@ -80,15 +80,14 @@ const (
 	RuleCounterTrendNoChoch GuardRule = "MR-REJECT-006"
 	RuleWeekendGapRisk      GuardRule = "MR-REJECT-008"
 	RuleLowLiquidityHours   GuardRule = "MR-REJECT-009"
-
 )
 
 func (r GuardRule) String() string { return string(r) }
 
 // Cache namespaces and key prefixes.
 const (
-	GatewayCacheNamespace    = "gateway"
-	TAResultCacheKeyPrefix   = "ta_result"
+	GatewayCacheNamespace     = "gateway"
+	TAResultCacheKeyPrefix    = "ta_result"
 	MacroResultCacheKeyPrefix = "macro_result"
 )
 

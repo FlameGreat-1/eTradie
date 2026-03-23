@@ -88,14 +88,14 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 
 		if resp.StatusCode >= 400 {
 			safeBody := redactSensitiveJSON(respBody, 500)
-			
+
 			// Log error but don't fail immediately, let it retry if applicable
 			c.log.Error().
 				Str("path", path).
 				Int("status", resp.StatusCode).
 				Str("body", safeBody).
 				Msg("engine_http_error_response")
-				
+
 			errorBody := safeBody
 			if len(errorBody) > 200 {
 				errorBody = errorBody[:200]

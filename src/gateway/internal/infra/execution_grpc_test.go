@@ -3,7 +3,6 @@ package infra_test
 import (
 	"context"
 	"net"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,9 +19,9 @@ import (
 
 type mockExecutionServer struct {
 	executionv1.UnimplementedExecutionServiceServer
-	callCount      int32
+	callCount       int32
 	lastIdempotency string
-	failFirstCalls int32
+	failFirstCalls  int32
 }
 
 func (m *mockExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.ExecuteTradeRequest) (*executionv1.ExecuteTradeResponse, error) {
@@ -43,9 +42,9 @@ func (m *mockExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1
 	}
 
 	return &executionv1.ExecuteTradeResponse{
-		Success: true,
-		Message: "Trade Executed",
-		BrokerOrderId: "mock-broker-id",
+		Accepted: true,
+		Status:   "LIMIT_ORDER_PLACED",
+		OrderId:  "mock-broker-id",
 	}, nil
 }
 
@@ -108,12 +107,10 @@ func TestExecutionGRPCAdapter_Execute_RetryAndIdempotency(t *testing.T) {
 		t.Errorf("expected 2 calls due to 1 retry, got %d", atomic.LoadInt32(&mockSrv.callCount))
 	}
 
-	if result["success"] != true {
-		t.Errorf("expected success=true in result map, got %v", result["success"])
+	if result["accepted"] != true {
+		t.Errorf("expected accepted=true in result map, got %v", result["accepted"])
 	}
-	if result["broker_order_id"] != "mock-broker-id" {
-		t.Errorf("expected broker_order_id='mock-broker-id', got %v", result["broker_order_id"])
+	if result["order_id"] != "mock-broker-id" {
+		t.Errorf("expected order_id='mock-broker-id', got %v", result["order_id"])
 	}
-}
-
 }

@@ -24,11 +24,11 @@ type Trade struct {
 	TraceID       string
 
 	// Execution context.
-	TradingStyle   constants.TradingStyle
-	Grade          string
-	Session        string
-	SetupType      string
-	ExecutionMode  string
+	TradingStyle    constants.TradingStyle
+	Grade           string
+	Session         string
+	SetupType       string
+	ExecutionMode   string
 	ConfluenceScore float64
 
 	// Prices (SL is mutable — moved by BE/trailing logic).
@@ -65,10 +65,10 @@ type Trade struct {
 	CurrentPrice  float64
 
 	// Tracking.
-	OpenedAt  time.Time
-	ClosedAt  time.Time
-	SLMoves   int // Count of SL adjustments
-	Partials  int // Count of partial closes
+	OpenedAt time.Time
+	ClosedAt time.Time
+	SLMoves  int // Count of SL adjustments
+	Partials int // Count of partial closes
 }
 
 // Lock acquires the write lock.

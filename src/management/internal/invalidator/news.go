@@ -167,7 +167,7 @@ func (e *NewsEngine) EvaluatePreNewsRiskOff(ctx context.Context, trade *types.Tr
 		if !isLong {
 			distToSL = currentSL - currentPrice
 		}
-		
+
 		halfDist := distToSL * 0.50
 		if isLong {
 			newSL = currentPrice - halfDist
@@ -200,19 +200,23 @@ func (e *NewsEngine) EvaluatePreNewsRiskOff(ctx context.Context, trade *types.Tr
 	trade.Unlock()
 
 	// Persist changes.
-	if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
-		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
+	if e.journal != nil {
+		if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
+		}
 	}
-	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
-		TradeID:   tradeID,
-		EventType: string(constants.EventNewsProtection),
-		Symbol:    symbol,
-		Price:     currentPrice,
-		NewSL:     newSL,
-		Reason:    reason,
-		Timestamp: time.Now().UTC(),
-	}); err != nil {
-		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_event_failed")
+	if e.journal != nil {
+		if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+			TradeID:   tradeID,
+			EventType: string(constants.EventNewsProtection),
+			Symbol:    symbol,
+			Price:     currentPrice,
+			NewSL:     newSL,
+			Reason:    reason,
+			Timestamp: time.Now().UTC(),
+		}); err != nil {
+			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_event_failed")
+		}
 	}
 
 	observability.InvalidationTotal.WithLabelValues(symbol, "NEWS_PROTECT").Inc()

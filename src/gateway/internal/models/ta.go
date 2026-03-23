@@ -5,16 +5,16 @@ import "time"
 // TASymbolResult holds the TA analysis result for a single symbol.
 // The gateway does NOT dictate timeframes; the TA engine owns that.
 type TASymbolResult struct {
-	Symbol        string                       `json:"symbol"`
-	HTFTimeframes []string                     `json:"htf_timeframes"`
-	LTFTimeframes []string                     `json:"ltf_timeframes"`
-	Status        string                       `json:"status"` // "success" | "insufficient_data" | "error"
-	SMCCandidates []map[string]interface{}      `json:"smc_candidates"`
-	SnDCandidates []map[string]interface{}      `json:"snd_candidates"`
+	Symbol        string                            `json:"symbol"`
+	HTFTimeframes []string                          `json:"htf_timeframes"`
+	LTFTimeframes []string                          `json:"ltf_timeframes"`
+	Status        string                            `json:"status"` // "success" | "insufficient_data" | "error"
+	SMCCandidates []map[string]interface{}          `json:"smc_candidates"`
+	SnDCandidates []map[string]interface{}          `json:"snd_candidates"`
 	Snapshots     map[string]map[string]interface{} `json:"snapshots"`
 	Alignment     map[string]map[string]interface{} `json:"alignment"`
-	OverallTrend  string                       `json:"overall_trend"`
-	Error         string                       `json:"error,omitempty"`
+	OverallTrend  string                            `json:"overall_trend"`
+	Error         string                            `json:"error,omitempty"`
 }
 
 // TAResult aggregates TA output across all symbols for a cycle.

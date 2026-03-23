@@ -65,10 +65,10 @@ func (r *Reporter) generateAndSend(ctx context.Context, period, title string) er
 		alert.SeverityInfo,
 		msg,
 	).WithDetails(map[string]interface{}{
-		"win_rate":    summary.WinRate,
-		"pnl":         summary.TotalPnL,
+		"win_rate":     summary.WinRate,
+		"pnl":          summary.TotalPnL,
 		"total_trades": summary.TotalTrades,
-		"expectancy":  summary.Expectancy,
+		"expectancy":   summary.Expectancy,
 	}))
 
 	r.log.Info().Str("period", period).Msg("report_generated_and_sent")

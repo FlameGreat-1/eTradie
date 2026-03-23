@@ -13,7 +13,7 @@ type GuardCheckResult struct {
 // GuardEvaluationResult aggregates all guard check results.
 type GuardEvaluationResult struct {
 	Checks         []GuardCheckResult     `json:"checks"`
-	OverallVerdict constants.GuardVerdict  `json:"overall_verdict"`
+	OverallVerdict constants.GuardVerdict `json:"overall_verdict"`
 	BlockingRules  []string               `json:"blocking_rules"`
 }
 

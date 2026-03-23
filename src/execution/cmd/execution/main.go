@@ -16,7 +16,6 @@ import (
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
-	"github.com/redis/go-redis/v9"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat-1/etradie/src/execution/internal/broker/mock"
@@ -30,6 +29,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 	"github.com/flamegreat-1/etradie/src/execution/internal/validator"
 	"github.com/flamegreat-1/etradie/src/execution/internal/watcher"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {

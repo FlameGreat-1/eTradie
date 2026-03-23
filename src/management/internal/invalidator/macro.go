@@ -7,13 +7,13 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
-	"github.com/flamegreat-1/etradie/src/alert"
-	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 )
 
 // MacroEngine monitors macro condition changes that may invalidate

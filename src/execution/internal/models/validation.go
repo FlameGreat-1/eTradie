@@ -5,10 +5,10 @@ import "github.com/flamegreat-1/etradie/src/execution/internal/constants"
 // ValidationResult holds the outcome of the pre-execution validator.
 // On success, all fields except Passed are zero-valued.
 type ValidationResult struct {
-	Passed       bool
-	FailedCheck  constants.ValidationCheck
-	Outcome      constants.ValidationOutcome
-	Reason       string
+	Passed      bool
+	FailedCheck constants.ValidationCheck
+	Outcome     constants.ValidationOutcome
+	Reason      string
 }
 
 // TradeRequest is the internal representation of an incoming execution

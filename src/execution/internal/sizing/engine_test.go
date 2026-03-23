@@ -20,7 +20,7 @@ func TestSizingFormula_Standard(t *testing.T) {
 	slPips := 50.0
 	pipValue := 10.0
 
-	riskAmount := balance * (riskPct / 100.0) // $100
+	riskAmount := balance * (riskPct / 100.0)   // $100
 	lotSize := riskAmount / (slPips * pipValue) // 100 / 500 = 0.20
 
 	expected := 0.20
@@ -36,7 +36,7 @@ func TestSizingFormula_SmallAccount(t *testing.T) {
 	slPips := 30.0
 	pipValue := 10.0
 
-	riskAmount := balance * (riskPct / 100.0) // $2.50
+	riskAmount := balance * (riskPct / 100.0)   // $2.50
 	lotSize := riskAmount / (slPips * pipValue) // 2.50 / 300 = 0.0083
 
 	// After rounding to 2 decimals: 0.00 — below minimum 0.01.
@@ -56,7 +56,7 @@ func TestSizingFormula_LargeAccount(t *testing.T) {
 	slPips := 25.0
 	pipValue := 10.0
 
-	riskAmount := balance * (riskPct / 100.0) // $1000
+	riskAmount := balance * (riskPct / 100.0)   // $1000
 	lotSize := riskAmount / (slPips * pipValue) // 1000 / 250 = 4.00
 
 	expected := 4.00
@@ -73,8 +73,8 @@ func TestSizingFormula_JPYPair(t *testing.T) {
 	pipSize := 0.01
 	pipValue := 7.5 // Approximate for USDJPY standard lot
 
-	slPips := slDistance / pipSize // 50 pips
-	riskAmount := balance * (riskPct / 100.0) // $100
+	slPips := slDistance / pipSize              // 50 pips
+	riskAmount := balance * (riskPct / 100.0)   // $100
 	lotSize := riskAmount / (slPips * pipValue) // 100 / 375 = 0.267
 
 	rounded := math.Floor(lotSize*100) / 100 // 0.26
@@ -110,7 +110,7 @@ func TestSizingFormula_MaxLotCap(t *testing.T) {
 	slPips := 10.0
 	pipValue := 10.0
 
-	riskAmount := balance * (riskPct / 100.0) // $10,000
+	riskAmount := balance * (riskPct / 100.0)   // $10,000
 	lotSize := riskAmount / (slPips * pipValue) // 10000 / 100 = 100.0
 
 	maxLot := 10.0

@@ -37,11 +37,11 @@ WHERE period_type = $1 AND period_key = $2
 
 // PnLSnapshot holds the current P&L state loaded from the database.
 type PnLSnapshot struct {
-	DailyPnL       float64
-	DailyTrades    int
-	WeeklyPnL      float64
-	WeeklyTrades   int
-	DailyPeriodKey string
+	DailyPnL        float64
+	DailyTrades     int
+	WeeklyPnL       float64
+	WeeklyTrades    int
+	DailyPeriodKey  string
 	WeeklyPeriodKey string
 }
 

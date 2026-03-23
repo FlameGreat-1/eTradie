@@ -155,7 +155,7 @@ func main() {
 			case alert.TypeTradeClosed:
 				// When a trade is closed, check for correlation shock.
 				stoppedSymbol := evt.Symbol
-				
+
 				// Verify if it was an SL hit (loss) by checking outcome in details.
 				isLoss := false
 				if evt.Details != nil {
@@ -163,7 +163,7 @@ func main() {
 						isLoss = true
 					}
 				}
-				
+
 				if isLoss {
 					trades := mgr.GetAllTrades()
 					for _, t := range trades {
@@ -204,7 +204,7 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour) // Check every hour to see if it's reporting time.
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ctx.Done():

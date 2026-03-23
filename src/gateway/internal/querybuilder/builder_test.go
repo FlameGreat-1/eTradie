@@ -51,9 +51,10 @@ func TestBuild_ScenarioFirstStrategy_WhenFrameworkAndSetupPresent(t *testing.T) 
 		HTFTimeframes: []string{"1D"},
 		SMCCandidates: []map[string]interface{}{
 			{
-				"framework":    "smc",
-				"setup_family": "order_block_mitigation",
-				"direction":    "long",
+				"framework":         "smc",
+				"setup_family":      "order_block_mitigation",
+				"direction":         "long",
+				"order_block_upper": true,
 			},
 		},
 		Snapshots: map[string]map[string]interface{}{
@@ -122,12 +123,16 @@ func TestBuild_SMCFlags(t *testing.T) {
 		Status:       "success",
 		OverallTrend: "BULLISH",
 		SMCCandidates: []map[string]interface{}{
-			{"type": "OB", "direction": "LONG"},
+			{
+				"type":              "OB",
+				"direction":         "LONG",
+				"bms_detected":      true,
+				"order_block_upper": true,
+			},
 		},
 		Snapshots: map[string]map[string]interface{}{
 			"4H": {
-				"bms_events":   []interface{}{"event1"},
-				"order_blocks": []interface{}{"ob1"},
+				"trend_direction": "BULLISH",
 			},
 		},
 		Alignment: map[string]map[string]interface{}{},
@@ -154,8 +159,10 @@ func TestBuild_MacroFlags_DXYPresent(t *testing.T) {
 	dxyVal := 104.5
 	macro := &models.MacroResult{
 		DXY: map[string]interface{}{
-			"value":    dxyVal,
-			"momentum": "RISING",
+			"latest": map[string]interface{}{
+				"value":    dxyVal,
+				"momentum": "RISING",
+			},
 		},
 	}
 

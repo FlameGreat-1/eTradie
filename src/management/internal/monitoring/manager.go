@@ -201,8 +201,6 @@ func (m *Manager) GetPriceForSymbol(ctx context.Context, symbol string) (float64
 	return (tick.Bid + tick.Ask) / 2.0, nil
 }
 
-
-
 // GenerateTradeID creates a unique trade management ID.
 func GenerateTradeID() string {
 	b := make([]byte, 8)

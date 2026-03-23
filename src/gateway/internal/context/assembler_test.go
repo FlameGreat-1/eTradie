@@ -35,8 +35,8 @@ func TestAssemble_BasicStructure(t *testing.T) {
 	}
 
 	ragBundle := map[string]interface{}{
-		"chunks":               []interface{}{"rule1", "rule2"},
-		"strategy_used":        "scenario_first",
+		"chunks":                []interface{}{"rule1", "rule2"},
+		"strategy_used":         "scenario_first",
 		"total_chunks_returned": 5,
 	}
 
@@ -107,11 +107,11 @@ func TestAssemble_MacroSection(t *testing.T) {
 	assembler := NewAssembler()
 
 	ta := &models.TASymbolResult{
-		Symbol:        "AUDUSD",
-		Status:        "success",
-		OverallTrend:  "NEUTRAL",
-		Snapshots:     map[string]map[string]interface{}{},
-		Alignment:     map[string]map[string]interface{}{},
+		Symbol:       "AUDUSD",
+		Status:       "success",
+		OverallTrend: "NEUTRAL",
+		Snapshots:    map[string]map[string]interface{}{},
+		Alignment:    map[string]map[string]interface{}{},
 	}
 
 	macro := &models.MacroResult{

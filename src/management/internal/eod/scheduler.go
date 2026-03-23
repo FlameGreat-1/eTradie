@@ -7,12 +7,12 @@ import (
 
 	"github.com/rs/zerolog"
 
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
-	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 )
 
 // EvalFunc is a function that evaluates a trade for EOD closure.
@@ -36,10 +36,10 @@ type Scheduler struct {
 
 // NewScheduler creates an EOD scheduler with all style-specific evaluators.
 func NewScheduler(
-	bp broker.Port, 
+	bp broker.Port,
 	journal *journal.Repository,
 	transport *alertredis.Transport,
-	getTrades func() []*types.Trade, 
+	getTrades func() []*types.Trade,
 	getPrice func(ctx context.Context, symbol string) (float64, error),
 ) *Scheduler {
 	return &Scheduler{

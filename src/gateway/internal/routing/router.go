@@ -71,7 +71,7 @@ func (r *Router) Route(
 
 	// Publish guard warnings (non-blocking checks that passed but flagged).
 	for _, check := range guardResult.Checks {
-		if check.Verdict == constants.VerdictWarn {
+		if check.Verdict == constants.VerdictWarn && r.transport != nil {
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
 					fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
@@ -106,19 +106,21 @@ func (r *Router) Route(
 			}
 		}
 
-		r.transport.Publish(ctx,
-			alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
-				fmt.Sprintf("Trade rejected by guards: %s", strings.Join(guardResult.BlockingRules, ", "))).
-				WithSymbol(processorOutput.Symbol).
-				WithDirection(processorOutput.Direction).
-				WithTraceID(traceID).
-				WithDetails(map[string]interface{}{
-					"blocking_rules": guardResult.BlockingRules,
-					"reasons":        reasons,
-					"confidence":     processorOutput.Confidence,
-					"grade":          processorOutput.Grade,
-				}),
-		)
+		if r.transport != nil {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
+					fmt.Sprintf("Trade rejected by guards: %s", strings.Join(guardResult.BlockingRules, ", "))).
+					WithSymbol(processorOutput.Symbol).
+					WithDirection(processorOutput.Direction).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"blocking_rules": guardResult.BlockingRules,
+						"reasons":        reasons,
+						"confidence":     processorOutput.Confidence,
+						"grade":          processorOutput.Grade,
+					}),
+			)
+		}
 
 		return &RouteResult{
 			Outcome:     constants.OutcomeRejectedByGuard,
@@ -148,22 +150,24 @@ func (r *Router) Route(
 		Str("trace_id", traceID).
 		Msg("route_trade_approved")
 
-	r.transport.Publish(ctx,
-		alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityInfo,
-			fmt.Sprintf("Trade routed to execution: %s %s (grade: %s, confidence: %.1f%%)",
-				symbol, direction, processorOutput.Grade, processorOutput.Confidence*100)).
-			WithSymbol(symbol).
-			WithDirection(direction).
-			WithTraceID(traceID).
-			WithDetails(map[string]interface{}{
-				"confidence":       processorOutput.Confidence,
-				"grade":            processorOutput.Grade,
-				"trading_style":    processorOutput.TradingStyle,
-				"guard_verdict":    string(guardResult.OverallVerdict),
-				"analysis_id":     processorOutput.AnalysisID,
-				"execution_result": execResult,
-			}),
-	)
+	if r.transport != nil {
+		r.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityInfo,
+				fmt.Sprintf("Trade routed to execution: %s %s (grade: %s, confidence: %.1f%%)",
+					symbol, direction, processorOutput.Grade, processorOutput.Confidence*100)).
+				WithSymbol(symbol).
+				WithDirection(direction).
+				WithTraceID(traceID).
+				WithDetails(map[string]interface{}{
+					"confidence":       processorOutput.Confidence,
+					"grade":            processorOutput.Grade,
+					"trading_style":    processorOutput.TradingStyle,
+					"guard_verdict":    string(guardResult.OverallVerdict),
+					"analysis_id":      processorOutput.AnalysisID,
+					"execution_result": execResult,
+				}),
+		)
+	}
 
 	return &RouteResult{
 		Outcome:         constants.OutcomeTradeApproved,
@@ -195,14 +199,16 @@ func (r *Router) executeTrade(
 			Str("trace_id", traceID).
 			Msg("execution_failed")
 
-		r.transport.Publish(ctx,
-			alert.NewEvent(alert.SourceGateway, alert.TypeExecutionCallFailed, alert.SeverityError,
-				fmt.Sprintf("Execution call failed for %s: %s", decision.Symbol, err.Error())).
-				WithSymbol(decision.Symbol).
-				WithDirection(decision.Direction).
-				WithTraceID(traceID).
-				WithDetail("error", err.Error()),
-		)
+		if r.transport != nil {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeExecutionCallFailed, alert.SeverityError,
+					fmt.Sprintf("Execution call failed for %s: %s", decision.Symbol, err.Error())).
+					WithSymbol(decision.Symbol).
+					WithDirection(decision.Direction).
+					WithTraceID(traceID).
+					WithDetail("error", err.Error()),
+			)
+		}
 
 		return map[string]interface{}{"status": "error", "reason": err.Error()}
 	}
