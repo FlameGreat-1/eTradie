@@ -48,9 +48,9 @@ type mockManagementServer struct {
 	calls []*managementv1.RegisterFilledTradeRequest
 
 	// Configurable response.
-	TradeID  string
-	Success  bool
-	Message  string
+	TradeID   string
+	Success   bool
+	Message   string
 	ReturnErr error
 }
 
@@ -88,20 +88,18 @@ func (m *mockManagementServer) getCalls() []*managementv1.RegisterFilledTradeReq
 // mgmtHandoffHarness builds a Gateway gRPC server with a real
 // management.Client connected to a mock Management gRPC server.
 type mgmtHandoffHarness struct {
-	t          *testing.T
-	gwClient   gatewayv1.GatewayServiceClient
-	mgmtMock   *mockManagementServer
-	engine     *e2e.MockEngineServer
+	t        *testing.T
+	gwClient gatewayv1.GatewayServiceClient
+	mgmtMock *mockManagementServer
+	engine   *e2e.MockEngineServer
 
 	// Resources to close.
-	gwLis       *bufconn.Listener
-	gwServer    *grpc.Server
-	gwConn      *grpc.ClientConn
-	mgmtLis     *bufconn.Listener
-	mgmtServer  *grpc.Server
-	mgmtConn    *grpc.ClientConn
-	hub         *alert.Hub
-	transport   *alertredis.Transport
+	gwLis      *bufconn.Listener
+	gwServer   *grpc.Server
+	gwConn     *grpc.ClientConn
+	mgmtServer *grpc.Server
+	hub        *alert.Hub
+	transport  *alertredis.Transport
 	redisClient *redis.Client
 }
 
@@ -124,11 +122,11 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	}
 	mgmtAddr := tcpLis.Addr().String()
 
-	mgmtGrpcServer = grpc.NewServer()
+	mgmtGrpcServer := grpc.NewServer()
 	managementv1.RegisterManagementServiceServer(mgmtGrpcServer, mgmtMock)
 	go mgmtGrpcServer.Serve(tcpLis)
 
-	// Create real management.Client pointing at the mock server.
+	// 2. Create real management.Client pointing at the mock server.
 	mgmtClient, err := management.NewClient(mgmtAddr, 5000)
 	if err != nil {
 		t.Fatalf("failed to create management client: %v", err)
@@ -230,9 +228,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		gwLis:       gwLis,
 		gwServer:    gwRawServer,
 		gwConn:      gwConn,
-		mgmtLis:     nil, // TCP listener, closed by mgmtServer.GracefulStop
 		mgmtServer:  mgmtGrpcServer,
-		mgmtConn:    nil,
 		hub:         hub,
 		transport:   transport,
 		redisClient: redisClient,
@@ -257,12 +253,12 @@ func (h *mgmtHandoffHarness) close() {
 // TestGRPC_NotifyExecutionCompleted_FullHandoff tests the complete
 // Module B → Gateway → Module C handoff path:
 //
-//   Module B calls Gateway.NotifyExecutionCompleted
-//     → Gateway maps fields to RegisterFilledTradeRequest
-//     → Gateway calls management.Client.RegisterFilledTrade
-//     → management.Client calls mock Module C gRPC server
-//     → mock returns trade_id
-//     → Gateway returns management_trade_id to Module B
+//	Module B calls Gateway.NotifyExecutionCompleted
+//	  → Gateway maps fields to RegisterFilledTradeRequest
+//	  → Gateway calls management.Client.RegisterFilledTrade
+//	  → management.Client calls mock Module C gRPC server
+//	  → mock returns trade_id
+//	  → Gateway returns management_trade_id to Module B
 //
 // This is the most critical integration test: it validates that a
 // filled trade at the broker is correctly handed off to Module C.
