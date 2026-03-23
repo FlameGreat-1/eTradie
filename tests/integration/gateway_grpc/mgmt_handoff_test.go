@@ -122,57 +122,12 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	managementv1.RegisterManagementServiceServer(mgmtGrpcServer, mgmtMock)
 	go mgmtGrpcServer.Serve(mgmtLis)
 
-	// 2. Create a real management.Client connected to the mock via bufconn.
-	//    management.NewClient uses grpc.NewClient which needs a real address.
-	//    Instead, we create the connection manually and build the client.
-	mgmtConn, err := grpc.NewClient(
-		"passthrough:///bufnet-mgmt",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return mgmtLis.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		t.Fatalf("failed to create mgmt bufconn client: %v", err)
-	}
-
-	// Build management.Client by creating it with the mock address.
-	// Since management.NewClient uses grpc.NewClient internally, we need
-	// to use the real constructor. But it won't connect to bufconn.
-	// Instead, we'll construct the Gateway GRPCServer with a mgmtClient
-	// that uses our bufconn connection.
-	//
-	// The management.Client struct has unexported fields, so we can't
-	// construct it directly. We need to use NewClient with a real address
-	// and then the connection won't work with bufconn.
-	//
-	// Solution: The Gateway's NotifyExecutionCompleted calls
-	// mgmtClient.RegisterFilledTrade which uses the client's internal
-	// grpc connection. We need to create a management.Client that uses
-	// our bufconn connection.
-	//
-	// Since management.Client fields are unexported, we'll use a
-	// different approach: create the management.Client with a real
-	// address that resolves to our bufconn listener.
-	// Actually, management.NewClient uses grpc.NewClient (lazy connect),
-	// so we can pass any address. The actual connection happens on first
-	// RPC call. We need to intercept that.
-	//
-	// Cleanest approach: Create management.Client normally, but we can't
-	// redirect it to bufconn since it creates its own connection.
-	//
-	// Alternative: Build the GRPCServer with a wrapper that implements
-	// the same interface. But mgmtClient is *management.Client (concrete).
-	//
-	// Final approach: Start the mock management server on a real TCP port.
-	// This is the most reliable approach for integration tests.
-
-	// Close the bufconn approach for management and use real TCP.
-	mgmtConn.Close()
+	// 2. management.Client has unexported fields and creates its own gRPC
+	// connection internally, so we start the mock on a real ephemeral TCP
+	// port and point management.NewClient at it.
 	mgmtGrpcServer.GracefulStop()
 	mgmtLis.Close()
 
-	// Start mock management server on a real TCP port.
 	tcpLis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("failed to listen on TCP: %v", err)
