@@ -74,6 +74,7 @@ warn_required_dynamic_aliases = true
 testpaths = ["tests"]
 python_files = ["*.py"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "-v",
     "--strict-markers",
@@ -91,6 +92,7 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:feedparser.*",
+    "ignore::DeprecationWarning:asyncio.*",
 ]
 
 [tool.coverage.run]

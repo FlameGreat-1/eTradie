@@ -7,7 +7,7 @@ from engine.rag.retrieval.reranker import Reranker
 
 pytestmark = pytest.mark.integration
 
-def _chunk(doc_type=DocumentType.MASTER_RULEBOOK, score=0.8, section=None, subsection=None):
+def _chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.8, section=None, subsection=None):
     return RetrievedChunk(chunk_id=uuid4(), document_id=uuid4(), doc_type=doc_type, content="Test", score=score, rank=0, section=section, subsection=subsection, metadata={})
 
 @pytest.fixture
@@ -17,11 +17,11 @@ def reranker():
 
 class TestDocTypeBoost:
     def test_rulebook_outranks_generic(self, reranker):
-        ranked = reranker.rerank([_chunk("generic", 0.85), _chunk(DocumentType.MASTER_RULEBOOK, 0.70)])
+        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.85), _chunk(DocumentType.MASTER_RULEBOOK, 0.70)])
         assert ranked[0].doc_type == DocumentType.MASTER_RULEBOOK
 
     def test_smc_boosted(self, reranker):
-        ranked = reranker.rerank([_chunk("generic", 0.80), _chunk(DocumentType.SMC_FRAMEWORK, 0.65)])
+        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80), _chunk(DocumentType.SMC_FRAMEWORK, 0.65)])
         assert ranked[0].doc_type == DocumentType.SMC_FRAMEWORK
 
 class TestTruncation:
@@ -34,7 +34,7 @@ class TestTruncation:
 
 class TestSectionBonus:
     def test_bonus(self, reranker):
-        ranked = reranker.rerank([_chunk("generic", 0.80), _chunk("generic", 0.80, "rules", "entry")])
+        ranked = reranker.rerank([_chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80), _chunk(DocumentType.CHART_SCENARIO_LIBRARY, 0.80, "rules", "entry")])
         assert ranked[0].section == "rules"
 
 class TestRanks:
