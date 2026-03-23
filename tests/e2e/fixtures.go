@@ -1,5 +1,7 @@
 package e2e
 
+import "time"
+
 // This file provides factory functions that build realistic response
 // payloads for the mock engine server. Every field matches the exact
 // JSON contract the Gateway's collectors, adapters, and pipeline
