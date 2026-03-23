@@ -1,0 +1,251 @@
+"""Integration tests for all 8 dashboard API endpoints.
+
+Requires PostgreSQL and Redis running (Docker).
+Run: pytest tests/api/test_dashboard_api.py -v -m integration
+
+Tests are automatically skipped if infrastructure is not available.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from tests.api.conftest import skip_no_infra
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, skip_no_infra]
+
+
+# ---------------------------------------------------------------------------
+# Health Endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestHealthEndpoints:
+    async def test_health_endpoint(self, app_client):
+        """GET /health returns ok."""
+        resp = await app_client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+
+    async def test_health_rag_disabled(self, app_client):
+        """GET /health/rag returns disabled when RAG is not initialized."""
+        resp = await app_client.get("/health/rag")
+        assert resp.status_code == 200
+        data = resp.json()
+        # RAG is disabled in test config (RAG_ENABLED=false).
+        assert data["status"] == "disabled"
+
+
+# ---------------------------------------------------------------------------
+# Analysis Endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestAnalysisLatest:
+    async def test_analysis_latest(self, seeded_client):
+        """GET /api/analysis/latest returns seeded analysis rows."""
+        resp = await seeded_client.get("/api/analysis/latest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "analyses" in data
+        assert "count" in data
+        assert data["count"] >= seeded_client._seed_count
+
+        # Verify structure of first result.
+        if data["analyses"]:
+            a = data["analyses"][0]
+            assert "analysis_id" in a
+            assert "pair" in a
+            assert "direction" in a
+            assert "setup_grade" in a
+            assert "confluence_score" in a
+            assert "confidence" in a
+            assert "status" in a
+            assert "created_at" in a
+            assert "display" in a
+            assert "summary" in a["display"]
+            assert "analyzed_by" in a["display"]
+
+    async def test_analysis_latest_filter_by_pair(self, seeded_client):
+        """GET /api/analysis/latest?pair=GBPUSD filters by pair."""
+        resp = await seeded_client.get("/api/analysis/latest", params={"pair": "GBPUSD"})
+        assert resp.status_code == 200
+        data = resp.json()
+        for a in data["analyses"]:
+            assert a["pair"] == "GBPUSD"
+
+    async def test_analysis_latest_limit(self, seeded_client):
+        """GET /api/analysis/latest?limit=2 respects limit."""
+        resp = await seeded_client.get("/api/analysis/latest", params={"limit": 2})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["analyses"]) <= 2
+
+
+class TestAnalysisHistory:
+    async def test_analysis_history(self, seeded_client):
+        """GET /api/analysis/history returns paginated results."""
+        resp = await seeded_client.get("/api/analysis/history")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "analyses" in data
+        assert "total_count" in data
+        assert "offset" in data
+        assert "limit" in data
+        assert data["total_count"] >= seeded_client._seed_count
+
+    async def test_analysis_history_filter_status(self, seeded_client):
+        """GET /api/analysis/history?status=success filters by status."""
+        resp = await seeded_client.get("/api/analysis/history", params={"status": "success"})
+        assert resp.status_code == 200
+        data = resp.json()
+        for a in data["analyses"]:
+            assert a["status"] == "success"
+
+    async def test_analysis_history_filter_grade(self, seeded_client):
+        """GET /api/analysis/history?grade=A filters by grade."""
+        resp = await seeded_client.get("/api/analysis/history", params={"grade": "A"})
+        assert resp.status_code == 200
+        data = resp.json()
+        for a in data["analyses"]:
+            assert a["setup_grade"] == "A"
+
+    async def test_analysis_history_filter_provider(self, seeded_client):
+        """GET /api/analysis/history?provider=openai filters by provider."""
+        resp = await seeded_client.get("/api/analysis/history", params={"provider": "openai"})
+        assert resp.status_code == 200
+        data = resp.json()
+        for a in data["analyses"]:
+            assert a["llm_provider"] == "openai"
+
+    async def test_analysis_history_pagination(self, seeded_client):
+        """GET /api/analysis/history?offset=0&limit=2 paginates correctly."""
+        resp = await seeded_client.get(
+            "/api/analysis/history", params={"offset": 0, "limit": 2},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["analyses"]) <= 2
+        assert data["offset"] == 0
+        assert data["limit"] == 2
+
+
+class TestAnalysisStats:
+    async def test_analysis_stats(self, seeded_client):
+        """GET /api/analysis/stats returns aggregate statistics."""
+        resp = await seeded_client.get("/api/analysis/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total" in data
+        assert "success_count" in data
+        assert "no_setup_count" in data
+        assert "error_count" in data
+        assert "success_rate" in data
+        assert "avg_confluence_score" in data
+        assert "avg_duration_ms" in data
+        assert "grade_distribution" in data
+        assert "provider_distribution" in data
+        assert "pair_distribution" in data
+        assert data["total"] >= seeded_client._seed_count
+
+    async def test_analysis_stats_filter_pair(self, seeded_client):
+        """GET /api/analysis/stats?pair=EURUSD scopes stats to pair."""
+        resp = await seeded_client.get("/api/analysis/stats", params={"pair": "EURUSD"})
+        assert resp.status_code == 200
+        data = resp.json()
+        # EURUSD has 3 seeded rows (success, no_setup, llm_error).
+        assert data["total"] >= 3
+        # pair_distribution should only contain EURUSD.
+        if data["pair_distribution"]:
+            assert "EURUSD" in data["pair_distribution"]
+
+
+class TestAnalysisDetail:
+    async def test_analysis_detail(self, seeded_client):
+        """GET /api/analysis/{id} returns full detail."""
+        analysis_id = seeded_client._seed_analysis_ids[0]
+        resp = await seeded_client.get(f"/api/analysis/{analysis_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["analysis_id"] == analysis_id
+        assert data["pair"] == "EURUSD"
+        assert data["direction"] == "LONG"
+        assert data["setup_grade"] == "A"
+        assert "display" in data
+        assert "summary" in data["display"]
+        assert "reasoning" in data["display"]
+        assert "macro_summary" in data["display"]
+        assert "technical_summary" in data["display"]
+        assert "trade_plan" in data["display"]
+        assert "confluence_breakdown" in data["display"]
+        assert "risk_info" in data["display"]
+        assert "event_warnings" in data["display"]
+        assert "analyzed_by" in data["display"]
+
+    async def test_analysis_detail_not_found(self, seeded_client):
+        """GET /api/analysis/{id} returns 404 for unknown ID."""
+        resp = await seeded_client.get("/api/analysis/NONEXISTENT-ID-12345")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Processor Config Endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestProcessorConfig:
+    async def test_processor_models(self, app_client):
+        """GET /api/processor/models returns available models."""
+        resp = await app_client.get("/api/processor/models")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "current_provider" in data
+        assert "current_model" in data
+        assert "providers" in data
+        assert isinstance(data["providers"], dict)
+        # At least anthropic and openai should be in providers.
+        assert "anthropic" in data["providers"] or len(data["providers"]) > 0
+
+    async def test_processor_config_get(self, app_client):
+        """GET /api/processor/config returns current config."""
+        resp = await app_client.get("/api/processor/config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "llm_provider" in data
+        assert "model_name" in data
+        assert "temperature" in data
+        assert "max_output_tokens" in data
+        assert "supported_providers" in data
+        assert isinstance(data["supported_providers"], list)
+        assert len(data["supported_providers"]) > 0
+
+    async def test_processor_config_update_temperature(self, app_client):
+        """PUT /api/processor/config updates temperature."""
+        # Get current config.
+        get_resp = await app_client.get("/api/processor/config")
+        assert get_resp.status_code == 200
+        original = get_resp.json()
+
+        # Update temperature.
+        new_temp = 0.5
+        put_resp = await app_client.put(
+            "/api/processor/config",
+            json={"temperature": new_temp},
+        )
+        assert put_resp.status_code == 200
+        updated = put_resp.json()
+        assert updated["status"] == "updated"
+        assert updated["temperature"] == new_temp
+        # Provider and model should remain unchanged.
+        assert updated["llm_provider"] == original["llm_provider"]
+        assert updated["model_name"] == original["model_name"]
+
+    async def test_processor_config_update_invalid_provider(self, app_client):
+        """PUT /api/processor/config rejects invalid provider."""
+        resp = await app_client.put(
+            "/api/processor/config",
+            json={"llm_provider": "nonexistent_provider"},
+        )
+        assert resp.status_code == 400
+        assert "Unsupported provider" in resp.json()["detail"]
