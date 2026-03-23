@@ -227,6 +227,116 @@ func MacroResponsePartial() map[string]interface{} {
 // RAG Response Fixtures
 // ---------------------------------------------------------------------------
 
+// MacroResponseWithImmediateNews returns a macro response with a HIGH-impact
+// calendar event scheduled 10 minutes from now. This triggers the
+// MR-REJECT-001 news proximity guard (30-minute lockout window).
+func MacroResponseWithImmediateNews() map[string]interface{} {
+	// Build the event time 10 minutes from now in RFC3339 format.
+	eventTime := time.Now().UTC().Add(10 * time.Minute).Format(time.RFC3339)
+
+	return map[string]interface{}{
+		"central_bank": map[string]interface{}{
+			"speeches":       []interface{}{},
+			"rate_decisions": []interface{}{},
+		},
+		"cot": map[string]interface{}{
+			"latest_positions": []interface{}{},
+			"extremes_flagged": []interface{}{},
+		},
+		"economic": map[string]interface{}{
+			"releases": []interface{}{},
+		},
+		"news": map[string]interface{}{
+			"articles": []interface{}{},
+		},
+		"calendar": map[string]interface{}{
+			"events": []interface{}{
+				map[string]interface{}{
+					"event_name": "US Non-Farm Payrolls",
+					"impact":     "HIGH",
+					"event_time": eventTime,
+					"currency":   "USD",
+				},
+			},
+		},
+		"dxy": map[string]interface{}{
+			"latest": map[string]interface{}{
+				"dxy_value":    104.5,
+				"dxy_momentum": "BULLISH",
+			},
+		},
+		"intermarket": map[string]interface{}{
+			"snapshots": []interface{}{},
+		},
+		"sentiment": map[string]interface{}{
+			"risk_environment": "RISK_ON",
+		},
+		"errors": map[string]interface{}{},
+	}
+}
+
+// TAResponseWithSnDCandidates returns a TA response where EURUSD has
+// one SnD candidate (QML_BASELINE) instead of SMC. Tests the SnD path.
+func TAResponseWithSnDCandidates() map[string]interface{} {
+	return map[string]interface{}{
+		"symbol_results": []interface{}{
+			map[string]interface{}{
+				"symbol":         "EURUSD",
+				"status":         "success",
+				"overall_trend":  "BEARISH",
+				"htf_timeframes": []interface{}{"W1", "D1", "H4", "H1"},
+				"ltf_timeframes": []interface{}{"M30", "M15", "M5", "M1"},
+				"smc_candidates": []interface{}{},
+				"snd_candidates": []interface{}{
+					map[string]interface{}{
+						"analysis_id":      "SND-EURUSD-H4-001",
+						"symbol":           "EURUSD",
+						"pattern":          "QML_BASELINE",
+						"direction":        "BEARISH",
+						"entry_price":      1.10500,
+						"stop_loss":        1.11000,
+						"take_profit":      1.09500,
+						"timeframe":        "H4",
+						"confidence":       0.78,
+						"ltf_confirmation": false,
+						"qml_detected":     true,
+					},
+				},
+				"snapshots": map[string]interface{}{
+					"H4": map[string]interface{}{
+						"trend":        "BEARISH",
+						"bms_count":    0.0,
+						"choch_events": []interface{}{},
+					},
+				},
+				"alignment": map[string]interface{}{},
+				"error":     nil,
+			},
+		},
+	}
+}
+
+// TAResponseWithErrorSymbol returns a TA response where the symbol
+// has status="error". The pipeline should filter it out.
+func TAResponseWithErrorSymbol() map[string]interface{} {
+	return map[string]interface{}{
+		"symbol_results": []interface{}{
+			map[string]interface{}{
+				"symbol":         "EURUSD",
+				"status":         "error",
+				"overall_trend":  "NEUTRAL",
+				"htf_timeframes": []interface{}{},
+				"ltf_timeframes": []interface{}{},
+				"smc_candidates": []interface{}{},
+				"snd_candidates": []interface{}{},
+				"snapshots":       map[string]interface{}{},
+				"alignment":       map[string]interface{}{},
+				"error":           "broker connection timeout after 30s",
+			},
+		},
+	}
+}
+
 // RAGResponseWithChunks returns a RAG retrieval response with knowledge
 // chunks. Matches the JSON structure the orchestrator's retrieveRAG
 // method expects from POST /internal/rag/retrieve.
