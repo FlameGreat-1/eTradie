@@ -11,30 +11,39 @@ from engine.processor.constants import DEFAULT_MODELS, LLMProvider
 
 
 class TestProviderValidation:
-    def test_invalid_provider_rejected(self):
+    def test_invalid_provider_rejected(self, monkeypatch):
         """Unrecognized provider string raises ValueError."""
+        monkeypatch.delenv("PROCESSOR_ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("PROCESSOR_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("PROCESSOR_GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("PROCESSOR_API_BASE_URL", raising=False)
         with pytest.raises((ValidationError, ValueError)):
-            ProcessorConfig(llm_provider="fake-ai", anthropic_api_key="k")
+            ProcessorConfig(llm_provider="fake-ai", anthropic_api_key="k", _env_file=None)
 
-    def test_anthropic_requires_key(self):
+    def test_anthropic_requires_key(self, monkeypatch):
         """Anthropic provider without API key raises ValueError."""
+        monkeypatch.delenv("PROCESSOR_ANTHROPIC_API_KEY", raising=False)
         with pytest.raises((ValidationError, ValueError), match="API_KEY"):
-            ProcessorConfig(llm_provider=LLMProvider.ANTHROPIC)
+            ProcessorConfig(llm_provider=LLMProvider.ANTHROPIC, _env_file=None)
 
-    def test_openai_requires_key(self):
+    def test_openai_requires_key(self, monkeypatch):
         """OpenAI provider without API key raises ValueError."""
+        monkeypatch.delenv("PROCESSOR_OPENAI_API_KEY", raising=False)
         with pytest.raises((ValidationError, ValueError), match="API_KEY"):
-            ProcessorConfig(llm_provider=LLMProvider.OPENAI)
+            ProcessorConfig(llm_provider=LLMProvider.OPENAI, _env_file=None)
 
-    def test_gemini_requires_key(self):
+    def test_gemini_requires_key(self, monkeypatch):
         """Gemini provider without API key raises ValueError."""
+        monkeypatch.delenv("PROCESSOR_GEMINI_API_KEY", raising=False)
         with pytest.raises((ValidationError, ValueError), match="API_KEY"):
-            ProcessorConfig(llm_provider=LLMProvider.GEMINI)
+            ProcessorConfig(llm_provider=LLMProvider.GEMINI, _env_file=None)
 
-    def test_self_hosted_requires_base_url(self):
+    def test_self_hosted_requires_base_url(self, monkeypatch):
         """Self-hosted provider without base URL raises ValueError."""
+        monkeypatch.delenv("PROCESSOR_API_BASE_URL", raising=False)
+        monkeypatch.delenv("PROCESSOR_SELF_HOSTED_API_KEY", raising=False)
         with pytest.raises((ValidationError, ValueError), match="API_BASE_URL"):
-            ProcessorConfig(llm_provider=LLMProvider.SELF_HOSTED)
+            ProcessorConfig(llm_provider=LLMProvider.SELF_HOSTED, _env_file=None)
 
     def test_self_hosted_valid_with_url(self):
         """Self-hosted with base URL and no key is valid."""
@@ -72,6 +81,7 @@ class TestDefaultModelInference:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.ANTHROPIC,
             anthropic_api_key="k",
+            _env_file=None,
         )
         assert cfg.model_name == DEFAULT_MODELS[LLMProvider.ANTHROPIC]
 
@@ -79,6 +89,7 @@ class TestDefaultModelInference:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.OPENAI,
             openai_api_key="k",
+            _env_file=None,
         )
         assert cfg.model_name == DEFAULT_MODELS[LLMProvider.OPENAI]
 
@@ -86,6 +97,7 @@ class TestDefaultModelInference:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.GEMINI,
             gemini_api_key="k",
+            _env_file=None,
         )
         assert cfg.model_name == DEFAULT_MODELS[LLMProvider.GEMINI]
 
@@ -93,6 +105,7 @@ class TestDefaultModelInference:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.SELF_HOSTED,
             api_base_url="http://localhost:8000/v1",
+            _env_file=None,
         )
         assert cfg.model_name == DEFAULT_MODELS[LLMProvider.SELF_HOSTED]
 
@@ -111,6 +124,7 @@ class TestGetActiveAPIKey:
             llm_provider=LLMProvider.OPENAI,
             openai_api_key="O_KEY",
             anthropic_api_key="A_KEY",
+            _env_file=None,
         )
         assert cfg.get_active_api_key() == "O_KEY"
 
@@ -118,12 +132,15 @@ class TestGetActiveAPIKey:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.ANTHROPIC,
             anthropic_api_key="A_KEY",
+            _env_file=None,
         )
         assert cfg.get_active_api_key() == "A_KEY"
 
-    def test_self_hosted_empty_key(self):
+    def test_self_hosted_empty_key(self, monkeypatch):
+        monkeypatch.delenv("PROCESSOR_SELF_HOSTED_API_KEY", raising=False)
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.SELF_HOSTED,
             api_base_url="http://localhost:8000/v1",
+            _env_file=None,
         )
         assert cfg.get_active_api_key() == ""

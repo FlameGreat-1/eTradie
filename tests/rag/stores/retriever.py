@@ -52,7 +52,7 @@ class TestRetrievedChunkModel:
         chunk = RetrievedChunk(
             chunk_id=uuid4(),
             document_id=uuid4(),
-            doc_type="generic",
+            doc_type="chart_scenario_library",
             content="Some content",
             score=0.5,
             rank=1,

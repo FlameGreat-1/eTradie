@@ -10,6 +10,8 @@ Pattern detection tests are deferred to integration phase.
 
 from datetime import UTC, datetime
 
+import pytest
+
 from engine.ta.constants import Direction, Timeframe
 
 
@@ -39,8 +41,8 @@ class TestSupplyDemandZoneModels:
             sr_flip_level=1.1150,
             sr_flip_timestamp=datetime(2024, 5, 30, tzinfo=UTC),
         )
-        assert sz.range_size == 0.0050
-        assert sz.midpoint == 1.1175
+        assert sz.range_size == pytest.approx(0.0050)
+        assert sz.midpoint == pytest.approx(1.1175)
         assert sz.is_valid is True
 
     def test_demand_zone(self):
@@ -57,7 +59,7 @@ class TestSupplyDemandZoneModels:
             rs_flip_level=1.0900,
             rs_flip_timestamp=datetime(2024, 5, 30, tzinfo=UTC),
         )
-        assert dz.range_size == 0.0050
+        assert dz.range_size == pytest.approx(0.0050)
         assert dz.is_valid is True
 
 

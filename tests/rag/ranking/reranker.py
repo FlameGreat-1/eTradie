@@ -57,25 +57,25 @@ def reranker(rag_config) -> Reranker:
 class TestDocTypeWeighting:
     def test_master_rulebook_boosted(self, reranker):
         """MASTER_RULEBOOK chunks get a 1.5x weight boost."""
-        generic = _make_chunk(doc_type="generic", score=0.85)
+        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.85)
         rulebook = _make_chunk(doc_type=DocumentType.MASTER_RULEBOOK, score=0.70)
 
-        ranked = reranker.rerank([generic, rulebook])
+        ranked = reranker.rerank([baseline, rulebook])
 
         # Rulebook: 0.70 * 1.5 = 1.05 (capped to 1.0)
-        # Generic:  0.85 * 1.0 = 0.85
+        # Baseline: 0.85 * 1.0 = 0.85
         assert ranked[0].doc_type == DocumentType.MASTER_RULEBOOK
-        assert ranked[1].doc_type == "generic"
+        assert ranked[1].doc_type == DocumentType.CHART_SCENARIO_LIBRARY
 
     def test_smc_framework_boosted(self, reranker):
         """SMC_FRAMEWORK chunks get a 1.3x weight boost."""
-        generic = _make_chunk(doc_type="generic", score=0.80)
+        baseline = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80)
         smc = _make_chunk(doc_type=DocumentType.SMC_FRAMEWORK, score=0.65)
 
-        ranked = reranker.rerank([generic, smc])
+        ranked = reranker.rerank([baseline, smc])
 
         # SMC: 0.65 * 1.3 = 0.845
-        # Generic: 0.80 * 1.0 = 0.80
+        # Baseline: 0.80 * 1.0 = 0.80
         assert ranked[0].doc_type == DocumentType.SMC_FRAMEWORK
 
 
@@ -101,9 +101,9 @@ class TestTruncation:
 class TestSectionBonus:
     def test_section_adds_bonus(self, reranker):
         """Chunks with section metadata get a small score bonus."""
-        no_section = _make_chunk(doc_type="generic", score=0.80)
+        no_section = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80)
         with_section = _make_chunk(
-            doc_type="generic", score=0.80,
+            doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80,
             section="rules", subsection="entry",
         )
 

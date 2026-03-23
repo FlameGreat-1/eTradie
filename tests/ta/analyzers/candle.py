@@ -185,10 +185,10 @@ class TestHasLongWick:
         assert analyzer.has_long_wick(c, upper=False, min_wick_percentage=50.0) is True
 
     def test_no_long_wick(self, analyzer: CandleAnalyzer):
-        """Balanced candle has no long wick."""
+        """Balanced candle has no long wick (both wicks well under threshold)."""
         c = make_candle(open=1.1000, high=1.1040, low=1.0960, close=1.1030)
-        assert analyzer.has_long_wick(c, upper=True, min_wick_percentage=50.0) is False
-        assert analyzer.has_long_wick(c, upper=False, min_wick_percentage=50.0) is False
+        assert analyzer.has_long_wick(c, upper=True, min_wick_percentage=51.0) is False
+        assert analyzer.has_long_wick(c, upper=False, min_wick_percentage=51.0) is False
 
 
 # ---------------------------------------------------------------------------

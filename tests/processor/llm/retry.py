@@ -18,8 +18,9 @@ def fast_config():
         anthropic_api_key="test-key",
         llm_provider=LLMProvider.ANTHROPIC,
         max_retries=3,
-        retry_backoff_base_seconds=0.01,
-        retry_backoff_max_seconds=0.05,
+        retry_backoff_base_seconds=0.5,
+        retry_backoff_max_seconds=5.0,
+        _env_file=None,
     )
 
 

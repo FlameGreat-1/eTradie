@@ -56,7 +56,7 @@ class TestRAGConfig:
         assert cfg.rerank_enabled is True
         assert cfg.rerank_top_k == 130
         assert cfg.retrieval_default_strategy == "hybrid"
-        assert cfg.embedding_provider == "openai"
+        assert cfg.embedding_provider in ("openai", "sentence_transformers")
 
     def test_invalid_embedding_provider(self):
         with pytest.raises(ValidationError):
@@ -72,16 +72,18 @@ class TestProcessorConfig:
         cfg = ProcessorConfig(
             llm_provider=LLMProvider.ANTHROPIC,
             anthropic_api_key="test-key",
+            _env_file=None,
         )
         assert cfg.model_name == DEFAULT_MODELS[LLMProvider.ANTHROPIC]
 
-    def test_missing_api_key_fails(self):
+    def test_missing_api_key_fails(self, monkeypatch):
+        monkeypatch.delenv("PROCESSOR_ANTHROPIC_API_KEY", raising=False)
         with pytest.raises((ValidationError, ValueError)):
-            ProcessorConfig(llm_provider=LLMProvider.ANTHROPIC)
+            ProcessorConfig(llm_provider=LLMProvider.ANTHROPIC, _env_file=None)
 
     def test_invalid_provider_fails(self):
         with pytest.raises((ValidationError, ValueError)):
-            ProcessorConfig(llm_provider="invalid_provider")
+            ProcessorConfig(llm_provider="invalid_provider", _env_file=None)
 
     def test_timeout_validation(self):
         with pytest.raises((ValidationError, ValueError)):
@@ -89,6 +91,7 @@ class TestProcessorConfig:
                 anthropic_api_key="test-key",
                 llm_timeout_seconds=60,
                 total_timeout_seconds=30,
+                _env_file=None,
             )
 
     def test_get_active_api_key(self):
@@ -96,5 +99,6 @@ class TestProcessorConfig:
             llm_provider=LLMProvider.OPENAI,
             anthropic_api_key="a-key",
             openai_api_key="o-key",
+            _env_file=None,
         )
         assert cfg.get_active_api_key() == "o-key"

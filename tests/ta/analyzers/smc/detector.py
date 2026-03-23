@@ -8,6 +8,8 @@ structural patterns. These tests verify the import chain and model
 structure. Pattern detection tests are deferred to integration phase.
 """
 
+import pytest
+
 from engine.ta.constants import Direction, StructureType, Timeframe
 
 
@@ -56,8 +58,8 @@ class TestZoneModels:
             displacement_pips=25.0,
         )
         assert ob.is_bullish is True
-        assert ob.range_size == 0.0050
-        assert ob.midpoint == 1.1025
+        assert ob.range_size == pytest.approx(0.0050)
+        assert ob.midpoint == pytest.approx(1.1025)
 
     def test_fair_value_gap(self):
         from datetime import UTC, datetime
@@ -74,4 +76,4 @@ class TestZoneModels:
         )
         assert fvg.is_bullish is True
         assert fvg.filled is False
-        assert fvg.range_size == 0.0050
+        assert fvg.range_size == pytest.approx(0.0050)
