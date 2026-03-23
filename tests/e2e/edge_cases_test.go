@@ -107,8 +107,12 @@ func TestFullPipeline_NilExecutionPort(t *testing.T) {
 	output := outputs[0]
 	assert.Equal(t, constants.StatusCompleted, output.CycleStatus)
 
-	// If guards passed, execution result should show "pending".
-	if output.CycleOutcome == constants.OutcomeTradeApproved {
+	if output.CycleOutcome == constants.OutcomeRejectedByGuard {
+		t.Logf("INFO: Time-based guards rejected (blocking_rules=%v). "+
+			"Nil execution port assertions skipped. Expected on weekends/off-hours.",
+			output.GuardResult.BlockingRules)
+	} else {
+		require.Equal(t, constants.OutcomeTradeApproved, output.CycleOutcome)
 		require.NotNil(t, output.ExecutionResult)
 		assert.Equal(t, "pending", output.ExecutionResult["status"])
 		assert.Equal(t, "execution_engine_not_implemented", output.ExecutionResult["reason"])
