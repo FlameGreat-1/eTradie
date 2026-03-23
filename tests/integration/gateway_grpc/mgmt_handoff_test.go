@@ -2,7 +2,6 @@ package gateway_grpc
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -109,24 +108,15 @@ type mgmtHandoffHarness struct {
 func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, mgmtErr error) *mgmtHandoffHarness {
 	t.Helper()
 
-	// 1. Start mock Management gRPC server via bufconn.
+	// 1. Start mock Management gRPC server on an ephemeral TCP port.
+	// management.Client creates its own internal gRPC connection, so
+	// we use real TCP (not bufconn) for the management mock.
 	mgmtMock := &mockManagementServer{
 		Success:   mgmtSuccess,
 		TradeID:   mgmtTradeID,
 		Message:   "Trade registered",
 		ReturnErr: mgmtErr,
 	}
-
-	mgmtLis := bufconn.Listen(bufSize)
-	mgmtGrpcServer := grpc.NewServer()
-	managementv1.RegisterManagementServiceServer(mgmtGrpcServer, mgmtMock)
-	go mgmtGrpcServer.Serve(mgmtLis)
-
-	// 2. management.Client has unexported fields and creates its own gRPC
-	// connection internally, so we start the mock on a real ephemeral TCP
-	// port and point management.NewClient at it.
-	mgmtGrpcServer.GracefulStop()
-	mgmtLis.Close()
 
 	tcpLis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
