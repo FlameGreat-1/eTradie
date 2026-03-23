@@ -49,6 +49,7 @@ class TestProcessorOutputDefaults:
         assert out.take_profit is None
         assert out.execution_mode is None
         assert out.ltf_confirmed is False
+        assert out.setup_type is None
         assert out.rejection_rules == []
         assert out.tp1_price is None
         assert out.tp1_pct == 0
@@ -119,6 +120,7 @@ class TestProcessorOutputValidTrade:
             rr_ratio=3.0,
             confluence_score=8.5,
             analysis_id="t-1",
+            setup_type="TURTLE_SOUP",
             raw_response={},
         )
         assert out.trade_valid is True
@@ -128,3 +130,4 @@ class TestProcessorOutputValidTrade:
         assert out.tp2_pct == 30
         assert out.tp3_pct == 30
         assert out.execution_mode == "LIMIT"
+        assert out.setup_type == "TURTLE_SOUP"

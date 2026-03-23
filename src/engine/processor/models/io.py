@@ -95,6 +95,7 @@ class ProcessorOutput(FrozenModel):
     # Execution control overrides explicitly set by the AI processor.
     execution_mode: Optional[str] = None
     ltf_confirmed: bool = False
+    setup_type: Optional[str] = None
 
 
 class ProcessorPort(abc.ABC):
