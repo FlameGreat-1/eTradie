@@ -85,26 +85,22 @@ def _check_chroma() -> tuple[bool, str]:
     if _CHROMA_HOST != "localhost":
         hosts.append("localhost")
 
-    # ChromaDB v2 heartbeat (matching docker-compose healthcheck), then v1 fallback.
-    paths = ["/api/v2/heartbeat", "/api/v1/heartbeat"]
-
     # Build auth headers if token is configured.
     headers = {}
     if _CHROMA_AUTH_TOKEN:
         headers["Authorization"] = f"Bearer {_CHROMA_AUTH_TOKEN}"
 
     for host in hosts:
-        for path in paths:
-            try:
-                resp = httpx.get(
-                    f"http://{host}:{_CHROMA_PORT}{path}",
-                    headers=headers,
-                    timeout=3,
-                )
-                if resp.status_code == 200:
-                    return True, host
-            except Exception:
-                continue
+        try:
+            resp = httpx.get(
+                f"http://{host}:{_CHROMA_PORT}/api/v2/heartbeat",
+                headers=headers,
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                return True, host
+        except Exception:
+            continue
     return False, _CHROMA_HOST
 
 
