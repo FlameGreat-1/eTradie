@@ -31,6 +31,7 @@ _DB_URL = os.getenv(
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _CHROMA_HOST = os.getenv("CHROMA_HOST") or os.getenv("RAG_CHROMA_HOST") or "localhost"
 _CHROMA_PORT = int(os.getenv("CHROMA_PORT") or os.getenv("RAG_CHROMA_PORT") or "8000")
+_CHROMA_AUTH_TOKEN = os.getenv("RAG_CHROMA_AUTH_TOKEN", "")
 
 
 def _check_db() -> bool:
@@ -64,12 +65,16 @@ def _check_redis() -> bool:
         return False
 
 
-def _check_chroma() -> bool:
-    """Check ChromaDB availability, trying multiple hosts and API paths.
+def _check_chroma() -> tuple[bool, str]:
+    """Check ChromaDB availability and return (available, working_host).
 
     Inside Docker the service hostname is 'chromadb' (from docker-compose).
-    Locally it may be 'localhost'. The env var RAG_CHROMA_HOST or CHROMA_HOST
-    should be set correctly, but we also try common fallbacks.
+    Locally it may be 'localhost'. Tries the env var host first, then
+    common Docker/local fallbacks.
+
+    ChromaDB may have token authentication enabled (docker-compose sets
+    CHROMA_SERVER_AUTHN_PROVIDER). The auth token is read from
+    RAG_CHROMA_AUTH_TOKEN to match the app's RAGConfig.chroma_auth_token.
     """
     import httpx
 
@@ -80,27 +85,32 @@ def _check_chroma() -> bool:
     if _CHROMA_HOST != "localhost":
         hosts.append("localhost")
 
-    # ChromaDB API paths vary by version.
-    paths = ["/api/v1/heartbeat", "/api/v2/heartbeat"]
+    # ChromaDB v2 heartbeat (matching docker-compose healthcheck), then v1 fallback.
+    paths = ["/api/v2/heartbeat", "/api/v1/heartbeat"]
+
+    # Build auth headers if token is configured.
+    headers = {}
+    if _CHROMA_AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {_CHROMA_AUTH_TOKEN}"
 
     for host in hosts:
         for path in paths:
             try:
-                resp = httpx.get(f"http://{host}:{_CHROMA_PORT}{path}", timeout=3)
+                resp = httpx.get(
+                    f"http://{host}:{_CHROMA_PORT}{path}",
+                    headers=headers,
+                    timeout=3,
+                )
                 if resp.status_code == 200:
-                    # Update the module-level host so the app_client fixture
-                    # passes the correct host to the FastAPI app.
-                    global _CHROMA_HOST
-                    _CHROMA_HOST = host
-                    return True
+                    return True, host
             except Exception:
                 continue
-    return False
+    return False, _CHROMA_HOST
 
 
 DB_AVAILABLE = _check_db()
 REDIS_AVAILABLE = _check_redis()
-CHROMA_AVAILABLE = _check_chroma()
+CHROMA_AVAILABLE, _CHROMA_HOST = _check_chroma()
 
 skip_no_infra = pytest.mark.skipif(
     not (DB_AVAILABLE and REDIS_AVAILABLE),
