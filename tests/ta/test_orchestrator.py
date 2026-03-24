@@ -1,12 +1,11 @@
 import pytest
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, MagicMock
 from datetime import datetime, timezone
 
 from engine.ta.orchestrator import TAOrchestrator
 from engine.ta.broker.base import BrokerBase
 from engine.ta.models.candle import CandleSequence, Candle
 from engine.ta.constants import Timeframe
-from engine.ta.storage.repositories.candle import CandleRepository
 
 
 def _make_sequence(symbol="EURUSD", timeframe=Timeframe.H1):
@@ -23,11 +22,41 @@ def _make_sequence(symbol="EURUSD", timeframe=Timeframe.H1):
     )
     return CandleSequence(symbol=symbol, timeframe=timeframe, candles=[candle])
 
+
+def _make_mock_uow(candle_rows=None):
+    """Create a mock UoW with repos that have async methods."""
+    uow = AsyncMock()
+    uow.candle_repo = Mock()
+    uow.candle_repo.find_by_time_range = AsyncMock(return_value=candle_rows or [])
+    uow.candle_repo.find_by_symbol_timeframe_timestamp = AsyncMock(return_value=None)
+    uow.candle_repo.create = AsyncMock()
+    uow.candle_repo.bulk_create = AsyncMock()
+    uow.snapshot_repo = Mock()
+    uow.snapshot_repo.create = AsyncMock()
+    uow.candidate_repo = Mock()
+    uow.candidate_repo.create_smc_candidate = AsyncMock()
+    uow.candidate_repo.create_snd_candidate = AsyncMock()
+    return uow
+
+
+def _make_uow_factory(uow):
+    """Create a factory callable that returns a mock UoW as async context manager."""
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=uow)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+
+    def factory():
+        return ctx
+
+    return factory
+
+
 @pytest.fixture
 def mock_broker():
     broker = Mock(spec=BrokerBase)
     broker.fetch_candles = AsyncMock()
     return broker
+
 
 @pytest.fixture
 def mock_fallback_broker():
@@ -35,23 +64,21 @@ def mock_fallback_broker():
     broker.fetch_candles = AsyncMock()
     return broker
 
-@pytest.fixture
-def mock_candle_repo():
-    repo = Mock(spec=CandleRepository)
-    repo.find_by_time_range = AsyncMock(return_value=[])
-    return repo
 
 @pytest.fixture
-def orchestrator(
-    mock_broker, mock_fallback_broker, mock_candle_repo
-):
-    # Mocking all other dependencies with simple MagicMocks since _fetch_sequence 
-    # only hits broker_client, fallback_client, and candle_repository.
+def mock_uow():
+    return _make_mock_uow()
+
+
+@pytest.fixture
+def orchestrator(mock_broker, mock_fallback_broker, mock_uow):
+    ta_uow_factory = _make_uow_factory(mock_uow)
+    ta_read_uow_factory = _make_uow_factory(mock_uow)
+
     return TAOrchestrator(
         broker_client=mock_broker,
-        candle_repository=mock_candle_repo,
-        snapshot_repository=Mock(),
-        candidate_repository=Mock(),
+        ta_uow_factory=ta_uow_factory,
+        ta_read_uow_factory=ta_read_uow_factory,
         smc_detector=Mock(),
         snd_detector=Mock(),
         snapshot_builder=Mock(),
@@ -60,6 +87,7 @@ def orchestrator(
         ta_config=Mock(),
         fallback_client=mock_fallback_broker,
     )
+
 
 @pytest.mark.asyncio
 async def test_fetch_sequence_success_primary_broker(orchestrator, mock_broker, mock_fallback_broker):
@@ -73,6 +101,7 @@ async def test_fetch_sequence_success_primary_broker(orchestrator, mock_broker, 
     assert result is expected_sequence
     mock_broker.fetch_candles.assert_called_once()
     mock_fallback_broker.fetch_candles.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_fetch_sequence_fails_over_to_fallback(orchestrator, mock_broker, mock_fallback_broker):
@@ -89,6 +118,7 @@ async def test_fetch_sequence_fails_over_to_fallback(orchestrator, mock_broker, 
     assert result is fallback_sequence
     mock_broker.fetch_candles.assert_called_once()
     mock_fallback_broker.fetch_candles.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_fetch_sequence_both_brokers_fail(orchestrator, mock_broker, mock_fallback_broker):
