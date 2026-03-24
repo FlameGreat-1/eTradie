@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         container.scheduler,
         symbol_store=symbol_reader,
         broker_client=container.mt5_client,
-        candle_repository=container.candle_repository,
+        ta_uow_factory=container.ta_uow_factory,
     )
 
     container.scheduler.start()

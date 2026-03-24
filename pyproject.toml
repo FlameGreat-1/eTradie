@@ -94,6 +94,7 @@ filterwarnings = [
     "error",
     "ignore::DeprecationWarning:feedparser.*",
     "ignore::DeprecationWarning:asyncio.*",
+    "ignore::ResourceWarning",
 ]
 
 [tool.coverage.run]
