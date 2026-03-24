@@ -20,9 +20,23 @@ from datetime import UTC, datetime, timedelta
 from typing import AsyncGenerator
 from uuid import uuid4
 
+import asyncio
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Session-scoped event loop for session-scoped async fixtures.
+
+    Required by pytest-asyncio when app_client is session-scoped.
+    All async fixtures and tests in this module share this loop.
+    """
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 _DB_URL = os.getenv(
     "DATABASE_URL",
