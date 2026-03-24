@@ -2,13 +2,13 @@ package takeprofit
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
