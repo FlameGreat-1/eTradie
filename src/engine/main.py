@@ -702,6 +702,21 @@ def create_app() -> FastAPI:
         else:
             ta_analysis = {"raw": str(ta_result)}
 
+        # Check if TA analysis produced usable data. If the TA orchestrator
+        # returned an error or insufficient_data status with no candidates,
+        # fail early with 500 rather than proceeding to macro/RAG/processor.
+        ta_status = ta_analysis.get("status", "")
+        ta_has_candidates = (
+            bool(ta_analysis.get("smc_candidates"))
+            or bool(ta_analysis.get("snd_candidates"))
+        )
+        if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
+            ta_error = ta_analysis.get("error", "unknown error")
+            raise HTTPException(
+                status_code=500,
+                detail=f"TA analysis failed: {ta_error}",
+            )
+
         # Step 2: Run macro collection.
         macro_analysis: dict = {}
         try:
