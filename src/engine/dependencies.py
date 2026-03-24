@@ -52,9 +52,7 @@ from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detector import SMCDetector
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
-from engine.ta.storage.repositories.candle import CandleRepository
-from engine.ta.storage.repositories.snapshot import SnapshotRepository
-from engine.ta.storage.repositories.candidate import CandidateRepository
+from engine.ta.storage.uow import ta_uow_factory, ta_read_uow_factory
 from engine.ta.orchestrator import TAOrchestrator
 
 from engine.config import get_rag_config
@@ -248,9 +246,8 @@ class Container:
         )
 
     def _build_ta_repositories(self) -> None:
-        self.candle_repository = CandleRepository(self.db)
-        self.snapshot_repository = SnapshotRepository(self.db)
-        self.candidate_repository = CandidateRepository(self.db)
+        self.ta_uow_factory = ta_uow_factory(self.db)
+        self.ta_read_uow_factory = ta_read_uow_factory(self.db)
 
     def _build_ta_analyzers(self) -> None:
         self.candle_analyzer = CandleAnalyzer()
@@ -303,9 +300,8 @@ class Container:
     def _build_ta_orchestrator(self) -> None:
         self.ta_orchestrator = TAOrchestrator(
             broker_client=self.mt5_client,
-            candle_repository=self.candle_repository,
-            snapshot_repository=self.snapshot_repository,
-            candidate_repository=self.candidate_repository,
+            ta_uow_factory=self.ta_uow_factory,
+            ta_read_uow_factory=self.ta_read_uow_factory,
             smc_detector=self.smc_detector,
             snd_detector=self.snd_detector,
             snapshot_builder=self.snapshot_builder,
@@ -410,12 +406,14 @@ class Container:
             config=self.processor_config,
         )
 
-        uow_factory = processor_uow_factory(self.db)
+        self.processor_uow_factory = processor_uow_factory(self.db)
         self.processor = AnalysisProcessor(
             config=self.processor_config,
             llm_client=self.processor_llm_client,
-            uow_factory=uow_factory,
+            uow_factory=self.processor_uow_factory,
         )
+
+
 
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)

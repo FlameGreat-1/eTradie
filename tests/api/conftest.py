@@ -29,8 +29,9 @@ _DB_URL = os.getenv(
     "postgresql+asyncpg://etradie:etradie_dev@localhost:5432/etradie",
 )
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-_CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
-_CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+_CHROMA_HOST = os.getenv("CHROMA_HOST") or os.getenv("RAG_CHROMA_HOST") or "localhost"
+_CHROMA_PORT = int(os.getenv("CHROMA_PORT") or os.getenv("RAG_CHROMA_PORT") or "8000")
+_CHROMA_AUTH_TOKEN = os.getenv("RAG_CHROMA_AUTH_TOKEN", "")
 
 
 def _check_db() -> bool:
@@ -64,18 +65,48 @@ def _check_redis() -> bool:
         return False
 
 
-def _check_chroma() -> bool:
-    try:
-        import httpx
-        resp = httpx.get(f"http://{_CHROMA_HOST}:{_CHROMA_PORT}/api/v1/heartbeat", timeout=3)
-        return resp.status_code == 200
-    except Exception:
-        return False
+def _check_chroma() -> tuple[bool, str]:
+    """Check ChromaDB availability and return (available, working_host).
+
+    Inside Docker the service hostname is 'chromadb' (from docker-compose).
+    Locally it may be 'localhost'. Tries the env var host first, then
+    common Docker/local fallbacks.
+
+    ChromaDB may have token authentication enabled (docker-compose sets
+    CHROMA_SERVER_AUTHN_PROVIDER). The auth token is read from
+    RAG_CHROMA_AUTH_TOKEN to match the app's RAGConfig.chroma_auth_token.
+    """
+    import httpx
+
+    # Candidate hosts: env var first, then Docker service name, then localhost.
+    hosts = [_CHROMA_HOST]
+    if _CHROMA_HOST != "chromadb":
+        hosts.append("chromadb")
+    if _CHROMA_HOST != "localhost":
+        hosts.append("localhost")
+
+    # Build auth headers if token is configured.
+    headers = {}
+    if _CHROMA_AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {_CHROMA_AUTH_TOKEN}"
+
+    for host in hosts:
+        try:
+            resp = httpx.get(
+                f"http://{host}:{_CHROMA_PORT}/api/v2/heartbeat",
+                headers=headers,
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                return True, host
+        except Exception:
+            continue
+    return False, _CHROMA_HOST
 
 
 DB_AVAILABLE = _check_db()
 REDIS_AVAILABLE = _check_redis()
-CHROMA_AVAILABLE = _check_chroma()
+CHROMA_AVAILABLE, _CHROMA_HOST = _check_chroma()
 
 skip_no_infra = pytest.mark.skipif(
     not (DB_AVAILABLE and REDIS_AVAILABLE),
