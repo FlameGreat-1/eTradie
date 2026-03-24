@@ -158,19 +158,19 @@ func NewHarness(t *testing.T) *Harness {
 	// Mock execution port.
 	execPort := &MockExecutionPort{}
 
-	// Alert hub (in-process only).
+	// Alert hub + Redis transport backed by the real Redis instance.
+	// Redis is running in the container on localhost:6379. Using the real
+	// connection exercises the full pub/sub and history code paths.
 	hub := alert.NewHub()
 
-	// Create a Redis client pointing at an intentionally invalid address.
-	// The alertredis.Transport handles Redis errors gracefully (logs + continues).
-	// This avoids requiring a real Redis instance for E2E tests while still
-	// exercising the real Transport code path for local hub delivery.
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: "localhost:1", // Intentionally unreachable; all Redis ops fail fast.
+		Addr:         "localhost:6379",
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		DialTimeout:  5 * time.Second,
 	})
 	transport := alertredis.NewTransport(redisClient, hub, alertredis.TransportConfig{})
-	// Do NOT call transport.Start() - we don't want the subscriber goroutine
-	// trying to connect to a non-existent Redis.
+	transport.Start(context.Background())
 
 	// Real router wired with mock execution and transport.
 	router := routing.NewRouter(guards, execPort, transport)
