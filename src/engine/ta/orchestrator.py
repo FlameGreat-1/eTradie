@@ -56,9 +56,7 @@ from engine.ta.snd.detectors.qm import QMDetector
 from engine.ta.snd.detectors.rs_flip import RSFlipDetector
 from engine.ta.snd.detectors.sr_flip import SRFlipDetector
 from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
-from engine.ta.storage.repositories.candle import CandleRepository
-from engine.ta.storage.repositories.candidate import CandidateRepository
-from engine.ta.storage.repositories.snapshot import SnapshotRepository
+from engine.ta.storage.uow import TAUOWFactory, TAReadUOWFactory
 
 logger = get_logger(__name__)
 
@@ -88,9 +86,8 @@ class TAOrchestrator:
     def __init__(
         self,
         broker_client: BrokerBase,
-        candle_repository: CandleRepository,
-        snapshot_repository: SnapshotRepository,
-        candidate_repository: CandidateRepository,
+        ta_uow_factory: TAUOWFactory,
+        ta_read_uow_factory: TAReadUOWFactory,
         smc_detector: SMCDetector,
         snd_detector: SnDDetector,
         snapshot_builder: SnapshotBuilder,
@@ -101,9 +98,8 @@ class TAOrchestrator:
     ) -> None:
         self.broker_client = broker_client
         self.fallback_client = fallback_client
-        self.candle_repository = candle_repository
-        self.snapshot_repository = snapshot_repository
-        self.candidate_repository = candidate_repository
+        self._ta_uow_factory = ta_uow_factory
+        self._ta_read_uow_factory = ta_read_uow_factory
         self.smc_detector = smc_detector
         self.snd_detector = snd_detector
         self.snapshot_builder = snapshot_builder
@@ -410,12 +406,13 @@ class TAOrchestrator:
             end_time, timeframe, lookback_periods,
         )
 
-        stored_rows = await self.candle_repository.find_by_time_range(
-            symbol,
-            timeframe.value,
-            start_time,
-            end_time,
-        )
+        async with self._ta_read_uow_factory() as uow:
+            stored_rows = await uow.candle_repo.find_by_time_range(
+                symbol,
+                timeframe.value,
+                start_time,
+                end_time,
+            )
 
         if len(stored_rows) < lookback_periods * 0.8:
             self._logger.info(
@@ -915,40 +912,41 @@ class TAOrchestrator:
         snd_candidates: list[SnDCandidate],
     ) -> None:
         """Persist every per-timeframe snapshot and all candidates."""
-        for tf, snapshot in snapshots.items():
-            await self._persist_snapshot(snapshot)
+        async with self._ta_uow_factory() as uow:
+            for tf, snapshot in snapshots.items():
+                await self._persist_snapshot(snapshot, uow)
 
-        for candidate in smc_candidates:
-            try:
-                await self.candidate_repository.create_smc_candidate(
-                    candidate,
-                )
-            except Exception as e:
-                self._logger.error(
-                    "smc_candidate_persistence_failed",
-                    extra={
-                        "symbol": candidate.symbol,
-                        "pattern": candidate.pattern.value,
-                        "error": str(e),
-                    },
-                    exc_info=True,
-                )
+            for candidate in smc_candidates:
+                try:
+                    await uow.candidate_repo.create_smc_candidate(
+                        candidate,
+                    )
+                except Exception as e:
+                    self._logger.error(
+                        "smc_candidate_persistence_failed",
+                        extra={
+                            "symbol": candidate.symbol,
+                            "pattern": candidate.pattern.value,
+                            "error": str(e),
+                        },
+                        exc_info=True,
+                    )
 
-        for candidate in snd_candidates:
-            try:
-                await self.candidate_repository.create_snd_candidate(
-                    candidate,
-                )
-            except Exception as e:
-                self._logger.error(
-                    "snd_candidate_persistence_failed",
-                    extra={
-                        "symbol": candidate.symbol,
-                        "pattern": candidate.pattern.value,
-                        "error": str(e),
-                    },
-                    exc_info=True,
-                )
+            for candidate in snd_candidates:
+                try:
+                    await uow.candidate_repo.create_snd_candidate(
+                        candidate,
+                    )
+                except Exception as e:
+                    self._logger.error(
+                        "snd_candidate_persistence_failed",
+                        extra={
+                            "symbol": candidate.symbol,
+                            "pattern": candidate.pattern.value,
+                            "error": str(e),
+                        },
+                        exc_info=True,
+                    )
 
         self._logger.debug(
             "persistence_completed",
@@ -960,11 +958,11 @@ class TAOrchestrator:
         )
 
     async def _persist_snapshot(
-        self, snapshot: TechnicalSnapshot,
+        self, snapshot: TechnicalSnapshot, uow,
     ) -> None:
         """Persist a single TechnicalSnapshot to storage."""
         try:
-            await self.snapshot_repository.create(
+            await uow.snapshot_repo.create(
                 symbol=snapshot.symbol,
                 timeframe=snapshot.timeframe.value,
                 timestamp=snapshot.timestamp,
