@@ -29,8 +29,8 @@ _DB_URL = os.getenv(
     "postgresql+asyncpg://etradie:etradie_dev@localhost:5432/etradie",
 )
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-_CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
-_CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+_CHROMA_HOST = os.getenv("CHROMA_HOST") or os.getenv("RAG_CHROMA_HOST") or "localhost"
+_CHROMA_PORT = int(os.getenv("CHROMA_PORT") or os.getenv("RAG_CHROMA_PORT") or "8000")
 
 
 def _check_db() -> bool:
@@ -65,12 +65,37 @@ def _check_redis() -> bool:
 
 
 def _check_chroma() -> bool:
-    try:
-        import httpx
-        resp = httpx.get(f"http://{_CHROMA_HOST}:{_CHROMA_PORT}/api/v1/heartbeat", timeout=3)
-        return resp.status_code == 200
-    except Exception:
-        return False
+    """Check ChromaDB availability, trying multiple hosts and API paths.
+
+    Inside Docker the service hostname is 'chromadb' (from docker-compose).
+    Locally it may be 'localhost'. The env var RAG_CHROMA_HOST or CHROMA_HOST
+    should be set correctly, but we also try common fallbacks.
+    """
+    import httpx
+
+    # Candidate hosts: env var first, then Docker service name, then localhost.
+    hosts = [_CHROMA_HOST]
+    if _CHROMA_HOST != "chromadb":
+        hosts.append("chromadb")
+    if _CHROMA_HOST != "localhost":
+        hosts.append("localhost")
+
+    # ChromaDB API paths vary by version.
+    paths = ["/api/v1/heartbeat", "/api/v2/heartbeat"]
+
+    for host in hosts:
+        for path in paths:
+            try:
+                resp = httpx.get(f"http://{host}:{_CHROMA_PORT}{path}", timeout=3)
+                if resp.status_code == 200:
+                    # Update the module-level host so the app_client fixture
+                    # passes the correct host to the FastAPI app.
+                    global _CHROMA_HOST
+                    _CHROMA_HOST = host
+                    return True
+            except Exception:
+                continue
+    return False
 
 
 DB_AVAILABLE = _check_db()
