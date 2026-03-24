@@ -90,14 +90,18 @@ func NewHarness(t *testing.T) *Harness {
 	// Real EngineHTTPClient pointing at mock.
 	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), 30)
 
-	// Mock Redis (disconnected, all ops fail fast).
+	// Real Redis connection for alert transport and stores.
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: "localhost:1",
+		Addr:         "localhost:6379",
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		DialTimeout:  5 * time.Second,
 	})
 
-	// Alert hub + transport (local-only, no Redis subscriber).
+	// Alert hub + transport backed by real Redis.
 	hub := alert.NewHub()
 	transport := alertredis.NewTransport(redisClient, hub, alertredis.TransportConfig{})
+	transport.Start(context.Background())
 
 	// Build the real infra.RedisClient wrapper is needed by SymbolStore
 	// and SettingsStore. Since we can't construct infra.RedisClient without
@@ -122,17 +126,8 @@ func NewHarness(t *testing.T) *Harness {
 		processor, router, engineHTTP, transport,
 	)
 
-	// SymbolStore and SettingsStore need infra.RedisClient.
-	// Since we can't create one without a valid Redis connection,
-	// we pass nil. The GRPCServer methods that use these will
-	// get nil pointer panics, so we need to handle this.
-	// Actually, NewStore takes *infra.RedisClient which is a struct pointer.
-	// We need a real one. Let's create it even though Redis is unreachable.
-	// The store methods will return errors/defaults, which is correct behavior.
-	//
-	// We can't use infra.NewRedisClient because it parses the URL and
-	// creates a real client. But the URL "redis://localhost:1" will parse fine.
-	redisWrapper, _ := infra.NewRedisClient("redis://localhost:1/0", 1)
+	// SymbolStore and SettingsStore backed by real Redis.
+	redisWrapper, _ := infra.NewRedisClient("redis://localhost:6379/0", 5)
 
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store
