@@ -31,7 +31,7 @@ _DB_URL = os.getenv(
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _CHROMA_HOST = os.getenv("CHROMA_HOST") or os.getenv("RAG_CHROMA_HOST") or "localhost"
 _CHROMA_PORT = int(os.getenv("CHROMA_PORT") or os.getenv("RAG_CHROMA_PORT") or "8000")
-_CHROMA_AUTH_TOKEN = os.getenv("RAG_CHROMA_AUTH_TOKEN", "")
+_CHROMA_AUTH_TOKEN = os.getenv("RAG_CHROMA_AUTH_TOKEN", "") or os.getenv("CHROMA_SERVER_AUTH_CREDENTIALS", "")
 
 
 def _check_db() -> bool:
@@ -144,6 +144,7 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         "RAG_INGEST_ON_STARTUP": "false",
         "RAG_CHROMA_HOST": _CHROMA_HOST,
         "RAG_CHROMA_PORT": str(_CHROMA_PORT),
+        "RAG_CHROMA_AUTH_TOKEN": _CHROMA_AUTH_TOKEN,
     }
 
     # Pass through ALL RAG_ prefixed env vars from the environment.
