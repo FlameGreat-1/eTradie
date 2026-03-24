@@ -126,8 +126,8 @@ func TestFullPipeline_TACollectionFailure(t *testing.T) {
 	// ---------------------------------------------------------------
 	assert.GreaterOrEqual(t, h.Engine.TACalls.Load(), int64(1),
 		"TA should be called at least once (may retry)")
-	assert.Equal(t, int64(1), h.Engine.MacroCalls.Load(),
-		"Macro should be called (parallel with TA)")
+	assert.GreaterOrEqual(t, h.Engine.MacroCalls.Load(), int64(1),
+		"Macro should be called at least once (parallel with TA, may be called again on retry)")
 
 	// ---------------------------------------------------------------
 	// Assert: RAG, Processor, Execution were NOT called.
@@ -179,8 +179,8 @@ func TestFullPipeline_MacroCollectionFailure(t *testing.T) {
 	// ---------------------------------------------------------------
 	// Assert: TA was called, Macro was called (and failed).
 	// ---------------------------------------------------------------
-	assert.Equal(t, int64(1), h.Engine.TACalls.Load(),
-		"TA should be called (parallel with Macro)")
+	assert.GreaterOrEqual(t, h.Engine.TACalls.Load(), int64(1),
+		"TA should be called at least once (parallel with Macro, may be called again on retry)")
 	assert.GreaterOrEqual(t, h.Engine.MacroCalls.Load(), int64(1),
 		"Macro should be called at least once (may retry)")
 

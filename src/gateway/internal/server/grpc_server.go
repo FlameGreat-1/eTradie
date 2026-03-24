@@ -286,12 +286,16 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 
 	oldInterval := s.scheduler.CurrentIntervalSeconds()
 
-	if err := s.settingsStore.SetCycleInterval(ctx, newInterval); err != nil {
-		s.log.Error().Err(err).Int("interval", newInterval).Msg("set_cycle_interval_persist_failed")
-		return nil, status.Errorf(codes.Internal, "failed to persist interval: %v", err)
-	}
-
+	// Update the in-memory scheduler immediately. This always succeeds
+	// and takes effect on the next cycle. Redis persistence is best-effort
+	// for restart survival.
 	s.scheduler.UpdateInterval(time.Duration(newInterval) * time.Second)
+
+	if err := s.settingsStore.SetCycleInterval(ctx, newInterval); err != nil {
+		// Redis persistence failed. The interval IS active for this session
+		// but won't survive a restart. Log warning, don't fail the request.
+		s.log.Warn().Err(err).Int("interval", newInterval).Msg("set_cycle_interval_persist_failed_using_in_memory")
+	}
 
 	s.log.Info().
 		Int("old_interval_seconds", oldInterval).
