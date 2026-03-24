@@ -20,23 +20,9 @@ from datetime import UTC, datetime, timedelta
 from typing import AsyncGenerator
 from uuid import uuid4
 
-import asyncio
-
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Session-scoped event loop for session-scoped async fixtures.
-
-    Required by pytest-asyncio when app_client is session-scoped.
-    All async fixtures and tests in this module share this loop.
-    """
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 _DB_URL = os.getenv(
     "DATABASE_URL",
@@ -128,15 +114,10 @@ skip_no_infra = pytest.mark.skipif(
 )
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def app_client() -> AsyncGenerator[AsyncClient, None]:
     """Create a real FastAPI app with real infrastructure and return
     an httpx.AsyncClient connected to it.
-
-    Session-scoped: the app boots once and is shared across ALL
-    integration tests. The embedding model loads once (~22s saved
-    per additional test class). DB/Redis/ChromaDB connections are
-    reused for the entire test session.
 
     Uses real PostgreSQL, Redis, and ChromaDB (if available).
     Mocks only:
@@ -229,15 +210,11 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def seeded_client(app_client: AsyncClient) -> AsyncGenerator[AsyncClient, None]:
+async def seeded_client(app_client: AsyncClient) -> AsyncClient:
     """app_client with seed analysis data inserted for query tests.
 
     Inserts 5 analysis rows with varying pairs, grades, statuses,
     and providers for testing filters, pagination, and stats.
-
-    Function-scoped: each test gets fresh seed data with unique IDs.
-    Cleanup runs after each test to prevent data leaking between tests
-    (critical since app_client is session-scoped and shared).
     """
     container = app_client._container  # type: ignore[attr-defined]
 
@@ -330,11 +307,7 @@ async def seeded_client(app_client: AsyncClient) -> AsyncGenerator[AsyncClient, 
     ]
 
     from engine.processor.storage.schemas.processor_schema import AnalysisOutputRow
-    from sqlalchemy import delete
 
-    seed_ids = [r["analysis_id"] for r in seed_rows]
-
-    # Insert seed data.
     async with container.db.session() as session:
         for i, row_data in enumerate(seed_rows):
             row = AnalysisOutputRow(
@@ -343,17 +316,10 @@ async def seeded_client(app_client: AsyncClient) -> AsyncGenerator[AsyncClient, 
                 **row_data,
             )
             session.add(row)
+        await session.commit()
 
     # Store seed IDs on the client for assertions.
-    app_client._seed_analysis_ids = seed_ids  # type: ignore[attr-defined]
+    app_client._seed_analysis_ids = [r["analysis_id"] for r in seed_rows]  # type: ignore[attr-defined]
     app_client._seed_count = len(seed_rows)  # type: ignore[attr-defined]
 
-    yield app_client
-
-    # Cleanup: remove seed rows so they don't leak into other tests.
-    async with container.db.session() as session:
-        await session.execute(
-            delete(AnalysisOutputRow).where(
-                AnalysisOutputRow.analysis_id.in_(seed_ids)
-            )
-        )
+    return app_client
