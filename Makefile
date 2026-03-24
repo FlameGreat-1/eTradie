@@ -247,11 +247,11 @@ test-python: ## Run Python engine tests locally (no Docker)
 	docker compose exec engine python -m pytest tests/ -v --tb=short
 	echo -e "$(GREEN)✓ Python tests passed$(NC)"
 
-test-go: ## Run Go unit tests for all services
+test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 	echo -e "$(BLUE)Running Go tests...$(NC)"
-	go test ./src/gateway/... -v -count=1 -timeout 60s
-	go test ./src/execution/... -v -count=1 -timeout 60s
-	go test ./src/management/... -v -count=1 -timeout 60s
+	go test ./src/gateway/... -v -count=1 -timeout 120s
+	go test ./src/execution/... -v -count=1 -timeout 120s
+	go test ./src/management/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Gateway gRPC integration tests...$(NC)"
 	go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
@@ -260,7 +260,7 @@ test-go: ## Run Go unit tests for all services
 	go test ./src/management/brokertest/... -v -count=1 -timeout 60s
 	echo -e "$(GREEN)✓ Go tests passed$(NC)"
 
-test-e2e: ## Run E2E pipeline tests (Gateway orchestrator, no infra needed)
+test-e2e: ## Run E2E pipeline tests (requires Redis for alert transport)
 	echo -e "$(BLUE)Running E2E pipeline tests...$(NC)"
 	go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 	echo -e "$(GREEN)✓ E2E tests passed$(NC)"

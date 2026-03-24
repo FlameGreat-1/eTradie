@@ -82,17 +82,43 @@ jobs:
   test-go:
     runs-on: ubuntu-latest
     needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: etradie
+          POSTGRES_USER: etradie
+          POSTGRES_PASSWORD: etradie_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etradie"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
           cache: true
-      - name: Run Go unit tests
+      - name: Run Go unit and integration tests
         run: |
-          go test ./src/gateway/... -v -count=1 -timeout 60s
-          go test ./src/execution/... -v -count=1 -timeout 60s
-          go test ./src/management/... -v -count=1 -timeout 60s
+          go test ./src/gateway/... -v -count=1 -timeout 120s
+          go test ./src/execution/... -v -count=1 -timeout 120s
+          go test ./src/management/... -v -count=1 -timeout 120s
       - name: Run Gateway gRPC integration tests
         run: go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
       - name: Run Execution broker integration tests
