@@ -114,10 +114,15 @@ skip_no_infra = pytest.mark.skipif(
 )
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def app_client() -> AsyncGenerator[AsyncClient, None]:
     """Create a real FastAPI app with real infrastructure and return
     an httpx.AsyncClient connected to it.
+
+    Session-scoped: the app boots once and is shared across ALL
+    integration tests. The embedding model loads once (~22s saved
+    per additional test class). DB/Redis/ChromaDB connections are
+    reused for the entire test session.
 
     Uses real PostgreSQL, Redis, and ChromaDB (if available).
     Mocks only:
@@ -210,11 +215,15 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def seeded_client(app_client: AsyncClient) -> AsyncClient:
+async def seeded_client(app_client: AsyncClient) -> AsyncGenerator[AsyncClient, None]:
     """app_client with seed analysis data inserted for query tests.
 
     Inserts 5 analysis rows with varying pairs, grades, statuses,
     and providers for testing filters, pagination, and stats.
+
+    Function-scoped: each test gets fresh seed data with unique IDs.
+    Cleanup runs after each test to prevent data leaking between tests
+    (critical since app_client is session-scoped and shared).
     """
     container = app_client._container  # type: ignore[attr-defined]
 
@@ -307,7 +316,11 @@ async def seeded_client(app_client: AsyncClient) -> AsyncClient:
     ]
 
     from engine.processor.storage.schemas.processor_schema import AnalysisOutputRow
+    from sqlalchemy import delete
 
+    seed_ids = [r["analysis_id"] for r in seed_rows]
+
+    # Insert seed data.
     async with container.db.session() as session:
         for i, row_data in enumerate(seed_rows):
             row = AnalysisOutputRow(
@@ -316,10 +329,17 @@ async def seeded_client(app_client: AsyncClient) -> AsyncClient:
                 **row_data,
             )
             session.add(row)
-        await session.commit()
 
     # Store seed IDs on the client for assertions.
-    app_client._seed_analysis_ids = [r["analysis_id"] for r in seed_rows]  # type: ignore[attr-defined]
+    app_client._seed_analysis_ids = seed_ids  # type: ignore[attr-defined]
     app_client._seed_count = len(seed_rows)  # type: ignore[attr-defined]
 
-    return app_client
+    yield app_client
+
+    # Cleanup: remove seed rows so they don't leak into other tests.
+    async with container.db.session() as session:
+        await session.execute(
+            delete(AnalysisOutputRow).where(
+                AnalysisOutputRow.analysis_id.in_(seed_ids)
+            )
+        )
