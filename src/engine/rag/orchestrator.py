@@ -146,7 +146,9 @@ class RAGOrchestrator:
         # chunks that meet mandatory minimums instead of truncating them.
         if self._config.rerank_enabled:
             chunks = self._reranker.rerank(
-                chunks, strategy=effective_strategy, mandatory=mandatory,
+                chunks,
+                strategy=effective_strategy,
+                mandatory=mandatory,
             )
 
         version_map = await self._build_version_map(chunks)
@@ -328,7 +330,7 @@ class RAGOrchestrator:
 
         families_to_try = setup_families if setup_families else [None]
 
-        for fw in (frameworks_to_try or [None]):
+        for fw in frameworks_to_try or [None]:
             for family in families_to_try:
                 matched = await self._scenario_matcher.match(
                     framework=fw,
@@ -346,7 +348,8 @@ class RAGOrchestrator:
         return all_scenarios[:25]
 
     async def _build_version_map(
-        self, chunks: list[RetrievedChunk],
+        self,
+        chunks: list[RetrievedChunk],
     ) -> dict[UUID, UUID]:
         version_map: dict[UUID, UUID] = {}
         seen_doc_ids: set[UUID] = set()

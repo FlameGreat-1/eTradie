@@ -44,7 +44,8 @@ class IntermarketCollector(BaseCollector):
             collected_at=datetime.now(UTC),
         )
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

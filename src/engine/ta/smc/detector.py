@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 class SMCDetector:
     """
     SMC orchestration entrypoint.
-    
+
     Coordinates all SMC pattern detection:
     1. Runs all SMC detectors (BMS, CHOCH, SMS, inducement, turtle soup, AMD)
     2. Extracts zones (OB, FVG, breaker blocks)
@@ -46,7 +46,7 @@ class SMCDetector:
     4. Validates LTF confirmations (6 requirements)
     5. Builds candidates using continuation/reversal/AMD builders
     6. Outputs SMCCandidate models for processor
-    
+
     Enforces all 12 Universal Rules:
     - Liquidity must be taken first
     - Always trade in direction of HTF BMS
@@ -61,7 +61,7 @@ class SMCDetector:
     - Top-down timeframe execution (mandatory)
     - Turtle Soup minimum SL
     """
-    
+
     def __init__(
         self,
         config: SMCConfig,
@@ -81,22 +81,24 @@ class SMCDetector:
         self.sweep_analyzer = sweep_analyzer
         self.fibonacci_analyzer = fibonacci_analyzer
         self.dealing_range_analyzer = dealing_range_analyzer
-        
+
         self.bms_detector = BMSDetector(config)
         self.choch_detector = CHOCHDetector(config)
         self.sms_detector = SMSDetector(config)
         self.inducement_detector = InducementDetector(config)
         self.turtle_soup_detector = TurtleSoupDetector(config, sweep_analyzer)
-        self.amd_detector = AMDDetector(config, session_analyzer, dealing_range_analyzer)
-        
+        self.amd_detector = AMDDetector(
+            config, session_analyzer, dealing_range_analyzer
+        )
+
         self.fvg_detector = FVGDetector(config, candle_analyzer)
         self.ob_detector = OrderBlockDetector(config)
         self.breaker_detector = BreakerDetector(config)
         self.mitigation_detector = MitigationDetector(config)
-        
+
         self.zone_validator = ZoneValidator(config, fibonacci_analyzer)
         self.ltf_validator = LTFConfirmationValidator(config, session_analyzer)
-        
+
         self.continuation_builder = ContinuationBuilder(
             config,
             self.zone_validator,
@@ -115,9 +117,9 @@ class SMCDetector:
             self.ltf_validator,
             fibonacci_analyzer,
         )
-        
+
         self._logger = get_logger(__name__)
-    
+
     def detect_patterns(
         self,
         htf_sequence: CandleSequence,
@@ -125,7 +127,7 @@ class SMCDetector:
     ) -> list[SMCCandidate]:
         """
         Main orchestration method - detects all SMC patterns and builds candidates.
-        
+
         Top-down execution (Universal Rule 11):
         1. HTF: Identify structure (BMS, SMS, swings)
         2. LTF: Refine entry (CHOCH, OB, FVG, sweeps)
@@ -134,7 +136,7 @@ class SMCDetector:
         """
         if not self.config.enabled:
             return []
-        
+
         self._logger.info(
             "smc_detection_started",
             extra={
@@ -143,27 +145,43 @@ class SMCDetector:
                 "ltf_timeframe": ltf_sequence.timeframe,
             },
         )
-        
+
         htf_swing_highs = self.swing_analyzer.detect_swing_highs(htf_sequence)
         htf_swing_lows = self.swing_analyzer.detect_swing_lows(htf_sequence)
-        
-        htf_bms_bullish = self.bms_detector.detect_bullish_bms(htf_sequence, htf_swing_highs)
-        htf_bms_bearish = self.bms_detector.detect_bearish_bms(htf_sequence, htf_swing_lows)
-        
-        htf_sms_bullish = self.sms_detector.detect_bullish_sms(htf_sequence, htf_swing_lows)
-        htf_sms_bearish = self.sms_detector.detect_bearish_sms(htf_sequence, htf_swing_highs)
-        
+
+        htf_bms_bullish = self.bms_detector.detect_bullish_bms(
+            htf_sequence, htf_swing_highs
+        )
+        htf_bms_bearish = self.bms_detector.detect_bearish_bms(
+            htf_sequence, htf_swing_lows
+        )
+
+        htf_sms_bullish = self.sms_detector.detect_bullish_sms(
+            htf_sequence, htf_swing_lows
+        )
+        htf_sms_bearish = self.sms_detector.detect_bearish_sms(
+            htf_sequence, htf_swing_highs
+        )
+
         ltf_swing_highs = self.swing_analyzer.detect_swing_highs(ltf_sequence)
         ltf_swing_lows = self.swing_analyzer.detect_swing_lows(ltf_sequence)
-        
-        ltf_bms_bullish = self.bms_detector.detect_bullish_bms(ltf_sequence, ltf_swing_highs)
-        ltf_bms_bearish = self.bms_detector.detect_bearish_bms(ltf_sequence, ltf_swing_lows)
-        
-        ltf_choch_bullish = self.choch_detector.detect_bullish_choch(ltf_sequence, ltf_swing_highs)
-        ltf_choch_bearish = self.choch_detector.detect_bearish_choch(ltf_sequence, ltf_swing_lows)
-        
+
+        ltf_bms_bullish = self.bms_detector.detect_bullish_bms(
+            ltf_sequence, ltf_swing_highs
+        )
+        ltf_bms_bearish = self.bms_detector.detect_bearish_bms(
+            ltf_sequence, ltf_swing_lows
+        )
+
+        ltf_choch_bullish = self.choch_detector.detect_bullish_choch(
+            ltf_sequence, ltf_swing_highs
+        )
+        ltf_choch_bearish = self.choch_detector.detect_bearish_choch(
+            ltf_sequence, ltf_swing_lows
+        )
+
         ltf_fvgs = self.fvg_detector.detect_fvgs(ltf_sequence)
-        
+
         ltf_inducement_bullish = self.inducement_detector.detect_bullish_inducement(
             ltf_sequence,
             ltf_swing_lows,
@@ -172,7 +190,7 @@ class SMCDetector:
             ltf_sequence,
             ltf_swing_highs,
         )
-        
+
         turtle_soup_long = []
         turtle_soup_short = []
         if self.config.enable_turtle_soup:
@@ -184,18 +202,18 @@ class SMCDetector:
                 ltf_sequence,
                 ltf_swing_highs,
             )
-        
+
         amd_context = None
         if self.config.enable_amd:
             amd_context = self.amd_detector.detect_amd_context(ltf_sequence)
-        
+
         retracement = self._create_fibonacci_retracement(
             htf_swing_highs,
             htf_swing_lows,
         )
-        
+
         candidates = []
-        
+
         # Build Continuation Candidates (Pattern 2/7: SH + BMS + RTO)
         if self.config.enable_sh_bms_rto:
             candidates.extend(
@@ -214,7 +232,7 @@ class SMCDetector:
                     retracement,
                 )
             )
-        
+
         # Build Reversal Candidates (Pattern 3/8: SMS + BMS + RTO)
         if self.config.enable_sms_bms_rto:
             candidates.extend(
@@ -232,7 +250,7 @@ class SMCDetector:
                     retracement,
                 )
             )
-        
+
         # Build Turtle Soup Candidates (Pattern 1/6)
         if self.config.enable_turtle_soup:
             candidates.extend(
@@ -242,7 +260,7 @@ class SMCDetector:
                     turtle_soup_short,
                 )
             )
-        
+
         # Build AMD Candidates (Pattern 4/9)
         if self.config.enable_amd and amd_context:
             candidates.extend(
@@ -260,7 +278,7 @@ class SMCDetector:
                     retracement,
                 )
             )
-        
+
         self._logger.info(
             "smc_detection_completed",
             extra={
@@ -274,9 +292,9 @@ class SMCDetector:
                 "turtle_soup_short": len(turtle_soup_short),
             },
         )
-        
+
         return candidates
-    
+
     def _build_continuation_candidates(
         self,
         htf_sequence: CandleSequence,
@@ -293,20 +311,22 @@ class SMCDetector:
         retracement: Optional[FibonacciRetracement],
     ) -> list[SMCCandidate]:
         candidates = []
-        
+
         latest_htf_bms_bullish = self.bms_detector.get_latest_bms(htf_bms_bullish)
         if latest_htf_bms_bullish and ltf_bms_bullish and ltf_choch_bullish:
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 if not ltf_choch:
                     continue
-                
-                ltf_sweep = self._find_relevant_sweep(sweeps, Direction.BULLISH, ltf_bms)
-                
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BULLISH, ltf_bms
+                )
+
                 candidate = self.continuation_builder.build_bullish_continuation(
                     htf_sequence,
                     ltf_sequence,
@@ -319,23 +339,25 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         latest_htf_bms_bearish = self.bms_detector.get_latest_bms(htf_bms_bearish)
         if latest_htf_bms_bearish and ltf_bms_bearish and ltf_choch_bearish:
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 if not ltf_choch:
                     continue
-                
-                ltf_sweep = self._find_relevant_sweep(sweeps, Direction.BEARISH, ltf_bms)
-                
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BEARISH, ltf_bms
+                )
+
                 candidate = self.continuation_builder.build_bearish_continuation(
                     htf_sequence,
                     ltf_sequence,
@@ -348,12 +370,12 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         return candidates
-    
+
     def _build_reversal_candidates(
         self,
         htf_sequence: CandleSequence,
@@ -369,18 +391,18 @@ class SMCDetector:
         retracement: Optional[FibonacciRetracement],
     ) -> list[SMCCandidate]:
         candidates = []
-        
+
         latest_htf_sms_bullish = self.sms_detector.get_latest_sms(htf_sms_bullish)
         if latest_htf_sms_bullish and ltf_bms_bullish and ltf_choch_bullish:
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 if not ltf_choch:
                     continue
-                
+
                 candidate = self.reversal_builder.build_bullish_sms_reversal(
                     htf_sequence,
                     ltf_sequence,
@@ -392,21 +414,21 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         latest_htf_sms_bearish = self.sms_detector.get_latest_sms(htf_sms_bearish)
         if latest_htf_sms_bearish and ltf_bms_bearish and ltf_choch_bearish:
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 if not ltf_choch:
                     continue
-                
+
                 candidate = self.reversal_builder.build_bearish_sms_reversal(
                     htf_sequence,
                     ltf_sequence,
@@ -418,12 +440,12 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         return candidates
-    
+
     def _build_turtle_soup_candidates(
         self,
         ltf_sequence: CandleSequence,
@@ -431,7 +453,7 @@ class SMCDetector:
         turtle_soup_short: list,
     ) -> list[SMCCandidate]:
         candidates = []
-        
+
         for sweep in turtle_soup_long:
             candidate = self.reversal_builder.build_turtle_soup_long(
                 ltf_sequence,
@@ -439,7 +461,7 @@ class SMCDetector:
             )
             if candidate:
                 candidates.append(candidate)
-        
+
         for sweep in turtle_soup_short:
             candidate = self.reversal_builder.build_turtle_soup_short(
                 ltf_sequence,
@@ -447,9 +469,9 @@ class SMCDetector:
             )
             if candidate:
                 candidates.append(candidate)
-        
+
         return candidates
-    
+
     def _build_amd_candidates(
         self,
         htf_sequence: CandleSequence,
@@ -465,19 +487,21 @@ class SMCDetector:
         retracement: Optional[FibonacciRetracement],
     ) -> list[SMCCandidate]:
         candidates = []
-        
+
         if amd_context.distribution_direction == Direction.BULLISH:
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 if not ltf_choch:
                     continue
-                
-                ltf_sweep = self._find_relevant_sweep(sweeps, Direction.BULLISH, ltf_bms)
-                
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BULLISH, ltf_bms
+                )
+
                 candidate = self.amd_builder.build_bullish_amd(
                     htf_sequence,
                     ltf_sequence,
@@ -490,22 +514,24 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         elif amd_context.distribution_direction == Direction.BEARISH:
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-                
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 if not ltf_choch:
                     continue
-                
-                ltf_sweep = self._find_relevant_sweep(sweeps, Direction.BEARISH, ltf_bms)
-                
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BEARISH, ltf_bms
+                )
+
                 candidate = self.amd_builder.build_bearish_amd(
                     htf_sequence,
                     ltf_sequence,
@@ -518,12 +544,12 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-                
+
                 if candidate:
                     candidates.append(candidate)
-        
+
         return candidates
-    
+
     def _create_fibonacci_retracement(
         self,
         swing_highs: list[SwingHigh],
@@ -531,21 +557,21 @@ class SMCDetector:
     ) -> Optional[FibonacciRetracement]:
         if not swing_highs or not swing_lows:
             return None
-        
+
         latest_high = self.swing_analyzer.get_latest_swing_high(swing_highs)
         latest_low = self.swing_analyzer.get_latest_swing_low(swing_lows)
-        
+
         if not latest_high or not latest_low:
             return None
-        
+
         is_bullish = latest_low.timestamp > latest_high.timestamp
-        
+
         return self.fibonacci_analyzer.create_retracement(
             latest_high,
             latest_low,
             is_bullish,
         )
-    
+
     def _find_relevant_sweep(
         self,
         sweeps: list,
@@ -554,10 +580,15 @@ class SMCDetector:
     ) -> Optional[LiquiditySweep]:
         for sweep in sweeps:
             if abs(sweep.timestamp.timestamp() - bms.timestamp.timestamp()) < 3600:
-                if direction == Direction.BULLISH and sweep.liquidity_type.value in ["SSL", "EQUAL_LOWS"]:
+                if direction == Direction.BULLISH and sweep.liquidity_type.value in [
+                    "SSL",
+                    "EQUAL_LOWS",
+                ]:
                     return sweep
-                elif direction == Direction.BEARISH and sweep.liquidity_type.value in ["BSL", "EQUAL_HIGHS"]:
+                elif direction == Direction.BEARISH and sweep.liquidity_type.value in [
+                    "BSL",
+                    "EQUAL_HIGHS",
+                ]:
                     return sweep
-        
-        return None
 
+        return None

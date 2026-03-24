@@ -23,7 +23,9 @@ class SentimentCollector(BaseCollector):
                 all_sentiments.extend(data)
                 sources.append(provider.provider_name)
             except Exception:
-                logger.warning("sentiment_provider_skipped", provider=provider.provider_name)
+                logger.warning(
+                    "sentiment_provider_skipped", provider=provider.provider_name
+                )
 
         # Attempt to read intermarket cache for risk environment assessment
         intermarket_raw = await self._cache.get("intermarket", "latest")
@@ -53,7 +55,8 @@ class SentimentCollector(BaseCollector):
             "collected_at": datetime.now(UTC).isoformat(),
         }
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             result,
             self.cache_ttl,
         )

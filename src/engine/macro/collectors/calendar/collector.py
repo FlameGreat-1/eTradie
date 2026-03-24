@@ -23,7 +23,9 @@ class CalendarCollector(BaseCollector):
                 all_events.extend(events)
                 sources.append(provider.provider_name)
             except Exception:
-                logger.warning("calendar_provider_skipped", provider=provider.provider_name)
+                logger.warning(
+                    "calendar_provider_skipped", provider=provider.provider_name
+                )
 
         async with self._db.session() as session:
             for event in all_events:
@@ -46,7 +48,8 @@ class CalendarCollector(BaseCollector):
         )
 
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

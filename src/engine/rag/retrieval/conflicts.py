@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from engine.rag.constants import ConflictResult, DocumentType, METADATA_KEY_DIRECTION, METADATA_KEY_FRAMEWORK
+from engine.rag.constants import (
+    ConflictResult,
+    DocumentType,
+    METADATA_KEY_DIRECTION,
+    METADATA_KEY_FRAMEWORK,
+)
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.shared.logging import get_logger
 from engine.shared.metrics import RAG_CONFLICT_DETECTIONS_TOTAL
@@ -11,11 +16,13 @@ logger = get_logger(__name__)
 
 # Document types that are reference material containing both directions
 # by design. These should NEVER trigger directional conflicts.
-_REFERENCE_DOC_TYPES: frozenset[str] = frozenset({
-    DocumentType.MASTER_RULEBOOK,
-    DocumentType.TRADING_STYLE_RULES,
-    DocumentType.CHART_SCENARIO_LIBRARY,
-})
+_REFERENCE_DOC_TYPES: frozenset[str] = frozenset(
+    {
+        DocumentType.MASTER_RULEBOOK,
+        DocumentType.TRADING_STYLE_RULES,
+        DocumentType.CHART_SCENARIO_LIBRARY,
+    }
+)
 
 
 def detect_conflicts(
@@ -61,9 +68,7 @@ def detect_conflicts(
             conflict_desc = ", ".join(
                 f"{fw}={d}" for fw, d in sorted(conflicting_frameworks.items())
             )
-            details.append(
-                f"Cross-framework directional conflict: {conflict_desc}"
-            )
+            details.append(f"Cross-framework directional conflict: {conflict_desc}")
 
     if details:
         logger.warning(

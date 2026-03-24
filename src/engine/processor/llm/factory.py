@@ -33,18 +33,24 @@ def create_llm_client(config: ProcessorConfig) -> LLMClient:
 
     if provider == LLMProvider.ANTHROPIC:
         from engine.processor.llm.providers.anthropic import AnthropicClient
+
         client = AnthropicClient(config)
 
     elif provider == LLMProvider.OPENAI:
         from engine.processor.llm.providers.openai_provider import OpenAIClient
+
         client = OpenAIClient(config)
 
     elif provider == LLMProvider.GEMINI:
         from engine.processor.llm.providers.gemini import GeminiClient
+
         client = GeminiClient(config)
 
     elif provider == LLMProvider.SELF_HOSTED:
-        from engine.processor.llm.providers.openai_compatible import OpenAICompatibleClient
+        from engine.processor.llm.providers.openai_compatible import (
+            OpenAICompatibleClient,
+        )
+
         client = OpenAICompatibleClient(config)
 
     else:

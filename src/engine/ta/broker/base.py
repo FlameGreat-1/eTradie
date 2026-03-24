@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class BrokerCapabilities(FrozenModel):
-    
+
     supports_realtime: bool = Field(default=True)
     supports_historical: bool = Field(default=True)
     supports_tick_data: bool = Field(default=False)
@@ -26,6 +26,7 @@ class BrokerCapabilities(FrozenModel):
 
 class AccountInfo(FrozenModel):
     """Live broker account state."""
+
     balance: float = Field(ge=0)
     equity: float
     margin: float = Field(ge=0)
@@ -35,6 +36,7 @@ class AccountInfo(FrozenModel):
 
 class PositionInfo(FrozenModel):
     """Open broker position."""
+
     symbol: str
     direction: str  # "BUY" or "SELL"
     entry_price: float = Field(gt=0)
@@ -50,6 +52,7 @@ class PositionInfo(FrozenModel):
 
 class PendingOrderInfo(FrozenModel):
     """Pending limit/stop order at the broker."""
+
     symbol: str
     order_type: int  # MT5 order type enum
     price: float = Field(gt=0)
@@ -63,6 +66,7 @@ class PendingOrderInfo(FrozenModel):
 
 class TickPrice(FrozenModel):
     """Latest bid/ask for a symbol."""
+
     bid: float = Field(gt=0)
     ask: float = Field(gt=0)
     time: int = Field(default=0)  # Unix timestamp
@@ -70,6 +74,7 @@ class TickPrice(FrozenModel):
 
 class OrderResult(FrozenModel):
     """Broker response after order placement."""
+
     order_id: int = Field(default=0)
     price: float = Field(ge=0, default=0.0)
     status: str  # "PLACED", "FILLED", "REJECTED"
@@ -77,15 +82,15 @@ class OrderResult(FrozenModel):
 
 
 class BrokerBase(ABC):
-    
+
     def __init__(self, broker_id: str) -> None:
         self.broker_id = broker_id
         self._logger = get_logger(f"{__name__}.{broker_id}")
-    
+
     @abstractmethod
     async def get_capabilities(self) -> BrokerCapabilities:
         pass
-    
+
     @abstractmethod
     async def fetch_candles(
         self,
@@ -96,7 +101,7 @@ class BrokerBase(ABC):
         count: Optional[int] = None,
     ) -> CandleSequence:
         pass
-    
+
     @abstractmethod
     async def fetch_latest_candle(
         self,
@@ -104,19 +109,19 @@ class BrokerBase(ABC):
         timeframe: Timeframe,
     ) -> Candle:
         pass
-    
+
     @abstractmethod
     async def get_symbol_info(self, symbol: str) -> dict:
         pass
-    
+
     @abstractmethod
     async def validate_symbol(self, symbol: str) -> bool:
         pass
-    
+
     @abstractmethod
     async def health_check(self) -> bool:
         pass
-    
+
     async def fetch_candles_safe(
         self,
         symbol: str,
@@ -156,7 +161,7 @@ class BrokerBase(ABC):
                 exc_info=True,
             )
             return None
-    
+
     async def fetch_latest_candle_safe(
         self,
         symbol: str,

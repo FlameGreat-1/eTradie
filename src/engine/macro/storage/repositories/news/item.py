@@ -31,7 +31,9 @@ class NewsRepository(BaseRepository[NewsItemRow]):
         return await self.execute_query(stmt)
 
     async def exists_by_hash(self, dedupe_hash: str) -> bool:
-        stmt = select(self.model.id).where(self.model.dedupe_hash == dedupe_hash).limit(1)
+        stmt = (
+            select(self.model.id).where(self.model.dedupe_hash == dedupe_hash).limit(1)
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
 

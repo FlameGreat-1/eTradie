@@ -55,7 +55,9 @@ class NewsAPIProvider(BaseNewsProvider):
         description = str(article.get("description", ""))
         full_text = f"{headline} {description}"
         try:
-            pub = datetime.fromisoformat(str(article.get("publishedAt", "")).replace("Z", "+00:00"))
+            pub = datetime.fromisoformat(
+                str(article.get("publishedAt", "")).replace("Z", "+00:00")
+            )
         except (ValueError, TypeError):
             pub = datetime.now(UTC)
 

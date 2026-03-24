@@ -42,14 +42,16 @@ class ScenarioFirstStrategy:
     ) -> list[RetrievedChunk]:
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
-        all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
+        all_setup_fams = all_setup_families or (
+            [setup_family] if setup_family else None
+        )
 
         # Weighted budget: frameworks and macro get the largest share,
         # scenarios get a small boost for pattern reasoning examples.
-        rules_k = max(3, top_k // 4)              # ~25%
-        framework_k = max(3, top_k // 3)           # ~33%
-        macro_k = max(3, top_k // 3)               # ~33%
-        scenario_k = max(3, top_k // 10) + 3       # ~9% + boost
+        rules_k = max(3, top_k // 4)  # ~25%
+        framework_k = max(3, top_k // 3)  # ~33%
+        macro_k = max(3, top_k // 3)  # ~33%
+        scenario_k = max(3, top_k // 10) + 3  # ~9% + boost
 
         # Scenarios (supplementary reasoning examples)
         scenario_chunks = await self._retriever.retrieve(

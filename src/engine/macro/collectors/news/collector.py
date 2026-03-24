@@ -35,17 +35,19 @@ class NewsCollector(BaseCollector):
             for item in all_items:
                 if await repo.exists_by_hash(item.dedupe_hash):
                     continue
-                rows = [{
-                    "headline": item.headline,
-                    "source": item.source,
-                    "url": item.url,
-                    "summary": item.summary,
-                    "currencies": [c.value for c in item.currencies_mentioned],
-                    "sentiment": item.sentiment.value,
-                    "impact": item.impact.value,
-                    "dedupe_hash": item.dedupe_hash,
-                    "published_at": item.published_at,
-                }]
+                rows = [
+                    {
+                        "headline": item.headline,
+                        "source": item.source,
+                        "url": item.url,
+                        "summary": item.summary,
+                        "currencies": [c.value for c in item.currencies_mentioned],
+                        "sentiment": item.sentiment.value,
+                        "impact": item.impact.value,
+                        "dedupe_hash": item.dedupe_hash,
+                        "published_at": item.published_at,
+                    }
+                ]
                 await repo.bulk_upsert(
                     rows,
                     index_elements=["dedupe_hash"],
@@ -57,7 +59,8 @@ class NewsCollector(BaseCollector):
             collected_at=datetime.now(UTC),
         )
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

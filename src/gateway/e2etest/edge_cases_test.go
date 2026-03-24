@@ -188,7 +188,7 @@ func TestFullPipeline_SnDCandidatesOnly(t *testing.T) {
 		"trading_style":    "INTRADAY",
 		"session":          "LONDON_OPEN",
 		"rr_ratio":         2.0,
-		"confluence_score":  7.0,
+		"confluence_score": 7.0,
 		"analysis_id":      "SND-EURUSD-H4-001",
 		"execution_mode":   "LIMIT",
 		"ltf_confirmed":    false,

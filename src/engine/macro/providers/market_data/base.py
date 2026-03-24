@@ -11,5 +11,4 @@ class BaseMarketDataProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.MARKET_DATA
 
     @abc.abstractmethod
-    async def fetch(self) -> IntermarketSnapshot:
-        ...
+    async def fetch(self) -> IntermarketSnapshot: ...

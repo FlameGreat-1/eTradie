@@ -96,7 +96,9 @@ class ZmqClient(BrokerBase):
             extra={"endpoint": self._endpoint},
         )
 
-    async def _send_recv_async(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
+    async def _send_recv_async(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
         """Send JSON request and receive JSON response asynchronously."""
         import json
 
@@ -112,7 +114,10 @@ class ZmqClient(BrokerBase):
         except zmq.Again:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
-                details={"endpoint": self._endpoint, "timeout": self.config.timeout_seconds},
+                details={
+                    "endpoint": self._endpoint,
+                    "timeout": self.config.timeout_seconds,
+                },
             )
 
         try:
@@ -120,7 +125,10 @@ class ZmqClient(BrokerBase):
         except zmq.Again:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
-                details={"endpoint": self._endpoint, "timeout": self.config.timeout_seconds},
+                details={
+                    "endpoint": self._endpoint,
+                    "timeout": self.config.timeout_seconds,
+                },
             )
 
         reply = json.loads(raw_reply.decode("utf-8"))
@@ -133,6 +141,7 @@ class ZmqClient(BrokerBase):
             )
 
         from typing import cast
+
         return cast(dict[str, Any] | list[Any], reply)
 
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
@@ -213,10 +222,7 @@ class ZmqClient(BrokerBase):
             candles = self._parse_candles(raw, symbol, timeframe)
 
             if start_time and end_time:
-                candles = [
-                    c for c in candles
-                    if start_time <= c.timestamp <= end_time
-                ]
+                candles = [c for c in candles if start_time <= c.timestamp <= end_time]
 
             if not candles:
                 raise ProviderResponseError(
@@ -295,10 +301,12 @@ class ZmqClient(BrokerBase):
         return sequence.candles[-1]
 
     async def get_symbol_info(self, symbol: str) -> dict:
-        reply = await self._request({
-            "command": "SYMBOL_INFO",
-            "symbol": symbol,
-        })
+        reply = await self._request(
+            {
+                "command": "SYMBOL_INFO",
+                "symbol": symbol,
+            }
+        )
 
         if not reply or not isinstance(reply, dict):
             raise ProviderResponseError(
@@ -384,19 +392,21 @@ class ZmqClient(BrokerBase):
         positions = []
         for p in raw:
             direction = "BUY" if p.get("type", 0) == 0 else "SELL"
-            positions.append(PositionInfo(
-                symbol=p.get("symbol", ""),
-                direction=direction,
-                entry_price=float(p.get("price_open", 0)),
-                current_price=float(p.get("price_current", 0)),
-                stop_loss=float(p.get("sl", 0)),
-                take_profit=float(p.get("tp", 0)),
-                volume=float(p.get("volume", 0)),
-                profit=float(p.get("profit", 0)),
-                ticket=str(p.get("ticket", "")),
-                comment=p.get("comment", ""),
-                open_time=int(p.get("time_setup", 0)),
-            ))
+            positions.append(
+                PositionInfo(
+                    symbol=p.get("symbol", ""),
+                    direction=direction,
+                    entry_price=float(p.get("price_open", 0)),
+                    current_price=float(p.get("price_current", 0)),
+                    stop_loss=float(p.get("sl", 0)),
+                    take_profit=float(p.get("tp", 0)),
+                    volume=float(p.get("volume", 0)),
+                    profit=float(p.get("profit", 0)),
+                    ticket=str(p.get("ticket", "")),
+                    comment=p.get("comment", ""),
+                    open_time=int(p.get("time_setup", 0)),
+                )
+            )
 
         logger.info("zmq_positions_fetched", extra={"count": len(positions)})
         return positions
@@ -412,17 +422,19 @@ class ZmqClient(BrokerBase):
 
         orders = []
         for o in raw:
-            orders.append(PendingOrderInfo(
-                symbol=o.get("symbol", ""),
-                order_type=int(o.get("type", 2)),
-                price=float(o.get("price_open", 0)),
-                stop_loss=float(o.get("sl", 0)),
-                take_profit=float(o.get("tp", 0)),
-                volume=float(o.get("volume", 0)),
-                ticket=str(o.get("ticket", "")),
-                comment=o.get("comment", ""),
-                open_time=int(o.get("time_setup", 0)),
-            ))
+            orders.append(
+                PendingOrderInfo(
+                    symbol=o.get("symbol", ""),
+                    order_type=int(o.get("type", 2)),
+                    price=float(o.get("price_open", 0)),
+                    stop_loss=float(o.get("sl", 0)),
+                    take_profit=float(o.get("tp", 0)),
+                    volume=float(o.get("volume", 0)),
+                    ticket=str(o.get("ticket", "")),
+                    comment=o.get("comment", ""),
+                    open_time=int(o.get("time_setup", 0)),
+                )
+            )
 
         logger.info("zmq_pending_orders_fetched", extra={"count": len(orders)})
         return orders
@@ -504,7 +516,9 @@ class ZmqClient(BrokerBase):
         if not isinstance(raw, dict):
             raw = {}
 
-        status = raw.get("status", "FILLED" if order_type.upper() == "MARKET" else "PLACED")
+        status = raw.get(
+            "status", "FILLED" if order_type.upper() == "MARKET" else "PLACED"
+        )
 
         logger.info(
             "zmq_order_placed",
@@ -578,7 +592,11 @@ class ZmqClient(BrokerBase):
 
         logger.info(
             "zmq_position_modified",
-            extra={"ticket": ticket, "stop_loss": stop_loss, "take_profit": take_profit},
+            extra={
+                "ticket": ticket,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
+            },
         )
         return True
 
@@ -615,7 +633,11 @@ class ZmqClient(BrokerBase):
 
         logger.info(
             "zmq_partial_close_executed",
-            extra={"ticket": ticket, "volume": volume, "close_price": raw.get("close_price", 0)},
+            extra={
+                "ticket": ticket,
+                "volume": volume,
+                "close_price": raw.get("close_price", 0),
+            },
         )
 
         return {

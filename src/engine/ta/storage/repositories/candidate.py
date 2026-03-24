@@ -15,21 +15,21 @@ logger = get_logger(__name__)
 class CandidateRepository:
     """
     Repository for SMC/SnD candidate output storage and deduplication.
-    
+
     Provides:
     - Candidate storage (immutable once created)
     - Deduplication (same pattern not stored twice)
     - Active/inactive tracking
     - Pattern-based queries
     - Invalidation support
-    
+
     All operations are async for non-blocking I/O.
     """
-    
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._logger = get_logger(__name__)
-    
+
     async def create_smc_candidate(self, candidate: SMCCandidate) -> CandidateSchema:
         """Create SMC candidate record."""
         schema = CandidateSchema(
@@ -78,10 +78,10 @@ class CandidateRepository:
             session_context=candidate.session_context,
             meta_data=candidate.metadata,
         )
-        
+
         self.session.add(schema)
         await self.session.flush()
-        
+
         self._logger.debug(
             "smc_candidate_created",
             extra={
@@ -90,9 +90,9 @@ class CandidateRepository:
                 "direction": candidate.direction.value,
             },
         )
-        
+
         return schema
-    
+
     async def create_snd_candidate(self, candidate: SnDCandidate) -> CandidateSchema:
         """Create SnD candidate record."""
         schema = CandidateSchema(
@@ -151,10 +151,10 @@ class CandidateRepository:
             session_context=candidate.session_context,
             meta_data=candidate.metadata,
         )
-        
+
         self.session.add(schema)
         await self.session.flush()
-        
+
         self._logger.debug(
             "snd_candidate_created",
             extra={
@@ -163,16 +163,16 @@ class CandidateRepository:
                 "direction": candidate.direction.value,
             },
         )
-        
+
         return schema
-    
+
     async def get_by_id(self, candidate_id: UUID) -> Optional[CandidateSchema]:
         """Retrieve candidate by ID."""
         result = await self.session.execute(
             select(CandidateSchema).where(CandidateSchema.id == candidate_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def find_active_candidates(
         self,
         symbol: str,
@@ -181,22 +181,25 @@ class CandidateRepository:
         direction: Optional[str] = None,
     ) -> list[CandidateSchema]:
         """Find active candidates with optional filters."""
-        conditions = [CandidateSchema.symbol == symbol, CandidateSchema.is_active == True]
-        
+        conditions = [
+            CandidateSchema.symbol == symbol,
+            CandidateSchema.is_active == True,
+        ]
+
         if timeframe:
             conditions.append(CandidateSchema.timeframe == timeframe)
         if pattern:
             conditions.append(CandidateSchema.pattern == pattern)
         if direction:
             conditions.append(CandidateSchema.direction == direction)
-        
+
         result = await self.session.execute(
             select(CandidateSchema)
             .where(and_(*conditions))
             .order_by(desc(CandidateSchema.timestamp))
         )
         return list(result.scalars().all())
-    
+
     async def find_by_time_range(
         self,
         symbol: str,
@@ -210,17 +213,17 @@ class CandidateRepository:
             CandidateSchema.timestamp >= start_time,
             CandidateSchema.timestamp <= end_time,
         ]
-        
+
         if is_active is not None:
             conditions.append(CandidateSchema.is_active == is_active)
-        
+
         result = await self.session.execute(
             select(CandidateSchema)
             .where(and_(*conditions))
             .order_by(CandidateSchema.timestamp)
         )
         return list(result.scalars().all())
-    
+
     async def invalidate_candidate(
         self,
         candidate_id: UUID,
@@ -236,7 +239,7 @@ class CandidateRepository:
                 invalidation_reason=reason,
             )
         )
-        
+
         if result.rowcount > 0:
             self._logger.debug(
                 "candidate_invalidated",
@@ -246,22 +249,22 @@ class CandidateRepository:
                 },
             )
             return True
-        
+
         return False
-    
+
     async def delete_by_id(self, candidate_id: UUID) -> bool:
         """Delete candidate by ID."""
         candidate = await self.get_by_id(candidate_id)
-        
+
         if not candidate:
             return False
-        
+
         await self.session.delete(candidate)
         await self.session.flush()
-        
+
         self._logger.debug(
             "candidate_deleted",
             extra={"candidate_id": str(candidate_id)},
         )
-        
+
         return True

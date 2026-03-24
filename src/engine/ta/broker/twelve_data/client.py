@@ -102,13 +102,17 @@ class TwelveDataClient(BrokerBase):
                 details={"timeframe": timeframe},
             )
 
-        cache_key = self._build_cache_key(symbol, timeframe, start_time, end_time, count)
+        cache_key = self._build_cache_key(
+            symbol, timeframe, start_time, end_time, count
+        )
         cached = await self._get_cached(cache_key)
         if cached is not None:
             return cached
 
-        output_size = min(count or self.config.max_candles_per_request,
-                          self.config.max_candles_per_request)
+        output_size = min(
+            count or self.config.max_candles_per_request,
+            self.config.max_candles_per_request,
+        )
 
         params: dict[str, Any] = {
             "symbol": self._normalize_symbol(symbol),
@@ -353,7 +357,11 @@ class TwelveDataClient(BrokerBase):
     async def get_position(self, ticket: str) -> PositionInfo:
         raise ProviderError(
             self._TRADING_NOT_SUPPORTED,
-            details={"provider": "twelve_data", "operation": "get_position", "ticket": ticket},
+            details={
+                "provider": "twelve_data",
+                "operation": "get_position",
+                "ticket": ticket,
+            },
         )
 
     async def get_pending_orders(self) -> list[PendingOrderInfo]:
@@ -365,7 +373,11 @@ class TwelveDataClient(BrokerBase):
     async def get_tick_price(self, symbol: str) -> TickPrice:
         raise ProviderError(
             self._TRADING_NOT_SUPPORTED,
-            details={"provider": "twelve_data", "operation": "get_tick_price", "symbol": symbol},
+            details={
+                "provider": "twelve_data",
+                "operation": "get_tick_price",
+                "symbol": symbol,
+            },
         )
 
     async def place_order(
@@ -394,7 +406,11 @@ class TwelveDataClient(BrokerBase):
     async def cancel_order(self, order_id: str) -> bool:
         raise ProviderError(
             self._TRADING_NOT_SUPPORTED,
-            details={"provider": "twelve_data", "operation": "cancel_order", "order_id": order_id},
+            details={
+                "provider": "twelve_data",
+                "operation": "cancel_order",
+                "order_id": order_id,
+            },
         )
 
     async def modify_position(
@@ -432,7 +448,11 @@ class TwelveDataClient(BrokerBase):
     async def close_position(self, ticket: str) -> dict[str, Any]:
         raise ProviderError(
             self._TRADING_NOT_SUPPORTED,
-            details={"provider": "twelve_data", "operation": "close_position", "ticket": ticket},
+            details={
+                "provider": "twelve_data",
+                "operation": "close_position",
+                "ticket": ticket,
+            },
         )
 
     # ── Private helpers ───────────────────────────────────────────────────

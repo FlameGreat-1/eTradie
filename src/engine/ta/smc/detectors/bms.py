@@ -15,14 +15,14 @@ logger = get_logger(__name__)
 # must be scaled up.  Lower timeframes produce smaller pip moves, so
 # thresholds are scaled down.
 _TF_SCALE: dict[Timeframe, float] = {
-    Timeframe.M1:  0.10,
-    Timeframe.M5:  0.20,
+    Timeframe.M1: 0.10,
+    Timeframe.M5: 0.20,
     Timeframe.M15: 0.35,
     Timeframe.M30: 0.50,
-    Timeframe.H1:  1.00,
-    Timeframe.H4:  2.00,
-    Timeframe.D1:  5.00,
-    Timeframe.W1:  12.00,
+    Timeframe.H1: 1.00,
+    Timeframe.H4: 2.00,
+    Timeframe.D1: 5.00,
+    Timeframe.W1: 12.00,
     Timeframe.MN1: 25.00,
 }
 
@@ -70,7 +70,7 @@ class BMSDetector:
     ) -> list[BreakInMarketStructure]:
         """
         Bullish BMS: price breaks above the previous swing HIGH.
-        
+
         In an uptrend (HH, HL, HH, HL …), when price rises and closes
         above the most recent swing high — creating a new HH — that is
         a bullish BMS.
@@ -122,7 +122,10 @@ class BMSDetector:
             # Determine how many consecutive closes above the level are
             # required based on the displacement (momentum).
             required_closes = self._required_confirmation_candles(
-                displacement, strong_disp, moderate_disp, weak_confirm,
+                displacement,
+                strong_disp,
+                moderate_disp,
+                weak_confirm,
             )
 
             # Count consecutive candle closes above the level, starting
@@ -232,7 +235,10 @@ class BMSDetector:
                 continue
 
             required_closes = self._required_confirmation_candles(
-                displacement, strong_disp, moderate_disp, weak_confirm,
+                displacement,
+                strong_disp,
+                moderate_disp,
+                weak_confirm,
             )
 
             confirmed_count = 0

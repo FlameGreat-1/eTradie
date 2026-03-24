@@ -109,7 +109,8 @@ class CandleRepository:
         return schemas
 
     async def get_by_id(
-        self, candle_id: UUID,
+        self,
+        candle_id: UUID,
     ) -> Optional[CandleSchema]:
         """Retrieve candle by ID."""
         result = await self.session.execute(

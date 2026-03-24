@@ -33,7 +33,7 @@ DEFAULT_QUERY_LIMIT = 100
 class BaseRepository(Generic[ModelT]):
     """
     Production-grade base repository with type safety, metrics, and error handling.
-    
+
     Provides:
     - CRUD operations with proper error handling
     - Bulk operations with conflict resolution
@@ -41,7 +41,7 @@ class BaseRepository(Generic[ModelT]):
     - Input validation and security controls
     - Idempotent upsert operations
     """
-    
+
     model: type[ModelT]
     _repo_name: str = "base"
 
@@ -60,18 +60,18 @@ class BaseRepository(Generic[ModelT]):
     ) -> None:
         """Record query metrics."""
         duration = time.monotonic() - start
-        
+
         DB_QUERY_DURATION.labels(
             repository=self._repo_name,
             operation=operation,
         ).observe(duration)
-        
+
         if row_count is not None:
             DB_QUERY_ROWS.labels(
                 repository=self._repo_name,
                 operation=operation,
             ).observe(row_count)
-        
+
         logger.debug(
             "repository_query_executed",
             extra={
@@ -94,23 +94,23 @@ class BaseRepository(Generic[ModelT]):
     def _validate_pagination(self, offset: int, limit: int) -> tuple[int, int]:
         """
         Validate and sanitize pagination parameters.
-        
+
         Args:
             offset: Query offset
             limit: Query limit
-            
+
         Returns:
             Validated (offset, limit) tuple
-            
+
         Raises:
             RepositoryError: On invalid pagination parameters
         """
         if offset < 0:
             raise RepositoryError("Offset must be non-negative")
-        
+
         if limit < 1:
             raise RepositoryError("Limit must be positive")
-        
+
         if limit > MAX_QUERY_LIMIT:
             logger.warning(
                 "pagination_limit_exceeded",
@@ -121,29 +121,29 @@ class BaseRepository(Generic[ModelT]):
                 },
             )
             limit = MAX_QUERY_LIMIT
-        
+
         return offset, limit
 
     async def get_by_id(self, record_id: Any) -> ModelT | None:
         """
         Retrieve a single record by primary key.
-        
+
         Args:
             record_id: Primary key value
-            
+
         Returns:
             Model instance or None if not found
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
-        
+
         try:
             result = await self._session.get(self.model, record_id)
             self._observe_query("get_by_id", start, row_count=1 if result else 0)
             return result
-            
+
         except OperationalError as e:
             self._observe_error("get_by_id", "operational")
             logger.error(
@@ -165,28 +165,28 @@ class BaseRepository(Generic[ModelT]):
     ) -> Sequence[ModelT]:
         """
         List records with pagination.
-        
+
         Args:
             offset: Number of records to skip
             limit: Maximum number of records to return
-            
+
         Returns:
             Sequence of model instances
-            
+
         Raises:
             RepositoryError: On invalid pagination parameters
             DatabaseOperationalError: On database errors
         """
         offset, limit = self._validate_pagination(offset, limit)
         start = time.monotonic()
-        
+
         try:
             stmt = select(self.model).offset(offset).limit(limit)
             result = await self._session.execute(stmt)
             rows = result.scalars().all()
             self._observe_query("list_all", start, row_count=len(rows))
             return rows
-            
+
         except OperationalError as e:
             self._observe_error("list_all", "operational")
             logger.error(
@@ -204,25 +204,25 @@ class BaseRepository(Generic[ModelT]):
     async def add(self, instance: ModelT) -> ModelT:
         """
         Add a single record.
-        
+
         Args:
             instance: Model instance to add
-            
+
         Returns:
             Added model instance with generated fields populated
-            
+
         Raises:
             DatabaseIntegrityError: On constraint violations
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
-        
+
         try:
             self._session.add(instance)
             await self._session.flush()
             self._observe_query("add", start, row_count=1)
             return instance
-            
+
         except IntegrityError as e:
             self._observe_error("add", "integrity")
             logger.warning(
@@ -234,7 +234,7 @@ class BaseRepository(Generic[ModelT]):
                 },
             )
             raise DatabaseIntegrityError(str(e)) from e
-            
+
         except OperationalError as e:
             self._observe_error("add", "operational")
             logger.error(
@@ -250,29 +250,29 @@ class BaseRepository(Generic[ModelT]):
     async def add_many(self, instances: Sequence[ModelT]) -> int:
         """
         Add multiple records in a single operation.
-        
+
         Args:
             instances: Sequence of model instances to add
-            
+
         Returns:
             Number of records added
-            
+
         Raises:
             DatabaseIntegrityError: On constraint violations
             DatabaseOperationalError: On database errors
         """
         if not instances:
             return 0
-        
+
         start = time.monotonic()
         count = len(instances)
-        
+
         try:
             self._session.add_all(instances)
             await self._session.flush()
             self._observe_query("add_many", start, row_count=count)
             return count
-            
+
         except IntegrityError as e:
             self._observe_error("add_many", "integrity")
             logger.warning(
@@ -285,7 +285,7 @@ class BaseRepository(Generic[ModelT]):
                 },
             )
             raise DatabaseIntegrityError(str(e)) from e
-            
+
         except OperationalError as e:
             self._observe_error("add_many", "operational")
             logger.error(
@@ -308,21 +308,21 @@ class BaseRepository(Generic[ModelT]):
     ) -> None:
         """
         Insert or update a single record (idempotent operation).
-        
+
         Args:
             values: Field values to insert/update
             index_elements: Columns to use for conflict detection
             update_fields: Fields to update on conflict (None = do nothing)
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
         idempotency_key = self._session.info.get("idempotency_key")
-        
+
         try:
             stmt = pg_insert(self.model).values(**values)
-            
+
             if update_fields:
                 update_dict = {f: stmt.excluded[f] for f in update_fields}
                 stmt = stmt.on_conflict_do_update(
@@ -331,11 +331,11 @@ class BaseRepository(Generic[ModelT]):
                 )
             else:
                 stmt = stmt.on_conflict_do_nothing(index_elements=index_elements)
-            
+
             await self._session.execute(stmt)
             await self._session.flush()
             self._observe_query("upsert", start, row_count=1)
-            
+
             logger.debug(
                 "repository_upsert_executed",
                 extra={
@@ -346,7 +346,7 @@ class BaseRepository(Generic[ModelT]):
                     "trace_id": self._get_trace_id(),
                 },
             )
-            
+
         except OperationalError as e:
             self._observe_error("upsert", "operational")
             logger.error(
@@ -368,27 +368,27 @@ class BaseRepository(Generic[ModelT]):
     ) -> int:
         """
         Insert or update multiple records in a single operation (idempotent).
-        
+
         Args:
             rows: List of field value dictionaries
             index_elements: Columns to use for conflict detection
             update_fields: Fields to update on conflict (None = do nothing)
-            
+
         Returns:
             Number of rows affected
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         if not rows:
             return 0
-        
+
         start = time.monotonic()
         count = len(rows)
-        
+
         try:
             stmt = pg_insert(self.model).values(rows)
-            
+
             if update_fields:
                 update_dict = {f: stmt.excluded[f] for f in update_fields}
                 stmt = stmt.on_conflict_do_update(
@@ -397,13 +397,13 @@ class BaseRepository(Generic[ModelT]):
                 )
             else:
                 stmt = stmt.on_conflict_do_nothing(index_elements=index_elements)
-            
+
             result = await self._session.execute(stmt)
             await self._session.flush()
-            
+
             row_count = result.rowcount or 0
             self._observe_query("bulk_upsert", start, row_count=row_count)
-            
+
             logger.debug(
                 "repository_bulk_upsert_executed",
                 extra={
@@ -414,9 +414,9 @@ class BaseRepository(Generic[ModelT]):
                     "trace_id": self._get_trace_id(),
                 },
             )
-            
+
             return row_count
-            
+
         except OperationalError as e:
             self._observe_error("bulk_upsert", "operational")
             logger.error(
@@ -433,28 +433,28 @@ class BaseRepository(Generic[ModelT]):
     async def delete_by_id(self, record_id: Any) -> bool:
         """
         Delete a record by primary key.
-        
+
         Args:
             record_id: Primary key value
-            
+
         Returns:
             True if record was deleted, False if not found
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
-        
+
         try:
             stmt = delete(self.model).where(self.model.id == record_id)  # type: ignore[attr-defined]
             result = await self._session.execute(stmt)
             await self._session.flush()
-            
+
             deleted = (result.rowcount or 0) > 0
             self._observe_query("delete_by_id", start, row_count=1 if deleted else 0)
-            
+
             return deleted
-            
+
         except OperationalError as e:
             self._observe_error("delete_by_id", "operational")
             logger.error(
@@ -471,30 +471,30 @@ class BaseRepository(Generic[ModelT]):
     async def count(self, stmt: Select[Any] | None = None) -> int:
         """
         Count records matching optional query.
-        
+
         Args:
             stmt: Optional SELECT statement to count (None = count all)
-            
+
         Returns:
             Record count
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
-        
+
         try:
             if stmt is None:
                 count_stmt = select(func.count()).select_from(self.model)
             else:
                 count_stmt = select(func.count()).select_from(stmt.subquery())
-            
+
             result = await self._session.execute(count_stmt)
             count = result.scalar_one()
             self._observe_query("count", start)
-            
+
             return count
-            
+
         except OperationalError as e:
             self._observe_error("count", "operational")
             logger.error(
@@ -510,25 +510,25 @@ class BaseRepository(Generic[ModelT]):
     async def execute_query(self, stmt: Select[Any]) -> Sequence[ModelT]:
         """
         Execute a custom SELECT query.
-        
+
         Args:
             stmt: SELECT statement to execute
-            
+
         Returns:
             Sequence of model instances
-            
+
         Raises:
             DatabaseOperationalError: On database errors
         """
         start = time.monotonic()
-        
+
         try:
             result = await self._session.execute(stmt)
             rows = result.scalars().all()
             self._observe_query("execute_query", start, row_count=len(rows))
-            
+
             return rows
-            
+
         except OperationalError as e:
             self._observe_error("execute_query", "operational")
             logger.error(

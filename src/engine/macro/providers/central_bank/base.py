@@ -5,7 +5,13 @@ import time
 from typing import Any
 
 from engine.shared.logging import get_logger
-from engine.shared.models.events import CBTone, CentralBank, EventType, MonetaryPolicyAction, ProviderCategory
+from engine.shared.models.events import (
+    CBTone,
+    CentralBank,
+    EventType,
+    MonetaryPolicyAction,
+    ProviderCategory,
+)
 from engine.shared.rss import RSSParser
 from engine.shared.rss.parser import RSSEntry
 from engine.macro.models.provider.central_bank import (
@@ -17,24 +23,55 @@ from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 
-_HAWKISH_KEYWORDS = frozenset({
-    "rate hike", "tightening", "inflation concern", "hawkish",
-    "restrictive", "above target", "price stability", "rate increase",
-})
-_DOVISH_KEYWORDS = frozenset({
-    "rate cut", "easing", "accommodative", "dovish", "slowdown",
-    "below target", "support growth", "rate reduction", "stimulus",
-})
-_QE_KEYWORDS = frozenset({
-    "quantitative easing", "asset purchase", "bond buying",
-    "balance sheet expansion", "reinvestment", "purchase programme",
-    "purchase program", "mbs purchase",
-})
-_QT_KEYWORDS = frozenset({
-    "quantitative tightening", "balance sheet reduction",
-    "runoff", "roll-off", "tapering", "wind down",
-    "balance sheet normalization", "shrinking balance sheet",
-})
+_HAWKISH_KEYWORDS = frozenset(
+    {
+        "rate hike",
+        "tightening",
+        "inflation concern",
+        "hawkish",
+        "restrictive",
+        "above target",
+        "price stability",
+        "rate increase",
+    }
+)
+_DOVISH_KEYWORDS = frozenset(
+    {
+        "rate cut",
+        "easing",
+        "accommodative",
+        "dovish",
+        "slowdown",
+        "below target",
+        "support growth",
+        "rate reduction",
+        "stimulus",
+    }
+)
+_QE_KEYWORDS = frozenset(
+    {
+        "quantitative easing",
+        "asset purchase",
+        "bond buying",
+        "balance sheet expansion",
+        "reinvestment",
+        "purchase programme",
+        "purchase program",
+        "mbs purchase",
+    }
+)
+_QT_KEYWORDS = frozenset(
+    {
+        "quantitative tightening",
+        "balance sheet reduction",
+        "runoff",
+        "roll-off",
+        "tapering",
+        "wind down",
+        "balance sheet normalization",
+        "shrinking balance sheet",
+    }
+)
 
 
 def classify_tone(text: str) -> CBTone:
@@ -61,7 +98,9 @@ def classify_event_type(title: str) -> EventType:
     lower = title.lower()
     if any(kw in lower for kw in ("rate", "interest", "monetary policy decision")):
         return EventType.RATE_DECISION
-    if any(kw in lower for kw in ("speech", "remarks", "testimony", "press conference")):
+    if any(
+        kw in lower for kw in ("speech", "remarks", "testimony", "press conference")
+    ):
         return EventType.CB_SPEECH
     if any(kw in lower for kw in ("minutes", "account")):
         return EventType.MEETING_MINUTES
@@ -92,10 +131,14 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
             return results
         except Exception as exc:
             self._record_failure(time.monotonic() - start, type(exc).__name__)
-            logger.error("cb_provider_fetch_failed", provider=self.provider_name, error=str(exc))
+            logger.error(
+                "cb_provider_fetch_failed", provider=self.provider_name, error=str(exc)
+            )
             raise
 
-    def _parse_entry(self, entry: RSSEntry) -> CentralBankSpeech | RateDecision | ForwardGuidance:
+    def _parse_entry(
+        self, entry: RSSEntry
+    ) -> CentralBankSpeech | RateDecision | ForwardGuidance:
         event_type = classify_event_type(entry.title)
         full_text = f"{entry.title} {entry.summary}"
         tone = classify_tone(full_text)

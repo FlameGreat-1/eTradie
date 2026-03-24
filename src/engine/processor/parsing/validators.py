@@ -144,9 +144,7 @@ def _validate_rr_ratio(o: AnalysisOutput) -> list[str]:
     min_rr = min_rr_map.get(style, MIN_RR_INTRADAY)
 
     if o.rr_ratio < min_rr:
-        errors.append(
-            f"rr_ratio {o.rr_ratio} below minimum {min_rr} for style {style}"
-        )
+        errors.append(f"rr_ratio {o.rr_ratio} below minimum {min_rr} for style {style}")
     return errors
 
 
@@ -167,9 +165,7 @@ def _validate_reasoning(o: AnalysisOutput) -> list[str]:
     if not o.explainable_reasoning:
         errors.append("explainable_reasoning is empty")
     elif len(o.explainable_reasoning) > MAX_REASONING_LENGTH:
-        errors.append(
-            f"explainable_reasoning exceeds {MAX_REASONING_LENGTH} chars"
-        )
+        errors.append(f"explainable_reasoning exceeds {MAX_REASONING_LENGTH} chars")
     return errors
 
 

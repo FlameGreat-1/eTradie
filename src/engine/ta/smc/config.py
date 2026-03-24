@@ -10,47 +10,47 @@ class SMCConfig(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
-    
+
     enabled: bool = Field(default=True)
-    
+
     min_displacement_pips: float = Field(default=20.0, ge=10.0, le=100.0)
-    
+
     # BMS multi-candle confirmation thresholds (base values for H1).
     # Internally scaled per-timeframe by the BMS detector.
     bms_strong_displacement_pips: float = Field(default=50.0, ge=20.0, le=200.0)
     bms_moderate_displacement_pips: float = Field(default=30.0, ge=15.0, le=100.0)
     bms_weak_confirm_candles: int = Field(default=5, ge=3, le=10)
-    
+
     min_sweep_pips: float = Field(default=5.0, ge=2.0, le=20.0)
-    
+
     turtle_soup_min_pips: float = Field(default=5.0, ge=2.0, le=20.0)
-    
+
     turtle_soup_min_sl_pips: float = Field(default=10.0, ge=5.0, le=30.0)
-    
+
     ob_body_percentage_threshold: float = Field(default=50.0, ge=30.0, le=80.0)
-    
+
     fvg_min_gap_pips: float = Field(default=2.0, ge=1.0, le=10.0)
-    
+
     require_fvg_with_ob: bool = Field(default=True)
-    
+
     require_premium_discount: bool = Field(default=True)
-    
+
     require_session_timing: bool = Field(default=True)
-    
+
     require_htf_bms_alignment: bool = Field(default=True)
-    
+
     min_confluences: int = Field(default=3, ge=2, le=10)
-    
+
     enable_turtle_soup: bool = Field(default=True)
-    
+
     enable_sh_bms_rto: bool = Field(default=True)
-    
+
     enable_sms_bms_rto: bool = Field(default=True)
-    
+
     enable_amd: bool = Field(default=True)
-    
+
     enable_combined_patterns: bool = Field(default=True)
-    
+
     @field_validator("min_confluences")
     @classmethod
     def validate_min_confluences(cls, v: int) -> int:

@@ -34,6 +34,7 @@ class SentenceTransformersProvider(BaseEmbeddingProvider):
         if self._model is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 self._model = SentenceTransformer(self._model_name)
             except ImportError as exc:
                 raise RAGEmbeddingProviderError(

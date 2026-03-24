@@ -12,8 +12,7 @@ _TRAILING_SPACES = re.compile(r" +$", re.MULTILINE)
 
 class BaseNormalizer(ABC):
     @abstractmethod
-    def normalize(self, doc: LoadedDocument) -> LoadedDocument:
-        ...
+    def normalize(self, doc: LoadedDocument) -> LoadedDocument: ...
 
     def _clean_whitespace(self, text: str) -> str:
         text = _MULTI_WHITESPACE.sub(" ", text)

@@ -27,15 +27,16 @@ class RawChunk:
 
 
 class BaseChunker(ABC):
-    def __init__(self, *, chunk_size: int, chunk_overlap: int, min_size: int, max_size: int) -> None:
+    def __init__(
+        self, *, chunk_size: int, chunk_overlap: int, min_size: int, max_size: int
+    ) -> None:
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._min_size = min_size
         self._max_size = max_size
 
     @abstractmethod
-    def chunk(self, doc: LoadedDocument) -> tuple[RawChunk, ...]:
-        ...
+    def chunk(self, doc: LoadedDocument) -> tuple[RawChunk, ...]: ...
 
     def _split_by_token_limit(self, text: str, *, max_tokens: int) -> list[str]:
         words = text.split()
@@ -75,15 +76,17 @@ class BaseChunker(ABC):
             else:
                 if buffer is not None:
                     combined_content = buffer.content + "\n\n" + chunk.content
-                    merged.append(RawChunk(
-                        content=combined_content,
-                        chunk_index=buffer.chunk_index,
-                        section=buffer.section,
-                        subsection=buffer.subsection,
-                        hierarchy_level=buffer.hierarchy_level,
-                        parent_chunk_index=buffer.parent_chunk_index,
-                        metadata=buffer.metadata,
-                    ))
+                    merged.append(
+                        RawChunk(
+                            content=combined_content,
+                            chunk_index=buffer.chunk_index,
+                            section=buffer.section,
+                            subsection=buffer.subsection,
+                            hierarchy_level=buffer.hierarchy_level,
+                            parent_chunk_index=buffer.parent_chunk_index,
+                            metadata=buffer.metadata,
+                        )
+                    )
                     buffer = None
                 else:
                     merged.append(chunk)
@@ -111,26 +114,28 @@ class BaseChunker(ABC):
         # Note: if multiple chunks were merged, they share the same 'old' index
         # (the index of the first chunk in the merge group).
         index_map: dict[int, int] = {c.chunk_index: i for i, c in enumerate(chunks)}
-        
+
         reindexed: list[RawChunk] = []
         for i, c in enumerate(chunks):
             new_parent = None
             if c.parent_chunk_index is not None:
                 new_parent = index_map.get(c.parent_chunk_index)
-                
+
                 # If the parent was merged into the current chunk, set parent to None
                 # or if it was merged into any other chunk, index_map will have the new index.
                 if new_parent == i:
                     new_parent = None
-            
-            reindexed.append(RawChunk(
-                content=c.content,
-                chunk_index=i,
-                section=c.section,
-                subsection=c.subsection,
-                hierarchy_level=c.hierarchy_level,
-                parent_chunk_index=new_parent,
-                metadata=c.metadata,
-            ))
-            
+
+            reindexed.append(
+                RawChunk(
+                    content=c.content,
+                    chunk_index=i,
+                    section=c.section,
+                    subsection=c.subsection,
+                    hierarchy_level=c.hierarchy_level,
+                    parent_chunk_index=new_parent,
+                    metadata=c.metadata,
+                )
+            )
+
         return tuple(reindexed)

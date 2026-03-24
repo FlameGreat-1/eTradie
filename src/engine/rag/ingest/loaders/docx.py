@@ -52,11 +52,13 @@ class DocxLoader(BaseLoader):
 
             if style_name.startswith("heading"):
                 if current_heading is not None:
-                    sections.append(LoadedSection(
-                        heading=current_heading,
-                        level=current_level,
-                        content="\n".join(current_lines).strip(),
-                    ))
+                    sections.append(
+                        LoadedSection(
+                            heading=current_heading,
+                            level=current_level,
+                            content="\n".join(current_lines).strip(),
+                        )
+                    )
                     current_lines = []
 
                 level_str = style_name.replace("heading", "").strip()
@@ -67,11 +69,13 @@ class DocxLoader(BaseLoader):
                 paragraphs.append(text)
 
         if current_heading is not None:
-            sections.append(LoadedSection(
-                heading=current_heading,
-                level=current_level,
-                content="\n".join(current_lines).strip(),
-            ))
+            sections.append(
+                LoadedSection(
+                    heading=current_heading,
+                    level=current_level,
+                    content="\n".join(current_lines).strip(),
+                )
+            )
 
         full_content = "\n\n".join(paragraphs)
         if not full_content.strip():

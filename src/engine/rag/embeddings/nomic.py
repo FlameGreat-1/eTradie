@@ -34,8 +34,10 @@ class NomicEmbeddingProvider(BaseEmbeddingProvider):
         if self._model is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 self._model = SentenceTransformer(
-                    self._model_name, trust_remote_code=True,
+                    self._model_name,
+                    trust_remote_code=True,
                 )
             except ImportError as exc:
                 raise RAGEmbeddingProviderError(

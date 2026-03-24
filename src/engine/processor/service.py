@@ -113,7 +113,8 @@ class AnalysisProcessor(ProcessorPort):
         except asyncio.TimeoutError:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
-                processor=PROCESSOR_NAME, status=ProcessorStatus.TIMEOUT,
+                processor=PROCESSOR_NAME,
+                status=ProcessorStatus.TIMEOUT,
             ).inc()
             PROCESSOR_RUN_DURATION.labels(
                 processor=PROCESSOR_NAME,
@@ -135,7 +136,8 @@ class AnalysisProcessor(ProcessorPort):
         except ProcessorInsufficientDataError:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
-                processor=PROCESSOR_NAME, status=ProcessorStatus.INSUFFICIENT_DATA,
+                processor=PROCESSOR_NAME,
+                status=ProcessorStatus.INSUFFICIENT_DATA,
             ).inc()
             PROCESSOR_RUN_DURATION.labels(
                 processor=PROCESSOR_NAME,
@@ -145,7 +147,8 @@ class AnalysisProcessor(ProcessorPort):
         except ProcessorError:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
-                processor=PROCESSOR_NAME, status=ProcessorStatus.LLM_ERROR,
+                processor=PROCESSOR_NAME,
+                status=ProcessorStatus.LLM_ERROR,
             ).inc()
             PROCESSOR_RUN_DURATION.labels(
                 processor=PROCESSOR_NAME,
@@ -155,7 +158,8 @@ class AnalysisProcessor(ProcessorPort):
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
-                processor=PROCESSOR_NAME, status=ProcessorStatus.LLM_ERROR,
+                processor=PROCESSOR_NAME,
+                status=ProcessorStatus.LLM_ERROR,
             ).inc()
             PROCESSOR_RUN_DURATION.labels(
                 processor=PROCESSOR_NAME,
@@ -259,7 +263,8 @@ class AnalysisProcessor(ProcessorPort):
             status = ProcessorStatus.SUCCESS
 
         PROCESSOR_RUN_TOTAL.labels(
-            processor=PROCESSOR_NAME, status=status,
+            processor=PROCESSOR_NAME,
+            status=status,
         ).inc()
         PROCESSOR_RUN_DURATION.labels(
             processor=PROCESSOR_NAME,
@@ -312,9 +317,8 @@ class AnalysisProcessor(ProcessorPort):
             )
 
         ta = context.ta_analysis
-        has_candidates = (
-            bool(ta.get("smc_candidates"))
-            or bool(ta.get("snd_candidates"))
+        has_candidates = bool(ta.get("smc_candidates")) or bool(
+            ta.get("snd_candidates")
         )
         if not has_candidates:
             raise ProcessorInsufficientDataError(
@@ -348,7 +352,11 @@ class AnalysisProcessor(ProcessorPort):
             async with self._uow_factory() as uow:
                 record = build_analysis_record(
                     analysis_output,
-                    status="success" if analysis_output.direction != "NO SETUP" else "no_setup",
+                    status=(
+                        "success"
+                        if analysis_output.direction != "NO SETUP"
+                        else "no_setup"
+                    ),
                     duration_ms=elapsed_ms,
                     trace_id=trace_id,
                     raw_output=raw_dict,

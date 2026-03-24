@@ -11,5 +11,4 @@ class BaseCalendarProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.CALENDAR
 
     @abc.abstractmethod
-    async def fetch(self) -> list[CalendarEvent]:
-        ...
+    async def fetch(self) -> list[CalendarEvent]: ...

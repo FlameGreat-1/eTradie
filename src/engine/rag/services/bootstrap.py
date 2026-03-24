@@ -59,7 +59,7 @@ class BootstrapService:
                     base_dir=self._config.knowledge_base_dir,
                 )
                 logger.info("bootstrap_seeding_completed")
-                
+
                 # Now, find ALL documents that are still in 'draft' status
                 # (either newly seeded or from a previous failed/partial run)
                 all_drafts = await uow.document_repo.get_by_status("draft")
@@ -74,15 +74,17 @@ class BootstrapService:
                         source_format=doc.source_format,
                         title=doc.title,
                     )
-                    
+
                     # After chunking, we MUST activate the version to move it
                     # out of draft status and enqueue it for embedding.
                     async with self._uow() as uow:
                         latest_version = await uow.version_repo.get_latest(doc.id)
-                    
+
                     if latest_version:
-                        await self._versioning.activate_version(doc.id, latest_version.id)
-                
+                        await self._versioning.activate_version(
+                            doc.id, latest_version.id
+                        )
+
                 # After all are chunked and activated, trigger the actual embedding process
                 await self._reembed_service.process_pending()
         except RAGBootstrapError:
@@ -102,18 +104,20 @@ class BootstrapService:
             )
             if ready:
                 docs = await uow.document_repo.get_active_documents()
-                
+
                 # Group by doc_type and set labels correctly to avoid ValueError
                 counts: dict[str, int] = {}
                 for d in docs:
                     counts[d.doc_type] = counts.get(d.doc_type, 0) + 1
-                
+
                 for dt, count in counts.items():
                     RAG_ACTIVE_DOCUMENTS.labels(doc_type=dt).set(count)
-                
+
                 chunk_total = 0
                 for doc in docs:
                     chunks = await uow.chunk_repo.get_by_document(doc.id)
                     chunk_total += len(chunks)
-                RAG_ACTIVE_CHUNKS.labels(collection=CollectionName.DOCUMENTS).set(chunk_total)
+                RAG_ACTIVE_CHUNKS.labels(collection=CollectionName.DOCUMENTS).set(
+                    chunk_total
+                )
             return ready

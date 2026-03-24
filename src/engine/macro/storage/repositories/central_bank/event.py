@@ -13,7 +13,9 @@ class CentralBankRepository(BaseRepository[CentralBankEventRow]):
     model = CentralBankEventRow
     _repo_name = "central_bank"
 
-    async def get_latest_by_bank(self, bank: str, limit: int = 10) -> Sequence[CentralBankEventRow]:
+    async def get_latest_by_bank(
+        self, bank: str, limit: int = 10
+    ) -> Sequence[CentralBankEventRow]:
         stmt = (
             select(self.model)
             .where(self.model.bank == bank)

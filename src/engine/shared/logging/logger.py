@@ -81,18 +81,18 @@ def _sanitize_sensitive_data(
 ) -> dict[str, Any]:
     """
     Sanitize sensitive fields in log entries.
-    
+
     Replaces values of sensitive fields with '***REDACTED***' to prevent
     accidental logging of secrets, passwords, tokens, or PII.
     """
     for key in list(event_dict.keys()):
         if key.lower() in _SENSITIVE_FIELDS:
             event_dict[key] = "***REDACTED***"
-        
+
         # Recursively sanitize nested dicts
         if isinstance(event_dict[key], dict):
             event_dict[key] = _sanitize_dict(event_dict[key])
-    
+
     return event_dict
 
 
@@ -121,12 +121,12 @@ def _record_log_metrics(
 ) -> dict[str, Any]:
     """Record log entry metrics for observability."""
     level = event_dict.get("level", "UNKNOWN").upper()
-    
+
     LOG_ENTRIES_TOTAL.labels(
         level=level,
         logger=event_dict.get("logger", "unknown"),
     ).inc()
-    
+
     return event_dict
 
 
@@ -139,34 +139,34 @@ def configure_logging(
 ) -> None:
     """
     Initialize structured logging for the entire application.
-    
+
     Must be called exactly once during application startup. Subsequent
     calls are silently ignored to prevent double-configuration.
-    
+
     Args:
         log_level: Root log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         json_output: If True, emit JSON lines. If False, use colored console
             output (useful for local development)
         enable_sampling: If True, sample logs at specified rate (for high-volume scenarios)
         sample_rate: Sampling rate (0.0 to 1.0) when sampling is enabled
-        
+
     Raises:
         ValueError: On invalid log level or sample rate
     """
     global _CONFIGURED  # noqa: PLW0603
     if _CONFIGURED:
         return
-    
+
     # Validate configuration
     valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if log_level.upper() not in valid_levels:
         raise ValueError(
             f"Invalid log level '{log_level}'. Must be one of {valid_levels}"
         )
-    
+
     if not 0.0 <= sample_rate <= 1.0:
         raise ValueError(f"Sample rate must be between 0.0 and 1.0, got {sample_rate}")
-    
+
     _CONFIGURED = True
 
     shared_processors: list[Processor] = [
@@ -226,7 +226,7 @@ def configure_logging(
     )
     for noisy in noisy_loggers:
         logging.getLogger(noisy).setLevel(logging.WARNING)
-    
+
     # Log configuration completion
     logger = get_logger(__name__)
     logger.info(
@@ -243,13 +243,13 @@ def configure_logging(
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """
     Return a bound structured logger for the given module name.
-    
+
     Args:
         name: Module name (typically __name__)
-        
+
     Returns:
         Bound structured logger instance
-        
+
     Example:
         >>> logger = get_logger(__name__)
         >>> logger.info("operation_completed", user_id=123, duration_ms=45.2)
@@ -260,13 +260,13 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 def bind_correlation_id(correlation_id: Optional[str] = None) -> str:
     """
     Bind a correlation ID to the current context for request tracing.
-    
+
     Args:
         correlation_id: Optional correlation ID (generated if not provided)
-        
+
     Returns:
         The correlation ID (generated UUID hex if not provided)
-        
+
     Example:
         >>> cid = bind_correlation_id()
         >>> logger.info("request_started")  # Will include correlation_id
@@ -279,13 +279,13 @@ def bind_correlation_id(correlation_id: Optional[str] = None) -> str:
 def bind_trace_id(trace_id: Optional[str] = None) -> str:
     """
     Bind a trace ID to the current context for distributed tracing.
-    
+
     Args:
         trace_id: Optional trace ID (generated if not provided)
-        
+
     Returns:
         The trace ID (generated UUID hex if not provided)
-        
+
     Example:
         >>> tid = bind_trace_id()
         >>> logger.info("external_call_started")  # Will include trace_id
@@ -303,19 +303,19 @@ def bind_context(
 ) -> dict[str, str]:
     """
     Bind multiple context variables at once.
-    
+
     Args:
         correlation_id: Optional correlation ID
         trace_id: Optional trace ID
         **kwargs: Additional context key-value pairs
-        
+
     Returns:
         Dictionary of bound context variables
-        
+
     Security:
         Do NOT bind sensitive data (passwords, tokens, PII).
         Only bind identifiers and non-sensitive metadata.
-        
+
     Example:
         >>> bind_context(
         ...     correlation_id="abc123",
@@ -324,18 +324,18 @@ def bind_context(
         ... )
     """
     context = {}
-    
+
     if correlation_id:
         context["correlation_id"] = correlation_id
-    
+
     if trace_id:
         context["trace_id"] = trace_id
-    
+
     # Sanitize additional context
     for key, value in kwargs.items():
         if key.lower() not in _SENSITIVE_FIELDS:
             context[key] = value
-    
+
     structlog.contextvars.bind_contextvars(**context)
     return context
 
@@ -343,10 +343,10 @@ def bind_context(
 def unbind_context(*keys: str) -> None:
     """
     Unbind specific context variables.
-    
+
     Args:
         *keys: Context variable keys to unbind
-        
+
     Example:
         >>> unbind_context("correlation_id", "trace_id")
     """
@@ -356,10 +356,10 @@ def unbind_context(*keys: str) -> None:
 def clear_contextvars() -> None:
     """
     Clear all bound context variables.
-    
+
     Should be called at the end of each request/operation cycle to prevent
     context leakage between requests.
-    
+
     Example:
         >>> try:
         ...     bind_correlation_id()
@@ -379,13 +379,13 @@ def log_panic_recovery(
 ) -> None:
     """
     Log panic recovery with full context for post-mortem analysis.
-    
+
     Args:
         logger: Structured logger instance
         error: Exception that was caught
         operation: Operation name that panicked
         **context: Additional context for debugging
-        
+
     Example:
         >>> try:
         ...     risky_operation()

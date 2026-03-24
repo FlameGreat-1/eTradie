@@ -19,14 +19,17 @@ class VersioningService:
         self._uow = uow_factory
 
     async def activate_version(
-        self, document_id: UUID, version_id: UUID,
+        self,
+        document_id: UUID,
+        version_id: UUID,
     ) -> None:
         async with self._uow() as uow:
             current_active = await uow.version_repo.get_active(document_id)
 
             if current_active and current_active.id != version_id:
                 await uow.version_repo.supersede(
-                    current_active.id, superseded_by=version_id,
+                    current_active.id,
+                    superseded_by=version_id,
                 )
                 logger.info(
                     "version_superseded",
@@ -51,7 +54,8 @@ class VersioningService:
         )
 
     async def get_active_version_id(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> UUID | None:
         async with self._uow() as uow:
             active = await uow.version_repo.get_active(document_id)

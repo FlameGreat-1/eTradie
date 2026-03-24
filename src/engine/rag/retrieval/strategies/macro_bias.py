@@ -40,9 +40,9 @@ class MacroBiasStrategy:
 
         # Weighted budget: macro gets the largest share + boost,
         # frameworks get substantial allocation for analytical depth.
-        rules_k = max(3, top_k // 4)                  # ~25%
-        framework_k = max(3, (top_k * 35) // 100)      # ~35%
-        macro_k = max(3, (top_k * 37) // 100) + 3      # ~37% + boost
+        rules_k = max(3, top_k // 4)  # ~25%
+        framework_k = max(3, (top_k * 35) // 100)  # ~35%
+        macro_k = max(3, (top_k * 37) // 100) + 3  # ~37% + boost
 
         # Macro docs
         macro_chunks = await self._retriever.retrieve(

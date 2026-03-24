@@ -11,5 +11,4 @@ class BaseCOTProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.COT
 
     @abc.abstractmethod
-    async def fetch(self) -> COTReport:
-        ...
+    async def fetch(self) -> COTReport: ...

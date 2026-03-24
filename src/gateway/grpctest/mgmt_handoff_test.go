@@ -94,12 +94,12 @@ type mgmtHandoffHarness struct {
 	engine   *e2e.MockEngineServer
 
 	// Resources to close.
-	gwLis      *bufconn.Listener
-	gwServer   *grpc.Server
-	gwConn     *grpc.ClientConn
-	mgmtServer *grpc.Server
-	hub        *alert.Hub
-	transport  *alertredis.Transport
+	gwLis       *bufconn.Listener
+	gwServer    *grpc.Server
+	gwConn      *grpc.ClientConn
+	mgmtServer  *grpc.Server
+	hub         *alert.Hub
+	transport   *alertredis.Transport
 	redisClient *redis.Client
 }
 

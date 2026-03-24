@@ -26,16 +26,76 @@ from engine.macro.providers.economic_data.base import (
 logger = get_logger(__name__)
 
 _FRED_SERIES: list[dict[str, Any]] = [
-    {"series_id": "CPIAUCSL", "indicator": EventType.CPI, "name": "Consumer Price Index (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.HEADLINE},
-    {"series_id": "CPILFESL", "indicator": EventType.CPI, "name": "Core CPI ex Food & Energy (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.CORE},
-    {"series_id": "PCEPI", "indicator": EventType.CPI, "name": "PCE Price Index (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.HEADLINE},
-    {"series_id": "PCEPILFE", "indicator": EventType.CPI, "name": "Core PCE ex Food & Energy (US)", "impact": EventImpact.HIGH, "inflation_type": InflationType.CORE},
-    {"series_id": "GDP", "indicator": EventType.GDP, "name": "Gross Domestic Product (US)", "impact": EventImpact.HIGH, "inflation_type": None},
-    {"series_id": "UNRATE", "indicator": EventType.EMPLOYMENT, "name": "Unemployment Rate (US)", "impact": EventImpact.HIGH, "inflation_type": None},
-    {"series_id": "PAYEMS", "indicator": EventType.NFP, "name": "Total Nonfarm Payrolls (US)", "impact": EventImpact.HIGH, "inflation_type": None},
-    {"series_id": "RSXFS", "indicator": EventType.RETAIL_SALES, "name": "Retail Sales (US)", "impact": EventImpact.MEDIUM, "inflation_type": None},
-    {"series_id": "PPIFIS", "indicator": EventType.PPI, "name": "Producer Price Index (US)", "impact": EventImpact.MEDIUM, "inflation_type": InflationType.HEADLINE},
-    {"series_id": "INDPRO", "indicator": EventType.MANUFACTURING, "name": "Industrial Production Index (US)", "impact": EventImpact.MEDIUM, "inflation_type": None},
+    {
+        "series_id": "CPIAUCSL",
+        "indicator": EventType.CPI,
+        "name": "Consumer Price Index (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": InflationType.HEADLINE,
+    },
+    {
+        "series_id": "CPILFESL",
+        "indicator": EventType.CPI,
+        "name": "Core CPI ex Food & Energy (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": InflationType.CORE,
+    },
+    {
+        "series_id": "PCEPI",
+        "indicator": EventType.CPI,
+        "name": "PCE Price Index (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": InflationType.HEADLINE,
+    },
+    {
+        "series_id": "PCEPILFE",
+        "indicator": EventType.CPI,
+        "name": "Core PCE ex Food & Energy (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": InflationType.CORE,
+    },
+    {
+        "series_id": "GDP",
+        "indicator": EventType.GDP,
+        "name": "Gross Domestic Product (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": None,
+    },
+    {
+        "series_id": "UNRATE",
+        "indicator": EventType.EMPLOYMENT,
+        "name": "Unemployment Rate (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": None,
+    },
+    {
+        "series_id": "PAYEMS",
+        "indicator": EventType.NFP,
+        "name": "Total Nonfarm Payrolls (US)",
+        "impact": EventImpact.HIGH,
+        "inflation_type": None,
+    },
+    {
+        "series_id": "RSXFS",
+        "indicator": EventType.RETAIL_SALES,
+        "name": "Retail Sales (US)",
+        "impact": EventImpact.MEDIUM,
+        "inflation_type": None,
+    },
+    {
+        "series_id": "PPIFIS",
+        "indicator": EventType.PPI,
+        "name": "Producer Price Index (US)",
+        "impact": EventImpact.MEDIUM,
+        "inflation_type": InflationType.HEADLINE,
+    },
+    {
+        "series_id": "INDPRO",
+        "indicator": EventType.MANUFACTURING,
+        "name": "Industrial Production Index (US)",
+        "impact": EventImpact.MEDIUM,
+        "inflation_type": None,
+    },
 ]
 
 
@@ -94,7 +154,11 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                 return None
 
             actual = self._parse_float(observations[0].get("value"))
-            previous = self._parse_float(observations[1].get("value")) if len(observations) > 1 else None
+            previous = (
+                self._parse_float(observations[1].get("value"))
+                if len(observations) > 1
+                else None
+            )
 
             date_str = str(observations[0].get("date", ""))
             try:

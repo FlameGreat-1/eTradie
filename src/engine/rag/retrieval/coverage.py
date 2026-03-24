@@ -14,10 +14,12 @@ from engine.shared.metrics import RAG_COVERAGE_CHECKS_TOTAL
 
 logger = get_logger(__name__)
 
-_RULE_DOC_TYPES: frozenset[str] = frozenset({
-    DocumentType.MASTER_RULEBOOK,
-    DocumentType.TRADING_STYLE_RULES,
-})
+_RULE_DOC_TYPES: frozenset[str] = frozenset(
+    {
+        DocumentType.MASTER_RULEBOOK,
+        DocumentType.TRADING_STYLE_RULES,
+    }
+)
 
 _FRAMEWORK_DOC_TYPES: dict[str, str] = {
     DocumentType.SMC_FRAMEWORK: Framework.SMC,
@@ -29,9 +31,11 @@ _FRAMEWORK_DOC_TYPES: dict[str, str] = {
     DocumentType.TRADING_STYLE_RULES: Framework.STYLE,
 }
 
-_SCENARIO_DOC_TYPES: frozenset[str] = frozenset({
-    DocumentType.CHART_SCENARIO_LIBRARY,
-})
+_SCENARIO_DOC_TYPES: frozenset[str] = frozenset(
+    {
+        DocumentType.CHART_SCENARIO_LIBRARY,
+    }
+)
 
 
 def check_coverage(
@@ -53,12 +57,8 @@ def check_coverage(
         doc_type_counts[c.doc_type] = doc_type_counts.get(c.doc_type, 0) + 1
 
     rule_count = sum(1 for c in chunks if c.doc_type in _RULE_DOC_TYPES)
-    framework_count = sum(
-        1 for c in chunks if c.doc_type in _FRAMEWORK_DOC_TYPES
-    )
-    scenario_count = sum(
-        1 for c in chunks if c.doc_type in _SCENARIO_DOC_TYPES
-    )
+    framework_count = sum(1 for c in chunks if c.doc_type in _FRAMEWORK_DOC_TYPES)
+    scenario_count = sum(1 for c in chunks if c.doc_type in _SCENARIO_DOC_TYPES)
 
     retrieved_doc_types = frozenset(c.doc_type for c in chunks)
     missing_doc_types: set[str] = set()
@@ -76,8 +76,7 @@ def check_coverage(
 
     if framework_count < config.coverage_min_framework_chunks:
         missing_doc_types.update(
-            dt for dt in _FRAMEWORK_DOC_TYPES
-            if dt not in retrieved_doc_types
+            dt for dt in _FRAMEWORK_DOC_TYPES if dt not in retrieved_doc_types
         )
         gaps.append(
             f"Framework chunks: {framework_count}/{config.coverage_min_framework_chunks} required"
@@ -85,14 +84,13 @@ def check_coverage(
 
     if required_framework:
         framework_specific = [
-            c for c in chunks
+            c
+            for c in chunks
             if _FRAMEWORK_DOC_TYPES.get(c.doc_type) == required_framework
         ]
         if not framework_specific:
             missing_frameworks.add(required_framework)
-            gaps.append(
-                f"No chunks from required framework '{required_framework}'"
-            )
+            gaps.append(f"No chunks from required framework '{required_framework}'")
 
     # Scenario coverage: required for hybrid and scenario_first strategies
     scenario_required = strategy in {"hybrid", "scenario_first"}
@@ -113,9 +111,7 @@ def check_coverage(
                 mandatory_ok = False
                 if doc_type not in retrieved_doc_types:
                     missing_doc_types.add(doc_type)
-                gaps.append(
-                    f"Mandatory {doc_type}: {actual}/{min_required} chunks"
-                )
+                gaps.append(f"Mandatory {doc_type}: {actual}/{min_required} chunks")
 
         # Check that all detected frameworks have representation
         for fw in mandatory.detected_frameworks:
@@ -130,14 +126,18 @@ def check_coverage(
             expected_dt = fw_doc_map.get(fw)
             if expected_dt and expected_dt not in retrieved_doc_types:
                 missing_frameworks.add(fw)
-                gaps.append(
-                    f"Detected framework '{fw}' has no chunks in result"
-                )
+                gaps.append(f"Detected framework '{fw}' has no chunks in result")
 
     rule_ok = rule_count >= config.coverage_min_rule_chunks
     framework_ok = framework_count >= config.coverage_min_framework_chunks
 
-    if rule_ok and framework_ok and not missing_frameworks and scenario_ok and mandatory_ok:
+    if (
+        rule_ok
+        and framework_ok
+        and not missing_frameworks
+        and scenario_ok
+        and mandatory_ok
+    ):
         result = CoverageResult.SUFFICIENT
     elif rule_ok or framework_ok:
         result = CoverageResult.PARTIAL

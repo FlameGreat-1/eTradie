@@ -27,15 +27,21 @@ class CandleSchema(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
     symbol: Mapped[str] = mapped_column(
-        String(20), nullable=False, index=True,
+        String(20),
+        nullable=False,
+        index=True,
     )
 
     timeframe: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(10),
+        nullable=False,
+        index=True,
     )
 
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True,
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
     )
 
     open: Mapped[float] = mapped_column(Float, nullable=False)
@@ -52,11 +58,13 @@ class CandleSchema(Base):
     # + timeframe duration. Nullable because the Candle domain model
     # does not carry these; they are storage-layer concerns only.
     open_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     close_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # Optional exchange metadata — nullable because MT5/TwelveData
@@ -66,11 +74,13 @@ class CandleSchema(Base):
     number_of_trades: Mapped[int] = mapped_column(Integer, nullable=True)
 
     taker_buy_base_volume: Mapped[float] = mapped_column(
-        Float, nullable=True,
+        Float,
+        nullable=True,
     )
 
     taker_buy_quote_volume: Mapped[float] = mapped_column(
-        Float, nullable=True,
+        Float,
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

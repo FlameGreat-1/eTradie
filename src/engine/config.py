@@ -43,19 +43,39 @@ class Settings(BaseSettings):
     app_name: str = "etradie-engine"
     app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
     app_debug: bool = False
-    app_log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
+    app_log_level: str = Field(
+        default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"
+    )
 
     # ── PostgreSQL ───────────────────────────────────────────
     database_url: PostgresDsn
-    db_pool_size: int = Field(default=10, ge=2, le=50, description="SQLAlchemy connection pool size")
-    db_max_overflow: int = Field(default=20, ge=0, le=100, description="Max connections above pool_size")
-    db_pool_timeout: int = Field(default=30, ge=5, le=120, description="Seconds to wait for a connection from pool")
-    db_pool_recycle: int = Field(default=1800, ge=300, le=7200, description="Seconds before a connection is recycled")
-    db_echo: bool = Field(default=False, description="Echo SQL statements to log (dev only)")
+    db_pool_size: int = Field(
+        default=10, ge=2, le=50, description="SQLAlchemy connection pool size"
+    )
+    db_max_overflow: int = Field(
+        default=20, ge=0, le=100, description="Max connections above pool_size"
+    )
+    db_pool_timeout: int = Field(
+        default=30,
+        ge=5,
+        le=120,
+        description="Seconds to wait for a connection from pool",
+    )
+    db_pool_recycle: int = Field(
+        default=1800,
+        ge=300,
+        le=7200,
+        description="Seconds before a connection is recycled",
+    )
+    db_echo: bool = Field(
+        default=False, description="Echo SQL statements to log (dev only)"
+    )
 
     # ── Redis ────────────────────────────────────────────────
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
-    redis_max_connections: int = Field(default=20, ge=5, le=100, description="Redis connection pool max")
+    redis_max_connections: int = Field(
+        default=20, ge=5, le=100, description="Redis connection pool max"
+    )
     redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
     redis_socket_connect_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
 
@@ -72,7 +92,9 @@ class Settings(BaseSettings):
     twelvedata_base_url: str = "https://api.twelvedata.com"
 
     # TradingEconomics.com — institutional-grade economic data
-    tradingeconomics_api_key: str = Field(default="", description="TradingEconomics.com API key")
+    tradingeconomics_api_key: str = Field(
+        default="", description="TradingEconomics.com API key"
+    )
     tradingeconomics_base_url: str = "https://api.tradingeconomics.com"
 
     # FRED (Federal Reserve Economic Data) — US-only backup
@@ -90,15 +112,33 @@ class Settings(BaseSettings):
     bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
 
     # ── Polling Intervals (seconds) ──────────────────────────
-    poll_interval_central_bank_rss: int = Field(default=600, ge=60, description="CB RSS poll: 10 min default")
-    poll_interval_news: int = Field(default=900, ge=60, description="News poll: 15 min default")
-    poll_interval_calendar: int = Field(default=1800, ge=60, description="Calendar poll: 30 min default")
-    poll_interval_cot: int = Field(default=604800, ge=3600, description="COT poll: weekly default")
-    poll_interval_dxy: int = Field(default=14400, ge=300, description="DXY poll: 4H default")
-    poll_interval_intermarket: int = Field(default=86400, ge=3600, description="Intermarket poll: daily default")
-    poll_interval_sentiment: int = Field(default=604800, ge=3600, description="Sentiment poll: weekly default")
-    poll_interval_economic_data: int = Field(default=3600, ge=300, description="Economic data poll: 1H default")
-    analysis_cycle_interval: int = Field(default=14400, ge=300, description="Analysis cycle: 4H default")
+    poll_interval_central_bank_rss: int = Field(
+        default=600, ge=60, description="CB RSS poll: 10 min default"
+    )
+    poll_interval_news: int = Field(
+        default=900, ge=60, description="News poll: 15 min default"
+    )
+    poll_interval_calendar: int = Field(
+        default=1800, ge=60, description="Calendar poll: 30 min default"
+    )
+    poll_interval_cot: int = Field(
+        default=604800, ge=3600, description="COT poll: weekly default"
+    )
+    poll_interval_dxy: int = Field(
+        default=14400, ge=300, description="DXY poll: 4H default"
+    )
+    poll_interval_intermarket: int = Field(
+        default=86400, ge=3600, description="Intermarket poll: daily default"
+    )
+    poll_interval_sentiment: int = Field(
+        default=604800, ge=3600, description="Sentiment poll: weekly default"
+    )
+    poll_interval_economic_data: int = Field(
+        default=3600, ge=300, description="Economic data poll: 1H default"
+    )
+    analysis_cycle_interval: int = Field(
+        default=14400, ge=300, description="Analysis cycle: 4H default"
+    )
 
     # ── HTTP Client ──────────────────────────────────────────
     http_timeout_seconds: int = Field(default=30, ge=5, le=120)
@@ -112,7 +152,9 @@ class Settings(BaseSettings):
 
     # ── Circuit Breaker ──────────────────────────────────────
     circuit_breaker_failure_threshold: int = Field(default=5, ge=2, le=20)
-    circuit_breaker_recovery_timeout: int = Field(default=60, ge=10, le=600, description="Seconds before half-open")
+    circuit_breaker_recovery_timeout: int = Field(
+        default=60, ge=10, le=600, description="Seconds before half-open"
+    )
     circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
 
     # ── Observability ────────────────────────────────────────
@@ -201,7 +243,12 @@ class TAConfig(BaseSettings):
     )
 
     ltf_timeframes: list[Timeframe] = Field(
-        default_factory=lambda: [Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1]
+        default_factory=lambda: [
+            Timeframe.M30,
+            Timeframe.M15,
+            Timeframe.M5,
+            Timeframe.M1,
+        ]
     )
 
     candle_lookback_periods: int = Field(default=500, ge=100, le=5000)
@@ -242,7 +289,9 @@ class RAGConfig(BaseSettings):
         extra="ignore",
     )
 
-    enabled: bool = Field(default=True, description="Master switch for the RAG subsystem")
+    enabled: bool = Field(
+        default=True, description="Master switch for the RAG subsystem"
+    )
 
     # ── Embedding Provider ──────────────────────────────────────────
     embedding_provider: str = Field(
@@ -254,19 +303,27 @@ class RAGConfig(BaseSettings):
         description="Model identifier for the active embedding provider",
     )
     embedding_dimensions: int = Field(
-        default=3072, ge=64, le=4096,
+        default=3072,
+        ge=64,
+        le=4096,
         description="Output vector dimensionality",
     )
     embedding_batch_size: int = Field(
-        default=64, ge=1, le=512,
+        default=64,
+        ge=1,
+        le=512,
         description="Chunks per embedding API call",
     )
     embedding_max_retries: int = Field(
-        default=3, ge=1, le=10,
+        default=3,
+        ge=1,
+        le=10,
         description="Max retries per embedding batch request",
     )
     embedding_timeout_seconds: int = Field(
-        default=30, ge=5, le=120,
+        default=30,
+        ge=5,
+        le=120,
         description="Timeout per embedding API call",
     )
 
@@ -290,7 +347,9 @@ class RAGConfig(BaseSettings):
         description="ChromaDB server host",
     )
     chroma_port: int = Field(
-        default=8000, ge=1, le=65535,
+        default=8000,
+        ge=1,
+        le=65535,
         description="ChromaDB server port",
     )
     chroma_auth_token: str = Field(
@@ -312,29 +371,41 @@ class RAGConfig(BaseSettings):
 
     # ── Chunking ────────────────────────────────────────────────────
     chunk_size: int = Field(
-        default=1024, ge=128, le=4096,
+        default=1024,
+        ge=128,
+        le=4096,
         description="Target chunk size in tokens",
     )
     chunk_overlap: int = Field(
-        default=128, ge=0, le=512,
+        default=128,
+        ge=0,
+        le=512,
         description="Overlap between consecutive chunks in tokens",
     )
     chunk_min_size: int = Field(
-        default=64, ge=16, le=512,
+        default=64,
+        ge=16,
+        le=512,
         description="Minimum chunk size; smaller chunks are merged with neighbors",
     )
     chunk_max_size: int = Field(
-        default=2048, ge=256, le=8192,
+        default=2048,
+        ge=256,
+        le=8192,
         description="Maximum chunk size; larger chunks are force-split",
     )
 
     # ── Retrieval ───────────────────────────────────────────────────
     retrieval_top_k: int = Field(
-        default=150, ge=1, le=500,
+        default=150,
+        ge=1,
+        le=500,
         description="Number of candidate chunks to retrieve from vector store per bucket",
     )
     retrieval_score_threshold: float = Field(
-        default=0.20, ge=0.0, le=1.0,
+        default=0.20,
+        ge=0.0,
+        le=1.0,
         description="Minimum similarity score to include a chunk in results",
     )
     retrieval_default_strategy: str = Field(
@@ -348,7 +419,9 @@ class RAGConfig(BaseSettings):
         description="Enable reranking stage after initial retrieval",
     )
     rerank_top_k: int = Field(
-        default=130, ge=1, le=200,
+        default=130,
+        ge=1,
+        le=200,
         description="Number of chunks to keep after reranking",
     )
     rerank_model: str = Field(
@@ -358,11 +431,15 @@ class RAGConfig(BaseSettings):
 
     # ── Coverage & Conflict ─────────────────────────────────────────
     coverage_min_rule_chunks: int = Field(
-        default=4, ge=1, le=20,
+        default=4,
+        ge=1,
+        le=20,
         description="Minimum rulebook chunks required for sufficient coverage",
     )
     coverage_min_framework_chunks: int = Field(
-        default=3, ge=1, le=20,
+        default=3,
+        ge=1,
+        le=20,
         description="Minimum framework-specific chunks required",
     )
     conflict_auto_reject: bool = Field(
@@ -386,21 +463,29 @@ class RAGConfig(BaseSettings):
         description="Run bootstrap ingest check on application startup",
     )
     ingest_max_concurrent: int = Field(
-        default=4, ge=1, le=16,
+        default=4,
+        ge=1,
+        le=16,
         description="Max concurrent document ingest operations",
     )
     ingest_retry_max: int = Field(
-        default=3, ge=1, le=10,
+        default=3,
+        ge=1,
+        le=10,
         description="Max retries for failed ingest jobs",
     )
 
     # ── Cache TTL ───────────────────────────────────────────────────
     cache_ttl_retrieval: int = Field(
-        default=300, ge=60, le=3600,
+        default=300,
+        ge=60,
+        le=3600,
         description="Cache TTL for retrieval results in seconds",
     )
     cache_ttl_embedding: int = Field(
-        default=86400, ge=3600, le=604800,
+        default=86400,
+        ge=3600,
+        le=604800,
         description="Cache TTL for embedding hashes in seconds",
     )
 
@@ -443,15 +528,14 @@ class RAGConfig(BaseSettings):
         # rerank_top_k can be less than retrieval_top_k (that is the point)
         # but should not exceed a reasonable upper bound
         if self.rerank_top_k > 200:
-            raise ValueError(
-                f"rerank_top_k ({self.rerank_top_k}) must not exceed 200"
-            )
+            raise ValueError(f"rerank_top_k ({self.rerank_top_k}) must not exceed 200")
         return self
 
     @model_validator(mode="after")
     def _validate_production_embedding_key(self) -> Self:
         if self.embedding_provider == "openai" and not self.openai_api_key:
             import os
+
             env = os.getenv("APP_ENV", "development")
             if env in {"production", "staging"}:
                 raise ValueError(

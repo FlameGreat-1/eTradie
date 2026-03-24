@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Publish the dynamic Correlation matrix to Redis for the Go Exposure Engine
     try:
         from engine.shared.models.currency import get_correlation_config
+
         corr_config = get_correlation_config()
         await container.cache.set(
             namespace="correlation",
@@ -145,8 +146,12 @@ class ProcessorConfigUpdateRequest(BaseModel):
     model_name: Optional[str] = None
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
-    api_key: Optional[str] = Field(default=None, description="API key for the new provider")
-    api_base_url: Optional[str] = Field(default=None, description="Base URL for self-hosted")
+    api_key: Optional[str] = Field(
+        default=None, description="API key for the new provider"
+    )
+    api_base_url: Optional[str] = Field(
+        default=None, description="Base URL for self-hosted"
+    )
 
 
 # -- Request schemas for internal gateway endpoints --------------------------
@@ -159,6 +164,7 @@ class InternalTARequest(BaseModel):
 
 class InternalMacroRequest(BaseModel):
     trace_id: Optional[str] = None
+
 
 class InternalRAGRequest(BaseModel):
     query_text: str
@@ -188,7 +194,6 @@ class InternalRAGRequest(BaseModel):
     dxy_momentum: Optional[str] = None
     risk_environment: Optional[str] = None
     trace_id: Optional[str] = None
-
 
 
 class InternalProcessorRequest(BaseModel):
@@ -238,7 +243,9 @@ def create_app() -> FastAPI:
         """
         container: Container = request.app.state.container
         if not hasattr(container, "ta_orchestrator"):
-            raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
+            raise HTTPException(
+                status_code=503, detail="TA orchestrator not initialized"
+            )
 
         results = []
         for symbol in body.symbols:
@@ -248,27 +255,35 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 logger.error(
                     "internal_ta_analyze_failed",
-                    extra={"symbol": symbol, "error": str(exc), "trace_id": body.trace_id},
+                    extra={
+                        "symbol": symbol,
+                        "error": str(exc),
+                        "trace_id": body.trace_id,
+                    },
                 )
-                results.append({
-                    "status": "error",
-                    "symbol": symbol,
-                    "error": str(exc),
-                    "htf_timeframes": [],
-                    "ltf_timeframes": [],
-                    "snapshots": {},
-                    "smc_candidates": [],
-                    "snd_candidates": [],
-                    "smc_candidates_count": 0,
-                    "snd_candidates_count": 0,
-                    "alignment": {},
-                    "overall_trend": "NEUTRAL",
-                })
+                results.append(
+                    {
+                        "status": "error",
+                        "symbol": symbol,
+                        "error": str(exc),
+                        "htf_timeframes": [],
+                        "ltf_timeframes": [],
+                        "snapshots": {},
+                        "smc_candidates": [],
+                        "snd_candidates": [],
+                        "smc_candidates_count": 0,
+                        "snd_candidates_count": 0,
+                        "alignment": {},
+                        "overall_trend": "NEUTRAL",
+                    }
+                )
 
         return {"symbol_results": results}
 
     @app.post("/internal/macro/collect")
-    async def internal_macro_collect(request: Request, body: InternalMacroRequest) -> dict:
+    async def internal_macro_collect(
+        request: Request, body: InternalMacroRequest
+    ) -> dict:
         """Run all 8 macro collectors in parallel.
 
         Called by the Go gateway. Delegates to each macro collector
@@ -289,7 +304,8 @@ def create_app() -> FastAPI:
 
         tasks = {name: c.collect() for name, c in collector_map.items()}
         raw_results = await asyncio.gather(
-            *tasks.values(), return_exceptions=True,
+            *tasks.values(),
+            return_exceptions=True,
         )
 
         datasets = {}
@@ -298,7 +314,11 @@ def create_app() -> FastAPI:
             if isinstance(result, Exception):
                 logger.error(
                     "internal_macro_collector_failed",
-                    extra={"collector": name, "error": str(result), "trace_id": body.trace_id},
+                    extra={
+                        "collector": name,
+                        "error": str(result),
+                        "trace_id": body.trace_id,
+                    },
                 )
                 datasets[name] = None
                 errors[name] = str(result)
@@ -321,7 +341,6 @@ def create_app() -> FastAPI:
             "sentiment": datasets.get("sentiment"),
             "errors": errors,
         }
-
 
     @app.post("/internal/rag/retrieve")
     async def internal_rag_retrieve(request: Request, body: InternalRAGRequest) -> dict:
@@ -376,7 +395,9 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=f"RAG retrieval failed: {exc}")
 
     @app.post("/internal/processor/process")
-    async def internal_processor_process(request: Request, body: InternalProcessorRequest) -> dict:
+    async def internal_processor_process(
+        request: Request, body: InternalProcessorRequest
+    ) -> dict:
         """Send assembled context to the Processor LLM.
 
         Called by the Go gateway. Delegates to AnalysisProcessor.
@@ -423,7 +444,10 @@ def create_app() -> FastAPI:
         limit = min(limit, 100)
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            from engine.processor.storage.repositories.analysis_repository import (
+                AnalysisRepository,
+            )
+
             repo = AnalysisRepository(session)
 
             if pair:
@@ -434,27 +458,31 @@ def create_app() -> FastAPI:
         results = []
         for row in rows:
             display = format_for_dashboard(row.raw_output or {}, row)
-            results.append({
-                "analysis_id": row.analysis_id,
-                "pair": row.pair,
-                "direction": row.direction,
-                "setup_grade": row.setup_grade,
-                "confluence_score": row.confluence_score,
-                "confidence": row.confidence,
-                "proceed_to_module_b": row.proceed_to_module_b,
-                "rr_ratio": row.rr_ratio,
-                "trading_style": row.trading_style,
-                "session": row.session,
-                "llm_provider": row.llm_provider,
-                "llm_model": row.llm_model,
-                "status": row.status,
-                "duration_ms": row.duration_ms,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "display": {
-                    "summary": display["summary"],
-                    "analyzed_by": display["analyzed_by"],
-                },
-            })
+            results.append(
+                {
+                    "analysis_id": row.analysis_id,
+                    "pair": row.pair,
+                    "direction": row.direction,
+                    "setup_grade": row.setup_grade,
+                    "confluence_score": row.confluence_score,
+                    "confidence": row.confidence,
+                    "proceed_to_module_b": row.proceed_to_module_b,
+                    "rr_ratio": row.rr_ratio,
+                    "trading_style": row.trading_style,
+                    "session": row.session,
+                    "llm_provider": row.llm_provider,
+                    "llm_model": row.llm_model,
+                    "status": row.status,
+                    "duration_ms": row.duration_ms,
+                    "created_at": (
+                        row.created_at.isoformat() if row.created_at else None
+                    ),
+                    "display": {
+                        "summary": display["summary"],
+                        "analyzed_by": display["analyzed_by"],
+                    },
+                }
+            )
 
         return {"analyses": results, "count": len(results)}
 
@@ -495,19 +523,26 @@ def create_app() -> FastAPI:
             try:
                 since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'since' datetime: {since}"
+                )
         if until:
             try:
                 until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'until' datetime: {until}"
+                )
 
         limit = min(limit, 100)
         if offset < 0:
             offset = 0
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            from engine.processor.storage.repositories.analysis_repository import (
+                AnalysisRepository,
+            )
+
             repo = AnalysisRepository(session)
             rows, total_count = await repo.list_filtered(
                 pair=pair,
@@ -523,27 +558,31 @@ def create_app() -> FastAPI:
         results = []
         for row in rows:
             display = format_for_dashboard(row.raw_output or {}, row)
-            results.append({
-                "analysis_id": row.analysis_id,
-                "pair": row.pair,
-                "direction": row.direction,
-                "setup_grade": row.setup_grade,
-                "confluence_score": row.confluence_score,
-                "confidence": row.confidence,
-                "proceed_to_module_b": row.proceed_to_module_b,
-                "rr_ratio": row.rr_ratio,
-                "trading_style": row.trading_style,
-                "session": row.session,
-                "llm_provider": row.llm_provider,
-                "llm_model": row.llm_model,
-                "status": row.status,
-                "duration_ms": row.duration_ms,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "display": {
-                    "summary": display["summary"],
-                    "analyzed_by": display["analyzed_by"],
-                },
-            })
+            results.append(
+                {
+                    "analysis_id": row.analysis_id,
+                    "pair": row.pair,
+                    "direction": row.direction,
+                    "setup_grade": row.setup_grade,
+                    "confluence_score": row.confluence_score,
+                    "confidence": row.confidence,
+                    "proceed_to_module_b": row.proceed_to_module_b,
+                    "rr_ratio": row.rr_ratio,
+                    "trading_style": row.trading_style,
+                    "session": row.session,
+                    "llm_provider": row.llm_provider,
+                    "llm_model": row.llm_model,
+                    "status": row.status,
+                    "duration_ms": row.duration_ms,
+                    "created_at": (
+                        row.created_at.isoformat() if row.created_at else None
+                    ),
+                    "display": {
+                        "summary": display["summary"],
+                        "analyzed_by": display["analyzed_by"],
+                    },
+                }
+            )
 
         return {
             "analyses": results,
@@ -577,15 +616,22 @@ def create_app() -> FastAPI:
             try:
                 since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'since' datetime: {since}"
+                )
         if until:
             try:
                 until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'until' datetime: {until}"
+                )
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            from engine.processor.storage.repositories.analysis_repository import (
+                AnalysisRepository,
+            )
+
             repo = AnalysisRepository(session)
             stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
         return stats
@@ -597,8 +643,12 @@ def create_app() -> FastAPI:
         if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
-        from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
-        from engine.processor.storage.repositories.audit_repository import AuditRepository
+        from engine.processor.storage.repositories.analysis_repository import (
+            AnalysisRepository,
+        )
+        from engine.processor.storage.repositories.audit_repository import (
+            AuditRepository,
+        )
 
         async with container.db.read_session() as session:
             repo = AnalysisRepository(session)
@@ -609,7 +659,9 @@ def create_app() -> FastAPI:
             audit_rows = await audit_repo.get_by_analysis_id(analysis_id)
 
         if not row:
-            raise HTTPException(status_code=404, detail=f"Analysis '{analysis_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Analysis '{analysis_id}' not found"
+            )
 
         audit_data = None
         if audit_rows:
@@ -658,7 +710,6 @@ def create_app() -> FastAPI:
             "audit": audit_data,
         }
 
-
     # -- Re-run analysis endpoint --------------------------------------------
 
     @app.post("/api/analysis/rerun")
@@ -682,7 +733,9 @@ def create_app() -> FastAPI:
         if not hasattr(container, "processor"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
         if not hasattr(container, "ta_orchestrator"):
-            raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
+            raise HTTPException(
+                status_code=503, detail="TA orchestrator not initialized"
+            )
 
         symbol = symbol.upper().strip()
         if not symbol:
@@ -706,9 +759,8 @@ def create_app() -> FastAPI:
         # returned an error or insufficient_data status with no candidates,
         # fail early with 500 rather than proceeding to macro/RAG/processor.
         ta_status = ta_analysis.get("status", "")
-        ta_has_candidates = (
-            bool(ta_analysis.get("smc_candidates"))
-            or bool(ta_analysis.get("snd_candidates"))
+        ta_has_candidates = bool(ta_analysis.get("smc_candidates")) or bool(
+            ta_analysis.get("snd_candidates")
         )
         if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
             ta_error = ta_analysis.get("error", "unknown error")
@@ -742,8 +794,12 @@ def create_app() -> FastAPI:
                 else:
                     macro_analysis[name] = {"raw": str(result)}
         except Exception as exc:
-            logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
-            raise HTTPException(status_code=500, detail=f"Macro collection failed: {exc}")
+            logger.error(
+                "rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)}
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Macro collection failed: {exc}"
+            )
 
         # Derive enriched macro signal flags from collected data.
         # This replicates what the Go gateway's macro_extractor.go and
@@ -755,8 +811,13 @@ def create_app() -> FastAPI:
         # Build a rich query text matching the Go gateway's BuildQueryText.
         query_parts: list[str] = [symbol]
         if ta_signals["direction"]:
-            dir_word = {"long": "bullish", "short": "bearish", "neutral": "neutral"}.get(
-                ta_signals["direction"], ta_signals["direction"],
+            dir_word = {
+                "long": "bullish",
+                "short": "bearish",
+                "neutral": "neutral",
+            }.get(
+                ta_signals["direction"],
+                ta_signals["direction"],
             )
             query_parts.append(dir_word)
         if ta_signals["overall_trend"] and ta_signals["overall_trend"] != "NEUTRAL":
@@ -776,7 +837,9 @@ def create_app() -> FastAPI:
             bank = macro_signals.get("qe_qt_bank", "central bank")
             query_parts.append(f"{bank} {action}")
             if macro_signals.get("balance_sheet_direction"):
-                query_parts.append(f"balance sheet {macro_signals['balance_sheet_direction'].lower()}")
+                query_parts.append(
+                    f"balance sheet {macro_signals['balance_sheet_direction'].lower()}"
+                )
             if action == "qe":
                 query_parts.append("quantitative easing asset purchases")
             elif action == "qt":
@@ -800,8 +863,13 @@ def create_app() -> FastAPI:
             query_parts.append("safe haven demand elevated JPY CHF gold")
         if macro_signals["commodity_currencies_weak"]:
             query_parts.append("commodity currencies weak AUD NZD CAD risk-off")
-        if macro_signals["risk_environment"] and macro_signals["risk_environment"] != "NEUTRAL":
-            query_parts.append(f"risk environment {macro_signals['risk_environment'].lower()}")
+        if (
+            macro_signals["risk_environment"]
+            and macro_signals["risk_environment"] != "NEUTRAL"
+        ):
+            query_parts.append(
+                f"risk environment {macro_signals['risk_environment'].lower()}"
+            )
         query_text = " ".join(query_parts)
 
         # Step 3: RAG retrieval (mandatory).
@@ -819,7 +887,11 @@ def create_app() -> FastAPI:
                 query_text,
                 strategy=None,
                 framework=ta_signals["framework"] or None,
-                setup_family=ta_signals["setup_families"][0] if ta_signals["setup_families"] else None,
+                setup_family=(
+                    ta_signals["setup_families"][0]
+                    if ta_signals["setup_families"]
+                    else None
+                ),
                 direction=ta_signals["direction"] or None,
                 timeframe=None,
                 style=None,
@@ -840,7 +912,9 @@ def create_app() -> FastAPI:
                 has_tff_data=macro_signals["has_tff_data"],
                 has_core_inflation=macro_signals["has_core_inflation"],
                 has_safe_haven_elevated=macro_signals["safe_haven_elevated"],
-                has_commodity_currencies_weak=macro_signals["commodity_currencies_weak"],
+                has_commodity_currencies_weak=macro_signals[
+                    "commodity_currencies_weak"
+                ],
                 dxy_momentum=macro_signals["dxy_momentum"] or None,
                 risk_environment=macro_signals["risk_environment"] or None,
             )
@@ -851,7 +925,9 @@ def create_app() -> FastAPI:
             else:
                 retrieved_knowledge = {}
         except Exception as exc:
-            logger.error("rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)})
+            logger.error(
+                "rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)}
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"RAG retrieval failed: {exc}. The LLM cannot reason without the knowledge base.",
@@ -865,9 +941,16 @@ def create_app() -> FastAPI:
 
         # Build enriched metadata matching the Go gateway's assembler.go output.
         available_datasets = [
-            name for name in [
-                "central_bank", "cot", "economic", "news",
-                "calendar", "dxy", "intermarket", "sentiment",
+            name
+            for name in [
+                "central_bank",
+                "cot",
+                "economic",
+                "news",
+                "calendar",
+                "dxy",
+                "intermarket",
+                "sentiment",
             ]
             if macro_analysis.get(name) is not None
         ]
@@ -882,7 +965,9 @@ def create_app() -> FastAPI:
             metadata["risk_environment"] = macro_signals["risk_environment"]
         metadata["stagflation_detected"] = macro_signals["stagflation_detected"]
         metadata["safe_haven_elevated"] = macro_signals["safe_haven_elevated"]
-        metadata["commodity_currencies_weak"] = macro_signals["commodity_currencies_weak"]
+        metadata["commodity_currencies_weak"] = macro_signals[
+            "commodity_currencies_weak"
+        ]
         if macro_signals["dxy_momentum"]:
             metadata["dxy_momentum"] = macro_signals["dxy_momentum"]
         metadata["cot_extremes_count"] = len(macro_signals["cot_extremes"])
@@ -893,12 +978,18 @@ def create_app() -> FastAPI:
         if macro_signals["has_qe_qt"]:
             metadata["qe_qt_action"] = macro_signals.get("qe_qt_action", "")
             metadata["qe_qt_bank"] = macro_signals.get("qe_qt_bank", "")
-            metadata["balance_sheet_direction"] = macro_signals.get("balance_sheet_direction", "")
+            metadata["balance_sheet_direction"] = macro_signals.get(
+                "balance_sheet_direction", ""
+            )
         metadata["has_core_inflation"] = macro_signals["has_core_inflation"]
         # Propagate RAG metadata if present in the bundle.
         for key in [
-            "strategy_used", "coverage_result", "conflict_result",
-            "total_chunks_returned", "coverage_gaps", "conflict_details",
+            "strategy_used",
+            "coverage_result",
+            "conflict_result",
+            "total_chunks_returned",
+            "coverage_gaps",
+            "conflict_details",
         ]:
             if key in retrieved_knowledge:
                 metadata[f"rag_{key}"] = retrieved_knowledge[key]
@@ -917,11 +1008,17 @@ def create_app() -> FastAPI:
                 trace_id=trace_id,
             )
         except Exception as exc:
-            logger.error("rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)})
+            logger.error(
+                "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
+            )
             raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
 
         if hasattr(result, "model_dump"):
-            return {"status": "completed", "symbol": symbol, "result": result.model_dump(mode="json")}
+            return {
+                "status": "completed",
+                "symbol": symbol,
+                "result": result.model_dump(mode="json"),
+            }
         if isinstance(result, dict):
             return {"status": "completed", "symbol": symbol, "result": result}
         return {"status": "completed", "symbol": symbol, "result": {"raw": str(result)}}
@@ -1001,8 +1098,14 @@ def create_app() -> FastAPI:
         old_cfg = container.processor_config
         new_provider = body.llm_provider or old_cfg.llm_provider
         new_model = body.model_name or old_cfg.model_name
-        new_temp = body.temperature if body.temperature is not None else old_cfg.temperature
-        new_max_tokens = body.max_output_tokens if body.max_output_tokens is not None else old_cfg.max_output_tokens
+        new_temp = (
+            body.temperature if body.temperature is not None else old_cfg.temperature
+        )
+        new_max_tokens = (
+            body.max_output_tokens
+            if body.max_output_tokens is not None
+            else old_cfg.max_output_tokens
+        )
 
         valid_providers = {p.value for p in LLMProvider}
         if new_provider not in valid_providers:
@@ -1167,8 +1270,12 @@ def create_app() -> FastAPI:
             info = await container.mt5_client.get_symbol_info(symbol)
             return info
         except Exception as exc:
-            logger.error("broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc)})
-            raise HTTPException(status_code=502, detail=f"Symbol info unavailable: {exc}")
+            logger.error(
+                "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc)}
+            )
+            raise HTTPException(
+                status_code=502, detail=f"Symbol info unavailable: {exc}"
+            )
 
     @app.get("/internal/broker/tick_price")
     async def broker_tick_price(request: Request, symbol: str = "") -> dict:
@@ -1188,8 +1295,12 @@ def create_app() -> FastAPI:
                 "time": tick.time,
             }
         except Exception as exc:
-            logger.error("broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc)})
-            raise HTTPException(status_code=502, detail=f"Tick price unavailable: {exc}")
+            logger.error(
+                "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc)}
+            )
+            raise HTTPException(
+                status_code=502, detail=f"Tick price unavailable: {exc}"
+            )
 
     @app.post("/internal/broker/place_order")
     async def broker_place_order(request: Request) -> dict:
@@ -1234,7 +1345,9 @@ def create_app() -> FastAPI:
                 "broker_place_order_failed",
                 extra={"symbol": symbol, "direction": direction, "error": str(exc)},
             )
-            raise HTTPException(status_code=502, detail=f"Order placement failed: {exc}")
+            raise HTTPException(
+                status_code=502, detail=f"Order placement failed: {exc}"
+            )
 
     @app.post("/internal/broker/cancel_order")
     async def broker_cancel_order(request: Request) -> dict:
@@ -1250,7 +1363,10 @@ def create_app() -> FastAPI:
             success = await container.mt5_client.cancel_order(order_id)
             return {"success": success, "error": ""}
         except Exception as exc:
-            logger.error("broker_cancel_order_failed", extra={"order_id": order_id, "error": str(exc)})
+            logger.error(
+                "broker_cancel_order_failed",
+                extra={"order_id": order_id, "error": str(exc)},
+            )
             return {"success": False, "error": str(exc)}
 
     @app.get("/internal/broker/position")
@@ -1276,7 +1392,9 @@ def create_app() -> FastAPI:
                 "ticket": int(p.ticket) if p.ticket.isdigit() else 0,
             }
         except Exception as exc:
-            logger.error("broker_position_failed", extra={"ticket": ticket, "error": str(exc)})
+            logger.error(
+                "broker_position_failed", extra={"ticket": ticket, "error": str(exc)}
+            )
             raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
 
     @app.post("/internal/broker/modify_position")
@@ -1322,7 +1440,9 @@ def create_app() -> FastAPI:
         volume = float(body.get("volume", 0))
 
         if not ticket or volume <= 0:
-            raise HTTPException(status_code=400, detail="ticket and positive volume required")
+            raise HTTPException(
+                status_code=400, detail="ticket and positive volume required"
+            )
 
         try:
             result = await container.mt5_client.close_partial(

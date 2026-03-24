@@ -25,4 +25,3 @@ Architecture:
 - scheduler/: Job scheduling for data refresh and analysis triggers
 - orchestrator.py: Main coordination layer
 """
-

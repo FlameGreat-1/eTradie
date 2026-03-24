@@ -87,7 +87,7 @@ class MarkdownLoader(BaseLoader):
             return {}, content
 
         frontmatter_text = match.group(1)
-        content_after = content[match.end():]
+        content_after = content[match.end() :]
 
         metadata: dict[str, str] = {}
         for line in frontmatter_text.split("\n"):
@@ -125,16 +125,20 @@ class MarkdownLoader(BaseLoader):
             if current_heading is not None:
                 subsections = tuple(
                     LoadedSection(
-                        heading=sh, level=sl, content="\n".join(sc).strip(),
+                        heading=sh,
+                        level=sl,
+                        content="\n".join(sc).strip(),
                     )
                     for sh, sl, sc in subsection_buffer
                 )
-                sections.append(LoadedSection(
-                    heading=current_heading,
-                    level=current_level,
-                    content="\n".join(current_lines).strip(),
-                    subsections=subsections,
-                ))
+                sections.append(
+                    LoadedSection(
+                        heading=current_heading,
+                        level=current_level,
+                        content="\n".join(current_lines).strip(),
+                        subsections=subsections,
+                    )
+                )
                 current_lines = []
                 subsection_buffer = []
 

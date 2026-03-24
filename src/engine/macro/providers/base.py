@@ -25,8 +25,7 @@ class BaseProvider(abc.ABC):
         self._consecutive_failures: int = 0
 
     @abc.abstractmethod
-    async def fetch(self) -> Any:
-        ...
+    async def fetch(self) -> Any: ...
 
     async def health_check(self) -> ProviderStatus:
         return self._status
@@ -36,10 +35,13 @@ class BaseProvider(abc.ABC):
         self._status = ProviderStatus.HEALTHY
         self._last_fetch_time = time.monotonic()
         PROVIDER_FETCH_TOTAL.labels(
-            provider=self.provider_name, category=self.category, status="success",
+            provider=self.provider_name,
+            category=self.category,
+            status="success",
         ).inc()
         PROVIDER_FETCH_DURATION.labels(
-            provider=self.provider_name, category=self.category,
+            provider=self.provider_name,
+            category=self.category,
         ).observe(duration)
 
     def _record_failure(self, duration: float, error_type: str) -> None:
@@ -49,11 +51,16 @@ class BaseProvider(abc.ABC):
         if self._consecutive_failures >= 5:
             self._status = ProviderStatus.UNAVAILABLE
         PROVIDER_FETCH_TOTAL.labels(
-            provider=self.provider_name, category=self.category, status="error",
+            provider=self.provider_name,
+            category=self.category,
+            status="error",
         ).inc()
         PROVIDER_ERRORS_TOTAL.labels(
-            provider=self.provider_name, category=self.category, error_type=error_type,
+            provider=self.provider_name,
+            category=self.category,
+            error_type=error_type,
         ).inc()
         PROVIDER_FETCH_DURATION.labels(
-            provider=self.provider_name, category=self.category,
+            provider=self.provider_name,
+            category=self.category,
         ).observe(duration)

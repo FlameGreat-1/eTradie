@@ -10,7 +10,9 @@ from engine.shared.http import HttpClient
 
 
 def create_embedding_provider(
-    *, config: RAGConfig, http_client: HttpClient,
+    *,
+    config: RAGConfig,
+    http_client: HttpClient,
 ) -> BaseEmbeddingProvider:
     provider = config.embedding_provider
 

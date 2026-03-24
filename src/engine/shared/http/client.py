@@ -34,19 +34,22 @@ _NON_RETRYABLE_STATUS = frozenset({400, 401, 403, 404, 405, 422})
 MAX_RESPONSE_SIZE = 50 * 1024 * 1024
 
 # Security: Sensitive headers to sanitize in logs
-_SENSITIVE_HEADERS = frozenset({
-    "authorization",
-    "api-key",
-    "x-api-key",
-    "cookie",
-    "set-cookie",
-    "proxy-authorization",
-})
+_SENSITIVE_HEADERS = frozenset(
+    {
+        "authorization",
+        "api-key",
+        "x-api-key",
+        "cookie",
+        "set-cookie",
+        "proxy-authorization",
+    }
+)
 
 
 @unique
 class CircuitState(StrEnum):
     """Circuit breaker states."""
+
     CLOSED = "CLOSED"
     OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"
@@ -55,13 +58,13 @@ class CircuitState(StrEnum):
 class _CircuitBreaker:
     """
     Thread-safe circuit breaker implementation.
-    
+
     Provides:
     - Automatic failure detection and recovery
     - Half-open state for gradual recovery
     - Configurable thresholds and timeouts
     """
-    
+
     __slots__ = (
         "_failure_count",
         "_failure_threshold",
@@ -119,7 +122,7 @@ class _CircuitBreaker:
         async with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.monotonic()
-            
+
             if self._failure_count >= self._failure_threshold:
                 self._state = CircuitState.OPEN
                 logger.warning(
@@ -134,7 +137,7 @@ class _CircuitBreaker:
 class HttpClient:
     """
     Production-grade HTTP client with resilience patterns.
-    
+
     Provides:
     - Circuit breaker for fault isolation
     - Exponential backoff with jitter
@@ -167,7 +170,7 @@ class HttpClient:
             recovery_timeout=cb_recovery_timeout,
             half_open_max_calls=cb_half_open_max,
         )
-        
+
         logger.info(
             "http_client_initialized",
             extra={
@@ -181,32 +184,32 @@ class HttpClient:
     def _validate_url(url: str) -> None:
         """
         Validate URL format and security.
-        
+
         Args:
             url: URL to validate
-            
+
         Raises:
             ProviderValidationError: On invalid URL
         """
         try:
             parsed = urlparse(url)
-            
+
             if not parsed.scheme:
                 raise ValueError("Missing URL scheme")
-            
+
             if parsed.scheme not in ("http", "https"):
                 raise ValueError(f"Unsupported scheme: {parsed.scheme}")
-            
+
             if not parsed.netloc:
                 raise ValueError("Missing URL hostname")
-            
+
             # Security: Prevent SSRF to internal networks
             if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
                 logger.warning(
                     "localhost_url_detected",
                     extra={"url": url},
                 )
-                
+
         except Exception as e:
             raise ProviderValidationError(f"Invalid URL: {e}") from e
 
@@ -214,16 +217,16 @@ class HttpClient:
     def _sanitize_headers(headers: dict[str, str] | None) -> dict[str, str]:
         """
         Sanitize headers for logging (remove sensitive values).
-        
+
         Args:
             headers: Request headers
-            
+
         Returns:
             Sanitized headers safe for logging
         """
         if not headers:
             return {}
-        
+
         return {
             k: "***REDACTED***" if k.lower() in _SENSITIVE_HEADERS else v
             for k, v in headers.items()
@@ -241,14 +244,14 @@ class HttpClient:
     def _backoff_delay(self, attempt: int) -> float:
         """
         Calculate exponential backoff delay with jitter.
-        
+
         Args:
             attempt: Retry attempt number (0-indexed)
-            
+
         Returns:
             Delay in seconds
         """
-        delay = min(self._backoff_base * (2 ** attempt), self._backoff_max)
+        delay = min(self._backoff_base * (2**attempt), self._backoff_max)
         jitter = random.uniform(0, delay * 0.5)  # noqa: S311
         return delay + jitter
 
@@ -267,7 +270,7 @@ class HttpClient:
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP request with retry logic and circuit breaker.
-        
+
         Args:
             method: HTTP method (GET, POST, etc.)
             url: Target URL
@@ -278,10 +281,10 @@ class HttpClient:
             json_body: Optional JSON request body
             trace_id: Optional trace ID for distributed tracing
             timeout_override: Optional timeout override in seconds
-            
+
         Returns:
             Response data (JSON dict/list or text string)
-            
+
         Raises:
             ProviderValidationError: On invalid URL or parameters
             ProviderUnavailableError: On circuit breaker open or non-retryable errors
@@ -290,7 +293,7 @@ class HttpClient:
         """
         # Input validation
         self._validate_url(url)
-        
+
         # Check circuit breaker state
         circuit_state = await self._circuit.state
         if circuit_state == CircuitState.OPEN:
@@ -299,7 +302,7 @@ class HttpClient:
                 category=category,
                 error_type="circuit_open",
             ).inc()
-            
+
             logger.error(
                 "circuit_breaker_open",
                 extra={
@@ -308,7 +311,7 @@ class HttpClient:
                     "trace_id": trace_id,
                 },
             )
-            
+
             raise ProviderUnavailableError(
                 f"Circuit breaker OPEN for {provider_name}",
                 details={
@@ -320,7 +323,7 @@ class HttpClient:
 
         last_exc: Exception | None = None
         session = await self._get_session()
-        
+
         # Apply timeout override if provided
         timeout = (
             aiohttp.ClientTimeout(total=timeout_override)
@@ -330,7 +333,7 @@ class HttpClient:
 
         for attempt in range(self._max_retries + 1):
             start = time.monotonic()
-            
+
             try:
                 async with session.request(
                     method,
@@ -341,13 +344,13 @@ class HttpClient:
                     timeout=timeout,
                 ) as resp:
                     elapsed = time.monotonic() - start
-                    
+
                     # Record latency metric
                     PROVIDER_FETCH_DURATION.labels(
                         provider=provider_name,
                         category=category,
                     ).observe(elapsed)
-                    
+
                     # Handle rate limiting (429)
                     if resp.status == 429:
                         await self._handle_rate_limit(
@@ -358,7 +361,7 @@ class HttpClient:
                             trace_id,
                         )
                         continue
-                    
+
                     # Handle non-retryable errors (4xx)
                     if resp.status in _NON_RETRYABLE_STATUS:
                         await self._handle_non_retryable_error(
@@ -368,7 +371,7 @@ class HttpClient:
                             url,
                             trace_id,
                         )
-                    
+
                     # Handle server errors (5xx)
                     if resp.status >= 500:
                         await self._handle_server_error(
@@ -388,14 +391,14 @@ class HttpClient:
                                 "attempt": attempt,
                             },
                         )
-                        
+
                         if attempt < self._max_retries:
                             delay = self._backoff_delay(attempt)
                             await asyncio.sleep(delay)
                             continue
                         else:
                             raise last_exc
-                    
+
                     # Success path
                     response_data = await self._parse_response(
                         resp,
@@ -403,16 +406,16 @@ class HttpClient:
                         category,
                         trace_id,
                     )
-                    
+
                     # Record success metrics
                     PROVIDER_FETCH_TOTAL.labels(
                         provider=provider_name,
                         category=category,
                         status="success",
                     ).inc()
-                    
+
                     await self._circuit.record_success()
-                    
+
                     logger.debug(
                         "http_request_success",
                         extra={
@@ -426,25 +429,25 @@ class HttpClient:
                             "trace_id": trace_id,
                         },
                     )
-                    
+
                     return response_data
 
             except asyncio.TimeoutError:
                 elapsed = time.monotonic() - start
-                
+
                 PROVIDER_FETCH_DURATION.labels(
                     provider=provider_name,
                     category=category,
                 ).observe(elapsed)
-                
+
                 PROVIDER_ERRORS_TOTAL.labels(
                     provider=provider_name,
                     category=category,
                     error_type="timeout",
                 ).inc()
-                
+
                 await self._circuit.record_failure()
-                
+
                 logger.warning(
                     "http_request_timeout",
                     extra={
@@ -455,7 +458,7 @@ class HttpClient:
                         "trace_id": trace_id,
                     },
                 )
-                
+
                 last_exc = ProviderTimeoutError(
                     f"{provider_name} timed out after {timeout.total}s",
                     details={
@@ -467,20 +470,20 @@ class HttpClient:
 
             except aiohttp.ClientError as exc:
                 elapsed = time.monotonic() - start
-                
+
                 PROVIDER_FETCH_DURATION.labels(
                     provider=provider_name,
                     category=category,
                 ).observe(elapsed)
-                
+
                 PROVIDER_ERRORS_TOTAL.labels(
                     provider=provider_name,
                     category=category,
                     error_type="connection",
                 ).inc()
-                
+
                 await self._circuit.record_failure()
-                
+
                 logger.warning(
                     "http_connection_error",
                     extra={
@@ -491,7 +494,7 @@ class HttpClient:
                         "trace_id": trace_id,
                     },
                 )
-                
+
                 last_exc = ProviderUnavailableError(
                     f"{provider_name} connection error: {exc}",
                     details={
@@ -508,15 +511,15 @@ class HttpClient:
             except Exception as exc:
                 # Unexpected error
                 elapsed = time.monotonic() - start
-                
+
                 PROVIDER_ERRORS_TOTAL.labels(
                     provider=provider_name,
                     category=category,
                     error_type="unexpected",
                 ).inc()
-                
+
                 await self._circuit.record_failure()
-                
+
                 logger.exception(
                     "http_unexpected_error",
                     extra={
@@ -526,7 +529,7 @@ class HttpClient:
                         "trace_id": trace_id,
                     },
                 )
-                
+
                 raise HttpClientError(
                     f"Unexpected error during {provider_name} request: {exc}",
                     details={"url": url, "attempt": attempt},
@@ -535,7 +538,7 @@ class HttpClient:
             # Retry logic
             if attempt < self._max_retries:
                 delay = self._backoff_delay(attempt)
-                
+
                 logger.warning(
                     "retrying_request",
                     extra={
@@ -547,7 +550,7 @@ class HttpClient:
                         "trace_id": trace_id,
                     },
                 )
-                
+
                 await asyncio.sleep(delay)
 
         # All retries exhausted
@@ -556,7 +559,7 @@ class HttpClient:
             category=category,
             status="exhausted",
         ).inc()
-        
+
         logger.error(
             "http_retries_exhausted",
             extra={
@@ -566,7 +569,7 @@ class HttpClient:
                 "trace_id": trace_id,
             },
         )
-        
+
         raise last_exc or ProviderUnavailableError(
             f"{provider_name} all retries exhausted",
             details={
@@ -589,11 +592,11 @@ class HttpClient:
             category=category,
             error_type="rate_limit",
         ).inc()
-        
+
         retry_after = float(
             resp.headers.get("Retry-After", self._backoff_delay(attempt))
         )
-        
+
         logger.warning(
             "rate_limited",
             extra={
@@ -603,7 +606,7 @@ class HttpClient:
                 "trace_id": trace_id,
             },
         )
-        
+
         await asyncio.sleep(retry_after)
 
     async def _handle_non_retryable_error(
@@ -620,11 +623,11 @@ class HttpClient:
             category=category,
             status="error",
         ).inc()
-        
+
         await self._circuit.record_failure()
-        
+
         body = await resp.text()
-        
+
         logger.error(
             "http_non_retryable_error",
             extra={
@@ -635,7 +638,7 @@ class HttpClient:
                 "trace_id": trace_id,
             },
         )
-        
+
         raise ProviderUnavailableError(
             f"{provider_name} returned {resp.status}",
             details={
@@ -656,9 +659,9 @@ class HttpClient:
     ) -> None:
         """Handle 5xx server errors."""
         await self._circuit.record_failure()
-        
+
         body = await resp.text()
-        
+
         logger.warning(
             "http_server_error",
             extra={
@@ -680,21 +683,21 @@ class HttpClient:
     ) -> dict[str, Any] | list[Any] | str:
         """
         Parse HTTP response with size validation.
-        
+
         Args:
             resp: aiohttp response object
             provider_name: Provider name for logging
             category: Category for logging
             trace_id: Trace ID for logging
-            
+
         Returns:
             Parsed response data
-            
+
         Raises:
             ProviderValidationError: On response size limit exceeded
         """
         content_length = resp.headers.get("Content-Length")
-        
+
         if content_length and int(content_length) > self._max_response_size:
             raise ProviderValidationError(
                 f"Response size {content_length} exceeds maximum {self._max_response_size}",
@@ -704,16 +707,16 @@ class HttpClient:
                     "max_size": self._max_response_size,
                 },
             )
-        
+
         content_type = resp.headers.get("Content-Type", "")
-        
+
         if "json" in content_type or "javascript" in content_type:
             data = await resp.json()
             response_size = len(str(data))
         else:
             data = await resp.text()
             response_size = len(data)
-        
+
         # Security: Validate actual response size
         if response_size > self._max_response_size:
             raise ProviderValidationError(
@@ -724,13 +727,13 @@ class HttpClient:
                     "max_size": self._max_response_size,
                 },
             )
-        
+
         # Record response size metric
         PROVIDER_RESPONSE_SIZE.labels(
             provider=provider_name,
             category=category,
         ).observe(response_size)
-        
+
         return data  # type: ignore[return-value]
 
     async def get(
@@ -746,7 +749,7 @@ class HttpClient:
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP GET request.
-        
+
         Args:
             url: Target URL
             provider_name: Provider identifier
@@ -755,7 +758,7 @@ class HttpClient:
             params: Optional query parameters
             trace_id: Optional trace ID
             timeout_override: Optional timeout override
-            
+
         Returns:
             Response data
         """
@@ -784,7 +787,7 @@ class HttpClient:
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP POST request.
-        
+
         Args:
             url: Target URL
             provider_name: Provider identifier
@@ -794,7 +797,7 @@ class HttpClient:
             json_body: Optional JSON request body
             trace_id: Optional trace ID
             timeout_override: Optional timeout override
-            
+
         Returns:
             Response data
         """

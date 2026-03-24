@@ -8,12 +8,15 @@ logger = get_logger(__name__)
 
 
 async def bootstrap_collections(
-    *, store: BaseVectorStore, config: RAGConfig,
+    *,
+    store: BaseVectorStore,
+    config: RAGConfig,
 ) -> None:
     dimensions = config.embedding_dimensions
 
     await store.create_collection(
-        config.collection_documents, dimensions=dimensions,
+        config.collection_documents,
+        dimensions=dimensions,
     )
     logger.info(
         "collection_bootstrapped",
@@ -22,7 +25,8 @@ async def bootstrap_collections(
     )
 
     await store.create_collection(
-        config.collection_scenarios, dimensions=dimensions,
+        config.collection_scenarios,
+        dimensions=dimensions,
     )
     logger.info(
         "collection_bootstrapped",

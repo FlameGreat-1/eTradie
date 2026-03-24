@@ -37,9 +37,7 @@ _DIRECTION_PATTERNS: dict[str, str] = {
     r"\bSHORT\b": "short",
 }
 
-_TIMEFRAME_RE = re.compile(
-    r"\b(1M|1W|1D|4H|1H|M30|M15|M5|M1|H4|H1|D1|W1|MN)\b"
-)
+_TIMEFRAME_RE = re.compile(r"\b(1M|1W|1D|4H|1H|M30|M15|M5|M1|H4|H1|D1|W1|MN)\b")
 
 _SETUP_FAMILY_PATTERNS: dict[str, str] = {
     r"\border block\b": "order_block",
@@ -141,15 +139,17 @@ def attach_metadata(
         if timeframes:
             meta[METADATA_KEY_TIMEFRAMES] = ",".join(sorted(timeframes))
 
-        enriched.append(RawChunk(
-            content=chunk.content,
-            chunk_index=chunk.chunk_index,
-            section=chunk.section,
-            subsection=chunk.subsection,
-            hierarchy_level=chunk.hierarchy_level,
-            parent_chunk_index=chunk.parent_chunk_index,
-            metadata=meta,
-        ))
+        enriched.append(
+            RawChunk(
+                content=chunk.content,
+                chunk_index=chunk.chunk_index,
+                section=chunk.section,
+                subsection=chunk.subsection,
+                hierarchy_level=chunk.hierarchy_level,
+                parent_chunk_index=chunk.parent_chunk_index,
+                metadata=meta,
+            )
+        )
 
     return tuple(enriched)
 

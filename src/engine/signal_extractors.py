@@ -48,7 +48,7 @@ def derive_macro_signals(macro: dict) -> dict:
     if cb and isinstance(cb, dict):
         signals["has_macro_data"] = True
         for source_key in ("speeches", "forward_guidance"):
-            for item in (cb.get(source_key) or []):
+            for item in cb.get(source_key) or []:
                 if not isinstance(item, dict):
                     continue
                 bank = (item.get("bank") or "").upper()
@@ -65,7 +65,7 @@ def derive_macro_signals(macro: dict) -> dict:
                     signals["balance_sheet_direction"] = (
                         "EXPANDING" if policy == "QE" else "CONTRACTING"
                     )
-        for action in (cb.get("policy_actions") or []):
+        for action in cb.get("policy_actions") or []:
             if not isinstance(action, dict):
                 continue
             action_type = (action.get("action") or "NONE").upper()
@@ -76,7 +76,7 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["balance_sheet_direction"] = (
                     "EXPANDING" if action_type == "QE" else "CONTRACTING"
                 )
-        for decision in (cb.get("rate_decisions") or []):
+        for decision in cb.get("rate_decisions") or []:
             if not isinstance(decision, dict):
                 continue
             bank = (decision.get("bank") or "").upper()
@@ -114,7 +114,7 @@ def derive_macro_signals(macro: dict) -> dict:
     # Economic signals.
     econ = macro.get("economic")
     if econ and isinstance(econ, dict):
-        for release in (econ.get("releases") or []):
+        for release in econ.get("releases") or []:
             if not isinstance(release, dict):
                 continue
             inflation_type = (release.get("inflation_type") or "").upper()
@@ -124,7 +124,7 @@ def derive_macro_signals(macro: dict) -> dict:
     # Calendar signals.
     cal = macro.get("calendar")
     if cal and isinstance(cal, dict):
-        for event in (cal.get("events") or []):
+        for event in cal.get("events") or []:
             if not isinstance(event, dict):
                 continue
             impact = (event.get("impact") or "").upper()
@@ -133,7 +133,11 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["has_high_impact_event"] = True
             if "RATE" in name_upper and "DECISION" in name_upper:
                 signals["has_rate_decision"] = True
-            if "NFP" in name_upper or "NON-FARM" in name_upper or "NONFARM" in name_upper:
+            if (
+                "NFP" in name_upper
+                or "NON-FARM" in name_upper
+                or "NONFARM" in name_upper
+            ):
                 signals["has_nfp"] = True
             if "CPI" in name_upper or "CONSUMER PRICE INDEX" in name_upper:
                 signals["has_cpi"] = True

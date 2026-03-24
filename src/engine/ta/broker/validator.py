@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 
 class BrokerDataValidator:
-    
+
     def __init__(
         self,
         *,
@@ -19,7 +19,7 @@ class BrokerDataValidator:
     ) -> None:
         self.max_gap_multiplier = max_gap_multiplier
         self.min_candles_required = min_candles_required
-    
+
     def validate_candle(self, candle: Candle) -> None:
         if candle.high < candle.low:
             raise ProviderValidationError(
@@ -31,7 +31,7 @@ class BrokerDataValidator:
                     "low": candle.low,
                 },
             )
-        
+
         if candle.open <= 0 or candle.close <= 0:
             raise ProviderValidationError(
                 "Invalid candle: open or close <= 0",
@@ -42,7 +42,7 @@ class BrokerDataValidator:
                     "close": candle.close,
                 },
             )
-        
+
         if candle.high < candle.open or candle.high < candle.close:
             raise ProviderValidationError(
                 "Invalid candle: high < open or close",
@@ -54,7 +54,7 @@ class BrokerDataValidator:
                     "close": candle.close,
                 },
             )
-        
+
         if candle.low > candle.open or candle.low > candle.close:
             raise ProviderValidationError(
                 "Invalid candle: low > open or close",
@@ -66,7 +66,7 @@ class BrokerDataValidator:
                     "close": candle.close,
                 },
             )
-        
+
         if candle.volume < 0:
             raise ProviderValidationError(
                 "Invalid candle: volume < 0",
@@ -76,7 +76,7 @@ class BrokerDataValidator:
                     "volume": candle.volume,
                 },
             )
-    
+
     def validate_sequence(self, sequence: CandleSequence) -> None:
         if sequence.count < self.min_candles_required:
             raise ProviderValidationError(
@@ -88,38 +88,38 @@ class BrokerDataValidator:
                     "required": self.min_candles_required,
                 },
             )
-        
+
         for candle in sequence.candles:
             self.validate_candle(candle)
-        
+
         self._validate_timestamp_continuity(sequence)
-        
+
         self._validate_symbol_consistency(sequence)
-        
+
         self._validate_timeframe_consistency(sequence)
-    
+
     def _validate_timestamp_continuity(self, sequence: CandleSequence) -> None:
         if sequence.count < 2:
             return
-        
+
         timeframe_minutes = TIMEFRAME_MINUTES.get(sequence.timeframe)
         if timeframe_minutes is None:
             raise ProviderValidationError(
                 f"Unknown timeframe: {sequence.timeframe}",
                 details={"timeframe": sequence.timeframe},
             )
-        
+
         expected_delta = timedelta(minutes=timeframe_minutes)
         max_allowed_gap = timedelta(
             minutes=int(timeframe_minutes * self.max_gap_multiplier)
         )
-        
+
         for i in range(1, len(sequence.candles)):
             prev_candle = sequence.candles[i - 1]
             curr_candle = sequence.candles[i]
-            
+
             actual_delta = curr_candle.timestamp - prev_candle.timestamp
-            
+
             if actual_delta < expected_delta:
                 raise ProviderValidationError(
                     "Candles too close together",
@@ -132,7 +132,7 @@ class BrokerDataValidator:
                         "expected_delta_minutes": timeframe_minutes,
                     },
                 )
-            
+
             if actual_delta > max_allowed_gap:
                 logger.warning(
                     "broker_data_gap_detected",
@@ -145,10 +145,10 @@ class BrokerDataValidator:
                         "max_allowed_minutes": max_allowed_gap.total_seconds() / 60,
                     },
                 )
-    
+
     def _validate_symbol_consistency(self, sequence: CandleSequence) -> None:
         symbols = {candle.symbol for candle in sequence.candles}
-        
+
         if len(symbols) > 1:
             raise ProviderValidationError(
                 "Multiple symbols in sequence",
@@ -157,7 +157,7 @@ class BrokerDataValidator:
                     "found_symbols": list(symbols),
                 },
             )
-        
+
         if sequence.symbol not in symbols:
             raise ProviderValidationError(
                 "Sequence symbol mismatch",
@@ -166,10 +166,10 @@ class BrokerDataValidator:
                     "candle_symbols": list(symbols),
                 },
             )
-    
+
     def _validate_timeframe_consistency(self, sequence: CandleSequence) -> None:
         timeframes = {candle.timeframe for candle in sequence.candles}
-        
+
         if len(timeframes) > 1:
             raise ProviderValidationError(
                 "Multiple timeframes in sequence",
@@ -178,7 +178,7 @@ class BrokerDataValidator:
                     "found_timeframes": [str(tf) for tf in timeframes],
                 },
             )
-        
+
         if sequence.timeframe not in timeframes:
             raise ProviderValidationError(
                 "Sequence timeframe mismatch",
@@ -187,7 +187,7 @@ class BrokerDataValidator:
                     "candle_timeframes": [str(tf) for tf in timeframes],
                 },
             )
-    
+
     def validate_time_range(
         self,
         start_time: Optional[datetime],
@@ -202,8 +202,9 @@ class BrokerDataValidator:
                         "end_time": end_time.isoformat(),
                     },
                 )
-            
+
             from datetime import timezone as _tz
+
             _now = datetime.now(_tz.utc) if end_time.tzinfo else datetime.now()
             if end_time > _now:
                 raise ProviderValidationError(

@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class ZoneValidator:
     """
     Validates SMC zones against the 7 Rules of a Tradeable Order Block.
-    
+
     All 7 rules must be satisfied for a zone to be tradeable:
     1. Must sponsor a BOS/CHOCH
     2. Must have FVG associated
@@ -26,10 +26,10 @@ class ZoneValidator:
     5. Must be at Premium (sells) or Discount (buys)
     6. Must have BPR (FVG within FVG, OB within OB on subsequent TF)
     7. Select HTF OBs, refine to LTF
-    
+
     This validator handles rules 2, 3, 5. Rules 1, 4, 6, 7 handled elsewhere.
     """
-    
+
     def __init__(
         self,
         config: SMCConfig,
@@ -38,7 +38,7 @@ class ZoneValidator:
         self.config = config
         self.fibonacci_analyzer = fibonacci_analyzer
         self._logger = get_logger(__name__)
-    
+
     def validate_ob_has_fvg(
         self,
         ob: OrderBlock,
@@ -47,22 +47,22 @@ class ZoneValidator:
         """Rule 2: Must have FVG associated."""
         if not self.config.require_fvg_with_ob:
             return True
-        
+
         for fvg in fvgs:
             if fvg.direction != ob.direction:
                 continue
-            
+
             if abs(fvg.timestamp.timestamp() - ob.timestamp.timestamp()) > 3600:
                 continue
-            
+
             if ob.lower_bound <= fvg.lower_bound <= ob.upper_bound:
                 return True
-            
+
             if ob.lower_bound <= fvg.upper_bound <= ob.upper_bound:
                 return True
-        
+
         return False
-    
+
     def validate_ob_has_liquidity(
         self,
         ob: OrderBlock,
@@ -73,14 +73,20 @@ class ZoneValidator:
         for sweep in liquidity_sweeps:
             if abs(sweep.timestamp.timestamp() - ob.timestamp.timestamp()) < 3600:
                 return True
-        
+
         for inducement in inducement_events:
             if inducement.cleared:
-                if abs(inducement.cleared_timestamp.timestamp() - ob.timestamp.timestamp()) < 3600:
+                if (
+                    abs(
+                        inducement.cleared_timestamp.timestamp()
+                        - ob.timestamp.timestamp()
+                    )
+                    < 3600
+                ):
                     return True
-        
+
         return True
-    
+
     def validate_ob_at_premium_discount(
         self,
         ob: OrderBlock,
@@ -89,14 +95,14 @@ class ZoneValidator:
         """Rule 5: Must be at Premium (sells) or Discount (buys) — specifically the OTE pocket (61.8% to 78.6%)."""
         if not self.config.require_premium_discount:
             return True
-        
+
         if not retracement:
             return False
-        
+
         # We enforce that the Order Block midpoint strictly falls inside the OTE pocket
         # (61.8% - 78.6% Fibonacci retracement), factoring in a 5 pip tolerance.
         return self.fibonacci_analyzer.is_at_ote(ob.midpoint, retracement)
-    
+
     def validate_zone_freshness(
         self,
         ob: OrderBlock,
@@ -105,22 +111,22 @@ class ZoneValidator:
         """Validate zone is unmitigated (fresh)."""
         if ob.mitigated:
             return False
-        
+
         if ob.candle_index >= len(sequence.candles) - 1:
             return True
-        
+
         for i in range(ob.candle_index + 1, len(sequence.candles)):
             candle = sequence.candles[i]
-            
+
             if ob.direction == Direction.BULLISH:
                 if candle.low <= ob.upper_bound:
                     return False
             else:
                 if candle.high >= ob.lower_bound:
                     return False
-        
+
         return True
-    
+
     def validate_zone_no_overlap(
         self,
         ob: OrderBlock,
@@ -130,12 +136,12 @@ class ZoneValidator:
         for other_ob in other_obs:
             if other_ob.timestamp == ob.timestamp:
                 continue
-            
+
             if ob.overlaps_with(other_ob.to_zone()):
                 return False
-        
+
         return True
-    
+
     def validate_all_ob_rules(
         self,
         ob: OrderBlock,
@@ -157,7 +163,7 @@ class ZoneValidator:
                 },
             )
             return False
-        
+
         if not self.validate_ob_has_liquidity(ob, liquidity_sweeps, inducement_events):
             self._logger.debug(
                 "ob_validation_failed_no_liquidity",
@@ -168,7 +174,7 @@ class ZoneValidator:
                 },
             )
             return False
-        
+
         if not self.validate_ob_at_premium_discount(ob, retracement):
             self._logger.debug(
                 "ob_validation_failed_not_premium_discount",
@@ -180,7 +186,7 @@ class ZoneValidator:
                 },
             )
             return False
-        
+
         if not self.validate_zone_freshness(ob, sequence):
             self._logger.debug(
                 "ob_validation_failed_not_fresh",
@@ -191,5 +197,5 @@ class ZoneValidator:
                 },
             )
             return False
-        
+
         return True

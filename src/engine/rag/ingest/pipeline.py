@@ -48,22 +48,28 @@ _LOADER_MAP: dict[SourceFormat, type[BaseLoader]] = {
     SourceFormat.SCENARIO_BUNDLE: ScenarioAssetLoader,
 }
 
-_FRAMEWORK_DOC_TYPES = frozenset({
-    DocumentType.SMC_FRAMEWORK,
-    DocumentType.SND_RULEBOOK,
-    DocumentType.WYCKOFF_GUIDE,
-    DocumentType.DXY_FRAMEWORK,
-    DocumentType.COT_INTERPRETATION_GUIDE,
-})
+_FRAMEWORK_DOC_TYPES = frozenset(
+    {
+        DocumentType.SMC_FRAMEWORK,
+        DocumentType.SND_RULEBOOK,
+        DocumentType.WYCKOFF_GUIDE,
+        DocumentType.DXY_FRAMEWORK,
+        DocumentType.COT_INTERPRETATION_GUIDE,
+    }
+)
 
-_MACRO_DOC_TYPES = frozenset({
-    DocumentType.MACRO_TO_PRICE_GUIDE,
-})
+_MACRO_DOC_TYPES = frozenset(
+    {
+        DocumentType.MACRO_TO_PRICE_GUIDE,
+    }
+)
 
-_RULEBOOK_DOC_TYPES = frozenset({
-    DocumentType.MASTER_RULEBOOK,
-    DocumentType.TRADING_STYLE_RULES,
-})
+_RULEBOOK_DOC_TYPES = frozenset(
+    {
+        DocumentType.MASTER_RULEBOOK,
+        DocumentType.TRADING_STYLE_RULES,
+    }
+)
 
 
 class IngestPipeline:
@@ -108,11 +114,17 @@ class IngestPipeline:
 
             async with self._uow() as uow:
                 doc_row = await self._ensure_document(
-                    uow, loaded, doc_type=doc_type, source_format=source_format, title=title, checksum=checksum,
+                    uow,
+                    loaded,
+                    doc_type=doc_type,
+                    source_format=source_format,
+                    title=title,
+                    checksum=checksum,
                 )
 
                 existing_version = await uow.version_repo.get_by_checksum(
-                    doc_row.id, checksum,
+                    doc_row.id,
+                    checksum,
                 )
                 if existing_version:
                     logger.info(
@@ -147,7 +159,9 @@ class IngestPipeline:
 
                 await uow.chunk_repo.delete_by_document_version(version_row.id)
 
-                chunk_rows = await self._persist_chunks(uow, raw_chunks, doc_row, version_row)
+                chunk_rows = await self._persist_chunks(
+                    uow, raw_chunks, doc_row, version_row
+                )
 
                 await uow.ingest_job_repo.mark_completed(
                     job_row.id,
@@ -158,7 +172,9 @@ class IngestPipeline:
             elapsed = time.monotonic() - start
             RAG_INGEST_TOTAL.labels(doc_type=doc_type, status="success").inc()
             RAG_INGEST_DURATION.labels(doc_type=doc_type).observe(elapsed)
-            RAG_CHUNKS_GENERATED.labels(doc_type=doc_type, chunker=type(chunker).__name__).inc(len(chunk_rows))
+            RAG_CHUNKS_GENERATED.labels(
+                doc_type=doc_type, chunker=type(chunker).__name__
+            ).inc(len(chunk_rows))
 
             logger.info(
                 "ingest_completed",
@@ -240,16 +256,22 @@ class IngestPipeline:
             framework_tags.append(fm_framework.lower())
         fm_tags = loaded.raw_metadata.get("framework_tags", "")
         if isinstance(fm_tags, str) and fm_tags:
-            framework_tags.extend(t.strip().lower() for t in fm_tags.split(",") if t.strip())
+            framework_tags.extend(
+                t.strip().lower() for t in fm_tags.split(",") if t.strip()
+            )
         elif isinstance(fm_tags, list):
-            framework_tags.extend(str(t).strip().lower() for t in fm_tags if str(t).strip())
+            framework_tags.extend(
+                str(t).strip().lower() for t in fm_tags if str(t).strip()
+            )
 
         # Preserve frontmatter doc_id as document-level metadata
         doc_metadata: dict[str, str] = {}
         fm_doc_id = loaded.raw_metadata.get("doc_id", "")
         if fm_doc_id:
             doc_metadata["canonical_doc_id"] = fm_doc_id
-        fm_version = loaded.raw_metadata.get("version", loaded.raw_metadata.get("doc_version", ""))
+        fm_version = loaded.raw_metadata.get(
+            "version", loaded.raw_metadata.get("doc_version", "")
+        )
         if fm_version:
             doc_metadata["source_version"] = fm_version
 
@@ -266,7 +288,10 @@ class IngestPipeline:
         return await uow.document_repo.add(row)
 
     async def _create_version(
-        self, uow: RAGUnitOfWork, doc_row: DocumentRow, checksum: str,
+        self,
+        uow: RAGUnitOfWork,
+        doc_row: DocumentRow,
+        checksum: str,
     ) -> DocumentVersionRow:
         latest = await uow.version_repo.get_latest(doc_row.id)
         next_number = (latest.version_number + 1) if latest else 1
@@ -280,7 +305,10 @@ class IngestPipeline:
         return await uow.version_repo.add(row)
 
     async def _create_ingest_job(
-        self, uow: RAGUnitOfWork, doc_row: DocumentRow, version_row: DocumentVersionRow,
+        self,
+        uow: RAGUnitOfWork,
+        doc_row: DocumentRow,
+        version_row: DocumentVersionRow,
     ) -> IngestJobRow:
         row = IngestJobRow(
             document_id=doc_row.id,

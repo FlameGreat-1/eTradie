@@ -53,7 +53,7 @@ class QMDetector:
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for i in range(len(sorted_highs) - 1):
-            h = sorted_highs[i]       # H  (Left Shoulder)
+            h = sorted_highs[i]  # H  (Left Shoulder)
             hh = sorted_highs[i + 1]  # HH (Head)
 
             # HH must be strictly higher than H
@@ -62,14 +62,14 @@ class QMDetector:
 
             # Find the lowest L (Neckline) that occurred exactly between H and HH
             neckline_l: Optional[SwingLow] = None
-            lowest_price = float('inf')
-            
+            lowest_price = float("inf")
+
             for l in sorted_lows:
                 if h.timestamp < l.timestamp < hh.timestamp:
                     if l.price < lowest_price:
                         lowest_price = l.price
                         neckline_l = l
-            
+
             # If no L exists between H and HH, it's not a valid QM structure
             if not neckline_l:
                 continue
@@ -85,7 +85,7 @@ class QMDetector:
 
             if first_break_idx is None:
                 continue
-                
+
             breakout_candle = sequence.candles[first_break_idx]
 
             # Count consecutive candle closes below the Neckline level
@@ -95,18 +95,18 @@ class QMDetector:
                     confirmed_count += 1
                 else:
                     break
-                
+
                 if confirmed_count >= required_closes:
                     break
-                    
+
             if confirmed_count < required_closes:
                 continue
-                
+
             # QM confirmed
             confirm_candle_idx = first_break_idx + required_closes - 1
             if confirm_candle_idx >= len(sequence.candles):
                 confirm_candle_idx = len(sequence.candles) - 1
-            
+
             confirm_candle = sequence.candles[confirm_candle_idx]
             break_ts = confirm_candle.timestamp
             break_candle_idx = first_break_idx
@@ -169,23 +169,23 @@ class QMDetector:
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for i in range(len(sorted_lows) - 1):
-            l = sorted_lows[i]       # L  (Left Shoulder)
+            l = sorted_lows[i]  # L  (Left Shoulder)
             ll = sorted_lows[i + 1]  # LL (Head)
 
             # LL must be strictly lower than L
             if ll.price >= l.price:
                 continue
-            
+
             # Find the highest H (Neckline) that occurred exactly between L and LL
             neckline_h: Optional[SwingHigh] = None
-            highest_price = -float('inf')
-            
+            highest_price = -float("inf")
+
             for h in sorted_highs:
                 if l.timestamp < h.timestamp < ll.timestamp:
                     if h.price > highest_price:
                         highest_price = h.price
                         neckline_h = h
-            
+
             # If no H exists between L and LL, it's not a valid QM structure
             if not neckline_h:
                 continue
@@ -201,7 +201,7 @@ class QMDetector:
 
             if first_break_idx is None:
                 continue
-                
+
             breakout_candle = sequence.candles[first_break_idx]
 
             # Count consecutive candle closes above the Neckline level
@@ -211,18 +211,18 @@ class QMDetector:
                     confirmed_count += 1
                 else:
                     break
-                
+
                 if confirmed_count >= required_closes:
                     break
-                    
+
             if confirmed_count < required_closes:
                 continue
-                
+
             # QM confirmed
             confirm_candle_idx = first_break_idx + required_closes - 1
             if confirm_candle_idx >= len(sequence.candles):
                 confirm_candle_idx = len(sequence.candles) - 1
-            
+
             confirm_candle = sequence.candles[confirm_candle_idx]
             break_ts = confirm_candle.timestamp
             break_candle_idx = first_break_idx

@@ -14,7 +14,8 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
     _repo_name = "rag_citation_log"
 
     async def get_by_retrieval(
-        self, retrieval_log_id: UUID,
+        self,
+        retrieval_log_id: UUID,
     ) -> Sequence[AnalysisCitationRow]:
         stmt = (
             select(self.model)
@@ -24,7 +25,10 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
         return await self.execute_query(stmt)
 
     async def get_by_document(
-        self, document_id: UUID, *, limit: int = 100,
+        self,
+        document_id: UUID,
+        *,
+        limit: int = 100,
     ) -> Sequence[AnalysisCitationRow]:
         stmt = (
             select(self.model)
@@ -35,7 +39,8 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
         return await self.execute_query(stmt)
 
     async def get_by_chunk(
-        self, chunk_id: UUID,
+        self,
+        chunk_id: UUID,
     ) -> Sequence[AnalysisCitationRow]:
         stmt = (
             select(self.model)
@@ -45,7 +50,10 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
         return await self.execute_query(stmt)
 
     async def get_by_doc_type(
-        self, doc_type: str, *, limit: int = 100,
+        self,
+        doc_type: str,
+        *,
+        limit: int = 100,
     ) -> Sequence[AnalysisCitationRow]:
         stmt = (
             select(self.model)

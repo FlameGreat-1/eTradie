@@ -212,33 +212,33 @@ class TAOrchestrator:
             all_smc: list[SMCCandidate] = []
             all_snd: list[SnDCandidate] = []
 
-            available_htfs = [
-                tf for tf in htf_timeframes if tf in sequences
-            ]
+            available_htfs = [tf for tf in htf_timeframes if tf in sequences]
             for i in range(len(available_htfs) - 1):
                 higher_tf = available_htfs[i]
                 lower_tf = available_htfs[i + 1]
                 smc = self._run_smc_detection(
-                    sequences[higher_tf], sequences[lower_tf],
+                    sequences[higher_tf],
+                    sequences[lower_tf],
                 )
                 snd = self._run_snd_detection(
-                    sequences[higher_tf], sequences[lower_tf],
+                    sequences[higher_tf],
+                    sequences[lower_tf],
                 )
                 all_smc.extend(smc)
                 all_snd.extend(snd)
 
             # ── Phase 4: Run confirmation detection on LTF pairs ─────
-            available_ltfs = [
-                tf for tf in ltf_timeframes if tf in sequences
-            ]
+            available_ltfs = [tf for tf in ltf_timeframes if tf in sequences]
             for i in range(len(available_ltfs) - 1):
                 higher_tf = available_ltfs[i]
                 lower_tf = available_ltfs[i + 1]
                 smc = self._run_smc_detection(
-                    sequences[higher_tf], sequences[lower_tf],
+                    sequences[higher_tf],
+                    sequences[lower_tf],
                 )
                 snd = self._run_snd_detection(
-                    sequences[higher_tf], sequences[lower_tf],
+                    sequences[higher_tf],
+                    sequences[lower_tf],
                 )
                 all_smc.extend(smc)
                 all_snd.extend(snd)
@@ -251,29 +251,31 @@ class TAOrchestrator:
                     lowest_htf in sequences
                     and highest_ltf in sequences
                     and self.timeframe_manager.is_htf_of(
-                        lowest_htf, highest_ltf,
+                        lowest_htf,
+                        highest_ltf,
                     )
                 ):
                     smc = self._run_smc_detection(
-                        sequences[lowest_htf], sequences[highest_ltf],
+                        sequences[lowest_htf],
+                        sequences[highest_ltf],
                     )
                     snd = self._run_snd_detection(
-                        sequences[lowest_htf], sequences[highest_ltf],
+                        sequences[lowest_htf],
+                        sequences[highest_ltf],
                     )
                     all_smc.extend(smc)
                     all_snd.extend(snd)
 
             # ── Phase 6: Align adjacent snapshots ────────────────────
             alignments: dict[str, dict] = {}
-            ordered_tfs = [
-                tf for tf in all_timeframes if tf in snapshots
-            ]
+            ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
             for i in range(len(ordered_tfs) - 1):
                 higher_tf = ordered_tfs[i]
                 lower_tf = ordered_tfs[i + 1]
                 alignment_key = f"{higher_tf.value}_{lower_tf.value}"
                 mtf_snap = self.alignment_service.check_alignment(
-                    snapshots[higher_tf], snapshots[lower_tf],
+                    snapshots[higher_tf],
+                    snapshots[lower_tf],
                 )
                 alignments[alignment_key] = {
                     "htf_timeframe": higher_tf.value,
@@ -287,7 +289,8 @@ class TAOrchestrator:
 
             # ── Phase 7: Determine overall trend from highest TF ─────
             overall_trend = self._determine_overall_trend(
-                snapshots, ordered_tfs,
+                snapshots,
+                ordered_tfs,
             )
 
             # ── Phase 8: Deduplicate candidates across timeframe pairs ─
@@ -296,16 +299,16 @@ class TAOrchestrator:
 
             # ── Phase 9: Persist all results ─────────────────────────
             await self._persist_all_results(
-                snapshots, all_smc, all_snd,
+                snapshots,
+                all_smc,
+                all_snd,
             )
 
             self._logger.info(
                 "ta_mtf_analysis_completed",
                 extra={
                     "symbol": symbol,
-                    "timeframes_analyzed": [
-                        tf.value for tf in ordered_tfs
-                    ],
+                    "timeframes_analyzed": [tf.value for tf in ordered_tfs],
                     "snapshots_built": len(snapshots),
                     "smc_candidates": len(all_smc),
                     "snd_candidates": len(all_snd),
@@ -403,7 +406,9 @@ class TAOrchestrator:
         """Fetch candles for a single timeframe from store or broker."""
         end_time = datetime.now(UTC)
         start_time = self._calculate_start_time(
-            end_time, timeframe, lookback_periods,
+            end_time,
+            timeframe,
+            lookback_periods,
         )
 
         async with self._ta_read_uow_factory() as uow:
@@ -540,26 +545,32 @@ class TAOrchestrator:
 
             # ── SMC structure events ─────────────────────────────────
             bms_bullish = self._bms_detector.detect_bullish_bms(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             bms_bearish = self._bms_detector.detect_bearish_bms(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             all_bms = bms_bullish + bms_bearish
 
             choch_bullish = self._choch_detector.detect_bullish_choch(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             choch_bearish = self._choch_detector.detect_bearish_choch(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             all_choch = choch_bullish + choch_bearish
 
             sms_bullish = self._sms_detector.detect_bullish_sms(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             sms_bearish = self._sms_detector.detect_bearish_sms(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             all_sms = sms_bullish + sms_bearish
 
@@ -570,11 +581,13 @@ class TAOrchestrator:
             for bms_event in all_bms:
                 if bms_event.direction == Direction.BULLISH:
                     ob = self._ob_detector.detect_bullish_ob(
-                        sequence, bms_event,
+                        sequence,
+                        bms_event,
                     )
                 else:
                     ob = self._ob_detector.detect_bearish_ob(
-                        sequence, bms_event,
+                        sequence,
+                        bms_event,
                     )
                 if ob is not None:
                     order_blocks.append(ob)
@@ -582,22 +595,27 @@ class TAOrchestrator:
             breaker_blocks = []
             for ob in order_blocks:
                 breaker = self._breaker_detector.detect_breaker_from_ob(
-                    sequence, ob,
+                    sequence,
+                    ob,
                 )
                 if breaker is not None:
                     breaker_blocks.append(breaker)
 
             # ── SMC liquidity / inducement ───────────────────────────
             inducement_bullish = self._inducement_detector.detect_bullish_inducement(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             inducement_bearish = self._inducement_detector.detect_bearish_inducement(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             all_inducements = inducement_bullish + inducement_bearish
 
             liquidity_sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
-                sequence, swing_highs, swing_lows,
+                sequence,
+                swing_highs,
+                swing_lows,
             )
 
             # ── Liquidity pools and equal highs/lows ─────────────────
@@ -611,17 +629,21 @@ class TAOrchestrator:
 
             # ── SnD structure events ─────────────────────────────────
             sr_flips = self._sr_flip_detector.detect_sr_flips(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             rs_flips = self._rs_flip_detector.detect_rs_flips(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
 
             qml_levels = self._qm_detector.detect_qml(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             qmh_levels = self._qm_detector.detect_qmh(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             all_qm_levels = qml_levels + qmh_levels
 
@@ -660,11 +682,11 @@ class TAOrchestrator:
                     swing_lows,
                 )
                 if latest_high and latest_low:
-                    is_bullish = (
-                        latest_low.timestamp > latest_high.timestamp
-                    )
+                    is_bullish = latest_low.timestamp > latest_high.timestamp
                     fib = self._fibonacci_analyzer.create_retracement(
-                        latest_high, latest_low, is_bullish,
+                        latest_high,
+                        latest_low,
+                        is_bullish,
                     )
                     fibonacci_retracements.append(fib)
 
@@ -672,7 +694,8 @@ class TAOrchestrator:
             dealing_ranges = []
             for session in (Session.ASIA, Session.LONDON, Session.NEW_YORK):
                 session_range = self._session_analyzer.extract_session_range(
-                    sequence, session,
+                    sequence,
+                    session,
                 )
                 if session_range is not None:
                     dr = self._dealing_range_analyzer.create_from_session(
@@ -818,7 +841,8 @@ class TAOrchestrator:
         )
         try:
             candidates = self.smc_detector.detect_patterns(
-                htf_sequence, ltf_sequence,
+                htf_sequence,
+                ltf_sequence,
             )
             self._logger.debug(
                 "smc_detection_completed",
@@ -859,7 +883,8 @@ class TAOrchestrator:
         )
         try:
             candidates = self.snd_detector.detect_patterns(
-                htf_sequence, ltf_sequence,
+                htf_sequence,
+                ltf_sequence,
             )
             self._logger.debug(
                 "snd_detection_completed",
@@ -958,7 +983,9 @@ class TAOrchestrator:
         )
 
     async def _persist_snapshot(
-        self, snapshot: TechnicalSnapshot, uow,
+        self,
+        snapshot: TechnicalSnapshot,
+        uow,
     ) -> None:
         """Persist a single TechnicalSnapshot to storage."""
         try:
@@ -1051,16 +1078,24 @@ class TAOrchestrator:
             "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs),
             "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks),
             "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps),
-            "inducement_events": self._serialize_inducements(snapshot.inducement_events),
-            "equal_highs_lows": self._serialize_equal_highs_lows(snapshot.equal_highs_lows),
-            "liquidity_grabs": self._serialize_liquidity_grabs(snapshot.liquidity_grabs),
+            "inducement_events": self._serialize_inducements(
+                snapshot.inducement_events
+            ),
+            "equal_highs_lows": self._serialize_equal_highs_lows(
+                snapshot.equal_highs_lows
+            ),
+            "liquidity_grabs": self._serialize_liquidity_grabs(
+                snapshot.liquidity_grabs
+            ),
             "qm_levels": self._serialize_qm_levels(snapshot.qml_levels),
             "sr_flips": self._serialize_sr_flips(snapshot.sr_flips),
             "rs_flips": self._serialize_rs_flips(snapshot.rs_flips),
             "mpl_levels": self._serialize_mpl_levels(snapshot.mpl_levels),
             "supply_zones": self._serialize_supply_zones(snapshot.supply_zones),
             "demand_zones": self._serialize_demand_zones(snapshot.demand_zones),
-            "fibonacci_retracements": self._serialize_fibonacci(snapshot.fibonacci_retracements),
+            "fibonacci_retracements": self._serialize_fibonacci(
+                snapshot.fibonacci_retracements
+            ),
             "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges),
             "total_structure_events": snapshot.total_structure_events,
             "total_liquidity_events": snapshot.total_liquidity_events,
@@ -1262,9 +1297,7 @@ class TAOrchestrator:
                     "price_level": ehl.price_level,
                     "liquidity_type": ehl.liquidity_type.value,
                     "touch_count": ehl.touch_count,
-                    "timestamps": [
-                        ts.isoformat() for ts in ehl.timestamps
-                    ],
+                    "timestamps": [ts.isoformat() for ts in ehl.timestamps],
                     "tolerance_pips": ehl.tolerance_pips,
                     "timeframe": ehl.timeframe.value,
                     "swept": ehl.swept,
@@ -1428,11 +1461,7 @@ class TAOrchestrator:
                     "low": dr.low,
                     "equilibrium": dr.equilibrium,
                     "start_time": dr.start_time.isoformat(),
-                    "end_time": (
-                        dr.end_time.isoformat()
-                        if dr.end_time
-                        else None
-                    ),
+                    "end_time": (dr.end_time.isoformat() if dr.end_time else None),
                     "timeframe": dr.timeframe.value,
                     "range_size": dr.range_size,
                 }
@@ -1450,9 +1479,7 @@ class TAOrchestrator:
                     "price_level": ehl.price_level,
                     "liquidity_type": ehl.liquidity_type.value,
                     "touch_count": ehl.touch_count,
-                    "timestamps": [
-                        ts.isoformat() for ts in ehl.timestamps
-                    ],
+                    "timestamps": [ts.isoformat() for ts in ehl.timestamps],
                     "tolerance_pips": ehl.tolerance_pips,
                     "timeframe": ehl.timeframe.value,
                     "swept": ehl.swept,

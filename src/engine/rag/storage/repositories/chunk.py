@@ -14,7 +14,8 @@ class ChunkRepository(BaseRepository[ChunkRow]):
     _repo_name = "rag_chunk"
 
     async def get_by_document_version(
-        self, document_version_id: UUID,
+        self,
+        document_version_id: UUID,
     ) -> Sequence[ChunkRow]:
         stmt = (
             select(self.model)
@@ -24,7 +25,8 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         return await self.execute_query(stmt)
 
     async def get_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Sequence[ChunkRow]:
         stmt = (
             select(self.model)
@@ -34,7 +36,9 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         return await self.execute_query(stmt)
 
     async def get_pending_embedding(
-        self, *, limit: int = 100,
+        self,
+        *,
+        limit: int = 100,
     ) -> Sequence[ChunkRow]:
         stmt = (
             select(self.model)
@@ -45,7 +49,9 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         return await self.execute_query(stmt)
 
     async def set_embedding_status(
-        self, chunk_ids: list[UUID], status: str,
+        self,
+        chunk_ids: list[UUID],
+        status: str,
     ) -> None:
         if not chunk_ids:
             return
@@ -58,24 +64,28 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         await self._session.flush()
 
     async def get_by_content_hash(
-        self, content_hash: str,
+        self,
+        content_hash: str,
     ) -> Sequence[ChunkRow]:
         stmt = select(self.model).where(self.model.content_hash == content_hash)
         return await self.execute_query(stmt)
 
     async def delete_by_document_version(
-        self, document_version_id: UUID,
+        self,
+        document_version_id: UUID,
     ) -> int:
-        stmt = (
-            delete(self.model)
-            .where(self.model.document_version_id == document_version_id)
+        stmt = delete(self.model).where(
+            self.model.document_version_id == document_version_id
         )
         result = await self._session.execute(stmt)
         await self._session.flush()
         return result.rowcount or 0
 
     async def get_by_doc_type(
-        self, doc_type: str, *, embedding_status: str | None = None,
+        self,
+        doc_type: str,
+        *,
+        embedding_status: str | None = None,
     ) -> Sequence[ChunkRow]:
         stmt = select(self.model).where(self.model.doc_type == doc_type)
         if embedding_status:

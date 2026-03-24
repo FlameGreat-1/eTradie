@@ -61,7 +61,7 @@ class CHOCHDetector:
 
         sorted_highs = sorted(swing_highs, key=lambda x: x.timestamp)
         candles = sequence.candles
-        
+
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for sh in sorted_highs:
@@ -84,7 +84,7 @@ class CHOCHDetector:
 
             if first_break_idx is None:
                 continue
-                
+
             breakout_candle = candles[first_break_idx]
 
             # Count consecutive candle closes above the internal level
@@ -94,13 +94,13 @@ class CHOCHDetector:
                     confirmed_count += 1
                 else:
                     break
-                
+
                 if confirmed_count >= required_closes:
                     break
-                    
+
             if confirmed_count < required_closes:
                 continue
-                
+
             # CHOCH confirmed
             confirm_candle_idx = first_break_idx + required_closes - 1
             if confirm_candle_idx >= len(candles):
@@ -155,7 +155,7 @@ class CHOCHDetector:
 
         sorted_lows = sorted(swing_lows, key=lambda x: x.timestamp)
         candles = sequence.candles
-        
+
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for sl in sorted_lows:
@@ -178,7 +178,7 @@ class CHOCHDetector:
 
             if first_break_idx is None:
                 continue
-                
+
             breakout_candle = candles[first_break_idx]
 
             # Count consecutive candle closes below the internal level
@@ -188,13 +188,13 @@ class CHOCHDetector:
                     confirmed_count += 1
                 else:
                     break
-                
+
                 if confirmed_count >= required_closes:
                     break
-                    
+
             if confirmed_count < required_closes:
                 continue
-                
+
             # CHOCH confirmed
             confirm_candle_idx = first_break_idx + required_closes - 1
             if confirm_candle_idx >= len(candles):
@@ -237,7 +237,7 @@ class CHOCHDetector:
         if not choch_events:
             return None
         return max(choch_events, key=lambda x: x.timestamp)
-        
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------

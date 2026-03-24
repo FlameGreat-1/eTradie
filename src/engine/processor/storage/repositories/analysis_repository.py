@@ -84,9 +84,15 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
             },
             index_elements=["analysis_id"],
             update_fields=[
-                "direction", "setup_grade", "confluence_score",
-                "confidence", "proceed_to_module_b", "status",
-                "error_message", "duration_ms", "raw_output",
+                "direction",
+                "setup_grade",
+                "confluence_score",
+                "confidence",
+                "proceed_to_module_b",
+                "status",
+                "error_message",
+                "duration_ms",
+                "raw_output",
             ],
         )
 
@@ -153,14 +159,20 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         offset, limit = self._validate_pagination(offset, limit)
 
         base = select(AnalysisOutputRow)
-        base = self._apply_filters(base, pair=pair, status=status, grade=grade,
-                                   provider=provider, since=since, until=until)
+        base = self._apply_filters(
+            base,
+            pair=pair,
+            status=status,
+            grade=grade,
+            provider=provider,
+            since=since,
+            until=until,
+        )
 
         total = await self.count(base)
 
         page_stmt = (
-            base
-            .order_by(AnalysisOutputRow.created_at.desc())
+            base.order_by(AnalysisOutputRow.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
@@ -189,14 +201,19 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
             func.count(T.id).label("total"),
             func.count(case((T.status == "success", 1))).label("success_count"),
             func.count(case((T.status == "no_setup", 1))).label("no_setup_count"),
-            func.count(case(
-                (T.status.notin_(["success", "no_setup"]), 1),
-            )).label("error_count"),
+            func.count(
+                case(
+                    (T.status.notin_(["success", "no_setup"]), 1),
+                )
+            ).label("error_count"),
             func.avg(T.confluence_score).label("avg_confluence_score"),
             func.avg(T.duration_ms).label("avg_duration_ms"),
         )
         scalar_stmt = self._apply_scalar_filters(
-            scalar_stmt, pair=pair, since=since, until=until,
+            scalar_stmt,
+            pair=pair,
+            since=since,
+            until=until,
         )
 
         result = await self._session.execute(scalar_stmt)
@@ -207,20 +224,18 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         success_rate = round(success_count / total, 4) if total > 0 else 0.0
 
         # -- Grade distribution -----------------------------------------------
-        grade_stmt = (
-            select(
-                T.setup_grade,
-                func.count(T.id).label("cnt"),
-            )
-            .group_by(T.setup_grade)
-        )
+        grade_stmt = select(
+            T.setup_grade,
+            func.count(T.id).label("cnt"),
+        ).group_by(T.setup_grade)
         grade_stmt = self._apply_scalar_filters(
-            grade_stmt, pair=pair, since=since, until=until,
+            grade_stmt,
+            pair=pair,
+            since=since,
+            until=until,
         )
         grade_rows = await self._session.execute(grade_stmt)
-        grade_distribution = {
-            g: c for g, c in grade_rows.all()
-        }
+        grade_distribution = {g: c for g, c in grade_rows.all()}
 
         # -- Provider distribution --------------------------------------------
         provider_stmt = (
@@ -232,28 +247,27 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
             .group_by(T.llm_provider)
         )
         provider_stmt = self._apply_scalar_filters(
-            provider_stmt, pair=pair, since=since, until=until,
+            provider_stmt,
+            pair=pair,
+            since=since,
+            until=until,
         )
         provider_rows = await self._session.execute(provider_stmt)
-        provider_distribution = {
-            p: c for p, c in provider_rows.all()
-        }
+        provider_distribution = {p: c for p, c in provider_rows.all()}
 
         # -- Pair distribution ------------------------------------------------
-        pair_stmt = (
-            select(
-                T.pair,
-                func.count(T.id).label("cnt"),
-            )
-            .group_by(T.pair)
-        )
+        pair_stmt = select(
+            T.pair,
+            func.count(T.id).label("cnt"),
+        ).group_by(T.pair)
         pair_stmt = self._apply_scalar_filters(
-            pair_stmt, pair=pair, since=since, until=until,
+            pair_stmt,
+            pair=pair,
+            since=since,
+            until=until,
         )
         pair_rows = await self._session.execute(pair_stmt)
-        pair_distribution = {
-            p: c for p, c in pair_rows.all()
-        }
+        pair_distribution = {p: c for p, c in pair_rows.all()}
 
         return {
             "total": total,

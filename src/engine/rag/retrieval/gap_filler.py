@@ -48,9 +48,7 @@ class GapFiller:
         existing_counts: dict[str, int] = {}
         existing_ids: set = set()
         for chunk in existing_chunks:
-            existing_counts[chunk.doc_type] = (
-                existing_counts.get(chunk.doc_type, 0) + 1
-            )
+            existing_counts[chunk.doc_type] = existing_counts.get(chunk.doc_type, 0) + 1
             existing_ids.add(chunk.chunk_id)
 
         # Identify gaps: doc_types that need more chunks
@@ -90,7 +88,8 @@ class GapFiller:
 
             # Build targeted filters based on the doc_type
             frameworks_filter = self._frameworks_for_doc_type(
-                doc_type, requirements,
+                doc_type,
+                requirements,
             )
 
             try:

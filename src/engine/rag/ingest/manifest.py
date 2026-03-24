@@ -89,6 +89,7 @@ def resolve_scenario_dirs(base_dir: str) -> list[Path]:
     if not scenario_root.is_dir():
         return []
     return sorted(
-        d for d in scenario_root.iterdir()
+        d
+        for d in scenario_root.iterdir()
         if d.is_dir() and (d / "explanation.md").is_file()
     )

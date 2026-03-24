@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from engine.config import RAGConfig
 from engine.rag.embeddings.base import BaseEmbeddingProvider
 from engine.rag.vectorstore.base import BaseVectorStore
-from engine.rag.vectorstore.health import VectorStoreHealthStatus, check_vectorstore_health
+from engine.rag.vectorstore.health import (
+    VectorStoreHealthStatus,
+    check_vectorstore_health,
+)
 from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
 
@@ -36,7 +39,8 @@ class HealthService:
 
     async def check(self) -> RAGHealthStatus:
         vs_health = await check_vectorstore_health(
-            store=self._vector_store, config=self._config,
+            store=self._vector_store,
+            config=self._config,
         )
 
         db_ok = False

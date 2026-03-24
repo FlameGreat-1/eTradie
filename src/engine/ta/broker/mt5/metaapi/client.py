@@ -139,7 +139,9 @@ class MetaApiClient(BrokerBase):
             else:
                 params["limit"] = 500
 
-            path = f"/historical-market-data/symbols/{symbol}/timeframes/{ma_tf}/candles"
+            path = (
+                f"/historical-market-data/symbols/{symbol}/timeframes/{ma_tf}/candles"
+            )
             raw = await self._api_get(path, params=params, category="candles")
 
             duration = _time.monotonic() - start_timer
@@ -164,10 +166,7 @@ class MetaApiClient(BrokerBase):
 
             # Apply time range filter if both bounds provided.
             if start_time and end_time:
-                candles = [
-                    c for c in candles
-                    if start_time <= c.timestamp <= end_time
-                ]
+                candles = [c for c in candles if start_time <= c.timestamp <= end_time]
 
             if not candles:
                 raise ProviderResponseError(
@@ -354,20 +353,26 @@ class MetaApiClient(BrokerBase):
 
         positions = []
         for p in raw:
-            direction = "BUY" if p.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
-            positions.append(PositionInfo(
-                symbol=p.get("symbol", ""),
-                direction=direction,
-                entry_price=float(p.get("openPrice", 0)),
-                current_price=float(p.get("currentPrice", 0)),
-                stop_loss=float(p.get("stopLoss", 0)),
-                take_profit=float(p.get("takeProfit", 0)),
-                volume=float(p.get("volume", 0)),
-                profit=float(p.get("profit", 0)),
-                ticket=str(p.get("id", "")),
-                comment=p.get("comment", ""),
-                open_time=int(p.get("time", 0)),
-            ))
+            direction = (
+                "BUY"
+                if p.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY"
+                else "SELL"
+            )
+            positions.append(
+                PositionInfo(
+                    symbol=p.get("symbol", ""),
+                    direction=direction,
+                    entry_price=float(p.get("openPrice", 0)),
+                    current_price=float(p.get("currentPrice", 0)),
+                    stop_loss=float(p.get("stopLoss", 0)),
+                    take_profit=float(p.get("takeProfit", 0)),
+                    volume=float(p.get("volume", 0)),
+                    profit=float(p.get("profit", 0)),
+                    ticket=str(p.get("id", "")),
+                    comment=p.get("comment", ""),
+                    open_time=int(p.get("time", 0)),
+                )
+            )
 
         logger.info("metaapi_positions_fetched", extra={"count": len(positions)})
         return positions
@@ -390,17 +395,19 @@ class MetaApiClient(BrokerBase):
         for o in raw:
             order_type_str = o.get("type", "")
             order_type_int = _type_map.get(order_type_str, 2)
-            orders.append(PendingOrderInfo(
-                symbol=o.get("symbol", ""),
-                order_type=order_type_int,
-                price=float(o.get("openPrice", 0)),
-                stop_loss=float(o.get("stopLoss", 0)),
-                take_profit=float(o.get("takeProfit", 0)),
-                volume=float(o.get("volume", 0)),
-                ticket=str(o.get("id", "")),
-                comment=o.get("comment", ""),
-                open_time=int(o.get("time", 0)),
-            ))
+            orders.append(
+                PendingOrderInfo(
+                    symbol=o.get("symbol", ""),
+                    order_type=order_type_int,
+                    price=float(o.get("openPrice", 0)),
+                    stop_loss=float(o.get("stopLoss", 0)),
+                    take_profit=float(o.get("takeProfit", 0)),
+                    volume=float(o.get("volume", 0)),
+                    ticket=str(o.get("id", "")),
+                    comment=o.get("comment", ""),
+                    open_time=int(o.get("time", 0)),
+                )
+            )
 
         logger.info("metaapi_pending_orders_fetched", extra={"count": len(orders)})
         return orders
@@ -413,7 +420,11 @@ class MetaApiClient(BrokerBase):
                 details={"ticket": ticket},
             )
 
-        direction = "BUY" if raw.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
+        direction = (
+            "BUY"
+            if raw.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY"
+            else "SELL"
+        )
         return PositionInfo(
             symbol=raw.get("symbol", ""),
             direction=direction,
@@ -458,15 +469,30 @@ class MetaApiClient(BrokerBase):
         comment: str = "",
     ) -> OrderResult:
         if order_type.upper() == "MARKET":
-            action_type = "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
+            action_type = (
+                "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
+            )
         else:
-            action_type = "ORDER_TYPE_BUY_LIMIT" if direction.upper() == "BUY" else "ORDER_TYPE_SELL_LIMIT"
+            action_type = (
+                "ORDER_TYPE_BUY_LIMIT"
+                if direction.upper() == "BUY"
+                else "ORDER_TYPE_SELL_LIMIT"
+            )
 
         payload: dict[str, Any] = {
-            "actionType": "ORDER_TYPE_BUY" if order_type.upper() == "MARKET" and direction.upper() == "BUY"
-                else "ORDER_TYPE_SELL" if order_type.upper() == "MARKET" and direction.upper() == "SELL"
-                else "ORDER_TYPE_BUY_LIMIT" if direction.upper() == "BUY"
-                else "ORDER_TYPE_SELL_LIMIT",
+            "actionType": (
+                "ORDER_TYPE_BUY"
+                if order_type.upper() == "MARKET" and direction.upper() == "BUY"
+                else (
+                    "ORDER_TYPE_SELL"
+                    if order_type.upper() == "MARKET" and direction.upper() == "SELL"
+                    else (
+                        "ORDER_TYPE_BUY_LIMIT"
+                        if direction.upper() == "BUY"
+                        else "ORDER_TYPE_SELL_LIMIT"
+                    )
+                )
+            ),
             "symbol": symbol,
             "volume": lot_size,
             "stopLoss": stop_loss,
@@ -579,7 +605,11 @@ class MetaApiClient(BrokerBase):
 
         logger.info(
             "metaapi_position_modified",
-            extra={"ticket": ticket, "stop_loss": stop_loss, "take_profit": take_profit},
+            extra={
+                "ticket": ticket,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
+            },
         )
         return True
 
@@ -598,7 +628,9 @@ class MetaApiClient(BrokerBase):
         payload["clientId"] = f"part_{ticket}_{volume}"
 
         try:
-            raw = await self._api_post("/trade", payload, category="position_close_partial")
+            raw = await self._api_post(
+                "/trade", payload, category="position_close_partial"
+            )
         except Exception as e:
             logger.error(
                 "metaapi_close_partial_failed",
@@ -614,7 +646,11 @@ class MetaApiClient(BrokerBase):
 
         logger.info(
             "metaapi_partial_close_executed",
-            extra={"ticket": ticket, "volume": volume, "close_price": raw.get("closePrice", 0)},
+            extra={
+                "ticket": ticket,
+                "volume": volume,
+                "close_price": raw.get("closePrice", 0),
+            },
         )
 
         return {

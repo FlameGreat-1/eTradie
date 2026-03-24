@@ -42,7 +42,7 @@ logger = get_logger(__name__)
 
 
 class SnapshotBuilder:
-    
+
     def __init__(
         self,
         swing_analyzer: SwingAnalyzer,
@@ -59,7 +59,7 @@ class SnapshotBuilder:
         self.fibonacci_analyzer = fibonacci_analyzer
         self.dealing_range_analyzer = dealing_range_analyzer
         self._logger = get_logger(__name__)
-    
+
     def build_snapshot(
         self,
         candles: CandleSequence,
@@ -87,17 +87,17 @@ class SnapshotBuilder:
     ) -> TechnicalSnapshot:
         swing_highs = self.swing_analyzer.detect_swing_highs(candles)
         swing_lows = self.swing_analyzer.detect_swing_lows(candles)
-        
+
         latest_candle = candles.candles[-1]
         session_state = self.session_analyzer.identify_session(latest_candle.timestamp)
-        
+
         trend_direction = self._determine_trend_direction(
             swing_highs=swing_highs,
             swing_lows=swing_lows,
             bos_events=bos_events or [],
             choch_events=choch_events or [],
         )
-        
+
         snapshot = TechnicalSnapshot(
             symbol=candles.symbol,
             timeframe=candles.timeframe,
@@ -129,7 +129,7 @@ class SnapshotBuilder:
             candidates=candidates or [],
             metadata=metadata or {},
         )
-        
+
         self._logger.info(
             "snapshot_built",
             extra={
@@ -145,9 +145,9 @@ class SnapshotBuilder:
                 "trend_direction": trend_direction,
             },
         )
-        
+
         return snapshot
-    
+
     def _determine_trend_direction(
         self,
         swing_highs: list,
@@ -157,10 +157,12 @@ class SnapshotBuilder:
     ) -> Direction:
         if not swing_highs or not swing_lows:
             return Direction.NEUTRAL
-        
+
         latest_bos = max(bos_events, key=lambda x: x.timestamp) if bos_events else None
-        latest_choch = max(choch_events, key=lambda x: x.timestamp) if choch_events else None
-        
+        latest_choch = (
+            max(choch_events, key=lambda x: x.timestamp) if choch_events else None
+        )
+
         if latest_bos and latest_choch:
             if latest_bos.timestamp > latest_choch.timestamp:
                 return latest_bos.direction
@@ -170,10 +172,10 @@ class SnapshotBuilder:
             return latest_bos.direction
         elif latest_choch:
             return latest_choch.direction
-        
+
         recent_highs = sorted(swing_highs, key=lambda x: x.timestamp)[-3:]
         recent_lows = sorted(swing_lows, key=lambda x: x.timestamp)[-3:]
-        
+
         if len(recent_highs) >= 2:
             higher_highs = all(
                 recent_highs[i].price > recent_highs[i - 1].price
@@ -181,7 +183,7 @@ class SnapshotBuilder:
             )
             if higher_highs:
                 return Direction.BULLISH
-        
+
         if len(recent_lows) >= 2:
             lower_lows = all(
                 recent_lows[i].price < recent_lows[i - 1].price
@@ -189,5 +191,5 @@ class SnapshotBuilder:
             )
             if lower_lows:
                 return Direction.BEARISH
-        
+
         return Direction.NEUTRAL

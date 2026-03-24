@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 class DatabaseManager:
     """
     Production-grade async database connection manager.
-    
+
     Provides:
     - Connection pooling with health monitoring
     - Automatic transaction management
@@ -60,7 +60,7 @@ class DatabaseManager:
         echo: bool = False,
     ) -> None:
         self._validate_connection_url(url)
-        
+
         self._query_timeout = query_timeout
         self._engine: AsyncEngine = create_async_engine(
             url,
@@ -74,15 +74,15 @@ class DatabaseManager:
                 "server_settings": {"statement_timeout": str(query_timeout * 1000)},
             },
         )
-        
+
         self._session_factory = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,
             expire_on_commit=False,
         )
-        
+
         self._setup_event_listeners()
-        
+
         logger.info(
             "database_manager_initialized",
             extra={
@@ -112,11 +112,11 @@ class DatabaseManager:
 
     def _setup_event_listeners(self) -> None:
         """Setup SQLAlchemy event listeners for monitoring."""
-        
+
         @event.listens_for(self._engine.sync_engine, "connect")
         def receive_connect(dbapi_conn, connection_record):
             logger.debug("db_connection_established")
-        
+
         @event.listens_for(self._engine.sync_engine, "close")
         def receive_close(dbapi_conn, connection_record):
             logger.debug("db_connection_closed")
@@ -135,34 +135,34 @@ class DatabaseManager:
     ) -> AsyncIterator[AsyncSession]:
         """
         Transactional write session with automatic commit/rollback.
-        
+
         Args:
             trace_id: Distributed trace ID for correlation
             idempotency_key: Optional idempotency key for duplicate detection
-            
+
         Yields:
             AsyncSession: Database session
-            
+
         Raises:
             DatabaseIntegrityError: On constraint violations
             DatabaseOperationalError: On connection/operational failures
             DatabaseTimeoutError: On query timeout
         """
         start_time = asyncio.get_event_loop().time()
-        
+
         async with self._session_factory() as session:
             try:
                 if idempotency_key:
                     session.info["idempotency_key"] = idempotency_key
                 if trace_id:
                     session.info["trace_id"] = trace_id
-                
+
                 yield session
                 await session.commit()
-                
+
                 duration = asyncio.get_event_loop().time() - start_time
                 DB_OPERATION_DURATION.labels(operation="write").observe(duration)
-                
+
                 logger.debug(
                     "db_transaction_committed",
                     extra={
@@ -170,10 +170,12 @@ class DatabaseManager:
                         "duration_ms": round(duration * 1000, 2),
                     },
                 )
-                
+
             except IntegrityError as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(operation="write", error_type="integrity").inc()
+                DB_OPERATION_ERRORS.labels(
+                    operation="write", error_type="integrity"
+                ).inc()
                 logger.warning(
                     "db_integrity_error",
                     extra={
@@ -182,10 +184,12 @@ class DatabaseManager:
                     },
                 )
                 raise DatabaseIntegrityError(str(e)) from e
-                
+
             except (OperationalError, DBAPIError) as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(operation="write", error_type="operational").inc()
+                DB_OPERATION_ERRORS.labels(
+                    operation="write", error_type="operational"
+                ).inc()
                 logger.error(
                     "db_operational_error",
                     extra={
@@ -194,10 +198,12 @@ class DatabaseManager:
                     },
                 )
                 raise DatabaseOperationalError(str(e)) from e
-                
+
             except SQLAlchemyTimeoutError as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(operation="write", error_type="timeout").inc()
+                DB_OPERATION_ERRORS.labels(
+                    operation="write", error_type="timeout"
+                ).inc()
                 logger.error(
                     "db_timeout_error",
                     extra={
@@ -208,10 +214,12 @@ class DatabaseManager:
                 raise DatabaseTimeoutError(
                     f"Query exceeded timeout of {self._query_timeout}s"
                 ) from e
-                
+
             except Exception as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(operation="write", error_type="unknown").inc()
+                DB_OPERATION_ERRORS.labels(
+                    operation="write", error_type="unknown"
+                ).inc()
                 logger.exception(
                     "db_unexpected_error",
                     extra={"trace_id": trace_id},
@@ -226,25 +234,25 @@ class DatabaseManager:
     ) -> AsyncIterator[AsyncSession]:
         """
         Read-only session (no automatic commit).
-        
+
         Args:
             trace_id: Distributed trace ID for correlation
-            
+
         Yields:
             AsyncSession: Database session
         """
         start_time = asyncio.get_event_loop().time()
-        
+
         async with self._session_factory() as session:
             try:
                 if trace_id:
                     session.info["trace_id"] = trace_id
-                
+
                 yield session
-                
+
                 duration = asyncio.get_event_loop().time() - start_time
                 DB_OPERATION_DURATION.labels(operation="read").observe(duration)
-                
+
             except Exception as e:
                 DB_OPERATION_ERRORS.labels(operation="read", error_type="unknown").inc()
                 logger.exception(
@@ -256,28 +264,28 @@ class DatabaseManager:
     async def health_check(self) -> bool:
         """
         Check database connectivity with retry logic.
-        
+
         Returns:
             bool: True if healthy, False otherwise
         """
         max_retries = 3
         base_delay = 0.1
-        
+
         for attempt in range(max_retries):
             try:
                 async with asyncio.timeout(5):
                     async with self._engine.connect() as conn:
                         await conn.execute(text("SELECT 1"))
-                
+
                 logger.debug("db_health_check_passed")
                 return True
-                
+
             except asyncio.TimeoutError:
                 logger.warning(
                     "db_health_check_timeout",
                     extra={"attempt": attempt + 1},
                 )
-                
+
             except Exception as e:
                 logger.warning(
                     "db_health_check_failed",
@@ -286,11 +294,15 @@ class DatabaseManager:
                         "error": str(e),
                     },
                 )
-            
+
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt) * (1 + asyncio.get_event_loop().time() % 0.1)
+                delay = (
+                    base_delay
+                    * (2**attempt)
+                    * (1 + asyncio.get_event_loop().time() % 0.1)
+                )
                 await asyncio.sleep(delay)
-        
+
         logger.error("db_health_check_exhausted")
         return False
 
@@ -300,7 +312,9 @@ class DatabaseManager:
             pool = self._engine.pool
             if pool is not None:
                 DB_CONNECTION_POOL_SIZE.labels(state="checked_in").set(pool.checkedin())
-                DB_CONNECTION_POOL_SIZE.labels(state="checked_out").set(pool.checkedout())
+                DB_CONNECTION_POOL_SIZE.labels(state="checked_out").set(
+                    pool.checkedout()
+                )
                 DB_CONNECTION_POOL_SIZE.labels(state="overflow").set(pool.overflow())
         except Exception:
             logger.exception("pool_metrics_update_failed")

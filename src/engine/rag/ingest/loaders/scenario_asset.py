@@ -10,9 +10,15 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-_REQUIRED_METADATA_KEYS = frozenset({
-    "framework", "setup_family", "direction", "timeframe", "outcome",
-})
+_REQUIRED_METADATA_KEYS = frozenset(
+    {
+        "framework",
+        "setup_family",
+        "direction",
+        "timeframe",
+        "outcome",
+    }
+)
 
 
 class ScenarioAssetLoader(BaseLoader):
@@ -85,10 +91,18 @@ class ScenarioAssetLoader(BaseLoader):
             if child.suffix.lower() in SUPPORTED_IMAGE_FORMATS:
                 image_refs.append(str(child.relative_to(path)))
 
-        raw_metadata = {k: str(v) for k, v in metadata.items() if isinstance(v, (str, int, float, bool))}
+        raw_metadata = {
+            k: str(v)
+            for k, v in metadata.items()
+            if isinstance(v, (str, int, float, bool))
+        }
         raw_metadata["image_refs"] = json_lib.dumps(image_refs)
-        if "confluence_tags" in metadata and isinstance(metadata["confluence_tags"], list):
-            raw_metadata["confluence_tags"] = json_lib.dumps(metadata["confluence_tags"])
+        if "confluence_tags" in metadata and isinstance(
+            metadata["confluence_tags"], list
+        ):
+            raw_metadata["confluence_tags"] = json_lib.dumps(
+                metadata["confluence_tags"]
+            )
 
         title = metadata.get("title", path.name.replace("_", " ").title())
 

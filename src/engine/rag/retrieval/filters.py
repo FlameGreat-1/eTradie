@@ -11,10 +11,12 @@ def build_rule_filters(
     timeframe: str | None = None,
     direction: str | None = None,
 ) -> RetrievalFilter:
-    doc_types = frozenset({
-        DocumentType.MASTER_RULEBOOK,
-        DocumentType.TRADING_STYLE_RULES,
-    })
+    doc_types = frozenset(
+        {
+            DocumentType.MASTER_RULEBOOK,
+            DocumentType.TRADING_STYLE_RULES,
+        }
+    )
     frameworks = frozenset({framework}) if framework else frozenset()
     styles = frozenset({style}) if style else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
@@ -89,11 +91,13 @@ def build_macro_filters(
     style: str | None = None,
     direction: str | None = None,
 ) -> RetrievalFilter:
-    doc_types = frozenset({
-        DocumentType.MACRO_TO_PRICE_GUIDE,
-        DocumentType.DXY_FRAMEWORK,
-        DocumentType.COT_INTERPRETATION_GUIDE,
-    })
+    doc_types = frozenset(
+        {
+            DocumentType.MACRO_TO_PRICE_GUIDE,
+            DocumentType.DXY_FRAMEWORK,
+            DocumentType.COT_INTERPRETATION_GUIDE,
+        }
+    )
     styles = frozenset({style}) if style else frozenset()
     directions = frozenset({direction}) if direction else frozenset()
 

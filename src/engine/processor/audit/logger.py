@@ -74,12 +74,14 @@ def build_audit_log_record(
     """Build an AuditLogRecord from processor state."""
     citations = []
     for src in output.rag_sources:
-        citations.append({
-            "doc_id": src.doc_id,
-            "chunk_id": src.chunk_id,
-            "section": src.section,
-            "relevance_score": src.relevance_score,
-        })
+        citations.append(
+            {
+                "doc_id": src.doc_id,
+                "chunk_id": src.chunk_id,
+                "section": src.section,
+                "relevance_score": src.relevance_score,
+            }
+        )
 
     retrieval = output.audit.retrieval
     coverage_result = output.audit.retrieval.strategy_used or ""

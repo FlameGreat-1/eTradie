@@ -70,10 +70,17 @@ _COUNTRY_CURRENCY_MAP: dict[str, Currency] = {
     "New Zealand": Currency.NZD,
 }
 
-_CORE_INFLATION_KEYWORDS = frozenset({
-    "core", "ex food", "ex energy", "excluding food",
-    "excluding energy", "ex-food", "ex-energy",
-})
+_CORE_INFLATION_KEYWORDS = frozenset(
+    {
+        "core",
+        "ex food",
+        "ex energy",
+        "excluding food",
+        "excluding energy",
+        "ex-food",
+        "ex-energy",
+    }
+)
 
 
 class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
@@ -126,7 +133,9 @@ class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
         actual = self._parse_float(raw.get("Actual"))
         forecast = self._parse_float(raw.get("Forecast"))
         previous = self._parse_float(raw.get("Previous"))
-        surprise = (actual - forecast) if actual is not None and forecast is not None else None
+        surprise = (
+            (actual - forecast) if actual is not None and forecast is not None else None
+        )
 
         date_str = str(raw.get("Date", ""))
         try:
@@ -161,7 +170,9 @@ class TradingEconomicsEconomicProvider(BaseEconomicDataProvider):
         return EventType.OTHER
 
     @staticmethod
-    def _classify_inflation_type(indicator: EventType, event_name: str) -> InflationType | None:
+    def _classify_inflation_type(
+        indicator: EventType, event_name: str
+    ) -> InflationType | None:
         """Classify CPI/PCE/PPI releases as CORE or HEADLINE.
 
         Core inflation excludes volatile food and energy components and is

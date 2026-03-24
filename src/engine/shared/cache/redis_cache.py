@@ -39,7 +39,7 @@ MAX_NAMESPACE_LENGTH = 64
 class RedisCache:
     """
     Production-grade Redis cache client with error handling and observability.
-    
+
     Provides:
     - Namespaced key management
     - Automatic serialization/deserialization
@@ -61,11 +61,11 @@ class RedisCache:
         max_retries: int = 3,
     ) -> None:
         self._validate_connection_url(url)
-        
+
         self._key_prefix = key_prefix
         self._operation_timeout = operation_timeout
         self._max_retries = max_retries
-        
+
         self._pool = aioredis.ConnectionPool.from_url(
             url,
             max_connections=max_connections,
@@ -76,7 +76,7 @@ class RedisCache:
             health_check_interval=30,
         )
         self._client = aioredis.Redis(connection_pool=self._pool)
-        
+
         logger.info(
             "redis_cache_initialized",
             extra={
@@ -103,12 +103,12 @@ class RedisCache:
         """Validate namespace format and length."""
         if not namespace:
             raise CacheValidationError("Namespace cannot be empty")
-        
+
         if len(namespace) > MAX_NAMESPACE_LENGTH:
             raise CacheValidationError(
                 f"Namespace exceeds maximum length of {MAX_NAMESPACE_LENGTH}"
             )
-        
+
         if not namespace.replace("_", "").replace("-", "").isalnum():
             raise CacheValidationError(
                 "Namespace must contain only alphanumeric characters, hyphens, and underscores"
@@ -118,12 +118,12 @@ class RedisCache:
         """Validate key format and length."""
         if not key:
             raise CacheValidationError("Key cannot be empty")
-        
+
         if len(key) > MAX_KEY_LENGTH:
             raise CacheValidationError(
                 f"Key exceeds maximum length of {MAX_KEY_LENGTH}"
             )
-        
+
         # Prevent key injection attacks
         if any(char in key for char in ("\n", "\r", " ")):
             raise CacheValidationError("Key contains invalid characters")
@@ -131,14 +131,14 @@ class RedisCache:
     def _make_key(self, namespace: str, key: str) -> str:
         """
         Construct namespaced cache key with validation.
-        
+
         Args:
             namespace: Cache namespace
             key: Cache key
-            
+
         Returns:
             Full cache key
-            
+
         Raises:
             CacheValidationError: On invalid namespace or key
         """
@@ -155,14 +155,14 @@ class RedisCache:
     ) -> None:
         """Record cache operation metrics."""
         duration = time.monotonic() - start
-        
+
         CACHE_OPERATIONS_TOTAL.labels(
             operation=operation,
             status=status,
         ).inc()
-        
+
         CACHE_OPERATION_DURATION.labels(operation=operation).observe(duration)
-        
+
         if value_size is not None:
             CACHE_VALUE_SIZE.labels(operation=operation).observe(value_size)
 
@@ -175,16 +175,16 @@ class RedisCache:
     ) -> Any:
         """
         Execute Redis operation with exponential backoff retry.
-        
+
         Args:
             operation: Operation name for logging
             func: Async function to execute
             *args: Positional arguments
             **kwargs: Keyword arguments
-            
+
         Returns:
             Operation result
-            
+
         Raises:
             CacheTimeoutError: On timeout
             CacheConnectionError: On connection failures
@@ -192,12 +192,12 @@ class RedisCache:
         """
         last_error = None
         base_delay = 0.1
-        
+
         for attempt in range(self._max_retries):
             try:
                 async with asyncio.timeout(self._operation_timeout):
                     return await func(*args, **kwargs)
-                    
+
             except asyncio.TimeoutError as e:
                 last_error = e
                 logger.warning(
@@ -208,7 +208,7 @@ class RedisCache:
                         "timeout": self._operation_timeout,
                     },
                 )
-                
+
             except (RedisConnectionError, RedisTimeoutError) as e:
                 last_error = e
                 logger.warning(
@@ -219,12 +219,12 @@ class RedisCache:
                         "error": str(e),
                     },
                 )
-            
+
             if attempt < self._max_retries - 1:
                 # Exponential backoff with jitter
-                delay = base_delay * (2 ** attempt) * (1 + time.monotonic() % 0.1)
+                delay = base_delay * (2**attempt) * (1 + time.monotonic() % 0.1)
                 await asyncio.sleep(delay)
-        
+
         # All retries exhausted
         if isinstance(last_error, asyncio.TimeoutError):
             raise CacheTimeoutError(
@@ -233,7 +233,9 @@ class RedisCache:
         elif isinstance(last_error, (RedisConnectionError, RedisTimeoutError)):
             raise CacheConnectionError(f"{operation} connection failed") from last_error
         else:
-            raise CacheError(f"{operation} failed after {self._max_retries} retries") from last_error
+            raise CacheError(
+                f"{operation} failed after {self._max_retries} retries"
+            ) from last_error
 
     async def get(
         self,
@@ -244,15 +246,15 @@ class RedisCache:
     ) -> Any | None:
         """
         Retrieve value from cache.
-        
+
         Args:
             namespace: Cache namespace
             key: Cache key
             trace_id: Optional trace ID for correlation
-            
+
         Returns:
             Cached value or None if not found
-            
+
         Raises:
             CacheValidationError: On invalid namespace or key
             CacheTimeoutError: On timeout
@@ -260,14 +262,14 @@ class RedisCache:
         """
         start = time.monotonic()
         full_key = self._make_key(namespace, key)
-        
+
         try:
             raw: bytes | None = await self._execute_with_retry(
                 "get",
                 self._client.get,
                 full_key,
             )
-            
+
             if raw is None:
                 self._observe_operation("get", "miss", start)
                 logger.debug(
@@ -279,10 +281,10 @@ class RedisCache:
                     },
                 )
                 return None
-            
+
             value = orjson.loads(raw)
             self._observe_operation("get", "hit", start, value_size=len(raw))
-            
+
             logger.debug(
                 "cache_hit",
                 extra={
@@ -292,13 +294,13 @@ class RedisCache:
                     "trace_id": trace_id,
                 },
             )
-            
+
             return value
-            
+
         except (CacheValidationError, CacheTimeoutError, CacheConnectionError):
             self._observe_operation("get", "error", start)
             raise
-            
+
         except RedisError as e:
             self._observe_operation("get", "error", start)
             logger.error(
@@ -311,7 +313,7 @@ class RedisCache:
                 },
             )
             raise CacheError(f"Redis error during get: {e}") from e
-            
+
         except Exception as e:
             self._observe_operation("get", "error", start)
             logger.exception(
@@ -335,17 +337,17 @@ class RedisCache:
     ) -> bool:
         """
         Store value in cache with TTL.
-        
+
         Args:
             namespace: Cache namespace
             key: Cache key
             value: Value to cache (must be JSON-serializable)
             ttl_seconds: Time-to-live in seconds
             trace_id: Optional trace ID for correlation
-            
+
         Returns:
             True on success, False on failure
-            
+
         Raises:
             CacheValidationError: On invalid namespace, key, or value size
             CacheTimeoutError: On timeout
@@ -353,19 +355,19 @@ class RedisCache:
         """
         start = time.monotonic()
         full_key = self._make_key(namespace, key)
-        
+
         if ttl_seconds <= 0:
             raise CacheValidationError("TTL must be positive")
-        
+
         try:
             raw = orjson.dumps(value)
-            
+
             # Security: Validate value size
             if len(raw) > MAX_CACHE_VALUE_SIZE:
                 raise CacheValidationError(
                     f"Value size {len(raw)} exceeds maximum of {MAX_CACHE_VALUE_SIZE} bytes"
                 )
-            
+
             await self._execute_with_retry(
                 "set",
                 self._client.set,
@@ -373,9 +375,9 @@ class RedisCache:
                 raw,
                 ex=ttl_seconds,
             )
-            
+
             self._observe_operation("set", "success", start, value_size=len(raw))
-            
+
             logger.debug(
                 "cache_set_success",
                 extra={
@@ -386,13 +388,13 @@ class RedisCache:
                     "trace_id": trace_id,
                 },
             )
-            
+
             return True
-            
+
         except (CacheValidationError, CacheTimeoutError, CacheConnectionError):
             self._observe_operation("set", "error", start)
             raise
-            
+
         except RedisError as e:
             self._observe_operation("set", "error", start)
             logger.error(
@@ -405,7 +407,7 @@ class RedisCache:
                 },
             )
             return False
-            
+
         except Exception as e:
             self._observe_operation("set", "error", start)
             logger.exception(
@@ -427,30 +429,30 @@ class RedisCache:
     ) -> bool:
         """
         Delete value from cache.
-        
+
         Args:
             namespace: Cache namespace
             key: Cache key
             trace_id: Optional trace ID for correlation
-            
+
         Returns:
             True on success, False on failure
-            
+
         Raises:
             CacheValidationError: On invalid namespace or key
         """
         start = time.monotonic()
         full_key = self._make_key(namespace, key)
-        
+
         try:
             await self._execute_with_retry(
                 "delete",
                 self._client.delete,
                 full_key,
             )
-            
+
             self._observe_operation("delete", "success", start)
-            
+
             logger.debug(
                 "cache_delete_success",
                 extra={
@@ -459,13 +461,13 @@ class RedisCache:
                     "trace_id": trace_id,
                 },
             )
-            
+
             return True
-            
+
         except (CacheValidationError, CacheTimeoutError, CacheConnectionError):
             self._observe_operation("delete", "error", start)
             raise
-            
+
         except Exception as e:
             self._observe_operation("delete", "error", start)
             logger.error(
@@ -482,7 +484,7 @@ class RedisCache:
     async def health_check(self) -> bool:
         """
         Check Redis connectivity with retry logic.
-        
+
         Returns:
             True if healthy, False otherwise
         """
@@ -493,7 +495,7 @@ class RedisCache:
             )
             logger.debug("cache_health_check_passed")
             return bool(result)
-            
+
         except Exception as e:
             logger.error(
                 "cache_health_check_failed",

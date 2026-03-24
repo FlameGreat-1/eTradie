@@ -146,17 +146,25 @@ METADATA_KEY_SCENARIO_OUTCOME = "scenario_outcome"
 METADATA_KEY_SOURCE_PATH = "source_path"
 METADATA_KEY_UPDATED_AT = "updated_at"
 
-MANDATORY_KNOWLEDGE_GROUPS: frozenset[DocumentType] = frozenset({
-    DocumentType.MASTER_RULEBOOK,
-    DocumentType.SMC_FRAMEWORK,
-    DocumentType.SND_RULEBOOK,
-    DocumentType.WYCKOFF_GUIDE,
-    DocumentType.DXY_FRAMEWORK,
-    DocumentType.COT_INTERPRETATION_GUIDE,
-    DocumentType.TRADING_STYLE_RULES,
-    DocumentType.MACRO_TO_PRICE_GUIDE,
-})
+MANDATORY_KNOWLEDGE_GROUPS: frozenset[DocumentType] = frozenset(
+    {
+        DocumentType.MASTER_RULEBOOK,
+        DocumentType.SMC_FRAMEWORK,
+        DocumentType.SND_RULEBOOK,
+        DocumentType.WYCKOFF_GUIDE,
+        DocumentType.DXY_FRAMEWORK,
+        DocumentType.COT_INTERPRETATION_GUIDE,
+        DocumentType.TRADING_STYLE_RULES,
+        DocumentType.MACRO_TO_PRICE_GUIDE,
+    }
+)
 
-SUPPORTED_IMAGE_FORMATS: frozenset[str] = frozenset({
-    ".png", ".jpg", ".jpeg", ".webp", ".svg",
-})
+SUPPORTED_IMAGE_FORMATS: frozenset[str] = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".svg",
+    }
+)

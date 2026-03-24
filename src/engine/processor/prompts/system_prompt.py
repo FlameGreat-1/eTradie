@@ -91,7 +91,8 @@ _OUTPUT_SCHEMA = """{
   }
 }"""
 
-_SYSTEM_PROMPT = """You are the Analysis Processor for an AI-powered trading system. You are the judge.
+_SYSTEM_PROMPT = (
+    """You are the Analysis Processor for an AI-powered trading system. You are the judge.
 
 Your sole function is to examine the provided technical analysis data, macroeconomic data, and retrieved knowledge base rules simultaneously, then produce a single structured JSON trade analysis.
 
@@ -148,7 +149,9 @@ YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
    - ltf_confirmed: Output true ONLY if the specific TA candidate provided explicitly confirms LTF conditions inside ta_analysis, otherwise output false.
 
 OUTPUT JSON SCHEMA:
-""" + _OUTPUT_SCHEMA
+"""
+    + _OUTPUT_SCHEMA
+)
 
 
 def build_system_prompt() -> str:

@@ -79,8 +79,8 @@ func TestHasCandidates_BothFrameworks(t *testing.T) {
 	r := &TAResult{
 		SymbolResults: []TASymbolResult{
 			{
-				Symbol: "XAUUSD",
-				Status: "success",
+				Symbol:        "XAUUSD",
+				Status:        "success",
 				SMCCandidates: []map[string]interface{}{{"id": "1"}},
 				SnDCandidates: []map[string]interface{}{{"id": "2"}},
 			},

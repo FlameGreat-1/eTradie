@@ -4,6 +4,7 @@ Revision ID: 0002
 Revises: 0001
 Create Date: 2026-03-08
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -24,7 +25,12 @@ def upgrade() -> None:
     # ──────────────────────────────────────────────────────────────────────
     op.create_table(
         "candles",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("symbol", sa.String(20), nullable=False),
         sa.Column("timeframe", sa.String(10), nullable=False),
         sa.Column("open_time", sa.DateTime(timezone=True), nullable=False),
@@ -39,7 +45,12 @@ def upgrade() -> None:
         sa.Column("number_of_trades", sa.Integer, nullable=True),
         sa.Column("taker_buy_base_volume", sa.Float, nullable=True),
         sa.Column("taker_buy_quote_volume", sa.Float, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
     )
     op.create_index("ix_candles_symbol", "candles", ["symbol"])
     op.create_index("ix_candles_timeframe", "candles", ["timeframe"])
@@ -61,7 +72,12 @@ def upgrade() -> None:
     # ──────────────────────────────────────────────────────────────────────
     op.create_table(
         "technical_snapshots",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("symbol", sa.String(20), nullable=False),
         sa.Column("timeframe", sa.String(10), nullable=False),
         sa.Column("timestamp", sa.DateTime(timezone=True), nullable=False),
@@ -71,22 +87,42 @@ def upgrade() -> None:
         sa.Column("choch_events", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("sms_events", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("order_blocks", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("fair_value_gaps", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("liquidity_sweeps", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("inducement_events", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "fair_value_gaps", postgresql.JSON, nullable=False, server_default="{}"
+        ),
+        sa.Column(
+            "liquidity_sweeps", postgresql.JSON, nullable=False, server_default="{}"
+        ),
+        sa.Column(
+            "inducement_events", postgresql.JSON, nullable=False, server_default="{}"
+        ),
         sa.Column("qm_levels", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("sr_flips", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("rs_flips", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("previous_levels", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "previous_levels", postgresql.JSON, nullable=False, server_default="{}"
+        ),
         sa.Column("mpl_levels", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("fakeout_tests", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "fakeout_tests", postgresql.JSON, nullable=False, server_default="{}"
+        ),
         sa.Column("supply_zones", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("demand_zones", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column("fibonacci_retracements", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "fibonacci_retracements",
+            postgresql.JSON,
+            nullable=False,
+            server_default="{}",
+        ),
         sa.Column("metadata", postgresql.JSON, nullable=True),
         sa.Column("version", sa.Integer, nullable=False, server_default="1"),
         sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
     )
     op.create_index("ix_snapshots_symbol", "technical_snapshots", ["symbol"])
     op.create_index("ix_snapshots_timeframe", "technical_snapshots", ["timeframe"])
@@ -107,7 +143,12 @@ def upgrade() -> None:
     # ──────────────────────────────────────────────────────────────────────
     op.create_table(
         "candidates",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("symbol", sa.String(20), nullable=False),
         sa.Column("timeframe", sa.String(10), nullable=False),
         sa.Column("pattern", sa.String(50), nullable=False),
@@ -137,7 +178,9 @@ def upgrade() -> None:
         sa.Column("sweep_timestamp", sa.DateTime(timezone=True), nullable=True),
         sa.Column("inducement_cleared", sa.Boolean, nullable=True),
         sa.Column("ltf_confirmation", sa.Boolean, nullable=True),
-        sa.Column("ltf_confirmation_timestamp", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "ltf_confirmation_timestamp", sa.DateTime(timezone=True), nullable=True
+        ),
         sa.Column("displacement_pips", sa.Float, nullable=True),
         sa.Column("fib_level", sa.String(20), nullable=True),
         sa.Column("session_context", sa.String(50), nullable=True),
@@ -160,7 +203,12 @@ def upgrade() -> None:
         sa.Column("invalidated_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("invalidation_reason", sa.Text, nullable=True),
         sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
     )
     op.create_index("ix_candidates_symbol", "candidates", ["symbol"])
     op.create_index("ix_candidates_timeframe", "candidates", ["timeframe"])

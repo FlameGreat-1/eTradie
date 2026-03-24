@@ -108,7 +108,9 @@ class TradingEconomicsSentimentProvider(BaseSentimentProvider):
             logger.error("te_sentiment_fetch_failed", error=str(exc))
             raise
 
-    def _extract_confidence(self, item: dict[str, Any]) -> tuple[Currency, float] | None:
+    def _extract_confidence(
+        self, item: dict[str, Any]
+    ) -> tuple[Currency, float] | None:
         """Extract a confidence score from a TE indicator row, if relevant."""
         category = str(item.get("Category", ""))
         if category not in _SENTIMENT_CATEGORIES:

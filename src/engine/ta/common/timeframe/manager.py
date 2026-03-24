@@ -5,7 +5,7 @@ from engine.ta.constants import Timeframe, TimeframeRelation, TIMEFRAME_MINUTES
 
 
 class TimeframeManager:
-    
+
     _HIERARCHY: list[Timeframe] = [
         Timeframe.M1,
         Timeframe.M5,
@@ -17,82 +17,82 @@ class TimeframeManager:
         Timeframe.W1,
         Timeframe.MN1,
     ]
-    
+
     def __init__(self) -> None:
         self._hierarchy_index = {tf: idx for idx, tf in enumerate(self._HIERARCHY)}
-    
+
     def get_relation(self, tf1: Timeframe, tf2: Timeframe) -> TimeframeRelation:
         idx1 = self._hierarchy_index.get(tf1)
         idx2 = self._hierarchy_index.get(tf2)
-        
+
         if idx1 is None or idx2 is None:
             return TimeframeRelation.UNRELATED
-        
+
         if idx1 == idx2:
             return TimeframeRelation.SAME
-        
+
         if idx1 > idx2:
             return TimeframeRelation.PARENT
-        
+
         return TimeframeRelation.CHILD
-    
+
     def get_parent(self, timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
         if steps < 1:
             raise ConfigurationError(
                 "Steps must be at least 1",
                 details={"steps": steps},
             )
-        
+
         idx = self._hierarchy_index.get(timeframe)
-        
+
         if idx is None:
             return None
-        
+
         parent_idx = idx + steps
-        
+
         if parent_idx >= len(self._HIERARCHY):
             return None
-        
+
         return self._HIERARCHY[parent_idx]
-    
+
     def get_child(self, timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
         if steps < 1:
             raise ConfigurationError(
                 "Steps must be at least 1",
                 details={"steps": steps},
             )
-        
+
         idx = self._hierarchy_index.get(timeframe)
-        
+
         if idx is None:
             return None
-        
+
         child_idx = idx - steps
-        
+
         if child_idx < 0:
             return None
-        
+
         return self._HIERARCHY[child_idx]
-    
+
     def is_htf_of(self, potential_htf: Timeframe, reference: Timeframe) -> bool:
         relation = self.get_relation(potential_htf, reference)
         return relation == TimeframeRelation.PARENT
-    
+
     def is_ltf_of(self, potential_ltf: Timeframe, reference: Timeframe) -> bool:
         relation = self.get_relation(potential_ltf, reference)
         return relation == TimeframeRelation.CHILD
-    
+
     def get_minutes(self, timeframe: Timeframe) -> int:
         minutes = TIMEFRAME_MINUTES.get(timeframe)
-        
+
         if minutes is None:
             raise ConfigurationError(
                 f"Unknown timeframe: {timeframe}",
                 details={"timeframe": timeframe},
             )
-        
+
         return minutes
-    
+
     def calculate_candle_count(
         self,
         source_tf: Timeframe,
@@ -100,7 +100,7 @@ class TimeframeManager:
     ) -> int:
         source_minutes = self.get_minutes(source_tf)
         target_minutes = self.get_minutes(target_tf)
-        
+
         if target_minutes < source_minutes:
             raise ConfigurationError(
                 "Target timeframe must be >= source timeframe",
@@ -111,7 +111,7 @@ class TimeframeManager:
                     "target_minutes": target_minutes,
                 },
             )
-        
+
         if target_minutes % source_minutes != 0:
             raise ConfigurationError(
                 "Target timeframe must be a multiple of source timeframe",
@@ -122,7 +122,7 @@ class TimeframeManager:
                     "target_minutes": target_minutes,
                 },
             )
-        
+
         return target_minutes // source_minutes
 
 
@@ -131,10 +131,10 @@ _manager: Optional[TimeframeManager] = None
 
 def _get_manager() -> TimeframeManager:
     global _manager
-    
+
     if _manager is None:
         _manager = TimeframeManager()
-    
+
     return _manager
 
 

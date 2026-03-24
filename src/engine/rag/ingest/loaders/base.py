@@ -28,12 +28,10 @@ class LoadedSection:
 class BaseLoader(ABC):
     @property
     @abstractmethod
-    def supported_format(self) -> SourceFormat:
-        ...
+    def supported_format(self) -> SourceFormat: ...
 
     @abstractmethod
-    async def load(self, path: Path) -> LoadedDocument:
-        ...
+    async def load(self, path: Path) -> LoadedDocument: ...
 
     def can_load(self, path: Path) -> bool:
         return path.exists() and path.is_file()

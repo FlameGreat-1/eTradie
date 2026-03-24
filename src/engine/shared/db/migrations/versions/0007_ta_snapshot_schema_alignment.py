@@ -14,6 +14,7 @@ Revision ID: 0007
 Revises: 0006
 Create Date: 2026-03-23
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -31,11 +32,15 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "technical_snapshots",
-        sa.Column("breaker_blocks", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "breaker_blocks", postgresql.JSON, nullable=False, server_default="{}"
+        ),
     )
     op.add_column(
         "technical_snapshots",
-        sa.Column("dealing_ranges", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column(
+            "dealing_ranges", postgresql.JSON, nullable=False, server_default="{}"
+        ),
     )
     op.alter_column("technical_snapshots", "metadata", new_column_name="meta_data")
 

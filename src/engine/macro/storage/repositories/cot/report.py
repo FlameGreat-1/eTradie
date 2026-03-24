@@ -32,13 +32,10 @@ class COTRepository(BaseRepository[COTReportRow]):
             .group_by(self.model.currency)
             .subquery()
         )
-        stmt = (
-            select(self.model)
-            .join(
-                subq,
-                (self.model.currency == subq.c.currency)
-                & (self.model.report_date == subq.c.max_date),
-            )
+        stmt = select(self.model).join(
+            subq,
+            (self.model.currency == subq.c.currency)
+            & (self.model.report_date == subq.c.max_date),
         )
         return await self.execute_query(stmt)
 

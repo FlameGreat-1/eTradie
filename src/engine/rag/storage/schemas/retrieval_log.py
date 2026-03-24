@@ -13,20 +13,30 @@ from engine.shared.db.migrations._schema_registry import Base
 class RetrievalLogRow(Base):
     __tablename__ = "rag_retrieval_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     strategy: Mapped[str] = mapped_column(String(32), nullable=False)
-    filters_applied: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    filters_applied: Mapped[dict] = mapped_column(
+        JSON, nullable=False, server_default="{}"
+    )
     total_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     chunks_returned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     score_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.25)
-    coverage_result: Mapped[str] = mapped_column(String(20), nullable=False, default="insufficient")
-    conflict_result: Mapped[str] = mapped_column(String(20), nullable=False, default="none_detected")
+    coverage_result: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="insufficient"
+    )
+    conflict_result: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="none_detected"
+    )
     duration_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
 
     __table_args__ = (

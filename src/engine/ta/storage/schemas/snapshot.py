@@ -34,7 +34,9 @@ class SnapshotSchema(Base):
 
     timeframe: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
 
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
     swing_highs: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
@@ -72,7 +74,9 @@ class SnapshotSchema(Base):
 
     demand_zones: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
-    fibonacci_retracements: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    fibonacci_retracements: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
 
     dealing_ranges: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 

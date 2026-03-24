@@ -14,7 +14,8 @@ class ScenarioRepository(BaseRepository[ScenarioRow]):
     _repo_name = "rag_scenario"
 
     async def get_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Sequence[ScenarioRow]:
         stmt = (
             select(self.model)
@@ -65,7 +66,8 @@ class ScenarioRepository(BaseRepository[ScenarioRow]):
         await self._session.flush()
 
     async def deactivate_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> int:
         stmt = (
             update(self.model)

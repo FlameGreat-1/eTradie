@@ -15,7 +15,8 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
     _repo_name = "rag_document_version"
 
     async def get_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Sequence[DocumentVersionRow]:
         stmt = (
             select(self.model)
@@ -25,7 +26,8 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         return await self.execute_query(stmt)
 
     async def get_latest(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Optional[DocumentVersionRow]:
         stmt = (
             select(self.model)
@@ -37,7 +39,8 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         return rows[0] if rows else None
 
     async def get_active(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Optional[DocumentVersionRow]:
         stmt = (
             select(self.model)
@@ -51,7 +54,9 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         return rows[0] if rows else None
 
     async def supersede(
-        self, version_id: UUID, superseded_by: UUID,
+        self,
+        version_id: UUID,
+        superseded_by: UUID,
     ) -> None:
         stmt = (
             update(self.model)
@@ -75,7 +80,9 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         await self._session.flush()
 
     async def get_by_checksum(
-        self, document_id: UUID, checksum: str,
+        self,
+        document_id: UUID,
+        checksum: str,
     ) -> Optional[DocumentVersionRow]:
         stmt = (
             select(self.model)

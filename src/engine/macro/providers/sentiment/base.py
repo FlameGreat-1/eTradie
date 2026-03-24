@@ -10,5 +10,4 @@ class BaseSentimentProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.SENTIMENT
 
     @abc.abstractmethod
-    async def fetch(self) -> list:
-        ...
+    async def fetch(self) -> list: ...

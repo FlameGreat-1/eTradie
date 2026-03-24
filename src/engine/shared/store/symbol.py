@@ -26,8 +26,14 @@ _CACHE_NAMESPACE = "gateway"
 _ACTIVE_SYMBOLS_KEY = "active_symbols"
 
 _DEFAULT_SYMBOLS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF",
-    "AUDUSD", "NZDUSD", "USDCAD", "XAUUSD",
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "USDCHF",
+    "AUDUSD",
+    "NZDUSD",
+    "USDCAD",
+    "XAUUSD",
 ]
 
 
@@ -61,9 +67,7 @@ class RedisSymbolReader:
 
             if stored is not None and isinstance(stored, list) and len(stored) > 0:
                 symbols = [
-                    s.upper()
-                    for s in stored
-                    if isinstance(s, str) and s.strip()
+                    s.upper() for s in stored if isinstance(s, str) and s.strip()
                 ]
                 if symbols:
                     logger.debug(

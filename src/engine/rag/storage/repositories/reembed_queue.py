@@ -27,7 +27,8 @@ class ReembedQueueRepository(BaseRepository[ReembedQueueRow]):
         return await self.execute_query(stmt)
 
     async def get_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Sequence[ReembedQueueRow]:
         stmt = (
             select(self.model)
@@ -38,9 +39,7 @@ class ReembedQueueRepository(BaseRepository[ReembedQueueRow]):
 
     async def mark_processing(self, queue_id: UUID) -> None:
         stmt = (
-            update(self.model)
-            .where(self.model.id == queue_id)
-            .values(status="running")
+            update(self.model).where(self.model.id == queue_id).values(status="running")
         )
         await self._session.execute(stmt)
         await self._session.flush()
@@ -55,7 +54,10 @@ class ReembedQueueRepository(BaseRepository[ReembedQueueRow]):
         await self._session.flush()
 
     async def mark_failed(
-        self, queue_id: UUID, *, error_message: str,
+        self,
+        queue_id: UUID,
+        *,
+        error_message: str,
     ) -> None:
         stmt = (
             update(self.model)

@@ -12,11 +12,13 @@ class MacroChunker(BaseChunker):
         if not doc.sections:
             parts = self._split_by_token_limit(doc.content, max_tokens=self._chunk_size)
             for part in parts:
-                chunks.append(RawChunk(
-                    content=part,
-                    chunk_index=idx,
-                    hierarchy_level=0,
-                ))
+                chunks.append(
+                    RawChunk(
+                        content=part,
+                        chunk_index=idx,
+                        hierarchy_level=0,
+                    )
+                )
                 idx += 1
             merged = self._merge_small_chunks(chunks)
             return self._reindex(merged)
@@ -27,14 +29,18 @@ class MacroChunker(BaseChunker):
             for sub in section.subsections:
                 section_text += f"\n\n### {sub.heading}\n\n{sub.content}"
 
-            parts = self._split_by_token_limit(section_text, max_tokens=self._chunk_size)
+            parts = self._split_by_token_limit(
+                section_text, max_tokens=self._chunk_size
+            )
             for part in parts:
-                chunks.append(RawChunk(
-                    content=part,
-                    chunk_index=idx,
-                    section=section.heading,
-                    hierarchy_level=0,
-                ))
+                chunks.append(
+                    RawChunk(
+                        content=part,
+                        chunk_index=idx,
+                        section=section.heading,
+                        hierarchy_level=0,
+                    )
+                )
                 idx += 1
 
         merged = self._merge_small_chunks(chunks)

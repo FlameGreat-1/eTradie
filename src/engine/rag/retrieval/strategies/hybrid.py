@@ -46,10 +46,10 @@ class HybridStrategy:
         # Weighted budget: frameworks and macro get the lion's share,
         # scenarios get a smaller allocation since they are supplementary
         # examples and the mandatory minimum system backstops them.
-        rules_k = max(3, top_k // 4)           # ~25%
-        framework_k = max(3, top_k // 3)       # ~33%
-        macro_k = max(3, top_k // 3)           # ~33%
-        scenario_k = max(3, top_k // 10)       # ~9%
+        rules_k = max(3, top_k // 4)  # ~25%
+        framework_k = max(3, top_k // 3)  # ~33%
+        macro_k = max(3, top_k // 3)  # ~33%
+        scenario_k = max(3, top_k // 10)  # ~9%
 
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []

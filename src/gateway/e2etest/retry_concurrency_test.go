@@ -319,8 +319,8 @@ func buildSymbolResultWithCandidate(symbol, trend string) map[string]interface{}
 			},
 		},
 		"snd_candidates": []interface{}{},
-		"snapshots":       map[string]interface{}{},
-		"alignment":       map[string]interface{}{},
-		"error":           nil,
+		"snapshots":      map[string]interface{}{},
+		"alignment":      map[string]interface{}{},
+		"error":          nil,
 	}
 }

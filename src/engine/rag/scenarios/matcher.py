@@ -33,24 +33,38 @@ class ScenarioMatcher:
 
         scenarios: list[Scenario] = []
         for row in rows:
-            scenarios.append(Scenario(
-                id=row.id,
-                document_id=row.document_id,
-                framework=row.framework,
-                setup_family=row.setup_family,
-                direction=row.direction,
-                timeframe=row.timeframe,
-                outcome=row.outcome,
-                title=row.title,
-                explanation_text=row.explanation_text,
-                image_refs=tuple(row.image_refs) if isinstance(row.image_refs, list) else (),
-                confluence_tags=frozenset(row.confluence_tags) if isinstance(row.confluence_tags, list) else frozenset(),
-                style_tags=frozenset(row.style_tags) if isinstance(row.style_tags, list) else frozenset(),
-                linked_chunk_ids=tuple(),
-                metadata=row.meta_data if isinstance(row.meta_data, dict) else {},
-                is_active=row.is_active,
-                notes=row.notes,
-            ))
+            scenarios.append(
+                Scenario(
+                    id=row.id,
+                    document_id=row.document_id,
+                    framework=row.framework,
+                    setup_family=row.setup_family,
+                    direction=row.direction,
+                    timeframe=row.timeframe,
+                    outcome=row.outcome,
+                    title=row.title,
+                    explanation_text=row.explanation_text,
+                    image_refs=(
+                        tuple(row.image_refs)
+                        if isinstance(row.image_refs, list)
+                        else ()
+                    ),
+                    confluence_tags=(
+                        frozenset(row.confluence_tags)
+                        if isinstance(row.confluence_tags, list)
+                        else frozenset()
+                    ),
+                    style_tags=(
+                        frozenset(row.style_tags)
+                        if isinstance(row.style_tags, list)
+                        else frozenset()
+                    ),
+                    linked_chunk_ids=tuple(),
+                    metadata=row.meta_data if isinstance(row.meta_data, dict) else {},
+                    is_active=row.is_active,
+                    notes=row.notes,
+                )
+            )
 
         logger.info(
             "scenario_match",

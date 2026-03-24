@@ -70,7 +70,9 @@ class CFTCProvider(BaseCOTProvider):
             logger.error("cftc_fetch_failed", error=str(exc))
             raise
 
-    async def _fetch_dataset(self, dataset_id: str, *, where: str) -> list[dict[str, Any]]:
+    async def _fetch_dataset(
+        self, dataset_id: str, *, where: str
+    ) -> list[dict[str, Any]]:
         url = f"{self._base_url}/{dataset_id}.json"
         params = {
             "$order": "report_date_as_yyyy_mm_dd DESC",
@@ -85,7 +87,9 @@ class CFTCProvider(BaseCOTProvider):
         )
         return raw if isinstance(raw, list) else []
 
-    def _parse_legacy_positions(self, raw_rows: list[dict[str, Any]]) -> list[COTPosition]:
+    def _parse_legacy_positions(
+        self, raw_rows: list[dict[str, Any]]
+    ) -> list[COTPosition]:
         positions: list[COTPosition] = []
         seen_currencies: set[str] = set()
 

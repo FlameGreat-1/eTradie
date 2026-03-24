@@ -36,6 +36,7 @@ logger = get_logger(__name__)
 # Retry decorator (lifecycle hook: automatic retry with backoff)
 # ---------------------------------------------------------------------------
 
+
 def with_retry(
     max_retries: int = 3,
     backoff_base: float = 2.0,
@@ -49,6 +50,7 @@ def with_retry(
         backoff_base: Base for exponential backoff (seconds).
         retry_exceptions: Tuple of exception types that trigger a retry.
     """
+
     def decorator(
         func: Callable[..., Coroutine[Any, Any, Any]],
     ) -> Callable[..., Coroutine[Any, Any, Any]]:
@@ -61,7 +63,7 @@ def with_retry(
                 except retry_exceptions as exc:
                     last_exc = exc
                     if attempt < max_retries:
-                        wait = backoff_base ** attempt
+                        wait = backoff_base**attempt
                         logger.warning(
                             "job_retry_scheduled",
                             extra={
@@ -86,12 +88,14 @@ def with_retry(
             raise last_exc  # type: ignore[misc]
 
         return wrapper
+
     return decorator
 
 
 # ---------------------------------------------------------------------------
 # Job functions
 # ---------------------------------------------------------------------------
+
 
 @with_retry(max_retries=3)
 async def _candle_refresh(
@@ -112,7 +116,9 @@ async def _candle_refresh(
 
     async with ta_uow_factory() as uow:
         existing = await uow.candle_repo.find_by_symbol_timeframe_timestamp(
-            symbol, timeframe.value, latest.timestamp,
+            symbol,
+            timeframe.value,
+            latest.timestamp,
         )
 
         if existing:
@@ -151,7 +157,10 @@ async def _backfill(
 
     async with ta_uow_factory() as uow:
         stored = await uow.candle_repo.find_by_time_range(
-            symbol, timeframe.value, start_time, end_time,
+            symbol,
+            timeframe.value,
+            start_time,
+            end_time,
         )
         stored_count = len(stored) if stored else 0
 
@@ -183,9 +192,7 @@ async def _backfill(
         return
 
     stored_timestamps = {c.timestamp for c in stored} if stored else set()
-    new_candles = [
-        c for c in sequence.candles if c.timestamp not in stored_timestamps
-    ]
+    new_candles = [c for c in sequence.candles if c.timestamp not in stored_timestamps]
 
     if new_candles:
         async with ta_uow_factory() as uow:
@@ -239,7 +246,10 @@ async def _broker_sync(
 
     async with ta_uow_factory() as uow:
         stored = await uow.candle_repo.find_by_time_range(
-            symbol, timeframe.value, start_time, end_time,
+            symbol,
+            timeframe.value,
+            start_time,
+            end_time,
         )
         stored_timestamps = {c.timestamp for c in stored} if stored else set()
 
@@ -264,6 +274,7 @@ async def _broker_sync(
 # ---------------------------------------------------------------------------
 # Dynamic data refresh for active symbols
 # ---------------------------------------------------------------------------
+
 
 @with_retry(max_retries=2)
 async def _refresh_data_for_active_symbols(
@@ -375,6 +386,7 @@ async def _refresh_data_for_active_symbols(
 # Job registration
 # ---------------------------------------------------------------------------
 
+
 def register_ta_jobs(
     scheduler: SchedulerManager,
     *,
@@ -399,9 +411,11 @@ def register_ta_jobs(
 
     # Determine refresh interval: use the smallest HTF candle interval
     # so data is always fresh before the next analysis cycle.
-    min_htf_minutes = min(
-        TIMEFRAME_MINUTES[tf] for tf in ta_config.htf_timeframes
-    ) if ta_config.htf_timeframes else 60
+    min_htf_minutes = (
+        min(TIMEFRAME_MINUTES[tf] for tf in ta_config.htf_timeframes)
+        if ta_config.htf_timeframes
+        else 60
+    )
     refresh_interval_seconds = min_htf_minutes * 60
 
     scheduler.add_interval_job(

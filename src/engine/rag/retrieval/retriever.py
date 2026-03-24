@@ -9,7 +9,11 @@ from engine.rag.models.retrieval import RetrievedChunk
 from engine.rag.vectorstore.base import BaseVectorStore, VectorSearchResult
 from engine.rag.vectorstore.filters import build_where_filter
 from engine.shared.logging import get_logger
-from engine.shared.metrics import RAG_DOCUMENTS_RETRIEVED, RAG_QUERY_DURATION, RAG_QUERY_TOTAL
+from engine.shared.metrics import (
+    RAG_DOCUMENTS_RETRIEVED,
+    RAG_QUERY_DURATION,
+    RAG_QUERY_TOTAL,
+)
 
 logger = get_logger(__name__)
 
@@ -42,7 +46,11 @@ class Retriever:
         scenario_outcomes: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         effective_top_k = top_k or self._config.retrieval_top_k
-        effective_threshold = score_threshold if score_threshold is not None else self._config.retrieval_score_threshold
+        effective_threshold = (
+            score_threshold
+            if score_threshold is not None
+            else self._config.retrieval_score_threshold
+        )
 
         start = time.monotonic()
 
@@ -65,9 +73,7 @@ class Retriever:
             where=where,
         )
 
-        filtered = [
-            r for r in raw_results if r.score >= effective_threshold
-        ]
+        filtered = [r for r in raw_results if r.score >= effective_threshold]
 
         chunks = self._to_retrieved_chunks(filtered)
 
@@ -89,7 +95,8 @@ class Retriever:
         return chunks
 
     def _to_retrieved_chunks(
-        self, results: list[VectorSearchResult],
+        self,
+        results: list[VectorSearchResult],
     ) -> list[RetrievedChunk]:
         chunks: list[RetrievedChunk] = []
         for rank, result in enumerate(results):
@@ -99,15 +106,17 @@ class Retriever:
             except ValueError:
                 continue
 
-            chunks.append(RetrievedChunk(
-                chunk_id=chunk_id,
-                document_id=doc_id,
-                doc_type=result.metadata.get("doc_type", ""),
-                content=result.content,
-                score=result.score,
-                rank=rank,
-                section=result.metadata.get("section"),
-                subsection=result.metadata.get("subsection"),
-                metadata=result.metadata,
-            ))
+            chunks.append(
+                RetrievedChunk(
+                    chunk_id=chunk_id,
+                    document_id=doc_id,
+                    doc_type=result.metadata.get("doc_type", ""),
+                    content=result.content,
+                    score=result.score,
+                    rank=rank,
+                    section=result.metadata.get("section"),
+                    subsection=result.metadata.get("subsection"),
+                    metadata=result.metadata,
+                )
+            )
         return chunks

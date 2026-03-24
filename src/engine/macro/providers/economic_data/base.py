@@ -7,7 +7,9 @@ from engine.macro.models.provider.economic import EconomicRelease
 from engine.macro.providers.base import BaseProvider
 
 
-def compute_surprise_direction(actual: float | None, forecast: float | None) -> SurpriseDirection:
+def compute_surprise_direction(
+    actual: float | None, forecast: float | None
+) -> SurpriseDirection:
     if actual is None or forecast is None:
         return SurpriseDirection.INLINE
     diff = actual - forecast
@@ -20,5 +22,4 @@ class BaseEconomicDataProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.ECONOMIC_DATA
 
     @abc.abstractmethod
-    async def fetch(self) -> list[EconomicRelease]:
-        ...
+    async def fetch(self) -> list[EconomicRelease]: ...

@@ -65,10 +65,7 @@ class Reranker:
         )
         effective_top_k = max(configured_top_k, mandatory_total)
 
-        scored = [
-            (chunk, self._compute_weighted_score(chunk))
-            for chunk in chunks
-        ]
+        scored = [(chunk, self._compute_weighted_score(chunk)) for chunk in chunks]
 
         scored.sort(key=lambda x: x[1], reverse=True)
 
@@ -81,7 +78,9 @@ class Reranker:
         # chunks of that doc_type from the overflow pool.
         if mandatory and overflow:
             selected = self._enforce_mandatory_minimums(
-                selected, overflow, mandatory,
+                selected,
+                overflow,
+                mandatory,
             )
 
         reranked = [

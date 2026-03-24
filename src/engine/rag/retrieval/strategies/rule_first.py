@@ -45,8 +45,8 @@ class RuleFirstStrategy:
         # Weighted budget: frameworks and macro get the largest share,
         # rules get a boost for high-impact event rejection logic.
         rules_k = max(3, (top_k * 30) // 100) + 3  # ~30% + boost
-        framework_k = max(3, (top_k * 35) // 100)   # ~35%
-        macro_k = max(3, (top_k * 35) // 100)        # ~35%
+        framework_k = max(3, (top_k * 35) // 100)  # ~35%
+        macro_k = max(3, (top_k * 35) // 100)  # ~35%
 
         # Rules (master_rulebook + trading_style_rules)
         rule_chunks = await self._retriever.retrieve(
@@ -97,7 +97,9 @@ class RuleFirstStrategy:
         frameworks_to_retrieve.add("wyckoff")
 
         per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
-        all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
+        all_setup_fams = all_setup_families or (
+            [setup_family] if setup_family else None
+        )
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]
             fw_chunks = await self._retriever.retrieve(

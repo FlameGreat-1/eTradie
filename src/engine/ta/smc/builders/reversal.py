@@ -24,27 +24,27 @@ logger = get_logger(__name__)
 class ReversalBuilder:
     """
     Builds reversal-style SMC candidates.
-    
+
     Pattern 3/8: SMS + BMS + RTO (Bullish/Bearish Reversal)
     - Price in trend fails to break last swing high/low (SMS - Failure Swing)
     - BMS confirms trend exhaustion and reversal
     - Price retraces to Order Block
     - Entry at OB with SL beyond OB
     - Target: next liquidity draw
-    
+
     Pattern 1/6: Turtle Soup (Standard)
     - Price raids BSL/SSL zone
     - Sweeps 5-20+ pips above/below level
     - Single candle closes back inside
     - Entry against sweep
     - Minimum 10 pip SL (Universal Rule 12)
-    
+
     Pattern 5/10: Turtle Soup + SH + BMS + RTO (Combined - Highest Confluence)
     - Turtle Soup sweep also creates BMS
     - Price retraces to OB
     - Both setups confirm simultaneously
     """
-    
+
     def __init__(
         self,
         config: SMCConfig,
@@ -57,7 +57,7 @@ class ReversalBuilder:
         self.ltf_validator = ltf_validator
         self.fibonacci_analyzer = fibonacci_analyzer
         self._logger = get_logger(__name__)
-    
+
     def build_bullish_sms_reversal(
         self,
         htf_sequence: CandleSequence,
@@ -72,13 +72,13 @@ class ReversalBuilder:
     ) -> Optional[SMCCandidate]:
         if htf_sms.direction != Direction.BULLISH:
             return None
-        
+
         if ltf_bms.direction != Direction.BULLISH:
             return None
-        
+
         if ltf_ob.direction != Direction.BULLISH:
             return None
-        
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
@@ -89,9 +89,9 @@ class ReversalBuilder:
             [],
         ):
             return None
-        
+
         current_price = ltf_sequence.candles[-1].close
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             None,
             ltf_choch,
@@ -101,7 +101,7 @@ class ReversalBuilder:
             ltf_sequence,
             current_price,
         )
-        
+
         confluences = self._count_sms_confluences(
             htf_sms,
             ltf_bms,
@@ -110,15 +110,15 @@ class ReversalBuilder:
             retracement,
             inducement_events,
         )
-        
+
         if confluences < self.config.min_confluences:
             return None
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.lower_bound - (10 * pip_val)
         take_profit = htf_sms.failed_level + (50 * pip_val)
-        
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -142,14 +142,19 @@ class ReversalBuilder:
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
+            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
+            > 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={"confluences": confluences, "pattern_type": "reversal"},
         )
-        
+
         self._logger.info(
             "bullish_sms_reversal_candidate_built",
             extra={
@@ -158,9 +163,9 @@ class ReversalBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_bearish_sms_reversal(
         self,
         htf_sequence: CandleSequence,
@@ -175,13 +180,13 @@ class ReversalBuilder:
     ) -> Optional[SMCCandidate]:
         if htf_sms.direction != Direction.BEARISH:
             return None
-        
+
         if ltf_bms.direction != Direction.BEARISH:
             return None
-        
+
         if ltf_ob.direction != Direction.BEARISH:
             return None
-        
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
@@ -192,9 +197,9 @@ class ReversalBuilder:
             [],
         ):
             return None
-        
+
         current_price = ltf_sequence.candles[-1].close
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             None,
             ltf_choch,
@@ -204,7 +209,7 @@ class ReversalBuilder:
             ltf_sequence,
             current_price,
         )
-        
+
         confluences = self._count_sms_confluences(
             htf_sms,
             ltf_bms,
@@ -213,15 +218,15 @@ class ReversalBuilder:
             retracement,
             inducement_events,
         )
-        
+
         if confluences < self.config.min_confluences:
             return None
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.upper_bound + (10 * pip_val)
         take_profit = htf_sms.failed_level - (50 * pip_val)
-        
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -245,14 +250,19 @@ class ReversalBuilder:
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared]) > 0,
+            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
+            > 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={"confluences": confluences, "pattern_type": "reversal"},
         )
-        
+
         self._logger.info(
             "bearish_sms_reversal_candidate_built",
             extra={
@@ -261,9 +271,9 @@ class ReversalBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_turtle_soup_long(
         self,
         ltf_sequence: CandleSequence,
@@ -271,18 +281,18 @@ class ReversalBuilder:
     ) -> Optional[SMCCandidate]:
         if not sweep.closed_back_inside:
             return None
-        
+
         if sweep.sweep_pips < self.config.turtle_soup_min_pips:
             return None
-        
+
         if not self.ltf_validator.validate_session_timing(ltf_sequence):
             return None
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
         stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
         take_profit = sweep.swept_level + (sweep.sweep_pips * 2 * pip_val)
-        
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -301,7 +311,7 @@ class ReversalBuilder:
             ltf_confirmation_timestamp=sweep.timestamp,
             metadata={"sweep_pips": sweep.sweep_pips, "pattern_type": "turtle_soup"},
         )
-        
+
         self._logger.info(
             "turtle_soup_long_candidate_built",
             extra={
@@ -310,9 +320,9 @@ class ReversalBuilder:
                 "sweep_pips": sweep.sweep_pips,
             },
         )
-        
+
         return candidate
-    
+
     def build_turtle_soup_short(
         self,
         ltf_sequence: CandleSequence,
@@ -320,18 +330,18 @@ class ReversalBuilder:
     ) -> Optional[SMCCandidate]:
         if not sweep.closed_back_inside:
             return None
-        
+
         if sweep.sweep_pips < self.config.turtle_soup_min_pips:
             return None
-        
+
         if not self.ltf_validator.validate_session_timing(ltf_sequence):
             return None
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
         stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
         take_profit = sweep.swept_level - (sweep.sweep_pips * 2 * pip_val)
-        
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -350,7 +360,7 @@ class ReversalBuilder:
             ltf_confirmation_timestamp=sweep.timestamp,
             metadata={"sweep_pips": sweep.sweep_pips, "pattern_type": "turtle_soup"},
         )
-        
+
         self._logger.info(
             "turtle_soup_short_candidate_built",
             extra={
@@ -359,9 +369,9 @@ class ReversalBuilder:
                 "sweep_pips": sweep.sweep_pips,
             },
         )
-        
+
         return candidate
-    
+
     def _count_sms_confluences(
         self,
         sms: ShiftInMarketStructure,
@@ -372,26 +382,30 @@ class ReversalBuilder:
         inducement_events: list[InducementEvent],
     ) -> int:
         confluences = 0
-        
+
         confluences += 1
-        
+
         confluences += 1
-        
+
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
-        
-        if retracement and self.zone_validator.validate_ob_at_premium_discount(ob, retracement):
+
+        if retracement and self.zone_validator.validate_ob_at_premium_discount(
+            ob, retracement
+        ):
             confluences += 1
-        
+
         if any(idm.cleared for idm in inducement_events):
             confluences += 1
-        
+
         return confluences
-    
+
     def _get_fib_level(
         self,
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(price, retracement)
+        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
+            price, retracement
+        )
         return str(nearest_level) if nearest_level else None

@@ -20,14 +20,14 @@ logger = get_logger(__name__)
 class QMCandidateBuilder:
     """
     Builds QM/QML/QMH-driven SnD candidates.
-    
+
     QM patterns are the core of SnD trading:
     1. QML + SR Flip + Fakeout (baseline)
     2. QML + MPL + SR Flip + Fakeout
     3. QML + Previous Highs + MPL + SR Flip + Fakeout (Type 1 - 90% Killer Setup)
     4. QML + Previous Highs + MPL + SR Flip + Fakeout (Type 2 - 90% Killer Setup)
     5. QML + Triple Fakeout (highest confluence)
-    
+
     Requirements:
     - QML must be valid (H → HH → break of H)
     - SR/RS Flip must be created by Marubozu
@@ -36,7 +36,7 @@ class QMCandidateBuilder:
     - MPL adds extra confluence
     - Fibonacci alignment = 90% probability
     """
-    
+
     def __init__(
         self,
         config: SnDConfig,
@@ -49,7 +49,7 @@ class QMCandidateBuilder:
         self.ltf_validator = ltf_validator
         self.fibonacci_analyzer = fibonacci_analyzer
         self._logger = get_logger(__name__)
-    
+
     def build_qml_baseline_short(
         self,
         htf_sequence: CandleSequence,
@@ -62,10 +62,10 @@ class QMCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if not qml.is_valid:
             return None
-        
+
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -74,7 +74,7 @@ class QMCandidateBuilder:
             qml.level,
             retracement,
         )
-        
+
         confluences = self._count_qml_confluences(
             qml,
             fakeout_tests,
@@ -82,12 +82,12 @@ class QMCandidateBuilder:
             None,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
         stop_loss = qml.level + (20 * pip_val)
         take_profit = qml.level - (100 * pip_val)
-        
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -107,11 +107,15 @@ class QMCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={"confluences": confluences, "pattern_type": "qml_baseline"},
         )
-        
+
         self._logger.info(
             "qml_baseline_short_candidate_built",
             extra={
@@ -120,9 +124,9 @@ class QMCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_qml_killer_setup_short(
         self,
         htf_sequence: CandleSequence,
@@ -137,13 +141,13 @@ class QMCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if not qml.is_valid:
             return None
-        
+
         if previous_highs.touch_count < self.config.min_previous_touches:
             return None
-        
+
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -152,7 +156,7 @@ class QMCandidateBuilder:
             qml.level,
             retracement,
         )
-        
+
         confluences = self._count_qml_confluences(
             qml,
             fakeout_tests,
@@ -160,14 +164,18 @@ class QMCandidateBuilder:
             mpl,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
         stop_loss = qml.level + (20 * pip_val)
         take_profit = qml.level - (100 * pip_val)
-        
-        pattern_type = CandidatePattern.QML_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QML_KILLER_TYPE2
-        
+
+        pattern_type = (
+            CandidatePattern.QML_KILLER_TYPE1
+            if mpl and mpl.is_type1
+            else CandidatePattern.QML_KILLER_TYPE2
+        )
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -190,15 +198,21 @@ class QMCandidateBuilder:
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
-                "pattern_type": "qml_killer_type1" if mpl and mpl.is_type1 else "qml_killer_type2",
+                "pattern_type": (
+                    "qml_killer_type1" if mpl and mpl.is_type1 else "qml_killer_type2"
+                ),
                 "is_90_percent_setup": True,
             },
         )
-        
+
         self._logger.info(
             "qml_killer_setup_short_candidate_built",
             extra={
@@ -209,9 +223,9 @@ class QMCandidateBuilder:
                 "has_mpl": mpl is not None,
             },
         )
-        
+
         return candidate
-    
+
     def build_qmh_baseline_long(
         self,
         htf_sequence: CandleSequence,
@@ -224,10 +238,10 @@ class QMCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if not qmh.is_valid:
             return None
-        
+
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -236,7 +250,7 @@ class QMCandidateBuilder:
             qmh.level,
             retracement,
         )
-        
+
         confluences = self._count_qmh_confluences(
             qmh,
             fakeout_tests,
@@ -244,12 +258,12 @@ class QMCandidateBuilder:
             None,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
         stop_loss = qmh.level - (20 * pip_val)
         take_profit = qmh.level + (100 * pip_val)
-        
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -269,11 +283,15 @@ class QMCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             compression_detected=True,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={"confluences": confluences, "pattern_type": "qmh_baseline"},
         )
-        
+
         self._logger.info(
             "qmh_baseline_long_candidate_built",
             extra={
@@ -282,9 +300,9 @@ class QMCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_qmh_killer_setup_long(
         self,
         htf_sequence: CandleSequence,
@@ -299,13 +317,13 @@ class QMCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if not qmh.is_valid:
             return None
-        
+
         if previous_lows.touch_count < self.config.min_previous_touches:
             return None
-        
+
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -314,7 +332,7 @@ class QMCandidateBuilder:
             qmh.level,
             retracement,
         )
-        
+
         confluences = self._count_qmh_confluences(
             qmh,
             fakeout_tests,
@@ -322,14 +340,18 @@ class QMCandidateBuilder:
             mpl,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
         stop_loss = qmh.level - (20 * pip_val)
         take_profit = qmh.level + (100 * pip_val)
-        
-        pattern_type = CandidatePattern.QMH_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QMH_KILLER_TYPE2
-        
+
+        pattern_type = (
+            CandidatePattern.QMH_KILLER_TYPE1
+            if mpl and mpl.is_type1
+            else CandidatePattern.QMH_KILLER_TYPE2
+        )
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -352,15 +374,21 @@ class QMCandidateBuilder:
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
-                "pattern_type": "qmh_killer_type1" if mpl and mpl.is_type1 else "qmh_killer_type2",
+                "pattern_type": (
+                    "qmh_killer_type1" if mpl and mpl.is_type1 else "qmh_killer_type2"
+                ),
                 "is_90_percent_setup": True,
             },
         )
-        
+
         self._logger.info(
             "qmh_killer_setup_long_candidate_built",
             extra={
@@ -371,9 +399,9 @@ class QMCandidateBuilder:
                 "has_mpl": mpl is not None,
             },
         )
-        
+
         return candidate
-    
+
     def _count_qml_confluences(
         self,
         qml: QuasiModoLevel,
@@ -383,21 +411,21 @@ class QMCandidateBuilder:
         retracement: Optional[FibonacciRetracement],
     ) -> int:
         confluences = 1
-        
+
         confluences += len(fakeout_tests)
-        
+
         if previous_highs and previous_highs.touch_count >= 2:
             confluences += previous_highs.touch_count
-        
+
         if mpl:
             confluences += 2 if mpl.is_type1 else 1
-        
+
         if retracement:
             if self.ltf_validator.check_fibonacci_alignment(qml.level, retracement):
                 confluences += 2
-        
+
         return confluences
-    
+
     def _count_qmh_confluences(
         self,
         qmh: QuasiModoLevel,
@@ -407,25 +435,27 @@ class QMCandidateBuilder:
         retracement: Optional[FibonacciRetracement],
     ) -> int:
         confluences = 1
-        
+
         confluences += len(fakeout_tests)
-        
+
         if previous_lows and previous_lows.touch_count >= 2:
             confluences += previous_lows.touch_count
-        
+
         if mpl:
             confluences += 2 if mpl.is_type1 else 1
-        
+
         if retracement:
             if self.ltf_validator.check_fibonacci_alignment(qmh.level, retracement):
                 confluences += 2
-        
+
         return confluences
-    
+
     def _get_fib_level(
         self,
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(price, retracement)
+        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
+            price, retracement
+        )
         return str(nearest_level) if nearest_level else None

@@ -34,7 +34,9 @@ class EmbeddingPipeline:
         self._batch_size = config.embedding_batch_size
 
     async def embed_pending_chunks(
-        self, *, limit: int = 500,
+        self,
+        *,
+        limit: int = 500,
     ) -> list[tuple[UUID, list[float]]]:
         async with self._uow() as uow:
             pending = await uow.chunk_repo.get_pending_embedding(limit=limit)
@@ -44,14 +46,16 @@ class EmbeddingPipeline:
             results: list[tuple[UUID, list[float]]] = []
 
             for batch_start in range(0, len(pending), self._batch_size):
-                batch = pending[batch_start:batch_start + self._batch_size]
+                batch = pending[batch_start : batch_start + self._batch_size]
                 batch_results = await self._embed_batch(uow, batch)
                 results.extend(batch_results)
 
         return results
 
     async def embed_chunks(
-        self, chunks: list[ChunkRow], contents: list[str],
+        self,
+        chunks: list[ChunkRow],
+        contents: list[str],
     ) -> list[tuple[UUID, list[float]]]:
         if len(chunks) != len(contents):
             raise RAGEmbeddingError(
@@ -62,16 +66,20 @@ class EmbeddingPipeline:
 
         async with self._uow() as uow:
             for batch_start in range(0, len(chunks), self._batch_size):
-                batch_chunks = chunks[batch_start:batch_start + self._batch_size]
-                batch_texts = contents[batch_start:batch_start + self._batch_size]
+                batch_chunks = chunks[batch_start : batch_start + self._batch_size]
+                batch_texts = contents[batch_start : batch_start + self._batch_size]
 
                 start = time.monotonic()
 
                 vectors = await self._provider.embed_batch(batch_texts)
 
                 elapsed = time.monotonic() - start
-                RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(elapsed)
-                RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(len(batch_texts))
+                RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(
+                    elapsed
+                )
+                RAG_EMBEDDING_BATCH_SIZE.labels(
+                    model=self._provider.model_name
+                ).observe(len(batch_texts))
 
                 validate_embeddings(
                     vectors,
@@ -86,7 +94,8 @@ class EmbeddingPipeline:
                     results.append((chunk_row.id, vector))
 
                 RAG_EMBEDDING_TOTAL.labels(
-                    model=self._provider.model_name, status="success",
+                    model=self._provider.model_name,
+                    status="success",
                 ).inc(len(batch_texts))
 
                 logger.info(
@@ -98,7 +107,9 @@ class EmbeddingPipeline:
         return results
 
     async def _embed_batch(
-        self, uow, chunk_rows: list[ChunkRow] | tuple[ChunkRow, ...],
+        self,
+        uow,
+        chunk_rows: list[ChunkRow] | tuple[ChunkRow, ...],
     ) -> list[tuple[UUID, list[float]]]:
         texts = [row.content for row in chunk_rows]
 
@@ -108,7 +119,9 @@ class EmbeddingPipeline:
 
         elapsed = time.monotonic() - start
         RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(elapsed)
-        RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(len(texts))
+        RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(
+            len(texts)
+        )
 
         validate_embeddings(
             vectors,
@@ -124,7 +137,8 @@ class EmbeddingPipeline:
             results.append((row.id, vector))
 
         RAG_EMBEDDING_TOTAL.labels(
-            model=self._provider.model_name, status="success",
+            model=self._provider.model_name,
+            status="success",
         ).inc(len(texts))
 
         return results

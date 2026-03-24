@@ -72,19 +72,25 @@ class TradingEconomicsMarketDataProvider(BaseMarketDataProvider):
                     if keyword.lower() in name.lower() and key not in prices:
                         prices[key] = self._safe_float(item.get("Last"))
 
-            bonds_10y = await self._fetch_endpoint("/markets/bond", extra_params={"type": "10Y"})
+            bonds_10y = await self._fetch_endpoint(
+                "/markets/bond", extra_params={"type": "10Y"}
+            )
             for item in bonds_10y:
                 if str(item.get("Country", "")).lower() == "united states":
                     prices["us10y"] = self._safe_float(item.get("Last"))
                     break
 
-            bonds_2y = await self._fetch_endpoint("/markets/bond", extra_params={"type": "2Y"})
+            bonds_2y = await self._fetch_endpoint(
+                "/markets/bond", extra_params={"type": "2Y"}
+            )
             for item in bonds_2y:
                 if str(item.get("Country", "")).lower() == "united states":
                     prices["us2y"] = self._safe_float(item.get("Last"))
                     break
 
-            bonds_30y = await self._fetch_endpoint("/markets/bond", extra_params={"type": "30Y"})
+            bonds_30y = await self._fetch_endpoint(
+                "/markets/bond", extra_params={"type": "30Y"}
+            )
             for item in bonds_30y:
                 if str(item.get("Country", "")).lower() == "united states":
                     prices["us30y"] = self._safe_float(item.get("Last"))

@@ -58,7 +58,8 @@ class ScenarioIndexer:
         return created
 
     async def deactivate_for_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> int:
         count = await self._repo.deactivate_by_document(document_id)
         logger.info(

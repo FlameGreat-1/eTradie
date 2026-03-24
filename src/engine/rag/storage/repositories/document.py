@@ -19,7 +19,10 @@ class DocumentRepository(BaseRepository[DocumentRow]):
         return rows[0] if rows else None
 
     async def get_by_doc_type(
-        self, doc_type: str, *, status: Optional[str] = None,
+        self,
+        doc_type: str,
+        *,
+        status: Optional[str] = None,
     ) -> Sequence[DocumentRow]:
         stmt = select(self.model).where(self.model.doc_type == doc_type)
         if status:
@@ -39,7 +42,9 @@ class DocumentRepository(BaseRepository[DocumentRow]):
         return await self.execute_query(stmt)
 
     async def set_active_version(
-        self, document_id: UUID, version_id: UUID,
+        self,
+        document_id: UUID,
+        version_id: UUID,
     ) -> None:
         stmt = (
             update(self.model)
@@ -51,18 +56,14 @@ class DocumentRepository(BaseRepository[DocumentRow]):
 
     async def set_status(self, document_id: UUID, status: str) -> None:
         stmt = (
-            update(self.model)
-            .where(self.model.id == document_id)
-            .values(status=status)
+            update(self.model).where(self.model.id == document_id).values(status=status)
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
     async def get_active_doc_types(self) -> Sequence[str]:
         stmt = (
-            select(self.model.doc_type)
-            .where(self.model.status == "active")
-            .distinct()
+            select(self.model.doc_type).where(self.model.status == "active").distinct()
         )
         result = await self._session.execute(stmt)
         return [row[0] for row in result.all()]

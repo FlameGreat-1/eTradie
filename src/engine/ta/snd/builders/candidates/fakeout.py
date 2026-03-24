@@ -19,12 +19,12 @@ logger = get_logger(__name__)
 class FakeoutCandidateBuilder:
     """
     Builds fakeout-driven SnD candidates.
-    
+
     Fakeout patterns are the foundation of SnD trading:
     - Fakeout King: Multiple fakeout tests (R1, R2, R3, R4 or S1, S2, S3, S4)
     - S.O.P: Previous Highs/Lows + Supply/Demand Zone + Fakeout
     - Triple Fakeout: 3+ fakeout tests at same zone (highest confluence)
-    
+
     Requirements:
     - Minimum 1 fakeout test (Universal Rule 7)
     - More tests = stronger zone (Universal Rule 8)
@@ -33,7 +33,7 @@ class FakeoutCandidateBuilder:
     - Decision Point identified on LTF
     - Fibonacci alignment (optional but 90% probability)
     """
-    
+
     def __init__(
         self,
         config: SnDConfig,
@@ -46,7 +46,7 @@ class FakeoutCandidateBuilder:
         self.ltf_validator = ltf_validator
         self.fibonacci_analyzer = fibonacci_analyzer
         self._logger = get_logger(__name__)
-    
+
     def build_fakeout_king_short(
         self,
         htf_sequence: CandleSequence,
@@ -59,7 +59,7 @@ class FakeoutCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -68,21 +68,25 @@ class FakeoutCandidateBuilder:
             sr_flip_level,
             retracement,
         )
-        
+
         confluences = self._count_fakeout_confluences(
             fakeout_tests,
             previous_highs,
             retracement,
             sr_flip_level,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sr_flip_level
         stop_loss = sr_flip_level + (20 * pip_val)
         take_profit = sr_flip_level - (100 * pip_val)
-        
-        pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
-        
+
+        pattern = (
+            CandidatePattern.FAKEOUT_KING
+            if len(fakeout_tests) >= 3
+            else CandidatePattern.SOP
+        )
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -100,14 +104,18 @@ class FakeoutCandidateBuilder:
             compression_detected=True,
             previous_highs_count=previous_highs.touch_count if previous_highs else 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "fakeout_king" if len(fakeout_tests) >= 3 else "sop",
             },
         )
-        
+
         self._logger.info(
             "fakeout_king_short_candidate_built",
             extra={
@@ -117,9 +125,9 @@ class FakeoutCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_fakeout_king_long(
         self,
         htf_sequence: CandleSequence,
@@ -132,7 +140,7 @@ class FakeoutCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -141,21 +149,25 @@ class FakeoutCandidateBuilder:
             rs_flip_level,
             retracement,
         )
-        
+
         confluences = self._count_fakeout_confluences(
             fakeout_tests,
             previous_lows,
             retracement,
             rs_flip_level,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = rs_flip_level
         stop_loss = rs_flip_level - (20 * pip_val)
         take_profit = rs_flip_level + (100 * pip_val)
-        
-        pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
-        
+
+        pattern = (
+            CandidatePattern.FAKEOUT_KING
+            if len(fakeout_tests) >= 3
+            else CandidatePattern.SOP
+        )
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -173,14 +185,18 @@ class FakeoutCandidateBuilder:
             compression_detected=True,
             previous_lows_count=previous_lows.touch_count if previous_lows else 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "fakeout_king" if len(fakeout_tests) >= 3 else "sop",
             },
         )
-        
+
         self._logger.info(
             "fakeout_king_long_candidate_built",
             extra={
@@ -190,9 +206,9 @@ class FakeoutCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def _count_fakeout_confluences(
         self,
         fakeout_tests: list[FakeoutTest],
@@ -201,25 +217,27 @@ class FakeoutCandidateBuilder:
         zone_price: float,
     ) -> int:
         confluences = 0
-        
+
         confluences += len(fakeout_tests)
-        
+
         if previous_levels and previous_levels.touch_count >= 2:
             confluences += previous_levels.touch_count
-        
+
         if retracement:
             if self.ltf_validator.check_fibonacci_alignment(zone_price, retracement):
                 confluences += 2
-        
+
         if any(test.is_diamond_fakeout for test in fakeout_tests):
             confluences += 1
-        
+
         return confluences
-    
+
     def _get_fib_level(
         self,
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(price, retracement)
+        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
+            price, retracement
+        )
         return str(nearest_level) if nearest_level else None

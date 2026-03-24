@@ -16,9 +16,7 @@ class RulesNormalizer(BaseNormalizer):
         content = self._clean_whitespace(content)
         content = self._standardize_rule_references(content)
 
-        sections = tuple(
-            self._normalize_section(s) for s in doc.sections
-        )
+        sections = tuple(self._normalize_section(s) for s in doc.sections)
 
         return replace(doc, content=content, sections=sections)
 
@@ -52,4 +50,5 @@ class RulesNormalizer(BaseNormalizer):
         def _upper_rule(m: re.Match) -> str:
             parts = m.group(1).split()
             return f"{parts[0]} {parts[1].upper()}"
+
         return _RULE_ID_RE.sub(_upper_rule, text)

@@ -27,16 +27,18 @@ def build_citations(
 
         excerpt = chunk.content[:2048] if chunk.content else ""
 
-        citations.append(Citation(
-            chunk_id=chunk.chunk_id,
-            document_id=chunk.document_id,
-            document_version_id=doc_version_id,
-            doc_type=chunk.doc_type,
-            section=chunk.section,
-            subsection=chunk.subsection,
-            scenario_id=scenario_id,
-            relevance_score=chunk.score,
-            excerpt=excerpt,
-        ))
+        citations.append(
+            Citation(
+                chunk_id=chunk.chunk_id,
+                document_id=chunk.document_id,
+                document_version_id=doc_version_id,
+                doc_type=chunk.doc_type,
+                section=chunk.section,
+                subsection=chunk.subsection,
+                scenario_id=scenario_id,
+                relevance_score=chunk.score,
+                excerpt=excerpt,
+            )
+        )
 
     return citations

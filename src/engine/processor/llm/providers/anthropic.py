@@ -53,12 +53,21 @@ class AnthropicClient(LLMClient):
             )
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
-            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
-            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
+            LLM_REQUEST_TOTAL.labels(
+                provider=self.PROVIDER, model=model, status="error"
+            ).inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
+                elapsed_ms / 1000
+            )
             logger.error(
                 "llm_call_failed",
-                extra={"provider": "anthropic", "model": model, "error": str(exc),
-                       "duration_ms": round(elapsed_ms, 1), "trace_id": trace_id},
+                extra={
+                    "provider": "anthropic",
+                    "model": model,
+                    "error": str(exc),
+                    "duration_ms": round(elapsed_ms, 1),
+                    "trace_id": trace_id,
+                },
             )
             raise
 
@@ -69,7 +78,15 @@ class AnthropicClient(LLMClient):
         stop_reason = response.stop_reason
 
         self._record_metrics(model, input_tokens, output_tokens, elapsed_ms)
-        self._log_completion(model, input_tokens, output_tokens, elapsed_ms, stop_reason, len(text), trace_id)
+        self._log_completion(
+            model,
+            input_tokens,
+            output_tokens,
+            elapsed_ms,
+            stop_reason,
+            len(text),
+            trace_id,
+        )
 
         return LLMResponse(
             text=text,
@@ -85,15 +102,39 @@ class AnthropicClient(LLMClient):
         await self._client.close()
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
-        LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
-        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
-        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
-        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)
+        LLM_REQUEST_TOTAL.labels(
+            provider=self.PROVIDER, model=model, status="success"
+        ).inc()
+        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
+            ms / 1000
+        )
+        LLM_TOKENS_USED.labels(
+            provider=self.PROVIDER, model=model, token_type="input"
+        ).inc(inp)
+        LLM_TOKENS_USED.labels(
+            provider=self.PROVIDER, model=model, token_type="output"
+        ).inc(out)
 
     @staticmethod
-    def _log_completion(model: str, inp: int, out: int, ms: float, stop: str | None, length: int, trace_id: str | None) -> None:
+    def _log_completion(
+        model: str,
+        inp: int,
+        out: int,
+        ms: float,
+        stop: str | None,
+        length: int,
+        trace_id: str | None,
+    ) -> None:
         logger.info(
             "llm_call_completed",
-            extra={"provider": "anthropic", "model": model, "input_tokens": inp, "output_tokens": out,
-                   "duration_ms": round(ms, 1), "stop_reason": stop, "response_length": length, "trace_id": trace_id},
+            extra={
+                "provider": "anthropic",
+                "model": model,
+                "input_tokens": inp,
+                "output_tokens": out,
+                "duration_ms": round(ms, 1),
+                "stop_reason": stop,
+                "response_length": length,
+                "trace_id": trace_id,
+            },
         )

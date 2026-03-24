@@ -23,17 +23,37 @@ def _compute_percentile(value: int, min_val: int, max_val: int) -> float:
 
 def _classify_signal(percentile: float, net: int) -> COTSignalStrength:
     if percentile >= 90:
-        return COTSignalStrength.EXTREME_LONG if net > 0 else COTSignalStrength.EXTREME_SHORT
+        return (
+            COTSignalStrength.EXTREME_LONG
+            if net > 0
+            else COTSignalStrength.EXTREME_SHORT
+        )
     if percentile >= 75:
-        return COTSignalStrength.STRONG_LONG if net > 0 else COTSignalStrength.STRONG_SHORT
+        return (
+            COTSignalStrength.STRONG_LONG if net > 0 else COTSignalStrength.STRONG_SHORT
+        )
     if percentile >= 60:
-        return COTSignalStrength.MODERATE_LONG if net > 0 else COTSignalStrength.MODERATE_SHORT
+        return (
+            COTSignalStrength.MODERATE_LONG
+            if net > 0
+            else COTSignalStrength.MODERATE_SHORT
+        )
     if percentile <= 10:
-        return COTSignalStrength.EXTREME_SHORT if net < 0 else COTSignalStrength.EXTREME_LONG
+        return (
+            COTSignalStrength.EXTREME_SHORT
+            if net < 0
+            else COTSignalStrength.EXTREME_LONG
+        )
     if percentile <= 25:
-        return COTSignalStrength.STRONG_SHORT if net < 0 else COTSignalStrength.STRONG_LONG
+        return (
+            COTSignalStrength.STRONG_SHORT if net < 0 else COTSignalStrength.STRONG_LONG
+        )
     if percentile <= 40:
-        return COTSignalStrength.MODERATE_SHORT if net < 0 else COTSignalStrength.MODERATE_LONG
+        return (
+            COTSignalStrength.MODERATE_SHORT
+            if net < 0
+            else COTSignalStrength.MODERATE_LONG
+        )
     return COTSignalStrength.NEUTRAL
 
 
@@ -66,7 +86,10 @@ class COTCollector(BaseCollector):
 
                 min_net, max_net = await repo.get_52_week_net_range(p.currency.value)
                 percentile = _compute_percentile(p.non_commercial_net, min_net, max_net)
-                extreme = percentile >= _EXTREME_HIGH_PERCENTILE or percentile <= _EXTREME_LOW_PERCENTILE
+                extreme = (
+                    percentile >= _EXTREME_HIGH_PERCENTILE
+                    or percentile <= _EXTREME_LOW_PERCENTILE
+                )
                 signal = _classify_signal(percentile, p.non_commercial_net)
                 divergence = _detect_divergence(p.commercial_net, p.non_commercial_net)
 
@@ -93,7 +116,9 @@ class COTCollector(BaseCollector):
                     extremes_flagged.append(p.currency.value)
 
                 # Find TFF data for this currency
-                tff_match = next((t for t in tff_positions if t.currency == p.currency), None)
+                tff_match = next(
+                    (t for t in tff_positions if t.currency == p.currency), None
+                )
 
                 row_data = {
                     "currency": p.currency.value,
@@ -108,9 +133,15 @@ class COTCollector(BaseCollector):
                     "leveraged_long": tff_match.leveraged_long if tff_match else 0,
                     "leveraged_short": tff_match.leveraged_short if tff_match else 0,
                     "leveraged_net": tff_match.leveraged_net if tff_match else 0,
-                    "asset_manager_long": tff_match.asset_manager_long if tff_match else 0,
-                    "asset_manager_short": tff_match.asset_manager_short if tff_match else 0,
-                    "asset_manager_net": tff_match.asset_manager_net if tff_match else 0,
+                    "asset_manager_long": (
+                        tff_match.asset_manager_long if tff_match else 0
+                    ),
+                    "asset_manager_short": (
+                        tff_match.asset_manager_short if tff_match else 0
+                    ),
+                    "asset_manager_net": (
+                        tff_match.asset_manager_net if tff_match else 0
+                    ),
                     "wow_change": wow,
                     "percentile_rank": percentile,
                     "extreme_flag": extreme,
@@ -122,12 +153,24 @@ class COTCollector(BaseCollector):
                     [row_data],
                     index_elements=["currency", "report_date"],
                     update_fields=[
-                        "non_commercial_long", "non_commercial_short", "non_commercial_net",
-                        "commercial_long", "commercial_short", "commercial_net", "open_interest",
-                        "leveraged_long", "leveraged_short", "leveraged_net",
-                        "asset_manager_long", "asset_manager_short", "asset_manager_net",
-                        "wow_change", "percentile_rank", "extreme_flag",
-                        "signal_strength", "divergence_flag",
+                        "non_commercial_long",
+                        "non_commercial_short",
+                        "non_commercial_net",
+                        "commercial_long",
+                        "commercial_short",
+                        "commercial_net",
+                        "open_interest",
+                        "leveraged_long",
+                        "leveraged_short",
+                        "leveraged_net",
+                        "asset_manager_long",
+                        "asset_manager_short",
+                        "asset_manager_net",
+                        "wow_change",
+                        "percentile_rank",
+                        "extreme_flag",
+                        "signal_strength",
+                        "divergence_flag",
                     ],
                 )
 
@@ -142,7 +185,8 @@ class COTCollector(BaseCollector):
             collected_at=datetime.now(UTC),
         )
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

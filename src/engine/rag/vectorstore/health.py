@@ -18,7 +18,9 @@ class VectorStoreHealthStatus:
 
 
 async def check_vectorstore_health(
-    *, store: BaseVectorStore, config: RAGConfig,
+    *,
+    store: BaseVectorStore,
+    config: RAGConfig,
 ) -> VectorStoreHealthStatus:
     try:
         connected = await store.health_check()

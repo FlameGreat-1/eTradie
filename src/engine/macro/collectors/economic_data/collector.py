@@ -23,7 +23,9 @@ class EconomicDataCollector(BaseCollector):
                 all_releases.extend(releases)
                 sources.append(provider.provider_name)
             except Exception:
-                logger.warning("economic_provider_skipped", provider=provider.provider_name)
+                logger.warning(
+                    "economic_provider_skipped", provider=provider.provider_name
+                )
 
         async with self._db.session() as session:
             for release in all_releases:
@@ -37,7 +39,9 @@ class EconomicDataCollector(BaseCollector):
                     surprise=release.surprise,
                     surprise_direction=release.surprise_direction.value,
                     impact=release.impact.value,
-                    inflation_type=release.inflation_type.value if release.inflation_type else None,
+                    inflation_type=(
+                        release.inflation_type.value if release.inflation_type else None
+                    ),
                     source=release.source,
                     release_time=release.release_time,
                 )
@@ -49,7 +53,8 @@ class EconomicDataCollector(BaseCollector):
             collected_at=datetime.now(UTC),
         )
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

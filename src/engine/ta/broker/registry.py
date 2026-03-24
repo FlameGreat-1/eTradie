@@ -97,7 +97,10 @@ class BrokerRegistry:
                     extra={"broker": "mt5", "provider": mt5_config.provider},
                 )
 
-        if self.ta_config.fallback_broker == "twelve_data" or self.ta_config.primary_broker == "twelve_data":
+        if (
+            self.ta_config.fallback_broker == "twelve_data"
+            or self.ta_config.primary_broker == "twelve_data"
+        ):
             twelve_data_config = TwelveDataConfig()
             if twelve_data_config.enabled:
                 twelve_data_client = TwelveDataClient(

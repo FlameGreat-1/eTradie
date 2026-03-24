@@ -45,7 +45,9 @@ def build_where_filter(
         conditions.append({METADATA_KEY_FRAMEWORK: {"$in": frameworks}})
 
     if scenario_outcomes and len(scenario_outcomes) == 1:
-        conditions.append({METADATA_KEY_SCENARIO_OUTCOME: {"$eq": scenario_outcomes[0]}})
+        conditions.append(
+            {METADATA_KEY_SCENARIO_OUTCOME: {"$eq": scenario_outcomes[0]}}
+        )
     elif scenario_outcomes:
         conditions.append({METADATA_KEY_SCENARIO_OUTCOME: {"$in": scenario_outcomes}})
 
@@ -55,33 +57,49 @@ def build_where_filter(
         if len(directions) == 1:
             conditions.append({METADATA_KEY_DIRECTION: {"$contains": directions[0]}})
         else:
-            conditions.append({"$or": [
-                {METADATA_KEY_DIRECTION: {"$contains": d}} for d in directions
-            ]})
+            conditions.append(
+                {
+                    "$or": [
+                        {METADATA_KEY_DIRECTION: {"$contains": d}} for d in directions
+                    ]
+                }
+            )
 
     if setup_families:
         if len(setup_families) == 1:
-            conditions.append({METADATA_KEY_SETUP_FAMILY: {"$contains": setup_families[0]}})
+            conditions.append(
+                {METADATA_KEY_SETUP_FAMILY: {"$contains": setup_families[0]}}
+            )
         else:
-            conditions.append({"$or": [
-                {METADATA_KEY_SETUP_FAMILY: {"$contains": sf}} for sf in setup_families
-            ]})
+            conditions.append(
+                {
+                    "$or": [
+                        {METADATA_KEY_SETUP_FAMILY: {"$contains": sf}}
+                        for sf in setup_families
+                    ]
+                }
+            )
 
     if timeframes:
         if len(timeframes) == 1:
             conditions.append({METADATA_KEY_TIMEFRAMES: {"$contains": timeframes[0]}})
         else:
-            conditions.append({"$or": [
-                {METADATA_KEY_TIMEFRAMES: {"$contains": tf}} for tf in timeframes
-            ]})
+            conditions.append(
+                {
+                    "$or": [
+                        {METADATA_KEY_TIMEFRAMES: {"$contains": tf}}
+                        for tf in timeframes
+                    ]
+                }
+            )
 
     if styles:
         if len(styles) == 1:
             conditions.append({METADATA_KEY_STYLE: {"$contains": styles[0]}})
         else:
-            conditions.append({"$or": [
-                {METADATA_KEY_STYLE: {"$contains": s}} for s in styles
-            ]})
+            conditions.append(
+                {"$or": [{METADATA_KEY_STYLE: {"$contains": s}} for s in styles]}
+            )
 
     if not conditions:
         return None

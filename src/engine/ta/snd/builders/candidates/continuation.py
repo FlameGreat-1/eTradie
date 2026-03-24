@@ -20,22 +20,22 @@ logger = get_logger(__name__)
 class ContinuationCandidateBuilder:
     """
     Builds continuation-style SnD candidates (where explicitly allowed).
-    
+
     SnD Continuation is LIMITED and only valid when:
     - Existing trend is confirmed by multiple QM structures
     - Previous Highs/Lows show clear directional bias
     - Fakeout tests confirm trend continuation (not reversal)
     - Compression shows continuation setup (not exhaustion)
-    
+
     This is NOT the same as SMC continuation patterns.
     SnD continuation requires existing QM structure + fakeout confirmation.
-    
+
     Use cases:
     - Trend continuation after pullback to SR/RS Flip zone
     - Multiple QM structures in same direction
     - Fakeout tests confirm trend is intact
     """
-    
+
     def __init__(
         self,
         config: SnDConfig,
@@ -48,7 +48,7 @@ class ContinuationCandidateBuilder:
         self.ltf_validator = ltf_validator
         self.fibonacci_analyzer = fibonacci_analyzer
         self._logger = get_logger(__name__)
-    
+
     def build_continuation_short(
         self,
         htf_sequence: CandleSequence,
@@ -62,7 +62,7 @@ class ContinuationCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         """
         Build bearish continuation candidate.
-        
+
         Requirements:
         - Valid QML structure
         - SR Flip zone established
@@ -72,7 +72,7 @@ class ContinuationCandidateBuilder:
         """
         if not qml.is_valid:
             return None
-        
+
         if len(fakeout_tests) < 2:
             self._logger.debug(
                 "continuation_short_insufficient_fakeouts",
@@ -82,14 +82,14 @@ class ContinuationCandidateBuilder:
                 },
             )
             return None
-        
+
         if not previous_highs or previous_highs.touch_count < 2:
             self._logger.debug(
                 "continuation_short_no_previous_highs",
                 extra={"symbol": ltf_sequence.symbol},
             )
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -98,19 +98,19 @@ class ContinuationCandidateBuilder:
             qml.level,
             retracement,
         )
-        
+
         confluences = self._count_continuation_confluences(
             qml,
             fakeout_tests,
             previous_highs,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sr_flip_level
         stop_loss = sr_flip_level + (20 * pip_val)
         take_profit = qml.level - (50 * pip_val)
-        
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -131,14 +131,18 @@ class ContinuationCandidateBuilder:
             compression_detected=True,
             previous_highs_count=previous_highs.touch_count,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "snd_continuation",
             },
         )
-        
+
         self._logger.info(
             "continuation_short_candidate_built",
             extra={
@@ -147,9 +151,9 @@ class ContinuationCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def build_continuation_long(
         self,
         htf_sequence: CandleSequence,
@@ -163,7 +167,7 @@ class ContinuationCandidateBuilder:
     ) -> Optional[SnDCandidate]:
         """
         Build bullish continuation candidate.
-        
+
         Requirements:
         - Valid QMH structure
         - RS Flip zone established
@@ -173,7 +177,7 @@ class ContinuationCandidateBuilder:
         """
         if not qmh.is_valid:
             return None
-        
+
         if len(fakeout_tests) < 2:
             self._logger.debug(
                 "continuation_long_insufficient_fakeouts",
@@ -183,14 +187,14 @@ class ContinuationCandidateBuilder:
                 },
             )
             return None
-        
+
         if not previous_lows or previous_lows.touch_count < 2:
             self._logger.debug(
                 "continuation_long_no_previous_lows",
                 extra={"symbol": ltf_sequence.symbol},
             )
             return None
-        
+
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sequence,
             fakeout_tests,
@@ -199,19 +203,19 @@ class ContinuationCandidateBuilder:
             qmh.level,
             retracement,
         )
-        
+
         confluences = self._count_continuation_confluences(
             qmh,
             fakeout_tests,
             previous_lows,
             retracement,
         )
-        
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = rs_flip_level
         stop_loss = rs_flip_level - (20 * pip_val)
         take_profit = qmh.level + (50 * pip_val)
-        
+
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -232,14 +236,18 @@ class ContinuationCandidateBuilder:
             compression_detected=True,
             previous_lows_count=previous_lows.touch_count,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=ltf_sequence.candles[-1].timestamp if ltf_confirmed else None,
-            fib_level=self._get_fib_level(entry_price, retracement) if retracement else None,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            fib_level=(
+                self._get_fib_level(entry_price, retracement) if retracement else None
+            ),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "snd_continuation",
             },
         )
-        
+
         self._logger.info(
             "continuation_long_candidate_built",
             extra={
@@ -248,9 +256,9 @@ class ContinuationCandidateBuilder:
                 "confluences": confluences,
             },
         )
-        
+
         return candidate
-    
+
     def _count_continuation_confluences(
         self,
         qm_level: QuasiModoLevel,
@@ -259,22 +267,26 @@ class ContinuationCandidateBuilder:
         retracement: Optional[FibonacciRetracement],
     ) -> int:
         confluences = 1
-        
+
         confluences += len(fakeout_tests)
-        
+
         if previous_levels and previous_levels.touch_count >= 2:
             confluences += previous_levels.touch_count
-        
+
         if retracement:
-            if self.ltf_validator.check_fibonacci_alignment(qm_level.level, retracement):
+            if self.ltf_validator.check_fibonacci_alignment(
+                qm_level.level, retracement
+            ):
                 confluences += 2
-        
+
         return confluences
-    
+
     def _get_fib_level(
         self,
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(price, retracement)
+        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
+            price, retracement
+        )
         return str(nearest_level) if nearest_level else None

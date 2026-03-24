@@ -45,17 +45,25 @@ class ReembedService:
                         error=str(exc),
                     )
                     await uow.reembed_queue_repo.mark_failed(
-                        item.id, error_message=str(exc),
+                        item.id,
+                        error_message=str(exc),
                     )
 
         logger.info("reembed_batch_completed", processed=processed, total=len(pending))
         return processed
 
     async def _process_item(
-        self, uow, document_id: UUID, chunk_id: UUID | None,
+        self,
+        uow,
+        document_id: UUID,
+        chunk_id: UUID | None,
     ) -> None:
         if chunk_id:
-            chunks = [c for c in await uow.chunk_repo.get_by_document(document_id) if c.id == chunk_id]
+            chunks = [
+                c
+                for c in await uow.chunk_repo.get_by_document(document_id)
+                if c.id == chunk_id
+            ]
         else:
             chunks = list(await uow.chunk_repo.get_by_document(document_id))
 
@@ -68,8 +76,11 @@ class ReembedService:
         if results:
             chunk_ids = [r[0] for r in results]
             embeddings = [r[1] for r in results]
-            documents = contents[:len(results)]
-            metadatas = [c.meta_data if isinstance(c.meta_data, dict) else {} for c in chunks[:len(results)]]
+            documents = contents[: len(results)]
+            metadatas = [
+                c.meta_data if isinstance(c.meta_data, dict) else {}
+                for c in chunks[: len(results)]
+            ]
 
             await upsert_chunk_vectors(
                 store=self._vector_store,

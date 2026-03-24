@@ -15,7 +15,8 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
     _repo_name = "rag_ingest_job"
 
     async def get_by_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Sequence[IngestJobRow]:
         stmt = (
             select(self.model)
@@ -34,7 +35,8 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
         return await self.execute_query(stmt)
 
     async def get_latest_for_document(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> Optional[IngestJobRow]:
         stmt = (
             select(self.model)
@@ -75,7 +77,10 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
         await self._session.flush()
 
     async def mark_failed(
-        self, job_id: UUID, *, error_message: str,
+        self,
+        job_id: UUID,
+        *,
+        error_message: str,
     ) -> None:
         stmt = (
             update(self.model)

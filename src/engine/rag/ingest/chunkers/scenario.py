@@ -68,20 +68,23 @@ class ScenarioChunker(BaseChunker):
 
             # Split if scenario exceeds chunk size
             parts = self._split_by_token_limit(
-                scenario_text, max_tokens=self._chunk_size,
+                scenario_text,
+                max_tokens=self._chunk_size,
             )
 
             primary_idx = idx
             for part_num, part in enumerate(parts):
-                chunks.append(RawChunk(
-                    content=part,
-                    chunk_index=idx,
-                    section=category or "scenarios",
-                    subsection=scenario_id,
-                    hierarchy_level=0 if part_num == 0 else 1,
-                    parent_chunk_index=primary_idx if part_num > 0 else None,
-                    metadata=scenario_meta,
-                ))
+                chunks.append(
+                    RawChunk(
+                        content=part,
+                        chunk_index=idx,
+                        section=category or "scenarios",
+                        subsection=scenario_id,
+                        hierarchy_level=0 if part_num == 0 else 1,
+                        parent_chunk_index=primary_idx if part_num > 0 else None,
+                        metadata=scenario_meta,
+                    )
+                )
                 idx += 1
 
         if not chunks:
@@ -97,7 +100,9 @@ class ScenarioChunker(BaseChunker):
         return sorted(categories, key=lambda x: x[0])
 
     def _find_category(
-        self, position: int, category_map: list[tuple[int, str]],
+        self,
+        position: int,
+        category_map: list[tuple[int, str]],
     ) -> str | None:
         """Find the category heading that precedes the given position."""
         result: str | None = None
@@ -120,26 +125,32 @@ class ScenarioChunker(BaseChunker):
                     section_text += f"\n\n### {sub.heading}\n\n{sub.content}"
 
                 parts = self._split_by_token_limit(
-                    section_text, max_tokens=self._chunk_size,
+                    section_text,
+                    max_tokens=self._chunk_size,
                 )
                 for part in parts:
-                    chunks.append(RawChunk(
-                        content=part,
-                        chunk_index=idx,
-                        section=section.heading,
-                        hierarchy_level=0,
-                    ))
+                    chunks.append(
+                        RawChunk(
+                            content=part,
+                            chunk_index=idx,
+                            section=section.heading,
+                            hierarchy_level=0,
+                        )
+                    )
                     idx += 1
         else:
             parts = self._split_by_token_limit(
-                doc.content, max_tokens=self._chunk_size,
+                doc.content,
+                max_tokens=self._chunk_size,
             )
             for part in parts:
-                chunks.append(RawChunk(
-                    content=part,
-                    chunk_index=idx,
-                    hierarchy_level=0,
-                ))
+                chunks.append(
+                    RawChunk(
+                        content=part,
+                        chunk_index=idx,
+                        hierarchy_level=0,
+                    )
+                )
                 idx += 1
 
         merged = self._merge_small_chunks(chunks)

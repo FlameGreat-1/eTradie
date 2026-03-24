@@ -23,7 +23,8 @@ class SyncService:
         self._collection = collection
 
     async def reconcile_stale_chunks(
-        self, document_id: UUID,
+        self,
+        document_id: UUID,
     ) -> int:
         async with self._uow() as uow:
             active_version = await uow.version_repo.get_active(document_id)
@@ -32,8 +33,7 @@ class SyncService:
 
             all_chunks = await uow.chunk_repo.get_by_document(document_id)
             stale = [
-                c for c in all_chunks
-                if c.document_version_id != active_version.id
+                c for c in all_chunks if c.document_version_id != active_version.id
             ]
 
             if not stale:

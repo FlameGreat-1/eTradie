@@ -32,7 +32,9 @@ class CentralBankCollector(BaseCollector):
 
         async with self._db.session() as session:
             for event in all_events:
-                policy_action_val = getattr(event, "monetary_policy_action", MonetaryPolicyAction.NONE)
+                policy_action_val = getattr(
+                    event, "monetary_policy_action", MonetaryPolicyAction.NONE
+                )
                 balance_sheet_dir = ""
                 if policy_action_val == MonetaryPolicyAction.QE:
                     balance_sheet_dir = "EXPANDING"
@@ -42,26 +44,34 @@ class CentralBankCollector(BaseCollector):
                 if policy_action_val != MonetaryPolicyAction.NONE:
                     bank_val = getattr(event, "bank", None)
                     if bank_val:
-                        policy_actions.append(PolicyAction(
-                            bank=bank_val,
-                            action=policy_action_val,
-                            description=getattr(event, "title", ""),
-                            detected_at=datetime.now(UTC),
-                        ))
+                        policy_actions.append(
+                            PolicyAction(
+                                bank=bank_val,
+                                action=policy_action_val,
+                                description=getattr(event, "title", ""),
+                                detected_at=datetime.now(UTC),
+                            )
+                        )
 
                 row = CentralBankEventRow(
                     bank=event.bank.value if hasattr(event, "bank") else "",
-                    event_type=event.event_type.value if hasattr(event, "event_type") else "CB_SPEECH",
+                    event_type=(
+                        event.event_type.value
+                        if hasattr(event, "event_type")
+                        else "CB_SPEECH"
+                    ),
                     title=getattr(event, "title", ""),
                     content=getattr(event, "summary", ""),
                     speaker=getattr(event, "speaker", ""),
                     tone=event.tone.value if hasattr(event, "tone") else "NEUTRAL",
-                    policy_action=policy_action_val.value if policy_action_val else "NONE",
+                    policy_action=(
+                        policy_action_val.value if policy_action_val else "NONE"
+                    ),
                     balance_sheet_direction=balance_sheet_dir,
                     source_url=getattr(event, "source_url", ""),
                     event_timestamp=getattr(event, "speech_date", None)
-                        or getattr(event, "guidance_date", None)
-                        or datetime.now(UTC),
+                    or getattr(event, "guidance_date", None)
+                    or datetime.now(UTC),
                 )
                 session.add(row)
 
@@ -74,7 +84,8 @@ class CentralBankCollector(BaseCollector):
         )
 
         await self._cache.set(
-            self.cache_namespace, "latest",
+            self.cache_namespace,
+            "latest",
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

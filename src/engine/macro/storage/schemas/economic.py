@@ -13,7 +13,9 @@ from engine.shared.db.migrations._schema_registry import Base
 class EconomicReleaseRow(Base):
     __tablename__ = "economic_releases"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     indicator: Mapped[str] = mapped_column(String(30), nullable=False)
     indicator_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -21,13 +23,19 @@ class EconomicReleaseRow(Base):
     forecast: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous: Mapped[float | None] = mapped_column(Float, nullable=True)
     surprise: Mapped[float | None] = mapped_column(Float, nullable=True)
-    surprise_direction: Mapped[str] = mapped_column(String(10), nullable=False, default="INLINE")
+    surprise_direction: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="INLINE"
+    )
     impact: Mapped[str] = mapped_column(String(10), nullable=False, default="MEDIUM")
     inflation_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
-    release_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    release_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
 
     __table_args__ = (

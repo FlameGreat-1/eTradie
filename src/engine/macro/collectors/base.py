@@ -38,19 +38,28 @@ class BaseCollector(abc.ABC):
         try:
             result = await self._do_collect()
             duration = time.monotonic() - start
-            COLLECTOR_RUN_TOTAL.labels(collector=self.collector_name, status="success").inc()
-            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(duration)
+            COLLECTOR_RUN_TOTAL.labels(
+                collector=self.collector_name, status="success"
+            ).inc()
+            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
+                duration
+            )
             return result
         except Exception as exc:
             duration = time.monotonic() - start
-            COLLECTOR_RUN_TOTAL.labels(collector=self.collector_name, status="error").inc()
-            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(duration)
-            logger.error("collector_failed", collector=self.collector_name, error=str(exc))
+            COLLECTOR_RUN_TOTAL.labels(
+                collector=self.collector_name, status="error"
+            ).inc()
+            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
+                duration
+            )
+            logger.error(
+                "collector_failed", collector=self.collector_name, error=str(exc)
+            )
             raise
 
     @abc.abstractmethod
-    async def _do_collect(self) -> Any:
-        ...
+    async def _do_collect(self) -> Any: ...
 
     async def _fetch_with_failover(self, providers: list[BaseProvider]) -> Any:
         last_exc: Exception | None = None

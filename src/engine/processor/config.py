@@ -45,11 +45,15 @@ class ProcessorConfig(BaseSettings):
         description="Model identifier. Any model string accepted. Empty = provider default.",
     )
     temperature: float = Field(
-        default=0.0, ge=0.0, le=2.0,
+        default=0.0,
+        ge=0.0,
+        le=2.0,
         description="LLM temperature. 0 for deterministic output.",
     )
     max_output_tokens: int = Field(
-        default=16384, ge=1024, le=131072,
+        default=16384,
+        ge=1024,
+        le=131072,
         description="Maximum tokens in LLM response",
     )
 
@@ -79,25 +83,35 @@ class ProcessorConfig(BaseSettings):
 
     # -- Timeouts ------------------------------------------------------------
     llm_timeout_seconds: int = Field(
-        default=60, ge=10, le=300,
+        default=60,
+        ge=10,
+        le=300,
         description="Timeout for a single LLM API call",
     )
     total_timeout_seconds: int = Field(
-        default=90, ge=15, le=360,
+        default=90,
+        ge=15,
+        le=360,
         description="Total timeout for the full process() call including retries",
     )
 
     # -- Retry policy --------------------------------------------------------
     max_retries: int = Field(
-        default=2, ge=0, le=5,
+        default=2,
+        ge=0,
+        le=5,
         description="Max retries on transient LLM failures",
     )
     retry_backoff_base_seconds: float = Field(
-        default=1.0, ge=0.5, le=10.0,
+        default=1.0,
+        ge=0.5,
+        le=10.0,
         description="Base delay for exponential backoff",
     )
     retry_backoff_max_seconds: float = Field(
-        default=30.0, ge=5.0, le=120.0,
+        default=30.0,
+        ge=5.0,
+        le=120.0,
         description="Maximum delay between retries",
     )
 

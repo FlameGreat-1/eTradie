@@ -15,7 +15,11 @@ class ProviderRegistry:
 
     def register(self, provider: BaseProvider) -> None:
         self._providers[provider.provider_name] = provider
-        logger.info("provider_registered", name=provider.provider_name, category=provider.category)
+        logger.info(
+            "provider_registered",
+            name=provider.provider_name,
+            category=provider.category,
+        )
 
     def get(self, name: str) -> BaseProvider | None:
         if name in self._disabled:
@@ -24,7 +28,8 @@ class ProviderRegistry:
 
     def get_by_category(self, category: ProviderCategory) -> list[BaseProvider]:
         return [
-            p for p in self._providers.values()
+            p
+            for p in self._providers.values()
             if p.category == category and p.provider_name not in self._disabled
         ]
 
@@ -46,8 +51,10 @@ class ProviderRegistry:
 
         for category in ProviderCategory:
             active = sum(
-                1 for name, status in results.items()
-                if self._providers[name].category == category and status == ProviderStatus.HEALTHY
+                1
+                for name, status in results.items()
+                if self._providers[name].category == category
+                and status == ProviderStatus.HEALTHY
             )
             ACTIVE_PROVIDERS.labels(category=category.value).set(active)
 

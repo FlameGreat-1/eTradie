@@ -100,7 +100,8 @@ def parse_llm_response(
         ) from exc
 
     validation_errors = validate_analysis_output(
-        output, require_citations=require_citations,
+        output,
+        require_citations=require_citations,
     )
 
     warnings: list[str] = []

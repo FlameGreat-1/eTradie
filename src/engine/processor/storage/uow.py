@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class ProcessorUnitOfWork:
     """
     Scoped unit of work for the Analysis Processor.
-    
+
     Ensures that every analysis request has its own transactionally
     safe session and correctly initialized repositories.
     """

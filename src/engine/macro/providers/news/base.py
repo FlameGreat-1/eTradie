@@ -9,23 +9,52 @@ from engine.macro.models.provider.news import NewsItem
 from engine.macro.providers.base import BaseProvider
 
 _CURRENCY_KEYWORDS: dict[str, Currency] = {
-    "dollar": Currency.USD, "usd": Currency.USD, "fed": Currency.USD, "fomc": Currency.USD,
-    "euro": Currency.EUR, "eur": Currency.EUR, "ecb": Currency.ECB if hasattr(Currency, "ECB") else Currency.EUR,
-    "pound": Currency.GBP, "gbp": Currency.GBP, "boe": Currency.GBP,
-    "yen": Currency.JPY, "jpy": Currency.JPY, "boj": Currency.JPY,
-    "franc": Currency.CHF, "chf": Currency.CHF,
-    "aussie": Currency.AUD, "aud": Currency.AUD,
-    "loonie": Currency.CAD, "cad": Currency.CAD,
-    "kiwi": Currency.NZD, "nzd": Currency.NZD,
-    "gold": Currency.XAU, "xau": Currency.XAU,
-    "silver": Currency.XAG, "xag": Currency.XAG,
+    "dollar": Currency.USD,
+    "usd": Currency.USD,
+    "fed": Currency.USD,
+    "fomc": Currency.USD,
+    "euro": Currency.EUR,
+    "eur": Currency.EUR,
+    "ecb": Currency.ECB if hasattr(Currency, "ECB") else Currency.EUR,
+    "pound": Currency.GBP,
+    "gbp": Currency.GBP,
+    "boe": Currency.GBP,
+    "yen": Currency.JPY,
+    "jpy": Currency.JPY,
+    "boj": Currency.JPY,
+    "franc": Currency.CHF,
+    "chf": Currency.CHF,
+    "aussie": Currency.AUD,
+    "aud": Currency.AUD,
+    "loonie": Currency.CAD,
+    "cad": Currency.CAD,
+    "kiwi": Currency.NZD,
+    "nzd": Currency.NZD,
+    "gold": Currency.XAU,
+    "xau": Currency.XAU,
+    "silver": Currency.XAG,
+    "xag": Currency.XAG,
 }
 
-_HIGH_IMPACT_KEYWORDS = frozenset({
-    "rate decision", "rate hike", "rate cut", "nfp", "non-farm",
-    "cpi", "inflation", "gdp", "fomc", "ecb meeting", "boe meeting",
-    "emergency", "crisis", "war", "sanctions",
-})
+_HIGH_IMPACT_KEYWORDS = frozenset(
+    {
+        "rate decision",
+        "rate hike",
+        "rate cut",
+        "nfp",
+        "non-farm",
+        "cpi",
+        "inflation",
+        "gdp",
+        "fomc",
+        "ecb meeting",
+        "boe meeting",
+        "emergency",
+        "crisis",
+        "war",
+        "sanctions",
+    }
+)
 
 
 def extract_currencies(text: str) -> list[Currency]:
@@ -52,5 +81,4 @@ class BaseNewsProvider(BaseProvider, abc.ABC):
     category = ProviderCategory.NEWS
 
     @abc.abstractmethod
-    async def fetch(self) -> list[NewsItem]:
-        ...
+    async def fetch(self) -> list[NewsItem]: ...

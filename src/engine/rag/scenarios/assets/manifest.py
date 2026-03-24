@@ -31,16 +31,19 @@ def build_scenario_manifest(scenario_root: Path) -> list[ScenarioManifestEntry]:
 
         images = tuple(
             sorted(
-                f for f in child.iterdir()
+                f
+                for f in child.iterdir()
                 if f.suffix.lower() in SUPPORTED_IMAGE_FORMATS
             )
         )
 
-        entries.append(ScenarioManifestEntry(
-            scenario_dir=child,
-            explanation_path=explanation,
-            metadata_path=metadata,
-            image_paths=images,
-        ))
+        entries.append(
+            ScenarioManifestEntry(
+                scenario_dir=child,
+                explanation_path=explanation,
+                metadata_path=metadata,
+                image_paths=images,
+            )
+        )
 
     return entries
