@@ -285,9 +285,8 @@ func TestGRPC_ResetActiveSymbols(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestGRPC_GetHealth verifies that GetHealth returns a valid response.
-// In the test harness, Redis and Engine are unreachable, so the status
-// should be "degraded". This validates the health check wiring is
-// correct and does not panic on nil dependencies.
+// The test harness connects to real Redis on localhost:6379, so Redis
+// should be healthy. The Engine mock is also running. Status should be "ok".
 func TestGRPC_GetHealth(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
@@ -300,13 +299,13 @@ func TestGRPC_GetHealth(t *testing.T) {
 	require.NoError(t, err, "GetHealth should not return gRPC error")
 	require.NotNil(t, resp)
 
-	// Redis is unreachable in test harness.
-	assert.False(t, resp.RedisConnected,
-		"Redis should not be connected in test harness")
+	// Redis is connected in test harness (real Redis on localhost:6379).
+	assert.True(t, resp.RedisConnected,
+		"Redis should be connected in test harness")
 
-	// Status should be "degraded" since Redis and/or Engine are down.
-	assert.Equal(t, "degraded", resp.Status,
-		"health status should be degraded when dependencies are unreachable")
+	// Status should be "ok" since Redis is healthy.
+	assert.Equal(t, "ok", resp.Status,
+		"health status should be ok when Redis is connected")
 
 	// Active cycles should be 0 (no cycles running).
 	assert.Equal(t, int32(0), resp.ActiveCycles)

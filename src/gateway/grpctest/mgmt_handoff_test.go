@@ -167,9 +167,15 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	}
 
 	engineHTTP := infra.NewEngineHTTPClient(mockEngine.URL(), 30)
-	redisClient := redis.NewClient(&redis.Options{Addr: "localhost:1"})
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         "localhost:6379",
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		DialTimeout:  5 * time.Second,
+	})
 	hub := alert.NewHub()
 	transport := alertredis.NewTransport(redisClient, hub, alertredis.TransportConfig{})
+	transport.Start(context.Background())
 
 	taCollector := collectors.NewTACollector(engineHTTP, nil, cfg)
 	macroCollector := collectors.NewMacroCollector(engineHTTP, nil, 0)
@@ -185,7 +191,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		processor, router, engineHTTP, transport,
 	)
 
-	redisWrapper, _ := infra.NewRedisClient("redis://localhost:1/0", 1)
+	redisWrapper, _ := infra.NewRedisClient("redis://localhost:6379/0", 5)
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store
 	if redisWrapper != nil {
