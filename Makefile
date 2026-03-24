@@ -249,11 +249,21 @@ test-python: ## Run Python engine tests locally (no Docker)
 
 test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 	echo -e "$(BLUE)Running Go tests...$(NC)"
-	go test ./src/gateway/... -v -count=1 -timeout 120s
-	go test ./src/execution/... -v -count=1 -timeout 120s
-	go test ./src/management/... -v -count=1 -timeout 120s
+	@# Source .env for DB credentials but override hosts to localhost
+	@# (Docker service names like 'postgres' don't resolve on the host).
+	set -a && source .env && set +a && \
+		export POSTGRES_HOST=localhost && \
+		export REDIS_HOST=localhost && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		go test ./src/gateway/... -v -count=1 -timeout 120s && \
+		go test ./src/execution/... -v -count=1 -timeout 120s && \
+		go test ./src/management/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Gateway gRPC integration tests...$(NC)"
-	go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
+	set -a && source .env && set +a && \
+		export POSTGRES_HOST=localhost && \
+		export REDIS_HOST=localhost && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
 	go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
 	echo -e "$(BLUE)Running Management broker integration tests...$(NC)"
@@ -262,7 +272,11 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 
 test-e2e: ## Run E2E pipeline tests (requires Redis for alert transport)
 	echo -e "$(BLUE)Running E2E pipeline tests...$(NC)"
-	go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
+	set -a && source .env && set +a && \
+		export POSTGRES_HOST=localhost && \
+		export REDIS_HOST=localhost && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 	echo -e "$(GREEN)✓ E2E tests passed$(NC)"
 
 test-engine: ## Run Python tests inside Docker container
