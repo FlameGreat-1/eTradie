@@ -78,13 +78,13 @@ class TestRAGRetrieval:
         # Strategy should be the one we requested.
         assert data["strategy_used"] == "hybrid"
 
-        # Coverage result is a string enum.
-        assert data["coverage_result"] in ("SUFFICIENT", "INSUFFICIENT"), \
+        # Coverage result is a StrEnum (lowercase values from rag/constants.py).
+        assert data["coverage_result"] in ("sufficient", "insufficient", "partial"), \
             f"Unexpected coverage_result: {data['coverage_result']}"
 
-        # Conflict result is a string enum.
+        # Conflict result is a StrEnum (lowercase values from rag/constants.py).
         assert data["conflict_result"] in (
-            "NONE_DETECTED", "CONFLICTING_RULES_DETECTED",
+            "none_detected", "conflict_found",
         ), f"Unexpected conflict_result: {data['conflict_result']}"
 
         # With real embeddings loaded, we should get chunks.
