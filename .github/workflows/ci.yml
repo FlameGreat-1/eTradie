@@ -107,7 +107,17 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      EXECUTION_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      MANAGEMENT_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: etradie
+      POSTGRES_PASSWORD: etradie_dev
+      POSTGRES_DB: etradie
       REDIS_URL: redis://localhost:6379/0
+      REDIS_HOST: localhost
+      EXECUTION_REDIS_URL: redis://localhost:6379/1
+      GATEWAY_REDIS_URL: redis://localhost:6379/0
+      MANAGEMENT_REDIS_URL: redis://localhost:6379/1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
