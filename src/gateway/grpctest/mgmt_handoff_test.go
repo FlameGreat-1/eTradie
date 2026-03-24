@@ -32,7 +32,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 
-	e2e "github.com/flamegreat-1/etradie/tests/e2e"
+	e2e "github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
 
 // ---------------------------------------------------------------------------

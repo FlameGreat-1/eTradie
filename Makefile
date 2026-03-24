@@ -253,7 +253,7 @@ test-go: ## Run Go unit tests for all services
 	go test ./src/execution/... -v -count=1 -timeout 60s
 	go test ./src/management/... -v -count=1 -timeout 60s
 	echo -e "$(BLUE)Running Gateway gRPC integration tests...$(NC)"
-	go test ./tests/integration/gateway_grpc/... -v -count=1 -timeout 120s
+	go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
 	go test ./tests/integration/execution_broker/... -v -count=1 -timeout 60s
 	echo -e "$(BLUE)Running Management broker integration tests...$(NC)"
@@ -262,7 +262,7 @@ test-go: ## Run Go unit tests for all services
 
 test-e2e: ## Run E2E pipeline tests (Gateway orchestrator, no infra needed)
 	echo -e "$(BLUE)Running E2E pipeline tests...$(NC)"
-	go test ./tests/e2e/... -v -count=1 -timeout 300s
+	go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 	echo -e "$(GREEN)✓ E2E tests passed$(NC)"
 
 test-engine: ## Run Python tests inside Docker container

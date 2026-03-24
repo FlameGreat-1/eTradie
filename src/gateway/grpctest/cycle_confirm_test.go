@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
-	"github.com/flamegreat-1/etradie/tests/e2e"
+	"github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
 
 // TestGRPC_RunCycle_HappyPath calls RunCycle via gRPC and verifies

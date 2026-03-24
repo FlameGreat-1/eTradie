@@ -94,13 +94,13 @@ jobs:
           go test ./src/execution/... -v -count=1 -timeout 60s
           go test ./src/management/... -v -count=1 -timeout 60s
       - name: Run Gateway gRPC integration tests
-        run: go test ./tests/integration/gateway_grpc/... -v -count=1 -timeout 120s
+        run: go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
       - name: Run Execution broker integration tests
         run: go test ./tests/integration/execution_broker/... -v -count=1 -timeout 60s
       - name: Run Management broker integration tests
         run: go test ./tests/integration/management_broker/... -v -count=1 -timeout 60s
       - name: Run E2E pipeline tests
-        run: go test ./tests/e2e/... -v -count=1 -timeout 300s
+        run: go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 
   build:
     runs-on: ubuntu-latest
