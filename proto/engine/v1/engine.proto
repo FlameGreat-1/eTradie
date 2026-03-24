@@ -138,4 +138,7 @@ message ProcessLLMResponse {
   // Execution control overrides explicitly set by the AI processor.
   string execution_mode = 26;
   bool   ltf_confirmed = 27;
+
+  // Setup type identified by the processor (e.g. "turtle_soup", "sh_bms_rto").
+  string setup_type = 28;
 }

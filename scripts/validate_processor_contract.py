@@ -77,6 +77,9 @@ def get_pydantic_fields(class_name: str, module_path: Path) -> set[str]:
     start = match.end()
     fields: set[str] = set()
 
+    # Pydantic/base-class attributes that are NOT proto contract fields.
+    IGNORED_FIELDS = {"Proto", "model_config", "model_fields", "model_computed_fields"}
+
     for line in content[start:].split("\n"):
         stripped = line.strip()
         # Stop at next class definition or top-level function.
@@ -87,8 +90,8 @@ def get_pydantic_fields(class_name: str, module_path: Path) -> set[str]:
             field_match = re.match(r"^(\w+)\s*:\s*", stripped)
             if field_match:
                 field_name = field_match.group(1)
-                # Skip dunder and private fields.
-                if not field_name.startswith("_"):
+                # Skip dunder, private, and Pydantic internal fields.
+                if not field_name.startswith("_") and field_name not in IGNORED_FIELDS:
                     fields.add(field_name)
 
     return fields
