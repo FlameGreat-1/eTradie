@@ -25,12 +25,12 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		t.Skipf("PostgreSQL unavailable, skipping: %v", err)
+		t.Fatalf("PostgreSQL connection failed: %v", err)
 	}
 	// Verify connection.
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
-		t.Skipf("PostgreSQL ping failed, skipping: %v", err)
+		t.Fatalf("PostgreSQL ping failed: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool

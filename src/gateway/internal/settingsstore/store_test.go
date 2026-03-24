@@ -11,11 +11,11 @@ func testRedis(t *testing.T) *infra.RedisClient {
 	t.Helper()
 	rc, err := infra.NewRedisClient("redis://localhost:6379/0", 5)
 	if err != nil {
-		t.Skipf("Redis unavailable, skipping: %v", err)
+		t.Fatalf("Redis connection failed: %v", err)
 	}
 	if !rc.HealthCheck(context.Background()) {
 		rc.Close()
-		t.Skip("Redis health check failed, skipping")
+		t.Fatal("Redis health check failed")
 	}
 	t.Cleanup(func() {
 		// Clean up test keys.
