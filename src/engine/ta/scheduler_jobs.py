@@ -27,7 +27,7 @@ from engine.shared.scheduler import SchedulerManager
 from engine.ta.broker.base import BrokerBase
 from engine.config import get_ta_config
 from engine.ta.constants import Timeframe, TIMEFRAME_MINUTES
-from engine.ta.storage.repositories.candle import CandleRepository
+from engine.ta.storage.uow import TAUOWFactory
 
 logger = get_logger(__name__)
 
@@ -98,7 +98,7 @@ async def _candle_refresh(
     symbol: str,
     timeframe: Timeframe,
     broker_client: BrokerBase,
-    candle_repository: CandleRepository,
+    ta_uow_factory: TAUOWFactory,
 ) -> None:
     """Fetch the latest candle from broker and persist if new."""
     latest = await broker_client.fetch_latest_candle(symbol, timeframe)
@@ -110,14 +110,15 @@ async def _candle_refresh(
         )
         return
 
-    existing = await candle_repository.find_by_symbol_timeframe_timestamp(
-        symbol, timeframe.value, latest.timestamp,
-    )
+    async with ta_uow_factory() as uow:
+        existing = await uow.candle_repo.find_by_symbol_timeframe_timestamp(
+            symbol, timeframe.value, latest.timestamp,
+        )
 
-    if existing:
-        return
+        if existing:
+            return
 
-    await candle_repository.create(latest)
+        await uow.candle_repo.create(latest)
 
     logger.info(
         "candle_refreshed",
@@ -135,7 +136,7 @@ async def _backfill(
     timeframe: Timeframe,
     lookback_periods: int,
     broker_client: BrokerBase,
-    candle_repository: CandleRepository,
+    ta_uow_factory: TAUOWFactory,
 ) -> None:
     """
     Back-fill historical candle data for a symbol/timeframe.
@@ -148,22 +149,23 @@ async def _backfill(
     minutes = TIMEFRAME_MINUTES[timeframe] * lookback_periods
     start_time = end_time - timedelta(minutes=minutes)
 
-    stored = await candle_repository.find_by_time_range(
-        symbol, timeframe.value, start_time, end_time,
-    )
-    stored_count = len(stored) if stored else 0
-
-    if stored_count >= lookback_periods * 0.9:
-        logger.debug(
-            "backfill_not_needed",
-            extra={
-                "symbol": symbol,
-                "timeframe": timeframe.value,
-                "stored": stored_count,
-                "required": lookback_periods,
-            },
+    async with ta_uow_factory() as uow:
+        stored = await uow.candle_repo.find_by_time_range(
+            symbol, timeframe.value, start_time, end_time,
         )
-        return
+        stored_count = len(stored) if stored else 0
+
+        if stored_count >= lookback_periods * 0.9:
+            logger.debug(
+                "backfill_not_needed",
+                extra={
+                    "symbol": symbol,
+                    "timeframe": timeframe.value,
+                    "stored": stored_count,
+                    "required": lookback_periods,
+                },
+            )
+            return
 
     sequence = await broker_client.fetch_candles(
         symbol=symbol,
@@ -186,7 +188,8 @@ async def _backfill(
     ]
 
     if new_candles:
-        await candle_repository.bulk_create(new_candles)
+        async with ta_uow_factory() as uow:
+            await uow.candle_repo.bulk_create(new_candles)
 
     logger.info(
         "backfill_completed",
@@ -206,7 +209,7 @@ async def _broker_sync(
     timeframe: Timeframe,
     sync_periods: int,
     broker_client: BrokerBase,
-    candle_repository: CandleRepository,
+    ta_uow_factory: TAUOWFactory,
 ) -> None:
     """
     Reconcile recent stored candles with broker data.
@@ -234,17 +237,18 @@ async def _broker_sync(
         )
         return
 
-    stored = await candle_repository.find_by_time_range(
-        symbol, timeframe.value, start_time, end_time,
-    )
-    stored_timestamps = {c.timestamp for c in stored} if stored else set()
+    async with ta_uow_factory() as uow:
+        stored = await uow.candle_repo.find_by_time_range(
+            symbol, timeframe.value, start_time, end_time,
+        )
+        stored_timestamps = {c.timestamp for c in stored} if stored else set()
 
-    new_candles = [
-        c for c in sequence.candles if c.timestamp not in stored_timestamps
-    ]
+        new_candles = [
+            c for c in sequence.candles if c.timestamp not in stored_timestamps
+        ]
 
-    if new_candles:
-        await candle_repository.bulk_create(new_candles)
+        if new_candles:
+            await uow.candle_repo.bulk_create(new_candles)
 
     logger.info(
         "broker_sync_completed",
@@ -265,7 +269,7 @@ async def _broker_sync(
 async def _refresh_data_for_active_symbols(
     symbol_store: object,
     broker_client: BrokerBase,
-    candle_repository: CandleRepository,
+    ta_uow_factory: TAUOWFactory,
 ) -> None:
     """Refresh candle data for whatever symbols are currently active.
 
@@ -305,7 +309,7 @@ async def _refresh_data_for_active_symbols(
                     symbol=symbol,
                     timeframe=tf,
                     broker_client=broker_client,
-                    candle_repository=candle_repository,
+                    ta_uow_factory=ta_uow_factory,
                 )
             except Exception as exc:
                 logger.error(
@@ -325,7 +329,7 @@ async def _refresh_data_for_active_symbols(
                     timeframe=tf,
                     sync_periods=20,
                     broker_client=broker_client,
-                    candle_repository=candle_repository,
+                    ta_uow_factory=ta_uow_factory,
                 )
             except Exception as exc:
                 logger.error(
@@ -346,7 +350,7 @@ async def _refresh_data_for_active_symbols(
                         timeframe=tf,
                         lookback_periods=lookback,
                         broker_client=broker_client,
-                        candle_repository=candle_repository,
+                        ta_uow_factory=ta_uow_factory,
                     )
                 except Exception as exc:
                     logger.error(
@@ -376,7 +380,7 @@ def register_ta_jobs(
     *,
     symbol_store: object,
     broker_client: BrokerBase,
-    candle_repository: CandleRepository,
+    ta_uow_factory: TAUOWFactory,
 ) -> None:
     """Register TA data infrastructure as a single dynamic recurring job.
 
@@ -407,7 +411,7 @@ def register_ta_jobs(
         kwargs={
             "symbol_store": symbol_store,
             "broker_client": broker_client,
-            "candle_repository": candle_repository,
+            "ta_uow_factory": ta_uow_factory,
         },
     )
 
