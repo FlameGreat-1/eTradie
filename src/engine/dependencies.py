@@ -410,12 +410,18 @@ class Container:
             config=self.processor_config,
         )
 
-        uow_factory = processor_uow_factory(self.db)
+        self.processor_uow_factory = processor_uow_factory(self.db)
         self.processor = AnalysisProcessor(
             config=self.processor_config,
             llm_client=self.processor_llm_client,
-            uow_factory=uow_factory,
+            uow_factory=self.processor_uow_factory,
         )
+
+        # Expose standalone repos for dashboard read endpoints.
+        # These use the DatabaseManager's read_session() context manager
+        # and are created per-request in the endpoint handlers.
+        self.processor_analysis_repo = AnalysisRepository
+        self.processor_audit_repo = AuditRepository
 
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)

@@ -417,16 +417,19 @@ def create_app() -> FastAPI:
     ) -> dict:
         """List recent analyses for the dashboard."""
         container: Container = request.app.state.container
-        if not hasattr(container, "processor_analysis_repo"):
+        if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
-        repo = container.processor_analysis_repo
         limit = min(limit, 100)
 
-        if pair:
-            rows = await repo.get_latest_by_pair(pair.upper(), limit=limit)
-        else:
-            rows = await repo.list_recent_all(limit=limit)
+        async with container.db.read_session() as session:
+            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            repo = AnalysisRepository(session)
+
+            if pair:
+                rows = await repo.get_latest_by_pair(pair.upper(), limit=limit)
+            else:
+                rows = await repo.list_recent_all(limit=limit)
 
         results = []
         for row in rows:
@@ -483,7 +486,7 @@ def create_app() -> FastAPI:
         the frontend to build pagination controls.
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor_analysis_repo"):
+        if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
         since_dt = None
@@ -503,17 +506,19 @@ def create_app() -> FastAPI:
         if offset < 0:
             offset = 0
 
-        repo = container.processor_analysis_repo
-        rows, total_count = await repo.list_filtered(
-            pair=pair,
-            status=status,
-            grade=grade,
-            provider=provider,
-            since=since_dt,
-            until=until_dt,
-            offset=offset,
-            limit=limit,
-        )
+        async with container.db.read_session() as session:
+            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            repo = AnalysisRepository(session)
+            rows, total_count = await repo.list_filtered(
+                pair=pair,
+                status=status,
+                grade=grade,
+                provider=provider,
+                since=since_dt,
+                until=until_dt,
+                offset=offset,
+                limit=limit,
+            )
 
         results = []
         for row in rows:
@@ -561,7 +566,7 @@ def create_app() -> FastAPI:
         by provider and pair. Optionally filtered by pair and date range.
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor_analysis_repo"):
+        if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
         from datetime import datetime as dt
@@ -579,24 +584,32 @@ def create_app() -> FastAPI:
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
 
-        repo = container.processor_analysis_repo
-        stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
+        async with container.db.read_session() as session:
+            from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+            repo = AnalysisRepository(session)
+            stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
         return stats
 
     @app.get("/api/analysis/{analysis_id}")
     async def get_analysis_detail(request: Request, analysis_id: str) -> dict:
         """Full analysis detail including LLM reasoning and raw output."""
         container: Container = request.app.state.container
-        if not hasattr(container, "processor_analysis_repo"):
+        if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
-        row = await container.processor_analysis_repo.get_by_analysis_id(analysis_id)
+        from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+        from engine.processor.storage.repositories.audit_repository import AuditRepository
+
+        async with container.db.read_session() as session:
+            repo = AnalysisRepository(session)
+            row = await repo.get_by_analysis_id(analysis_id)
+
+            audit_rows = []
+            audit_repo = AuditRepository(session)
+            audit_rows = await audit_repo.get_by_analysis_id(analysis_id)
+
         if not row:
             raise HTTPException(status_code=404, detail=f"Analysis '{analysis_id}' not found")
-
-        audit_rows = []
-        if hasattr(container, "processor_audit_repo"):
-            audit_rows = await container.processor_audit_repo.get_by_analysis_id(analysis_id)
 
         audit_data = None
         if audit_rows:
@@ -1021,8 +1034,7 @@ def create_app() -> FastAPI:
         new_processor = AnalysisProcessor(
             config=new_cfg,
             llm_client=new_client,
-            analysis_repo=container.processor_analysis_repo,
-            audit_repo=container.processor_audit_repo,
+            uow_factory=container.processor_uow_factory,
         )
 
         container.processor_config = new_cfg
