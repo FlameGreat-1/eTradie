@@ -96,9 +96,9 @@ jobs:
       - name: Run Gateway gRPC integration tests
         run: go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
       - name: Run Execution broker integration tests
-        run: go test ./tests/integration/execution_broker/... -v -count=1 -timeout 60s
+        run: go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
       - name: Run Management broker integration tests
-        run: go test ./tests/integration/management_broker/... -v -count=1 -timeout 60s
+        run: go test ./src/management/brokertest/... -v -count=1 -timeout 60s
       - name: Run E2E pipeline tests
         run: go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 
