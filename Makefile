@@ -250,11 +250,19 @@ test-python: ## Run Python engine tests locally (no Docker)
 test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 	echo -e "$(BLUE)Running Go tests...$(NC)"
 	@# Source .env for DB credentials but override hosts to localhost
-	@# (Docker service names like 'postgres' don't resolve on the host).
+	@# (Docker service names like 'postgres'/'redis' don't resolve on the host).
+	@# We must also re-export EXECUTION_DATABASE_URL / MANAGEMENT_DATABASE_URL
+	@# because bash expands ${POSTGRES_HOST} to 'postgres' when sourcing .env,
+	@# BEFORE our localhost override takes effect.
 	set -a && source .env && set +a && \
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
 		go test ./src/gateway/... -v -count=1 -timeout 120s && \
 		go test ./src/execution/... -v -count=1 -timeout 120s && \
 		go test ./src/management/... -v -count=1 -timeout 120s
@@ -263,6 +271,11 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
 		go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
 	go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
@@ -276,6 +289,11 @@ test-e2e: ## Run E2E pipeline tests (requires Redis for alert transport)
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
 		go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 	echo -e "$(GREEN)✓ E2E tests passed$(NC)"
 
