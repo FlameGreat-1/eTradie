@@ -255,9 +255,9 @@ test-go: ## Run Go unit tests for all services
 	echo -e "$(BLUE)Running Gateway gRPC integration tests...$(NC)"
 	go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
-	go test ./tests/integration/execution_broker/... -v -count=1 -timeout 60s
+	go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
 	echo -e "$(BLUE)Running Management broker integration tests...$(NC)"
-	go test ./tests/integration/management_broker/... -v -count=1 -timeout 60s
+	go test ./src/management/brokertest/... -v -count=1 -timeout 60s
 	echo -e "$(GREEN)✓ Go tests passed$(NC)"
 
 test-e2e: ## Run E2E pipeline tests (Gateway orchestrator, no infra needed)
