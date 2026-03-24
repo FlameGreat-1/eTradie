@@ -96,9 +96,30 @@ func TestCorrelatedGroupsFor_UnknownSymbol(t *testing.T) {
 
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := os.Getenv("DATABASE_URL")
+	// Check service-specific env var first, then generic, then docker-compose default.
+	dsn := os.Getenv("EXECUTION_DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable"
+		dsn = os.Getenv("DATABASE_URL")
+	}
+	if dsn == "" {
+		// Read from POSTGRES_ env vars (set by docker-compose .env).
+		user := os.Getenv("POSTGRES_USER")
+		pass := os.Getenv("POSTGRES_PASSWORD")
+		db := os.Getenv("POSTGRES_DB")
+		host := os.Getenv("POSTGRES_HOST")
+		if user == "" {
+			user = "etradie"
+		}
+		if pass == "" {
+			pass = "etradie_dev"
+		}
+		if db == "" {
+			db = "etradie"
+		}
+		if host == "" {
+			host = "localhost"
+		}
+		dsn = "postgres://" + user + ":" + pass + "@" + host + ":5432/" + db + "?sslmode=disable"
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
