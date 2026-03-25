@@ -1793,13 +1793,13 @@ def create_app() -> FastAPI:
         request: Request,
         body: CreateBrokerConnectionRequest,
     ) -> dict:
-        await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         """Create a new broker connection (EA or MetaAPI).
 
         User selects connection type, enters credentials, and saves.
         If activate=True (default), this becomes the active connection
         and the broker client is hot-swapped immediately.
         """
+        await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
 
         from engine.processor.storage.repositories.broker_connection_repository import (
