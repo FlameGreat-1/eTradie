@@ -45,20 +45,18 @@ STATUS_ERROR = "error"
 # ---------------------------------------------------------------------------
 
 def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key.
+    """Derive a Fernet encryption key for credential encryption.
 
-    Uses the same derivation path as the LLM connection repository
+    Uses the same derivation chain as the LLM connection repository
     so both share the same key. Priority:
-      1. BROKER_ENCRYPTION_KEY env var
-      2. LLM_ENCRYPTION_KEY env var (shared with LLM connections)
+      1. BROKER_ENCRYPTION_KEY env var (shared across all credential stores)
+      2. LLM_ENCRYPTION_KEY env var (legacy alias)
       3. DATABASE_URL env var
-      4. Hardcoded fallback (dev only)
+      4. Hardcoded fallback (dev only, never in production)
     """
     raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
     if not raw:
         raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("PROCESSOR_DATABASE_URL", "")
     if not raw:
         raw = os.environ.get("DATABASE_URL", "etradie-default-key")
     digest = hashlib.sha256(raw.encode()).digest()
