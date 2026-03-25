@@ -123,9 +123,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
-    # Only register TA jobs if a broker client is available.
+    # Register TA jobs if a broker client is available at startup.
     # If no broker is configured yet, TA jobs will be registered
-    # when the user activates a broker connection via the dashboard.
+    # when the user activates a broker connection via the dashboard
+    # (see _register_ta_jobs_if_needed helper below).
     if container.mt5_client is not None:
         register_ta_jobs(
             container.scheduler,
@@ -133,6 +134,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             broker_client=container.mt5_client,
             ta_uow_factory=container.ta_uow_factory,
         )
+        app.state.ta_jobs_registered = True
+    else:
+        app.state.ta_jobs_registered = False
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -1650,9 +1654,38 @@ def create_app() -> FastAPI:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
 
+    def _register_ta_jobs_if_needed(app_ref: FastAPI, container: Container) -> None:
+        """Register TA scheduler jobs if they haven't been registered yet.
+
+        Called after a broker hot-swap when the app started without a
+        broker configured. Ensures TA data collection jobs run as soon
+        as the first broker connection is activated via the dashboard.
+        """
+        if getattr(app_ref.state, "ta_jobs_registered", False):
+            return
+        if container.mt5_client is None:
+            return
+
+        symbol_reader = getattr(app_ref.state, "symbol_reader", None)
+        if symbol_reader is None:
+            logger.warning("cannot_register_ta_jobs_no_symbol_reader")
+            return
+
+        register_ta_jobs(
+            container.scheduler,
+            symbol_store=symbol_reader,
+            broker_client=container.mt5_client,
+            ta_uow_factory=container.ta_uow_factory,
+        )
+        app_ref.state.ta_jobs_registered = True
+        logger.info("ta_jobs_registered_after_broker_hot_swap")
+
     async def _hot_swap_broker_from_row(container: Container, row) -> None:
         """Build a broker client from a DB row and hot-swap it into the container."""
         from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+            STATUS_CONNECTED,
+            STATUS_ERROR,
             decrypt_credential,
         )
         from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
@@ -1679,6 +1712,34 @@ def create_app() -> FastAPI:
                 pass
 
         container.hot_swap_broker(new_client)
+
+        # Register TA jobs if this is the first broker activation.
+        _register_ta_jobs_if_needed(app, container)
+
+        # Run health check and update DB status.
+        try:
+            healthy = await new_client.health_check()
+            new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
+            status_msg = "Connection successful" if healthy else "Health check failed after swap"
+        except Exception as exc:
+            new_status = STATUS_ERROR
+            status_msg = f"Health check error: {exc}"
+            healthy = False
+
+        try:
+            async with container.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                await repo.update_status(
+                    str(row.id),
+                    status=new_status,
+                    status_message=status_msg,
+                    connected=healthy,
+                )
+        except Exception as exc:
+            logger.warning(
+                "broker_status_update_after_swap_failed",
+                extra={"connection_id": str(row.id), "error": str(exc)},
+            )
 
     @app.post("/api/broker/connections")
     async def create_broker_connection(
