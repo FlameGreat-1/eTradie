@@ -514,10 +514,52 @@ Current open positions, pending orders, account state, and execution settings.
 
 Managed trades with break-even, trailing, partial closes.
 
-### 8.1 Get Managed Trades
+### 8.0 Management HTTP REST API (Dashboard-Facing)
+**Source:** `src/management/internal/http/server.go`
+
+Module C exposes its own HTTP REST API for the dashboard, separate from gRPC.
+
+#### 8.0.1 Get Active Managed Trades (REST)
+- **Endpoint:** `GET /api/v1/management/trades`
+- **Returns:** `{"trades": [...]}`
+- **Each trade contains:** `trade_id`, `symbol`, `direction`, `entry_price`, `current_price`, `stop_loss`, `tp1_price`, `tp2_price`, `tp3_price`, `total_lot_size`, `remaining_lot_size`, `unrealized_pnl`, `realized_pnl`, `trading_style`, `status`, `breakeven_set`, `tp1_hit`, `tp2_hit`, `broker_order_id`, `analysis_id`, `opened_at`
+- **Purpose:** Dashboard active trades table (REST alternative to gRPC).
+
+#### 8.0.2 Get Trade Journal (REST)
+- **Endpoint:** `GET /api/v1/management/journal?limit=50&offset=0&symbol=EURUSD&style=INTRADAY`
+- **Returns:** `{"entries": [...], "total_count": int}`
+- **Each entry contains:** `trade_id`, `symbol`, `direction`, `entry_price`, `exit_price`, `stop_loss`, `lot_size`, `gross_pnl`, `r_multiple`, `confluence_score`, `grade`, `setup_type`, `trading_style`, `outcome`, `duration_minutes`, `sl_adjustment_count`, `partial_close_count`, `analysis_id`, `opened_at`, `closed_at`
+- **Purpose:** Dashboard trade journal with pagination and filters (REST alternative to gRPC).
+
+#### 8.0.3 Get Performance Metrics (REST)
+- **Endpoint:** `GET /api/v1/management/metrics?period=ALL_TIME`
+- **Query Params:** `period` (string): `DAILY`, `WEEKLY`, `MONTHLY`, `ALL_TIME` (default: ALL_TIME)
+- **Returns:** Full performance summary (win_rate, avg_r_multiple, expectancy, total_trades, wins, losses, breakevens, total_pnl, max_consecutive_wins/losses, max_drawdown_pct, best/worst_trade_r, breakdowns by symbol/style/setup/session)
+- **Purpose:** Dashboard performance analytics (REST alternative to gRPC).
+
+#### 8.0.4 Management Health (REST)
+- **Endpoint:** `GET /health`
+- **Returns:** `{"status": "ok"}`
+
+#### 8.0.5 Management Config Environment Variables
+**Source:** `src/management/internal/config/config.go`
+**Prefix:** `MANAGEMENT_`
+
+- `MANAGEMENT_GRPC_PORT` (int, default: 50054)
+- `MANAGEMENT_HTTP_PORT` (int, default: 8083)
+- `MANAGEMENT_BROKER_MODE` (string, default: mock, values: mock/mt5)
+- `MANAGEMENT_BROKER_BRIDGE_URL` (string, default: http://localhost:8000)
+- `MANAGEMENT_BROKER_TIMEOUT_MS` (int, default: 5000)
+- `MANAGEMENT_MOCK_BROKER_BALANCE` (float, default: 10000.0)
+- `MANAGEMENT_TICK_POLL_INTERVAL_MS` (int, default: 1000, range: 100-10000)
+- `MANAGEMENT_CANDLE_POLL_INTERVAL_SECS` (int, default: 60, range: 10-600)
+- `MANAGEMENT_DATABASE_URL` (string, required)
+- `MANAGEMENT_REDIS_URL` (string, default: redis://localhost:6379/1)
+
+### 8.1 Get Managed Trades (gRPC)
 - **RPC:** `ManagementService.GetManagedTrades`
 - **Proto:** `proto/management/v1/management.proto`
-- **Source:** `src/management/internal/server/`
+- **Source:** `src/management/internal/server/grpc_server.go`
 - **Request:** `trace_id` (string)
 - **Response:** `trades` (ManagedTrade[]): Each contains:
   - `trade_id` (string): Module C tracking ID
