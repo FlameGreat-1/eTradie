@@ -10,14 +10,14 @@
 
 Top bar / header area showing whether the system is alive and connected.
 
-### 1.1 Gateway Health (gRPC)
-- **RPC:** `GatewayService.GetHealth`
+### 1.1 Gateway Health
+- **Endpoint:** `GET /api/v1/health` (Gateway HTTP, port 8080)
 - **Response:**
   - `status` (string): `"ok"` or `"degraded"`
   - `redis_connected` (bool)
   - `engine_connected` (bool)
-  - `active_cycles` (int32): Currently running analysis cycles
-- **Dashboard use:** Health indicator badge in header. Green/yellow/red based on status.
+  - `active_cycles` (int): Currently running analysis cycles
+- **Dashboard use:** Health indicator badge in header. Green/yellow/red based on status. Returns 503 when degraded.
 
 ### 1.2 Gateway Readiness (REST)
 - **Endpoint:** `GET /readiness` (Gateway HTTP, port 8080)
@@ -35,14 +35,10 @@ Top bar / header area showing whether the system is alive and connected.
   - `scenarios_count` (int)
 - **Dashboard use:** Knowledge base status card. Shows if the AI has access to the trading rulebook.
 
-### 1.4 Management Service Health (gRPC)
-- **RPC:** `ManagementService.GetHealth`
-- **Response:**
-  - `status`: `"ok"` or `"degraded"`
-  - `db_connected` (bool)
-  - `broker_connected` (bool)
-  - `active_trades` (int32)
-- **Dashboard use:** Trade management status indicator. Shows if Module C is operational.
+### 1.4 Management Service Health
+- **Endpoint:** `GET /health` (Management HTTP, port 8083)
+- **Response:** `{"status": "ok"}`
+- **Dashboard use:** Trade management liveness indicator.
 
 ### 1.5 Execution Health
 - **Endpoint:** `GET /health` (Execution HTTP, port 8080)
@@ -56,15 +52,15 @@ Top bar / header area showing whether the system is alive and connected.
 Settings panel where the user views and adjusts runtime config.
 
 ### 2.1 Get Gateway Config
-- **RPC:** `GatewayService.GetGatewayConfig`
+- **Endpoint:** `GET /api/v1/config` (Gateway HTTP, port 8080)
 - **Response:**
   - `enabled` (bool): Master switch
-  - `cycle_interval_seconds` (int32): How often analysis runs (default 14400 = 4 hours)
-  - `cycle_timeout_seconds` (int32): Max time per cycle (default 300)
-  - `max_concurrent_symbols` (int32): Parallel symbol limit (default 4)
-  - `ta_cache_ttl_seconds` (int32): TA cache duration (default 300)
-  - `macro_cache_ttl_seconds` (int32): Macro cache duration (default 600)
-  - `max_cycle_retries` (int32): Retry count on failure (default 1)
+  - `cycle_interval_seconds` (int): How often analysis runs (default 14400 = 4 hours)
+  - `cycle_timeout_seconds` (int): Max time per cycle (default 300)
+  - `max_concurrent_symbols` (int): Parallel symbol limit (default 4)
+  - `ta_cache_ttl_seconds` (int): TA cache duration (default 300)
+  - `macro_cache_ttl_seconds` (int): Macro cache duration (default 600)
+  - `max_cycle_retries` (int): Retry count on failure (default 1)
   - `default_symbols` (string[]): Config-defined default symbols
   - `active_symbols` (string[]): Currently active symbols
   - `active_symbols_source` (string): `"redis"` or `"gateway_config"`
@@ -72,9 +68,10 @@ Settings panel where the user views and adjusts runtime config.
 - **Dashboard use:** Settings panel. Display all current config values.
 
 ### 2.2 Set Cycle Interval
-- **RPC:** `GatewayService.SetCycleInterval`
-- **Request:** `interval_seconds` (int32): New interval, must be 60-86400
-- **Response:** `success` (bool), `current_interval_seconds` (int32), `message` (string)
+- **Endpoint:** `PUT /api/v1/config/interval` (Gateway HTTP, port 8080)
+- **Request Body:** `{"interval_seconds": 7200}`
+- **Validation:** Must be 60-86400
+- **Response:** `{"success": true, "current_interval_seconds": 7200, "message": "..."}`
 - **Dashboard use:** Slider or input field to change how often analysis runs. Takes effect immediately. Persisted in Redis (survives restarts).
 
 ---
@@ -84,19 +81,20 @@ Settings panel where the user views and adjusts runtime config.
 Symbol selector panel where the user chooses which currency pairs to analyze.
 
 ### 3.1 Get Active Symbols
-- **RPC:** `GatewayService.GetActiveSymbols`
-- **Response:** `symbols` (string[]), `source` (string)
+- **Endpoint:** `GET /api/v1/symbols` (Gateway HTTP, port 8080)
+- **Response:** `{"symbols": [...], "source": "redis"}`
 - **Dashboard use:** Shows which pairs are currently being analyzed.
 
 ### 3.2 Set Active Symbols
-- **RPC:** `GatewayService.SetActiveSymbols`
-- **Request:** `symbols` (string[])
-- **Response:** `success` (bool), `active_symbols` (string[])
+- **Endpoint:** `PUT /api/v1/symbols` (Gateway HTTP, port 8080)
+- **Request Body:** `{"symbols": ["EURUSD", "GBPUSD", "XAUUSD"]}`
+- **Response:** `{"success": true, "active_symbols": [...]}`
 - **Dashboard use:** Multi-select to add/remove trading pairs. Persisted in Redis.
 
 ### 3.3 Reset Active Symbols
-- **RPC:** `GatewayService.ResetActiveSymbols`
-- **Response:** `success` (bool), `active_symbols` (string[])
+- **Endpoint:** `POST /api/v1/symbols/reset` (Gateway HTTP, port 8080)
+- **Request Body:** None required
+- **Response:** `{"success": true, "active_symbols": [...]}`
 - **Dashboard use:** "Reset to Defaults" button. Restores the 8 default pairs (EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, NZDUSD, USDCAD, XAUUSD).
 
 ---
@@ -106,20 +104,19 @@ Symbol selector panel where the user chooses which currency pairs to analyze.
 Controls for triggering and monitoring analysis cycles.
 
 ### 4.1 Run Cycle On Demand
-- **RPC:** `GatewayService.RunCycle`
-- **Request:**
-  - `symbols` (string[]): Optional. If empty, uses active symbols.
-  - `trace_id` (string): Optional.
-- **Response:** `outputs` (CycleOutput[]): One per symbol processed.
-  - Each `CycleOutput`:
+- **Endpoint:** `POST /api/v1/cycle/run` (Gateway HTTP, port 8080)
+- **Request Body:** `{"symbols": ["EURUSD"], "trace_id": "optional"}` (body is optional; if empty or no symbols, uses active symbols)
+- **Response:** `{"outputs": [...]}`
+  - Each output:
     - `cycle_status`: `RUNNING`, `COMPLETED`, `FAILED`, `TIMED_OUT`
     - `cycle_outcome`: `TRADE_APPROVED`, `NO_SETUP`, `REJECTED_BY_GUARD`, `INSUFFICIENT_DATA`, `PROCESSOR_ERROR`, `PIPELINE_ERROR`
     - `phase_reached`: Which pipeline stage was reached
     - `symbol`, `duration_ms`, `trace_id`, `error`, `error_stage`
-    - `processor_output_json`: Full LLM decision
-    - `guard_result_json`: Guard evaluation result
-    - `execution_result_json`: Execution response
-- **Dashboard use:** "Run Now" button. User triggers immediate analysis without waiting for the 4-hour scheduler. Shows results in real-time.
+    - `processor_output`: Full LLM decision object
+    - `guard_result`: Guard evaluation result object
+    - `execution_result`: Execution response object
+- **Note:** This is a long-running request (can take up to cycle_timeout_seconds, default 300s). The server WriteTimeout is set to 120s to accommodate.
+- **Dashboard use:** "Run Now" button. User triggers immediate analysis without waiting for the 4-hour scheduler. Shows results when complete.
 
 ### 4.2 Re-run Analysis (Single Symbol)
 - **Endpoint:** `POST /api/analysis/rerun?symbol=EURUSD&trace_id=xxx` (Engine HTTP, port 8000)
@@ -482,20 +479,16 @@ When showing cycle progress or errors, these are the phases:
 
 ## 15. COMPLETE DASHBOARD ENDPOINT SUMMARY
 
-### Gateway gRPC (port 50052)
-| RPC | Dashboard Action |
-|---|---|
-| `RunCycle` | "Run Now" button |
-| `SetActiveSymbols` | Symbol multi-select |
-| `GetActiveSymbols` | Load current symbols |
-| `ResetActiveSymbols` | "Reset to Defaults" button |
-| `SetCycleInterval` | Interval slider/input |
-| `GetGatewayConfig` | Settings panel display |
-| `GetHealth` | Health indicator |
-
 ### Gateway HTTP (port 8080)
 | Method | Path | Dashboard Action |
 |---|---|---|
+| POST | `/api/v1/cycle/run` | "Run Now" button |
+| GET | `/api/v1/symbols` | Load current symbols |
+| PUT | `/api/v1/symbols` | Update symbol selection |
+| POST | `/api/v1/symbols/reset` | "Reset to Defaults" button |
+| GET | `/api/v1/config` | Settings panel display |
+| PUT | `/api/v1/config/interval` | Change cycle interval |
+| GET | `/api/v1/health` | Detailed health status |
 | GET | `/readiness` | Startup readiness check |
 | WS | `/ws/notifications` | Real-time event stream |
 | GET | `/events/recent` | Load event history on page open |
