@@ -109,10 +109,22 @@ class BrokerDataValidator:
                 details={"timeframe": sequence.timeframe},
             )
 
-        expected_delta = timedelta(minutes=timeframe_minutes)
-        max_allowed_gap = timedelta(
-            minutes=int(timeframe_minutes * self.max_gap_multiplier)
-        )
+        # Special handling for monthly timeframes (MN1)
+        # Months can have 28, 29, 30, or 31 days
+        is_monthly = sequence.timeframe == Timeframe.MN1
+        
+        if is_monthly:
+            # For monthly candles, validate range is 28-31 days
+            min_monthly_delta = timedelta(days=28)  # February (non-leap year)
+            max_monthly_delta = timedelta(days=31)  # Jan, Mar, May, Jul, Aug, Oct, Dec
+            # Allow up to 2x for gap detection (62 days = ~2 months)
+            max_allowed_gap = timedelta(days=62)
+        else:
+            # Standard validation for other timeframes
+            expected_delta = timedelta(minutes=timeframe_minutes)
+            max_allowed_gap = timedelta(
+                minutes=int(timeframe_minutes * self.max_gap_multiplier)
+            )
 
         for i in range(1, len(sequence.candles)):
             prev_candle = sequence.candles[i - 1]
@@ -120,19 +132,54 @@ class BrokerDataValidator:
 
             actual_delta = curr_candle.timestamp - prev_candle.timestamp
 
-            if actual_delta < expected_delta:
-                raise ProviderValidationError(
-                    "Candles too close together",
-                    details={
-                        "symbol": sequence.symbol,
-                        "timeframe": sequence.timeframe,
-                        "prev_timestamp": prev_candle.timestamp.isoformat(),
-                        "curr_timestamp": curr_candle.timestamp.isoformat(),
-                        "actual_delta_minutes": actual_delta.total_seconds() / 60,
-                        "expected_delta_minutes": timeframe_minutes,
-                    },
-                )
+            # Validate based on timeframe type
+            if is_monthly:
+                # Monthly validation: must be between 28-31 days
+                if actual_delta < min_monthly_delta:
+                    raise ProviderValidationError(
+                        "Monthly candles too close together",
+                        details={
+                            "symbol": sequence.symbol,
+                            "timeframe": sequence.timeframe,
+                            "prev_timestamp": prev_candle.timestamp.isoformat(),
+                            "curr_timestamp": curr_candle.timestamp.isoformat(),
+                            "actual_delta_days": actual_delta.total_seconds() / 86400,
+                            "min_expected_days": 28,
+                            "max_expected_days": 31,
+                        },
+                    )
+                
+                if actual_delta > max_monthly_delta and actual_delta <= max_allowed_gap:
+                    # Delta is slightly over 31 days but within gap tolerance
+                    # This can happen with incomplete current month or timezone issues
+                    # Log as warning but don't fail
+                    logger.warning(
+                        "broker_monthly_candle_spacing_irregular",
+                        extra={
+                            "symbol": sequence.symbol,
+                            "timeframe": sequence.timeframe,
+                            "prev_timestamp": prev_candle.timestamp.isoformat(),
+                            "curr_timestamp": curr_candle.timestamp.isoformat(),
+                            "actual_delta_days": actual_delta.total_seconds() / 86400,
+                            "expected_range_days": "28-31",
+                        },
+                    )
+            else:
+                # Standard timeframe validation
+                if actual_delta < expected_delta:
+                    raise ProviderValidationError(
+                        "Candles too close together",
+                        details={
+                            "symbol": sequence.symbol,
+                            "timeframe": sequence.timeframe,
+                            "prev_timestamp": prev_candle.timestamp.isoformat(),
+                            "curr_timestamp": curr_candle.timestamp.isoformat(),
+                            "actual_delta_minutes": actual_delta.total_seconds() / 60,
+                            "expected_delta_minutes": timeframe_minutes,
+                        },
+                    )
 
+            # Gap detection (applies to all timeframes)
             if actual_delta > max_allowed_gap:
                 logger.warning(
                     "broker_data_gap_detected",
