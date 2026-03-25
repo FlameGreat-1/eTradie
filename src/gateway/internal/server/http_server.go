@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,10 +15,13 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/pipeline"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 )
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,
-// and event history endpoints.
+// event history, and the dashboard REST API.
 type HTTPServer struct {
 	server *http.Server
 	redis  *infra.RedisClient
@@ -32,6 +36,10 @@ func NewHTTPServer(
 	engine *infra.EngineHTTPClient,
 	hub *alert.Hub,
 	transport *alertredis.Transport,
+	orchestrator *pipeline.Orchestrator,
+	symbolStore *symbolstore.Store,
+	settingsStore *settingsstore.Store,
+	scheduler *pipeline.Scheduler,
 ) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
@@ -53,11 +61,15 @@ func NewHTTPServer(
 	mux.HandleFunc("/events/recent", alert.RecentEventsHandler(transport))
 	mux.HandleFunc("/events/since", alert.EventsSinceHandler(transport))
 
+	// Dashboard REST API.
+	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
+	api.RegisterRoutes(mux)
+
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler:      mux,
+		Handler:      corsMiddleware(mux),
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 120 * time.Second, // RunCycle can take up to cycle_timeout_seconds (default 300s)
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -78,6 +90,30 @@ func (s *HTTPServer) Start() error {
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.log.Info().Msg("http_server_shutting_down")
 	return s.server.Shutdown(ctx)
+}
+
+// corsMiddleware adds CORS headers for dashboard cross-origin requests.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			if strings.Contains(origin, "localhost") ||
+				strings.Contains(origin, "127.0.0.1") ||
+				strings.Contains(origin, r.Host) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *HTTPServer) handleHealth(w http.ResponseWriter, _ *http.Request) {

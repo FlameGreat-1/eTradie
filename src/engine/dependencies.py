@@ -447,27 +447,119 @@ class Container:
             uow_factory=uow_factory,
         )
 
-    def build_processor(self) -> None:
+    async def build_processor(self) -> None:
         """Build the Processor LLM service.
 
-        Uses the LLM factory to create the correct provider client
-        based on PROCESSOR_LLM_PROVIDER config. Supports Anthropic,
-        OpenAI, Gemini, and any OpenAI-compatible self-hosted endpoint.
-        Must be called after build_rag() since the processor persists
-        audit data to the same database.
+        On startup, checks the database for an active LLM connection
+        saved by the user via the dashboard. If found, uses that
+        connection's provider, model, and decrypted API key.
+
+        If no active connection exists, falls back to environment
+        variables (PROCESSOR_LLM_PROVIDER, PROCESSOR_ANTHROPIC_API_KEY, etc.).
+
+        Supports Anthropic, OpenAI, Gemini, and any OpenAI-compatible
+        self-hosted endpoint. Must be called after build_rag() since
+        the processor persists audit data to the same database.
         """
-        self.processor_config = get_processor_config()
+        from engine.shared.logging import get_logger
+        _logger = get_logger(__name__)
+
+        self.processor_uow_factory = processor_uow_factory(self.db)
+
+        # Try to load active connection from database.
+        db_config = await self._load_active_llm_connection()
+        if db_config is not None:
+            self.processor_config = db_config
+        else:
+            self.processor_config = get_processor_config()
 
         self.processor_llm_client = create_llm_client(
             config=self.processor_config,
         )
 
-        self.processor_uow_factory = processor_uow_factory(self.db)
         self.processor = AnalysisProcessor(
             config=self.processor_config,
             llm_client=self.processor_llm_client,
             uow_factory=self.processor_uow_factory,
         )
+
+    async def _load_active_llm_connection(self) -> "ProcessorConfig | None":
+        """Load the active LLM connection from the database.
+
+        Returns a ProcessorConfig built from the saved connection,
+        or None if no active connection exists.
+        """
+        from engine.shared.logging import get_logger
+        _logger = get_logger(__name__)
+
+        try:
+            from engine.processor.storage.repositories.llm_connection_repository import (
+                LLMConnectionRepository,
+                decrypt_api_key,
+            )
+            from pydantic import SecretStr
+
+            async with self.db.read_session() as session:
+                repo = LLMConnectionRepository(session)
+                row = await repo.get_active()
+
+            if row is None:
+                _logger.info("no_active_llm_connection_in_db_using_env_vars")
+                return None
+
+            api_key = decrypt_api_key(row.api_key_encrypted)
+
+            # Build a ProcessorConfig from the saved connection.
+            # Start with env var defaults for non-connection fields,
+            # then override provider/model/key from the DB row.
+            env_cfg = get_processor_config()
+
+            overrides = {
+                "llm_provider": row.provider,
+                "model_name": row.model_name,
+                "temperature": row.temperature,
+                "max_output_tokens": row.max_output_tokens,
+                # Carry forward non-connection settings from env.
+                "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
+                "total_timeout_seconds": env_cfg.total_timeout_seconds,
+                "max_retries": env_cfg.max_retries,
+                "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
+                "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
+                "strict_schema_validation": env_cfg.strict_schema_validation,
+                "require_citations": env_cfg.require_citations,
+                "persist_audit_logs": env_cfg.persist_audit_logs,
+                "log_raw_llm_response": env_cfg.log_raw_llm_response,
+                # Default all provider keys to env values.
+                "anthropic_api_key": env_cfg.anthropic_api_key,
+                "openai_api_key": env_cfg.openai_api_key,
+                "gemini_api_key": env_cfg.gemini_api_key,
+                "self_hosted_api_key": env_cfg.self_hosted_api_key,
+                "api_base_url": row.base_url or env_cfg.api_base_url,
+            }
+
+            # Set the API key for the active provider from the DB.
+            key_field = f"{row.provider}_api_key"
+            if key_field in overrides:
+                overrides[key_field] = SecretStr(api_key)
+
+            cfg = ProcessorConfig(**overrides)
+
+            _logger.info(
+                "loaded_active_llm_connection_from_db",
+                extra={
+                    "provider": row.provider,
+                    "model": row.model_name,
+                    "connection_id": str(row.id),
+                },
+            )
+            return cfg
+
+        except Exception as exc:
+            _logger.warning(
+                "failed_to_load_llm_connection_from_db_falling_back_to_env",
+                extra={"error": str(exc)},
+            )
+            return None
 
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)

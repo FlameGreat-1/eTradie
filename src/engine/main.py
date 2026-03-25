@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- Processor LLM -------------------------------------------------------
-    container.build_processor()
+    await container.build_processor()
     logger.info(
         "processor_built",
         provider=container.processor_config.llm_provider,
@@ -1024,6 +1024,405 @@ def create_app() -> FastAPI:
         return {"status": "completed", "symbol": symbol, "result": {"raw": str(result)}}
 
     # -- Processor config endpoints (LLM provider/model switching) -----------
+
+    # -- LLM Connection Management endpoints ---------------------------------
+
+    @app.get("/api/llm/providers")
+    async def get_llm_providers(request: Request) -> dict:
+        """List available LLM providers and their models.
+
+        Used by the dashboard "Connect LLM" modal to populate the
+        provider dropdown and model selector.
+        """
+        return {
+            "providers": {
+                provider: {
+                    "models": models,
+                    "default_model": DEFAULT_MODELS.get(provider, ""),
+                    "accepts_custom": provider == LLMProvider.SELF_HOSTED,
+                    "requires_base_url": provider == LLMProvider.SELF_HOSTED,
+                }
+                for provider, models in AVAILABLE_MODELS.items()
+            },
+            "self_hosted": {
+                "models": [],
+                "default_model": DEFAULT_MODELS.get(LLMProvider.SELF_HOSTED, "default"),
+                "accepts_custom": True,
+                "requires_base_url": True,
+                "note": "Enter any model name supported by your endpoint",
+            },
+        }
+
+    @app.get("/api/llm/connections")
+    async def list_llm_connections(request: Request) -> dict:
+        """List all saved LLM connections."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with container.db.read_session() as session:
+            repo = LLMConnectionRepository(session)
+            rows = await repo.get_all()
+
+        connections = []
+        for row in rows:
+            connections.append({
+                "id": str(row.id),
+                "provider": row.provider,
+                "model_name": row.model_name,
+                "base_url": row.base_url,
+                "temperature": row.temperature,
+                "max_output_tokens": row.max_output_tokens,
+                "is_active": row.is_active,
+                "label": row.label,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            })
+
+        return {"connections": connections, "count": len(connections)}
+
+    @app.get("/api/llm/connections/active")
+    async def get_active_llm_connection(request: Request) -> dict:
+        """Get the currently active LLM connection."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with container.db.read_session() as session:
+            repo = LLMConnectionRepository(session)
+            row = await repo.get_active()
+
+        if row is None:
+            return {"connection": None, "message": "No active LLM connection. Please set up a connection."}
+
+        return {
+            "connection": {
+                "id": str(row.id),
+                "provider": row.provider,
+                "model_name": row.model_name,
+                "base_url": row.base_url,
+                "temperature": row.temperature,
+                "max_output_tokens": row.max_output_tokens,
+                "is_active": row.is_active,
+                "label": row.label,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            }
+        }
+
+    class CreateLLMConnectionRequest(BaseModel):
+        provider: str
+        model_name: str
+        api_key: str
+        base_url: Optional[str] = None
+        temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+        max_output_tokens: int = Field(default=16384, ge=1024, le=131072)
+        label: Optional[str] = None
+        activate: bool = True
+
+    @app.post("/api/llm/connections")
+    async def create_llm_connection(
+        request: Request,
+        body: CreateLLMConnectionRequest,
+    ) -> dict:
+        """Create a new LLM connection.
+
+        User selects provider, model, enters API key, and saves.
+        If activate=True (default), this becomes the active connection
+        and the processor is hot-swapped immediately.
+        """
+        container: Container = request.app.state.container
+
+        valid_providers = {p.value for p in LLMProvider}
+        if body.provider not in valid_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported provider '{body.provider}'. Supported: {sorted(valid_providers)}",
+            )
+
+        if body.provider == LLMProvider.SELF_HOSTED and not body.base_url:
+            raise HTTPException(
+                status_code=400,
+                detail="base_url is required for self_hosted provider",
+            )
+
+        if not body.api_key.strip():
+            raise HTTPException(status_code=400, detail="api_key must not be empty")
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = LLMConnectionRepository(session)
+            row = await repo.create(
+                provider=body.provider,
+                model_name=body.model_name,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                temperature=body.temperature,
+                max_output_tokens=body.max_output_tokens,
+                label=body.label or "",
+                activate=body.activate,
+            )
+
+            connection_id = str(row.id)
+
+        # Hot-swap the processor if this connection is now active.
+        if body.activate:
+            _hot_swap_processor(
+                container,
+                provider=body.provider,
+                model_name=body.model_name,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                temperature=body.temperature,
+                max_output_tokens=body.max_output_tokens,
+            )
+
+        return {
+            "id": connection_id,
+            "provider": body.provider,
+            "model_name": body.model_name,
+            "is_active": body.activate,
+            "label": body.label or f"{body.provider} / {body.model_name}",
+            "message": "Connection created and activated." if body.activate else "Connection created.",
+        }
+
+    class UpdateLLMConnectionRequest(BaseModel):
+        provider: Optional[str] = None
+        model_name: Optional[str] = None
+        api_key: Optional[str] = None
+        base_url: Optional[str] = None
+        temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+        max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
+        label: Optional[str] = None
+
+    @app.put("/api/llm/connections/{connection_id}")
+    async def update_llm_connection(
+        request: Request,
+        connection_id: str,
+        body: UpdateLLMConnectionRequest,
+    ) -> dict:
+        """Update an existing LLM connection."""
+        container: Container = request.app.state.container
+
+        if body.provider is not None:
+            valid_providers = {p.value for p in LLMProvider}
+            if body.provider not in valid_providers:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported provider '{body.provider}'. Supported: {sorted(valid_providers)}",
+                )
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+            decrypt_api_key,
+        )
+
+        async with container.db.session() as session:
+            repo = LLMConnectionRepository(session)
+            row = await repo.update_connection(
+                connection_id,
+                provider=body.provider,
+                model_name=body.model_name,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                temperature=body.temperature,
+                max_output_tokens=body.max_output_tokens,
+                label=body.label,
+            )
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        # If this connection is active, hot-swap the processor with updated values.
+        if row.is_active:
+            api_key = body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
+            _hot_swap_processor(
+                container,
+                provider=row.provider,
+                model_name=row.model_name,
+                api_key=api_key,
+                base_url=row.base_url,
+                temperature=row.temperature,
+                max_output_tokens=row.max_output_tokens,
+            )
+
+        return {
+            "id": str(row.id),
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "is_active": row.is_active,
+            "label": row.label,
+            "message": "Connection updated.",
+        }
+
+    @app.post("/api/llm/connections/{connection_id}/activate")
+    async def activate_llm_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Activate a saved LLM connection.
+
+        Deactivates all other connections and hot-swaps the processor
+        to use this connection's provider, model, and API key.
+        """
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+            decrypt_api_key,
+        )
+
+        async with container.db.session() as session:
+            repo = LLMConnectionRepository(session)
+            row = await repo.activate(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        api_key = decrypt_api_key(row.api_key_encrypted)
+        _hot_swap_processor(
+            container,
+            provider=row.provider,
+            model_name=row.model_name,
+            api_key=api_key,
+            base_url=row.base_url,
+            temperature=row.temperature,
+            max_output_tokens=row.max_output_tokens,
+        )
+
+        return {
+            "id": str(row.id),
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "is_active": True,
+            "label": row.label,
+            "message": f"Connection activated. Processor now using {row.provider}/{row.model_name}.",
+        }
+
+    @app.post("/api/llm/connections/{connection_id}/deactivate")
+    async def deactivate_llm_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Deactivate a connection without deleting it."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = LLMConnectionRepository(session)
+            row = await repo.deactivate(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        return {
+            "id": str(row.id),
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "is_active": False,
+            "label": row.label,
+            "message": "Connection deactivated. No active LLM connection.",
+        }
+
+    @app.delete("/api/llm/connections/{connection_id}")
+    async def delete_llm_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Permanently delete a saved LLM connection."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = LLMConnectionRepository(session)
+            deleted = await repo.delete(connection_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
+
+    def _hot_swap_processor(
+        container: Container,
+        *,
+        provider: str,
+        model_name: str,
+        api_key: str,
+        base_url: Optional[str],
+        temperature: float,
+        max_output_tokens: int,
+    ) -> None:
+        """Hot-swap the processor to use a new LLM connection.
+
+        Rebuilds the LLM client and processor with the new settings.
+        Takes effect on the next analysis cycle.
+        """
+        from pydantic import SecretStr
+        from engine.processor.config import ProcessorConfig
+        from engine.processor.llm.factory import create_llm_client
+        from engine.processor.service import AnalysisProcessor
+
+        old_cfg = container.processor_config
+
+        config_overrides = {
+            "llm_provider": provider,
+            "model_name": model_name,
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
+            "llm_timeout_seconds": old_cfg.llm_timeout_seconds,
+            "total_timeout_seconds": old_cfg.total_timeout_seconds,
+            "max_retries": old_cfg.max_retries,
+            "retry_backoff_base_seconds": old_cfg.retry_backoff_base_seconds,
+            "retry_backoff_max_seconds": old_cfg.retry_backoff_max_seconds,
+            "strict_schema_validation": old_cfg.strict_schema_validation,
+            "require_citations": old_cfg.require_citations,
+            "persist_audit_logs": old_cfg.persist_audit_logs,
+            "log_raw_llm_response": old_cfg.log_raw_llm_response,
+            "anthropic_api_key": old_cfg.anthropic_api_key,
+            "openai_api_key": old_cfg.openai_api_key,
+            "gemini_api_key": old_cfg.gemini_api_key,
+            "self_hosted_api_key": old_cfg.self_hosted_api_key,
+            "api_base_url": base_url or old_cfg.api_base_url,
+        }
+
+        # Set the API key for the target provider.
+        key_field = f"{provider}_api_key"
+        if key_field in config_overrides:
+            config_overrides[key_field] = SecretStr(api_key)
+
+        new_cfg = ProcessorConfig(**config_overrides)
+        new_client = create_llm_client(new_cfg)
+        new_processor = AnalysisProcessor(
+            config=new_cfg,
+            llm_client=new_client,
+            uow_factory=container.processor_uow_factory,
+        )
+
+        container.processor_config = new_cfg
+        container.processor_llm_client = new_client
+        container.processor = new_processor
+
+        logger.info(
+            "processor_hot_swapped_from_connection",
+            extra={
+                "provider": provider,
+                "model": model_name,
+                "temperature": temperature,
+            },
+        )
 
     @app.get("/api/processor/models")
     async def get_available_models(request: Request) -> dict:
