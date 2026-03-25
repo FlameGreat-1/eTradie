@@ -106,7 +106,7 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 	}
 
 	// Servers.
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport)
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler)
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient)
 
 	log.Info().
