@@ -159,6 +159,7 @@ def create_mt5_broker_from_connection(
             provider="metaapi",
             metaapi_token=metaapi_token,
             metaapi_account_id=row.metaapi_account_id,
+            metaapi_base_url="https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
             zmq_host="",
             zmq_port=5555,
             terminal_path=None,
