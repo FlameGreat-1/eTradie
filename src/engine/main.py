@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- Processor LLM -------------------------------------------------------
-    container.build_processor()
+    await container.build_processor()
     logger.info(
         "processor_built",
         provider=container.processor_config.llm_provider,
