@@ -173,34 +173,68 @@ View past and current analysis results from the AI processor.
 
 ---
 
-## 6. AI MODEL CONFIGURATION
+## 6. LLM CONNECTION MANAGEMENT
 
-Switch LLM providers and models at runtime.
+User sets up their AI model: selects provider, picks model, enters API key, saves. Persisted in PostgreSQL. Can have multiple saved connections, activate/deactivate/delete them.
 
-### 6.1 Get Available Models
-- **Endpoint:** `GET /api/processor/models` (Engine HTTP, port 8000)
+### 6.1 Get Available Providers & Models
+- **Endpoint:** `GET /api/llm/providers` (Engine HTTP, port 8000)
 - **Response:**
-  - `current_provider`, `current_model`
-  - `providers`: Per-provider model lists with defaults
-  - `self_hosted`: Custom model support config
-- **Dashboard use:** Model selector dropdown. Shows all available AI providers and their models.
+  - `providers`: Per-provider model lists with defaults and flags
+    - `anthropic`: claude-sonnet-4, claude-opus-4, claude-3.5-sonnet, etc.
+    - `openai`: gpt-4o, gpt-4o-mini, o3, o3-mini, o4-mini, etc.
+    - `gemini`: gemini-2.5-pro, gemini-2.5-flash, etc.
+    - `self_hosted`: Any custom model (requires base_url)
+- **Dashboard use:** Populates the provider dropdown and model selector in the "Connect LLM" modal.
 
-### 6.2 Get Processor Config
-- **Endpoint:** `GET /api/processor/config` (Engine HTTP, port 8000)
-- **Response:** `llm_provider`, `model_name`, `temperature`, `max_output_tokens`, `supported_providers`
-- **Dashboard use:** Current AI config display.
+### 6.2 List Saved Connections
+- **Endpoint:** `GET /api/llm/connections` (Engine HTTP, port 8000)
+- **Response:** `{"connections": [...], "count": int}`
+- **Each connection:** `id`, `provider`, `model_name`, `base_url`, `temperature`, `max_output_tokens`, `is_active`, `label`, `created_at`, `updated_at`
+- **Note:** API keys are never returned in responses (stored encrypted in DB).
+- **Dashboard use:** List of saved LLM connections. Shows which one is active.
 
-### 6.3 Update Processor Config
-- **Endpoint:** `PUT /api/processor/config` (Engine HTTP, port 8000)
+### 6.3 Get Active Connection
+- **Endpoint:** `GET /api/llm/connections/active` (Engine HTTP, port 8000)
+- **Response:** `{"connection": {...}}` or `{"connection": null, "message": "No active LLM connection."}`
+- **Dashboard use:** Shows the currently active AI model in the header/status bar.
+
+### 6.4 Create New Connection (Connect LLM)
+- **Endpoint:** `POST /api/llm/connections` (Engine HTTP, port 8000)
 - **Request Body:**
-  - `llm_provider` (optional): New provider (anthropic, openai, gemini, self_hosted)
-  - `model_name` (optional): New model
-  - `temperature` (optional): 0.0-2.0
-  - `max_output_tokens` (optional): 1024-131072
-  - `api_key` (optional): API key for new provider
-  - `api_base_url` (optional): Base URL for self-hosted
-- **Response:** `{"status": "updated", "llm_provider": ..., "model_name": ..., ...}`
-- **Dashboard use:** Model switcher. Hot-swaps the AI at runtime. Takes effect on next analysis.
+  - `provider` (string, required): `anthropic`, `openai`, `gemini`, `self_hosted`
+  - `model_name` (string, required): Model identifier from the provider's list
+  - `api_key` (string, required): User's API key for the provider
+  - `base_url` (string, optional): Required for `self_hosted` provider
+  - `temperature` (float, optional): 0.0-2.0 (default 0.0)
+  - `max_output_tokens` (int, optional): 1024-131072 (default 16384)
+  - `label` (string, optional): Display name (auto-generated if empty)
+  - `activate` (bool, optional): Whether to activate immediately (default true)
+- **Response:** `{"id": "...", "provider": "...", "model_name": "...", "is_active": true, "message": "Connection created and activated."}`
+- **Behavior:** API key is encrypted and stored in PostgreSQL. If `activate=true`, all other connections are deactivated and the processor is hot-swapped immediately.
+- **Dashboard use:** "Connect LLM" modal. User selects provider from dropdown, picks model, enters API key, clicks Save.
+
+### 6.5 Update Connection
+- **Endpoint:** `PUT /api/llm/connections/{id}` (Engine HTTP, port 8000)
+- **Request Body:** Any subset of: `provider`, `model_name`, `api_key`, `base_url`, `temperature`, `max_output_tokens`, `label`
+- **Response:** Updated connection object
+- **Dashboard use:** Edit an existing connection (change model, update API key, etc.).
+
+### 6.6 Activate Connection
+- **Endpoint:** `POST /api/llm/connections/{id}/activate` (Engine HTTP, port 8000)
+- **Response:** `{"is_active": true, "message": "Connection activated. Processor now using anthropic/claude-sonnet-4."}`
+- **Behavior:** Deactivates all other connections. Hot-swaps the processor immediately.
+- **Dashboard use:** "Use This" button on a saved connection.
+
+### 6.7 Deactivate Connection
+- **Endpoint:** `POST /api/llm/connections/{id}/deactivate` (Engine HTTP, port 8000)
+- **Response:** `{"is_active": false, "message": "Connection deactivated."}`
+- **Dashboard use:** "Deactivate" button. Stops using this connection without deleting it.
+
+### 6.8 Delete Connection
+- **Endpoint:** `DELETE /api/llm/connections/{id}` (Engine HTTP, port 8000)
+- **Response:** `{"deleted": true, "message": "Connection deleted."}`
+- **Dashboard use:** "Delete" button. Permanently removes the saved connection and its encrypted API key.
 
 ---
 
@@ -503,9 +537,14 @@ When showing cycle progress or errors, these are the phases:
 | GET | `/api/analysis/stats` | Analysis statistics |
 | GET | `/api/analysis/{id}` | Analysis detail view |
 | POST | `/api/analysis/rerun` | Re-run analysis for a symbol |
-| GET | `/api/processor/models` | Available AI models |
-| GET | `/api/processor/config` | Current AI config |
-| PUT | `/api/processor/config` | Switch AI model |
+| GET | `/api/llm/providers` | Available providers & models |
+| GET | `/api/llm/connections` | List saved connections |
+| GET | `/api/llm/connections/active` | Get active connection |
+| POST | `/api/llm/connections` | Create new connection |
+| PUT | `/api/llm/connections/{id}` | Update connection |
+| POST | `/api/llm/connections/{id}/activate` | Activate connection |
+| POST | `/api/llm/connections/{id}/deactivate` | Deactivate connection |
+| DELETE | `/api/llm/connections/{id}` | Delete connection |
 
 ### Execution HTTP (port 8080)
 | Method | Path | Dashboard Action |
