@@ -1306,12 +1306,33 @@ The AI decision engine.
 | POST | `/internal/broker/close_partial` | Partial close |
 | POST | `/internal/broker/close_position` | Full close |
 
+### Execution HTTP (port 8080)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/settings` | Get execution settings (mode, risk controls) |
+| PUT | `/api/v1/settings` | Update execution settings from dashboard |
+| GET | `/api/v1/state` | Execution state (positions, orders, P&L) |
+| POST | `/api/v1/orders/cancel` | Cancel pending order |
+| GET | `/api/v1/account` | Live broker account info |
+| WS | `/ws/notifications` | Execution event stream |
+| GET | `/health` | Execution liveness |
+| GET | `/metrics` | Prometheus metrics |
+
 ### Execution gRPC (port 50053)
 | RPC | Purpose |
 |---|---|
-| `ExecuteTrade` | Place trade |
+| `ExecuteTrade` | Place trade (10 pre-checks + sizing + execute) |
 | `CancelPendingOrder` | Cancel order |
 | `GetExecutionState` | Positions + P&L |
+
+### Management HTTP (port 8083)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/management/trades` | Active managed trades |
+| GET | `/api/v1/management/journal` | Closed trade journal |
+| GET | `/api/v1/management/metrics` | Performance analytics |
+| GET | `/health` | Management liveness |
+| GET | `/metrics` | Prometheus metrics |
 
 ### Management gRPC (port 50054)
 | RPC | Purpose |
