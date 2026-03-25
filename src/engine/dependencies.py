@@ -87,6 +87,10 @@ from engine.processor.storage.uow import processor_uow_factory
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
 
+from engine.shared.logging import get_logger
+
+_logger = get_logger(__name__)
+
 
 class Container:
     def __init__(self) -> None:
@@ -276,23 +280,54 @@ class Container:
         self.snd_config = SnDConfig()
 
     def _build_ta_brokers(self) -> None:
+        """Build broker clients from environment variables.
+
+        This is the synchronous startup path. It tries to create the
+        MT5 broker from env vars. If env vars are missing (user will
+        configure via dashboard), mt5_client is set to None and will
+        be populated later by build_broker() after the DB is ready.
+
+        The Twelve Data fallback client is always created since its
+        API key is a simple env var with no complex provider logic.
+        """
         s = self.settings
 
-        mt5_config = MT5Config()
-        self.mt5_client = create_mt5_broker(
-            config=mt5_config,
-            http_client=self.http_client,
-        )
+        # Try to create MT5 client from env vars. If credentials are
+        # missing, this is expected when using DB-driven connections.
+        self.mt5_client = None
+        try:
+            mt5_config = MT5Config()
+            self.mt5_client = create_mt5_broker(
+                config=mt5_config,
+                http_client=self.http_client,
+            )
+            _logger.info(
+                "mt5_broker_created_from_env",
+                extra={"provider": mt5_config.provider},
+            )
+        except Exception as exc:
+            _logger.info(
+                "mt5_broker_env_not_configured_will_load_from_db",
+                extra={"reason": str(exc)},
+            )
 
-        twelve_config = TwelveDataConfig(
-            api_key=s.twelvedata_api_key,
-            base_url=s.twelvedata_base_url,
-        )
-        self.twelve_data_client = TwelveDataClient(
-            config=twelve_config,
-            http_client=self.http_client,
-            cache=self.cache,
-        )
+        # Twelve Data fallback is always available for market data.
+        try:
+            twelve_config = TwelveDataConfig(
+                api_key=s.twelvedata_api_key,
+                base_url=s.twelvedata_base_url,
+            )
+            self.twelve_data_client = TwelveDataClient(
+                config=twelve_config,
+                http_client=self.http_client,
+                cache=self.cache,
+            )
+        except Exception as exc:
+            _logger.warning(
+                "twelve_data_client_creation_failed",
+                extra={"error": str(exc)},
+            )
+            self.twelve_data_client = None
 
         self.broker_registry = BrokerRegistry(
             ta_config=self.ta_config,
@@ -365,6 +400,130 @@ class Container:
             ta_config=self.ta_config,
             fallback_client=self.twelve_data_client,
         )
+
+    # -- Broker connection management (async, requires DB) ---------------------
+
+    async def build_broker(self) -> None:
+        """Load the active broker connection from the database.
+
+        Called from the FastAPI lifespan after the database is ready.
+        If an active broker connection exists in the DB, it takes
+        precedence over any env-var-based broker created during
+        synchronous __init__.
+
+        Fallback chain:
+          1. Active broker connection from DB (user-configured)
+          2. MT5 broker from env vars (created in _build_ta_brokers)
+          3. None (user must configure via dashboard)
+
+        When a broker client is resolved, it is wired into:
+          - self.mt5_client (used by /internal/broker/* endpoints)
+          - self.ta_orchestrator.broker_client (used by TA analysis)
+        """
+        db_client = await self._load_active_broker_connection()
+        if db_client is not None:
+            # Shut down the old env-var client if one was created.
+            if self.mt5_client is not None:
+                try:
+                    await self.mt5_client.shutdown()
+                except Exception:
+                    pass
+            self.mt5_client = db_client
+            self.ta_orchestrator.broker_client = db_client
+            _logger.info("broker_loaded_from_db_connection")
+            return
+
+        if self.mt5_client is not None:
+            _logger.info("broker_using_env_var_configuration")
+            return
+
+        _logger.warning(
+            "no_broker_configured",
+            extra={
+                "action": "User must configure a broker connection via the dashboard.",
+            },
+        )
+
+    async def _load_active_broker_connection(self):
+        """Load the active broker connection from the database.
+
+        Returns a BrokerBase instance built from the saved connection,
+        or None if no active connection exists.
+        """
+        try:
+            from engine.processor.storage.repositories.broker_connection_repository import (
+                BrokerConnectionRepository,
+                decrypt_credential,
+            )
+            from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
+
+            async with self.db.read_session() as session:
+                repo = BrokerConnectionRepository(session)
+                row = await repo.get_active()
+
+            if row is None:
+                _logger.info("no_active_broker_connection_in_db")
+                return None
+
+            # Decrypt credentials based on connection type.
+            ea_auth_token = ""
+            metaapi_token = ""
+
+            if row.connection_type == "ea" and row.ea_auth_token_encrypted:
+                ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
+
+            if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
+                metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+
+            client = create_mt5_broker_from_connection(
+                row=row,
+                http_client=self.http_client,
+                ea_auth_token=ea_auth_token,
+                metaapi_token=metaapi_token,
+            )
+
+            _logger.info(
+                "loaded_active_broker_connection_from_db",
+                extra={
+                    "connection_id": str(row.id),
+                    "type": row.connection_type,
+                    "name": row.name,
+                },
+            )
+            return client
+
+        except Exception as exc:
+            _logger.warning(
+                "failed_to_load_broker_connection_from_db",
+                extra={"error": str(exc)},
+            )
+            return None
+
+    def hot_swap_broker(self, new_client) -> None:
+        """Replace the active broker client at runtime.
+
+        Called when a user activates a different broker connection
+        via the dashboard API. Updates both the container reference
+        and the TA orchestrator so all subsequent broker calls
+        (including /internal/broker/* endpoints and TA analysis)
+        use the new client immediately.
+
+        Args:
+            new_client: A fully configured BrokerBase implementation.
+        """
+        old_client = self.mt5_client
+        self.mt5_client = new_client
+        self.ta_orchestrator.broker_client = new_client
+
+        _logger.info(
+            "broker_hot_swapped",
+            extra={
+                "old_broker": type(old_client).__name__ if old_client else "None",
+                "new_broker": type(new_client).__name__,
+            },
+        )
+
+    # -- RAG -------------------------------------------------------------------
 
     async def build_rag(self) -> None:
         rc = self.rag_config
@@ -447,6 +606,8 @@ class Container:
             uow_factory=uow_factory,
         )
 
+    # -- Processor (LLM) ------------------------------------------------------
+
     async def build_processor(self) -> None:
         """Build the Processor LLM service.
 
@@ -461,9 +622,6 @@ class Container:
         self-hosted endpoint. Must be called after build_rag() since
         the processor persists audit data to the same database.
         """
-        from engine.shared.logging import get_logger
-        _logger = get_logger(__name__)
-
         self.processor_uow_factory = processor_uow_factory(self.db)
 
         # Try to load active connection from database.
@@ -489,9 +647,6 @@ class Container:
         Returns a ProcessorConfig built from the saved connection,
         or None if no active connection exists.
         """
-        from engine.shared.logging import get_logger
-        _logger = get_logger(__name__)
-
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
                 LLMConnectionRepository,
@@ -561,10 +716,15 @@ class Container:
             )
             return None
 
+    # -- Shutdown --------------------------------------------------------------
+
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
-        if hasattr(self, "mt5_client"):
-            await self.mt5_client.shutdown()
+        if self.mt5_client is not None:
+            try:
+                await self.mt5_client.shutdown()
+            except Exception:
+                pass
         if hasattr(self, "rag_vector_store"):
             await self.rag_vector_store.close()
         if hasattr(self, "rag_embedding_provider"):
