@@ -259,6 +259,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
             )
+        _require_broker(container)
 
         results = []
         for symbol in body.symbols:
@@ -749,6 +750,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
             )
+        _require_broker(container)
 
         symbol = symbol.upper().strip()
         if not symbol:
@@ -2068,10 +2070,25 @@ def create_app() -> FastAPI:
     # The Go services call these at EXECUTION_BROKER_BRIDGE_URL and
     # MANAGEMENT_BROKER_BRIDGE_URL (both http://engine:8000).
 
+    def _require_broker(container: Container) -> None:
+        """Raise 503 if no broker client is configured.
+
+        Called at the top of every /internal/broker/* endpoint and
+        any endpoint that requires a live broker connection.
+        Returns a clean HTTP 503 that the Go services handle gracefully
+        (bridge.go checks for non-200 status codes).
+        """
+        if container.mt5_client is None:
+            raise HTTPException(
+                status_code=503,
+                detail="No broker connection configured. Please set up a broker connection via the dashboard.",
+            )
+
     @app.get("/internal/broker/account_info")
     async def broker_account_info(request: Request) -> dict:
         """Return live account balance, equity, margin, free margin."""
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             info = await container.mt5_client.get_account_info()
             return {
@@ -2089,6 +2106,7 @@ def create_app() -> FastAPI:
     async def broker_positions(request: Request) -> list:
         """Return all open positions at the broker."""
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             positions = await container.mt5_client.get_positions()
             return [
@@ -2115,6 +2133,7 @@ def create_app() -> FastAPI:
     async def broker_pending_orders(request: Request) -> list:
         """Return all pending limit/stop orders at the broker."""
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             orders = await container.mt5_client.get_pending_orders()
             return [
@@ -2146,6 +2165,7 @@ def create_app() -> FastAPI:
         if not symbol:
             raise HTTPException(status_code=400, detail="symbol parameter required")
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             info = await container.mt5_client.get_symbol_info(symbol)
             return info
@@ -2167,6 +2187,7 @@ def create_app() -> FastAPI:
         if not symbol:
             raise HTTPException(status_code=400, detail="symbol parameter required")
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             tick = await container.mt5_client.get_tick_price(symbol)
             return {
@@ -2189,6 +2210,7 @@ def create_app() -> FastAPI:
         Called by Execution Module B's bridge.go placeOrder().
         """
         container: Container = request.app.state.container
+        _require_broker(container)
         body = await request.json()
 
         symbol = body.get("symbol", "")
@@ -2233,6 +2255,7 @@ def create_app() -> FastAPI:
     async def broker_cancel_order(request: Request) -> dict:
         """Cancel a pending order by broker order ID."""
         container: Container = request.app.state.container
+        _require_broker(container)
         body = await request.json()
         order_id = str(body.get("order_id", ""))
 
@@ -2258,6 +2281,7 @@ def create_app() -> FastAPI:
         if not ticket:
             raise HTTPException(status_code=400, detail="ticket parameter required")
         container: Container = request.app.state.container
+        _require_broker(container)
         try:
             p = await container.mt5_client.get_position(ticket)
             return {
@@ -2284,6 +2308,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ModifyPosition().
         """
         container: Container = request.app.state.container
+        _require_broker(container)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
@@ -2314,6 +2339,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ClosePartial().
         """
         container: Container = request.app.state.container
+        _require_broker(container)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
@@ -2348,6 +2374,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ClosePosition().
         """
         container: Container = request.app.state.container
+        _require_broker(container)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
