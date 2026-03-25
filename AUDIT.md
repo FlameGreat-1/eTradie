@@ -499,7 +499,7 @@ When showing cycle progress or errors, these are the phases:
 
 ---
 
-## 14. SERVICE PORTS
+## 15. SERVICE PORTS
 
 | Service | Protocol | Port | What Dashboard Connects To |
 |---|---|---|---|
@@ -511,7 +511,7 @@ When showing cycle progress or errors, these are the phases:
 
 ---
 
-## 15. COMPLETE DASHBOARD ENDPOINT SUMMARY
+## 16. COMPLETE DASHBOARD ENDPOINT SUMMARY
 
 ### Gateway HTTP (port 8080)
 | Method | Path | Dashboard Action |
@@ -537,14 +537,24 @@ When showing cycle progress or errors, these are the phases:
 | GET | `/api/analysis/stats` | Analysis statistics |
 | GET | `/api/analysis/{id}` | Analysis detail view |
 | POST | `/api/analysis/rerun` | Re-run analysis for a symbol |
-| GET | `/api/llm/providers` | Available providers & models |
-| GET | `/api/llm/connections` | List saved connections |
-| GET | `/api/llm/connections/active` | Get active connection |
-| POST | `/api/llm/connections` | Create new connection |
-| PUT | `/api/llm/connections/{id}` | Update connection |
-| POST | `/api/llm/connections/{id}/activate` | Activate connection |
-| POST | `/api/llm/connections/{id}/deactivate` | Deactivate connection |
-| DELETE | `/api/llm/connections/{id}` | Delete connection |
+| GET | `/api/llm/providers` | Available LLM providers & models |
+| GET | `/api/llm/connections` | List saved LLM connections |
+| GET | `/api/llm/connections/active` | Get active LLM connection |
+| POST | `/api/llm/connections` | Create new LLM connection |
+| PUT | `/api/llm/connections/{id}` | Update LLM connection |
+| POST | `/api/llm/connections/{id}/activate` | Activate LLM connection |
+| POST | `/api/llm/connections/{id}/deactivate` | Deactivate LLM connection |
+| DELETE | `/api/llm/connections/{id}` | Delete LLM connection |
+| POST | `/api/broker/connections` | Create broker connection (EA or MetaAPI) |
+| GET | `/api/broker/connections` | List all broker connections |
+| GET | `/api/broker/connections/active` | Get active broker connection |
+| GET | `/api/broker/connections/{id}` | Get broker connection by ID |
+| PUT | `/api/broker/connections/{id}` | Update broker connection |
+| POST | `/api/broker/connections/{id}/activate` | Activate broker connection |
+| POST | `/api/broker/connections/{id}/deactivate` | Deactivate broker connection |
+| POST | `/api/broker/connections/{id}/set-primary` | Set broker as primary |
+| POST | `/api/broker/connections/{id}/test` | Test broker connection health |
+| DELETE | `/api/broker/connections/{id}` | Delete broker connection |
 
 ### Execution HTTP (port 8080)
 | Method | Path | Dashboard Action |
