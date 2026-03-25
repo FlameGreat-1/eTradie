@@ -29,6 +29,10 @@ class MT5Config(BaseSettings):
         default="",
         description="MetaApi.cloud provisioned account ID.",
     )
+    metaapi_base_url: str = Field(
+        default="https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+        description="MetaApi.cloud REST API base URL. Override for custom endpoints.",
+    )
 
     # -- ZeroMQ Native settings ------------------------------------------------
     zmq_host: str = Field(

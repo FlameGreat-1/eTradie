@@ -6,6 +6,12 @@ using the same Fernet symmetric encryption as LLM connections.
 
 The encryption key is derived identically to the LLM connection
 repository so both use the same key derivation path.
+
+NOTE: This module lives under processor/storage/ (not ta/broker/)
+because it shares the same SQLAlchemy Base, session management,
+and encryption infrastructure as the LLM connection repository.
+Both broker and LLM connections are user-configured via the
+dashboard and follow the same CRUD + encryption pattern.
 """
 
 from __future__ import annotations
@@ -299,7 +305,8 @@ class BrokerConnectionRepository:
         if name is not None:
             values["name"] = name
         if ea_host is not None:
-            values["ea_host"] = ea_host
+            _validate_host(ea_host.strip())
+            values["ea_host"] = ea_host.strip()
         if ea_port is not None:
             if ea_port < 1024 or ea_port > 65535:
                 raise ValueError(
