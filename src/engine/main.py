@@ -22,6 +22,37 @@ from engine.processor.models.io import ProcessorInput
 from engine.shared.store import RedisSymbolReader
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 
+
+async def _rate_limit(
+    request: "Request",
+    key_prefix: str,
+    max_requests: int = 10,
+    window_seconds: int = 60,
+) -> None:
+    """Redis-based sliding window rate limiter for dashboard API endpoints.
+
+    Raises HTTP 429 if the caller exceeds max_requests within window_seconds.
+    Uses the client IP as the rate limit key.
+    """
+    container: Container = request.app.state.container
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"ratelimit:{key_prefix}:{client_ip}"
+
+    try:
+        current = await container.cache.increment(rate_key)
+        if current == 1:
+            await container.cache.expire(rate_key, window_seconds)
+        if current > max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Max {max_requests} requests per {window_seconds}s.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # If Redis is down, allow the request (fail open for availability).
+        pass
+
 logger = get_logger(__name__)
 
 
