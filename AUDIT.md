@@ -499,7 +499,296 @@ When showing cycle progress or errors, these are the phases:
 
 ---
 
-## 14. SERVICE PORTS
+## 14. BROKER CONNECTION MANAGEMENT
+
+User sets up their MT5 broker connection: selects EA (ZeroMQ) or MetaAPI, enters credentials, saves. Persisted in PostgreSQL with encrypted credentials. Can have multiple saved connections (e.g. VPS EA, Local PC EA, MetaAPI), activate/deactivate/test/delete them. Only one connection can be active at a time.
+
+**Connection Types:**
+- **EA (ZeroMQ):** Connects to an MT5 terminal running the ZeroMQ Expert Advisor. The MT5 can be on a local Windows PC or a cloud Windows VPS. User provides the host IP, port, and auth token.
+- **MetaAPI:** Connects to MT5 via MetaApi.cloud REST API. No local MT5 installation needed. User provides their MetaAPI token and account ID.
+- **Twelve-Data (Fallback):** Automatically used as fallback for market data if the primary broker connection fails. Not user-configurable (uses env var API key). Does NOT support trading operations.
+
+**Connection Lifecycle:**
+1. User clicks "Connect Broker" on dashboard
+2. Selects EA or MetaAPI
+3. Fills in credentials in the modal/page
+4. Clicks Save (creates connection, optionally activates)
+5. Clicks "Test" to verify connectivity
+6. Activates the connection (hot-swaps the broker client)
+7. Can later deactivate, switch to another connection, or delete
+
+### 14.1 Create Broker Connection
+- **Endpoint:** `POST /api/broker/connections` (Engine HTTP, port 8000)
+- **Request Body:**
+  - `connection_type` (string, required): `"ea"` or `"metaapi"`
+  - `name` (string, required): Display name (e.g. "VPS EA - ICMarkets", "Local PC Backup", "MetaAPI Demo")
+  - **EA-specific fields (required when `connection_type` = `"ea"`):**
+    - `ea_host` (string, required): IP address or hostname of the machine running MT5 + ZeroMQ EA (e.g. `"45.76.123.45"` for VPS, `"192.168.1.100"` for local PC)
+    - `ea_port` (int, required): ZeroMQ REP port (1024-65535, default is typically 5555)
+    - `ea_auth_token` (string, optional): Authentication token that must match the EA's `AUTH_TOKEN` parameter. Stored encrypted.
+  - **MetaAPI-specific fields (required when `connection_type` = `"metaapi"`):**
+    - `metaapi_token` (string, required): MetaApi.cloud API token. Stored encrypted.
+    - `metaapi_account_id` (string, required): MetaApi provisioned account ID
+  - **Common MT5 fields (optional for both types):**
+    - `mt5_server` (string, optional): MT5 broker server name (e.g. `"ICMarketsSC-Demo"`, `"Pepperstone-Live"`)
+    - `mt5_login` (string, optional): MT5 account login number (e.g. `"51234567"`)
+  - `activate` (bool, optional): Whether to activate immediately (default `true`). If true, all other connections are deactivated and the broker client is hot-swapped.
+- **Response:**
+  ```json
+  {
+    "id": "uuid",
+    "connection_type": "ea",
+    "name": "VPS EA - ICMarkets",
+    "ea_host": "45.76.123.45",
+    "ea_port": 5555,
+    "metaapi_account_id": null,
+    "mt5_server": "ICMarketsSC-Demo",
+    "mt5_login": "51234567",
+    "is_active": true,
+    "is_primary": true,
+    "status": "untested",
+    "status_message": "",
+    "last_connected_at": null,
+    "created_at": "2026-03-25T17:00:00+00:00",
+    "updated_at": "2026-03-25T17:00:00+00:00",
+    "message": "Connection created and activated."
+  }
+  ```
+- **Validation Errors (400):**
+  - `connection_type must be one of {'ea', 'metaapi'}`
+  - `name must not be empty`
+  - `ea_host is required for EA connections`
+  - `ea_port must be 1024..65535 for EA connections`
+  - `metaapi_token is required for MetaAPI connections`
+  - `metaapi_account_id is required for MetaAPI connections`
+- **Note:** Encrypted credentials (ea_auth_token, metaapi_token) are NEVER returned in any response.
+- **Dashboard use:** "Connect Broker" modal. Two tabs: EA and MetaAPI. User fills in the form and clicks Save.
+
+### 14.2 List All Broker Connections
+- **Endpoint:** `GET /api/broker/connections` (Engine HTTP, port 8000)
+- **Response:**
+  ```json
+  {
+    "connections": [
+      {
+        "id": "uuid",
+        "connection_type": "ea",
+        "name": "VPS EA - ICMarkets",
+        "ea_host": "45.76.123.45",
+        "ea_port": 5555,
+        "metaapi_account_id": null,
+        "mt5_server": "ICMarketsSC-Demo",
+        "mt5_login": "51234567",
+        "is_active": true,
+        "is_primary": true,
+        "status": "connected",
+        "status_message": "Connection successful",
+        "last_connected_at": "2026-03-25T17:05:00+00:00",
+        "created_at": "2026-03-25T17:00:00+00:00",
+        "updated_at": "2026-03-25T17:05:00+00:00"
+      },
+      {
+        "id": "uuid",
+        "connection_type": "ea",
+        "name": "Local PC Backup",
+        "ea_host": "192.168.1.100",
+        "ea_port": 5555,
+        "metaapi_account_id": null,
+        "mt5_server": "ICMarketsSC-Demo",
+        "mt5_login": "51234567",
+        "is_active": false,
+        "is_primary": false,
+        "status": "connected",
+        "status_message": "Connection successful",
+        "last_connected_at": "2026-03-25T16:00:00+00:00",
+        "created_at": "2026-03-25T15:00:00+00:00",
+        "updated_at": "2026-03-25T17:00:00+00:00"
+      }
+    ],
+    "count": 2
+  }
+  ```
+- **Dashboard use:** Broker connections list. Shows all saved connections with status badges (connected/disconnected/error/untested). Highlights the active one.
+
+### 14.3 Get Active Broker Connection
+- **Endpoint:** `GET /api/broker/connections/active` (Engine HTTP, port 8000)
+- **Response (when active connection exists):**
+  ```json
+  {
+    "connection": { ...same fields as 14.2... },
+    "broker_configured": true
+  }
+  ```
+- **Response (when no active connection):**
+  ```json
+  {
+    "connection": null,
+    "broker_configured": false,
+    "message": "No active broker connection. Please set up a connection."
+  }
+  ```
+- **Note:** `broker_configured` is `true` if the system has any working broker client (from DB or env vars), `false` if no broker is available at all.
+- **Dashboard use:** Header/status bar broker indicator. Shows connection name and status. If `broker_configured` is false, show a prominent "Connect Broker" CTA.
+
+### 14.4 Get Broker Connection by ID
+- **Endpoint:** `GET /api/broker/connections/{id}` (Engine HTTP, port 8000)
+- **Response:** `{"connection": { ...same fields as 14.2... }}`
+- **Error (404):** `{"detail": "Connection not found"}`
+- **Dashboard use:** Connection detail view or edit modal pre-fill.
+
+### 14.5 Update Broker Connection
+- **Endpoint:** `PUT /api/broker/connections/{id}` (Engine HTTP, port 8000)
+- **Request Body:** Any subset of:
+  - `name` (string)
+  - `ea_host` (string)
+  - `ea_port` (int, 1024-65535)
+  - `ea_auth_token` (string): New token, will be re-encrypted
+  - `metaapi_token` (string): New token, will be re-encrypted
+  - `metaapi_account_id` (string)
+  - `mt5_server` (string)
+  - `mt5_login` (string)
+- **Response:** Updated connection object + `{"message": "Connection updated."}`
+- **Behavior:** If the updated connection is currently active, the broker client is automatically hot-swapped with the new credentials.
+- **Dashboard use:** Edit modal. User can change host IP (e.g. switching VPS), update auth token, etc.
+
+### 14.6 Activate Broker Connection
+- **Endpoint:** `POST /api/broker/connections/{id}/activate` (Engine HTTP, port 8000)
+- **Request Body:** None
+- **Response:** Updated connection object + `{"message": "Connection activated. Broker now using VPS EA - ICMarkets."}`
+- **Behavior:**
+  1. Deactivates all other connections in the database
+  2. Marks this connection as active
+  3. Decrypts credentials from the database
+  4. Creates a new broker client (ZmqClient or MetaApiClient)
+  5. Shuts down the old broker client
+  6. Hot-swaps `container.mt5_client` and `ta_orchestrator.broker_client`
+  7. All subsequent `/internal/broker/*` calls from Go services use the new client immediately
+- **Error (500):** `{"detail": "Connection activated in DB but broker swap failed: ..."}` (connection is marked active but the client failed to initialize; user should test the connection)
+- **Dashboard use:** "Activate" / "Use This" button on each saved connection.
+
+### 14.7 Deactivate Broker Connection
+- **Endpoint:** `POST /api/broker/connections/{id}/deactivate` (Engine HTTP, port 8000)
+- **Request Body:** None
+- **Response:** Updated connection object + `{"message": "Connection deactivated."}`
+- **Behavior:** Marks the connection as inactive. Does NOT shut down the current broker client (it continues running until another connection is activated or the service restarts).
+- **Dashboard use:** "Deactivate" button. Stops this connection from being loaded on next restart.
+
+### 14.8 Set Primary Broker Connection
+- **Endpoint:** `POST /api/broker/connections/{id}/set-primary` (Engine HTTP, port 8000)
+- **Request Body:** None
+- **Response:** Updated connection object + `{"message": "Connection set as primary. Broker now using VPS EA - ICMarkets."}`
+- **Behavior:** Sets this connection as both primary AND active. Removes primary flag from all other connections. Hot-swaps the broker client.
+- **Dashboard use:** "Set as Primary" button. The primary connection is the one loaded on service startup.
+
+### 14.9 Test Broker Connection
+- **Endpoint:** `POST /api/broker/connections/{id}/test` (Engine HTTP, port 8000)
+- **Request Body:** None
+- **Response:**
+  ```json
+  {
+    "connection_id": "uuid",
+    "healthy": true,
+    "status": "connected",
+    "message": "Connection successful"
+  }
+  ```
+  or
+  ```json
+  {
+    "connection_id": "uuid",
+    "healthy": false,
+    "status": "error",
+    "message": "Health check failed"
+  }
+  ```
+- **Behavior:**
+  1. Creates a temporary broker client from the connection's encrypted credentials
+  2. Runs a health check (PING for EA, account status check for MetaAPI)
+  3. Updates the connection's `status`, `status_message`, and `last_connected_at` in the database
+  4. Shuts down the temporary client
+  5. Does NOT activate the connection or change the active broker
+- **Dashboard use:** "Test Connection" button. Shows a spinner while testing, then green checkmark or red X with error message. Should be called after creating a new connection and before activating it.
+
+### 14.10 Delete Broker Connection
+- **Endpoint:** `DELETE /api/broker/connections/{id}` (Engine HTTP, port 8000)
+- **Response:** `{"deleted": true, "id": "uuid", "message": "Connection deleted."}`
+- **Error (404):** `{"detail": "Connection not found"}`
+- **Behavior:** Permanently deletes the connection and its encrypted credentials from the database. If the deleted connection was active, the broker client continues running in memory until another connection is activated or the service restarts.
+- **Dashboard use:** "Delete" button with confirmation dialog.
+
+### 14.11 Connection Status Values
+
+The `status` field on each connection indicates its last known health state:
+
+| Status | Badge Color | Meaning |
+|---|---|---|
+| `untested` | Gray | Connection was just created, never tested |
+| `connected` | Green | Last health check passed successfully |
+| `disconnected` | Yellow | Connection was previously working but lost |
+| `error` | Red | Last health check failed (see `status_message` for details) |
+
+### 14.12 Connection Response Fields Reference
+
+Every broker connection response includes these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique connection identifier |
+| `connection_type` | string | `"ea"` or `"metaapi"` |
+| `name` | string | User-defined display name |
+| `ea_host` | string or null | EA host IP/hostname (EA connections only) |
+| `ea_port` | int or null | EA ZeroMQ port (EA connections only) |
+| `metaapi_account_id` | string or null | MetaAPI account ID (MetaAPI connections only) |
+| `mt5_server` | string or null | MT5 broker server name |
+| `mt5_login` | string or null | MT5 account login number |
+| `is_active` | bool | Whether this is the currently active connection |
+| `is_primary` | bool | Whether this is the preferred connection (loaded on startup) |
+| `status` | string | Health status: `untested`, `connected`, `disconnected`, `error` |
+| `status_message` | string | Human-readable status detail (empty when healthy) |
+| `last_connected_at` | string (ISO 8601) or null | Timestamp of last successful health check |
+| `created_at` | string (ISO 8601) | When the connection was created |
+| `updated_at` | string (ISO 8601) | When the connection was last modified |
+
+**Security note:** Encrypted credentials (`ea_auth_token`, `metaapi_token`) are NEVER included in any API response. They are stored encrypted in PostgreSQL using Fernet symmetric encryption and only decrypted server-side when creating a broker client.
+
+### 14.13 Dashboard UI Flow
+
+**"Connect Broker" Modal/Page:**
+
+1. **Step 1 - Select Type:** Two cards/tabs: "EA (ZeroMQ)" and "MetaAPI"
+   - EA card: Icon of server/terminal, subtitle "Connect to MT5 via ZeroMQ Expert Advisor on your VPS or local PC"
+   - MetaAPI card: Icon of cloud, subtitle "Connect to MT5 via MetaApi.cloud (no local MT5 needed)"
+
+2. **Step 2 - Enter Credentials:**
+   - **EA form fields:**
+     - Connection Name (text, required, e.g. "VPS EA - ICMarkets")
+     - Host / IP Address (text, required, e.g. "45.76.123.45")
+     - Port (number, required, default 5555, range 1024-65535)
+     - Auth Token (password field, optional, "Must match EA's AUTH_TOKEN parameter")
+     - MT5 Server (text, optional, e.g. "ICMarketsSC-Demo")
+     - MT5 Login (text, optional, e.g. "51234567")
+   - **MetaAPI form fields:**
+     - Connection Name (text, required, e.g. "MetaAPI - Demo Account")
+     - MetaAPI Token (password field, required)
+     - Account ID (text, required)
+     - MT5 Server (text, optional)
+     - MT5 Login (text, optional)
+
+3. **Step 3 - Save & Test:**
+   - "Save" button -> calls `POST /api/broker/connections` with `activate: false`
+   - "Test Connection" button -> calls `POST /api/broker/connections/{id}/test`
+   - Shows result: green checkmark "Connected" or red X with error message
+   - "Activate" button -> calls `POST /api/broker/connections/{id}/activate`
+
+**Broker Connections List (Settings page):**
+- Table/cards showing all saved connections
+- Each row: Name, Type badge (EA/MetaAPI), Host/Account ID, Status badge, Active indicator, Last Connected
+- Actions per row: Test, Activate, Edit, Delete
+- Active connection highlighted with green border/badge
+
+---
+
+## 15. SERVICE PORTS
 
 | Service | Protocol | Port | What Dashboard Connects To |
 |---|---|---|---|
@@ -511,7 +800,7 @@ When showing cycle progress or errors, these are the phases:
 
 ---
 
-## 15. COMPLETE DASHBOARD ENDPOINT SUMMARY
+## 16. COMPLETE DASHBOARD ENDPOINT SUMMARY
 
 ### Gateway HTTP (port 8080)
 | Method | Path | Dashboard Action |
@@ -537,14 +826,24 @@ When showing cycle progress or errors, these are the phases:
 | GET | `/api/analysis/stats` | Analysis statistics |
 | GET | `/api/analysis/{id}` | Analysis detail view |
 | POST | `/api/analysis/rerun` | Re-run analysis for a symbol |
-| GET | `/api/llm/providers` | Available providers & models |
-| GET | `/api/llm/connections` | List saved connections |
-| GET | `/api/llm/connections/active` | Get active connection |
-| POST | `/api/llm/connections` | Create new connection |
-| PUT | `/api/llm/connections/{id}` | Update connection |
-| POST | `/api/llm/connections/{id}/activate` | Activate connection |
-| POST | `/api/llm/connections/{id}/deactivate` | Deactivate connection |
-| DELETE | `/api/llm/connections/{id}` | Delete connection |
+| GET | `/api/llm/providers` | Available LLM providers & models |
+| GET | `/api/llm/connections` | List saved LLM connections |
+| GET | `/api/llm/connections/active` | Get active LLM connection |
+| POST | `/api/llm/connections` | Create new LLM connection |
+| PUT | `/api/llm/connections/{id}` | Update LLM connection |
+| POST | `/api/llm/connections/{id}/activate` | Activate LLM connection |
+| POST | `/api/llm/connections/{id}/deactivate` | Deactivate LLM connection |
+| DELETE | `/api/llm/connections/{id}` | Delete LLM connection |
+| POST | `/api/broker/connections` | Create broker connection (EA or MetaAPI) |
+| GET | `/api/broker/connections` | List all broker connections |
+| GET | `/api/broker/connections/active` | Get active broker connection |
+| GET | `/api/broker/connections/{id}` | Get broker connection by ID |
+| PUT | `/api/broker/connections/{id}` | Update broker connection |
+| POST | `/api/broker/connections/{id}/activate` | Activate broker connection |
+| POST | `/api/broker/connections/{id}/deactivate` | Deactivate broker connection |
+| POST | `/api/broker/connections/{id}/set-primary` | Set broker as primary |
+| POST | `/api/broker/connections/{id}/test` | Test broker connection health |
+| DELETE | `/api/broker/connections/{id}` | Delete broker connection |
 
 ### Execution HTTP (port 8080)
 | Method | Path | Dashboard Action |
