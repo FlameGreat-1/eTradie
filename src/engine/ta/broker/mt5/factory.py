@@ -118,6 +118,7 @@ def create_mt5_broker_from_connection(
             provider="native",
             metaapi_token="",
             metaapi_account_id="",
+            metaapi_base_url="",
             zmq_host=row.ea_host,
             zmq_port=row.ea_port,
             terminal_path=None,
