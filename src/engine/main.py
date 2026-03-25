@@ -1790,11 +1790,7 @@ def create_app() -> FastAPI:
 
         if body.activate:
             try:
-                async with container.db.read_session() as session:
-                    repo = BrokerConnectionRepository(session)
-                    fresh_row = await repo.get_by_id(connection_id)
-                if fresh_row is not None:
-                    await _hot_swap_broker_from_row(container, fresh_row)
+                await _hot_swap_broker_from_row(container, row)
             except Exception as exc:
                 logger.error(
                     "broker_hot_swap_failed_after_create",

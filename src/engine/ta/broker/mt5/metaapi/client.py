@@ -468,31 +468,16 @@ class MetaApiClient(BrokerBase):
         lot_size: float,
         comment: str = "",
     ) -> OrderResult:
-        if order_type.upper() == "MARKET":
-            action_type = (
-                "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
-            )
+        is_buy = direction.upper() == "BUY"
+        is_market = order_type.upper() == "MARKET"
+
+        if is_market:
+            action_type = "ORDER_TYPE_BUY" if is_buy else "ORDER_TYPE_SELL"
         else:
-            action_type = (
-                "ORDER_TYPE_BUY_LIMIT"
-                if direction.upper() == "BUY"
-                else "ORDER_TYPE_SELL_LIMIT"
-            )
+            action_type = "ORDER_TYPE_BUY_LIMIT" if is_buy else "ORDER_TYPE_SELL_LIMIT"
 
         payload: dict[str, Any] = {
-            "actionType": (
-                "ORDER_TYPE_BUY"
-                if order_type.upper() == "MARKET" and direction.upper() == "BUY"
-                else (
-                    "ORDER_TYPE_SELL"
-                    if order_type.upper() == "MARKET" and direction.upper() == "SELL"
-                    else (
-                        "ORDER_TYPE_BUY_LIMIT"
-                        if direction.upper() == "BUY"
-                        else "ORDER_TYPE_SELL_LIMIT"
-                    )
-                )
-            ),
+            "actionType": action_type,
             "symbol": symbol,
             "volume": lot_size,
             "stopLoss": stop_loss,
