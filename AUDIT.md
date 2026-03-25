@@ -344,12 +344,12 @@ Switch LLM providers and models at runtime.
 
 ## 7. EXECUTION STATE (Module B - Trade Execution Panel)
 
-Current open positions, pending orders, and account state.
+Current open positions, pending orders, account state, and execution settings.
 
-### 7.1 Get Execution State
+### 7.1 Get Execution State (gRPC)
 - **RPC:** `ExecutionService.GetExecutionState`
 - **Proto:** `proto/execution/v1/execution.proto`
-- **Source:** `src/execution/internal/server/`
+- **Source:** `src/execution/internal/server/grpc_server.go`
 - **Request:** `trace_id` (string)
 - **Response:**
   - `open_position_count` (int32)
@@ -365,10 +365,60 @@ Current open positions, pending orders, and account state.
   - `trace_id` (string)
 - **Purpose:** Dashboard execution panel. Shows live positions, pending orders, P&L, account balance.
 
-### 7.2 Execute Trade
+### 7.2 Get Execution State (REST)
+- **Endpoint:** `GET /api/v1/state`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Returns:** Same data as gRPC GetExecutionState but as JSON:
+  - `open_position_count`, `pending_order_count`, `daily_realized_pnl`, `weekly_realized_pnl`
+  - `account_balance`, `account_equity`, `open_positions`, `pending_orders`
+- **Purpose:** REST alternative for dashboard to get execution state without gRPC.
+
+### 7.3 Get Execution Settings
+- **Endpoint:** `GET /api/v1/settings`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Returns:**
+  - `execution_mode` (string): `LIMIT` or `INSTANT`
+  - `max_concurrent_trades` (int): 1-10 (default 3)
+  - `daily_loss_limit_pct` (float): 0.5-10.0 (default 3.0)
+  - `weekly_drawdown_pct` (float): 1.0-20.0 (default 5.0)
+- **Purpose:** Dashboard execution settings panel. Shows current risk controls.
+
+### 7.4 Update Execution Settings
+- **Endpoint:** `PUT /api/v1/settings`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Request Body:**
+  - `execution_mode` (string): `LIMIT` or `INSTANT`
+  - `max_concurrent_trades` (int): 1-10
+  - `daily_loss_limit_pct` (float): 0.5-10.0
+  - `weekly_drawdown_pct` (float): 1.0-20.0
+- **Returns:** Updated settings object
+- **Persistence:** PostgreSQL `execution_settings` table (UPSERT)
+- **Effect:** Takes effect on the NEXT trade (read on every ExecuteTrade call)
+- **Alert:** Publishes `SETTINGS_UPDATED` event to all dashboards
+- **Purpose:** Dashboard sliders/inputs for execution mode and risk controls. Changes are immediate.
+
+### 7.5 Get Account Info (REST)
+- **Endpoint:** `GET /api/v1/account`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Returns:** Live broker account info (balance, equity, margin, free margin)
+- **Purpose:** Dashboard account balance card.
+
+### 7.6 Cancel Pending Order (REST)
+- **Endpoint:** `POST /api/v1/orders/cancel`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Request Body:** `{"order_id": str, "symbol": str, "reason": str}`
+- **Returns:** `{"success": bool, "status": "CANCELLED"|"NOT_FOUND"}`
+- **Purpose:** Dashboard cancel button on pending orders (REST alternative to gRPC).
+
+### 7.7 Execution WebSocket Notifications
+- **Endpoint:** `ws://host:8080/ws/notifications`
+- **Source:** `src/execution/internal/server/http_server.go`
+- **Purpose:** Module B's own WebSocket endpoint for execution-specific events. Uses the same alert hub.
+
+### 7.8 Execute Trade (gRPC)
 - **RPC:** `ExecutionService.ExecuteTrade`
 - **Proto:** `proto/execution/v1/execution.proto`
-- **Source:** `src/execution/internal/server/`
+- **Source:** `src/execution/internal/server/grpc_server.go`
 - **Request:** Full trade parameters from processor output:
   - `symbol`, `direction` (LONG/SHORT), `entry_zone_low`, `entry_zone_high`, `stop_loss`
   - `tp1_price`, `tp1_pct`, `tp2_price`, `tp2_pct`, `tp3_price`, `tp3_pct`
@@ -383,12 +433,14 @@ Current open positions, pending orders, and account state.
   - `rejection_check` (int32): Check number 4-13
   - `lot_size`, `risk_amount`, `account_balance`, `sl_distance_pips`, `pip_value`
   - `execution_mode` (LIMIT/INSTANT), `entry_price`, `analysis_id`, `trace_id`
+- **Pipeline:** Refresh state -> Validate (10 checks) -> Size position -> Resolve mode -> Execute -> Audit
+- **Idempotency:** Duplicate `analysis_id` within 1 hour is rejected
 - **Purpose:** Gateway calls this when guards pass. Dashboard shows execution result.
 
-### 7.3 Cancel Pending Order
+### 7.9 Cancel Pending Order (gRPC)
 - **RPC:** `ExecutionService.CancelPendingOrder`
 - **Proto:** `proto/execution/v1/execution.proto`
-- **Source:** `src/execution/internal/server/`
+- **Source:** `src/execution/internal/server/grpc_server.go`
 - **Request:**
   - `order_id` (string): Broker order ID or watcher ID
   - `symbol` (string)
@@ -398,7 +450,63 @@ Current open positions, pending orders, and account state.
   - `success` (bool)
   - `status` (string): `CANCELLED`, `NOT_FOUND`, `ALREADY_FILLED`
   - `trace_id` (string)
-- **Purpose:** Dashboard cancel button on pending orders.
+- **Purpose:** Cancel pending orders via gRPC.
+
+### 7.10 Pre-Execution Validation Checks (10 Checks)
+**Source:** `src/execution/internal/validator/checks.go`, `src/execution/internal/constants/constants.go`
+
+| Check # | Name | Outcome | Description |
+|---|---|---|---|
+| 4 | News Lockout | REJECT | No entries within 30min (45min for scalping) of high-impact news |
+| 5 | Session Filter | REJECT | Only enabled sessions allowed (LONDON_OPEN, LONDON_NY_OVERLAP, NEW_YORK) |
+| 6 | Same Pair Position | REJECT | No duplicate positions on same symbol |
+| 7 | Correlated Exposure | REJECT | Max 1 trade per correlated pair group (5 groups defined) |
+| 8 | Max Concurrent Trades | REJECT | Max concurrent trades limit (default 3, dashboard-configurable 1-10) |
+| 9 | Daily Loss Limit | LOCK | Locks execution when daily loss exceeds limit (default 3%, configurable 0.5-10%) |
+| 10 | Weekly Drawdown | PAUSE | Pauses execution when weekly drawdown exceeds limit (default 5%, configurable 1-20%) |
+| 11 | Spread Check | REJECT | Spread must be below threshold (2x normal, 1.5x scalping) |
+| 12 | Min R:R | REJECT | Minimum R:R by style (Scalping 2:1, Intraday/Swing 3:1, Positional 5:1) |
+| 13 | Weekend/Day Filter | REJECT | No entries Friday after cutoff (12:00 scalping/intraday, 14:00 swing), no Monday before 07:00 |
+
+### 7.11 Correlated Pair Groups
+**Source:** `src/execution/internal/constants/constants.go`
+
+| Group | Pairs |
+|---|---|
+| USD Quote (risk-on) | EURUSD, GBPUSD, AUDUSD, NZDUSD |
+| USD Base | USDJPY, USDCHF, USDCAD |
+| JPY Cross | EURJPY, GBPJPY, AUDJPY, NZDJPY |
+| EUR Cross | EURGBP, EURAUD, EURNZD, EURCHF, EURCAD |
+| Metals | XAUUSD, XAGUSD |
+
+### 7.12 Execution Config Environment Variables
+**Source:** `src/execution/internal/config/config.go`
+**Prefix:** `EXECUTION_`
+
+- `EXECUTION_GRPC_PORT` (int, default: 50053)
+- `EXECUTION_HTTP_PORT` (int, default: 8080)
+- `EXECUTION_BROKER_MODE` (string, default: mock, values: mock/mt5)
+- `EXECUTION_BROKER_BRIDGE_URL` (string, default: http://localhost:8000)
+- `EXECUTION_BROKER_TIMEOUT_MS` (int, default: 5000)
+- `EXECUTION_MOCK_BROKER_BALANCE` (float, default: 10000.0)
+- `EXECUTION_GATEWAY_ADDR` (string, default: localhost:50052)
+- `EXECUTION_DEFAULT_EXECUTION_MODE` (string, default: LIMIT, values: LIMIT/INSTANT)
+- `EXECUTION_MIN_LOT_SIZE` (float, default: 0.01)
+- `EXECUTION_MAX_LOT_SIZE` (float, default: 10.0)
+- `EXECUTION_MAX_CONCURRENT_TRADES` (int, default: 3, range: 1-10)
+- `EXECUTION_DAILY_LOSS_LIMIT_PCT` (float, default: 3.0, range: 0.5-10.0)
+- `EXECUTION_WEEKLY_DRAWDOWN_PCT` (float, default: 5.0, range: 1.0-20.0)
+- `EXECUTION_SPREAD_MULTIPLIER_NORMAL` (float, default: 2.0)
+- `EXECUTION_SPREAD_MULTIPLIER_SCALPING` (float, default: 1.5)
+- `EXECUTION_NEWS_LOCKOUT_MINUTES` (int, default: 30)
+- `EXECUTION_NEWS_LOCKOUT_MINUTES_SCALPING` (int, default: 45)
+- `EXECUTION_ENABLED_SESSIONS` (string[], default: LONDON_OPEN,LONDON_NY_OVERLAP,NEW_YORK)
+- `EXECUTION_OVERSHOOT_TOLERANCE_MULTIPLIER` (float, default: 1.5)
+- `EXECUTION_WATCHER_POLL_INTERVAL_MS` (int, default: 500)
+- `EXECUTION_WATCHER_TIMEOUT_MINUTES` (int, default: 45)
+- `EXECUTION_WATCHER_CONFIRM_POLL_INTERVAL_SECS` (int, default: 300)
+- `EXECUTION_DATABASE_URL` (string, required)
+- `EXECUTION_REDIS_URL` (string, default: redis://localhost:6379/1)
 
 ---
 
