@@ -25,6 +25,21 @@ from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 logger = get_logger(__name__)
 
 
+def _require_broker(container: "Container") -> None:
+    """Raise 503 if no broker client is configured.
+
+    Called at the top of every /internal/broker/* endpoint and
+    any endpoint that requires a live broker connection.
+    Returns a clean HTTP 503 that the Go services handle gracefully
+    (bridge.go checks for non-200 status codes).
+    """
+    if container.mt5_client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No broker connection configured. Please set up a broker connection via the dashboard.",
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -2126,20 +2141,6 @@ def create_app() -> FastAPI:
     # the Python engine's active broker client (MetaApiClient or ZmqClient).
     # The Go services call these at EXECUTION_BROKER_BRIDGE_URL and
     # MANAGEMENT_BROKER_BRIDGE_URL (both http://engine:8000).
-
-    def _require_broker(container: Container) -> None:
-        """Raise 503 if no broker client is configured.
-
-        Called at the top of every /internal/broker/* endpoint and
-        any endpoint that requires a live broker connection.
-        Returns a clean HTTP 503 that the Go services handle gracefully
-        (bridge.go checks for non-200 status codes).
-        """
-        if container.mt5_client is None:
-            raise HTTPException(
-                status_code=503,
-                detail="No broker connection configured. Please set up a broker connection via the dashboard.",
-            )
 
     @app.get("/internal/broker/account_info")
     async def broker_account_info(request: Request) -> dict:

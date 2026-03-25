@@ -349,7 +349,7 @@ class ZmqClient(BrokerBase):
             return False
 
     async def shutdown(self) -> None:
-        def _close() -> None:
+        async with self._lock:
             if self._socket is not None:
                 self._socket.close(linger=0)
                 self._socket = None
@@ -357,8 +357,6 @@ class ZmqClient(BrokerBase):
                 self._ctx.term()
                 self._ctx = None
             self._initialized = False
-
-        _close()
         logger.info("zmq_shutdown_complete")
 
     # -- Trading methods (Execution + Management bridge) -----------------------
