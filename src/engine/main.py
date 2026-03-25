@@ -1200,6 +1200,7 @@ def create_app() -> FastAPI:
         If activate=True (default), this becomes the active connection
         and the processor is hot-swapped immediately.
         """
+        await _rate_limit(request, "llm_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
 
         valid_providers = {p.value for p in LLMProvider}
@@ -1792,6 +1793,7 @@ def create_app() -> FastAPI:
         request: Request,
         body: CreateBrokerConnectionRequest,
     ) -> dict:
+        await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         """Create a new broker connection (EA or MetaAPI).
 
         User selects connection type, enters credentials, and saves.
@@ -2058,11 +2060,13 @@ def create_app() -> FastAPI:
         connection_id: str,
     ) -> dict:
         """Test a broker connection's health.
+        Rate limited to prevent flooding the broker with health checks.
 
         Creates a temporary broker client from the connection's credentials,
         runs a health check, and updates the connection's status in the DB.
         Does NOT activate the connection or change the active broker.
         """
+        await _rate_limit(request, "broker_test", max_requests=5, window_seconds=60)
         container: Container = request.app.state.container
 
         from engine.processor.storage.repositories.broker_connection_repository import (

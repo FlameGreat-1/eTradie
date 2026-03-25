@@ -503,6 +503,41 @@ class RedisCache:
             )
             return False
 
+    async def increment(self, raw_key: str) -> int:
+        """Atomically increment a raw Redis key and return the new value.
+
+        Used for rate limiting counters. Does not apply the key_prefix
+        or namespace validation since rate limit keys have their own format.
+
+        Args:
+            raw_key: Full Redis key (e.g. 'ratelimit:broker_create:1.2.3.4')
+
+        Returns:
+            The value after incrementing.
+        """
+        result = await self._execute_with_retry(
+            "incr",
+            self._client.incr,
+            raw_key,
+        )
+        return int(result)
+
+    async def expire(self, raw_key: str, seconds: int) -> None:
+        """Set a TTL on a raw Redis key.
+
+        Used alongside increment() for rate limiting windows.
+
+        Args:
+            raw_key: Full Redis key.
+            seconds: TTL in seconds.
+        """
+        await self._execute_with_retry(
+            "expire",
+            self._client.expire,
+            raw_key,
+            seconds,
+        )
+
     async def close(self) -> None:
         """Gracefully close Redis connections."""
         try:
