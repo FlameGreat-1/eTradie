@@ -259,3 +259,7 @@ class BrokerBase(ABC):
     @abstractmethod
     async def close_position(self, ticket: str) -> dict[str, Any]:
         """Fully close a position at market. Returns close price and success status."""
+
+    @abstractmethod
+    async def shutdown(self) -> None:
+        """Gracefully shut down the broker connection and release resources."""

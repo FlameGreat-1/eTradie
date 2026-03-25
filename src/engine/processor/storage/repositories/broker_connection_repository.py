@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
@@ -88,6 +89,27 @@ def decrypt_credential(encrypted: str) -> str:
 # Validation
 # ---------------------------------------------------------------------------
 
+# Regex for validating hostnames and IP addresses.
+# Matches: IPv4 (192.168.1.1), hostnames (my-vps.example.com),
+# Docker service names (host.docker.internal), localhost.
+_HOST_PATTERN = re.compile(
+    r"^(?:"
+    r"(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)"  # IPv4
+    r"|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"  # hostname
+    r")$"
+)
+
+
+def _validate_host(host: str) -> None:
+    """Validate that a host string is a valid IP address or hostname."""
+    if len(host) > 253:
+        raise ValueError(f"ea_host too long ({len(host)} chars, max 253)")
+    if not _HOST_PATTERN.match(host):
+        raise ValueError(
+            f"ea_host must be a valid IP address or hostname, got '{host}'"
+        )
+
+
 def _validate_connection(
     connection_type: str,
     *,
@@ -106,6 +128,7 @@ def _validate_connection(
     if connection_type == CONNECTION_TYPE_EA:
         if not ea_host or not ea_host.strip():
             raise ValueError("ea_host is required for EA connections")
+        _validate_host(ea_host.strip())
         if ea_port is None or ea_port < 1024 or ea_port > 65535:
             raise ValueError(
                 f"ea_port must be 1024..65535 for EA connections, got {ea_port}"
