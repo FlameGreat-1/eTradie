@@ -98,6 +98,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_economic=settings.poll_interval_economic_data,
     )
 
+    # -- Broker Connection (DB-driven) ----------------------------------------
+    # Load the active broker connection from the database. This takes
+    # precedence over env-var-based broker created during Container.__init__.
+    # If no DB connection exists and no env vars were set, mt5_client
+    # remains None until the user configures one via the dashboard.
+    await container.build_broker()
+    broker_status = "configured" if container.mt5_client is not None else "not_configured"
+    logger.info("broker_startup", status=broker_status)
+
     # -- Processor LLM -------------------------------------------------------
     await container.build_processor()
     logger.info(
@@ -114,12 +123,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
-    register_ta_jobs(
-        container.scheduler,
-        symbol_store=symbol_reader,
-        broker_client=container.mt5_client,
-        ta_uow_factory=container.ta_uow_factory,
-    )
+    # Only register TA jobs if a broker client is available.
+    # If no broker is configured yet, TA jobs will be registered
+    # when the user activates a broker connection via the dashboard.
+    if container.mt5_client is not None:
+        register_ta_jobs(
+            container.scheduler,
+            symbol_store=symbol_reader,
+            broker_client=container.mt5_client,
+            ta_uow_factory=container.ta_uow_factory,
+        )
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -1580,6 +1593,474 @@ def create_app() -> FastAPI:
             "temperature": new_temp,
             "max_output_tokens": new_max_tokens,
         }
+
+    # -- Broker Connection Management endpoints ------------------------------
+    # Dashboard CRUD for user-configured MT5 broker connections.
+    # Users select EA (ZeroMQ) or MetaAPI, enter credentials, and
+    # activate/deactivate/delete connections. Follows the exact same
+    # pattern as the LLM Connection Management endpoints above.
+
+    class CreateBrokerConnectionRequest(BaseModel):
+        connection_type: str  # 'ea' or 'metaapi'
+        name: str
+        # EA fields
+        ea_host: Optional[str] = None
+        ea_port: Optional[int] = Field(default=None, ge=1024, le=65535)
+        ea_auth_token: Optional[str] = None
+        # MetaAPI fields
+        metaapi_token: Optional[str] = None
+        metaapi_account_id: Optional[str] = None
+        # Common MT5 info
+        mt5_server: Optional[str] = None
+        mt5_login: Optional[str] = None
+        # Activation
+        activate: bool = True
+
+    class UpdateBrokerConnectionRequest(BaseModel):
+        name: Optional[str] = None
+        ea_host: Optional[str] = None
+        ea_port: Optional[int] = Field(default=None, ge=1024, le=65535)
+        ea_auth_token: Optional[str] = None
+        metaapi_token: Optional[str] = None
+        metaapi_account_id: Optional[str] = None
+        mt5_server: Optional[str] = None
+        mt5_login: Optional[str] = None
+
+    def _serialize_broker_connection(row) -> dict:
+        """Serialize a BrokerConnectionRow to a JSON-safe dict."""
+        return {
+            "id": str(row.id),
+            "connection_type": row.connection_type,
+            "name": row.name,
+            "ea_host": row.ea_host,
+            "ea_port": row.ea_port,
+            "metaapi_account_id": row.metaapi_account_id,
+            "mt5_server": row.mt5_server,
+            "mt5_login": row.mt5_login,
+            "is_active": row.is_active,
+            "is_primary": row.is_primary,
+            "status": row.status,
+            "status_message": row.status_message,
+            "last_connected_at": (
+                row.last_connected_at.isoformat() if row.last_connected_at else None
+            ),
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        }
+
+    async def _hot_swap_broker_from_row(container: Container, row) -> None:
+        """Build a broker client from a DB row and hot-swap it into the container."""
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            decrypt_credential,
+        )
+        from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
+
+        ea_auth_token = ""
+        metaapi_token = ""
+        if row.connection_type == "ea" and row.ea_auth_token_encrypted:
+            ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
+        if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
+            metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+
+        new_client = create_mt5_broker_from_connection(
+            row=row,
+            http_client=container.http_client,
+            ea_auth_token=ea_auth_token,
+            metaapi_token=metaapi_token,
+        )
+
+        # Shut down old client if exists.
+        if container.mt5_client is not None:
+            try:
+                await container.mt5_client.shutdown()
+            except Exception:
+                pass
+
+        container.hot_swap_broker(new_client)
+
+    @app.post("/api/broker/connections")
+    async def create_broker_connection(
+        request: Request,
+        body: CreateBrokerConnectionRequest,
+    ) -> dict:
+        """Create a new broker connection (EA or MetaAPI).
+
+        User selects connection type, enters credentials, and saves.
+        If activate=True (default), this becomes the active connection
+        and the broker client is hot-swapped immediately.
+        """
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+            VALID_CONNECTION_TYPES,
+        )
+
+        if body.connection_type not in VALID_CONNECTION_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
+            )
+
+        if not body.name or not body.name.strip():
+            raise HTTPException(status_code=400, detail="name must not be empty")
+
+        try:
+            async with container.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                row = await repo.create(
+                    connection_type=body.connection_type,
+                    name=body.name.strip(),
+                    ea_host=body.ea_host,
+                    ea_port=body.ea_port,
+                    ea_auth_token=body.ea_auth_token,
+                    metaapi_token=body.metaapi_token,
+                    metaapi_account_id=body.metaapi_account_id,
+                    mt5_server=body.mt5_server,
+                    mt5_login=body.mt5_login,
+                    activate=body.activate,
+                )
+                result = _serialize_broker_connection(row)
+                connection_id = str(row.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if body.activate:
+            try:
+                async with container.db.read_session() as session:
+                    repo = BrokerConnectionRepository(session)
+                    fresh_row = await repo.get_by_id(connection_id)
+                if fresh_row is not None:
+                    await _hot_swap_broker_from_row(container, fresh_row)
+            except Exception as exc:
+                logger.error(
+                    "broker_hot_swap_failed_after_create",
+                    extra={"connection_id": connection_id, "error": str(exc)},
+                )
+
+        result["message"] = (
+            "Connection created and activated." if body.activate
+            else "Connection created."
+        )
+        return result
+
+    @app.get("/api/broker/connections")
+    async def list_broker_connections(request: Request) -> dict:
+        """List all saved broker connections."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.read_session() as session:
+            repo = BrokerConnectionRepository(session)
+            rows = await repo.get_all()
+
+        connections = [_serialize_broker_connection(row) for row in rows]
+        return {"connections": connections, "count": len(connections)}
+
+    @app.get("/api/broker/connections/active")
+    async def get_active_broker_connection(request: Request) -> dict:
+        """Get the currently active broker connection."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.read_session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.get_active()
+
+        if row is None:
+            return {
+                "connection": None,
+                "broker_configured": container.mt5_client is not None,
+                "message": "No active broker connection. Please set up a connection.",
+            }
+
+        return {
+            "connection": _serialize_broker_connection(row),
+            "broker_configured": True,
+        }
+
+    @app.get("/api/broker/connections/{connection_id}")
+    async def get_broker_connection(request: Request, connection_id: str) -> dict:
+        """Get a specific broker connection by ID."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.read_session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.get_by_id(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        return {"connection": _serialize_broker_connection(row)}
+
+    @app.put("/api/broker/connections/{connection_id}")
+    async def update_broker_connection(
+        request: Request,
+        connection_id: str,
+        body: UpdateBrokerConnectionRequest,
+    ) -> dict:
+        """Update an existing broker connection."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        try:
+            async with container.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                row = await repo.update_connection(
+                    connection_id,
+                    name=body.name,
+                    ea_host=body.ea_host,
+                    ea_port=body.ea_port,
+                    ea_auth_token=body.ea_auth_token,
+                    metaapi_token=body.metaapi_token,
+                    metaapi_account_id=body.metaapi_account_id,
+                    mt5_server=body.mt5_server,
+                    mt5_login=body.mt5_login,
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        # If this connection is active, hot-swap the broker with updated values.
+        if row.is_active:
+            try:
+                await _hot_swap_broker_from_row(container, row)
+            except Exception as exc:
+                logger.error(
+                    "broker_hot_swap_failed_after_update",
+                    extra={"connection_id": connection_id, "error": str(exc)},
+                )
+
+        result = _serialize_broker_connection(row)
+        result["message"] = "Connection updated."
+        return result
+
+    @app.post("/api/broker/connections/{connection_id}/activate")
+    async def activate_broker_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Activate a broker connection.
+
+        Deactivates all other connections and hot-swaps the broker
+        client to use this connection's credentials.
+        """
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.activate(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        try:
+            await _hot_swap_broker_from_row(container, row)
+        except Exception as exc:
+            logger.error(
+                "broker_hot_swap_failed_on_activate",
+                extra={"connection_id": connection_id, "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Connection activated in DB but broker swap failed: {exc}",
+            )
+
+        result = _serialize_broker_connection(row)
+        result["message"] = f"Connection activated. Broker now using {row.name}."
+        return result
+
+    @app.post("/api/broker/connections/{connection_id}/deactivate")
+    async def deactivate_broker_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Deactivate a broker connection without deleting it."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.deactivate(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        result = _serialize_broker_connection(row)
+        result["message"] = "Connection deactivated."
+        return result
+
+    @app.post("/api/broker/connections/{connection_id}/set-primary")
+    async def set_primary_broker_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Set a connection as primary (also activates it)."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.set_primary(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        try:
+            await _hot_swap_broker_from_row(container, row)
+        except Exception as exc:
+            logger.error(
+                "broker_hot_swap_failed_on_set_primary",
+                extra={"connection_id": connection_id, "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Set as primary in DB but broker swap failed: {exc}",
+            )
+
+        result = _serialize_broker_connection(row)
+        result["message"] = f"Connection set as primary. Broker now using {row.name}."
+        return result
+
+    @app.post("/api/broker/connections/{connection_id}/test")
+    async def test_broker_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Test a broker connection's health.
+
+        Creates a temporary broker client from the connection's credentials,
+        runs a health check, and updates the connection's status in the DB.
+        Does NOT activate the connection or change the active broker.
+        """
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+            STATUS_CONNECTED,
+            STATUS_ERROR,
+            decrypt_credential,
+        )
+        from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
+
+        async with container.db.read_session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.get_by_id(connection_id)
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        # Decrypt credentials and create a temporary broker client.
+        ea_auth_token = ""
+        metaapi_token = ""
+        if row.connection_type == "ea" and row.ea_auth_token_encrypted:
+            ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
+        if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
+            metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+
+        try:
+            temp_client = create_mt5_broker_from_connection(
+                row=row,
+                http_client=container.http_client,
+                ea_auth_token=ea_auth_token,
+                metaapi_token=metaapi_token,
+            )
+        except Exception as exc:
+            # Update status in DB.
+            async with container.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                await repo.update_status(
+                    connection_id,
+                    status=STATUS_ERROR,
+                    status_message=f"Failed to create client: {exc}",
+                )
+            return {
+                "connection_id": connection_id,
+                "healthy": False,
+                "status": STATUS_ERROR,
+                "message": f"Failed to create client: {exc}",
+            }
+
+        # Run health check.
+        try:
+            healthy = await temp_client.health_check()
+        except Exception as exc:
+            healthy = False
+            logger.error(
+                "broker_test_health_check_failed",
+                extra={"connection_id": connection_id, "error": str(exc)},
+            )
+        finally:
+            try:
+                await temp_client.shutdown()
+            except Exception:
+                pass
+
+        # Update status in DB.
+        new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
+        status_msg = "Connection successful" if healthy else "Health check failed"
+
+        async with container.db.session() as session:
+            repo = BrokerConnectionRepository(session)
+            await repo.update_status(
+                connection_id,
+                status=new_status,
+                status_message=status_msg,
+                connected=healthy,
+            )
+
+        return {
+            "connection_id": connection_id,
+            "healthy": healthy,
+            "status": new_status,
+            "message": status_msg,
+        }
+
+    @app.delete("/api/broker/connections/{connection_id}")
+    async def delete_broker_connection(
+        request: Request,
+        connection_id: str,
+    ) -> dict:
+        """Permanently delete a saved broker connection."""
+        container: Container = request.app.state.container
+
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async with container.db.session() as session:
+            repo = BrokerConnectionRepository(session)
+            deleted = await repo.delete(connection_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
 
     # -- Internal broker bridge endpoints (Go Execution + Management) --------
     # These endpoints proxy broker operations from the Go services through
