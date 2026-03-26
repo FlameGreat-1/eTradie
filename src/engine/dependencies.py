@@ -29,6 +29,7 @@ from engine.macro.providers.central_bank.snb_rss import SNBRSSProvider
 from engine.macro.providers.cot.cftc import CFTCProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
+from engine.macro.providers.market_data.commodity_proxy import CommodityProxyProvider
 from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
 from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
@@ -180,7 +181,13 @@ class Container:
             base_url=s.twelvedata_base_url,
             api_key=s.twelvedata_api_key,
         )
-        self.registry.register(self.twelve_data_provider)
+        self.commodity_proxy_provider = CommodityProxyProvider(
+            h,
+            iron_ore_url=s.iron_ore_price_url,
+            dairy_gdt_url=s.dairy_gdt_price_url,
+        )
+        for p in (self.twelve_data_provider, self.commodity_proxy_provider):
+            self.registry.register(p)
 
         self.investing_cal_provider = InvestingRSSCalendarProvider(
             r,
@@ -244,7 +251,7 @@ class Container:
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
         self.intermarket_collector = IntermarketCollector(
-            [self.twelve_data_provider],
+            [self.twelve_data_provider, self.commodity_proxy_provider],
             c,
             d,
         )
