@@ -83,23 +83,16 @@ class Settings(BaseSettings):
     # CFTC (no key required — public API)
     cftc_api_base_url: str = "https://publicreporting.cftc.gov/resource"
 
-    # NewsAPI
-    newsapi_api_key: str = Field(default="", description="NewsAPI.org API key")
-    newsapi_base_url: str = "https://newsapi.org/v2"
-
-    # Twelve Data
+    # Twelve Data — primary market data provider
     twelvedata_api_key: str = Field(default="", description="TwelveData API key")
     twelvedata_base_url: str = "https://api.twelvedata.com"
 
-    # TradingEconomics.com — institutional-grade economic data
-    tradingeconomics_api_key: str = Field(
-        default="", description="TradingEconomics.com API key"
-    )
-    tradingeconomics_base_url: str = "https://api.tradingeconomics.com"
-
-    # FRED (Federal Reserve Economic Data) — US-only backup
+    # FRED (Federal Reserve Economic Data) — US economic data (free)
     fred_api_key: str = Field(default="", description="FRED (St. Louis Fed) API key")
     fred_base_url: str = "https://api.stlouisfed.org/fred"
+
+    # OECD Data Explorer — non-US economic data (free, no key required)
+    oecd_api_base_url: str = "https://sdmx.oecd.org/public/rest/data"
 
     # ── RSS Feed URLs — Central Banks ────────────────────────
     fed_rss_url: str = "https://www.federalreserve.gov/feeds/press_all.xml"
@@ -110,6 +103,9 @@ class Settings(BaseSettings):
     # ── RSS Feed URLs — News ─────────────────────────────────
     reuters_rss_url: str = "https://www.reutersagency.com/feed"
     bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
+
+    # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
+    investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
 
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(
@@ -177,9 +173,8 @@ class Settings(BaseSettings):
         """In production and staging, all critical API keys must be set."""
         if self.app_env in {AppEnvironment.PRODUCTION, AppEnvironment.STAGING}:
             required_keys = {
-                "newsapi_api_key": self.newsapi_api_key,
                 "twelvedata_api_key": self.twelvedata_api_key,
-                "tradingeconomics_api_key": self.tradingeconomics_api_key,
+                "fred_api_key": self.fred_api_key,
             }
             missing = [k for k, v in required_keys.items() if not v]
             if missing:

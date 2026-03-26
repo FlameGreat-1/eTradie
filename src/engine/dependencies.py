@@ -15,8 +15,8 @@ from engine.macro.collectors.economic_data.collector import EconomicDataCollecto
 from engine.macro.collectors.intermarket.collector import IntermarketCollector
 from engine.macro.collectors.news.collector import NewsCollector
 from engine.macro.collectors.sentiment.collector import SentimentCollector
-from engine.macro.providers.calendar.trading_economics import (
-    TradingEconomicsCalendarProvider,
+from engine.macro.providers.calendar.investing_rss import (
+    InvestingRSSCalendarProvider,
 )
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
@@ -24,20 +24,12 @@ from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.cot.cftc import CFTCProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
-from engine.macro.providers.economic_data.trading_economics import (
-    TradingEconomicsEconomicProvider,
-)
-from engine.macro.providers.market_data.trading_economics import (
-    TradingEconomicsMarketDataProvider,
-)
+from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
 from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
 from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
-from engine.macro.providers.news.newsapi import NewsAPIProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
-from engine.macro.providers.sentiment.trading_economics import (
-    TradingEconomicsSentimentProvider,
-)
+
 
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.mt5.factory import create_mt5_broker
@@ -158,17 +150,16 @@ class Container:
         self.cftc_provider = CFTCProvider(h, base_url=s.cftc_api_base_url)
         self.registry.register(self.cftc_provider)
 
-        self.te_econ_provider = TradingEconomicsEconomicProvider(
-            h,
-            base_url=s.tradingeconomics_base_url,
-            api_key=s.tradingeconomics_api_key,
-        )
         self.fred_provider = FREDEconomicProvider(
             h,
             base_url=s.fred_base_url,
             api_key=s.fred_api_key,
         )
-        for p in (self.te_econ_provider, self.fred_provider):
+        self.oecd_provider = OECDEconomicProvider(
+            h,
+            base_url=s.oecd_api_base_url,
+        )
+        for p in (self.fred_provider, self.oecd_provider):
             self.registry.register(p)
 
         self.twelve_data_provider = TwelveDataProvider(
@@ -176,41 +167,20 @@ class Container:
             base_url=s.twelvedata_base_url,
             api_key=s.twelvedata_api_key,
         )
-        self.te_market_provider = TradingEconomicsMarketDataProvider(
-            h,
-            base_url=s.tradingeconomics_base_url,
-            api_key=s.tradingeconomics_api_key,
-        )
-        for p in (self.twelve_data_provider, self.te_market_provider):
-            self.registry.register(p)
+        self.registry.register(self.twelve_data_provider)
 
-        self.te_cal_provider = TradingEconomicsCalendarProvider(
-            h,
-            base_url=s.tradingeconomics_base_url,
-            api_key=s.tradingeconomics_api_key,
+        self.investing_cal_provider = InvestingRSSCalendarProvider(
+            r,
+            feed_url=s.investing_calendar_rss_url,
         )
-        self.registry.register(self.te_cal_provider)
+        self.registry.register(self.investing_cal_provider)
 
-        self.newsapi_provider = NewsAPIProvider(
-            h, base_url=s.newsapi_base_url, api_key=s.newsapi_api_key
-        )
         self.reuters_rss_provider = ReutersRSSProvider(r, feed_url=s.reuters_rss_url)
         self.bloomberg_rss_provider = BloombergRSSProvider(
             r, feed_url=s.bloomberg_rss_url
         )
-        for p in (
-            self.newsapi_provider,
-            self.reuters_rss_provider,
-            self.bloomberg_rss_provider,
-        ):
+        for p in (self.reuters_rss_provider, self.bloomberg_rss_provider):
             self.registry.register(p)
-
-        self.te_sentiment_provider = TradingEconomicsSentimentProvider(
-            h,
-            base_url=s.tradingeconomics_base_url,
-            api_key=s.tradingeconomics_api_key,
-        )
-        self.registry.register(self.te_sentiment_provider)
 
     def _build_collectors(self) -> None:
         s = self.settings
@@ -233,42 +203,40 @@ class Container:
         self.cot_collector.cache_ttl = s.cache_ttl_cot
 
         self.economic_collector = EconomicDataCollector(
-            [self.te_econ_provider, self.fred_provider],
+            [self.fred_provider, self.oecd_provider],
             c,
             d,
         )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
 
         self.news_collector = NewsCollector(
-            [
-                self.newsapi_provider,
-                self.reuters_rss_provider,
-                self.bloomberg_rss_provider,
-            ],
+            [self.reuters_rss_provider, self.bloomberg_rss_provider],
             c,
             d,
         )
         self.news_collector.cache_ttl = s.cache_ttl_news
 
-        self.calendar_collector = CalendarCollector([self.te_cal_provider], c, d)
+        self.calendar_collector = CalendarCollector([self.investing_cal_provider], c, d)
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
         self.dxy_collector = DXYCollector(
-            [self.twelve_data_provider, self.te_market_provider],
+            [self.twelve_data_provider],
             c,
             d,
         )
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
         self.intermarket_collector = IntermarketCollector(
-            [self.twelve_data_provider, self.te_market_provider],
+            [self.twelve_data_provider],
             c,
             d,
         )
         self.intermarket_collector.cache_ttl = s.cache_ttl_intermarket
 
         self.sentiment_collector = SentimentCollector(
-            [self.te_sentiment_provider], c, d
+            [],  # No dedicated sentiment provider; risk assessment uses intermarket cache (VIX, yields)
+            c,
+            d,
         )
         self.sentiment_collector.cache_ttl = s.cache_ttl_sentiment
 

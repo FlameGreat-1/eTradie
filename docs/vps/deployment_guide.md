@@ -151,6 +151,27 @@ New-NetFirewallRule `
 your Linux machine's IP. ZeroMQ has no built-in encryption; restricting
 by IP is the primary network-level protection.
 
+> **WARNING: ZeroMQ Traffic is Unencrypted**
+>
+> ZeroMQ transmits all data in **plain text** over the public internet,
+> including the AUTH_TOKEN, trading commands, account info, and position
+> data. IP whitelisting + AUTH_TOKEN is the **minimum baseline** but does
+> not protect against packet sniffing on the network path.
+>
+> **Recommended for production:** Set up a WireGuard VPN tunnel between
+> the Linux machine and the VPS. This encrypts all ZeroMQ traffic and
+> eliminates the need for public IP exposure on port 5555.
+>
+> Quick WireGuard setup:
+> 1. Install WireGuard on both Linux machine and Windows VPS
+> 2. Configure a point-to-point tunnel (e.g., 10.0.0.1 <-> 10.0.0.2)
+> 3. Set `ea_host` to the VPS WireGuard IP (10.0.0.2) instead of public IP
+> 4. Firewall rule: restrict port 5555 to WireGuard subnet (10.0.0.0/24)
+> 5. Only WireGuard port (51820/UDP) needs to be open on the public IP
+>
+> If WireGuard is not feasible, the current setup (IP whitelist + AUTH_TOKEN)
+> is an accepted risk for a dedicated trading VPS with no other services.
+
 If your Linux machine's IP changes, update the rule:
 
 ```powershell
@@ -423,21 +444,40 @@ Write-Host "MT5 auto-start shortcut created at: $startupFolder\MetaTrader5.lnk" 
 ### 7.2 Configure auto-login for the VPS
 
 MT5 requires a desktop session to run (it is a GUI application).
-The VPS must auto-login after reboot:
+The VPS must auto-login after reboot.
+
+**Recommended: Sysinternals Autologon (encrypted password)**
+
+The `setup_vps.ps1` script automatically downloads and uses Microsoft
+Sysinternals Autologon, which stores the password as an LSA secret
+(encrypted by Windows DPAPI) instead of plain text in the registry.
+
+If you need to configure it manually:
 
 ```powershell
-# Enable auto-login for Administrator
+# Download Sysinternals Autologon
+Invoke-WebRequest `
+    -Uri "https://download.sysinternals.com/files/AutoLogon.zip" `
+    -OutFile "$env:TEMP\Autologon.zip"
+Expand-Archive -Path "$env:TEMP\Autologon.zip" -DestinationPath "$env:TEMP\Autologon" -Force
+
+# Configure auto-login with encrypted password storage
+& "$env:TEMP\Autologon\Autologon64.exe" Administrator $env:COMPUTERNAME "<YOUR_VPS_PASSWORD>" /accepteula
+```
+
+**Fallback: Plain-text registry (only if Autologon is unavailable)**
+
+```powershell
+# WARNING: This stores the password in PLAIN TEXT in the registry.
+# Only use this if Sysinternals Autologon cannot be downloaded.
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1"
 Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value "Administrator"
 Set-ItemProperty -Path $regPath -Name "DefaultPassword" -Value "<YOUR_VPS_PASSWORD>"
-
-Write-Host "Auto-login configured for Administrator" -ForegroundColor Green
 ```
 
-**SECURITY NOTE:** Auto-login stores the password in the registry.
-This is acceptable for a dedicated trading VPS that only runs MT5.
-Do NOT use this on a shared or multi-purpose server.
+**SECURITY NOTE:** Do NOT use the plain-text fallback on a shared or
+multi-purpose server. The Autologon approach is always preferred.
 
 ### 7.3 Prevent screen lock
 
@@ -471,7 +511,17 @@ Write-Host "Screen lock and sleep disabled" -ForegroundColor Green
 
 On your Linux machine where the eTradie Docker stack runs:
 
-### 8.1 Test ZeroMQ connectivity
+### 8.1 Make verification script executable and test connectivity
+
+```bash
+# Make the verification script executable (one-time)
+chmod +x scripts/vps/verify_vps_connection.sh
+
+# Run the full verification suite
+./scripts/vps/verify_vps_connection.sh <VPS_IP>
+```
+
+Or test ZeroMQ directly:
 
 ```bash
 # From the eTradie project directory
@@ -668,6 +718,8 @@ Manually install updates on Saturday when markets are closed.
 - [ ] No unnecessary services running on VPS
 - [ ] MT5 trading password is not the same as the VPS password
 - [ ] Broker connection credentials encrypted in eTradie database
+- [ ] WireGuard VPN tunnel configured (recommended) or plain-text ZeroMQ risk accepted
+- [ ] No hardcoded credentials in docker-compose.yml or .env committed to repo
 
 ---
 
