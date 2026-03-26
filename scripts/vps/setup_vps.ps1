@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Automates the complete MT5 + ZeroMQ EA deployment on a Windows VPS.
-    Covers Steps 2-7 from docs/vps/deployement_guide.md:
+    Covers Steps 2-7 from docs/vps/deployment_guide.md:
       - Windows hardening (firewall, services, timezone)
       - ZeroMQ EA dependency installation (mql-zmq, JAson)
       - EA file deployment
