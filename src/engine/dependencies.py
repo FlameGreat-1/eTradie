@@ -33,6 +33,7 @@ from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
 from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
+from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
 
 from engine.ta.broker.mt5.config import MT5Config
@@ -249,8 +250,11 @@ class Container:
         )
         self.intermarket_collector.cache_ttl = s.cache_ttl_intermarket
 
+        self.cot_sentiment_provider = COTDerivedSentimentProvider(c)
+        self.registry.register(self.cot_sentiment_provider)
+
         self.sentiment_collector = SentimentCollector(
-            [],  # No dedicated sentiment provider; risk assessment uses intermarket cache (VIX, yields)
+            [self.cot_sentiment_provider],
             c,
             d,
         )
