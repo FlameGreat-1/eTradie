@@ -151,6 +151,27 @@ New-NetFirewallRule `
 your Linux machine's IP. ZeroMQ has no built-in encryption; restricting
 by IP is the primary network-level protection.
 
+> **WARNING: ZeroMQ Traffic is Unencrypted**
+>
+> ZeroMQ transmits all data in **plain text** over the public internet,
+> including the AUTH_TOKEN, trading commands, account info, and position
+> data. IP whitelisting + AUTH_TOKEN is the **minimum baseline** but does
+> not protect against packet sniffing on the network path.
+>
+> **Recommended for production:** Set up a WireGuard VPN tunnel between
+> the Linux machine and the VPS. This encrypts all ZeroMQ traffic and
+> eliminates the need for public IP exposure on port 5555.
+>
+> Quick WireGuard setup:
+> 1. Install WireGuard on both Linux machine and Windows VPS
+> 2. Configure a point-to-point tunnel (e.g., 10.0.0.1 <-> 10.0.0.2)
+> 3. Set `ea_host` to the VPS WireGuard IP (10.0.0.2) instead of public IP
+> 4. Firewall rule: restrict port 5555 to WireGuard subnet (10.0.0.0/24)
+> 5. Only WireGuard port (51820/UDP) needs to be open on the public IP
+>
+> If WireGuard is not feasible, the current setup (IP whitelist + AUTH_TOKEN)
+> is an accepted risk for a dedicated trading VPS with no other services.
+
 If your Linux machine's IP changes, update the rule:
 
 ```powershell
@@ -471,7 +492,17 @@ Write-Host "Screen lock and sleep disabled" -ForegroundColor Green
 
 On your Linux machine where the eTradie Docker stack runs:
 
-### 8.1 Test ZeroMQ connectivity
+### 8.1 Make verification script executable and test connectivity
+
+```bash
+# Make the verification script executable (one-time)
+chmod +x scripts/vps/verify_vps_connection.sh
+
+# Run the full verification suite
+./scripts/vps/verify_vps_connection.sh <VPS_IP>
+```
+
+Or test ZeroMQ directly:
 
 ```bash
 # From the eTradie project directory
@@ -668,6 +699,8 @@ Manually install updates on Saturday when markets are closed.
 - [ ] No unnecessary services running on VPS
 - [ ] MT5 trading password is not the same as the VPS password
 - [ ] Broker connection credentials encrypted in eTradie database
+- [ ] WireGuard VPN tunnel configured (recommended) or plain-text ZeroMQ risk accepted
+- [ ] No hardcoded credentials in docker-compose.yml or .env committed to repo
 
 ---
 
