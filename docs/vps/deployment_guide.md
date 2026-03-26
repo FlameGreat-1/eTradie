@@ -444,21 +444,40 @@ Write-Host "MT5 auto-start shortcut created at: $startupFolder\MetaTrader5.lnk" 
 ### 7.2 Configure auto-login for the VPS
 
 MT5 requires a desktop session to run (it is a GUI application).
-The VPS must auto-login after reboot:
+The VPS must auto-login after reboot.
+
+**Recommended: Sysinternals Autologon (encrypted password)**
+
+The `setup_vps.ps1` script automatically downloads and uses Microsoft
+Sysinternals Autologon, which stores the password as an LSA secret
+(encrypted by Windows DPAPI) instead of plain text in the registry.
+
+If you need to configure it manually:
 
 ```powershell
-# Enable auto-login for Administrator
+# Download Sysinternals Autologon
+Invoke-WebRequest `
+    -Uri "https://download.sysinternals.com/files/AutoLogon.zip" `
+    -OutFile "$env:TEMP\Autologon.zip"
+Expand-Archive -Path "$env:TEMP\Autologon.zip" -DestinationPath "$env:TEMP\Autologon" -Force
+
+# Configure auto-login with encrypted password storage
+& "$env:TEMP\Autologon\Autologon64.exe" Administrator $env:COMPUTERNAME "<YOUR_VPS_PASSWORD>" /accepteula
+```
+
+**Fallback: Plain-text registry (only if Autologon is unavailable)**
+
+```powershell
+# WARNING: This stores the password in PLAIN TEXT in the registry.
+# Only use this if Sysinternals Autologon cannot be downloaded.
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1"
 Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value "Administrator"
 Set-ItemProperty -Path $regPath -Name "DefaultPassword" -Value "<YOUR_VPS_PASSWORD>"
-
-Write-Host "Auto-login configured for Administrator" -ForegroundColor Green
 ```
 
-**SECURITY NOTE:** Auto-login stores the password in the registry.
-This is acceptable for a dedicated trading VPS that only runs MT5.
-Do NOT use this on a shared or multi-purpose server.
+**SECURITY NOTE:** Do NOT use the plain-text fallback on a shared or
+multi-purpose server. The Autologon approach is always preferred.
 
 ### 7.3 Prevent screen lock
 
