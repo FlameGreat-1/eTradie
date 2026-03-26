@@ -37,6 +37,7 @@ services:
       --maxmemory-policy allkeys-lru
       --save ""
       --appendonly no
+      --requirepass ${REDIS_PASSWORD:-CHANGE_ME_IN_PRODUCTION}
     ports:
       - "6379:6379"
     networks:
