@@ -313,27 +313,78 @@ $shortcut.Description = "eTradie MT5 Terminal - Auto-start"
 $shortcut.Save()
 Write-Ok "Startup shortcut created: $shortcutPath"
 
-# 7.2 Configure auto-login
+# 7.2 Configure auto-login using Sysinternals Autologon (encrypted LSA secret)
 #
-# SECURITY WARNING: This stores the VPS password in PLAIN TEXT in the
-# Windows registry at HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon.
-# This is acceptable ONLY for a dedicated single-purpose trading VPS.
+# Autologon.exe stores the password as an LSA secret encrypted by Windows
+# DPAPI, instead of plain text in the registry. This is the Microsoft-
+# recommended approach for auto-login on Windows Server.
 #
-# For stronger security, consider using Sysinternals Autologon.exe instead:
-#   https://learn.microsoft.com/en-us/sysinternals/downloads/autologon
-# Autologon stores the password as an LSA secret (encrypted) rather than
-# plain text in the registry. Download and run:
-#   Autologon.exe Administrator <COMPUTERNAME> <PASSWORD>
+# Fallback: If Autologon cannot be downloaded (no internet, firewall),
+# we fall back to the plain-text registry method with a clear warning.
 #
-Write-Info "Configuring auto-login..."
-Write-Warn "Auto-login stores the password in the Windows registry."
-Write-Warn "This is acceptable for a dedicated trading VPS only."
-Write-Warn "For stronger security, use Sysinternals Autologon.exe instead."
-$regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1"
-Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value "Administrator"
-Set-ItemProperty -Path $regPath -Name "DefaultPassword" -Value $VPSPassword
-Write-Ok "Auto-login configured for Administrator"
+Write-Info "Configuring auto-login (encrypted via Sysinternals Autologon)..."
+
+$autologonDir = Join-Path $env:TEMP "etradie_autologon"
+$autologonZip = Join-Path $autologonDir "Autologon.zip"
+$autologonExe = Join-Path $autologonDir "Autologon64.exe"
+$autologonUsed = $false
+
+try {
+    # Download Sysinternals Autologon from Microsoft's official URL
+    if (Test-Path $autologonDir) { Remove-Item $autologonDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $autologonDir -Force | Out-Null
+
+    Write-Info "Downloading Sysinternals Autologon..."
+    Invoke-WebRequest `
+        -Uri "https://download.sysinternals.com/files/AutoLogon.zip" `
+        -OutFile $autologonZip `
+        -TimeoutSec 30
+
+    Expand-Archive -Path $autologonZip -DestinationPath $autologonDir -Force
+
+    if (Test-Path $autologonExe) {
+        # Run Autologon64.exe to configure auto-login with encrypted password.
+        # /accepteula suppresses the EULA dialog.
+        # The password is stored as an LSA secret, NOT in plain text registry.
+        $proc = Start-Process -FilePath $autologonExe `
+            -ArgumentList "Administrator", $env:COMPUTERNAME, $VPSPassword, "/accepteula" `
+            -Wait -PassThru -NoNewWindow
+
+        if ($proc.ExitCode -eq 0) {
+            # Verify it was set
+            $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+            $autoLogon = Get-ItemProperty -Path $regPath -Name "AutoAdminLogon" -ErrorAction SilentlyContinue
+            if ($autoLogon.AutoAdminLogon -eq "1") {
+                $autologonUsed = $true
+                Write-Ok "Auto-login configured via Sysinternals Autologon (password encrypted as LSA secret)"
+            } else {
+                Write-Warn "Autologon ran but AutoAdminLogon registry key not set. Falling back."
+            }
+        } else {
+            Write-Warn "Autologon exited with code $($proc.ExitCode). Falling back to registry method."
+        }
+    } else {
+        Write-Warn "Autologon64.exe not found in downloaded archive. Falling back."
+    }
+} catch {
+    Write-Warn "Failed to download/run Sysinternals Autologon: $_"
+    Write-Warn "Falling back to plain-text registry method."
+}
+
+# Cleanup Autologon download
+Remove-Item $autologonDir -Recurse -Force -ErrorAction SilentlyContinue
+
+# Fallback: plain-text registry method (only if Autologon failed)
+if (-not $autologonUsed) {
+    Write-Warn "SECURITY: Storing password in plain text in Windows registry."
+    Write-Warn "This is the fallback method. For production, manually install"
+    Write-Warn "Sysinternals Autologon: https://learn.microsoft.com/en-us/sysinternals/downloads/autologon"
+    $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+    Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1"
+    Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value "Administrator"
+    Set-ItemProperty -Path $regPath -Name "DefaultPassword" -Value $VPSPassword
+    Write-Ok "Auto-login configured via registry (plain-text fallback)"
+}
 
 # 7.3 Prevent screen lock and sleep
 Write-Info "Disabling screen lock and sleep..."
