@@ -26,3 +26,11 @@ scrape_configs:
         labels:
           service: "etradie-execution"
           environment: "development"
+
+  - job_name: "etradie-management"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["management:8083"]
+        labels:
+          service: "etradie-management"
+          environment: "development"
