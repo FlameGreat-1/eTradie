@@ -41,6 +41,8 @@ func (b *Builder) Build(
 
 	hasMacro := macroSignals.FedTone != "" || macroSignals.ECBTone != "" ||
 		macroSignals.BOETone != "" || macroSignals.BOJTone != "" ||
+		macroSignals.RBATone != "" || macroSignals.BOCTone != "" ||
+		macroSignals.RBNZTone != "" || macroSignals.SNBTone != "" ||
 		macroSignals.MacroBiasUSD != "" || macroSignals.HasQEQT ||
 		macroSignals.StagflationDetected || macroSignals.RiskEnvironment != ""
 
@@ -164,7 +166,9 @@ func collectAllFrameworks(ta *TASignals, macro *MacroSignals) []string {
 		macro.COTNetCHF != nil || len(macro.COTExtremesFlagged) > 0 || macro.COTHasTFFData {
 		frameworks["cot"] = struct{}{}
 	}
-	if macro.FedTone != "" || macro.ECBTone != "" || macro.BOETone != "" || macro.BOJTone != "" || macro.HasQEQT {
+	if macro.FedTone != "" || macro.ECBTone != "" || macro.BOETone != "" || macro.BOJTone != "" ||
+		macro.RBATone != "" || macro.BOCTone != "" || macro.RBNZTone != "" || macro.SNBTone != "" ||
+		macro.HasQEQT {
 		frameworks["macro"] = struct{}{}
 	}
 	if macro.IronOre != nil || macro.DairyGDT != nil || macro.Copper != nil ||

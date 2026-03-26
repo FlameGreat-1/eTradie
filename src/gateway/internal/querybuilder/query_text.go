@@ -142,6 +142,18 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 	if macro.BOJTone != "" {
 		*parts = append(*parts, "BOJ "+strings.ToLower(macro.BOJTone))
 	}
+	if macro.RBATone != "" {
+		*parts = append(*parts, "RBA "+strings.ToLower(macro.RBATone))
+	}
+	if macro.BOCTone != "" {
+		*parts = append(*parts, "BOC "+strings.ToLower(macro.BOCTone))
+	}
+	if macro.RBNZTone != "" {
+		*parts = append(*parts, "RBNZ "+strings.ToLower(macro.RBNZTone))
+	}
+	if macro.SNBTone != "" {
+		*parts = append(*parts, "SNB "+strings.ToLower(macro.SNBTone))
+	}
 
 	if macro.HasRateChange {
 		*parts = append(*parts, macro.RateChangeBank+" rate "+macro.RateChangeDirection)
