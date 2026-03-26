@@ -111,6 +111,10 @@ class Settings(BaseSettings):
     # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
     investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
 
+    # ── Commodity Proxy URLs (free, no API key) ───────────────────────
+    iron_ore_price_url: str = "https://markets.businessinsider.com/commodities/iron-ore-price"
+    dairy_gdt_price_url: str = "https://www.globaldairytrade.info/en/gdt-events/summary-results/"
+
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(
         default=600, ge=60, description="CB RSS poll: 10 min default"

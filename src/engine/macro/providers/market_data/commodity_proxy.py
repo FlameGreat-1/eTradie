@@ -14,7 +14,6 @@ from __future__ import annotations
 import re
 import time
 from datetime import UTC, datetime
-from typing import Any
 
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
@@ -22,15 +21,6 @@ from engine.macro.models.provider.market_data import IntermarketSnapshot
 from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
-
-# Business Insider commodity markets page (public, no auth).
-_IRON_ORE_URL = "https://markets.businessinsider.com/commodities/iron-ore-price"
-
-# GlobalDairyTrade public results page.
-_GDT_URL = "https://www.globaldairytrade.info/en/gdt-events/summary-results/"
-
-# Regex to extract price from HTML content.
-_PRICE_PATTERN = re.compile(r'([\d]+[.,][\d]{1,2})')
 
 
 class CommodityProxyProvider(BaseMarketDataProvider):
@@ -43,9 +33,17 @@ class CommodityProxyProvider(BaseMarketDataProvider):
 
     provider_name = "commodity_proxy"
 
-    def __init__(self, http_client: HttpClient) -> None:
+    def __init__(
+        self,
+        http_client: HttpClient,
+        *,
+        iron_ore_url: str,
+        dairy_gdt_url: str,
+    ) -> None:
         super().__init__()
         self._http = http_client
+        self._iron_ore_url = iron_ore_url
+        self._dairy_gdt_url = dairy_gdt_url
 
     async def fetch(self) -> IntermarketSnapshot:
         start = time.monotonic()
@@ -67,10 +65,10 @@ class CommodityProxyProvider(BaseMarketDataProvider):
             raise
 
     async def _fetch_iron_ore(self) -> float | None:
-        """Fetch iron ore price from Business Insider markets page."""
+        """Fetch iron ore price from public markets page."""
         try:
             html = await self._http.get(
-                _IRON_ORE_URL,
+                self._iron_ore_url,
                 provider_name=self.provider_name,
                 category=self.category.value,
                 headers={"Accept": "text/html"},
@@ -79,8 +77,6 @@ class CommodityProxyProvider(BaseMarketDataProvider):
             if not isinstance(html, str):
                 return None
 
-            # Look for the price in the page content.
-            # Business Insider uses a specific pattern for commodity prices.
             price_match = re.search(
                 r'price["\s:>]+([\d]+\.?[\d]*)'
                 r'|([\d]+\.\d{2})\s*(?:USD|usd)',
@@ -96,10 +92,10 @@ class CommodityProxyProvider(BaseMarketDataProvider):
             return None
 
     async def _fetch_dairy_gdt(self) -> float | None:
-        """Fetch dairy GDT price index from GlobalDairyTrade."""
+        """Fetch dairy GDT price index from public results page."""
         try:
             html = await self._http.get(
-                _GDT_URL,
+                self._dairy_gdt_url,
                 provider_name=self.provider_name,
                 category=self.category.value,
                 headers={"Accept": "text/html"},
@@ -108,8 +104,6 @@ class CommodityProxyProvider(BaseMarketDataProvider):
             if not isinstance(html, str):
                 return None
 
-            # GDT publishes a price index on their summary page.
-            # Look for the GDT Price Index value.
             index_match = re.search(
                 r'(?:GDT\s*Price\s*Index|price\s*index)[^\d]*([\d]+\.?[\d]*)',
                 html,
