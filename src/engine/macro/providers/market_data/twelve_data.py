@@ -20,6 +20,9 @@ _SYMBOLS = {
     "natural_gas": "NG",
     "sp500": "SPX",
     "vix": "VIX",
+    "us2y": "US02Y",
+    "us10y": "US10Y",
+    "us30y": "US30Y",
 }
 
 
@@ -69,6 +72,9 @@ class TwelveDataProvider(BaseMarketDataProvider):
             natural_gas=prices.get("natural_gas"),
             sp500=prices.get("sp500"),
             vix=prices.get("vix"),
+            us2y_yield=prices.get("us2y"),
+            us10y_yield=prices.get("us10y"),
+            us30y_yield=prices.get("us30y"),
             snapshot_at=datetime.now(UTC),
             source="twelve_data",
         )
