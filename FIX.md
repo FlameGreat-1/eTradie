@@ -22,102 +22,47 @@ No changes to `pyproject.toml` needed. No manual `event_loop` fixture needed. Th
 
 
 
-YOU HAVE FULL AND COMPLETE READ AND WRITE ACCESS TO THE REPO FROM MY OTHER ACCOUNT BECAUSE I HAVE ADDED YOU AS A GROUP MEMEBER WITH A DEVELOPER ROLE:
 
-https://gitlab.com/exoper-chi/exoper-izi
+**The current system uses polling (request/response), not streaming.** Every single data fetch is a REQ/REP (request/reply) pattern:
 
-SO IT MEANS YOU CAN EXAMINE FILES, MODIFY, CREATE AND IMPLEMENT, COMMIT AND CREATE MERGE REQUEST ETC
+#### Historical Candles (TA Analysis)
+**Polling.** The `scheduler_jobs.py` runs `_candle_refresh()` on a timer interval (based on the smallest HTF timeframe, typically every 60 minutes). Each call sends a `CANDLES` command via ZMQ REQ/REP to the EA, which calls `CopyRates()` and returns the data. This is a one-shot request, not a stream.
 
-CRITICAL: EVERYTHING IS ON THE MAIN BRANCH. DO NOT FOOLSIHLY START LISTING WHAT IS ON THE MASTER BRANCH
+#### Tick Prices (Execution Watcher)
+**Polling.** The Go `watcher/manager.go` polls tick prices on a configurable interval (`EXECUTION_WATCHER_POLL_INTERVAL_MS=500`, so every 500ms). Each poll sends an HTTP GET to `/internal/broker/tick_price`, which calls `ZmqClient.get_tick_price()`, which sends a `TICK_PRICE` REQ/REP command to the EA, which calls `SymbolInfoTick()`.
 
+#### Tick Prices (Trade Management)
+**Polling.** The Go `monitoring/worker.go` polls tick prices on a configurable interval (`tickPollMs`) per open trade. Same chain: HTTP GET -> Python bridge -> ZMQ REQ/REP -> EA `SymbolInfoTick()`.
 
+#### Why this matters
 
-THIS IS EXACTLY WHAT WE WANT TO DO AND I WANT YOU TO EXAMINE IT THOROUGHLY IN THE ORDER I GAVE IT NOW FROM THE BEGINNING TO THE END:
+The ZeroMQ REQ/REP pattern means every tick price requires a full round trip: Go -> HTTP -> Python -> ZMQ -> EA -> ZMQ -> Python -> HTTP -> Go. Over a network (Linux machine to VPS), each round trip adds latency from the TCP connection.
 
+**Quote streaming (ZMQ PUB/SUB)** would be different: the EA would continuously push tick updates to subscribers without being asked. This eliminates the request overhead and gives you every tick as it happens, not just the ones you poll for. You'd never miss a tick between polls.
 
+**For your system specifically**, the polling approach works because:
+- TA analysis doesn't need every tick, just periodic candle snapshots
+- The Execution watcher polls at 500ms which is fast enough for zone entry detection
+- The Management worker polls at its configured interval for SL/TP monitoring
 
-CURRENTLY METAAPI IS USING ENVIRONMENT VARIABLE I THINK AND EA CONFIGURED LOCALLY
-
-SO WE ARE GOING TO MODIFY AND UPDATE EVERYTHING:
-
-1. Users goes to the dashboard and clicks connect broker
-2. They select EA or metaapi from dashboard.  twelve-data IS FOR FALLBACK FOR EITHER OF THAT IN CASE
-3. If they select EA then A MODAL/PAGE WILL APPEAR FOR THEM TO SETUP THEIR MT5 ACCOUNT
-4. But IF THEY SELECT METAAPI THEN A MODAL/PAGE APPEAR: THEY WILL HAVE TO ALSO SETUP THEIR MT5 ACCOUNTS
-
-ONCE THEY SETUP IT WILL BE PERSISTED IN THE DATABASE AND THEY SHOULD ALSO BE ABLE TO activate/deactivate/delete 
-
-
-SO EXAMINE BOTH OF THESE THOROUGHLY FROM THE BEGINNING TO THE END SO THAT YOU WILL UNDERSTAND WHAT I AM EXPLAING AND WE NEED TO DO.
-
-THIS IS VERY HUG SO WE EXECUTE STEP BY STEP INSTEAD OF RUSHING ANYTHING. OF COURSE THE EA (ZEOMQ) WILL BE DEPLOYED IN SAME VPS AS THE APPLICATION SO BOTH WILL BE DONE TOGETHER
-
-
-FOR EA,
-
-## **Current Problem & Proposed Solution**
-
-**Current Setup (Local):**
-
-We're currently running MT5 with the ZeroMQ EA on a local Windows PC (IP: 192.168.43.183:5555), which the eTradie application on Linux Docker connects to for market data and trade execution. This setup has critical limitations: MT5 only runs when the Windows PC is powered on, requiring the PC to stay running 24/7 for continuous operation. This creates dependency on local hardware, increases electricity costs, ties the system to a single location, and makes the system unavailable during PC shutdowns, restarts, or power outages.
-
-**Proposed Solution (Cloud VPS):**
-
-Migrate MT5 and the ZeroMQ EA to a Windows VPS (Virtual Private Server) running 24/7 in a data center. The eTradie application will connect to the VPS public IP instead of the local PC IP. This provides true 24/7 uptime independent of local hardware, eliminates electricity costs and PC wear, enables access from anywhere with internet, ensures better reliability with data center infrastructure, and reduces overall operational costs to $10-30/month. **We will keep the current local Windows PC setup exactly as it is for backup and redundancy, allowing us to switch back to local operation if needed.** The transition only requires: (1) deploying a Windows VPS, (2) installing MT5 and the EA on the VPS, (3) updating the `MT5_ZMQ_HOST` environment variable in eTradie to the VPS IP, and (4) restarting the Docker containers. All functionality remains identical with improved reliability and availability.
+**But** if you want faster execution (detecting zone entries within milliseconds instead of 500ms) or more accurate trade management (catching exact SL/TP levels instead of polling), streaming would be the upgrade path. That would require adding a ZMQ PUB socket to the EA alongside the existing REP socket, and a SUB client on the Python side.
 
 
 
-SOWE ARE HANDLING BOTH EA AND METAAPI
 
 
 
-## **Broker Connection Management - Current vs New Approach**
-
-**Current Setup (Hardcoded Environment Variables):**
-
-The system currently uses hardcoded MetaAPI credentials stored in `.env` files, supporting only a single MT5 account for all users. This approach doesn't scale for multi-user scenarios and provides no flexibility for users to configure their own broker connections. Users cannot choose their preferred connection method or manage multiple MT5 accounts.
-
-**Proposed Solution (Database-Driven Multi-User Connections):**
-
-Implement a database-driven broker connection system where each user can configure their own MT5 accounts via the dashboard. Users will select between two connection methods: EA (ZeroMQ) for direct MT5 connection via their own MT5 instance, or MetaAPI for cloud-provisioned MT5 accounts. Twelve-data will serve as a fallback data provider if primary connections fail. Users will be able to create, activate, deactivate, and delete their broker connections through the dashboard, with all credentials securely stored in the database per user. This requires: (1) creating a `broker_connections` database table, (2) implementing CRUD API endpoints for connection management, (3) building dashboard UI for connection configuration (modals for EA and MetaAPI setup), (4) adding credential encryption, and (5) updating the trading engine to fetch connections from the database instead of environment variables. This enables true multi-user support with flexible broker connection options.
-
----
 
 
-THIS IS JUST AND EXAMPLE:
 
-# Broker Connection Management
+MACRO GAPS THAT NEEDS TO BE ADDRESSED:
 
-POST   /api/v1/broker/connections
-# Create new broker connection (EA or MetaAPI)
-# Body: { type: 'ea'|'metaapi', name, credentials }
+Indicator breadth for non-US: TE covered PMI, retail sales, trade balance, consumer confidence, housing, manufacturing for all 8 currencies. OECD currently covers GDP, CPI, Core CPI, unemployment. Missing: PMI, retail sales, trade balance, PPI for non-US.
 
-GET    /api/v1/broker/connections
-# List all user's broker connections
+US Treasury yields (2Y, 10Y, 30Y): TE fetched these from /markets/bond. TwelveData does not include them in the current _SYMBOLS map. These are critical for the risk assessment (yield curve inversion detection in assess_risk_environment).
+Iron Ore: AUD correlation proxy. Niche but was available.
+Dairy GDT: NZD correlation proxy. Niche and TE rarely found it anyway.
 
-GET    /api/v1/broker/connections/{id}
-# Get specific connection details
+The sentiment collector now produces zero SentimentReading objects. The risk assessment still works because it reads from intermarket cache. But any downstream code that expects sentiments list to have data will get an empty list.
 
-PATCH  /api/v1/broker/connections/{id}
-# Update connection (activate/deactivate)
-# Body: { is_active: true|false }
-
-DELETE /api/v1/broker/connections/{id}
-# Delete broker connection
-
-POST   /api/v1/broker/connections/{id}/test
-# Test connection status
-
-POST   /api/v1/broker/connections/{id}/set-primary
-# Set as primary connection
-
-# MetaAPI-specific
-POST   /api/v1/broker/metaapi/provision
-# Provision new MetaAPI account
-# Body: { login, password, server }
-
-# EA-specific
-POST   /api/v1/broker/ea/test-connection
-# Test EA ZeroMQ connection
-# Body: { host, port, auth_token }
 
