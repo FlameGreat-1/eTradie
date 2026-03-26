@@ -5,6 +5,13 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
