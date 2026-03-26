@@ -11,8 +11,8 @@ the same Fernet encryption used for LLM connections.
 Only one connection can be active at a time. The is_primary flag
 marks the preferred connection for trading operations.
 
-Revision ID: 0008
-Revises: 0007
+Revision ID: 0009
+Revises: 0008
 Create Date: 2026-03-25
 """
 
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0008"
-down_revision: Union[str, None] = "0007"
+revision: str = "0009"
+down_revision: Union[str, None] = "0008"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

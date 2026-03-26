@@ -71,7 +71,7 @@ class TwelveDataClient(BrokerBase):
         self.validator = BrokerDataValidator()
         self._rate_limiter = asyncio.Semaphore(self.config.rate_limit_per_minute)
 
-    # ── BrokerBase abstract methods ───────────────────────────────────────
+    # -- BrokerBase abstract methods -------------------------------------------
 
     async def get_capabilities(self) -> BrokerCapabilities:
         return BrokerCapabilities(
@@ -329,13 +329,16 @@ class TwelveDataClient(BrokerBase):
             )
             return False
 
-    # -- Trading methods (not supported by Twelve Data) ---------------------
+    async def shutdown(self) -> None:
+        logger.info("twelve_data_shutdown_complete")
+
+    # -- Trading methods (not supported by Twelve Data) ------------------------
     #
     # Twelve Data is a market-data-only REST API.  It does not provide
     # trading endpoints.  All order/position/account methods raise
     # ProviderError so the execution layer never accidentally routes
     # real money through a data-only provider.
-    # -----------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     _TRADING_NOT_SUPPORTED = (
         "Twelve Data is a market-data-only provider.  "
@@ -455,14 +458,14 @@ class TwelveDataClient(BrokerBase):
             },
         )
 
-    # ── Private helpers ───────────────────────────────────────────────────
+    # -- Private helpers -------------------------------------------------------
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
         """Convert internal symbol format to Twelve Data format.
 
-        Internal:  EURUSD  →  Twelve Data:  EUR/USD
-        Metals:    XAUUSD  →  XAU/USD
+        Internal:  EURUSD  ->  Twelve Data:  EUR/USD
+        Metals:    XAUUSD  ->  XAU/USD
         """
         raw = symbol.upper().replace("/", "").replace("_", "")
 

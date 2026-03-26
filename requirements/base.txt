@@ -36,6 +36,9 @@ opentelemetry-instrumentation-redis==0.51b0
 # ── Structured Logging ───────────────────────────────────────
 structlog==24.4.0
 
+# ── Credential Encryption ───────────────────────────────────
+cryptography>=42.0.0
+
 # ── Serialization / Utilities ────────────────────────────────
 orjson==3.10.15
 python-dateutil==2.9.0

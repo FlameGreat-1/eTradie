@@ -60,7 +60,7 @@ _METAAPI_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class MetaApiClient(BrokerBase):
     """Cloud-based MT5 data provider via MetaApi.cloud REST API."""
 
-    _BASE_URL = "https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai"
+    _DEFAULT_BASE_URL = "https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai"
 
     def __init__(
         self,
@@ -72,6 +72,7 @@ class MetaApiClient(BrokerBase):
         self._http = http_client
         self.validator = BrokerDataValidator()
         self._account_id = config.metaapi_account_id
+        self._base_url = config.metaapi_base_url if config.metaapi_base_url else self._DEFAULT_BASE_URL
         self._auth_headers = {
             "auth-token": config.metaapi_token,
         }
@@ -79,7 +80,7 @@ class MetaApiClient(BrokerBase):
     # -- Helpers ---------------------------------------------------------------
 
     def _url(self, path: str) -> str:
-        return f"{self._BASE_URL}/users/current/accounts/{self._account_id}{path}"
+        return f"{self._base_url}/users/current/accounts/{self._account_id}{path}"
 
     async def _api_get(
         self,
@@ -284,7 +285,7 @@ class MetaApiClient(BrokerBase):
     async def health_check(self) -> bool:
         try:
             info = await self._http.get(
-                f"{self._BASE_URL}/users/current/accounts/{self._account_id}",
+                f"{self._base_url}/users/current/accounts/{self._account_id}",
                 provider_name="metaapi",
                 category="health",
                 headers=self._auth_headers,
@@ -468,31 +469,16 @@ class MetaApiClient(BrokerBase):
         lot_size: float,
         comment: str = "",
     ) -> OrderResult:
-        if order_type.upper() == "MARKET":
-            action_type = (
-                "ORDER_TYPE_BUY" if direction.upper() == "BUY" else "ORDER_TYPE_SELL"
-            )
+        is_buy = direction.upper() == "BUY"
+        is_market = order_type.upper() == "MARKET"
+
+        if is_market:
+            action_type = "ORDER_TYPE_BUY" if is_buy else "ORDER_TYPE_SELL"
         else:
-            action_type = (
-                "ORDER_TYPE_BUY_LIMIT"
-                if direction.upper() == "BUY"
-                else "ORDER_TYPE_SELL_LIMIT"
-            )
+            action_type = "ORDER_TYPE_BUY_LIMIT" if is_buy else "ORDER_TYPE_SELL_LIMIT"
 
         payload: dict[str, Any] = {
-            "actionType": (
-                "ORDER_TYPE_BUY"
-                if order_type.upper() == "MARKET" and direction.upper() == "BUY"
-                else (
-                    "ORDER_TYPE_SELL"
-                    if order_type.upper() == "MARKET" and direction.upper() == "SELL"
-                    else (
-                        "ORDER_TYPE_BUY_LIMIT"
-                        if direction.upper() == "BUY"
-                        else "ORDER_TYPE_SELL_LIMIT"
-                    )
-                )
-            ),
+            "actionType": action_type,
             "symbol": symbol,
             "volume": lot_size,
             "stopLoss": stop_loss,

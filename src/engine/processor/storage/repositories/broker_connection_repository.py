@@ -6,6 +6,12 @@ using the same Fernet symmetric encryption as LLM connections.
 
 The encryption key is derived identically to the LLM connection
 repository so both use the same key derivation path.
+
+NOTE: This module lives under processor/storage/ (not ta/broker/)
+because it shares the same SQLAlchemy Base, session management,
+and encryption infrastructure as the LLM connection repository.
+Both broker and LLM connections are user-configured via the
+dashboard and follow the same CRUD + encryption pattern.
 """
 
 from __future__ import annotations
@@ -13,6 +19,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
@@ -45,20 +52,18 @@ STATUS_ERROR = "error"
 # ---------------------------------------------------------------------------
 
 def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key.
+    """Derive a Fernet encryption key for credential encryption.
 
-    Uses the same derivation path as the LLM connection repository
+    Uses the same derivation chain as the LLM connection repository
     so both share the same key. Priority:
-      1. BROKER_ENCRYPTION_KEY env var
-      2. LLM_ENCRYPTION_KEY env var (shared with LLM connections)
+      1. BROKER_ENCRYPTION_KEY env var (shared across all credential stores)
+      2. LLM_ENCRYPTION_KEY env var (legacy alias)
       3. DATABASE_URL env var
-      4. Hardcoded fallback (dev only)
+      4. Hardcoded fallback (dev only, never in production)
     """
     raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
     if not raw:
         raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("PROCESSOR_DATABASE_URL", "")
     if not raw:
         raw = os.environ.get("DATABASE_URL", "etradie-default-key")
     digest = hashlib.sha256(raw.encode()).digest()
@@ -90,6 +95,27 @@ def decrypt_credential(encrypted: str) -> str:
 # Validation
 # ---------------------------------------------------------------------------
 
+# Regex for validating hostnames and IP addresses.
+# Matches: IPv4 (192.168.1.1), hostnames (my-vps.example.com),
+# Docker service names (host.docker.internal), localhost.
+_HOST_PATTERN = re.compile(
+    r"^(?:"
+    r"(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)"  # IPv4
+    r"|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"  # hostname
+    r")$"
+)
+
+
+def _validate_host(host: str) -> None:
+    """Validate that a host string is a valid IP address or hostname."""
+    if len(host) > 253:
+        raise ValueError(f"ea_host too long ({len(host)} chars, max 253)")
+    if not _HOST_PATTERN.match(host):
+        raise ValueError(
+            f"ea_host must be a valid IP address or hostname, got '{host}'"
+        )
+
+
 def _validate_connection(
     connection_type: str,
     *,
@@ -108,6 +134,7 @@ def _validate_connection(
     if connection_type == CONNECTION_TYPE_EA:
         if not ea_host or not ea_host.strip():
             raise ValueError("ea_host is required for EA connections")
+        _validate_host(ea_host.strip())
         if ea_port is None or ea_port < 1024 or ea_port > 65535:
             raise ValueError(
                 f"ea_port must be 1024..65535 for EA connections, got {ea_port}"
@@ -278,7 +305,8 @@ class BrokerConnectionRepository:
         if name is not None:
             values["name"] = name
         if ea_host is not None:
-            values["ea_host"] = ea_host
+            _validate_host(ea_host.strip())
+            values["ea_host"] = ea_host.strip()
         if ea_port is not None:
             if ea_port < 1024 or ea_port > 65535:
                 raise ValueError(

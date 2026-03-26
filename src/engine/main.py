@@ -22,7 +22,53 @@ from engine.processor.models.io import ProcessorInput
 from engine.shared.store import RedisSymbolReader
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 
+
+async def _rate_limit(
+    request: "Request",
+    key_prefix: str,
+    max_requests: int = 10,
+    window_seconds: int = 60,
+) -> None:
+    """Redis-based sliding window rate limiter for dashboard API endpoints.
+
+    Raises HTTP 429 if the caller exceeds max_requests within window_seconds.
+    Uses the client IP as the rate limit key.
+    """
+    container: Container = request.app.state.container
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"ratelimit:{key_prefix}:{client_ip}"
+
+    try:
+        current = await container.cache.increment(rate_key)
+        if current == 1:
+            await container.cache.expire(rate_key, window_seconds)
+        if current > max_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Max {max_requests} requests per {window_seconds}s.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # If Redis is down, allow the request (fail open for availability).
+        pass
+
 logger = get_logger(__name__)
+
+
+def _require_broker(container: "Container") -> None:
+    """Raise 503 if no broker client is configured.
+
+    Called at the top of every /internal/broker/* endpoint and
+    any endpoint that requires a live broker connection.
+    Returns a clean HTTP 503 that the Go services handle gracefully
+    (bridge.go checks for non-200 status codes).
+    """
+    if container.mt5_client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No broker connection configured. Please set up a broker connection via the dashboard.",
+        )
 
 
 @asynccontextmanager
@@ -123,9 +169,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
-    # Only register TA jobs if a broker client is available.
+    # Register TA jobs if a broker client is available at startup.
     # If no broker is configured yet, TA jobs will be registered
-    # when the user activates a broker connection via the dashboard.
+    # when the user activates a broker connection via the dashboard
+    # (see _register_ta_jobs_if_needed helper below).
     if container.mt5_client is not None:
         register_ta_jobs(
             container.scheduler,
@@ -133,6 +180,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             broker_client=container.mt5_client,
             ta_uow_factory=container.ta_uow_factory,
         )
+        app.state.ta_jobs_registered = True
+    else:
+        app.state.ta_jobs_registered = False
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -1150,6 +1200,7 @@ def create_app() -> FastAPI:
         If activate=True (default), this becomes the active connection
         and the processor is hot-swapped immediately.
         """
+        await _rate_limit(request, "llm_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
 
         valid_providers = {p.value for p in LLMProvider}
@@ -1650,9 +1701,38 @@ def create_app() -> FastAPI:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
 
+    def _register_ta_jobs_if_needed(app_ref: FastAPI, container: Container) -> None:
+        """Register TA scheduler jobs if they haven't been registered yet.
+
+        Called after a broker hot-swap when the app started without a
+        broker configured. Ensures TA data collection jobs run as soon
+        as the first broker connection is activated via the dashboard.
+        """
+        if getattr(app_ref.state, "ta_jobs_registered", False):
+            return
+        if container.mt5_client is None:
+            return
+
+        symbol_reader = getattr(app_ref.state, "symbol_reader", None)
+        if symbol_reader is None:
+            logger.warning("cannot_register_ta_jobs_no_symbol_reader")
+            return
+
+        register_ta_jobs(
+            container.scheduler,
+            symbol_store=symbol_reader,
+            broker_client=container.mt5_client,
+            ta_uow_factory=container.ta_uow_factory,
+        )
+        app_ref.state.ta_jobs_registered = True
+        logger.info("ta_jobs_registered_after_broker_hot_swap")
+
     async def _hot_swap_broker_from_row(container: Container, row) -> None:
         """Build a broker client from a DB row and hot-swap it into the container."""
         from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+            STATUS_CONNECTED,
+            STATUS_ERROR,
             decrypt_credential,
         )
         from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
@@ -1680,6 +1760,34 @@ def create_app() -> FastAPI:
 
         container.hot_swap_broker(new_client)
 
+        # Register TA jobs if this is the first broker activation.
+        _register_ta_jobs_if_needed(app, container)
+
+        # Run health check and update DB status.
+        try:
+            healthy = await new_client.health_check()
+            new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
+            status_msg = "Connection successful" if healthy else "Health check failed after swap"
+        except Exception as exc:
+            new_status = STATUS_ERROR
+            status_msg = f"Health check error: {exc}"
+            healthy = False
+
+        try:
+            async with container.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                await repo.update_status(
+                    str(row.id),
+                    status=new_status,
+                    status_message=status_msg,
+                    connected=healthy,
+                )
+        except Exception as exc:
+            logger.warning(
+                "broker_status_update_after_swap_failed",
+                extra={"connection_id": str(row.id), "error": str(exc)},
+            )
+
     @app.post("/api/broker/connections")
     async def create_broker_connection(
         request: Request,
@@ -1691,6 +1799,7 @@ def create_app() -> FastAPI:
         If activate=True (default), this becomes the active connection
         and the broker client is hot-swapped immediately.
         """
+        await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
 
         from engine.processor.storage.repositories.broker_connection_repository import (
@@ -1729,11 +1838,7 @@ def create_app() -> FastAPI:
 
         if body.activate:
             try:
-                async with container.db.read_session() as session:
-                    repo = BrokerConnectionRepository(session)
-                    fresh_row = await repo.get_by_id(connection_id)
-                if fresh_row is not None:
-                    await _hot_swap_broker_from_row(container, fresh_row)
+                await _hot_swap_broker_from_row(container, row)
             except Exception as exc:
                 logger.error(
                     "broker_hot_swap_failed_after_create",
@@ -1955,11 +2060,13 @@ def create_app() -> FastAPI:
         connection_id: str,
     ) -> dict:
         """Test a broker connection's health.
+        Rate limited to prevent flooding the broker with health checks.
 
         Creates a temporary broker client from the connection's credentials,
         runs a health check, and updates the connection's status in the DB.
         Does NOT activate the connection or change the active broker.
         """
+        await _rate_limit(request, "broker_test", max_requests=5, window_seconds=60)
         container: Container = request.app.state.container
 
         from engine.processor.storage.repositories.broker_connection_repository import (
@@ -2069,20 +2176,6 @@ def create_app() -> FastAPI:
     # the Python engine's active broker client (MetaApiClient or ZmqClient).
     # The Go services call these at EXECUTION_BROKER_BRIDGE_URL and
     # MANAGEMENT_BROKER_BRIDGE_URL (both http://engine:8000).
-
-    def _require_broker(container: Container) -> None:
-        """Raise 503 if no broker client is configured.
-
-        Called at the top of every /internal/broker/* endpoint and
-        any endpoint that requires a live broker connection.
-        Returns a clean HTTP 503 that the Go services handle gracefully
-        (bridge.go checks for non-200 status codes).
-        """
-        if container.mt5_client is None:
-            raise HTTPException(
-                status_code=503,
-                detail="No broker connection configured. Please set up a broker connection via the dashboard.",
-            )
 
     @app.get("/internal/broker/account_info")
     async def broker_account_info(request: Request) -> dict:

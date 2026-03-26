@@ -26,14 +26,18 @@ logger = get_logger(__name__)
 
 
 def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key from the LLM_ENCRYPTION_KEY env var.
+    """Derive a Fernet encryption key for credential encryption.
 
-    Falls back to a key derived from DATABASE_URL if the dedicated env var
-    is not set. This ensures API keys are never stored in plaintext.
+    Uses the same derivation chain as the broker connection repository
+    so both share the same key. Priority:
+      1. BROKER_ENCRYPTION_KEY env var (shared across all credential stores)
+      2. LLM_ENCRYPTION_KEY env var (legacy alias)
+      3. DATABASE_URL env var
+      4. Hardcoded fallback (dev only, never in production)
     """
-    raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
+    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
     if not raw:
-        raw = os.environ.get("PROCESSOR_DATABASE_URL", "")
+        raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
     if not raw:
         raw = os.environ.get("DATABASE_URL", "etradie-default-key")
     digest = hashlib.sha256(raw.encode()).digest()
