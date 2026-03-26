@@ -60,6 +60,10 @@ class CentralBank(StrEnum):
     ECB = "ECB"
     BOE = "BOE"
     BOJ = "BOJ"
+    RBA = "RBA"
+    BOC = "BOC"
+    RBNZ = "RBNZ"
+    SNB = "SNB"
 
 
 @unique

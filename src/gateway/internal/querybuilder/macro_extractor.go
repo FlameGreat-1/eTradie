@@ -33,6 +33,10 @@ type MacroSignals struct {
 	ECBTone             string
 	BOETone             string
 	BOJTone             string
+	RBATone             string
+	BOCTone             string
+	RBNZTone            string
+	SNBTone             string
 	HasRateChange       bool
 	RateChangeBank      string
 	RateChangeDirection string
@@ -142,6 +146,10 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 		ECBTone:             getOptStr(cb, "ecb_tone"),
 		BOETone:             getOptStr(cb, "boe_tone"),
 		BOJTone:             getOptStr(cb, "boj_tone"),
+		RBATone:             getOptStr(cb, "rba_tone"),
+		BOCTone:             getOptStr(cb, "boc_tone"),
+		RBNZTone:            getOptStr(cb, "rbnz_tone"),
+		SNBTone:             getOptStr(cb, "snb_tone"),
 		HasRateChange:       getOptBool(cb, "has_rate_change"),
 		RateChangeBank:      getOptStr(cb, "rate_change_bank"),
 		RateChangeDirection: getOptStr(cb, "rate_change_direction"),

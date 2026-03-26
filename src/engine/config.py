@@ -99,6 +99,10 @@ class Settings(BaseSettings):
     ecb_rss_url: str = "https://www.ecb.europa.eu/rss/press.html"
     boe_rss_url: str = "https://www.bankofengland.co.uk/rss/news"
     boj_rss_url: str = "https://www.boj.or.jp/en/rss/whatsnew.xml"
+    rba_rss_url: str = "https://www.rba.gov.au/rss/rss-cb-media-releases.xml"
+    boc_rss_url: str = "https://www.bankofcanada.ca/content_type/press-releases/feed/"
+    rbnz_rss_url: str = "https://www.rbnz.govt.nz/rss/news"
+    snb_rss_url: str = "https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss"
 
     # ── RSS Feed URLs — News ─────────────────────────────────
     reuters_rss_url: str = "https://www.reutersagency.com/feed"
@@ -106,6 +110,10 @@ class Settings(BaseSettings):
 
     # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
     investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
+
+    # ── Commodity Proxy URLs (free, no API key) ───────────────────────
+    iron_ore_price_url: str = "https://markets.businessinsider.com/commodities/iron-ore-price"
+    dairy_gdt_price_url: str = "https://www.globaldairytrade.info/en/gdt-events/summary-results/"
 
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(

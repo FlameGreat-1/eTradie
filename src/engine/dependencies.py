@@ -18,17 +18,23 @@ from engine.macro.collectors.sentiment.collector import SentimentCollector
 from engine.macro.providers.calendar.investing_rss import (
     InvestingRSSCalendarProvider,
 )
+from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
+from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
+from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
+from engine.macro.providers.central_bank.snb_rss import SNBRSSProvider
 from engine.macro.providers.cot.cftc import CFTCProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
+from engine.macro.providers.market_data.commodity_proxy import CommodityProxyProvider
 from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
 from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
 from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
+from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
 
 from engine.ta.broker.mt5.config import MT5Config
@@ -139,11 +145,19 @@ class Container:
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
         self.boj_provider = BOJRSSProvider(r, feed_url=s.boj_rss_url)
+        self.rba_provider = RBARSSProvider(r, feed_url=s.rba_rss_url)
+        self.boc_provider = BOCRSSProvider(r, feed_url=s.boc_rss_url)
+        self.rbnz_provider = RBNZRSSProvider(r, feed_url=s.rbnz_rss_url)
+        self.snb_provider = SNBRSSProvider(r, feed_url=s.snb_rss_url)
         for p in (
             self.fed_provider,
             self.ecb_provider,
             self.boe_provider,
             self.boj_provider,
+            self.rba_provider,
+            self.boc_provider,
+            self.rbnz_provider,
+            self.snb_provider,
         ):
             self.registry.register(p)
 
@@ -167,7 +181,13 @@ class Container:
             base_url=s.twelvedata_base_url,
             api_key=s.twelvedata_api_key,
         )
-        self.registry.register(self.twelve_data_provider)
+        self.commodity_proxy_provider = CommodityProxyProvider(
+            h,
+            iron_ore_url=s.iron_ore_price_url,
+            dairy_gdt_url=s.dairy_gdt_price_url,
+        )
+        for p in (self.twelve_data_provider, self.commodity_proxy_provider):
+            self.registry.register(p)
 
         self.investing_cal_provider = InvestingRSSCalendarProvider(
             r,
@@ -193,6 +213,10 @@ class Container:
                 self.ecb_provider,
                 self.boe_provider,
                 self.boj_provider,
+                self.rba_provider,
+                self.boc_provider,
+                self.rbnz_provider,
+                self.snb_provider,
             ],
             c,
             d,
@@ -227,14 +251,17 @@ class Container:
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
         self.intermarket_collector = IntermarketCollector(
-            [self.twelve_data_provider],
+            [self.twelve_data_provider, self.commodity_proxy_provider],
             c,
             d,
         )
         self.intermarket_collector.cache_ttl = s.cache_ttl_intermarket
 
+        self.cot_sentiment_provider = COTDerivedSentimentProvider(c)
+        self.registry.register(self.cot_sentiment_provider)
+
         self.sentiment_collector = SentimentCollector(
-            [],  # No dedicated sentiment provider; risk assessment uses intermarket cache (VIX, yields)
+            [self.cot_sentiment_provider],
             c,
             d,
         )
