@@ -5,12 +5,13 @@
 
 .DESCRIPTION
     Creates a scheduled task that runs monitor_mt5.ps1 every 60 seconds.
-    The task runs under the SYSTEM account so it survives logoff and
-    continues after reboot without requiring an interactive session
-    for the monitoring itself.
+    The task runs under the Administrator account in an interactive session
+    so that MT5 (a GUI application) can be restarted in the visible desktop.
 
-    MT5 still requires a desktop session (handled by auto-login in
-    setup_vps.ps1). This task monitors and restarts MT5 if it crashes.
+    IMPORTANT: MT5 requires a desktop session to function. Running the
+    monitor as SYSTEM would start MT5 in session 0 (no desktop), where
+    the EA cannot process events. Auto-login (configured by setup_vps.ps1)
+    ensures the Administrator desktop session is always available.
 
 .PARAMETER Action
     'install' to create the task, 'uninstall' to remove it.
@@ -81,9 +82,12 @@ $taskSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Seconds 30) `
     -MultipleInstances IgnoreNew
 
+# Run as Administrator in interactive session so MT5 (GUI app) starts
+# in the visible desktop. SYSTEM would start MT5 in session 0 (no desktop)
+# where the EA cannot render or process events.
 $taskPrincipal = New-ScheduledTaskPrincipal `
-    -UserId "SYSTEM" `
-    -LogonType ServiceAccount `
+    -UserId "Administrator" `
+    -LogonType InteractiveTokenOrPassword `
     -RunLevel Highest
 
 Register-ScheduledTask `
@@ -99,7 +103,7 @@ Write-Host ""
 Write-Host "[OK] Scheduled task '$taskName' created." -ForegroundColor Green
 Write-Host "  Interval: every $IntervalSeconds seconds" -ForegroundColor White
 Write-Host "  Script:   $MonitorScript" -ForegroundColor White
-Write-Host "  Account:  SYSTEM" -ForegroundColor White
+Write-Host "  Account:  Administrator (interactive session)" -ForegroundColor White
 Write-Host "  Status:   $(Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath | Select-Object -ExpandProperty State)" -ForegroundColor White
 Write-Host ""
 Write-Host "  To check status:  Get-ScheduledTask -TaskName '$taskName' -TaskPath '$taskPath'" -ForegroundColor Gray
