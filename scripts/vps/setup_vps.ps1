@@ -314,7 +314,21 @@ $shortcut.Save()
 Write-Ok "Startup shortcut created: $shortcutPath"
 
 # 7.2 Configure auto-login
+#
+# SECURITY WARNING: This stores the VPS password in PLAIN TEXT in the
+# Windows registry at HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon.
+# This is acceptable ONLY for a dedicated single-purpose trading VPS.
+#
+# For stronger security, consider using Sysinternals Autologon.exe instead:
+#   https://learn.microsoft.com/en-us/sysinternals/downloads/autologon
+# Autologon stores the password as an LSA secret (encrypted) rather than
+# plain text in the registry. Download and run:
+#   Autologon.exe Administrator <COMPUTERNAME> <PASSWORD>
+#
 Write-Info "Configuring auto-login..."
+Write-Warn "Auto-login stores the password in the Windows registry."
+Write-Warn "This is acceptable for a dedicated trading VPS only."
+Write-Warn "For stronger security, use Sysinternals Autologon.exe instead."
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 Set-ItemProperty -Path $regPath -Name "AutoAdminLogon" -Value "1"
 Set-ItemProperty -Path $regPath -Name "DefaultUserName" -Value "Administrator"
