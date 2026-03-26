@@ -60,12 +60,23 @@ def _derive_encryption_key() -> bytes:
       2. LLM_ENCRYPTION_KEY env var (legacy alias)
       3. DATABASE_URL env var
       4. Hardcoded fallback (dev only, never in production)
+
+    In production/staging, fails fast if no explicit key is configured
+    to prevent encrypting credentials with a publicly known default.
     """
     raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
     if not raw:
         raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
     if not raw:
-        raw = os.environ.get("DATABASE_URL", "etradie-default-key")
+        raw = os.environ.get("DATABASE_URL", "")
+    if not raw:
+        app_env = os.environ.get("APP_ENV", "development").lower()
+        if app_env in ("production", "staging"):
+            raise ValueError(
+                "Credential encryption key is required in production/staging. "
+                "Set BROKER_ENCRYPTION_KEY or LLM_ENCRYPTION_KEY environment variable."
+            )
+        raw = "etradie-default-key"
     digest = hashlib.sha256(raw.encode()).digest()
     return base64.urlsafe_b64encode(digest)
 

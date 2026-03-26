@@ -603,7 +603,7 @@ class ZmqClient(BrokerBase):
         *,
         ticket: str,
         volume: float,
-    ) -> dict:
+    ) -> dict[str, Any]:
         request = {
             "command": "POSITION_CLOSE_PARTIAL",
             "ticket": ticket,
@@ -643,7 +643,7 @@ class ZmqClient(BrokerBase):
             "close_price": float(raw.get("close_price", 0)),
         }
 
-    async def close_position(self, ticket: str) -> dict:
+    async def close_position(self, ticket: str) -> dict[str, Any]:
         try:
             raw = await self._request({"command": "POSITION_CLOSE", "ticket": ticket})
         except ProviderError:
