@@ -324,10 +324,6 @@ class MetaApiClient(BrokerBase):
             timeout_override=self.config.timeout_seconds,
         )
 
-    def _trade_url(self, path: str) -> str:
-        """Build URL for MetaApi trade endpoints."""
-        return f"{self._BASE_URL}/users/current/accounts/{self._account_id}{path}"
-
     async def get_account_info(self) -> AccountInfo:
         raw = await self._api_get("/account-information", category="account")
         if not isinstance(raw, dict):
