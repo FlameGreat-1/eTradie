@@ -43,7 +43,7 @@ services:
     networks:
       - etradie-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD:-CHANGE_ME_IN_PRODUCTION} ping | grep PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
