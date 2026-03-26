@@ -18,10 +18,14 @@ from engine.macro.collectors.sentiment.collector import SentimentCollector
 from engine.macro.providers.calendar.investing_rss import (
     InvestingRSSCalendarProvider,
 )
+from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
+from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
+from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
+from engine.macro.providers.central_bank.snb_rss import SNBRSSProvider
 from engine.macro.providers.cot.cftc import CFTCProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
@@ -139,11 +143,19 @@ class Container:
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
         self.boj_provider = BOJRSSProvider(r, feed_url=s.boj_rss_url)
+        self.rba_provider = RBARSSProvider(r, feed_url=s.rba_rss_url)
+        self.boc_provider = BOCRSSProvider(r, feed_url=s.boc_rss_url)
+        self.rbnz_provider = RBNZRSSProvider(r, feed_url=s.rbnz_rss_url)
+        self.snb_provider = SNBRSSProvider(r, feed_url=s.snb_rss_url)
         for p in (
             self.fed_provider,
             self.ecb_provider,
             self.boe_provider,
             self.boj_provider,
+            self.rba_provider,
+            self.boc_provider,
+            self.rbnz_provider,
+            self.snb_provider,
         ):
             self.registry.register(p)
 
@@ -193,6 +205,10 @@ class Container:
                 self.ecb_provider,
                 self.boe_provider,
                 self.boj_provider,
+                self.rba_provider,
+                self.boc_provider,
+                self.rbnz_provider,
+                self.snb_provider,
             ],
             c,
             d,
