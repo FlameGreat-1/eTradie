@@ -31,6 +31,8 @@ services:
     image: redis:7-alpine
     container_name: etradie-redis
     restart: unless-stopped
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     command: >
       redis-server
       --maxmemory 128mb
@@ -43,10 +45,11 @@ services:
     networks:
       - etradie-net
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      test: ["CMD", "sh", "-c", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:
