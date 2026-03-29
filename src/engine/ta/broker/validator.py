@@ -112,7 +112,7 @@ class BrokerDataValidator:
         # Special handling for monthly timeframes (MN1)
         # Months can have 28, 29, 30, or 31 days
         is_monthly = sequence.timeframe == Timeframe.MN1
-        
+
         if is_monthly:
             # For monthly candles, validate range is 28-31 days
             min_monthly_delta = timedelta(days=28)  # February (non-leap year)
@@ -148,7 +148,7 @@ class BrokerDataValidator:
                             "max_expected_days": 31,
                         },
                     )
-                
+
                 if actual_delta > max_monthly_delta and actual_delta <= max_allowed_gap:
                     # Delta is slightly over 31 days but within gap tolerance
                     # This can happen with incomplete current month or timezone issues

@@ -124,26 +124,23 @@ class LLMConnectionRepository:
 
     async def get_active(self) -> Optional[LLMConnectionRow]:
         """Return the currently active LLM connection, or None."""
-        stmt = select(LLMConnectionRow).where(
-            LLMConnectionRow.is_active.is_(True)
-        ).limit(1)
+        stmt = (
+            select(LLMConnectionRow)
+            .where(LLMConnectionRow.is_active.is_(True))
+            .limit(1)
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_all(self) -> list[LLMConnectionRow]:
         """Return all LLM connections ordered by most recent first."""
-        stmt = (
-            select(LLMConnectionRow)
-            .order_by(LLMConnectionRow.updated_at.desc())
-        )
+        stmt = select(LLMConnectionRow).order_by(LLMConnectionRow.updated_at.desc())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_by_id(self, connection_id: str) -> Optional[LLMConnectionRow]:
         """Return a single connection by ID."""
-        stmt = select(LLMConnectionRow).where(
-            LLMConnectionRow.id == connection_id
-        )
+        stmt = select(LLMConnectionRow).where(LLMConnectionRow.id == connection_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 

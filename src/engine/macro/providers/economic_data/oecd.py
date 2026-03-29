@@ -34,7 +34,7 @@ _OECD_BASE_URL = "https://sdmx.oecd.org/public/rest/data"
 
 # OECD country codes mapped to Currency enum.
 _COUNTRY_CURRENCY_MAP: dict[str, Currency] = {
-    "EA20": Currency.EUR,   # Euro Area (20 members)
+    "EA20": Currency.EUR,  # Euro Area (20 members)
     "GBR": Currency.GBP,
     "JPN": Currency.JPY,
     "CHE": Currency.CHF,
@@ -161,7 +161,9 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
 
     provider_name = "oecd"
 
-    def __init__(self, http_client: HttpClient, *, base_url: str = _OECD_BASE_URL) -> None:
+    def __init__(
+        self, http_client: HttpClient, *, base_url: str = _OECD_BASE_URL
+    ) -> None:
         super().__init__()
         self._http = http_client
         self._base_url = base_url.rstrip("/")
@@ -187,9 +189,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             logger.error("oecd_fetch_failed", error=str(exc))
             raise
 
-    async def _fetch_indicator(
-        self, cfg: dict[str, Any]
-    ) -> list[EconomicRelease]:
+    async def _fetch_indicator(self, cfg: dict[str, Any]) -> list[EconomicRelease]:
         """Fetch the latest observations for one OECD indicator across all countries."""
         url = f"{self._base_url}/{cfg['dataset_id']}/{cfg['filter']}"
         raw = await self._http.get(
@@ -260,7 +260,9 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             value = obs_val[0] if isinstance(obs_val, list) and obs_val else None
 
             if country_code in _COUNTRY_CURRENCY_MAP and value is not None:
-                country_obs.setdefault(country_code, []).append((time_period, float(value)))
+                country_obs.setdefault(country_code, []).append(
+                    (time_period, float(value))
+                )
 
         # Build releases: latest = actual, second-latest = previous.
         for country_code, obs_list in country_obs.items():
@@ -276,7 +278,9 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             country_name = _COUNTRY_NAMES.get(country_code, country_code)
 
             try:
-                release_time = datetime.fromisoformat(f"{time_period}-01").replace(tzinfo=UTC)
+                release_time = datetime.fromisoformat(f"{time_period}-01").replace(
+                    tzinfo=UTC
+                )
             except (ValueError, TypeError):
                 release_time = datetime.now(UTC)
 

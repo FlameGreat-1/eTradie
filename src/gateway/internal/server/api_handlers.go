@@ -243,17 +243,17 @@ func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"enabled":                h.cfg.Enabled,
-		"cycle_interval_seconds": h.scheduler.CurrentIntervalSeconds(),
-		"cycle_timeout_seconds":  h.cfg.CycleTimeoutSeconds,
-		"max_concurrent_symbols": h.cfg.MaxConcurrentSymbols,
-		"ta_cache_ttl_seconds":   h.cfg.TACacheTTLSeconds,
+		"enabled":                 h.cfg.Enabled,
+		"cycle_interval_seconds":  h.scheduler.CurrentIntervalSeconds(),
+		"cycle_timeout_seconds":   h.cfg.CycleTimeoutSeconds,
+		"max_concurrent_symbols":  h.cfg.MaxConcurrentSymbols,
+		"ta_cache_ttl_seconds":    h.cfg.TACacheTTLSeconds,
 		"macro_cache_ttl_seconds": h.cfg.MacroCacheTTLSeconds,
-		"max_cycle_retries":      h.cfg.MaxCycleRetries,
-		"default_symbols":        h.cfg.DefaultSymbols,
-		"active_symbols":         activeSymbols,
-		"active_symbols_source":  source,
-		"execution_enabled":      h.cfg.ExecutionEnabled,
+		"max_cycle_retries":       h.cfg.MaxCycleRetries,
+		"default_symbols":         h.cfg.DefaultSymbols,
+		"active_symbols":          activeSymbols,
+		"active_symbols_source":   source,
+		"execution_enabled":       h.cfg.ExecutionEnabled,
 	})
 }
 

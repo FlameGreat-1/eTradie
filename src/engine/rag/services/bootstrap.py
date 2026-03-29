@@ -174,8 +174,7 @@ class BootstrapService:
                 # Check if this document already has a pending reembed entry.
                 existing = await uow.reembed_queue_repo.get_by_document(doc.id)
                 has_pending = any(
-                    r.status in ("pending", "running", "retrying")
-                    for r in existing
+                    r.status in ("pending", "running", "retrying") for r in existing
                 )
                 if has_pending:
                     continue

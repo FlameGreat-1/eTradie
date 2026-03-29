@@ -72,7 +72,11 @@ class MetaApiClient(BrokerBase):
         self._http = http_client
         self.validator = BrokerDataValidator()
         self._account_id = config.metaapi_account_id
-        self._base_url = config.metaapi_base_url if config.metaapi_base_url else self._DEFAULT_BASE_URL
+        self._base_url = (
+            config.metaapi_base_url
+            if config.metaapi_base_url
+            else self._DEFAULT_BASE_URL
+        )
         self._auth_headers = {
             "auth-token": config.metaapi_token,
         }

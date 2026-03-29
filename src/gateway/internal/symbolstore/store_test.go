@@ -2,15 +2,28 @@ package symbolstore
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 )
 
+func testRedisURL() string {
+	if url := os.Getenv("REDIS_URL"); url != "" {
+		return url
+	}
+	pw := os.Getenv("REDIS_PASSWORD")
+	if pw != "" {
+		return fmt.Sprintf("redis://:%s@localhost:6379/0", pw)
+	}
+	return "redis://localhost:6379/0"
+}
+
 func testRedis(t *testing.T) *infra.RedisClient {
 	t.Helper()
-	rc, err := infra.NewRedisClient("redis://localhost:6379/0", 5)
+	rc, err := infra.NewRedisClient(testRedisURL(), 5)
 	if err != nil {
 		t.Fatalf("Redis connection failed: %v", err)
 	}

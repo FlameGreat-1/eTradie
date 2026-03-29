@@ -2,7 +2,9 @@ package gateway_grpc
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -28,6 +30,17 @@ import (
 
 	e2e "github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
+
+func testRedisURL() string {
+	if url := os.Getenv("REDIS_URL"); url != "" {
+		return url
+	}
+	pw := os.Getenv("REDIS_PASSWORD")
+	if pw != "" {
+		return fmt.Sprintf("redis://:%s@localhost:6379/0", pw)
+	}
+	return "redis://localhost:6379/0"
+}
 
 const bufSize = 1024 * 1024
 
@@ -74,7 +87,7 @@ func NewHarness(t *testing.T) *Harness {
 		LogLevel:                      "ERROR",
 		LogJSON:                       false,
 		EngineHTTPURL:                 engine.URL(),
-		RedisURL:                      "redis://localhost:6379/0",
+		RedisURL:                      testRedisURL(),
 		RedisMaxConnections:           5,
 		OTELEndpoint:                  "localhost:4317",
 		OTELServiceName:               "etradie-gateway-integration",
@@ -92,12 +105,15 @@ func NewHarness(t *testing.T) *Harness {
 	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), 30)
 
 	// Real Redis connection for alert transport and stores.
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:         "localhost:6379",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		DialTimeout:  5 * time.Second,
-	})
+	redisOpts, err := redis.ParseURL(testRedisURL())
+	if err != nil {
+		t.Fatalf("failed to parse redis URL: %v", err)
+	}
+	redisOpts.ReadTimeout = 5 * time.Second
+	redisOpts.WriteTimeout = 5 * time.Second
+	redisOpts.DialTimeout = 5 * time.Second
+
+	redisClient := redis.NewClient(redisOpts)
 
 	// Alert hub + transport backed by real Redis.
 	hub := alert.NewHub()
@@ -128,7 +144,7 @@ func NewHarness(t *testing.T) *Harness {
 	)
 
 	// SymbolStore and SettingsStore backed by real Redis.
-	redisWrapper, _ := infra.NewRedisClient("redis://localhost:6379/0", 5)
+	redisWrapper, _ := infra.NewRedisClient(testRedisURL(), 5)
 
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store

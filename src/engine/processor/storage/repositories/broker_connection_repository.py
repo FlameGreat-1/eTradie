@@ -51,6 +51,7 @@ STATUS_ERROR = "error"
 # Encryption helpers (same derivation as LLM connection repository)
 # ---------------------------------------------------------------------------
 
+
 def _derive_encryption_key() -> bytes:
     """Derive a Fernet encryption key for credential encryption.
 
@@ -132,10 +133,19 @@ def _validate_connection(
     *,
     ea_host: Optional[str] = None,
     ea_port: Optional[int] = None,
-    metaapi_token: Optional[str] = None,
-    metaapi_account_id: Optional[str] = None,
+    mt5_login: Optional[str] = None,
+    mt5_password: Optional[str] = None,
+    mt5_server: Optional[str] = None,
 ) -> None:
-    """Validate that required fields are present for the connection type."""
+    """Validate that required fields are present for the connection type.
+
+    EA connections: ea_host and ea_port are required (auto-populated
+    from server-side env vars, never user-provided).
+
+    MetaAPI connections: mt5_login, mt5_password, and mt5_server are
+    required (user-provided MT5 broker credentials). The metaapi_account_id
+    is NOT validated here because it is generated AFTER provisioning.
+    """
     if connection_type not in VALID_CONNECTION_TYPES:
         raise ValueError(
             f"connection_type must be one of {VALID_CONNECTION_TYPES}, "
@@ -152,17 +162,18 @@ def _validate_connection(
             )
 
     if connection_type == CONNECTION_TYPE_METAAPI:
-        if not metaapi_token or not metaapi_token.strip():
-            raise ValueError("metaapi_token is required for MetaAPI connections")
-        if not metaapi_account_id or not metaapi_account_id.strip():
-            raise ValueError(
-                "metaapi_account_id is required for MetaAPI connections"
-            )
+        if not mt5_login or not mt5_login.strip():
+            raise ValueError("mt5_login is required for MetaAPI connections")
+        if not mt5_password or not mt5_password.strip():
+            raise ValueError("mt5_password is required for MetaAPI connections")
+        if not mt5_server or not mt5_server.strip():
+            raise ValueError("mt5_server is required for MetaAPI connections")
 
 
 # ---------------------------------------------------------------------------
 # Repository
 # ---------------------------------------------------------------------------
+
 
 class BrokerConnectionRepository:
     """CRUD operations for broker connections."""
@@ -177,20 +188,29 @@ class BrokerConnectionRepository:
         *,
         connection_type: str,
         name: str,
-        # EA fields
+        # EA fields (auto-populated from env, not user-provided)
         ea_host: Optional[str] = None,
         ea_port: Optional[int] = None,
         ea_auth_token: Optional[str] = None,
-        # MetaAPI fields
-        metaapi_token: Optional[str] = None,
+        # MetaAPI: account_id comes from provisioning, not user input
         metaapi_account_id: Optional[str] = None,
         # Common MT5 info
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
+        mt5_password: Optional[str] = None,
         # Activation
         activate: bool = True,
     ) -> BrokerConnectionRow:
         """Create a new broker connection.
+
+        For MetaAPI connections:
+          - mt5_login, mt5_password, mt5_server are required (user credentials)
+          - metaapi_account_id is set after provisioning via the API
+          - Platform token comes from env (MT5_METAAPI_TOKEN), NOT stored per-row
+
+        For EA connections:
+          - ea_host, ea_port, ea_auth_token come from server-side env vars
+          - User only provides the connection name
 
         If activate=True, deactivates all other connections first
         and marks this one as both active and primary.
@@ -199,8 +219,9 @@ class BrokerConnectionRepository:
             connection_type,
             ea_host=ea_host,
             ea_port=ea_port,
-            metaapi_token=metaapi_token,
-            metaapi_account_id=metaapi_account_id,
+            mt5_login=mt5_login,
+            mt5_password=mt5_password,
+            mt5_server=mt5_server,
         )
 
         if activate:
@@ -212,9 +233,9 @@ class BrokerConnectionRepository:
         if ea_auth_token and ea_auth_token.strip():
             encrypted_ea_token = _encrypt(ea_auth_token)
 
-        encrypted_metaapi_token: Optional[str] = None
-        if metaapi_token and metaapi_token.strip():
-            encrypted_metaapi_token = _encrypt(metaapi_token)
+        encrypted_mt5_password: Optional[str] = None
+        if mt5_password and mt5_password.strip():
+            encrypted_mt5_password = _encrypt(mt5_password)
 
         now = datetime.now(UTC)
         row = BrokerConnectionRow(
@@ -224,10 +245,11 @@ class BrokerConnectionRepository:
             ea_host=ea_host,
             ea_port=ea_port,
             ea_auth_token_encrypted=encrypted_ea_token,
-            metaapi_token_encrypted=encrypted_metaapi_token,
+            metaapi_token_encrypted=None,  # Platform token stays in env
             metaapi_account_id=metaapi_account_id,
             mt5_server=mt5_server,
             mt5_login=mt5_login,
+            mt5_password_encrypted=encrypted_mt5_password,
             is_active=activate,
             is_primary=activate,
             status=STATUS_UNTESTED,
@@ -253,7 +275,8 @@ class BrokerConnectionRepository:
     # -- Read ------------------------------------------------------------------
 
     async def get_by_id(
-        self, connection_id: str,
+        self,
+        connection_id: str,
     ) -> Optional[BrokerConnectionRow]:
         """Return a single connection by ID."""
         stmt = select(BrokerConnectionRow).where(
@@ -284,9 +307,8 @@ class BrokerConnectionRepository:
 
     async def get_all(self) -> list[BrokerConnectionRow]:
         """Return all broker connections ordered by most recent first."""
-        stmt = (
-            select(BrokerConnectionRow)
-            .order_by(BrokerConnectionRow.updated_at.desc())
+        stmt = select(BrokerConnectionRow).order_by(
+            BrokerConnectionRow.updated_at.desc()
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
@@ -301,10 +323,10 @@ class BrokerConnectionRepository:
         ea_host: Optional[str] = None,
         ea_port: Optional[int] = None,
         ea_auth_token: Optional[str] = None,
-        metaapi_token: Optional[str] = None,
         metaapi_account_id: Optional[str] = None,
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
+        mt5_password: Optional[str] = None,
     ) -> Optional[BrokerConnectionRow]:
         """Update fields on an existing connection.
 
@@ -320,20 +342,18 @@ class BrokerConnectionRepository:
             values["ea_host"] = ea_host.strip()
         if ea_port is not None:
             if ea_port < 1024 or ea_port > 65535:
-                raise ValueError(
-                    f"ea_port must be 1024..65535, got {ea_port}"
-                )
+                raise ValueError(f"ea_port must be 1024..65535, got {ea_port}")
             values["ea_port"] = ea_port
         if ea_auth_token is not None:
             values["ea_auth_token_encrypted"] = _encrypt(ea_auth_token)
-        if metaapi_token is not None:
-            values["metaapi_token_encrypted"] = _encrypt(metaapi_token)
         if metaapi_account_id is not None:
             values["metaapi_account_id"] = metaapi_account_id
         if mt5_server is not None:
             values["mt5_server"] = mt5_server
         if mt5_login is not None:
             values["mt5_login"] = mt5_login
+        if mt5_password is not None:
+            values["mt5_password_encrypted"] = _encrypt(mt5_password)
 
         stmt = (
             update(BrokerConnectionRow)

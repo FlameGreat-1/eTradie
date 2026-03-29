@@ -444,6 +444,10 @@ class Container:
 
         Returns a BrokerBase instance built from the saved connection,
         or None if no active connection exists.
+
+        For MetaAPI connections, uses the platform-level token from
+        the MT5_METAAPI_TOKEN env var (NOT a per-row encrypted token).
+        For EA connections, decrypts the EA auth token from the DB row.
         """
         try:
             from engine.processor.storage.repositories.broker_connection_repository import (
@@ -460,21 +464,22 @@ class Container:
                 _logger.info("no_active_broker_connection_in_db")
                 return None
 
-            # Decrypt credentials based on connection type.
+            # Decrypt EA auth token if applicable.
             ea_auth_token = ""
-            metaapi_token = ""
-
             if row.connection_type == "ea" and row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
 
-            if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
-                metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+            # Platform-level MetaAPI token from env (never from DB).
+            platform_token = ""
+            if row.connection_type == "metaapi":
+                import os
+                platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
             client = create_mt5_broker_from_connection(
                 row=row,
                 http_client=self.http_client,
                 ea_auth_token=ea_auth_token,
-                metaapi_token=metaapi_token,
+                platform_token=platform_token,
             )
 
             _logger.info(

@@ -78,8 +78,7 @@ class CommodityProxyProvider(BaseMarketDataProvider):
                 return None
 
             price_match = re.search(
-                r'price["\s:>]+([\d]+\.?[\d]*)'
-                r'|([\d]+\.\d{2})\s*(?:USD|usd)',
+                r'price["\s:>]+([\d]+\.?[\d]*)' r"|([\d]+\.\d{2})\s*(?:USD|usd)",
                 html,
                 re.IGNORECASE,
             )
@@ -105,7 +104,7 @@ class CommodityProxyProvider(BaseMarketDataProvider):
                 return None
 
             index_match = re.search(
-                r'(?:GDT\s*Price\s*Index|price\s*index)[^\d]*([\d]+\.?[\d]*)',
+                r"(?:GDT\s*Price\s*Index|price\s*index)[^\d]*([\d]+\.?[\d]*)",
                 html,
                 re.IGNORECASE,
             )

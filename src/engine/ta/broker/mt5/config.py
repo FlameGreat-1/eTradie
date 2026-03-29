@@ -62,14 +62,16 @@ class MT5Config(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_provider_credentials(self) -> "MT5Config":
-        """Ensure the selected provider has its required credentials."""
+        """Ensure the selected provider has its required credentials.
+
+        Only the platform-level metaapi_token is required at startup.
+        The metaapi_account_id is dynamically provisioned per-user
+        via the MetaAPI Provisioning API and stored in the database.
+        """
         if self.provider == "metaapi":
             if not self.metaapi_token:
                 raise ValueError(
                     "MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi"
                 )
-            if not self.metaapi_account_id:
-                raise ValueError(
-                    "MT5_METAAPI_ACCOUNT_ID is required when MT5_PROVIDER=metaapi"
-                )
         return self
+

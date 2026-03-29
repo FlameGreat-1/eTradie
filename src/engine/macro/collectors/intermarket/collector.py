@@ -11,7 +11,9 @@ from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
 logger = get_logger(__name__)
 
 
-def _merge_snapshots(snapshots: list[IntermarketSnapshot]) -> IntermarketSnapshot | None:
+def _merge_snapshots(
+    snapshots: list[IntermarketSnapshot],
+) -> IntermarketSnapshot | None:
     """Merge multiple IntermarketSnapshot objects into one.
 
     For each field, the first non-None value encountered wins.

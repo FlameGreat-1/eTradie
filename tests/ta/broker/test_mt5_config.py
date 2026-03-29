@@ -49,9 +49,10 @@ class TestMT5ConfigProviderValidation:
         assert cfg.zmq_port == 5555
 
     def test_native_provider_default_zmq_host(self):
-        cfg = MT5Config(provider="native")
-        assert cfg.zmq_host == "host.docker.internal"
-        assert cfg.zmq_port == 5555
+        with patch.dict(os.environ, clear=True):
+            cfg = MT5Config(provider="native")
+            assert cfg.zmq_host == "host.docker.internal"
+            assert cfg.zmq_port == 5555
 
     def test_invalid_provider_rejected(self):
         with pytest.raises(ValidationError):

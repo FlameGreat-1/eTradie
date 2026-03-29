@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +21,17 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/routing"
 )
+
+func testRedisURL() string {
+	if url := os.Getenv("REDIS_URL"); url != "" {
+		return url
+	}
+	pw := os.Getenv("REDIS_PASSWORD")
+	if pw != "" {
+		return fmt.Sprintf("redis://:%s@localhost:6379/0", pw)
+	}
+	return "redis://localhost:6379/0"
+}
 
 // MockExecutionPort implements ports.ExecutionPort for E2E tests.
 // Records every call and returns configurable responses.
@@ -129,7 +142,7 @@ func NewHarness(t *testing.T) *Harness {
 		LogLevel:                      "ERROR",
 		LogJSON:                       false,
 		EngineHTTPURL:                 engine.URL(),
-		RedisURL:                      "redis://localhost:6379/0",
+		RedisURL:                      testRedisURL(),
 		RedisMaxConnections:           5,
 		OTELEndpoint:                  "localhost:4317",
 		OTELServiceName:               "etradie-gateway-e2e",
@@ -164,12 +177,15 @@ func NewHarness(t *testing.T) *Harness {
 	// connection exercises the full pub/sub and history code paths.
 	hub := alert.NewHub()
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:         "localhost:6379",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		DialTimeout:  5 * time.Second,
-	})
+	redisOpts, err := redis.ParseURL(testRedisURL())
+	if err != nil {
+		t.Fatalf("failed to parse redis URL: %v", err)
+	}
+	redisOpts.ReadTimeout = 5 * time.Second
+	redisOpts.WriteTimeout = 5 * time.Second
+	redisOpts.DialTimeout = 5 * time.Second
+
+	redisClient := redis.NewClient(redisOpts)
 	transport := alertredis.NewTransport(redisClient, hub, alertredis.TransportConfig{})
 	transport.Start(context.Background())
 

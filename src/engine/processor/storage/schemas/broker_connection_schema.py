@@ -82,6 +82,10 @@ class BrokerConnectionRow(ProcessorBase):
         String(50),
         nullable=True,
     )
+    mt5_password_encrypted: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
 
     # -- State flags -----------------------------------------------------------
     is_active: Mapped[bool] = mapped_column(

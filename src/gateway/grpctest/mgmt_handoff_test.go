@@ -152,7 +152,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		LogLevel:                      "ERROR",
 		LogJSON:                       false,
 		EngineHTTPURL:                 mockEngine.URL(),
-		RedisURL:                      "redis://localhost:6379/0",
+		RedisURL:                      testRedisURL(),
 		RedisMaxConnections:           5,
 		OTELEndpoint:                  "localhost:4317",
 		OTELServiceName:               "etradie-gateway-mgmt-test",
@@ -167,12 +167,15 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	}
 
 	engineHTTP := infra.NewEngineHTTPClient(mockEngine.URL(), 30)
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:         "localhost:6379",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		DialTimeout:  5 * time.Second,
-	})
+	redisOpts, err := redis.ParseURL(testRedisURL())
+	if err != nil {
+		t.Fatalf("failed to parse redis URL: %v", err)
+	}
+	redisOpts.ReadTimeout = 5 * time.Second
+	redisOpts.WriteTimeout = 5 * time.Second
+	redisOpts.DialTimeout = 5 * time.Second
+
+	redisClient := redis.NewClient(redisOpts)
 	hub := alert.NewHub()
 	transport := alertredis.NewTransport(redisClient, hub, alertredis.TransportConfig{})
 	transport.Start(context.Background())
@@ -191,7 +194,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		processor, router, engineHTTP, transport,
 	)
 
-	redisWrapper, _ := infra.NewRedisClient("redis://localhost:6379/0", 5)
+	redisWrapper, _ := infra.NewRedisClient(testRedisURL(), 5)
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store
 	if redisWrapper != nil {

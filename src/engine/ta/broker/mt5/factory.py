@@ -52,11 +52,12 @@ def create_mt5_broker(
         from engine.ta.broker.mt5.metaapi.client import MetaApiClient
 
         client = MetaApiClient(config=config, http_client=http_client)
+        acct_id = config.metaapi_account_id
         logger.info(
             "mt5_broker_created",
             extra={
                 "provider": "metaapi",
-                "account_id": config.metaapi_account_id[:8] + "...",
+                "account_id": (acct_id[:8] + "...") if acct_id else "(none)",
             },
         )
         return client
@@ -85,7 +86,7 @@ def create_mt5_broker_from_connection(
     http_client: "HttpClient",
     *,
     ea_auth_token: str = "",
-    metaapi_token: str = "",
+    platform_token: str = "",
 ) -> BrokerBase:
     """Create an MT5 broker client from a database connection row.
 
@@ -97,7 +98,8 @@ def create_mt5_broker_from_connection(
         row: BrokerConnectionRow with connection details.
         http_client: Shared HTTP client (required for metaapi).
         ea_auth_token: Decrypted EA auth token (for EA connections).
-        metaapi_token: Decrypted MetaAPI token (for MetaAPI connections).
+        platform_token: Platform-level MetaAPI token from env var
+            MT5_METAAPI_TOKEN (for MetaAPI connections).
 
     Returns:
         A fully configured BrokerBase implementation.
@@ -148,17 +150,25 @@ def create_mt5_broker_from_connection(
         return client
 
     if row.connection_type == "metaapi":
-        if not metaapi_token or not row.metaapi_account_id:
+        if not platform_token:
             raise ConfigurationError(
-                "MetaAPI connection requires token and account_id",
+                "MT5_METAAPI_TOKEN env var is required for MetaAPI connections. "
+                "Set this in your .env file.",
+                details={"connection_id": str(row.id)},
+            )
+        if not row.metaapi_account_id:
+            raise ConfigurationError(
+                "MetaAPI connection has no provisioned account_id. "
+                "The account may not have been provisioned yet.",
                 details={"connection_id": str(row.id)},
             )
 
         # Build MT5Config for MetaAPI cloud provider.
+        # Uses the platform-level token (from env), NOT a per-user token.
         config = MT5Config.model_construct(
             enabled=True,
             provider="metaapi",
-            metaapi_token=metaapi_token,
+            metaapi_token=platform_token,
             metaapi_account_id=row.metaapi_account_id,
             metaapi_base_url="https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
             zmq_host="",
@@ -178,13 +188,14 @@ def create_mt5_broker_from_connection(
         from engine.ta.broker.mt5.metaapi.client import MetaApiClient
 
         client = MetaApiClient(config=config, http_client=http_client)
+        acct_id = row.metaapi_account_id
         logger.info(
             "mt5_broker_created_from_db",
             extra={
                 "provider": "metaapi",
                 "connection_id": str(row.id),
                 "name": row.name,
-                "account_id": row.metaapi_account_id[:8] + "...",
+                "account_id": (acct_id[:8] + "...") if acct_id else "(none)",
             },
         )
         return client
@@ -197,3 +208,4 @@ def create_mt5_broker_from_connection(
             "allowed": ["ea", "metaapi"],
         },
     )
+

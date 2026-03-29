@@ -54,23 +54,48 @@ _CURRENCY_KEYWORDS: dict[str, Currency] = {
     "new zealand": Currency.NZD,
 }
 
-_HIGH_IMPACT_KEYWORDS = frozenset({
-    "interest rate", "rate decision", "nfp", "non-farm", "nonfarm",
-    "cpi", "inflation", "gdp", "employment change", "unemployment",
-    "fomc", "ecb", "boe", "boj", "rba", "boc", "snb",
-    "monetary policy", "retail sales", "pmi",
-})
+_HIGH_IMPACT_KEYWORDS = frozenset(
+    {
+        "interest rate",
+        "rate decision",
+        "nfp",
+        "non-farm",
+        "nonfarm",
+        "cpi",
+        "inflation",
+        "gdp",
+        "employment change",
+        "unemployment",
+        "fomc",
+        "ecb",
+        "boe",
+        "boj",
+        "rba",
+        "boc",
+        "snb",
+        "monetary policy",
+        "retail sales",
+        "pmi",
+    }
+)
 
-_MEDIUM_IMPACT_KEYWORDS = frozenset({
-    "trade balance", "consumer confidence", "business confidence",
-    "housing", "building permits", "industrial production",
-    "manufacturing", "ppi", "producer price", "current account",
-})
+_MEDIUM_IMPACT_KEYWORDS = frozenset(
+    {
+        "trade balance",
+        "consumer confidence",
+        "business confidence",
+        "housing",
+        "building permits",
+        "industrial production",
+        "manufacturing",
+        "ppi",
+        "producer price",
+        "current account",
+    }
+)
 
 # Regex to extract actual/forecast/previous from RSS description.
-_VALUE_PATTERN = re.compile(
-    r"(?:Actual|Act\.?)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE
-)
+_VALUE_PATTERN = re.compile(r"(?:Actual|Act\.?)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE)
 _FORECAST_PATTERN = re.compile(
     r"(?:Forecast|Cons\.?|Expected)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE
 )
@@ -98,7 +123,8 @@ class InvestingRSSCalendarProvider(BaseCalendarProvider):
                 category=self.category.value,
             )
             events = [
-                e for e in (self._parse_entry(entry) for entry in entries)
+                e
+                for e in (self._parse_entry(entry) for entry in entries)
                 if e is not None
             ]
             self._record_success(time.monotonic() - start)

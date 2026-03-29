@@ -34,9 +34,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     conn = op.get_bind()
     inspector = inspect(conn)
-    
-    table_name = 'broker_connections'
-    
+
+    table_name = "broker_connections"
+
     # Check if table exists
     if table_name not in inspector.get_table_names():
         # Create full table with all columns and constraints
@@ -155,10 +155,10 @@ def upgrade() -> None:
         )
     else:
         # Table exists - check and add missing columns
-        existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
-        
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+
         # Add missing columns with appropriate defaults
-        if 'id' not in existing_columns:
+        if "id" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -166,10 +166,10 @@ def upgrade() -> None:
                     postgresql.UUID(as_uuid=True),
                     primary_key=True,
                     server_default=sa.text("uuid_generate_v4()"),
-                )
+                ),
             )
-        
-        if 'connection_type' not in existing_columns:
+
+        if "connection_type" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -177,10 +177,10 @@ def upgrade() -> None:
                     sa.String(20),
                     nullable=False,
                     server_default="ea",  # Default to EA type
-                )
+                ),
             )
-        
-        if 'name' not in existing_columns:
+
+        if "name" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -188,52 +188,44 @@ def upgrade() -> None:
                     sa.String(100),
                     nullable=False,
                     server_default="Default Connection",
-                )
+                ),
             )
-        
-        if 'ea_host' not in existing_columns:
+
+        if "ea_host" not in existing_columns:
+            op.add_column(
+                table_name, sa.Column("ea_host", sa.String(255), nullable=True)
+            )
+
+        if "ea_port" not in existing_columns:
+            op.add_column(table_name, sa.Column("ea_port", sa.Integer, nullable=True))
+
+        if "ea_auth_token_encrypted" not in existing_columns:
+            op.add_column(
+                table_name, sa.Column("ea_auth_token_encrypted", sa.Text, nullable=True)
+            )
+
+        if "metaapi_token_encrypted" not in existing_columns:
+            op.add_column(
+                table_name, sa.Column("metaapi_token_encrypted", sa.Text, nullable=True)
+            )
+
+        if "metaapi_account_id" not in existing_columns:
             op.add_column(
                 table_name,
-                sa.Column("ea_host", sa.String(255), nullable=True)
+                sa.Column("metaapi_account_id", sa.String(100), nullable=True),
             )
-        
-        if 'ea_port' not in existing_columns:
+
+        if "mt5_server" not in existing_columns:
             op.add_column(
-                table_name,
-                sa.Column("ea_port", sa.Integer, nullable=True)
+                table_name, sa.Column("mt5_server", sa.String(200), nullable=True)
             )
-        
-        if 'ea_auth_token_encrypted' not in existing_columns:
+
+        if "mt5_login" not in existing_columns:
             op.add_column(
-                table_name,
-                sa.Column("ea_auth_token_encrypted", sa.Text, nullable=True)
+                table_name, sa.Column("mt5_login", sa.String(50), nullable=True)
             )
-        
-        if 'metaapi_token_encrypted' not in existing_columns:
-            op.add_column(
-                table_name,
-                sa.Column("metaapi_token_encrypted", sa.Text, nullable=True)
-            )
-        
-        if 'metaapi_account_id' not in existing_columns:
-            op.add_column(
-                table_name,
-                sa.Column("metaapi_account_id", sa.String(100), nullable=True)
-            )
-        
-        if 'mt5_server' not in existing_columns:
-            op.add_column(
-                table_name,
-                sa.Column("mt5_server", sa.String(200), nullable=True)
-            )
-        
-        if 'mt5_login' not in existing_columns:
-            op.add_column(
-                table_name,
-                sa.Column("mt5_login", sa.String(50), nullable=True)
-            )
-        
-        if 'is_active' not in existing_columns:
+
+        if "is_active" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -241,10 +233,10 @@ def upgrade() -> None:
                     sa.Boolean,
                     nullable=False,
                     server_default="false",
-                )
+                ),
             )
-        
-        if 'is_primary' not in existing_columns:
+
+        if "is_primary" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -252,10 +244,10 @@ def upgrade() -> None:
                     sa.Boolean,
                     nullable=False,
                     server_default="false",
-                )
+                ),
             )
-        
-        if 'status' not in existing_columns:
+
+        if "status" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -263,10 +255,10 @@ def upgrade() -> None:
                     sa.String(20),
                     nullable=False,
                     server_default="untested",
-                )
+                ),
             )
-        
-        if 'status_message' not in existing_columns:
+
+        if "status_message" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -274,20 +266,20 @@ def upgrade() -> None:
                     sa.Text,
                     nullable=False,
                     server_default="",
-                )
+                ),
             )
-        
-        if 'last_connected_at' not in existing_columns:
+
+        if "last_connected_at" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
                     "last_connected_at",
                     sa.DateTime(timezone=True),
                     nullable=True,
-                )
+                ),
             )
-        
-        if 'created_at' not in existing_columns:
+
+        if "created_at" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -295,10 +287,10 @@ def upgrade() -> None:
                     sa.DateTime(timezone=True),
                     nullable=False,
                     server_default=sa.func.now(),
-                )
+                ),
             )
-        
-        if 'updated_at' not in existing_columns:
+
+        if "updated_at" not in existing_columns:
             op.add_column(
                 table_name,
                 sa.Column(
@@ -306,41 +298,41 @@ def upgrade() -> None:
                     sa.DateTime(timezone=True),
                     nullable=False,
                     server_default=sa.func.now(),
-                )
+                ),
             )
-        
+
         # Check and create missing indexes
-        existing_indexes = {idx['name'] for idx in inspector.get_indexes(table_name)}
-        
-        if 'ix_bc_connection_type' not in existing_indexes:
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
+
+        if "ix_bc_connection_type" not in existing_indexes:
             op.create_index(
                 "ix_bc_connection_type",
                 table_name,
                 ["connection_type"],
             )
-        
-        if 'ix_bc_is_active' not in existing_indexes:
+
+        if "ix_bc_is_active" not in existing_indexes:
             op.create_index(
                 "ix_bc_is_active",
                 table_name,
                 ["is_active"],
             )
-        
-        if 'ix_bc_is_primary' not in existing_indexes:
+
+        if "ix_bc_is_primary" not in existing_indexes:
             op.create_index(
                 "ix_bc_is_primary",
                 table_name,
                 ["is_primary"],
             )
-        
-        if 'ix_bc_status' not in existing_indexes:
+
+        if "ix_bc_status" not in existing_indexes:
             op.create_index(
                 "ix_bc_status",
                 table_name,
                 ["status"],
             )
-        
-        if 'ix_bc_created_at' not in existing_indexes:
+
+        if "ix_bc_created_at" not in existing_indexes:
             op.create_index(
                 "ix_bc_created_at",
                 table_name,

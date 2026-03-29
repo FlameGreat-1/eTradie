@@ -53,6 +53,7 @@ async def _rate_limit(
         # If Redis is down, allow the request (fail open for availability).
         pass
 
+
 logger = get_logger(__name__)
 
 
@@ -150,7 +151,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # If no DB connection exists and no env vars were set, mt5_client
     # remains None until the user configures one via the dashboard.
     await container.build_broker()
-    broker_status = "configured" if container.mt5_client is not None else "not_configured"
+    broker_status = (
+        "configured" if container.mt5_client is not None else "not_configured"
+    )
     logger.info("broker_startup", status=broker_status)
 
     # -- Processor LLM -------------------------------------------------------
@@ -1133,18 +1136,24 @@ def create_app() -> FastAPI:
 
         connections = []
         for row in rows:
-            connections.append({
-                "id": str(row.id),
-                "provider": row.provider,
-                "model_name": row.model_name,
-                "base_url": row.base_url,
-                "temperature": row.temperature,
-                "max_output_tokens": row.max_output_tokens,
-                "is_active": row.is_active,
-                "label": row.label,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            })
+            connections.append(
+                {
+                    "id": str(row.id),
+                    "provider": row.provider,
+                    "model_name": row.model_name,
+                    "base_url": row.base_url,
+                    "temperature": row.temperature,
+                    "max_output_tokens": row.max_output_tokens,
+                    "is_active": row.is_active,
+                    "label": row.label,
+                    "created_at": (
+                        row.created_at.isoformat() if row.created_at else None
+                    ),
+                    "updated_at": (
+                        row.updated_at.isoformat() if row.updated_at else None
+                    ),
+                }
+            )
 
         return {"connections": connections, "count": len(connections)}
 
@@ -1162,7 +1171,10 @@ def create_app() -> FastAPI:
             row = await repo.get_active()
 
         if row is None:
-            return {"connection": None, "message": "No active LLM connection. Please set up a connection."}
+            return {
+                "connection": None,
+                "message": "No active LLM connection. Please set up a connection.",
+            }
 
         return {
             "connection": {
@@ -1256,7 +1268,11 @@ def create_app() -> FastAPI:
             "model_name": body.model_name,
             "is_active": body.activate,
             "label": body.label or f"{body.provider} / {body.model_name}",
-            "message": "Connection created and activated." if body.activate else "Connection created.",
+            "message": (
+                "Connection created and activated."
+                if body.activate
+                else "Connection created."
+            ),
         }
 
     class UpdateLLMConnectionRequest(BaseModel):
@@ -1308,7 +1324,9 @@ def create_app() -> FastAPI:
 
         # If this connection is active, hot-swap the processor with updated values.
         if row.is_active:
-            api_key = body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
+            api_key = (
+                body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
+            )
             _hot_swap_processor(
                 container,
                 provider=row.provider,
@@ -1656,28 +1674,18 @@ def create_app() -> FastAPI:
     class CreateBrokerConnectionRequest(BaseModel):
         connection_type: str  # 'ea' or 'metaapi'
         name: str
-        # EA fields
-        ea_host: Optional[str] = None
-        ea_port: Optional[int] = Field(default=None, ge=1024, le=65535)
-        ea_auth_token: Optional[str] = None
-        # MetaAPI fields
-        metaapi_token: Optional[str] = None
-        metaapi_account_id: Optional[str] = None
-        # Common MT5 info
-        mt5_server: Optional[str] = None
+        # MetaAPI: user's MT5 broker credentials
         mt5_login: Optional[str] = None
-        # Activation
+        mt5_password: Optional[str] = None
+        mt5_server: Optional[str] = None
+        # EA: no user-facing fields (auto from env)
         activate: bool = True
 
     class UpdateBrokerConnectionRequest(BaseModel):
         name: Optional[str] = None
-        ea_host: Optional[str] = None
-        ea_port: Optional[int] = Field(default=None, ge=1024, le=65535)
-        ea_auth_token: Optional[str] = None
-        metaapi_token: Optional[str] = None
-        metaapi_account_id: Optional[str] = None
         mt5_server: Optional[str] = None
         mt5_login: Optional[str] = None
+        mt5_password: Optional[str] = None
 
     def _serialize_broker_connection(row) -> dict:
         """Serialize a BrokerConnectionRow to a JSON-safe dict."""
@@ -1738,17 +1746,18 @@ def create_app() -> FastAPI:
         from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 
         ea_auth_token = ""
-        metaapi_token = ""
+        platform_token = ""
         if row.connection_type == "ea" and row.ea_auth_token_encrypted:
             ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-        if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
-            metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+        if row.connection_type == "metaapi":
+            import os
+            platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
         new_client = create_mt5_broker_from_connection(
             row=row,
             http_client=container.http_client,
             ea_auth_token=ea_auth_token,
-            metaapi_token=metaapi_token,
+            platform_token=platform_token,
         )
 
         # Shut down old client if exists.
@@ -1767,7 +1776,9 @@ def create_app() -> FastAPI:
         try:
             healthy = await new_client.health_check()
             new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
-            status_msg = "Connection successful" if healthy else "Health check failed after swap"
+            status_msg = (
+                "Connection successful" if healthy else "Health check failed after swap"
+            )
         except Exception as exc:
             new_status = STATUS_ERROR
             status_msg = f"Health check error: {exc}"
@@ -1816,19 +1827,76 @@ def create_app() -> FastAPI:
         if not body.name or not body.name.strip():
             raise HTTPException(status_code=400, detail="name must not be empty")
 
+        from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
+        
         try:
+            # Prepare fields based on connection type
+            ea_host = None
+            ea_port = None
+            ea_auth_token = None
+            metaapi_account_id = None
+            
+            if body.connection_type == "ea":
+                import os
+                # Pull server-side EA config
+                ea_host = os.environ.get("MT5_ZMQ_HOST", "host.docker.internal")
+                try:
+                    ea_port = int(os.environ.get("MT5_ZMQ_PORT", "5555"))
+                except ValueError:
+                    ea_port = 5555
+                # ea_auth_token should ideally be in settings too, but defaults to empty for now if not present
+
+            elif body.connection_type == "metaapi":
+                # Provision cloud MT5 account dynamically
+                if not body.mt5_login or not body.mt5_password or not body.mt5_server:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="mt5_login, mt5_password, and mt5_server are required for MetaAPI connections",
+                    )
+                
+                import os
+                platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
+                if not platform_token:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="MT5_METAAPI_TOKEN environment variable is not configured on the server."
+                    )
+                
+                provisioner = MetaApiProvisioner(
+                    http_client=container.http_client,
+                    platform_token=platform_token,
+                )
+                
+                try:
+                    metaapi_result = await provisioner.provision_account(
+                        login=body.mt5_login,
+                        password=body.mt5_password,
+                        server=body.mt5_server,
+                        name=body.name,
+                    )
+                    metaapi_account_id = metaapi_result["account_id"]
+                except Exception as exc:
+                    logger.error(
+                        "metaapi_provisioning_error_in_api",
+                        extra={"error": str(exc)},
+                    )
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"MetaAPI provisioning failed: {exc}"
+                    )
+
             async with container.db.session() as session:
                 repo = BrokerConnectionRepository(session)
                 row = await repo.create(
                     connection_type=body.connection_type,
                     name=body.name.strip(),
-                    ea_host=body.ea_host,
-                    ea_port=body.ea_port,
-                    ea_auth_token=body.ea_auth_token,
-                    metaapi_token=body.metaapi_token,
-                    metaapi_account_id=body.metaapi_account_id,
+                    ea_host=ea_host,
+                    ea_port=ea_port,
+                    ea_auth_token=ea_auth_token,
+                    metaapi_account_id=metaapi_account_id,
                     mt5_server=body.mt5_server,
                     mt5_login=body.mt5_login,
+                    mt5_password=body.mt5_password,
                     activate=body.activate,
                 )
                 result = _serialize_broker_connection(row)
@@ -1846,7 +1914,8 @@ def create_app() -> FastAPI:
                 )
 
         result["message"] = (
-            "Connection created and activated." if body.activate
+            "Connection created and activated."
+            if body.activate
             else "Connection created."
         )
         return result
@@ -1929,13 +1998,9 @@ def create_app() -> FastAPI:
                 row = await repo.update_connection(
                     connection_id,
                     name=body.name,
-                    ea_host=body.ea_host,
-                    ea_port=body.ea_port,
-                    ea_auth_token=body.ea_auth_token,
-                    metaapi_token=body.metaapi_token,
-                    metaapi_account_id=body.metaapi_account_id,
                     mt5_server=body.mt5_server,
                     mt5_login=body.mt5_login,
+                    mt5_password=body.mt5_password,
                 )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -2086,18 +2151,19 @@ def create_app() -> FastAPI:
 
         # Decrypt credentials and create a temporary broker client.
         ea_auth_token = ""
-        metaapi_token = ""
+        platform_token = ""
         if row.connection_type == "ea" and row.ea_auth_token_encrypted:
             ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-        if row.connection_type == "metaapi" and row.metaapi_token_encrypted:
-            metaapi_token = decrypt_credential(row.metaapi_token_encrypted)
+        if row.connection_type == "metaapi":
+            import os
+            platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
         try:
             temp_client = create_mt5_broker_from_connection(
                 row=row,
                 http_client=container.http_client,
                 ea_auth_token=ea_auth_token,
-                metaapi_token=metaapi_token,
+                platform_token=platform_token,
             )
         except Exception as exc:
             # Update status in DB.
@@ -2162,12 +2228,39 @@ def create_app() -> FastAPI:
             BrokerConnectionRepository,
         )
 
+        async with container.db.read_session() as session:
+            repo = BrokerConnectionRepository(session)
+            row = await repo.get_by_id(connection_id)
+            
+        if not row:
+            raise HTTPException(status_code=404, detail="Connection not found")
+            
+        is_metaapi = row.connection_type == "metaapi"
+        metaapi_account_id = row.metaapi_account_id
+
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             deleted = await repo.delete(connection_id)
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Connection not found")
+
+        # Clean up cloud resources asynchronously after DB deletion
+        if is_metaapi and metaapi_account_id:
+            import os
+            platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
+            if platform_token:
+                from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
+                try:
+                    provisioner = MetaApiProvisioner(
+                        http_client=container.http_client,
+                        platform_token=platform_token,
+                    )
+                    # Background task to avoid blocking the user API response
+                    import asyncio
+                    asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))
+                except Exception as exc:
+                    logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
 
         return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
 

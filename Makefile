@@ -14,7 +14,7 @@ MAKEFLAGS += --no-print-directory
 SHELL := /bin/bash
 
 # ============================================================================
-# COLORS & FORMATTING
+# COLORS & FORMATTING 
 # ============================================================================
 BLUE := \033[0;34m
 GREEN := \033[0;32m
@@ -260,9 +260,10 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
-		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
-		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
+		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		go test ./src/gateway/... -v -count=1 -timeout 120s && \
 		go test ./src/execution/... -v -count=1 -timeout 120s && \
 		go test ./src/management/... -v -count=1 -timeout 120s
@@ -273,9 +274,10 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
-		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
-		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
+		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
 	echo -e "$(BLUE)Running Execution broker integration tests...$(NC)"
 	go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
@@ -291,9 +293,10 @@ test-e2e: ## Run E2E pipeline tests (requires Redis for alert transport)
 		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
 		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_REDIS_URL="redis://localhost:6379/1" && \
-		export GATEWAY_REDIS_URL="redis://localhost:6379/0" && \
-		export MANAGEMENT_REDIS_URL="redis://localhost:6379/1" && \
+		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
+		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
+		export MANAGEMENT_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 	echo -e "$(GREEN)✓ E2E tests passed$(NC)"
 
@@ -313,7 +316,7 @@ health: ## Check health of all running services
 	@echo -n "  Execution:  " && curl -sf http://localhost:8081/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
 	@echo -n "  Management: " && curl -sf http://localhost:8083/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo -e "$(RED)DOWN$(NC)"
 	@echo -n "  PostgreSQL: " && docker compose exec -T postgres pg_isready -U etradie -d etradie >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
-	@echo -n "  Redis:      " && docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
+	@echo -n "  Redis:      " && set -a && source .env && set +a && docker compose exec -T redis redis-cli -a "$$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
 	@echo -n "  ChromaDB:   " && curl -sf http://localhost:8002/api/v2/heartbeat >/dev/null 2>&1 && echo -e "$(GREEN)ok$(NC)" || echo -e "$(RED)DOWN$(NC)"
 
 broker-health: ## Verify broker bridge connectivity (engine must be running)

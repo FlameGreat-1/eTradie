@@ -813,6 +813,43 @@ class HttpClient:
             timeout_override=timeout_override,
         )
 
+    async def delete(
+        self,
+        url: str,
+        *,
+        provider_name: str = "unknown",
+        category: str = "unknown",
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        trace_id: Optional[str] = None,
+        timeout_override: Optional[int] = None,
+    ) -> dict[str, Any] | list[Any] | str:
+        """
+        Execute HTTP DELETE request.
+
+        Args:
+            url: Target URL
+            provider_name: Provider identifier
+            category: Request category
+            headers: Optional request headers
+            params: Optional query parameters
+            trace_id: Optional trace ID
+            timeout_override: Optional timeout override
+
+        Returns:
+            Response data
+        """
+        return await self.request(
+            "DELETE",
+            url,
+            provider_name=provider_name,
+            category=category,
+            headers=headers,
+            params=params,
+            trace_id=trace_id,
+            timeout_override=timeout_override,
+        )
+
     async def close(self) -> None:
         """Gracefully close HTTP session."""
         try:
