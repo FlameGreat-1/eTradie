@@ -539,6 +539,7 @@ def create_app() -> FastAPI:
         request: Request,
         pair: Optional[str] = None,
         limit: int = 20,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """List recent analyses for the dashboard."""
         container: Container = request.app.state.container
@@ -551,9 +552,9 @@ def create_app() -> FastAPI:
             repo = AnalysisRepository(session)
 
             if pair:
-                rows = await repo.get_latest_by_pair(pair.upper(), limit=limit)
+                rows = await repo.get_latest_by_pair(pair.upper(), user_id=user.user_id, limit=limit)
             else:
-                rows = await repo.list_recent_all(limit=limit)
+                rows = await repo.list_recent_all(user_id=user.user_id, limit=limit)
 
         results = []
         for row in rows:
@@ -597,6 +598,7 @@ def create_app() -> FastAPI:
         until: Optional[str] = None,
         offset: int = 0,
         limit: int = 20,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Paginated analysis history with filters.
 
@@ -641,6 +643,7 @@ def create_app() -> FastAPI:
         async with container.db.read_session() as session:
             repo = AnalysisRepository(session)
             rows, total_count = await repo.list_filtered(
+                user_id=user.user_id,
                 pair=pair,
                 status=status,
                 grade=grade,
@@ -693,6 +696,7 @@ def create_app() -> FastAPI:
         pair: Optional[str] = None,
         since: Optional[str] = None,
         until: Optional[str] = None,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Aggregate analysis statistics for the dashboard.
 
@@ -723,11 +727,15 @@ def create_app() -> FastAPI:
 
         async with container.db.read_session() as session:
             repo = AnalysisRepository(session)
-            stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
+            stats = await repo.get_stats(user_id=user.user_id, pair=pair, since=since_dt, until=until_dt)
         return stats
 
     @app.get("/api/analysis/{analysis_id}")
-    async def get_analysis_detail(request: Request, analysis_id: str) -> dict:
+    async def get_analysis_detail(
+        request: Request,
+        analysis_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Full analysis detail including LLM reasoning and raw output."""
         container: Container = request.app.state.container
         if not hasattr(container, "processor_uow_factory"):
@@ -735,11 +743,11 @@ def create_app() -> FastAPI:
 
         async with container.db.read_session() as session:
             repo = AnalysisRepository(session)
-            row = await repo.get_by_analysis_id(analysis_id)
+            row = await repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
 
             audit_rows = []
             audit_repo = AuditRepository(session)
-            audit_rows = await audit_repo.get_by_analysis_id(analysis_id)
+            audit_rows = await audit_repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
 
         if not row:
             raise HTTPException(
