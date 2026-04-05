@@ -17,6 +17,7 @@ import (
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
@@ -50,7 +51,15 @@ func main() {
 		Str("broker_mode", cfg.BrokerMode).
 		Msg("management_engine_starting")
 
-	// ── Database connection pool ──────────────────────────────────────
+	// \u2500\u2500 Auth configuration \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	authCfg, err := auth.LoadConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth_config_load_failed")
+	}
+	tokenService := auth.NewTokenService(authCfg)
+	log.Info().Msg("auth_service_initialized")
+
+	// \u2500\u2500 Database connection pool \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	ctx := context.Background()
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
@@ -71,12 +80,12 @@ func main() {
 		log.Fatal().Err(err).Msg("database_ping_failed")
 	}
 
-	// Create management tables (journal, events).
+	// Create management tables (journal, events) with user_id columns.
 	if _, err := pool.Exec(ctx, journal.SchemaSQL()); err != nil {
 		log.Fatal().Err(err).Msg("schema_creation_failed")
 	}
 
-	// ── Broker implementation ─────────────────────────────────────────
+	// \u2500\u2500 Broker implementation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
 		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
@@ -86,7 +95,7 @@ func main() {
 		log.Info().Msg("broker_mock_configured")
 	}
 
-	// ── Redis Connection (for shared alerts) ──────────────────────────
+	// \u2500\u2500 Redis Connection (for shared alerts) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	opts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("redis_url_parse_failed")
@@ -97,7 +106,7 @@ func main() {
 		log.Fatal().Err(err).Msg("redis_ping_failed")
 	}
 
-	// ── Shared alert transport ────────────────────────────────────────
+	// \u2500\u2500 Shared alert transport \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	alertHub := alert.NewHub()
 	defer alertHub.Close()
 
@@ -105,27 +114,30 @@ func main() {
 	alertTransport.Start(ctx)
 	defer alertTransport.Close()
 
-	// ── Stores ────────────────────────────────────────────────────────
+	// \u2500\u2500 Stores \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	journalRepo := journal.NewRepository(pool)
 
-	// ── Sub-engines (dependency order) ────────────────────────────────
+	// \u2500\u2500 Sub-engines (dependency order) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	beEngine := stoploss.NewBreakevenEngine(bp, journalRepo)
 	trailEngine := stoploss.NewTrailingEngine(bp, journalRepo)
 	tpExecutor := takeprofit.NewExecutor(bp, journalRepo)
 
-	// ── Monitoring manager ────────────────────────────────────────────
+	// \u2500\u2500 Monitoring manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	mgr := monitoring.NewManager(
 		bp, beEngine, trailEngine, tpExecutor,
 		journalRepo, alertTransport, cfg.TickPollIntervalMs,
 	)
 
-	// ── Invalidation Engines ──────────────────────────────────────────
+	// \u2500\u2500 Invalidation Engines \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	structuralEngine := invalidator.NewStructuralEngine(bp, journalRepo, alertTransport)
 	macroEngine := invalidator.NewMacroEngine(bp, journalRepo, alertTransport)
 	newsEngine := invalidator.NewNewsEngine(bp, journalRepo, alertTransport, rdb)
 	exposureEngine := invalidator.NewExposureEngine(bp, journalRepo, alertTransport, rdb)
 
-	// Subscribe to internal hub for engine signals
+	// Subscribe to internal hub for engine signals.
+	// This is a system-level background goroutine that reacts to events
+	// across all users' trades. The invalidation engines operate on the
+	// trade's own auth context (injected by the monitoring worker).
 	go func() {
 		sub := alertHub.Subscribe()
 		defer alertHub.Unsubscribe(sub)
@@ -136,9 +148,11 @@ func main() {
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
 					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
-						price, err := mgr.GetPriceForSymbol(ctx, evt.Symbol)
+						// Use the trade's own auth context for broker calls.
+						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
-							structuralEngine.EvaluateStructuralBreak(ctx, t, evt.Direction, price)
+							structuralEngine.EvaluateStructuralBreak(tradeCtx, t, evt.Direction, price)
 						}
 					}
 				}
@@ -146,9 +160,10 @@ func main() {
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
 					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
-						price, err := mgr.GetPriceForSymbol(ctx, evt.Symbol)
+						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
-							macroEngine.EvaluateCOTFlip(ctx, t, evt.Direction, price)
+							macroEngine.EvaluateCOTFlip(tradeCtx, t, evt.Direction, price)
 						}
 					}
 				}
@@ -168,9 +183,10 @@ func main() {
 					trades := mgr.GetAllTrades()
 					for _, t := range trades {
 						if t.Status != constants.StatusClosed {
-							price, err := mgr.GetPriceForSymbol(ctx, t.Symbol)
+							tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+							price, err := mgr.GetPriceForSymbol(tradeCtx, t.Symbol)
 							if err == nil {
-								exposureEngine.EvaluateCorrelationShock(ctx, t, stoppedSymbol, price)
+								exposureEngine.EvaluateCorrelationShock(tradeCtx, t, stoppedSymbol, price)
 							}
 						}
 					}
@@ -179,7 +195,7 @@ func main() {
 		}
 	}()
 
-	// ── EOD scheduler (runs temporal checks every minute) ─────────────
+	// \u2500\u2500 EOD scheduler (runs temporal checks every minute) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	eodScheduler := eod.NewScheduler(
 		bp,
 		journalRepo,
@@ -191,12 +207,12 @@ func main() {
 	)
 	eodScheduler.Start()
 
-	// ── Pre-News Polling Engine (runs checks every minute) ────────────
+	// \u2500\u2500 Pre-News Polling Engine (runs checks every minute) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	newsEngine.StartPolling(ctx, mgr.GetAllTrades, func(ctx context.Context, symbol string) (float64, error) {
 		return mgr.GetPriceForSymbol(ctx, symbol)
 	})
 
-	// ── Analytics & Reporting ─────────────────────────────────────────
+	// \u2500\u2500 Analytics & Reporting \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	metricsEngine := analytics.NewMetrics(pool)
 	reporter := analytics.NewReporter(metricsEngine, alertTransport)
 
@@ -222,8 +238,13 @@ func main() {
 		}
 	}()
 
-	// ── Restore active trades from database on restart ────────────────
-	activeTrades, err := journalRepo.GetActiveTrades(ctx)
+	// \u2500\u2500 Restore active trades from database on restart \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// Use GetAllActiveTrades (cross-user) to restore monitoring for every
+	// user's active trades. Each restored trade carries its UserID from
+	// the database. AuthToken will be empty (original token expired after
+	// restart), so broker calls for restored trades will run without
+	// user-scoped auth until the user's next authenticated action.
+	activeTrades, err := journalRepo.GetAllActiveTrades(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("active_trades_restore_failed")
 	} else if len(activeTrades) > 0 {
@@ -234,7 +255,7 @@ func main() {
 		}
 	}
 
-	// ── gRPC server ───────────────────────────────────────────────────
+	// \u2500\u2500 gRPC server (with auth interceptor) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	mgmtServer := server.NewManagementServer(mgr, journalRepo, metricsEngine)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
@@ -242,7 +263,17 @@ func main() {
 		log.Fatal().Err(err).Int("port", cfg.GRPCPort).Msg("grpc_listen_failed")
 	}
 
-	grpcServer := grpc.NewServer()
+	// gRPC methods that bypass authentication (health checks).
+	skipAuth := map[string]bool{
+		"/grpc.health.v1.Health/Check": true,
+		"/grpc.health.v1.Health/Watch": true,
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			auth.UnaryAuthInterceptor(tokenService, skipAuth),
+		),
+	)
 	managementv1.RegisterManagementServiceServer(grpcServer, mgmtServer)
 	reflection.Register(grpcServer)
 
@@ -253,15 +284,15 @@ func main() {
 		}
 	}()
 
-	// ── HTTP server (Dashboard REST API) ──────────────────────────────
-	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine)
+	// \u2500\u2500 HTTP server (Dashboard REST API with auth) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine, tokenService)
 	go func() {
 		if err := httpServer.Start(); err != nil {
 			log.Fatal().Err(err).Msg("http_serve_failed")
 		}
 	}()
 
-	// ── Publish service started event ─────────────────────────────────
+	// \u2500\u2500 Publish service started event \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	alertTransport.Publish(ctx,
 		alert.NewEvent(alert.SourceTradeManager, alert.TypeServiceStarted, alert.SeverityInfo,
 			"Trade Management engine started").
@@ -269,15 +300,17 @@ func main() {
 				"grpc_port":     cfg.GRPCPort,
 				"broker_mode":   cfg.BrokerMode,
 				"active_trades": len(activeTrades),
+				"auth_enabled":  true,
 			}),
 	)
 
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("active_trades", len(activeTrades)).
+		Bool("auth_enabled", true).
 		Msg("management_engine_ready")
 
-	// ── Graceful shutdown ────────────────────────────────────────────
+	// \u2500\u2500 Graceful shutdown \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
@@ -292,7 +325,7 @@ func main() {
 			"Trade Management engine shutting down"),
 	)
 
-	// Shutdown order: HTTP -> gRPC → EOD scheduler → monitoring → alerts → DB.
+	// Shutdown order: HTTP -> gRPC \u2192 EOD scheduler \u2192 monitoring \u2192 alerts \u2192 DB.
 	httpServer.Shutdown(shutdownCtx)
 	grpcServer.GracefulStop()
 	eodScheduler.Shutdown()
@@ -305,6 +338,9 @@ func main() {
 
 // restoreTradeFromRecord reconstructs an in-memory Trade from a DB record.
 // Used on service restart to resume monitoring of active trades.
+// UserID is restored from the database. AuthToken is empty because the
+// original JWT has expired; broker calls for restored trades will run
+// without user-scoped auth until the user's next authenticated action.
 func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
 	return &types.Trade{
 		TradeID:          rec.TradeID,
@@ -312,6 +348,8 @@ func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
 		Direction:        constants.Direction(rec.Direction),
 		BrokerOrderID:    rec.BrokerOrderID,
 		AnalysisID:       rec.AnalysisID,
+		UserID:           rec.UserID,
+		AuthToken:        "", // Token expired after restart; empty is safe.
 		TradingStyle:     constants.TradingStyle(rec.TradingStyle),
 		Grade:            rec.Grade,
 		Session:          rec.Session,
@@ -332,7 +370,6 @@ func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
 		Status:           constants.TradeStatus(rec.Status),
 		OpenedAt:         rec.OpenedAt,
 	}
-
 }
 
 // isLastDayOfMonth checks if the given time is the last day of its current month.
