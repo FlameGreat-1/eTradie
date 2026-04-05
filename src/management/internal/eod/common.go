@@ -23,6 +23,7 @@ func executeClosure(
 	transport *alertredis.Transport,
 	log zerolog.Logger,
 	trade *types.Trade,
+	userID string,
 	currentPrice float64,
 	entryPrice float64,
 	riskAmount float64,
@@ -68,11 +69,12 @@ func executeClosure(
 	trade.Unlock()
 
 	// Persist close.
-	if err := repo.UpdateTradeClose(ctx, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
+	if err := repo.UpdateTradeClose(ctx, userID, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
 		log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_close_failed")
 	}
 
 	if err := repo.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:      userID,
 		TradeID:     tradeID,
 		EventType:   string(constants.EventEODClosure),
 		Symbol:      symbol,
