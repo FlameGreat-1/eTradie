@@ -59,14 +59,20 @@ func NewAPIHandler(
 	}
 }
 
-// RegisterRoutes mounts all dashboard API routes on the given mux.
-func (h *APIHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/v1/cycle/run", h.withPanicRecovery(h.handleRunCycle))
-	mux.HandleFunc("/api/v1/symbols", h.withPanicRecovery(h.handleSymbols))
-	mux.HandleFunc("/api/v1/symbols/reset", h.withPanicRecovery(h.handleResetSymbols))
-	mux.HandleFunc("/api/v1/config", h.withPanicRecovery(h.handleGetConfig))
-	mux.HandleFunc("/api/v1/config/interval", h.withPanicRecovery(h.handleSetInterval))
-	mux.HandleFunc("/api/v1/health", h.withPanicRecovery(h.handleDetailedHealth))
+// RegisterProtectedRoutes mounts all dashboard API routes on the given mux,
+// wrapping each with the provided auth middleware so that a valid JWT
+// Bearer token is required for access.
+func (h *APIHandler) RegisterProtectedRoutes(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
+	wrap := func(handler http.HandlerFunc) http.Handler {
+		return authMiddleware(h.withPanicRecovery(handler))
+	}
+
+	mux.Handle("/api/v1/cycle/run", wrap(h.handleRunCycle))
+	mux.Handle("/api/v1/symbols", wrap(h.handleSymbols))
+	mux.Handle("/api/v1/symbols/reset", wrap(h.handleResetSymbols))
+	mux.Handle("/api/v1/config", wrap(h.handleGetConfig))
+	mux.Handle("/api/v1/config/interval", wrap(h.handleSetInterval))
+	mux.Handle("/api/v1/health", wrap(h.handleDetailedHealth))
 }
 
 // ---------------------------------------------------------------------------
