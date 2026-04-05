@@ -10,6 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
+
+	"github.com/flamegreat-1/etradie/src/auth"
 )
 
 const (
@@ -60,6 +62,9 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 	log := newLogger("ws_handler")
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract authenticated user ID from context (set by auth.RequireAuth middleware).
+		userID := auth.UserIDFromContext(r.Context())
+
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Error().Err(err).Str("remote", r.RemoteAddr).Msg("ws_upgrade_failed")
@@ -69,11 +74,14 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 		// Parse optional severity filter from query string.
 		minSeverity := parseSeverityParam(r.URL.Query().Get("severity"))
 
-		sub := hub.SubscribeWithFilter(minSeverity)
+		// Create a user-scoped subscriber so this client only receives
+		// events belonging to the authenticated user plus system events.
+		sub := hub.SubscribeForUser(userID, minSeverity)
 
 		log.Info().
 			Str("remote", r.RemoteAddr).
 			Str("subscriber_id", sub.id).
+			Str("user_id", userID).
 			Str("min_severity", string(minSeverity)).
 			Msg("ws_client_connected")
 
@@ -101,6 +109,8 @@ func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
 			return
 		}
 
+		userID := auth.UserIDFromContext(r.Context())
+
 		count := int64(50)
 		if countStr := r.URL.Query().Get("count"); countStr != "" {
 			if parsed, err := strconv.ParseInt(countStr, 10, 64); err == nil && parsed > 0 {
@@ -119,6 +129,10 @@ func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
 		} else {
 			events = provider.Recent(r.Context(), count)
 		}
+
+		// Filter events by user scope: only return events owned by the
+		// authenticated user or system events (empty UserID).
+		events = filterEventsByUser(events, userID)
 
 		if events == nil {
 			events = []*Event{}
@@ -150,6 +164,8 @@ func EventsSinceHandler(provider HistoryProvider) http.HandlerFunc {
 			return
 		}
 
+		userID := auth.UserIDFromContext(r.Context())
+
 		lastEventID := r.URL.Query().Get("last_event_id")
 
 		count := int64(100)
@@ -163,6 +179,10 @@ func EventsSinceHandler(provider HistoryProvider) http.HandlerFunc {
 		}
 
 		events := provider.RecentSince(r.Context(), lastEventID, count)
+
+		// Filter events by user scope.
+		events = filterEventsByUser(events, userID)
+
 		if events == nil {
 			events = []*Event{}
 		}
@@ -176,6 +196,22 @@ func EventsSinceHandler(provider HistoryProvider) http.HandlerFunc {
 			log.Error().Err(err).Msg("events_since_encode_failed")
 		}
 	}
+}
+
+// filterEventsByUser returns only events visible to the given user:
+// system events (empty UserID) and events owned by the user.
+// If userID is empty (unauthenticated), only system events are returned.
+func filterEventsByUser(events []*Event, userID string) []*Event {
+	if events == nil {
+		return nil
+	}
+	filtered := make([]*Event, 0, len(events))
+	for _, evt := range events {
+		if evt.UserID == "" || evt.UserID == userID {
+			filtered = append(filtered, evt)
+		}
+	}
+	return filtered
 }
 
 // parseSeverityParam validates and normalizes a severity query parameter.
