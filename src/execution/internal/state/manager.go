@@ -48,25 +48,9 @@ func NewManager(bp broker.Port, pnlStore *store.PnLStore) *Manager {
 		log:             observability.Logger("state_manager"),
 	}
 
-	// Load persisted P&L from PostgreSQL.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	snap, err := pnlStore.LoadCurrent(ctx)
-	if err != nil {
-		m.log.Error().Err(err).Msg("pnl_load_on_startup_failed")
-	} else {
-		m.dailyPnL = snap.DailyPnL
-		m.weeklyPnL = snap.WeeklyPnL
-		m.dailyPeriodKey = snap.DailyPeriodKey
-		m.weeklyPeriodKey = snap.WeeklyPeriodKey
-		m.log.Info().
-			Float64("daily_pnl", snap.DailyPnL).
-			Int("daily_trades", snap.DailyTrades).
-			Float64("weekly_pnl", snap.WeeklyPnL).
-			Int("weekly_trades", snap.WeeklyTrades).
-			Msg("pnl_restored_from_db")
-	}
+	// P&L is NOT loaded at startup because there is no user context.
+	// P&L is loaded on the first Refresh() call which carries userID.
+	m.log.Info().Msg("state_manager_created_pnl_loaded_on_first_refresh")
 
 	return m
 }
@@ -74,7 +58,7 @@ func NewManager(bp broker.Port, pnlStore *store.PnLStore) *Manager {
 // Refresh fetches live state from the broker. Called before every
 // execution attempt to ensure accuracy. Detects day/week boundary
 // crossings and reloads P&L from PostgreSQL with new period keys.
-func (m *Manager) Refresh(ctx context.Context) error {
+func (m *Manager) Refresh(ctx context.Context, userID string) error {
 	account, err := m.broker.GetAccountInfo(ctx)
 	if err != nil {
 		return err
@@ -117,7 +101,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	if boundaryChanged {
 		// Reload from DB to pick up any P&L recorded by other instances
 		// or from trades closed during the new period.
-		snap, err := m.pnlStore.LoadCurrent(ctx)
+		snap, err := m.pnlStore.LoadCurrent(ctx, userID)
 		if err != nil {
 			m.log.Error().Err(err).Msg("pnl_reload_on_boundary_failed")
 		} else {
@@ -222,8 +206,8 @@ func (m *Manager) WeeklyDrawdownPercent() float64 {
 // RecordPnL persists a realized P&L amount to PostgreSQL and updates
 // in-memory counters. Called by Module C when a trade closes.
 // DB write is the source of truth; in-memory is updated only on success.
-func (m *Manager) RecordPnL(ctx context.Context, amount float64) error {
-	if err := m.pnlStore.RecordPnL(ctx, amount); err != nil {
+func (m *Manager) RecordPnL(ctx context.Context, userID string, amount float64) error {
+	if err := m.pnlStore.RecordPnL(ctx, userID, amount); err != nil {
 		m.log.Error().Err(err).Float64("amount", amount).Msg("pnl_persist_failed")
 		return err
 	}
