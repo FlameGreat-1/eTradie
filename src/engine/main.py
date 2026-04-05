@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime as dt, timezone
 from typing import AsyncIterator, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field, SecretStr
 
@@ -1789,6 +1789,7 @@ def create_app() -> FastAPI:
                 repo = BrokerConnectionRepository(session)
                 await repo.update_status(
                     str(row.id),
+                    user_id=str(row.user_id),
                     status=new_status,
                     status_message=status_msg,
                     connected=healthy,
