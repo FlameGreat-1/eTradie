@@ -19,7 +19,8 @@ import (
 type contextKey string
 
 const (
-	claimsKey contextKey = "auth_claims"
+	claimsKey   contextKey = "auth_claims"
+	rawTokenKey contextKey = "auth_raw_token"
 )
 
 // ClaimsFromContext extracts the JWT claims from the request context.
@@ -27,6 +28,13 @@ const (
 func ClaimsFromContext(ctx context.Context) *Claims {
 	c, _ := ctx.Value(claimsKey).(*Claims)
 	return c
+}
+
+// RawTokenFromContext extracts the raw JWT token string from the context.
+// Used by EngineHTTPClient to forward the token to the Python engine.
+func RawTokenFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(rawTokenKey).(string)
+	return s
 }
 
 // UserIDFromContext extracts the user ID from the request context.
@@ -68,7 +76,11 @@ func RequireAuth(ts *TokenService) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Store both parsed claims and raw token in context.
+			// Raw token is forwarded to Python engine by EngineHTTPClient.
+			rawToken := extractBearerToken(r.Header.Get("Authorization"))
 			ctx := context.WithValue(r.Context(), claimsKey, claims)
+			ctx = context.WithValue(ctx, rawTokenKey, rawToken)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -161,8 +173,9 @@ func UnaryAuthInterceptor(ts *TokenService, skipMethods map[string]bool) grpc.Un
 			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 		}
 
-		// Inject claims into context.
+		// Inject both claims and raw token into context.
 		newCtx := context.WithValue(ctx, claimsKey, claims)
+		newCtx = context.WithValue(newCtx, rawTokenKey, tokenString)
 		return handler(newCtx, req)
 	}
 }
