@@ -172,6 +172,29 @@ func (m *Metrics) calculateStreaks(ctx context.Context, userID, periodFilter str
 	return maxWins, maxLosses
 }
 
+// GetDistinctUserIDs returns all unique user IDs that have closed trades.
+// Used by the Reporter to generate per-user performance reports.
+func (m *Metrics) GetDistinctUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := m.pool.Query(ctx, `
+		SELECT DISTINCT user_id FROM management_trades
+		WHERE status = 'CLOSED' AND user_id != 'system'
+		ORDER BY user_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var userIDs []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			continue
+		}
+		userIDs = append(userIDs, uid)
+	}
+	return userIDs, rows.Err()
+}
+
 func (m *Metrics) winRateByDimension(ctx context.Context, userID, dimension, periodFilter string) map[string]float64 {
 	result := make(map[string]float64)
 

@@ -16,6 +16,7 @@ type AlertTransport interface {
 }
 
 // Reporter generates and dispatches periodic performance summary reports.
+// Reports are generated per-user to maintain multi-tenant data isolation.
 type Reporter struct {
 	metrics   *Metrics
 	transport AlertTransport
@@ -31,26 +32,50 @@ func NewReporter(metrics *Metrics, transport AlertTransport) *Reporter {
 	}
 }
 
-// GenerateWeeklyReport compiles performance for the past week and sends it via alert dispatcher.
+// GenerateWeeklyReport compiles performance for the past week for each user.
 func (r *Reporter) GenerateWeeklyReport(ctx context.Context) error {
-	return r.generateAndSend(ctx, "WEEKLY", "Weekly Performance Report")
+	return r.generateForAllUsers(ctx, "WEEKLY", "Weekly Performance Report")
 }
 
-// GenerateMonthlyReport compiles performance for the past month and sends it via alert dispatcher.
+// GenerateMonthlyReport compiles performance for the past month for each user.
 func (r *Reporter) GenerateMonthlyReport(ctx context.Context) error {
-	return r.generateAndSend(ctx, "MONTHLY", "Monthly Performance Report")
+	return r.generateForAllUsers(ctx, "MONTHLY", "Monthly Performance Report")
 }
 
-func (r *Reporter) generateAndSend(ctx context.Context, period, title string) error {
-	summary, err := r.metrics.Calculate(ctx, period)
+// generateForAllUsers discovers all users with closed trades and generates
+// a report for each one. This maintains multi-tenant isolation.
+func (r *Reporter) generateForAllUsers(ctx context.Context, period, title string) error {
+	userIDs, err := r.metrics.GetDistinctUserIDs(ctx)
 	if err != nil {
-		r.log.Error().Err(err).Str("period", period).Msg("failed_to_calculate_report")
-		return fmt.Errorf("calculate %s metrics: %w", period, err)
+		r.log.Error().Err(err).Str("period", period).Msg("failed_to_get_user_ids_for_report")
+		return fmt.Errorf("get user IDs for %s report: %w", period, err)
+	}
+
+	if len(userIDs) == 0 {
+		r.log.Info().Str("period", period).Msg("no_users_with_trades_for_report")
+		return nil
+	}
+
+	var lastErr error
+	for _, userID := range userIDs {
+		if err := r.generateAndSend(ctx, userID, period, title); err != nil {
+			r.log.Error().Err(err).Str("user_id", userID).Str("period", period).Msg("user_report_failed")
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+func (r *Reporter) generateAndSend(ctx context.Context, userID, period, title string) error {
+	summary, err := r.metrics.Calculate(ctx, userID, period)
+	if err != nil {
+		r.log.Error().Err(err).Str("user_id", userID).Str("period", period).Msg("failed_to_calculate_report")
+		return fmt.Errorf("calculate %s metrics for user %s: %w", period, userID, err)
 	}
 
 	if summary.TotalTrades == 0 {
-		r.log.Info().Str("period", period).Msg("no_trades_for_report")
-		return nil // Nothing to report
+		r.log.Info().Str("user_id", userID).Str("period", period).Msg("no_trades_for_report")
+		return nil // Nothing to report for this user.
 	}
 
 	msg := fmt.Sprintf("%s\nTrades: %d | Win Rate: %.1f%%\nTotal PnL: $%.2f | Avg R: %.2f\nStreaks: %dW : %dL",
@@ -65,12 +90,13 @@ func (r *Reporter) generateAndSend(ctx context.Context, period, title string) er
 		alert.SeverityInfo,
 		msg,
 	).WithDetails(map[string]interface{}{
+		"user_id":      userID,
 		"win_rate":     summary.WinRate,
 		"pnl":          summary.TotalPnL,
 		"total_trades": summary.TotalTrades,
 		"expectancy":   summary.Expectancy,
 	}))
 
-	r.log.Info().Str("period", period).Msg("report_generated_and_sent")
+	r.log.Info().Str("user_id", userID).Str("period", period).Msg("report_generated_and_sent")
 	return nil
 }
