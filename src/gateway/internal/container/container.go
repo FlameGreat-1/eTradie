@@ -8,6 +8,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat-1/etradie/src/gateway/internal/context"
@@ -42,7 +43,16 @@ type Container struct {
 }
 
 // New builds all gateway components in correct dependency order.
-func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.ExecutionGRPCAdapter) (*Container, error) {
+// tokenService and authHandler are created in main.go from the auth
+// package and passed here so the HTTP/gRPC servers can mount auth
+// routes and apply auth middleware.
+func New(
+	cfg *config.Config,
+	execution ports.ExecutionPort,
+	execAdapter *infra.ExecutionGRPCAdapter,
+	tokenService *auth.TokenService,
+	authHandler *auth.Handler,
+) (*Container, error) {
 	log := observability.Logger("container")
 
 	// Infrastructure.
@@ -105,15 +115,16 @@ func New(cfg *config.Config, execution ports.ExecutionPort, execAdapter *infra.E
 		}
 	}
 
-	// Servers.
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler)
-	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient)
+	// Servers (now with auth support).
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler)
+	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
 		Int("cycle_interval", scheduler.CurrentIntervalSeconds()).
 		Int("cycle_timeout", cfg.CycleTimeoutSeconds).
 		Bool("execution_available", execution != nil).
 		Bool("management_available", mgmtClient != nil).
+		Bool("auth_enabled", true).
 		Msg("gateway_container_built")
 
 	return &Container{
