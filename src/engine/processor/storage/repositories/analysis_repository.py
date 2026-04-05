@@ -31,6 +31,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
     async def save_analysis(
         self,
         *,
+        user_id: str,
         analysis_id: str,
         pair: str,
         direction: str,
@@ -55,9 +56,10 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         trace_id: Optional[str] = None,
         raw_output: Optional[dict] = None,
     ) -> None:
-        """Idempotent upsert of an analysis output."""
+        """Idempotent upsert of an analysis output, scoped to user."""
         await self.upsert(
             values={
+                "user_id": user_id,
                 "analysis_id": analysis_id,
                 "pair": pair,
                 "direction": direction,
@@ -99,13 +101,17 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
     async def get_latest_by_pair(
         self,
         pair: str,
+        user_id: str,
         *,
         limit: int = 10,
     ) -> Sequence[AnalysisOutputRow]:
-        """Retrieve the most recent analyses for a pair."""
+        """Retrieve the most recent analyses for a pair, scoped to user."""
         stmt = (
             select(AnalysisOutputRow)
-            .where(AnalysisOutputRow.pair == pair)
+            .where(
+                AnalysisOutputRow.user_id == user_id,
+                AnalysisOutputRow.pair == pair,
+            )
             .order_by(AnalysisOutputRow.created_at.desc())
             .limit(limit)
         )
@@ -114,9 +120,11 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
     async def get_by_analysis_id(
         self,
         analysis_id: str,
+        user_id: str,
     ) -> Optional[AnalysisOutputRow]:
-        """Retrieve a single analysis by its unique analysis_id."""
+        """Retrieve a single analysis by its unique analysis_id, scoped to user."""
         stmt = select(AnalysisOutputRow).where(
+            AnalysisOutputRow.user_id == user_id,
             AnalysisOutputRow.analysis_id == analysis_id,
         )
         results = await self.execute_query(stmt)
@@ -124,14 +132,16 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
 
     async def list_recent_all(
         self,
+        user_id: str,
         *,
         offset: int = 0,
         limit: int = 20,
     ) -> Sequence[AnalysisOutputRow]:
-        """List most recent analyses across all pairs with pagination."""
+        """List most recent analyses across all pairs for this user."""
         offset, limit = self._validate_pagination(offset, limit)
         stmt = (
             select(AnalysisOutputRow)
+            .where(AnalysisOutputRow.user_id == user_id)
             .order_by(AnalysisOutputRow.created_at.desc())
             .offset(offset)
             .limit(limit)
@@ -140,6 +150,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
 
     async def list_filtered(
         self,
+        user_id: str,
         *,
         pair: Optional[str] = None,
         status: Optional[str] = None,
@@ -158,7 +169,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         """
         offset, limit = self._validate_pagination(offset, limit)
 
-        base = select(AnalysisOutputRow)
+        base = select(AnalysisOutputRow).where(AnalysisOutputRow.user_id == user_id)
         base = self._apply_filters(
             base,
             pair=pair,
@@ -182,6 +193,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
 
     async def get_stats(
         self,
+        user_id: str,
         *,
         pair: Optional[str] = None,
         since: Optional[datetime] = None,
@@ -208,7 +220,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
             ).label("error_count"),
             func.avg(T.confluence_score).label("avg_confluence_score"),
             func.avg(T.duration_ms).label("avg_duration_ms"),
-        )
+        ).where(T.user_id == user_id)
         scalar_stmt = self._apply_scalar_filters(
             scalar_stmt,
             pair=pair,
@@ -224,10 +236,14 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         success_rate = round(success_count / total, 4) if total > 0 else 0.0
 
         # -- Grade distribution -----------------------------------------------
-        grade_stmt = select(
-            T.setup_grade,
-            func.count(T.id).label("cnt"),
-        ).group_by(T.setup_grade)
+        grade_stmt = (
+            select(
+                T.setup_grade,
+                func.count(T.id).label("cnt"),
+            )
+            .where(T.user_id == user_id)
+            .group_by(T.setup_grade)
+        )
         grade_stmt = self._apply_scalar_filters(
             grade_stmt,
             pair=pair,
@@ -243,7 +259,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
                 T.llm_provider,
                 func.count(T.id).label("cnt"),
             )
-            .where(T.llm_provider != "")
+            .where(T.user_id == user_id, T.llm_provider != "")
             .group_by(T.llm_provider)
         )
         provider_stmt = self._apply_scalar_filters(
@@ -256,10 +272,14 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         provider_distribution = {p: c for p, c in provider_rows.all()}
 
         # -- Pair distribution ------------------------------------------------
-        pair_stmt = select(
-            T.pair,
-            func.count(T.id).label("cnt"),
-        ).group_by(T.pair)
+        pair_stmt = (
+            select(
+                T.pair,
+                func.count(T.id).label("cnt"),
+            )
+            .where(T.user_id == user_id)
+            .group_by(T.pair)
+        )
         pair_stmt = self._apply_scalar_filters(
             pair_stmt,
             pair=pair,

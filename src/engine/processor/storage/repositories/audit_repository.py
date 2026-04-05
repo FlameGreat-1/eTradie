@@ -29,6 +29,7 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
     async def save_audit_log(
         self,
         *,
+        user_id: str,
         analysis_id: str,
         pair: str,
         timestamp: object,
@@ -56,6 +57,7 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
     ) -> None:
         """Append an immutable audit log entry."""
         row = AnalysisAuditLogRow(
+            user_id=user_id,
             analysis_id=analysis_id,
             pair=pair,
             timestamp=timestamp,
@@ -86,11 +88,15 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
     async def get_by_analysis_id(
         self,
         analysis_id: str,
+        user_id: str,
     ) -> Sequence[AnalysisAuditLogRow]:
-        """Retrieve audit logs for a specific analysis."""
+        """Retrieve audit logs for a specific analysis, scoped to user."""
         stmt = (
             select(AnalysisAuditLogRow)
-            .where(AnalysisAuditLogRow.analysis_id == analysis_id)
+            .where(
+                AnalysisAuditLogRow.user_id == user_id,
+                AnalysisAuditLogRow.analysis_id == analysis_id,
+            )
             .order_by(AnalysisAuditLogRow.created_at.desc())
         )
         return await self.execute_query(stmt)
