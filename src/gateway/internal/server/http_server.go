@@ -12,6 +12,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -30,6 +31,7 @@ type HTTPServer struct {
 }
 
 // NewHTTPServer creates the HTTP server with all endpoints mounted.
+// Auth routes are public; all dashboard API routes require authentication.
 func NewHTTPServer(
 	cfg *config.Config,
 	redis *infra.RedisClient,
@@ -40,6 +42,8 @@ func NewHTTPServer(
 	symbolStore *symbolstore.Store,
 	settingsStore *settingsstore.Store,
 	scheduler *pipeline.Scheduler,
+	tokenService *auth.TokenService,
+	authHandler *auth.Handler,
 ) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
@@ -49,21 +53,34 @@ func NewHTTPServer(
 
 	mux := http.NewServeMux()
 
-	// Ops endpoints.
+	// ---------------------------------------------------------------
+	// Public ops endpoints (no auth required).
+	// ---------------------------------------------------------------
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/readiness", s.handleReadiness)
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// ---------------------------------------------------------------
+	// Auth endpoints (public: login, register, refresh).
+	// Protected auth endpoints are handled inside RegisterRoutes.
+	// ---------------------------------------------------------------
+	authHandler.RegisterRoutes(mux, tokenService)
+
+	// ---------------------------------------------------------------
+	// Protected endpoints (require valid JWT).
+	// ---------------------------------------------------------------
+	authMiddleware := auth.RequireAuth(tokenService)
+
 	// WebSocket notifications (real-time event stream to dashboard).
-	mux.HandleFunc("/ws/notifications", alert.WebSocketHandler(hub))
+	mux.Handle("/ws/notifications", authMiddleware(http.HandlerFunc(alert.WebSocketHandler(hub))))
 
 	// Event history REST endpoints (Redis-backed persistence).
-	mux.HandleFunc("/events/recent", alert.RecentEventsHandler(transport))
-	mux.HandleFunc("/events/since", alert.EventsSinceHandler(transport))
+	mux.Handle("/events/recent", authMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport))))
+	mux.Handle("/events/since", authMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport))))
 
-	// Dashboard REST API.
+	// Dashboard REST API (all protected).
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
-	api.RegisterRoutes(mux)
+	api.RegisterProtectedRoutes(mux, authMiddleware)
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
