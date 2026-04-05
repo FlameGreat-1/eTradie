@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
@@ -20,9 +21,17 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 	tradeID := trade.TradeID
 	symbol := trade.Symbol
 
+	// Inject the user's auth token into the worker context so all
+	// downstream broker HTTP calls are authenticated. The token was
+	// captured from the original gRPC request and stored on the Trade
+	// struct by the gRPC server. This follows the same pattern as
+	// Execution's watcher/manager.go.
+	authCtx := auth.InjectTokenIntoContext(ctx, trade.AuthToken)
+
 	m.log.Info().
 		Str("trade_id", tradeID).
 		Str("symbol", symbol).
+		Str("user_id", trade.UserID).
 		Msg("monitoring_worker_started")
 
 	ticker := time.NewTicker(time.Duration(m.tickPollMs) * time.Millisecond)
@@ -30,7 +39,7 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-authCtx.Done():
 			m.log.Info().Str("trade_id", tradeID).Msg("monitoring_worker_stopped")
 			return
 
@@ -45,7 +54,7 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 				return
 			}
 
-			tick, err := m.bp.GetTickPrice(ctx, symbol)
+			tick, err := m.bp.GetTickPrice(authCtx, symbol)
 			if err != nil {
 				m.log.Error().Err(err).Str("trade_id", tradeID).Msg("tick_poll_failed")
 				continue
@@ -73,18 +82,18 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 
 			// 1. Check SL hit first (highest priority — protect capital).
 			if trade.IsSLHit(checkPrice) {
-				m.handleSLHit(ctx, trade, checkPrice)
+				m.handleSLHit(authCtx, trade, checkPrice)
 				m.RemoveTrade(tradeID)
 				return
 			}
 
 			// 2. Check TP hits (lock profit).
-			tpEvent, err := m.tp.Evaluate(ctx, trade, checkPrice)
+			tpEvent, err := m.tp.Evaluate(authCtx, trade, checkPrice)
 			if err != nil {
 				m.log.Error().Err(err).Str("trade_id", tradeID).Msg("tp_eval_failed")
 			}
 			if tpEvent != "" {
-				m.publishTPEvent(ctx, trade, tpEvent, checkPrice)
+				m.publishTPEvent(authCtx, trade, tpEvent, checkPrice)
 
 				// Check if fully closed after TP3.
 				trade.RLock()
@@ -97,22 +106,22 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 			}
 
 			// 3. Evaluate break-even (after TP check since TP1 triggers BE).
-			beMoved, err := m.be.Evaluate(ctx, trade, checkPrice)
+			beMoved, err := m.be.Evaluate(authCtx, trade, checkPrice)
 			if err != nil {
 				m.log.Error().Err(err).Str("trade_id", tradeID).Msg("be_eval_failed")
 			}
 			if beMoved {
-				m.publishEvent(ctx, trade, constants.EventBreakevenSet, checkPrice,
+				m.publishEvent(authCtx, trade, constants.EventBreakevenSet, checkPrice,
 					"SL moved to break-even")
 			}
 
 			// 4. Evaluate trailing stop (only after BE is set).
-			trailMoved, err := m.trail.Evaluate(ctx, trade, checkPrice)
+			trailMoved, err := m.trail.Evaluate(authCtx, trade, checkPrice)
 			if err != nil {
 				m.log.Error().Err(err).Str("trade_id", tradeID).Msg("trail_eval_failed")
 			}
 			if trailMoved {
-				m.publishEvent(ctx, trade, constants.EventTrailingSLMoved, checkPrice,
+				m.publishEvent(authCtx, trade, constants.EventTrailingSLMoved, checkPrice,
 					"Trailing SL adjusted")
 			}
 		}
@@ -122,6 +131,7 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePrice float64) {
 	trade.RLock()
 	tradeID := trade.TradeID
+	userID := trade.UserID
 	brokerID := trade.BrokerOrderID
 	symbol := trade.Symbol
 	entryPrice := trade.EntryPrice
@@ -165,11 +175,12 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 	partials := trade.Partials
 	trade.Unlock()
 
-	if err := m.journal.UpdateTradeClose(ctx, tradeID, closePrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
+	if err := m.journal.UpdateTradeClose(ctx, userID, tradeID, closePrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
 		m.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_close_failed")
 	}
 
 	if err := m.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:      userID,
 		TradeID:     tradeID,
 		EventType:   string(constants.EventSLHit),
 		Symbol:      symbol,
@@ -186,7 +197,7 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 
 	m.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceTradeManager, alert.TypeTradeClosed, alert.SeverityWarning,
-			fmt.Sprintf("SL hit on %s — trade closed at %.5f (%.2fR)", symbol, closePrice, rMultiple)).
+			fmt.Sprintf("SL hit on %s \u2014 trade closed at %.5f (%.2fR)", symbol, closePrice, rMultiple)).
 			WithSymbol(symbol).
 			WithDetails(map[string]interface{}{
 				"trade_id":   tradeID,
@@ -241,7 +252,7 @@ func (m *Manager) publishEvent(ctx context.Context, trade *types.Trade, event co
 
 	m.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceTradeManager, alertType, alert.SeverityInfo,
-			fmt.Sprintf("%s — %s on %s", message, event, symbol)).
+			fmt.Sprintf("%s \u2014 %s on %s", message, event, symbol)).
 			WithSymbol(symbol).
 			WithDetails(map[string]interface{}{
 				"trade_id": tradeID,
