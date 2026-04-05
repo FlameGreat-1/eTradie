@@ -399,35 +399,17 @@ class Container:
     # -- Broker connection management (async, requires DB) ---------------------
 
     async def build_broker(self) -> None:
-        """Load the active broker connection from the database.
+        """Configure the default broker from environment variables.
 
         Called from the FastAPI lifespan after the database is ready.
-        If an active broker connection exists in the DB, it takes
-        precedence over any env-var-based broker created during
-        synchronous __init__.
+        In multi-tenant mode, per-user broker connections are resolved
+        at request time via load_user_broker(user_id). This startup
+        method only validates the env-var-based fallback broker.
 
-        Fallback chain:
-          1. Active broker connection from DB (user-configured)
-          2. MT5 broker from env vars (created in _build_ta_brokers)
-          3. None (user must configure via dashboard)
-
-        When a broker client is resolved, it is wired into:
-          - self.mt5_client (used by /internal/broker/* endpoints)
-          - self.ta_orchestrator.broker_client (used by TA analysis)
+        Fallback chain at startup:
+          1. MT5 broker from env vars (created in _build_ta_brokers)
+          2. None (users configure via dashboard at request time)
         """
-        db_client = await self._load_active_broker_connection()
-        if db_client is not None:
-            # Shut down the old env-var client if one was created.
-            if self.mt5_client is not None:
-                try:
-                    await self.mt5_client.shutdown()
-                except Exception:
-                    pass
-            self.mt5_client = db_client
-            self.ta_orchestrator.broker_client = db_client
-            _logger.info("broker_loaded_from_db_connection")
-            return
-
         if self.mt5_client is not None:
             _logger.info("broker_using_env_var_configuration")
             return
@@ -435,11 +417,27 @@ class Container:
         _logger.warning(
             "no_broker_configured",
             extra={
-                "action": "User must configure a broker connection via the dashboard.",
+                "action": "Users must configure broker connections via the dashboard.",
             },
         )
 
-    async def _load_active_broker_connection(self):
+    async def load_user_broker(self, user_id: str):
+        """Load the active broker connection for a specific user.
+
+        Called at request time when a user's API request needs broker
+        access. Returns a BrokerBase instance or None.
+
+        Fallback chain:
+          1. Active broker connection from DB for this user
+          2. Env-var broker (self.mt5_client) as system default
+          3. None (user must configure via dashboard)
+        """
+        db_client = await self._load_active_broker_connection(user_id)
+        if db_client is not None:
+            return db_client
+        return self.mt5_client  # env-var fallback or None
+
+    async def _load_active_broker_connection(self, user_id: str):
         """Load the active broker connection from the database.
 
         Returns a BrokerBase instance built from the saved connection,
@@ -458,10 +456,10 @@ class Container:
 
             async with self.db.read_session() as session:
                 repo = BrokerConnectionRepository(session)
-                row = await repo.get_active()
+                row = await repo.get_active(user_id=user_id)
 
             if row is None:
-                _logger.info("no_active_broker_connection_in_db")
+                _logger.info("no_active_broker_connection_in_db", extra={"user_id": user_id})
                 return None
 
             # Decrypt EA auth token if applicable.
@@ -609,14 +607,11 @@ class Container:
     # -- Processor (LLM) ------------------------------------------------------
 
     async def build_processor(self) -> None:
-        """Build the Processor LLM service.
+        """Build the Processor LLM service from environment variables.
 
-        On startup, checks the database for an active LLM connection
-        saved by the user via the dashboard. If found, uses that
-        connection's provider, model, and decrypted API key.
-
-        If no active connection exists, falls back to environment
-        variables (PROCESSOR_LLM_PROVIDER, PROCESSOR_ANTHROPIC_API_KEY, etc.).
+        Called at startup. Uses env-var configuration as the system
+        default. Per-user LLM connections are resolved at request time
+        via load_user_llm_config(user_id).
 
         Supports Anthropic, OpenAI, Gemini, and any OpenAI-compatible
         self-hosted endpoint. Must be called after build_rag() since
@@ -624,12 +619,8 @@ class Container:
         """
         self.processor_uow_factory = processor_uow_factory(self.db)
 
-        # Try to load active connection from database.
-        db_config = await self._load_active_llm_connection()
-        if db_config is not None:
-            self.processor_config = db_config
-        else:
-            self.processor_config = get_processor_config()
+        # At startup, use env-var configuration only.
+        self.processor_config = get_processor_config()
 
         self.processor_llm_client = create_llm_client(
             config=self.processor_config,
@@ -641,11 +632,19 @@ class Container:
             uow_factory=self.processor_uow_factory,
         )
 
-    async def _load_active_llm_connection(self) -> "ProcessorConfig | None":
-        """Load the active LLM connection from the database.
+    async def load_user_llm_config(self, user_id: str) -> "ProcessorConfig | None":
+        """Load the active LLM connection for a specific user.
+
+        Called at request time. Returns a ProcessorConfig built from
+        the user's saved connection, or None (use system default).
+        """
+        return await self._load_active_llm_connection(user_id)
+
+    async def _load_active_llm_connection(self, user_id: str) -> "ProcessorConfig | None":
+        """Load the active LLM connection from the database for a user.
 
         Returns a ProcessorConfig built from the saved connection,
-        or None if no active connection exists.
+        or None if no active connection exists for this user.
         """
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
@@ -656,10 +655,10 @@ class Container:
 
             async with self.db.read_session() as session:
                 repo = LLMConnectionRepository(session)
-                row = await repo.get_active()
+                row = await repo.get_active(user_id=user_id)
 
             if row is None:
-                _logger.info("no_active_llm_connection_in_db_using_env_vars")
+                _logger.info("no_active_llm_connection_in_db_using_env_vars", extra={"user_id": user_id})
                 return None
 
             api_key = decrypt_api_key(row.api_key_encrypted)
