@@ -119,6 +119,13 @@ func (s *GRPCServer) GracefulStop() {
 	s.server.GracefulStop()
 }
 
+// InternalServer returns the underlying grpc.Server. Used by test
+// harnesses to serve on bufconn while preserving the auth interceptor
+// chain wired during NewGRPCServer construction.
+func (s *GRPCServer) InternalServer() *grpc.Server {
+	return s.server
+}
+
 // ---------------------------------------------------------------------------
 // Cycle Management
 // ---------------------------------------------------------------------------

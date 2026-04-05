@@ -11,10 +11,12 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat-1/etradie/src/gateway/internal/context"
@@ -30,6 +32,30 @@ import (
 
 	e2e "github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
+
+// testJWTSecret is a deterministic 64-char secret used by all test harnesses.
+const testJWTSecret = "test-jwt-secret-for-grpctest-harness-0123456789abcdef0123456789ab"
+
+// newTestTokenService creates a TokenService with a fixed test secret.
+func newTestTokenService() *auth.TokenService {
+	cfg := &auth.Config{}
+	cfg.SetTestSecret(testJWTSecret)
+	return auth.NewTokenService(cfg)
+}
+
+// testAuthContext creates a context with a valid test JWT in gRPC
+// outgoing metadata. Uses the test TokenService to issue a real token
+// for the given user ID and role.
+func testAuthContext(ts *auth.TokenService, userID, username string, role auth.Role) context.Context {
+	user := &auth.User{
+		ID:       userID,
+		Username: username,
+		Role:     role,
+	}
+	pair, _, _ := ts.IssueTokenPair(user)
+	md := metadata.Pairs("authorization", "Bearer "+pair.AccessToken)
+	return metadata.NewOutgoingContext(context.Background(), md)
+}
 
 func testRedisURL() string {
 	if url := os.Getenv("REDIS_URL"); url != "" {
@@ -159,19 +185,22 @@ func NewHarness(t *testing.T) *Harness {
 		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
 	}
 
+	// Build a real TokenService so the auth interceptor works in tests.
+	tokenService := newTestTokenService()
+
 	// Build the real GRPCServer. Pass nil for mgmtClient (tested separately).
 	grpcSrv := server.NewGRPCServer(
 		cfg, orchestrator, symStore, settStore, scheduler,
-		redisWrapper, engineHTTP, transport, nil, nil,
+		redisWrapper, engineHTTP, transport, nil, tokenService,
 	)
 
 	// Start in-process gRPC server via bufconn.
+	// Use the GRPCServer's internal server which has the auth interceptor
+	// wired, instead of creating a raw server that bypasses auth.
 	lis := bufconn.Listen(bufSize)
-	rawServer := grpc.NewServer()
-	gatewayv1.RegisterGatewayServiceServer(rawServer, grpcSrv)
 
 	go func() {
-		if err := rawServer.Serve(lis); err != nil {
+		if err := grpcSrv.InternalServer().Serve(lis); err != nil {
 			// Server stopped, expected during cleanup.
 		}
 	}()
