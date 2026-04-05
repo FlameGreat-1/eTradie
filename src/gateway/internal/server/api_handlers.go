@@ -12,6 +12,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -185,6 +186,7 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Active symbols changed: %s", strings.Join(active, ", "))).
+				WithUserID(auth.UserIDFromContext(r.Context())).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
@@ -216,6 +218,7 @@ func (h *APIHandler) handleResetSymbols(w http.ResponseWriter, r *http.Request) 
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
+				WithUserID(auth.UserIDFromContext(r.Context())).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
@@ -308,6 +311,7 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	h.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceGateway, alert.TypeIntervalChanged, alert.SeverityInfo,
 			fmt.Sprintf("Cycle interval changed from %ds to %ds", oldInterval, req.IntervalSeconds)).
+			WithUserID(auth.UserIDFromContext(r.Context())).
 			WithDetails(map[string]interface{}{
 				"old_interval_seconds": oldInterval,
 				"new_interval_seconds": req.IntervalSeconds,
