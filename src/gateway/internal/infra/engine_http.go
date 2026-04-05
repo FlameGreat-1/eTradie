@@ -17,6 +17,13 @@ import (
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
+// AuthTokenContextKey is the context key used to propagate the JWT token
+// from the gateway's auth middleware to outbound HTTP calls to the Python engine.
+type authTokenKeyType struct{}
+
+// AuthTokenContextKey is exported so the auth middleware can store the token.
+var AuthTokenContextKey = authTokenKeyType{}
+
 // EngineHTTPClient communicates with the Python engine's internal HTTP endpoints.
 type EngineHTTPClient struct {
 	baseURL string
@@ -70,6 +77,12 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Idempotency-Key", idempotencyKey)
+
+		// Forward the JWT Authorization header from the original request
+		// so the Python engine can identify the authenticated user.
+		if authToken, ok := ctx.Value(AuthTokenContextKey).(string); ok && authToken != "" {
+			req.Header.Set("Authorization", "Bearer "+authToken)
+		}
 
 		resp, err := c.client.Do(req)
 		if err != nil {
