@@ -9,6 +9,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -75,6 +76,7 @@ func (r *Router) Route(
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
 					fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
+					WithUserID(auth.UserIDFromContext(ctx)).
 					WithSymbol(processorOutput.Symbol).
 					WithDirection(processorOutput.Direction).
 					WithTraceID(traceID).
@@ -110,6 +112,7 @@ func (r *Router) Route(
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
 					fmt.Sprintf("Trade rejected by guards: %s", strings.Join(guardResult.BlockingRules, ", "))).
+					WithUserID(auth.UserIDFromContext(ctx)).
 					WithSymbol(processorOutput.Symbol).
 					WithDirection(processorOutput.Direction).
 					WithTraceID(traceID).
@@ -155,6 +158,7 @@ func (r *Router) Route(
 			alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityInfo,
 				fmt.Sprintf("Trade routed to execution: %s %s (grade: %s, confidence: %.1f%%)",
 					symbol, direction, processorOutput.Grade, processorOutput.Confidence*100)).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithSymbol(symbol).
 				WithDirection(direction).
 				WithTraceID(traceID).
@@ -203,6 +207,7 @@ func (r *Router) executeTrade(
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeExecutionCallFailed, alert.SeverityError,
 					fmt.Sprintf("Execution call failed for %s: %s", decision.Symbol, err.Error())).
+					WithUserID(auth.UserIDFromContext(ctx)).
 					WithSymbol(decision.Symbol).
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
