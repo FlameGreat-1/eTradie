@@ -18,6 +18,7 @@ from engine.processor.models.audit import AnalysisRecord, AuditLogRecord
 def build_analysis_record(
     output: AnalysisOutput,
     *,
+    user_id: str = "",
     status: str = "success",
     error_message: Optional[str] = None,
     duration_ms: float = 0.0,
@@ -36,6 +37,7 @@ def build_analysis_record(
         llm_model = raw_output.get("_llm_model", "")
 
     return AnalysisRecord(
+        user_id=user_id,
         analysis_id=output.analysis_id,
         pair=output.pair,
         direction=output.direction,
@@ -66,6 +68,7 @@ def build_audit_log_record(
     output: AnalysisOutput,
     llm_response: LLMResponse,
     *,
+    user_id: str = "",
     prompt_hash: str,
     validation_passed: bool,
     validation_errors: list[str],
@@ -87,6 +90,7 @@ def build_audit_log_record(
     coverage_result = output.audit.retrieval.strategy_used or ""
 
     return AuditLogRecord(
+        user_id=user_id,
         analysis_id=output.analysis_id,
         pair=output.pair,
         timestamp=output.timestamp,
@@ -116,6 +120,7 @@ def build_audit_log_record(
 
 def build_error_analysis_record(
     *,
+    user_id: str = "",
     pair: str,
     error_message: str,
     status: str,
@@ -125,6 +130,7 @@ def build_error_analysis_record(
     """Build an AnalysisRecord for a failed processor invocation."""
     now = datetime.now(UTC)
     return AnalysisRecord(
+        user_id=user_id,
         analysis_id=f"error_{pair}_{now.strftime('%Y%m%d_%H%M%S')}",
         pair=pair,
         direction="NO SETUP",
