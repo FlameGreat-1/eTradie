@@ -2015,6 +2015,7 @@ def create_app() -> FastAPI:
     async def activate_broker_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Activate a broker connection.
 
@@ -2025,7 +2026,7 @@ def create_app() -> FastAPI:
 
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.activate(connection_id)
+            row = await repo.activate(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -2050,13 +2051,14 @@ def create_app() -> FastAPI:
     async def deactivate_broker_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Deactivate a broker connection without deleting it."""
         container: Container = request.app.state.container
 
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.deactivate(connection_id)
+            row = await repo.deactivate(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -2069,13 +2071,14 @@ def create_app() -> FastAPI:
     async def set_primary_broker_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Set a connection as primary (also activates it)."""
         container: Container = request.app.state.container
 
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.set_primary(connection_id)
+            row = await repo.set_primary(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -2100,6 +2103,7 @@ def create_app() -> FastAPI:
     async def test_broker_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Test a broker connection's health.
         Rate limited to prevent flooding the broker with health checks.
@@ -2113,7 +2117,7 @@ def create_app() -> FastAPI:
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.get_by_id(connection_id)
+            row = await repo.get_by_id(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -2139,6 +2143,7 @@ def create_app() -> FastAPI:
                 repo = BrokerConnectionRepository(session)
                 await repo.update_status(
                     connection_id,
+                    user_id=user.user_id,
                     status=STATUS_ERROR,
                     status_message=f"Failed to create client: {exc}",
                 )
@@ -2172,6 +2177,7 @@ def create_app() -> FastAPI:
             repo = BrokerConnectionRepository(session)
             await repo.update_status(
                 connection_id,
+                user_id=user.user_id,
                 status=new_status,
                 status_message=status_msg,
                 connected=healthy,
