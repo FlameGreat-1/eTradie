@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/monitoring"
@@ -27,11 +28,13 @@ type Server struct {
 }
 
 // NewServer creates the management HTTP API server.
+// All /api/v1/* routes require a valid JWT Bearer token.
 func NewServer(
 	port int,
 	monitor *monitoring.Manager,
 	journal *journal.Repository,
 	metrics *analytics.Metrics,
+	tokenService *auth.TokenService,
 ) *Server {
 	s := &Server{
 		monitor: monitor,
@@ -41,13 +44,14 @@ func NewServer(
 	}
 
 	mux := http.NewServeMux()
+	authMw := auth.RequireAuth(tokenService)
 
-	// Dashboard REST API.
-	mux.HandleFunc("/api/v1/management/trades", s.handleGetTrades)
-	mux.HandleFunc("/api/v1/management/journal", s.handleGetJournal)
-	mux.HandleFunc("/api/v1/management/metrics", s.handleGetMetrics)
+	// Dashboard REST API (all protected by auth middleware).
+	mux.Handle("/api/v1/management/trades", authMw(http.HandlerFunc(s.handleGetTrades)))
+	mux.Handle("/api/v1/management/journal", authMw(http.HandlerFunc(s.handleGetJournal)))
+	mux.Handle("/api/v1/management/metrics", authMw(http.HandlerFunc(s.handleGetMetrics)))
 
-	// Ops endpoints.
+	// Ops endpoints (public, no auth required).
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/metrics", promhttp.Handler())
 
@@ -98,10 +102,16 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// GET /api/v1/management/trades - Return active managed trades.
+// GET /api/v1/management/trades - Return active managed trades for the authenticated user.
 func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 
@@ -110,6 +120,11 @@ func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 
 	for _, t := range trades {
 		t.RLock()
+		// Only return trades owned by the authenticated user.
+		if t.UserID != userID {
+			t.RUnlock()
+			continue
+		}
 		result = append(result, map[string]interface{}{
 			"trade_id":           t.TradeID,
 			"symbol":             t.Symbol,
@@ -139,10 +154,16 @@ func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"trades": result})
 }
 
-// GET /api/v1/management/journal - Return closed trade history.
+// GET /api/v1/management/journal - Return closed trade history for the authenticated user.
 func (s *Server) handleGetJournal(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 
@@ -169,7 +190,7 @@ func (s *Server) handleGetJournal(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	trades, total, err := s.journal.GetClosedTrades(r.Context(), limit, offset, symbolFilter, styleFilter)
+	trades, total, err := s.journal.GetClosedTrades(r.Context(), userID, limit, offset, symbolFilter, styleFilter)
 	if err != nil {
 		s.log.Error().Err(err).Msg("failed_to_get_journal")
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to retrieve journal"})
@@ -211,10 +232,16 @@ func (s *Server) handleGetJournal(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /api/v1/management/metrics - Return real-time analytics.
+// GET /api/v1/management/metrics - Return real-time analytics for the authenticated user.
 func (s *Server) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 
@@ -223,7 +250,7 @@ func (s *Server) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 		period = "ALL_TIME"
 	}
 
-	summary, err := s.metrics.Calculate(r.Context(), period)
+	summary, err := s.metrics.Calculate(r.Context(), userID, period)
 	if err != nil {
 		s.log.Error().Err(err).Msg("failed_to_calculate_metrics")
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to calculate metrics"})
