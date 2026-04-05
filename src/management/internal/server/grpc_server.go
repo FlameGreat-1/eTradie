@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
@@ -19,10 +20,11 @@ import (
 )
 
 // JournalStore defines the database operations required by the gRPC server.
+// All query methods are scoped by userID for multi-tenant data isolation.
 type JournalStore interface {
 	InsertTrade(ctx context.Context, t *journal.TradeRecord) error
-	GetTradeByBrokerOrderID(ctx context.Context, brokerOrderID string) (*journal.TradeRecord, error)
-	GetClosedTrades(ctx context.Context, limit, offset int, symbolFilter, styleFilter string) ([]*journal.TradeRecord, int, error)
+	GetTradeByBrokerOrderID(ctx context.Context, userID, brokerOrderID string) (*journal.TradeRecord, error)
+	GetClosedTrades(ctx context.Context, userID string, limit, offset int, symbolFilter, styleFilter string) ([]*journal.TradeRecord, int, error)
 }
 
 // TradeMonitor defines the active trade tracking operations required by the gRPC server.
@@ -33,8 +35,9 @@ type TradeMonitor interface {
 }
 
 // MetricsCalculator defines the performance analytics operations required by the gRPC server.
+// Calculate is scoped by userID for multi-tenant data isolation.
 type MetricsCalculator interface {
-	Calculate(ctx context.Context, period string) (*analytics.PerformanceSummary, error)
+	Calculate(ctx context.Context, userID, period string) (*analytics.PerformanceSummary, error)
 }
 
 // ManagementServer implements the ManagementService gRPC contract.
@@ -61,8 +64,14 @@ func NewManagementServer(
 }
 
 // RegisterFilledTrade is called by the Gateway when a trade is filled.
-// This is Step 7 of the architecture — full ownership transfer.
+// This is Step 7 of the architecture \u2014 full ownership transfer.
 func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managementv1.RegisterFilledTradeRequest) (*managementv1.RegisterFilledTradeResponse, error) {
+	// Extract authenticated user from context (set by auth interceptor).
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	// Validate required fields.
 	if req.GetSymbol() == "" || req.GetBrokerOrderId() == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "symbol and broker_order_id are required")
@@ -77,12 +86,13 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		return nil, status.Errorf(codes.InvalidArgument, "lot_size must be positive")
 	}
 
-	// Idempotency check: see if we already registered this MT5 ticket
-	existingTrade, err := s.journal.GetTradeByBrokerOrderID(ctx, req.GetBrokerOrderId())
+	// Idempotency check: see if we already registered this MT5 ticket for this user.
+	existingTrade, err := s.journal.GetTradeByBrokerOrderID(ctx, userID, req.GetBrokerOrderId())
 	if err == nil && existingTrade != nil {
 		s.log.Info().
 			Str("broker_order_id", req.GetBrokerOrderId()).
 			Str("trade_id", existingTrade.TradeID).
+			Str("user_id", userID).
 			Msg("trade_already_registered_idempotent_return")
 
 		return &managementv1.RegisterFilledTradeResponse{
@@ -94,8 +104,13 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 
 	tradeID := monitoring.GenerateTradeID()
 
+	// Capture the raw JWT token from the request context so the monitoring
+	// worker goroutine can make authenticated downstream calls.
+	authToken := auth.RawTokenFromContext(ctx)
+
 	s.log.Info().
 		Str("trade_id", tradeID).
+		Str("user_id", userID).
 		Str("symbol", req.GetSymbol()).
 		Str("direction", req.GetDirection()).
 		Str("broker_order_id", req.GetBrokerOrderId()).
@@ -115,6 +130,8 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		BrokerOrderID:    req.GetBrokerOrderId(),
 		AnalysisID:       req.GetAnalysisId(),
 		TraceID:          req.GetTraceId(),
+		UserID:           userID,
+		AuthToken:        authToken,
 		TradingStyle:     constants.TradingStyle(req.GetTradingStyle()),
 		Grade:            req.GetGrade(),
 		Session:          req.GetSession(),
@@ -142,6 +159,7 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 
 	// Persist to journal.
 	if err := s.journal.InsertTrade(ctx, &journal.TradeRecord{
+		UserID:          userID,
 		TradeID:         tradeID,
 		Symbol:          trade.Symbol,
 		Direction:       string(trade.Direction),
@@ -166,17 +184,18 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		BrokerOrderID:   trade.BrokerOrderID,
 		OpenedAt:        trade.OpenedAt,
 	}); err != nil {
-		s.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_insert_failed")
+		s.log.Error().Err(err).Str("trade_id", tradeID).Str("user_id", userID).Msg("journal_insert_failed")
 		return nil, status.Errorf(codes.Internal, "journal insert failed: %v", err)
 	}
 
-	// Register with monitoring manager — spawns the worker goroutine.
+	// Register with monitoring manager \u2014 spawns the worker goroutine.
 	s.monitor.RegisterTrade(trade)
 
 	observability.TradeRegisteredTotal.WithLabelValues(trade.Symbol, string(trade.TradingStyle)).Inc()
 
 	s.log.Info().
 		Str("trade_id", tradeID).
+		Str("user_id", userID).
 		Str("symbol", trade.Symbol).
 		Msg("trade_registered_and_monitoring_started")
 
@@ -189,21 +208,37 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 
 // UpdateTradeStatus receives trade event updates.
 func (s *ManagementServer) UpdateTradeStatus(ctx context.Context, req *managementv1.UpdateTradeStatusRequest) (*managementv1.UpdateTradeStatusResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	s.log.Info().
 		Str("trade_id", req.GetTradeId()).
 		Str("event", req.GetEventType()).
+		Str("user_id", userID).
 		Msg("trade_status_update_received")
 
 	return &managementv1.UpdateTradeStatusResponse{Success: true}, nil
 }
 
-// GetManagedTrades returns all actively managed trades.
-func (s *ManagementServer) GetManagedTrades(_ context.Context, _ *managementv1.GetManagedTradesRequest) (*managementv1.GetManagedTradesResponse, error) {
+// GetManagedTrades returns all actively managed trades for the authenticated user.
+func (s *ManagementServer) GetManagedTrades(ctx context.Context, _ *managementv1.GetManagedTradesRequest) (*managementv1.GetManagedTradesResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	trades := s.monitor.GetAllTrades()
 
 	pbTrades := make([]*managementv1.ManagedTrade, 0, len(trades))
 	for _, t := range trades {
 		t.RLock()
+		// Only return trades owned by the authenticated user.
+		if t.UserID != userID {
+			t.RUnlock()
+			continue
+		}
 		pbTrades = append(pbTrades, &managementv1.ManagedTrade{
 			TradeId:          t.TradeID,
 			Symbol:           t.Symbol,
@@ -233,15 +268,20 @@ func (s *ManagementServer) GetManagedTrades(_ context.Context, _ *managementv1.G
 	return &managementv1.GetManagedTradesResponse{Trades: pbTrades}, nil
 }
 
-// GetTradeJournal returns closed trade journal entries.
+// GetTradeJournal returns closed trade journal entries for the authenticated user.
 func (s *ManagementServer) GetTradeJournal(ctx context.Context, req *managementv1.GetTradeJournalRequest) (*managementv1.GetTradeJournalResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	limit := int(req.GetLimit())
 	if limit <= 0 {
 		limit = 50
 	}
 	offset := int(req.GetOffset())
 
-	trades, total, err := s.journal.GetClosedTrades(ctx, limit, offset, req.GetSymbolFilter(), req.GetStyleFilter())
+	trades, total, err := s.journal.GetClosedTrades(ctx, userID, limit, offset, req.GetSymbolFilter(), req.GetStyleFilter())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get closed trades: %v", err)
 	}
@@ -281,14 +321,19 @@ func (s *ManagementServer) GetTradeJournal(ctx context.Context, req *managementv
 	}, nil
 }
 
-// GetPerformanceMetrics returns real-time analytics.
+// GetPerformanceMetrics returns real-time analytics for the authenticated user.
 func (s *ManagementServer) GetPerformanceMetrics(ctx context.Context, req *managementv1.GetPerformanceMetricsRequest) (*managementv1.GetPerformanceMetricsResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	period := req.GetPeriod()
 	if period == "" {
 		period = "ALL_TIME"
 	}
 
-	summary, err := s.metrics.Calculate(ctx, period)
+	summary, err := s.metrics.Calculate(ctx, userID, period)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "calculate metrics: %v", err)
 	}
