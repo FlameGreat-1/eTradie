@@ -211,6 +211,7 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 	s.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceGateway, alert.TypeExecutionHandoff, alert.SeverityInfo,
 			fmt.Sprintf("Trade filled for %s — handing off to Module C for management.", req.GetSymbol())).
+			WithUserID(auth.UserIDFromContext(ctx)).
 			WithSymbol(req.GetSymbol()).
 			WithTraceID(req.GetTraceId()).
 			WithDetails(map[string]interface{}{
@@ -266,6 +267,7 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 		s.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeManagementHandoffFailed, alert.SeverityError,
 				fmt.Sprintf("Failed to handoff filled trade %s to Management: %v", req.GetSymbol(), err)).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithSymbol(req.GetSymbol()).
 				WithTraceID(req.GetTraceId()),
 		)
@@ -317,6 +319,7 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 	s.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceGateway, alert.TypeIntervalChanged, alert.SeverityInfo,
 			fmt.Sprintf("Cycle interval changed from %ds to %ds", oldInterval, newInterval)).
+			WithUserID(auth.UserIDFromContext(ctx)).
 			WithDetails(map[string]interface{}{
 				"old_interval_seconds": oldInterval,
 				"new_interval_seconds": newInterval,
@@ -344,6 +347,7 @@ func (s *GRPCServer) SetActiveSymbols(ctx context.Context, req *gatewayv1.SetAct
 		s.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Active symbols changed: %s", strings.Join(active, ", "))).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
@@ -376,6 +380,7 @@ func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetA
 		s.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
