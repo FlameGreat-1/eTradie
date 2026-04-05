@@ -1803,6 +1803,7 @@ def create_app() -> FastAPI:
     async def create_broker_connection(
         request: Request,
         body: CreateBrokerConnectionRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Create a new broker connection (EA or MetaAPI).
 
@@ -1879,6 +1880,7 @@ def create_app() -> FastAPI:
             async with container.db.session() as session:
                 repo = BrokerConnectionRepository(session)
                 row = await repo.create(
+                    user_id=user.user_id,
                     connection_type=body.connection_type,
                     name=body.name.strip(),
                     ea_host=ea_host,
@@ -1912,25 +1914,31 @@ def create_app() -> FastAPI:
         return result
 
     @app.get("/api/broker/connections")
-    async def list_broker_connections(request: Request) -> dict:
+    async def list_broker_connections(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """List all saved broker connections."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
-            rows = await repo.get_all()
+            rows = await repo.get_all(user_id=user.user_id)
 
         connections = [_serialize_broker_connection(row) for row in rows]
         return {"connections": connections, "count": len(connections)}
 
     @app.get("/api/broker/connections/active")
-    async def get_active_broker_connection(request: Request) -> dict:
+    async def get_active_broker_connection(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Get the currently active broker connection."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.get_active()
+            row = await repo.get_active(user_id=user.user_id)
 
         if row is None:
             return {
@@ -1945,13 +1953,17 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/broker/connections/{connection_id}")
-    async def get_broker_connection(request: Request, connection_id: str) -> dict:
+    async def get_broker_connection(
+        request: Request,
+        connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Get a specific broker connection by ID."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.get_by_id(connection_id)
+            row = await repo.get_by_id(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -1963,6 +1975,7 @@ def create_app() -> FastAPI:
         request: Request,
         connection_id: str,
         body: UpdateBrokerConnectionRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Update an existing broker connection."""
         container: Container = request.app.state.container
@@ -1972,6 +1985,7 @@ def create_app() -> FastAPI:
                 repo = BrokerConnectionRepository(session)
                 row = await repo.update_connection(
                     connection_id,
+                    user_id=user.user_id,
                     name=body.name,
                     mt5_server=body.mt5_server,
                     mt5_login=body.mt5_login,
@@ -2174,13 +2188,14 @@ def create_app() -> FastAPI:
     async def delete_broker_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Permanently delete a saved broker connection."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
-            row = await repo.get_by_id(connection_id)
+            row = await repo.get_by_id(connection_id, user_id=user.user_id)
             
         if not row:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -2190,7 +2205,7 @@ def create_app() -> FastAPI:
 
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
-            deleted = await repo.delete(connection_id)
+            deleted = await repo.delete(connection_id, user_id=user.user_id)
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Connection not found")
