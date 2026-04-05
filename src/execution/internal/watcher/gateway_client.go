@@ -7,8 +7,10 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 )
@@ -47,6 +49,11 @@ func (g *GatewayGRPCClient) ConfirmSetup(ctx context.Context, symbol, analysisID
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	// Forward JWT token from incoming context to outbound Gateway call.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "Bearer "+rawToken)
+	}
+
 	resp, err := g.client.ConfirmSetup(callCtx, &gatewayv1.ConfirmSetupRequest{
 		Symbol:     symbol,
 		AnalysisId: analysisID,
@@ -68,6 +75,11 @@ func (g *GatewayGRPCClient) ConfirmSetup(ctx context.Context, symbol, analysisID
 func (g *GatewayGRPCClient) NotifyExecutionCompleted(ctx context.Context, order *models.Order, brokerOrderID string, fillPrice, slippage float64) error {
 	callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
+	// Forward JWT token from incoming context to outbound Gateway call.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "Bearer "+rawToken)
+	}
 
 	_, err := g.client.NotifyExecutionCompleted(callCtx, &gatewayv1.NotifyExecutionCompletedRequest{
 		// Core fields.
