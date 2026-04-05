@@ -162,7 +162,7 @@ func NewHarness(t *testing.T) *Harness {
 	// Build the real GRPCServer. Pass nil for mgmtClient (tested separately).
 	grpcSrv := server.NewGRPCServer(
 		cfg, orchestrator, symStore, settStore, scheduler,
-		redisWrapper, engineHTTP, transport, nil,
+		redisWrapper, engineHTTP, transport, nil, nil,
 	)
 
 	// Start in-process gRPC server via bufconn.

@@ -209,7 +209,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	// Build GRPCServer WITH the real mgmtClient.
 	grpcSrv := server.NewGRPCServer(
 		cfg, orchestrator, symStore, settStore, scheduler,
-		redisWrapper, engineHTTP, transport, mgmtClient,
+		redisWrapper, engineHTTP, transport, mgmtClient, nil,
 	)
 
 	// Start Gateway gRPC server via bufconn.
