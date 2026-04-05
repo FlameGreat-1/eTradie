@@ -31,6 +31,10 @@ func SeverityRank(s EventSeverity) int {
 type Subscriber struct {
 	C  chan *Event
 	id string
+	// userID scopes event delivery to a specific user. When non-empty,
+	// only events with a matching UserID or system events (empty UserID)
+	// are delivered. When empty, all events are delivered (system subscriber).
+	userID string
 	// minSeverity filters events delivered to this subscriber.
 	// Empty string means no filter (receive all events).
 	minSeverity EventSeverity
@@ -44,6 +48,21 @@ func (s *Subscriber) meetsMinSeverity(evt *Event) bool {
 		return true
 	}
 	return severityRankMap[evt.Severity] >= severityRankMap[s.minSeverity]
+}
+
+// meetsUserScope returns true if the event should be delivered to this
+// subscriber based on user scoping rules:
+//   - System subscribers (userID == ""): receive ALL events.
+//   - User subscribers (userID != ""): receive system events (evt.UserID == "")
+//     and events owned by the same user (evt.UserID == sub.userID).
+func (s *Subscriber) meetsUserScope(evt *Event) bool {
+	if s.userID == "" {
+		return true // System subscriber: no user filter.
+	}
+	if evt.UserID == "" {
+		return true // System event: visible to all users.
+	}
+	return evt.UserID == s.userID
 }
 
 // Hub is the in-process pub/sub dispatcher for WebSocket clients.
@@ -75,10 +94,25 @@ func (h *Hub) Subscribe() *Subscriber {
 
 // SubscribeWithFilter registers a new client that only receives events
 // at or above the given severity. Pass empty string for all events.
+// This creates a system-level subscriber with no user scoping.
 func (h *Hub) SubscribeWithFilter(minSeverity EventSeverity) *Subscriber {
+	return h.subscribe("", minSeverity)
+}
+
+// SubscribeForUser registers a user-scoped subscriber that only receives
+// events belonging to the given user or system events (empty UserID).
+// Used by WebSocket handlers to ensure dashboard clients only see their
+// own events. Pass empty minSeverity for all severity levels.
+func (h *Hub) SubscribeForUser(userID string, minSeverity EventSeverity) *Subscriber {
+	return h.subscribe(userID, minSeverity)
+}
+
+// subscribe is the shared subscriber creation logic.
+func (h *Hub) subscribe(userID string, minSeverity EventSeverity) *Subscriber {
 	sub := &Subscriber{
 		C:           make(chan *Event, subscriberBufferSize),
 		id:          generateSubscriberID(),
+		userID:      userID,
 		minSeverity: minSeverity,
 	}
 
@@ -91,6 +125,7 @@ func (h *Hub) SubscribeWithFilter(minSeverity EventSeverity) *Subscriber {
 
 	h.log.Info().
 		Str("subscriber_id", sub.id).
+		Str("user_id", userID).
 		Str("min_severity", string(minSeverity)).
 		Int("total_subscribers", count).
 		Msg("subscriber_added")
@@ -144,6 +179,9 @@ func (h *Hub) deliverToSubscribers(evt *Event) {
 
 	for sub := range h.subscribers {
 		if sub.closed.Load() {
+			continue
+		}
+		if !sub.meetsUserScope(evt) {
 			continue
 		}
 		if !sub.meetsMinSeverity(evt) {
