@@ -37,6 +37,17 @@ func RawTokenFromContext(ctx context.Context) string {
 	return s
 }
 
+// InjectTokenIntoContext creates a new context with the given raw JWT
+// token stored under the auth package's context key. Used by background
+// goroutines (e.g., Execution watcher) that need to make authenticated
+// downstream calls but don't have the original request context.
+func InjectTokenIntoContext(ctx context.Context, rawToken string) context.Context {
+	if rawToken == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, rawTokenKey, rawToken)
+}
+
 // UserIDFromContext extracts the user ID from the request context.
 // Returns empty string if not authenticated.
 func UserIDFromContext(ctx context.Context) string {
