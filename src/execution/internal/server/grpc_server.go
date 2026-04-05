@@ -15,6 +15,7 @@ import (
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/builder"
@@ -147,8 +148,8 @@ func (s *ExecutionServer) isDuplicate(analysisID string) bool {
 
 // resolveExecutionMode reads the current execution mode from the DB.
 // Falls back to the config default if the DB read fails.
-func (s *ExecutionServer) resolveExecutionMode(ctx context.Context) constants.ExecutionMode {
-	val, err := s.settings.Get(ctx, store.KeyExecutionMode)
+func (s *ExecutionServer) resolveExecutionMode(ctx context.Context, userID string) constants.ExecutionMode {
+	val, err := s.settings.Get(ctx, userID, store.KeyExecutionMode)
 	if err != nil {
 		return s.cfg.ExecutionMode()
 	}
@@ -163,26 +164,26 @@ func (s *ExecutionServer) resolveExecutionMode(ctx context.Context) constants.Ex
 // parameters from the settings store. Falls back to config defaults
 // for any value that fails to load. Called on every trade so that
 // dashboard changes take immediate effect.
-func (s *ExecutionServer) resolveRuntimeParams(ctx context.Context) *validator.RuntimeParams {
+func (s *ExecutionServer) resolveRuntimeParams(ctx context.Context, userID string) *validator.RuntimeParams {
 	params := &validator.RuntimeParams{
 		MaxConcurrentTrades: s.cfg.MaxConcurrentTrades,
 		DailyLossLimitPct:   s.cfg.DailyLossLimitPct,
 		WeeklyDrawdownPct:   s.cfg.WeeklyDrawdownPct,
 	}
 
-	if val, err := s.settings.Get(ctx, store.KeyMaxConcurrentTrades); err == nil {
+	if val, err := s.settings.Get(ctx, userID, store.KeyMaxConcurrentTrades); err == nil {
 		if n, err := strconv.Atoi(val); err == nil && n >= 1 && n <= 10 {
 			params.MaxConcurrentTrades = n
 		}
 	}
 
-	if val, err := s.settings.Get(ctx, store.KeyDailyLossLimitPct); err == nil {
+	if val, err := s.settings.Get(ctx, userID, store.KeyDailyLossLimitPct); err == nil {
 		if f, err := strconv.ParseFloat(val, 64); err == nil && f >= 0.5 && f <= 10.0 {
 			params.DailyLossLimitPct = f
 		}
 	}
 
-	if val, err := s.settings.Get(ctx, store.KeyWeeklyDrawdownPct); err == nil {
+	if val, err := s.settings.Get(ctx, userID, store.KeyWeeklyDrawdownPct); err == nil {
 		if f, err := strconv.ParseFloat(val, 64); err == nil && f >= 1.0 && f <= 20.0 {
 			params.WeeklyDrawdownPct = f
 		}
@@ -228,10 +229,16 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		Str("trace_id", traceID).
 		Msg("execute_trade_received")
 
+	// Extract authenticated user from context (set by auth interceptor).
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
 	tradeReq := parseRequest(req)
 
 	// Step 1: Refresh broker state.
-	if err := s.state.Refresh(ctx); err != nil {
+	if err := s.state.Refresh(ctx, userID); err != nil {
 		s.log.Error().Err(err).Str("trace_id", traceID).Msg("state_refresh_failed")
 		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
 			"Failed to refresh broker state").WithSymbol(req.GetSymbol()).WithTraceID(traceID))
@@ -239,7 +246,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 
 	// Step 2: Resolve runtime params from DB and validate.
-	runtimeParams := s.resolveRuntimeParams(ctx)
+	runtimeParams := s.resolveRuntimeParams(ctx, userID)
 	valResult := s.validator.Validate(ctx, tradeReq, runtimeParams)
 	if !valResult.Passed {
 		s.audit.LogValidationRejected(ctx, tradeReq, valResult)
@@ -297,7 +304,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
 
 	// Step 4: Resolve execution mode. Gateway override takes precedence over DB.
-	execMode := s.resolveExecutionMode(ctx)
+	execMode := s.resolveExecutionMode(ctx, userID)
 	if tradeReq.ExecutionMode != "" {
 		m := constants.ExecutionMode(strings.ToUpper(tradeReq.ExecutionMode))
 		if m == constants.ModeLimit || m == constants.ModeInstant {
@@ -435,7 +442,12 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *execution
 
 // GetExecutionState returns current positions, pending orders, and P&L.
 func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv1.GetStateRequest) (*executionv1.GetStateResponse, error) {
-	if err := s.state.Refresh(ctx); err != nil {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
+	if err := s.state.Refresh(ctx, userID); err != nil {
 		s.log.Error().Err(err).Msg("get_state_refresh_failed")
 		return nil, status.Errorf(codes.Unavailable, "broker state refresh failed")
 	}
