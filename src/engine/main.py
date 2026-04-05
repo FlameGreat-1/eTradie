@@ -1122,7 +1122,10 @@ def create_app() -> FastAPI:
     # -- LLM Connection Management endpoints ---------------------------------
 
     @app.get("/api/llm/providers")
-    async def get_llm_providers(request: Request) -> dict:
+    async def get_llm_providers(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """List available LLM providers and their models.
 
         Used by the dashboard "Connect LLM" modal to populate the
@@ -1148,13 +1151,16 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/llm/connections")
-    async def list_llm_connections(request: Request) -> dict:
+    async def list_llm_connections(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """List all saved LLM connections."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = LLMConnectionRepository(session)
-            rows = await repo.get_all()
+            rows = await repo.get_all(user_id=user.user_id)
 
         connections = []
         for row in rows:
@@ -1180,13 +1186,16 @@ def create_app() -> FastAPI:
         return {"connections": connections, "count": len(connections)}
 
     @app.get("/api/llm/connections/active")
-    async def get_active_llm_connection(request: Request) -> dict:
+    async def get_active_llm_connection(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Get the currently active LLM connection."""
         container: Container = request.app.state.container
 
         async with container.db.read_session() as session:
             repo = LLMConnectionRepository(session)
-            row = await repo.get_active()
+            row = await repo.get_active(user_id=user.user_id)
 
         if row is None:
             return {
@@ -1223,6 +1232,7 @@ def create_app() -> FastAPI:
     async def create_llm_connection(
         request: Request,
         body: CreateLLMConnectionRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Create a new LLM connection.
 
@@ -1252,6 +1262,7 @@ def create_app() -> FastAPI:
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
             row = await repo.create(
+                user_id=user.user_id,
                 provider=body.provider,
                 model_name=body.model_name,
                 api_key=body.api_key,
@@ -1303,6 +1314,7 @@ def create_app() -> FastAPI:
         request: Request,
         connection_id: str,
         body: UpdateLLMConnectionRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Update an existing LLM connection."""
         container: Container = request.app.state.container
@@ -1319,6 +1331,7 @@ def create_app() -> FastAPI:
             repo = LLMConnectionRepository(session)
             row = await repo.update_connection(
                 connection_id,
+                user_id=user.user_id,
                 provider=body.provider,
                 model_name=body.model_name,
                 api_key=body.api_key,
@@ -1332,7 +1345,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Connection not found")
 
         # If this connection is active, hot-swap the processor with updated values.
-        if row.is_active:
+        if row is not None and row.is_active:
             api_key = (
                 body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
             )
@@ -1359,6 +1372,7 @@ def create_app() -> FastAPI:
     async def activate_llm_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Activate a saved LLM connection.
 
@@ -1369,7 +1383,7 @@ def create_app() -> FastAPI:
 
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
-            row = await repo.activate(connection_id)
+            row = await repo.activate(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -1398,13 +1412,14 @@ def create_app() -> FastAPI:
     async def deactivate_llm_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Deactivate a connection without deleting it."""
         container: Container = request.app.state.container
 
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
-            row = await repo.deactivate(connection_id)
+            row = await repo.deactivate(connection_id, user_id=user.user_id)
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -1422,13 +1437,14 @@ def create_app() -> FastAPI:
     async def delete_llm_connection(
         request: Request,
         connection_id: str,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Permanently delete a saved LLM connection."""
         container: Container = request.app.state.container
 
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
-            deleted = await repo.delete(connection_id)
+            deleted = await repo.delete(connection_id, user_id=user.user_id)
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Connection not found")
