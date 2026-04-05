@@ -292,18 +292,6 @@ func main() {
 		}
 	}()
 
-	// -- Publish service started event ------------------------------------
-	alertTransport.Publish(ctx,
-		alert.NewEvent(alert.SourceTradeManager, alert.TypeServiceStarted, alert.SeverityInfo,
-			"Trade Management engine started").
-			WithDetails(map[string]interface{}{
-				"grpc_port":     cfg.GRPCPort,
-				"broker_mode":   cfg.BrokerMode,
-				"active_trades": len(activeTrades),
-				"auth_enabled":  true,
-			}),
-	)
-
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("active_trades", len(activeTrades)).
@@ -319,11 +307,6 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-
-	alertTransport.Publish(shutdownCtx,
-		alert.NewEvent(alert.SourceTradeManager, alert.TypeServiceStopping, alert.SeverityInfo,
-			"Trade Management engine shutting down"),
-	)
 
 	// Shutdown order: HTTP -> gRPC -> EOD scheduler -> monitoring -> alerts -> DB.
 	httpServer.Shutdown(shutdownCtx)
