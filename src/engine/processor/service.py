@@ -74,6 +74,7 @@ class AnalysisProcessor(ProcessorPort):
         self,
         context: ProcessorInput,
         *,
+        user_id: str = "",
         trace_id: Optional[str] = None,
     ) -> ProcessorOutput:
         """Process the assembled context and return a trade decision.
@@ -108,7 +109,7 @@ class AnalysisProcessor(ProcessorPort):
 
         try:
             async with asyncio.timeout(self._config.total_timeout_seconds):
-                return await self._execute(context, trace_id=trace_id, start=start)
+                return await self._execute(context, user_id=user_id, trace_id=trace_id, start=start)
 
         except asyncio.TimeoutError:
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -121,6 +122,7 @@ class AnalysisProcessor(ProcessorPort):
             ).observe(elapsed_ms / 1000)
 
             await self._persist_error(
+                user_id=user_id,
                 pair=symbol,
                 error_message=f"Processor timed out after {self._config.total_timeout_seconds}s",
                 status=ProcessorStatus.TIMEOUT,
@@ -166,6 +168,7 @@ class AnalysisProcessor(ProcessorPort):
             ).observe(elapsed_ms / 1000)
 
             await self._persist_error(
+                user_id=user_id,
                 pair=symbol,
                 error_message=str(exc),
                 status=ProcessorStatus.LLM_ERROR,
@@ -182,6 +185,7 @@ class AnalysisProcessor(ProcessorPort):
         self,
         context: ProcessorInput,
         *,
+        user_id: str = "",
         trace_id: Optional[str] = None,
         start: float,
     ) -> ProcessorOutput:
@@ -273,6 +277,7 @@ class AnalysisProcessor(ProcessorPort):
         # Step 8: Persist audit trail
         if self._config.persist_audit_logs:
             await self._persist_success(
+                user_id=user_id,
                 analysis_output=analysis_output,
                 llm_response=llm_response,
                 prompt_hash=prompt_hash,
@@ -335,6 +340,7 @@ class AnalysisProcessor(ProcessorPort):
     async def _persist_success(
         self,
         *,
+        user_id: str = "",
         analysis_output: AO,
         llm_response: LLMResponse,
         prompt_hash: str,
@@ -352,6 +358,7 @@ class AnalysisProcessor(ProcessorPort):
             async with self._uow_factory() as uow:
                 record = build_analysis_record(
                     analysis_output,
+                    user_id=user_id,
                     status=(
                         "success"
                         if analysis_output.direction != "NO SETUP"
@@ -363,6 +370,7 @@ class AnalysisProcessor(ProcessorPort):
                 )
 
                 await uow.analysis_repo.save_analysis(
+                    user_id=record.user_id,
                     analysis_id=record.analysis_id,
                     pair=record.pair,
                     direction=record.direction,
@@ -391,6 +399,7 @@ class AnalysisProcessor(ProcessorPort):
                 audit_record = build_audit_log_record(
                     analysis_output,
                     llm_response,
+                    user_id=user_id,
                     prompt_hash=prompt_hash,
                     validation_passed=len(validation_warnings) == 0,
                     validation_errors=validation_warnings,
@@ -398,6 +407,7 @@ class AnalysisProcessor(ProcessorPort):
                 )
 
                 await uow.audit_repo.save_audit_log(
+                    user_id=audit_record.user_id,
                     analysis_id=audit_record.analysis_id,
                     pair=audit_record.pair,
                     timestamp=audit_record.timestamp,
@@ -438,6 +448,7 @@ class AnalysisProcessor(ProcessorPort):
     async def _persist_error(
         self,
         *,
+        user_id: str = "",
         pair: str,
         error_message: str,
         status: str,
@@ -451,6 +462,7 @@ class AnalysisProcessor(ProcessorPort):
         try:
             async with self._uow_factory() as uow:
                 record = build_error_analysis_record(
+                    user_id=user_id,
                     pair=pair,
                     error_message=error_message,
                     status=status,
@@ -459,6 +471,7 @@ class AnalysisProcessor(ProcessorPort):
                 )
 
                 await uow.analysis_repo.save_analysis(
+                    user_id=record.user_id,
                     analysis_id=record.analysis_id,
                     pair=record.pair,
                     direction=record.direction,
