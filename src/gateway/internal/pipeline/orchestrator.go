@@ -13,6 +13,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
@@ -90,6 +91,7 @@ func (o *Orchestrator) RunCycle(ctx context.Context, symbols []string, traceID s
 				alert.NewEvent(alert.SourceGateway, alert.TypeCycleRetrying, alert.SeverityWarning,
 					fmt.Sprintf("Cycle retrying attempt %d/%d after %.1fs backoff",
 						attempt+1, o.cfg.MaxCycleRetries+1, delay)).
+					WithUserID(auth.UserIDFromContext(ctx)).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
 						"attempt":     attempt + 1,
@@ -153,6 +155,7 @@ func (o *Orchestrator) runSingleAttempt(
 		alert.NewEvent(alert.SourceGateway, alert.TypeCycleStarted, alert.SeverityInfo,
 			fmt.Sprintf("Analysis cycle started for %s (attempt %d)",
 				strings.Join(symbols, ", "), attempt+1)).
+			WithUserID(auth.UserIDFromContext(ctx)).
 			WithTraceID(tracker.TraceID()).
 			WithDetails(map[string]interface{}{
 				"symbols":  symbols,
@@ -198,6 +201,7 @@ func (o *Orchestrator) runSingleAttempt(
 					alert.NewEvent(alert.SourceGateway, alert.TypeCycleFailed, alert.SeverityError,
 						fmt.Sprintf("Cycle timed out after %ds (phase: %s)",
 							o.cfg.CycleTimeoutSeconds, tracker.Phase().String())).
+						WithUserID(auth.UserIDFromContext(ctx)).
 						WithTraceID(tracker.TraceID()).
 						WithDetails(map[string]interface{}{
 							"error":         fmt.Sprintf("timeout after %ds", o.cfg.CycleTimeoutSeconds),
@@ -221,6 +225,7 @@ func (o *Orchestrator) runSingleAttempt(
 					alert.NewEvent(alert.SourceGateway, alert.TypeCycleFailed, alert.SeverityError,
 						fmt.Sprintf("Cycle failed: %s (phase: %s)",
 							err.Error(), tracker.Phase().String())).
+						WithUserID(auth.UserIDFromContext(ctx)).
 						WithTraceID(tracker.TraceID()).
 						WithDetails(map[string]interface{}{
 							"error":         err.Error(),
@@ -272,6 +277,7 @@ func (o *Orchestrator) runSingleAttempt(
 		o.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeCycleCompleted, alert.SeverityInfo,
 				fmt.Sprintf("Cycle completed: %s (%.0fms)", outcome, tracker.ElapsedMs())).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithTraceID(tracker.TraceID()).
 				WithDetails(map[string]interface{}{
 					"outcome":           outcome,
@@ -335,6 +341,7 @@ func (o *Orchestrator) executePipeline(
 		o.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeTACollectionFailed, alert.SeverityError,
 				fmt.Sprintf("TA collection failed: %s", taErr.Error())).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithTraceID(traceID).
 				WithDetail("error", taErr.Error()),
 		)
@@ -348,6 +355,7 @@ func (o *Orchestrator) executePipeline(
 		o.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeMacroCollectionFailed, alert.SeverityError,
 				fmt.Sprintf("Macro collection failed: %s", macroErr.Error())).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithTraceID(traceID).
 				WithDetail("error", macroErr.Error()),
 		)
@@ -648,6 +656,7 @@ func (o *Orchestrator) processSymbol(
 		o.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeRAGRetrievalFailed, alert.SeverityError,
 				fmt.Sprintf("RAG retrieval failed for %s: %s", symbol, err.Error())).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithSymbol(symbol).
 				WithTraceID(traceID).
 				WithDetail("error", err.Error()),
@@ -688,6 +697,7 @@ func (o *Orchestrator) processSymbol(
 		o.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeProcessorLLMFailed, alert.SeverityError,
 				fmt.Sprintf("Processor LLM failed for %s: %s", symbol, err.Error())).
+				WithUserID(auth.UserIDFromContext(ctx)).
 				WithSymbol(symbol).
 				WithTraceID(traceID).
 				WithDetail("error", err.Error()),
@@ -713,6 +723,7 @@ func (o *Orchestrator) processSymbol(
 	}
 	o.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceGateway, alert.TypeAnalysisComplete, alert.SeverityInfo, analysisMsg).
+			WithUserID(auth.UserIDFromContext(ctx)).
 			WithSymbol(symbol).
 			WithDirection(processorOutput.Direction).
 			WithTraceID(traceID).
