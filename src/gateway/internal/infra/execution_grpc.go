@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
@@ -78,7 +79,14 @@ func (a *ExecutionGRPCAdapter) Execute(ctx context.Context, decision *models.Pro
 		idempotencyKey = uuid.New().String()
 	}
 
-	retryCtx := metadata.AppendToOutgoingContext(ctx, "x-idempotency-key", idempotencyKey)
+	// Forward the JWT authorization header from the incoming Gateway
+	// request to the outgoing Execution gRPC call. gRPC incoming
+	// metadata is NOT automatically copied to outgoing metadata.
+	metadataKVs := []string{"x-idempotency-key", idempotencyKey}
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	retryCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
 
 	var resp *executionv1.ExecuteTradeResponse
 	operation := func() error {

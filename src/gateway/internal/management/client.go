@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
@@ -63,7 +64,14 @@ func (c *Client) RegisterFilledTrade(ctx context.Context, req *managementv1.Regi
 		idempotencyKey = uuid.New().String()
 	}
 
-	retryCtx := metadata.AppendToOutgoingContext(callCtx, "x-idempotency-key", idempotencyKey)
+	// Forward the JWT authorization header from the incoming Gateway
+	// request to the outgoing Management gRPC call. gRPC incoming
+	// metadata is NOT automatically copied to outgoing metadata.
+	metadataKVs := []string{"x-idempotency-key", idempotencyKey}
+	if rawToken := auth.RawTokenFromContext(callCtx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	retryCtx := metadata.AppendToOutgoingContext(callCtx, metadataKVs...)
 
 	var resp *managementv1.RegisterFilledTradeResponse
 	operation := func() error {
