@@ -73,14 +73,15 @@ const bufSize = 1024 * 1024
 // Harness provides an in-process gRPC test environment for the Gateway
 // server. Uses bufconn so no real network ports are needed.
 type Harness struct {
-	T         *testing.T
-	Client    gatewayv1.GatewayServiceClient
-	Engine    *e2e.MockEngineServer
-	Execution *e2e.MockExecutionPort
-	Cfg       *config.Config
+	T            *testing.T
+	Client       gatewayv1.GatewayServiceClient
+	Engine       *e2e.MockEngineServer
+	Execution    *e2e.MockExecutionPort
+	Cfg          *config.Config
+	TokenService *auth.TokenService
 
 	lis         *bufconn.Listener
-	grpcServer  *grpc.Server
+	grpcServer  *server.GRPCServer
 	conn        *grpc.ClientConn
 	hub         *alert.Hub
 	transport   *alertredis.Transport
@@ -220,17 +221,18 @@ func NewHarness(t *testing.T) *Harness {
 	client := gatewayv1.NewGatewayServiceClient(conn)
 
 	return &Harness{
-		T:           t,
-		Client:      client,
-		Engine:      engine,
-		Execution:   execPort,
-		Cfg:         cfg,
-		lis:         lis,
-		grpcServer:  rawServer,
-		conn:        conn,
-		hub:         hub,
-		transport:   transport,
-		redisClient: redisClient,
+		T:            t,
+		Client:       client,
+		Engine:       engine,
+		Execution:    execPort,
+		Cfg:          cfg,
+		TokenService: tokenService,
+		lis:          lis,
+		grpcServer:   grpcSrv,
+		conn:         conn,
+		hub:          hub,
+		transport:    transport,
+		redisClient:  redisClient,
 	}
 }
 
@@ -243,4 +245,10 @@ func (h *Harness) Close() {
 	h.hub.Close()
 	h.redisClient.Close()
 	h.Engine.Close()
+}
+
+// AuthContext creates an authenticated context with a valid test JWT
+// for the given user. Convenience wrapper around testAuthContext.
+func (h *Harness) AuthContext(userID, username string, role auth.Role) context.Context {
+	return testAuthContext(h.TokenService, userID, username, role)
 }
