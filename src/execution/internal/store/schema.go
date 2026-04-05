@@ -7,6 +7,7 @@ func SchemaSQL() string {
 	return `
 CREATE TABLE IF NOT EXISTS execution_audit_logs (
     id              BIGSERIAL PRIMARY KEY,
+    user_id         VARCHAR(64) NOT NULL DEFAULT '',
     timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     action          VARCHAR(40) NOT NULL,
     symbol          VARCHAR(20) NOT NULL DEFAULT '',
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS execution_audit_logs (
     details         JSONB NOT NULL DEFAULT '{}'
 );
 
+CREATE INDEX IF NOT EXISTS idx_exec_audit_user_id ON execution_audit_logs (user_id);
 CREATE INDEX IF NOT EXISTS idx_exec_audit_symbol ON execution_audit_logs (symbol);
 CREATE INDEX IF NOT EXISTS idx_exec_audit_analysis_id ON execution_audit_logs (analysis_id);
 CREATE INDEX IF NOT EXISTS idx_exec_audit_action ON execution_audit_logs (action);
@@ -38,20 +40,26 @@ CREATE INDEX IF NOT EXISTS idx_exec_audit_order_id ON execution_audit_logs (orde
 
 CREATE TABLE IF NOT EXISTS execution_pnl_tracker (
     id              BIGSERIAL PRIMARY KEY,
+    user_id         VARCHAR(64) NOT NULL DEFAULT '',
     period_type     VARCHAR(10) NOT NULL,
     period_key      VARCHAR(20) NOT NULL,
     realized_pnl    DOUBLE PRECISION NOT NULL DEFAULT 0,
     trade_count     INTEGER NOT NULL DEFAULT 0,
     last_updated    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (period_type, period_key)
+    UNIQUE (user_id, period_type, period_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pnl_tracker_period ON execution_pnl_tracker (period_type, period_key);
+CREATE INDEX IF NOT EXISTS idx_pnl_tracker_user_id ON execution_pnl_tracker (user_id);
+CREATE INDEX IF NOT EXISTS idx_pnl_tracker_period ON execution_pnl_tracker (user_id, period_type, period_key);
 
 CREATE TABLE IF NOT EXISTS execution_settings (
-    key         VARCHAR(64) PRIMARY KEY,
+    user_id     VARCHAR(64) NOT NULL DEFAULT '',
+    key         VARCHAR(64) NOT NULL,
     value       TEXT NOT NULL DEFAULT '',
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, key)
 );
+
+CREATE INDEX IF NOT EXISTS idx_exec_settings_user_id ON execution_settings (user_id);
 `
 }
