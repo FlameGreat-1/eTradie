@@ -68,7 +68,11 @@ def _decrypt(ciphertext: str) -> str:
 
 
 class LLMConnectionRepository:
-    """CRUD operations for LLM connections."""
+    """CRUD operations for LLM connections.
+
+    Every method requires a user_id parameter to enforce multi-tenant
+    data isolation. Users can only see and manage their own connections.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -76,6 +80,7 @@ class LLMConnectionRepository:
     async def create(
         self,
         *,
+        user_id: str,
         provider: str,
         model_name: str,
         api_key: str,
@@ -85,18 +90,19 @@ class LLMConnectionRepository:
         label: str = "",
         activate: bool = True,
     ) -> LLMConnectionRow:
-        """Create a new LLM connection.
+        """Create a new LLM connection owned by user_id.
 
-        If activate=True, deactivates all other connections first.
+        If activate=True, deactivates all other connections for this user first.
         """
         if activate:
-            await self._deactivate_all()
+            await self._deactivate_all(user_id)
 
         if not label:
             label = f"{provider} / {model_name}"
 
         row = LLMConnectionRow(
             id=str(uuid4()),
+            user_id=user_id,
             provider=provider,
             model_name=model_name,
             api_key_encrypted=_encrypt(api_key),
@@ -115,6 +121,7 @@ class LLMConnectionRepository:
             "llm_connection_created",
             extra={
                 "id": row.id,
+                "user_id": user_id,
                 "provider": provider,
                 "model": model_name,
                 "active": activate,
@@ -122,57 +129,73 @@ class LLMConnectionRepository:
         )
         return row
 
-    async def get_active(self) -> Optional[LLMConnectionRow]:
-        """Return the currently active LLM connection, or None."""
+    async def get_active(self, user_id: str) -> Optional[LLMConnectionRow]:
+        """Return the currently active LLM connection for this user, or None."""
         stmt = (
             select(LLMConnectionRow)
-            .where(LLMConnectionRow.is_active.is_(True))
+            .where(
+                LLMConnectionRow.user_id == user_id,
+                LLMConnectionRow.is_active.is_(True),
+            )
             .limit(1)
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_all(self) -> list[LLMConnectionRow]:
-        """Return all LLM connections ordered by most recent first."""
-        stmt = select(LLMConnectionRow).order_by(LLMConnectionRow.updated_at.desc())
+    async def get_all(self, user_id: str) -> list[LLMConnectionRow]:
+        """Return all LLM connections for this user, ordered by most recent first."""
+        stmt = (
+            select(LLMConnectionRow)
+            .where(LLMConnectionRow.user_id == user_id)
+            .order_by(LLMConnectionRow.updated_at.desc())
+        )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_by_id(self, connection_id: str) -> Optional[LLMConnectionRow]:
-        """Return a single connection by ID."""
-        stmt = select(LLMConnectionRow).where(LLMConnectionRow.id == connection_id)
+    async def get_by_id(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+        """Return a single connection by ID, scoped to user."""
+        stmt = select(LLMConnectionRow).where(
+            LLMConnectionRow.id == connection_id,
+            LLMConnectionRow.user_id == user_id,
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def activate(self, connection_id: str) -> Optional[LLMConnectionRow]:
-        """Activate a connection (deactivates all others)."""
-        await self._deactivate_all()
+    async def activate(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+        """Activate a connection (deactivates all others for this user)."""
+        await self._deactivate_all(user_id)
 
         stmt = (
             update(LLMConnectionRow)
-            .where(LLMConnectionRow.id == connection_id)
+            .where(
+                LLMConnectionRow.id == connection_id,
+                LLMConnectionRow.user_id == user_id,
+            )
             .values(is_active=True, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
-    async def deactivate(self, connection_id: str) -> Optional[LLMConnectionRow]:
-        """Deactivate a specific connection."""
+    async def deactivate(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+        """Deactivate a specific connection, scoped to user."""
         stmt = (
             update(LLMConnectionRow)
-            .where(LLMConnectionRow.id == connection_id)
+            .where(
+                LLMConnectionRow.id == connection_id,
+                LLMConnectionRow.user_id == user_id,
+            )
             .values(is_active=False, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
-    async def delete(self, connection_id: str) -> bool:
-        """Delete a connection by ID. Returns True if found and deleted."""
-        row = await self.get_by_id(connection_id)
+    async def delete(self, connection_id: str, user_id: str) -> bool:
+        """Delete a connection by ID, scoped to user. Returns True if found and deleted."""
+        row = await self.get_by_id(connection_id, user_id)
         if row is None:
             return False
 
@@ -181,13 +204,14 @@ class LLMConnectionRepository:
 
         logger.info(
             "llm_connection_deleted",
-            extra={"id": connection_id, "provider": row.provider},
+            extra={"id": connection_id, "user_id": user_id, "provider": row.provider},
         )
         return True
 
     async def update_connection(
         self,
         connection_id: str,
+        user_id: str,
         *,
         provider: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -197,7 +221,7 @@ class LLMConnectionRepository:
         max_output_tokens: Optional[int] = None,
         label: Optional[str] = None,
     ) -> Optional[LLMConnectionRow]:
-        """Update fields on an existing connection."""
+        """Update fields on an existing connection, scoped to user."""
         values: dict = {"updated_at": datetime.now(UTC)}
 
         if provider is not None:
@@ -217,19 +241,25 @@ class LLMConnectionRepository:
 
         stmt = (
             update(LLMConnectionRow)
-            .where(LLMConnectionRow.id == connection_id)
+            .where(
+                LLMConnectionRow.id == connection_id,
+                LLMConnectionRow.user_id == user_id,
+            )
             .values(**values)
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
-    async def _deactivate_all(self) -> None:
-        """Deactivate all connections."""
+    async def _deactivate_all(self, user_id: str) -> None:
+        """Deactivate all connections for this user."""
         stmt = (
             update(LLMConnectionRow)
-            .where(LLMConnectionRow.is_active.is_(True))
+            .where(
+                LLMConnectionRow.user_id == user_id,
+                LLMConnectionRow.is_active.is_(True),
+            )
             .values(is_active=False, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
