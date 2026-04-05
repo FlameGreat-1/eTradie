@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
@@ -91,6 +92,12 @@ func (s *Stream) get(ctx context.Context, path string, dest interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+path, nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
+	}
+
+	// Forward JWT token from context to Python engine so it can resolve
+	// the correct user's broker connection (multi-tenant isolation).
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		req.Header.Set("Authorization", "Bearer "+rawToken)
 	}
 
 	resp, err := s.httpClient.Do(req)

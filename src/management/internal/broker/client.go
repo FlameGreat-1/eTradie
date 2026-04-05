@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
@@ -131,6 +132,12 @@ func (c *Client) post(ctx context.Context, path string, payload interface{}, des
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	// Forward JWT token from context to Python engine so it can resolve
+	// the correct user's broker connection (multi-tenant isolation).
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		req.Header.Set("Authorization", "Bearer "+rawToken)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
