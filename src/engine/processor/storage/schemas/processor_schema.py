@@ -36,6 +36,16 @@ class AnalysisOutputRow(ProcessorBase):
         primary_key=True,
         default=uuid4,
     )
+
+    # -- Owner (multi-tenant isolation) ----------------------------------------
+    # References auth_users.id managed by the Go auth service.
+    # Every query MUST filter by user_id to enforce data ownership.
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
+
     analysis_id: Mapped[str] = mapped_column(
         String(128),
         nullable=False,
@@ -91,6 +101,14 @@ class AnalysisAuditLogRow(ProcessorBase):
         primary_key=True,
         default=uuid4,
     )
+
+    # -- Owner (multi-tenant isolation) ----------------------------------------
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
+
     analysis_id: Mapped[str] = mapped_column(
         String(128),
         nullable=False,
