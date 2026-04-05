@@ -10,6 +10,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
@@ -218,8 +219,14 @@ func (w *Watcher) stop() {
 func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	defer onDone(w.order.WatcherID)
 
+	// Inject the user's auth token into the watcher context so all
+	// downstream calls (broker bridge, gateway gRPC) are authenticated.
+	// The token was captured from the original gRPC request and stored
+	// on the Order struct by the gRPC server.
+	authCtx := auth.InjectTokenIntoContext(parentCtx, w.order.AuthToken)
+
 	timeout := time.Duration(w.cfg.TimeoutMinutes) * time.Minute
-	ctx, cancel := context.WithTimeout(parentCtx, timeout)
+	ctx, cancel := context.WithTimeout(authCtx, timeout)
 	defer cancel()
 
 	pollInterval := time.Duration(w.cfg.PollIntervalMs) * time.Millisecond
