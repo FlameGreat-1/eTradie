@@ -406,6 +406,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 // CancelPendingOrder cancels a pending limit order or disarms a watcher.
 func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *executionv1.CancelOrderRequest) (*executionv1.CancelOrderResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+	_ = userID // Used by audit logger via context extraction.
+
 	traceID := req.GetTraceId()
 
 	if req.GetOrderId() == "" {
