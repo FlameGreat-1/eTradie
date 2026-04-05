@@ -118,6 +118,23 @@ func (c *Config) JWTSecretBytes() []byte {
 	return c.jwtSecretBytes
 }
 
+// SetTestSecret configures the Config with a known JWT secret for use
+// in test harnesses. Sets all required fields to sensible defaults so
+// the Config is usable without environment variable loading.
+func (c *Config) SetTestSecret(secret string) {
+	c.JWTSecret = secret
+	c.jwtSecretBytes = []byte(secret)
+	if c.AccessTokenTTLSeconds == 0 {
+		c.AccessTokenTTLSeconds = 3600 // 1 hour for tests
+	}
+	if c.RefreshTokenTTLSeconds == 0 {
+		c.RefreshTokenTTLSeconds = 86400 // 1 day for tests
+	}
+	if c.Issuer == "" {
+		c.Issuer = "etradie-test"
+	}
+}
+
 // HasAdminSeedPassword returns true if an admin seed password was
 // explicitly configured. When false, the admin user is created
 // without a password and must be set via the first-login flow.
