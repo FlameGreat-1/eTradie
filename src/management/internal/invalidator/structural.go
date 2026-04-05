@@ -56,6 +56,7 @@ func (e *StructuralEngine) EvaluateStructuralBreak(ctx context.Context, trade *t
 	riskAmount := trade.RiskAmount
 	isLong := trade.IsLong()
 	status := trade.Status
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed {
@@ -76,7 +77,7 @@ func (e *StructuralEngine) EvaluateStructuralBreak(ctx context.Context, trade *t
 		return false, nil
 	}
 
-	return e.executeClosure(ctx, trade, tradeID, brokerID, symbol, string(direction),
+	return e.executeClosure(ctx, trade, userID, tradeID, brokerID, symbol, string(direction),
 		entryPrice, currentPrice, riskAmount, isLong,
 		constants.EventStructuralBreak,
 		fmt.Sprintf("HTF structural break (%s) against %s thesis — trade invalidated", breakDirection, direction))
@@ -85,7 +86,7 @@ func (e *StructuralEngine) EvaluateStructuralBreak(ctx context.Context, trade *t
 func (e *StructuralEngine) executeClosure(
 	ctx context.Context,
 	trade *types.Trade,
-	tradeID, brokerID, symbol, direction string,
+	userID, tradeID, brokerID, symbol, direction string,
 	entryPrice, currentPrice, riskAmount float64,
 	isLong bool,
 	eventType constants.EventType,
@@ -128,11 +129,12 @@ func (e *StructuralEngine) executeClosure(
 	partials := trade.Partials
 	trade.Unlock()
 
-	if err := e.journal.UpdateTradeClose(ctx, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
+	if err := e.journal.UpdateTradeClose(ctx, userID, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_close_failed")
 	}
 
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:      userID,
 		TradeID:     tradeID,
 		EventType:   string(eventType),
 		Symbol:      symbol,

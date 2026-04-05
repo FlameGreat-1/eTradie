@@ -54,6 +54,7 @@ func (e *MacroEngine) EvaluateCOTFlip(ctx context.Context, trade *types.Trade, c
 	riskAmount := trade.RiskAmount
 	isLong := trade.IsLong()
 	status := trade.Status
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed {
@@ -105,10 +106,11 @@ func (e *MacroEngine) EvaluateCOTFlip(ctx context.Context, trade *types.Trade, c
 		partials := trade.Partials
 		trade.Unlock()
 
-		if err := e.journal.UpdateTradeClose(ctx, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
+		if err := e.journal.UpdateTradeClose(ctx, userID, tradeID, currentPrice, pnl, rMultiple, outcome, now, trade.DurationMinutes(), slMoves, partials); err != nil {
 			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_close_failed")
 		}
 		if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+			UserID:      userID,
 			TradeID:     tradeID,
 			EventType:   string(constants.EventCOTFlip),
 			Symbol:      symbol,
@@ -177,10 +179,11 @@ func (e *MacroEngine) EvaluateCOTFlip(ctx context.Context, trade *types.Trade, c
 	trade.SLMoves++
 	trade.Unlock()
 
-	if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+	if err := e.journal.UpdateTradeSL(ctx, userID, tradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:    userID,
 		TradeID:   tradeID,
 		EventType: string(constants.EventSLTightened),
 		Symbol:    symbol,

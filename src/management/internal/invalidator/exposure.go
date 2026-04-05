@@ -51,6 +51,7 @@ func (e *ExposureEngine) EvaluateCorrelationShock(ctx context.Context, trade *ty
 	currentSL := trade.StopLoss
 	isLong := trade.IsLong()
 	status := trade.Status
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed {
@@ -139,12 +140,13 @@ func (e *ExposureEngine) EvaluateCorrelationShock(ctx context.Context, trade *ty
 	reason := fmt.Sprintf("Correlation shock protection: %s hits SL — tightening %s by 50%%", stoppedSymbol, symbol)
 
 	if e.journal != nil {
-		if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+		if err := e.journal.UpdateTradeSL(ctx, userID, tradeID, newSL); err != nil {
 			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
 		}
 	}
 	if e.journal != nil {
 		if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+			UserID:    userID,
 			TradeID:   tradeID,
 			EventType: string(constants.EventCorrelationProtection),
 			Symbol:    symbol,
