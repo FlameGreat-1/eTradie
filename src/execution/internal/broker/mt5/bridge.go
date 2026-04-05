@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 )
@@ -309,6 +310,11 @@ func (b *Bridge) get(ctx context.Context, path string, dest interface{}) error {
 		return fmt.Errorf("build request: %w", err)
 	}
 
+	// Forward JWT token from gRPC context to Python engine.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		req.Header.Set("Authorization", "Bearer "+rawToken)
+	}
+
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
 		observability.BrokerCallTotal.WithLabelValues(path, "error").Inc()
@@ -348,6 +354,11 @@ func (b *Bridge) post(ctx context.Context, path string, payload interface{}, des
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	// Forward JWT token from gRPC context to Python engine.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		req.Header.Set("Authorization", "Bearer "+rawToken)
+	}
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
