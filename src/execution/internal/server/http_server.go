@@ -13,6 +13,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
@@ -39,6 +40,7 @@ func NewHTTPServer(
 	ss *store.SettingsStore,
 	al *audit.Logger,
 	transport *alertredis.Transport,
+	tokenService *auth.TokenService,
 ) *HTTPServer {
 	s := &HTTPServer{
 		state:     sm,
@@ -50,17 +52,18 @@ func NewHTTPServer(
 	}
 
 	mux := http.NewServeMux()
+	authMw := auth.RequireAuth(tokenService)
 
-	// Dashboard REST API.
-	mux.HandleFunc("/api/v1/settings", s.handleSettings)
-	mux.HandleFunc("/api/v1/state", s.handleState)
-	mux.HandleFunc("/api/v1/orders/cancel", s.handleCancelOrder)
-	mux.HandleFunc("/api/v1/account", s.handleAccount)
+	// Dashboard REST API (all protected).
+	mux.Handle("/api/v1/settings", authMw(http.HandlerFunc(s.handleSettings)))
+	mux.Handle("/api/v1/state", authMw(http.HandlerFunc(s.handleState)))
+	mux.Handle("/api/v1/orders/cancel", authMw(http.HandlerFunc(s.handleCancelOrder)))
+	mux.Handle("/api/v1/account", authMw(http.HandlerFunc(s.handleAccount)))
 
-	// WebSocket notifications (delegates to local hub via transport).
-	mux.HandleFunc("/ws/notifications", alert.WebSocketHandler(transport.LocalHub()))
+	// WebSocket notifications (protected).
+	mux.Handle("/ws/notifications", authMw(http.HandlerFunc(alert.WebSocketHandler(transport.LocalHub()))))
 
-	// Ops endpoints.
+	// Ops endpoints (public).
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/metrics", promhttp.Handler())
 
@@ -127,6 +130,7 @@ func (s *HTTPServer) handleSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) getSettings(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserIDFromContext(r.Context())
 	defaults := store.Settings{
 		ExecutionMode:       "LIMIT",
 		MaxConcurrentTrades: 3,
@@ -134,7 +138,7 @@ func (s *HTTPServer) getSettings(w http.ResponseWriter, r *http.Request) {
 		WeeklyDrawdownPct:   5.0,
 	}
 
-	settings, err := s.settings.LoadAll(r.Context(), defaults)
+	settings, err := s.settings.LoadAll(r.Context(), userID, defaults)
 	if err != nil {
 		s.log.Error().Err(err).Msg("get_settings_failed")
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load settings"})
@@ -153,7 +157,8 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 
 	req.ExecutionMode = strings.ToUpper(req.ExecutionMode)
 
-	if err := s.settings.SaveAll(r.Context(), &req); err != nil {
+	userID := auth.UserIDFromContext(r.Context())
+	if err := s.settings.SaveAll(r.Context(), userID, &req); err != nil {
 		s.log.Error().Err(err).Msg("put_settings_failed")
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -181,7 +186,8 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.state.Refresh(r.Context()); err != nil {
+	userID := auth.UserIDFromContext(r.Context())
+	if err := s.state.Refresh(r.Context(), userID); err != nil {
 		s.log.Error().Err(err).Msg("state_refresh_failed")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "broker state refresh failed"})
 		return
