@@ -2239,7 +2239,10 @@ def create_app() -> FastAPI:
     # MANAGEMENT_BROKER_BRIDGE_URL (both http://engine:8000).
 
     @app.get("/internal/broker/account_info")
-    async def broker_account_info(request: Request) -> dict:
+    async def broker_account_info(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Return live account balance, equity, margin, free margin."""
         container: Container = request.app.state.container
         _require_broker(container)
@@ -2257,7 +2260,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/positions")
-    async def broker_positions(request: Request) -> list:
+    async def broker_positions(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> list:
         """Return all open positions at the broker."""
         container: Container = request.app.state.container
         _require_broker(container)
@@ -2284,7 +2290,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/pending_orders")
-    async def broker_pending_orders(request: Request) -> list:
+    async def broker_pending_orders(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> list:
         """Return all pending limit/stop orders at the broker."""
         container: Container = request.app.state.container
         _require_broker(container)
@@ -2309,7 +2318,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/symbol_info")
-    async def broker_symbol_info(request: Request, symbol: str = "") -> dict:
+    async def broker_symbol_info(
+        request: Request,
+        symbol: str = "",
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Return instrument metadata for the Go sizing engine.
 
         Extends the existing get_symbol_info() with trade_tick_value and
@@ -2332,7 +2345,11 @@ def create_app() -> FastAPI:
             )
 
     @app.get("/internal/broker/tick_price")
-    async def broker_tick_price(request: Request, symbol: str = "") -> dict:
+    async def broker_tick_price(
+        request: Request,
+        symbol: str = "",
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Return latest bid/ask for a symbol.
 
         Called by both Execution (watcher tick polling) and Management
@@ -2358,7 +2375,10 @@ def create_app() -> FastAPI:
             )
 
     @app.post("/internal/broker/place_order")
-    async def broker_place_order(request: Request) -> dict:
+    async def broker_place_order(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Place a limit or market order at the broker.
 
         Called by Execution Module B's bridge.go placeOrder().
@@ -2406,7 +2426,10 @@ def create_app() -> FastAPI:
             )
 
     @app.post("/internal/broker/cancel_order")
-    async def broker_cancel_order(request: Request) -> dict:
+    async def broker_cancel_order(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Cancel a pending order by broker order ID."""
         container: Container = request.app.state.container
         _require_broker(container)
@@ -2427,7 +2450,11 @@ def create_app() -> FastAPI:
             return {"success": False, "error": str(exc)}
 
     @app.get("/internal/broker/position")
-    async def broker_position(request: Request, ticket: str = "") -> dict:
+    async def broker_position(
+        request: Request,
+        ticket: str = "",
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Return a single open position by broker ticket.
 
         Called by Management Module C's stream.go GetPosition().
@@ -2456,7 +2483,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
 
     @app.post("/internal/broker/modify_position")
-    async def broker_modify_position(request: Request) -> dict:
+    async def broker_modify_position(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Modify SL/TP on an existing open position.
 
         Called by Management Module C's client.go ModifyPosition().
@@ -2487,7 +2517,10 @@ def create_app() -> FastAPI:
             return {"success": False, "error": str(exc)}
 
     @app.post("/internal/broker/close_partial")
-    async def broker_close_partial(request: Request) -> dict:
+    async def broker_close_partial(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Partially close a position by volume.
 
         Called by Management Module C's client.go ClosePartial().
@@ -2522,7 +2555,10 @@ def create_app() -> FastAPI:
             return {"success": False, "close_price": 0, "error": str(exc)}
 
     @app.post("/internal/broker/close_position")
-    async def broker_close_position(request: Request) -> dict:
+    async def broker_close_position(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Fully close a position at market.
 
         Called by Management Module C's client.go ClosePosition().
