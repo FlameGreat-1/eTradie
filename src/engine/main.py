@@ -808,6 +808,7 @@ def create_app() -> FastAPI:
         request: Request,
         symbol: str,
         trace_id: Optional[str] = None,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Re-trigger analysis for a single symbol on demand.
 
@@ -1097,6 +1098,7 @@ def create_app() -> FastAPI:
             )
             result = await container.processor.process(
                 processor_input,
+                user_id=user.user_id,
                 trace_id=trace_id,
             )
         except Exception as exc:
