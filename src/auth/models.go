@@ -1,0 +1,177 @@
+package auth
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+// ---------------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------------
+
+// Role defines the permission level of a user.
+type Role string
+
+const (
+	// RoleAdmin is the platform administrator.
+	// Manages users, views all tenants, system config.
+	// Also manages their own broker/LLM connections, analyses, trades, journal.
+	RoleAdmin Role = "admin"
+
+	// RoleEtradie is a regular user.
+	// Creates account, manages their own broker/LLM connections,
+	// views their own analyses, trades, journal.
+	RoleEtradie Role = "etradie"
+)
+
+// ValidRoles is the set of allowed role values.
+var ValidRoles = map[Role]bool{
+	RoleAdmin:   true,
+	RoleEtradie: true,
+}
+
+// IsValid checks whether the role is a recognised value.
+func (r Role) IsValid() bool {
+	return ValidRoles[r]
+}
+
+// String returns the role as a lowercase string.
+func (r Role) String() string {
+	return string(r)
+}
+
+// ParseRole normalises and validates a role string.
+func ParseRole(s string) (Role, error) {
+	r := Role(strings.ToLower(strings.TrimSpace(s)))
+	if !r.IsValid() {
+		return "", fmt.Errorf("invalid role %q: must be one of admin, etradie", s)
+	}
+	return r, nil
+}
+
+// ---------------------------------------------------------------------------
+// User
+// ---------------------------------------------------------------------------
+
+// User represents a registered platform user stored in PostgreSQL.
+type User struct {
+	ID             string    `json:"id"`
+	Username       string    `json:"username"`
+	Email          string    `json:"email"`
+	PasswordHash   string    `json:"-"` // never serialised to JSON
+	Role           Role      `json:"role"`
+	Active         bool      `json:"active"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	LastLoginAt    *time.Time `json:"last_login_at,omitempty"`
+}
+
+// SetPassword hashes the plaintext password with bcrypt (cost 12)
+// and stores the result in PasswordHash.
+func (u *User) SetPassword(plaintext string) error {
+	if len(plaintext) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+	if len(plaintext) > 72 {
+		return fmt.Errorf("password must be at most 72 characters")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	u.PasswordHash = string(hash)
+	return nil
+}
+
+// CheckPassword compares a plaintext password against the stored hash.
+// Returns nil on match, error otherwise.
+func (u *User) CheckPassword(plaintext string) error {
+	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(plaintext))
+}
+
+// IsAdmin returns true if the user has the admin role.
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
+}
+
+// ---------------------------------------------------------------------------
+// Token Pair (OAuth 2.0 access + refresh)
+// ---------------------------------------------------------------------------
+
+// TokenPair holds the access and refresh tokens returned on login
+// and token refresh.
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"` // always "Bearer"
+	ExpiresIn    int    `json:"expires_in"` // access token TTL in seconds
+}
+
+// ---------------------------------------------------------------------------
+// JWT Claims
+// ---------------------------------------------------------------------------
+
+// Claims is the JWT payload embedded in every access token.
+// Kept minimal to reduce token size.
+type Claims struct {
+	UserID   string `json:"sub"`
+	Username string `json:"username"`
+	Role     Role   `json:"role"`
+	IssuedAt int64  `json:"iat"`
+	Expiry   int64  `json:"exp"`
+}
+
+// IsExpired checks whether the token has passed its expiry time.
+func (c *Claims) IsExpired() bool {
+	return time.Now().UTC().Unix() > c.Expiry
+}
+
+// ---------------------------------------------------------------------------
+// Refresh Session
+// ---------------------------------------------------------------------------
+
+// Session tracks a refresh token in the database so it can be
+// revoked individually or as part of a full logout.
+type Session struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	RefreshToken string    `json:"-"` // hashed, never exposed
+	UserAgent    string    `json:"user_agent,omitempty"`
+	ClientIP     string    `json:"client_ip,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
+	Revoked      bool      `json:"revoked"`
+}
+
+// IsExpired checks whether the session has passed its expiry time.
+func (s *Session) IsExpired() bool {
+	return time.Now().UTC().After(s.ExpiresAt)
+}
+
+// IsUsable returns true if the session is neither revoked nor expired.
+func (s *Session) IsUsable() bool {
+	return !s.Revoked && !s.IsExpired()
+}
+
+// ---------------------------------------------------------------------------
+// ID generation helper
+// ---------------------------------------------------------------------------
+
+// GenerateID produces a 16-byte (32 hex char) random identifier.
+func GenerateID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// GenerateRefreshToken produces a 32-byte (64 hex char) random token.
+func GenerateRefreshToken() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
