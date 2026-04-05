@@ -3,9 +3,11 @@ package journal
 import "time"
 
 // TradeRecord is the PostgreSQL model for a completed or active trade.
-// Maps to the TRADE JOURNAL ENTRY schema.
+// Maps to the TRADE JOURNAL ENTRY schema. Every record is owned by a
+// specific user (multi-tenant isolation via user_id).
 type TradeRecord struct {
 	ID              int64      `db:"id"`
+	UserID          string     `db:"user_id"` // Owner of this trade (auth user ID)
 	TradeID         string     `db:"trade_id"`
 	Symbol          string     `db:"symbol"`
 	Direction       string     `db:"direction"`
@@ -44,8 +46,10 @@ type TradeRecord struct {
 // TradeEvent is the PostgreSQL model for individual trade events
 // (SL moves, partial closes, TP hits, etc.). Every action on a
 // managed trade is recorded as an immutable event for full audit.
+// Events inherit the user_id from their parent trade for tenant isolation.
 type TradeEvent struct {
 	ID           int64     `db:"id"`
+	UserID       string    `db:"user_id"` // Owner of this event (auth user ID)
 	TradeID      string    `db:"trade_id"`
 	EventType    string    `db:"event_type"`
 	Symbol       string    `db:"symbol"`
