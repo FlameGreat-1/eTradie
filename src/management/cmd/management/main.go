@@ -51,7 +51,7 @@ func main() {
 		Str("broker_mode", cfg.BrokerMode).
 		Msg("management_engine_starting")
 
-	// \u2500\u2500 Auth configuration \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Auth configuration -----------------------------------------------
 	authCfg, err := auth.LoadConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("auth_config_load_failed")
@@ -59,7 +59,7 @@ func main() {
 	tokenService := auth.NewTokenService(authCfg)
 	log.Info().Msg("auth_service_initialized")
 
-	// \u2500\u2500 Database connection pool \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Database connection pool ------------------------------------------
 	ctx := context.Background()
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
@@ -85,7 +85,7 @@ func main() {
 		log.Fatal().Err(err).Msg("schema_creation_failed")
 	}
 
-	// \u2500\u2500 Broker implementation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Broker implementation ---------------------------------------------
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
 		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
@@ -95,7 +95,7 @@ func main() {
 		log.Info().Msg("broker_mock_configured")
 	}
 
-	// \u2500\u2500 Redis Connection (for shared alerts) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Redis Connection (for shared alerts) ------------------------------
 	opts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("redis_url_parse_failed")
@@ -106,7 +106,7 @@ func main() {
 		log.Fatal().Err(err).Msg("redis_ping_failed")
 	}
 
-	// \u2500\u2500 Shared alert transport \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Shared alert transport --------------------------------------------
 	alertHub := alert.NewHub()
 	defer alertHub.Close()
 
@@ -114,21 +114,21 @@ func main() {
 	alertTransport.Start(ctx)
 	defer alertTransport.Close()
 
-	// \u2500\u2500 Stores \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Stores ------------------------------------------------------------
 	journalRepo := journal.NewRepository(pool)
 
-	// \u2500\u2500 Sub-engines (dependency order) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Sub-engines (dependency order) ------------------------------------
 	beEngine := stoploss.NewBreakevenEngine(bp, journalRepo)
 	trailEngine := stoploss.NewTrailingEngine(bp, journalRepo)
 	tpExecutor := takeprofit.NewExecutor(bp, journalRepo)
 
-	// \u2500\u2500 Monitoring manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Monitoring manager ------------------------------------------------
 	mgr := monitoring.NewManager(
 		bp, beEngine, trailEngine, tpExecutor,
 		journalRepo, alertTransport, cfg.TickPollIntervalMs,
 	)
 
-	// \u2500\u2500 Invalidation Engines \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Invalidation Engines ----------------------------------------------
 	structuralEngine := invalidator.NewStructuralEngine(bp, journalRepo, alertTransport)
 	macroEngine := invalidator.NewMacroEngine(bp, journalRepo, alertTransport)
 	newsEngine := invalidator.NewNewsEngine(bp, journalRepo, alertTransport, rdb)
@@ -195,7 +195,7 @@ func main() {
 		}
 	}()
 
-	// \u2500\u2500 EOD scheduler (runs temporal checks every minute) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- EOD scheduler (runs temporal checks every minute) -----------------
 	eodScheduler := eod.NewScheduler(
 		bp,
 		journalRepo,
@@ -207,12 +207,12 @@ func main() {
 	)
 	eodScheduler.Start()
 
-	// \u2500\u2500 Pre-News Polling Engine (runs checks every minute) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Pre-News Polling Engine (runs checks every minute) ----------------
 	newsEngine.StartPolling(ctx, mgr.GetAllTrades, func(ctx context.Context, symbol string) (float64, error) {
 		return mgr.GetPriceForSymbol(ctx, symbol)
 	})
 
-	// \u2500\u2500 Analytics & Reporting \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Analytics & Reporting ---------------------------------------------
 	metricsEngine := analytics.NewMetrics(pool)
 	reporter := analytics.NewReporter(metricsEngine, alertTransport)
 
@@ -238,7 +238,7 @@ func main() {
 		}
 	}()
 
-	// \u2500\u2500 Restore active trades from database on restart \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Restore active trades from database on restart -------------------
 	// Use GetAllActiveTrades (cross-user) to restore monitoring for every
 	// user's active trades. Each restored trade carries its UserID from
 	// the database. AuthToken will be empty (original token expired after
@@ -255,7 +255,7 @@ func main() {
 		}
 	}
 
-	// \u2500\u2500 gRPC server (with auth interceptor) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- gRPC server (with auth interceptor) -------------------------------
 	mgmtServer := server.NewManagementServer(mgr, journalRepo, metricsEngine)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
@@ -284,7 +284,7 @@ func main() {
 		}
 	}()
 
-	// \u2500\u2500 HTTP server (Dashboard REST API with auth) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- HTTP server (Dashboard REST API with auth) -----------------------
 	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine, tokenService)
 	go func() {
 		if err := httpServer.Start(); err != nil {
@@ -292,7 +292,7 @@ func main() {
 		}
 	}()
 
-	// \u2500\u2500 Publish service started event \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Publish service started event ------------------------------------
 	alertTransport.Publish(ctx,
 		alert.NewEvent(alert.SourceTradeManager, alert.TypeServiceStarted, alert.SeverityInfo,
 			"Trade Management engine started").
@@ -310,7 +310,7 @@ func main() {
 		Bool("auth_enabled", true).
 		Msg("management_engine_ready")
 
-	// \u2500\u2500 Graceful shutdown \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// -- Graceful shutdown ------------------------------------------------
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
@@ -325,7 +325,7 @@ func main() {
 			"Trade Management engine shutting down"),
 	)
 
-	// Shutdown order: HTTP -> gRPC \u2192 EOD scheduler \u2192 monitoring \u2192 alerts \u2192 DB.
+	// Shutdown order: HTTP -> gRPC -> EOD scheduler -> monitoring -> alerts -> DB.
 	httpServer.Shutdown(shutdownCtx)
 	grpcServer.GracefulStop()
 	eodScheduler.Shutdown()
