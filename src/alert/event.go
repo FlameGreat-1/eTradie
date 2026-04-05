@@ -91,6 +91,7 @@ type Event struct {
 	Type      string                 `json:"type"`
 	Severity  EventSeverity          `json:"severity"`
 	Timestamp string                 `json:"timestamp"`
+	UserID    string                 `json:"user_id,omitempty"`
 	Symbol    string                 `json:"symbol,omitempty"`
 	Direction string                 `json:"direction,omitempty"`
 	Message   string                 `json:"message"`
@@ -108,6 +109,15 @@ func NewEvent(source EventSource, eventType string, severity EventSeverity, mess
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		Message:   message,
 	}
+}
+
+// WithUserID sets the user ID on the event for multi-tenant scoping.
+// Events with a UserID are only delivered to that user's WebSocket
+// connections and filtered in event history queries. Events without
+// a UserID (empty string) are system events visible to all users.
+func (e *Event) WithUserID(userID string) *Event {
+	e.UserID = userID
+	return e
 }
 
 // WithSymbol sets the symbol on the event.
