@@ -1516,7 +1516,10 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/api/processor/models")
-    async def get_available_models(request: Request) -> dict:
+    async def get_available_models(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Available models per provider for the dashboard model selector.
 
         Returns the model list for each provider plus the currently
@@ -1550,7 +1553,10 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/processor/config")
-    async def get_processor_config(request: Request) -> ProcessorConfigResponse:
+    async def get_processor_config(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> ProcessorConfigResponse:
         """Current LLM provider and model configuration."""
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
@@ -1569,6 +1575,7 @@ def create_app() -> FastAPI:
     async def update_processor_config(
         request: Request,
         body: ProcessorConfigUpdateRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Switch LLM provider or model at runtime from the dashboard.
 
