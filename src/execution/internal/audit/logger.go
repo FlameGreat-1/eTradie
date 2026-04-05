@@ -5,6 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
@@ -29,6 +30,7 @@ func NewLogger(auditStore *store.AuditStore) *Logger {
 // LogValidationPassed records a successful validation.
 func (l *Logger) LogValidationPassed(ctx context.Context, req *models.TradeRequest) {
 	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:          auth.UserIDFromContext(ctx),
 		Action:          string(constants.ActionValidationPassed),
 		Symbol:          req.Symbol,
 		Direction:       string(req.Direction),
@@ -45,6 +47,7 @@ func (l *Logger) LogValidationPassed(ctx context.Context, req *models.TradeReque
 // LogValidationRejected records a failed validation with the check that failed.
 func (l *Logger) LogValidationRejected(ctx context.Context, req *models.TradeRequest, result models.ValidationResult) {
 	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:          auth.UserIDFromContext(ctx),
 		Action:          string(constants.ActionValidationRejected),
 		Symbol:          req.Symbol,
 		Direction:       string(req.Direction),
@@ -63,6 +66,7 @@ func (l *Logger) LogValidationRejected(ctx context.Context, req *models.TradeReq
 // LogLotSizeCalculated records the full sizing calculation breakdown.
 func (l *Logger) LogLotSizeCalculated(ctx context.Context, req *models.TradeRequest, sizing *models.SizingResult) {
 	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:       auth.UserIDFromContext(ctx),
 		Action:       string(constants.ActionLotSizeCalculated),
 		Symbol:       req.Symbol,
 		Direction:    string(req.Direction),
@@ -92,6 +96,7 @@ func (l *Logger) LogOrderPlaced(ctx context.Context, order *models.Order) {
 	}
 
 	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:          auth.UserIDFromContext(ctx),
 		Action:          string(action),
 		Symbol:          order.Symbol,
 		Direction:       string(order.Direction),
@@ -128,6 +133,7 @@ func (l *Logger) LogOrderPlaced(ctx context.Context, order *models.Order) {
 // LogOrderCancelled records an order cancellation.
 func (l *Logger) LogOrderCancelled(ctx context.Context, orderID, symbol, reason, traceID string) {
 	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:          auth.UserIDFromContext(ctx),
 		Action:          string(constants.ActionOrderCancelled),
 		Symbol:          symbol,
 		OrderID:         orderID,
