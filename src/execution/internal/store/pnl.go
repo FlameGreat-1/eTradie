@@ -20,9 +20,9 @@ const (
 )
 
 const upsertPnLSQL = `
-INSERT INTO execution_pnl_tracker (period_type, period_key, realized_pnl, trade_count, last_updated)
-VALUES ($1, $2, $3, 1, NOW())
-ON CONFLICT (period_type, period_key)
+INSERT INTO execution_pnl_tracker (user_id, period_type, period_key, realized_pnl, trade_count, last_updated)
+VALUES ($1, $2, $3, $4, 1, NOW())
+ON CONFLICT (user_id, period_type, period_key)
 DO UPDATE SET
     realized_pnl = execution_pnl_tracker.realized_pnl + EXCLUDED.realized_pnl,
     trade_count  = execution_pnl_tracker.trade_count + 1,
@@ -32,7 +32,7 @@ DO UPDATE SET
 const selectPnLSQL = `
 SELECT COALESCE(realized_pnl, 0), COALESCE(trade_count, 0)
 FROM execution_pnl_tracker
-WHERE period_type = $1 AND period_key = $2
+WHERE user_id = $1 AND period_type = $2 AND period_key = $3
 `
 
 // PnLSnapshot holds the current P&L state loaded from the database.
@@ -63,7 +63,7 @@ func NewPnLStore(pool *pgxpool.Pool) *PnLStore {
 // LoadCurrent reads the current day and week P&L from PostgreSQL.
 // Called at startup and after day/week boundary resets to restore
 // accurate counters. Returns zero values if no rows exist yet.
-func (s *PnLStore) LoadCurrent(ctx context.Context) (*PnLSnapshot, error) {
+func (s *PnLStore) LoadCurrent(ctx context.Context, userID string) (*PnLSnapshot, error) {
 	readCtx, cancel := context.WithTimeout(ctx, pnlReadTimeout)
 	defer cancel()
 
@@ -77,7 +77,7 @@ func (s *PnLStore) LoadCurrent(ctx context.Context) (*PnLSnapshot, error) {
 	}
 
 	// Load daily.
-	row := s.pool.QueryRow(readCtx, selectPnLSQL, periodDaily, dailyKey)
+	row := s.pool.QueryRow(readCtx, selectPnLSQL, userID, periodDaily, dailyKey)
 	if err := row.Scan(&snap.DailyPnL, &snap.DailyTrades); err != nil {
 		// No row = first trade of the day; zero values are correct.
 		snap.DailyPnL = 0
@@ -85,7 +85,7 @@ func (s *PnLStore) LoadCurrent(ctx context.Context) (*PnLSnapshot, error) {
 	}
 
 	// Load weekly.
-	row = s.pool.QueryRow(readCtx, selectPnLSQL, periodWeekly, weeklyKey)
+	row = s.pool.QueryRow(readCtx, selectPnLSQL, userID, periodWeekly, weeklyKey)
 	if err := row.Scan(&snap.WeeklyPnL, &snap.WeeklyTrades); err != nil {
 		snap.WeeklyPnL = 0
 		snap.WeeklyTrades = 0
@@ -106,7 +106,7 @@ func (s *PnLStore) LoadCurrent(ctx context.Context) (*PnLSnapshot, error) {
 // RecordPnL atomically increments both daily and weekly realized P&L
 // in a single database transaction. Called by the state manager when
 // Module C reports a closed trade.
-func (s *PnLStore) RecordPnL(ctx context.Context, amount float64) error {
+func (s *PnLStore) RecordPnL(ctx context.Context, userID string, amount float64) error {
 	writeCtx, cancel := context.WithTimeout(ctx, pnlWriteTimeout)
 	defer cancel()
 
@@ -121,12 +121,12 @@ func (s *PnLStore) RecordPnL(ctx context.Context, amount float64) error {
 	}
 	defer tx.Rollback(writeCtx)
 
-	if _, err := tx.Exec(writeCtx, upsertPnLSQL, periodDaily, dailyKey, amount); err != nil {
+	if _, err := tx.Exec(writeCtx, upsertPnLSQL, userID, periodDaily, dailyKey, amount); err != nil {
 		s.log.Error().Err(err).Str("period_key", dailyKey).Msg("pnl_record_daily_failed")
 		return fmt.Errorf("pnl record daily: %w", err)
 	}
 
-	if _, err := tx.Exec(writeCtx, upsertPnLSQL, periodWeekly, weeklyKey, amount); err != nil {
+	if _, err := tx.Exec(writeCtx, upsertPnLSQL, userID, periodWeekly, weeklyKey, amount); err != nil {
 		s.log.Error().Err(err).Str("period_key", weeklyKey).Msg("pnl_record_weekly_failed")
 		return fmt.Errorf("pnl record weekly: %w", err)
 	}
