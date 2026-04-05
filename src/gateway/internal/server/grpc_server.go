@@ -20,6 +20,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/management"
@@ -60,6 +61,7 @@ func NewGRPCServer(
 	engine *infra.EngineHTTPClient,
 	transport *alertredis.Transport,
 	mgmtClient *management.Client,
+	tokenService *auth.TokenService,
 ) *GRPCServer {
 	s := &GRPCServer{
 		orchestrator:  orchestrator,
@@ -75,9 +77,18 @@ func NewGRPCServer(
 		log:           observability.Logger("grpc_server"),
 	}
 
+	// gRPC methods that bypass authentication (health checks).
+	skipAuth := map[string]bool{
+		"/grpc.health.v1.Health/Check": true,
+		"/grpc.health.v1.Health/Watch": true,
+	}
+
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(panicRecoveryInterceptor(s.log)),
+		grpc.ChainUnaryInterceptor(
+			panicRecoveryInterceptor(s.log),
+			auth.UnaryAuthInterceptor(tokenService, skipAuth),
+		),
 	)
 
 	gatewayv1.RegisterGatewayServiceServer(grpcServer, s)
