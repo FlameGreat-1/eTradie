@@ -36,6 +36,15 @@ class BrokerConnectionRow(ProcessorBase):
         default=uuid4,
     )
 
+    # -- Owner (multi-tenant isolation) ----------------------------------------
+    # References auth_users.id managed by the Go auth service.
+    # Every query MUST filter by user_id to enforce data ownership.
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
+
     # -- Connection type: 'ea' or 'metaapi' -----------------------------------
     connection_type: Mapped[str] = mapped_column(
         String(20),
