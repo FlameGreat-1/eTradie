@@ -176,7 +176,11 @@ def _validate_connection(
 
 
 class BrokerConnectionRepository:
-    """CRUD operations for broker connections."""
+    """CRUD operations for broker connections.
+
+    Every method requires a user_id parameter to enforce multi-tenant
+    data isolation. Users can only see and manage their own connections.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -186,6 +190,7 @@ class BrokerConnectionRepository:
     async def create(
         self,
         *,
+        user_id: str,
         connection_type: str,
         name: str,
         # EA fields (auto-populated from env, not user-provided)
@@ -225,8 +230,8 @@ class BrokerConnectionRepository:
         )
 
         if activate:
-            await self._deactivate_all()
-            await self._unprimary_all()
+            await self._deactivate_all(user_id)
+            await self._unprimary_all(user_id)
 
         # Encrypt sensitive credentials.
         encrypted_ea_token: Optional[str] = None
@@ -240,6 +245,7 @@ class BrokerConnectionRepository:
         now = datetime.now(UTC)
         row = BrokerConnectionRow(
             id=str(uuid4()),
+            user_id=user_id,
             connection_type=connection_type,
             name=name,
             ea_host=ea_host,
@@ -265,6 +271,7 @@ class BrokerConnectionRepository:
             "broker_connection_created",
             extra={
                 "id": row.id,
+                "user_id": user_id,
                 "type": connection_type,
                 "name": name,
                 "active": activate,
@@ -277,38 +284,48 @@ class BrokerConnectionRepository:
     async def get_by_id(
         self,
         connection_id: str,
+        user_id: str,
     ) -> Optional[BrokerConnectionRow]:
-        """Return a single connection by ID."""
+        """Return a single connection by ID, scoped to user."""
         stmt = select(BrokerConnectionRow).where(
-            BrokerConnectionRow.id == connection_id
+            BrokerConnectionRow.id == connection_id,
+            BrokerConnectionRow.user_id == user_id,
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_active(self) -> Optional[BrokerConnectionRow]:
-        """Return the currently active broker connection, or None."""
+    async def get_active(self, user_id: str) -> Optional[BrokerConnectionRow]:
+        """Return the currently active broker connection for this user, or None."""
         stmt = (
             select(BrokerConnectionRow)
-            .where(BrokerConnectionRow.is_active.is_(True))
+            .where(
+                BrokerConnectionRow.user_id == user_id,
+                BrokerConnectionRow.is_active.is_(True),
+            )
             .limit(1)
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_primary(self) -> Optional[BrokerConnectionRow]:
-        """Return the primary broker connection, or None."""
+    async def get_primary(self, user_id: str) -> Optional[BrokerConnectionRow]:
+        """Return the primary broker connection for this user, or None."""
         stmt = (
             select(BrokerConnectionRow)
-            .where(BrokerConnectionRow.is_primary.is_(True))
+            .where(
+                BrokerConnectionRow.user_id == user_id,
+                BrokerConnectionRow.is_primary.is_(True),
+            )
             .limit(1)
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_all(self) -> list[BrokerConnectionRow]:
-        """Return all broker connections ordered by most recent first."""
-        stmt = select(BrokerConnectionRow).order_by(
-            BrokerConnectionRow.updated_at.desc()
+    async def get_all(self, user_id: str) -> list[BrokerConnectionRow]:
+        """Return all broker connections for this user, ordered by most recent first."""
+        stmt = (
+            select(BrokerConnectionRow)
+            .where(BrokerConnectionRow.user_id == user_id)
+            .order_by(BrokerConnectionRow.updated_at.desc())
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
@@ -318,6 +335,7 @@ class BrokerConnectionRepository:
     async def update_connection(
         self,
         connection_id: str,
+        user_id: str,
         *,
         name: Optional[str] = None,
         ea_host: Optional[str] = None,
@@ -357,53 +375,65 @@ class BrokerConnectionRepository:
 
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
+            .where(
+                BrokerConnectionRow.id == connection_id,
+                BrokerConnectionRow.user_id == user_id,
+            )
             .values(**values)
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
     # -- Activate / Deactivate / Set Primary -----------------------------------
 
-    async def activate(self, connection_id: str) -> Optional[BrokerConnectionRow]:
-        """Activate a connection (deactivates all others)."""
-        await self._deactivate_all()
+    async def activate(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+        """Activate a connection (deactivates all others for this user)."""
+        await self._deactivate_all(user_id)
 
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
+            .where(
+                BrokerConnectionRow.id == connection_id,
+                BrokerConnectionRow.user_id == user_id,
+            )
             .values(is_active=True, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
-    async def deactivate(self, connection_id: str) -> Optional[BrokerConnectionRow]:
-        """Deactivate a specific connection."""
+    async def deactivate(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+        """Deactivate a specific connection, scoped to user."""
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
+            .where(
+                BrokerConnectionRow.id == connection_id,
+                BrokerConnectionRow.user_id == user_id,
+            )
             .values(is_active=False, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
-    async def set_primary(self, connection_id: str) -> Optional[BrokerConnectionRow]:
-        """Set a connection as primary (unsets all others).
+    async def set_primary(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+        """Set a connection as primary (unsets all others for this user).
 
         Also activates the connection if it is not already active.
         """
-        await self._unprimary_all()
-        await self._deactivate_all()
+        await self._unprimary_all(user_id)
+        await self._deactivate_all(user_id)
 
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
+            .where(
+                BrokerConnectionRow.id == connection_id,
+                BrokerConnectionRow.user_id == user_id,
+            )
             .values(
                 is_primary=True,
                 is_active=True,
@@ -413,13 +443,14 @@ class BrokerConnectionRepository:
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
     # -- Health status ---------------------------------------------------------
 
     async def update_status(
         self,
         connection_id: str,
+        user_id: str,
         *,
         status: str,
         status_message: str = "",
@@ -436,19 +467,22 @@ class BrokerConnectionRepository:
 
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
+            .where(
+                BrokerConnectionRow.id == connection_id,
+                BrokerConnectionRow.user_id == user_id,
+            )
             .values(**values)
         )
         await self._session.execute(stmt)
         await self._session.flush()
 
-        return await self.get_by_id(connection_id)
+        return await self.get_by_id(connection_id, user_id)
 
     # -- Delete ----------------------------------------------------------------
 
-    async def delete(self, connection_id: str) -> bool:
-        """Delete a connection by ID. Returns True if found and deleted."""
-        row = await self.get_by_id(connection_id)
+    async def delete(self, connection_id: str, user_id: str) -> bool:
+        """Delete a connection by ID, scoped to user. Returns True if found and deleted."""
+        row = await self.get_by_id(connection_id, user_id)
         if row is None:
             return False
 
@@ -459,6 +493,7 @@ class BrokerConnectionRepository:
             "broker_connection_deleted",
             extra={
                 "id": connection_id,
+                "user_id": user_id,
                 "type": row.connection_type,
                 "name": row.name,
             },
@@ -467,20 +502,26 @@ class BrokerConnectionRepository:
 
     # -- Internal helpers ------------------------------------------------------
 
-    async def _deactivate_all(self) -> None:
-        """Deactivate all connections."""
+    async def _deactivate_all(self, user_id: str) -> None:
+        """Deactivate all connections for this user."""
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.is_active.is_(True))
+            .where(
+                BrokerConnectionRow.user_id == user_id,
+                BrokerConnectionRow.is_active.is_(True),
+            )
             .values(is_active=False, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
 
-    async def _unprimary_all(self) -> None:
-        """Remove primary flag from all connections."""
+    async def _unprimary_all(self, user_id: str) -> None:
+        """Remove primary flag from all connections for this user."""
         stmt = (
             update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.is_primary.is_(True))
+            .where(
+                BrokerConnectionRow.user_id == user_id,
+                BrokerConnectionRow.is_primary.is_(True),
+            )
             .values(is_primary=False, updated_at=datetime.now(UTC))
         )
         await self._session.execute(stmt)
