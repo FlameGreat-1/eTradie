@@ -41,6 +41,7 @@ func (p *Scalping) Evaluate(ctx context.Context, trade *types.Trade, currentPric
 	entryPrice := trade.EntryPrice
 	riskAmount := trade.RiskAmount
 	isLong := trade.IsLong()
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed || style != constants.StyleScalping {
@@ -58,7 +59,7 @@ func (p *Scalping) Evaluate(ctx context.Context, trade *types.Trade, currentPric
 			return false, fmt.Errorf("scalping close: %w", err)
 		}
 
-		return executeClosure(ctx, p.journal, p.transport, p.log, trade, currentPrice, entryPrice, riskAmount, isLong, reason, now, symbol, style)
+		return executeClosure(ctx, p.journal, p.transport, p.log, trade, userID, currentPrice, entryPrice, riskAmount, isLong, reason, now, symbol, style)
 	}
 
 	return false, nil

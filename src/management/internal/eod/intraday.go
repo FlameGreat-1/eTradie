@@ -40,6 +40,7 @@ func (p *Intraday) Evaluate(ctx context.Context, trade *types.Trade, currentPric
 	entryPrice := trade.EntryPrice
 	riskAmount := trade.RiskAmount
 	isLong := trade.IsLong()
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed || style != constants.StyleIntraday {
@@ -58,7 +59,7 @@ func (p *Intraday) Evaluate(ctx context.Context, trade *types.Trade, currentPric
 			return false, fmt.Errorf("intraday close: %w", err)
 		}
 
-		return executeClosure(ctx, p.journal, p.transport, p.log, trade, currentPrice, entryPrice, riskAmount, isLong, reason, now, symbol, style)
+		return executeClosure(ctx, p.journal, p.transport, p.log, trade, userID, currentPrice, entryPrice, riskAmount, isLong, reason, now, symbol, style)
 	}
 
 	return false, nil
