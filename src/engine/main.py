@@ -1,26 +1,46 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
 from datetime import datetime as dt, timezone
+from typing import AsyncIterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from prometheus_client import make_asgi_app
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from engine.config import get_rag_config, get_settings
 from engine.dependencies import Container
-from engine.shared.logging import configure_logging, get_logger
-from engine.shared.metrics.prometheus import APP_INFO
-from engine.shared.tracing.otel import init_tracing
 from engine.macro.scheduler_jobs import register_macro_jobs
-from engine.ta.scheduler_jobs import register_ta_jobs
+from engine.processor.config import ProcessorConfig
 from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider
+from engine.processor.llm.factory import create_llm_client
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from engine.processor.models.io import ProcessorInput
+from engine.processor.service import AnalysisProcessor
+from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
+from engine.processor.storage.repositories.audit_repository import AuditRepository
+from engine.processor.storage.repositories.broker_connection_repository import (
+    BrokerConnectionRepository,
+    STATUS_CONNECTED,
+    STATUS_ERROR,
+    VALID_CONNECTION_TYPES,
+    decrypt_credential,
+)
+from engine.processor.storage.repositories.llm_connection_repository import (
+    LLMConnectionRepository,
+    decrypt_api_key,
+)
+from engine.shared.logging import configure_logging, get_logger
+from engine.shared.metrics.prometheus import APP_INFO
+from engine.shared.models.currency import get_correlation_config
 from engine.shared.store import RedisSymbolReader
+from engine.shared.tracing.otel import init_tracing
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
+from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
+from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
+from engine.ta.scheduler_jobs import register_ta_jobs
 
 
 async def _rate_limit(
@@ -94,8 +114,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Publish the dynamic Correlation matrix to Redis for the Go Exposure Engine
     try:
-        from engine.shared.models.currency import get_correlation_config
-
         corr_config = get_correlation_config()
         await container.cache.set(
             namespace="correlation",
@@ -511,10 +529,6 @@ def create_app() -> FastAPI:
         limit = min(limit, 100)
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import (
-                AnalysisRepository,
-            )
-
             repo = AnalysisRepository(session)
 
             if pair:
@@ -606,10 +620,6 @@ def create_app() -> FastAPI:
             offset = 0
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import (
-                AnalysisRepository,
-            )
-
             repo = AnalysisRepository(session)
             rows, total_count = await repo.list_filtered(
                 pair=pair,
@@ -675,8 +685,6 @@ def create_app() -> FastAPI:
         if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
 
-        from datetime import datetime as dt
-
         since_dt = None
         until_dt = None
         if since:
@@ -695,10 +703,6 @@ def create_app() -> FastAPI:
                 )
 
         async with container.db.read_session() as session:
-            from engine.processor.storage.repositories.analysis_repository import (
-                AnalysisRepository,
-            )
-
             repo = AnalysisRepository(session)
             stats = await repo.get_stats(pair=pair, since=since_dt, until=until_dt)
         return stats
@@ -709,13 +713,6 @@ def create_app() -> FastAPI:
         container: Container = request.app.state.container
         if not hasattr(container, "processor_uow_factory"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
-
-        from engine.processor.storage.repositories.analysis_repository import (
-            AnalysisRepository,
-        )
-        from engine.processor.storage.repositories.audit_repository import (
-            AuditRepository,
-        )
 
         async with container.db.read_session() as session:
             repo = AnalysisRepository(session)
@@ -1126,10 +1123,6 @@ def create_app() -> FastAPI:
         """List all saved LLM connections."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-        )
-
         async with container.db.read_session() as session:
             repo = LLMConnectionRepository(session)
             rows = await repo.get_all()
@@ -1161,10 +1154,6 @@ def create_app() -> FastAPI:
     async def get_active_llm_connection(request: Request) -> dict:
         """Get the currently active LLM connection."""
         container: Container = request.app.state.container
-
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-        )
 
         async with container.db.read_session() as session:
             repo = LLMConnectionRepository(session)
@@ -1230,10 +1219,6 @@ def create_app() -> FastAPI:
 
         if not body.api_key.strip():
             raise HTTPException(status_code=400, detail="api_key must not be empty")
-
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-        )
 
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
@@ -1301,11 +1286,6 @@ def create_app() -> FastAPI:
                     detail=f"Unsupported provider '{body.provider}'. Supported: {sorted(valid_providers)}",
                 )
 
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-            decrypt_api_key,
-        )
-
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
             row = await repo.update_connection(
@@ -1358,11 +1338,6 @@ def create_app() -> FastAPI:
         """
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-            decrypt_api_key,
-        )
-
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
             row = await repo.activate(connection_id)
@@ -1398,10 +1373,6 @@ def create_app() -> FastAPI:
         """Deactivate a connection without deleting it."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-        )
-
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
             row = await repo.deactivate(connection_id)
@@ -1425,10 +1396,6 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Permanently delete a saved LLM connection."""
         container: Container = request.app.state.container
-
-        from engine.processor.storage.repositories.llm_connection_repository import (
-            LLMConnectionRepository,
-        )
 
         async with container.db.session() as session:
             repo = LLMConnectionRepository(session)
@@ -1454,11 +1421,6 @@ def create_app() -> FastAPI:
         Rebuilds the LLM client and processor with the new settings.
         Takes effect on the next analysis cycle.
         """
-        from pydantic import SecretStr
-        from engine.processor.config import ProcessorConfig
-        from engine.processor.llm.factory import create_llm_client
-        from engine.processor.service import AnalysisProcessor
-
         old_cfg = container.processor_config
 
         config_overrides = {
@@ -1572,11 +1534,6 @@ def create_app() -> FastAPI:
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
-
-        from pydantic import SecretStr
-        from engine.processor.config import ProcessorConfig
-        from engine.processor.llm.factory import create_llm_client
-        from engine.processor.service import AnalysisProcessor
 
         old_cfg = container.processor_config
         new_provider = body.llm_provider or old_cfg.llm_provider
@@ -1737,20 +1694,11 @@ def create_app() -> FastAPI:
 
     async def _hot_swap_broker_from_row(container: Container, row) -> None:
         """Build a broker client from a DB row and hot-swap it into the container."""
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-            STATUS_CONNECTED,
-            STATUS_ERROR,
-            decrypt_credential,
-        )
-        from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
-
         ea_auth_token = ""
         platform_token = ""
         if row.connection_type == "ea" and row.ea_auth_token_encrypted:
             ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
         if row.connection_type == "metaapi":
-            import os
             platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
         new_client = create_mt5_broker_from_connection(
@@ -1813,11 +1761,6 @@ def create_app() -> FastAPI:
         await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-            VALID_CONNECTION_TYPES,
-        )
-
         if body.connection_type not in VALID_CONNECTION_TYPES:
             raise HTTPException(
                 status_code=400,
@@ -1827,8 +1770,6 @@ def create_app() -> FastAPI:
         if not body.name or not body.name.strip():
             raise HTTPException(status_code=400, detail="name must not be empty")
 
-        from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
-        
         try:
             # Prepare fields based on connection type
             ea_host = None
@@ -1837,7 +1778,6 @@ def create_app() -> FastAPI:
             metaapi_account_id = None
             
             if body.connection_type == "ea":
-                import os
                 # Pull server-side EA config
                 ea_host = os.environ.get("MT5_ZMQ_HOST", "host.docker.internal")
                 try:
@@ -1854,7 +1794,6 @@ def create_app() -> FastAPI:
                         detail="mt5_login, mt5_password, and mt5_server are required for MetaAPI connections",
                     )
                 
-                import os
                 platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
                 if not platform_token:
                     raise HTTPException(
@@ -1925,10 +1864,6 @@ def create_app() -> FastAPI:
         """List all saved broker connections."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
-
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
             rows = await repo.get_all()
@@ -1940,10 +1875,6 @@ def create_app() -> FastAPI:
     async def get_active_broker_connection(request: Request) -> dict:
         """Get the currently active broker connection."""
         container: Container = request.app.state.container
-
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
 
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
@@ -1966,10 +1897,6 @@ def create_app() -> FastAPI:
         """Get a specific broker connection by ID."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
-
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.get_by_id(connection_id)
@@ -1987,10 +1914,6 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Update an existing broker connection."""
         container: Container = request.app.state.container
-
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
 
         try:
             async with container.db.session() as session:
@@ -2034,10 +1957,6 @@ def create_app() -> FastAPI:
         """
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
-
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.activate(connection_id)
@@ -2069,10 +1988,6 @@ def create_app() -> FastAPI:
         """Deactivate a broker connection without deleting it."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
-
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.deactivate(connection_id)
@@ -2091,10 +2006,6 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Set a connection as primary (also activates it)."""
         container: Container = request.app.state.container
-
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
 
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
@@ -2134,14 +2045,6 @@ def create_app() -> FastAPI:
         await _rate_limit(request, "broker_test", max_requests=5, window_seconds=60)
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-            STATUS_CONNECTED,
-            STATUS_ERROR,
-            decrypt_credential,
-        )
-        from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
-
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.get_by_id(connection_id)
@@ -2155,7 +2058,6 @@ def create_app() -> FastAPI:
         if row.connection_type == "ea" and row.ea_auth_token_encrypted:
             ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
         if row.connection_type == "metaapi":
-            import os
             platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
         try:
@@ -2224,10 +2126,6 @@ def create_app() -> FastAPI:
         """Permanently delete a saved broker connection."""
         container: Container = request.app.state.container
 
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
-
         async with container.db.read_session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.get_by_id(connection_id)
@@ -2247,17 +2145,14 @@ def create_app() -> FastAPI:
 
         # Clean up cloud resources asynchronously after DB deletion
         if is_metaapi and metaapi_account_id:
-            import os
             platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
             if platform_token:
-                from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
                 try:
                     provisioner = MetaApiProvisioner(
                         http_client=container.http_client,
                         platform_token=platform_token,
                     )
                     # Background task to avoid blocking the user API response
-                    import asyncio
                     asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))
                 except Exception as exc:
                     logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
