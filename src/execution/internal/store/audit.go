@@ -13,17 +13,17 @@ import (
 
 const auditInsertSQL = `
 INSERT INTO execution_audit_logs (
-    timestamp, action, symbol, direction, order_id, analysis_id,
+    user_id, timestamp, action, symbol, direction, order_id, analysis_id,
     trace_id, execution_mode, entry_price, stop_loss, lot_size,
     risk_amount, risk_percent, grade, trading_style, session,
     rr_ratio, confluence_score, rejection_check, rejection_reason,
     details
 ) VALUES (
-    $1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11,
-    $12, $13, $14, $15, $16,
-    $17, $18, $19, $20,
-    $21
+    $1, $2, $3, $4, $5, $6, $7,
+    $8, $9, $10, $11, $12,
+    $13, $14, $15, $16, $17,
+    $18, $19, $20, $21,
+    $22
 )`
 
 const auditWriteTimeout = 5 * time.Second
@@ -46,6 +46,7 @@ func NewAuditStore(pool *pgxpool.Pool) *AuditStore {
 
 // AuditEntry represents a single audit log row.
 type AuditEntry struct {
+	UserID          string
 	Action          string
 	Symbol          string
 	Direction       string
@@ -76,6 +77,7 @@ func (s *AuditStore) Write(ctx context.Context, e *AuditEntry) {
 	detailsJSON := marshalDetails(e.Details, s.log)
 
 	_, err := s.pool.Exec(writeCtx, auditInsertSQL,
+		e.UserID,
 		time.Now().UTC(),
 		e.Action,
 		e.Symbol,
