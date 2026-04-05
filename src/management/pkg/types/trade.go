@@ -23,6 +23,12 @@ type Trade struct {
 	AnalysisID    string
 	TraceID       string
 
+	// Auth context (for background monitoring worker goroutines).
+	// Set when the trade is registered via gRPC and used by the worker
+	// to make authenticated calls to the Python engine broker endpoints.
+	UserID    string // Owner of this trade (auth user ID from JWT "sub" claim)
+	AuthToken string // Raw JWT token for authenticated downstream HTTP calls
+
 	// Execution context.
 	TradingStyle    constants.TradingStyle
 	Grade           string
