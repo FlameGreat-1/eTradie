@@ -313,6 +313,11 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 	order := builder.BuildWithMode(tradeReq, sizingResult, s.cfg, execMode)
 
+	// Set auth context on the order so the watcher goroutine can make
+	// authenticated calls to the Python engine and Gateway.
+	order.UserID = userID
+	order.AuthToken = auth.RawTokenFromContext(ctx)
+
 	// Step 5: Execute.
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
