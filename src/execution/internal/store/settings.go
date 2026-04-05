@@ -19,18 +19,18 @@ const (
 )
 
 const upsertSettingSQL = `
-INSERT INTO execution_settings (key, value, updated_at)
-VALUES ($1, $2, NOW())
-ON CONFLICT (key)
+INSERT INTO execution_settings (user_id, key, value, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (user_id, key)
 DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
 `
 
 const selectAllSettingsSQL = `
-SELECT key, value FROM execution_settings
+SELECT key, value FROM execution_settings WHERE user_id = $1
 `
 
 const selectSettingSQL = `
-SELECT value FROM execution_settings WHERE key = $1
+SELECT value FROM execution_settings WHERE user_id = $1 AND key = $2
 `
 
 // Setting keys.
@@ -67,13 +67,13 @@ func NewSettingsStore(pool *pgxpool.Pool) *SettingsStore {
 
 // LoadAll reads all settings from PostgreSQL and returns them merged
 // with the provided defaults. DB values take precedence over defaults.
-func (s *SettingsStore) LoadAll(ctx context.Context, defaults Settings) (*Settings, error) {
+func (s *SettingsStore) LoadAll(ctx context.Context, userID string, defaults Settings) (*Settings, error) {
 	readCtx, cancel := context.WithTimeout(ctx, settingsReadTimeout)
 	defer cancel()
 
 	result := defaults
 
-	rows, err := s.pool.Query(readCtx, selectAllSettingsSQL)
+	rows, err := s.pool.Query(readCtx, selectAllSettingsSQL, userID)
 	if err != nil {
 		return &result, fmt.Errorf("settings: load all: %w", err)
 	}
@@ -103,12 +103,12 @@ func (s *SettingsStore) LoadAll(ctx context.Context, defaults Settings) (*Settin
 }
 
 // Get reads a single setting value from PostgreSQL.
-func (s *SettingsStore) Get(ctx context.Context, key string) (string, error) {
+func (s *SettingsStore) Get(ctx context.Context, userID string, key string) (string, error) {
 	readCtx, cancel := context.WithTimeout(ctx, settingsReadTimeout)
 	defer cancel()
 
 	var value string
-	err := s.pool.QueryRow(readCtx, selectSettingSQL, key).Scan(&value)
+	err := s.pool.QueryRow(readCtx, selectSettingSQL, userID, key).Scan(&value)
 	if err != nil {
 		return "", fmt.Errorf("settings: get %s: %w", key, err)
 	}
@@ -116,7 +116,7 @@ func (s *SettingsStore) Get(ctx context.Context, key string) (string, error) {
 }
 
 // Set writes a single setting to PostgreSQL (UPSERT).
-func (s *SettingsStore) Set(ctx context.Context, key, value string) error {
+func (s *SettingsStore) Set(ctx context.Context, userID string, key, value string) error {
 	if err := validateSetting(key, value); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *SettingsStore) Set(ctx context.Context, key, value string) error {
 	writeCtx, cancel := context.WithTimeout(ctx, settingsWriteTimeout)
 	defer cancel()
 
-	_, err := s.pool.Exec(writeCtx, upsertSettingSQL, key, value)
+	_, err := s.pool.Exec(writeCtx, upsertSettingSQL, userID, key, value)
 	if err != nil {
 		s.log.Error().Err(err).Str("key", key).Str("value", value).Msg("setting_write_failed")
 		return fmt.Errorf("settings: set %s: %w", key, err)
@@ -135,7 +135,7 @@ func (s *SettingsStore) Set(ctx context.Context, key, value string) error {
 }
 
 // SaveAll writes all settings to PostgreSQL in a single transaction.
-func (s *SettingsStore) SaveAll(ctx context.Context, settings *Settings) error {
+func (s *SettingsStore) SaveAll(ctx context.Context, userID string, settings *Settings) error {
 	writeCtx, cancel := context.WithTimeout(ctx, settingsWriteTimeout)
 	defer cancel()
 
@@ -156,7 +156,7 @@ func (s *SettingsStore) SaveAll(ctx context.Context, settings *Settings) error {
 		if err := validateSetting(k, v); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(writeCtx, upsertSettingSQL, k, v); err != nil {
+		if _, err := tx.Exec(writeCtx, upsertSettingSQL, userID, k, v); err != nil {
 			return fmt.Errorf("settings: save %s: %w", k, err)
 		}
 	}
