@@ -325,7 +325,11 @@ def create_app() -> FastAPI:
     # -- Internal endpoints for Go gateway -----------------------------------
 
     @app.post("/internal/ta/analyze")
-    async def internal_ta_analyze(request: Request, body: InternalTARequest) -> dict:
+    async def internal_ta_analyze(
+        request: Request,
+        body: InternalTARequest,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Run TA analysis for the given symbols.
 
         Called by the Go gateway. Delegates to TAOrchestrator.analyze()
@@ -373,7 +377,9 @@ def create_app() -> FastAPI:
 
     @app.post("/internal/macro/collect")
     async def internal_macro_collect(
-        request: Request, body: InternalMacroRequest
+        request: Request,
+        body: InternalMacroRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Run all 8 macro collectors in parallel.
 
@@ -434,7 +440,11 @@ def create_app() -> FastAPI:
         }
 
     @app.post("/internal/rag/retrieve")
-    async def internal_rag_retrieve(request: Request, body: InternalRAGRequest) -> dict:
+    async def internal_rag_retrieve(
+        request: Request,
+        body: InternalRAGRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
         """Perform RAG retrieval with the given query parameters.
 
         Called by the Go gateway. Delegates to RAGOrchestrator.retrieve_context().
@@ -487,7 +497,9 @@ def create_app() -> FastAPI:
 
     @app.post("/internal/processor/process")
     async def internal_processor_process(
-        request: Request, body: InternalProcessorRequest
+        request: Request,
+        body: InternalProcessorRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Send assembled context to the Processor LLM.
 
@@ -503,6 +515,7 @@ def create_app() -> FastAPI:
             processor_input = ProcessorInput(**body.processor_input)
             result = await container.processor.process(
                 processor_input,
+                user_id=user.user_id,
                 trace_id=body.trace_id,
             )
 
