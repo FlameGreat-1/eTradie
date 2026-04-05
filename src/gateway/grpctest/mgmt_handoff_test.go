@@ -20,6 +20,7 @@ import (
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat-1/etradie/src/gateway/internal/context"
@@ -88,14 +89,15 @@ func (m *mockManagementServer) getCalls() []*managementv1.RegisterFilledTradeReq
 // mgmtHandoffHarness builds a Gateway gRPC server with a real
 // management.Client connected to a mock Management gRPC server.
 type mgmtHandoffHarness struct {
-	t        *testing.T
-	gwClient gatewayv1.GatewayServiceClient
-	mgmtMock *mockManagementServer
-	engine   *e2e.MockEngineServer
+	t            *testing.T
+	gwClient     gatewayv1.GatewayServiceClient
+	mgmtMock     *mockManagementServer
+	engine       *e2e.MockEngineServer
+	tokenService *auth.TokenService
 
 	// Resources to close.
 	gwLis       *bufconn.Listener
-	gwServer    *grpc.Server
+	gwServer    *server.GRPCServer
 	gwConn      *grpc.ClientConn
 	mgmtServer  *grpc.Server
 	hub         *alert.Hub
@@ -206,17 +208,19 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
 	}
 
+	// Build a real TokenService so the auth interceptor works in tests.
+	tokenService := newTestTokenService()
+
 	// Build GRPCServer WITH the real mgmtClient.
 	grpcSrv := server.NewGRPCServer(
 		cfg, orchestrator, symStore, settStore, scheduler,
-		redisWrapper, engineHTTP, transport, mgmtClient, nil,
+		redisWrapper, engineHTTP, transport, mgmtClient, tokenService,
 	)
 
 	// Start Gateway gRPC server via bufconn.
+	// Use the GRPCServer's internal server which has the auth interceptor.
 	gwLis := bufconn.Listen(bufSize)
-	gwRawServer := grpc.NewServer()
-	gatewayv1.RegisterGatewayServiceServer(gwRawServer, grpcSrv)
-	go gwRawServer.Serve(gwLis)
+	go grpcSrv.InternalServer().Serve(gwLis)
 
 	gwConn, err := grpc.NewClient(
 		"passthrough:///bufnet-gw",
@@ -230,17 +234,18 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	}
 
 	return &mgmtHandoffHarness{
-		t:           t,
-		gwClient:    gatewayv1.NewGatewayServiceClient(gwConn),
-		mgmtMock:    mgmtMock,
-		engine:      mockEngine,
-		gwLis:       gwLis,
-		gwServer:    gwRawServer,
-		gwConn:      gwConn,
-		mgmtServer:  mgmtGrpcServer,
-		hub:         hub,
-		transport:   transport,
-		redisClient: redisClient,
+		t:            t,
+		gwClient:     gatewayv1.NewGatewayServiceClient(gwConn),
+		mgmtMock:     mgmtMock,
+		engine:       mockEngine,
+		tokenService: tokenService,
+		gwLis:        gwLis,
+		gwServer:     grpcSrv,
+		gwConn:       gwConn,
+		mgmtServer:   mgmtGrpcServer,
+		hub:          hub,
+		transport:    transport,
+		redisClient:  redisClient,
 	}
 }
 
@@ -275,7 +280,8 @@ func TestGRPC_NotifyExecutionCompleted_FullHandoff(t *testing.T) {
 	h := newMgmtHandoffHarness(t, true, "MGMT-TRADE-001", nil)
 	defer h.close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	authCtx := testAuthContext(h.tokenService, "test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 15*time.Second)
 	defer cancel()
 
 	resp, err := h.gwClient.NotifyExecutionCompleted(ctx, &gatewayv1.NotifyExecutionCompletedRequest{
@@ -352,7 +358,8 @@ func TestGRPC_NotifyExecutionCompleted_MgmtReturnsError(t *testing.T) {
 		status.Errorf(codes.Unavailable, "management service unavailable"))
 	defer h.close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	authCtx := testAuthContext(h.tokenService, "test-user-002", "testuser2", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 15*time.Second)
 	defer cancel()
 
 	_, err := h.gwClient.NotifyExecutionCompleted(ctx, &gatewayv1.NotifyExecutionCompletedRequest{
@@ -384,7 +391,8 @@ func TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration(t *testing.T) {
 	h.mgmtMock.Message = "duplicate broker_order_id"
 	defer h.close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	authCtx := testAuthContext(h.tokenService, "test-user-003", "testuser3", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 15*time.Second)
 	defer cancel()
 
 	_, err := h.gwClient.NotifyExecutionCompleted(ctx, &gatewayv1.NotifyExecutionCompletedRequest{
