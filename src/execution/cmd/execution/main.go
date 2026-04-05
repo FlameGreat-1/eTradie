@@ -16,6 +16,7 @@ import (
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat-1/etradie/src/execution/internal/broker/mock"
@@ -49,6 +50,14 @@ func main() {
 		Str("execution_mode", cfg.DefaultExecutionMode).
 		Int("max_concurrent", cfg.MaxConcurrentTrades).
 		Msg("execution_engine_starting")
+
+	// ── Auth configuration ─────────────────────────────────────────────
+	authCfg, err := auth.LoadConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth_config_load_failed")
+	}
+	tokenService := auth.NewTokenService(authCfg)
+	log.Info().Msg("auth_service_initialized")
 
 	// ── Database connection pool ──────────────────────────────────────
 	ctx := context.Background()
@@ -139,7 +148,17 @@ func main() {
 		log.Fatal().Err(err).Int("port", cfg.GRPCPort).Msg("grpc_listen_failed")
 	}
 
-	grpcServer := grpc.NewServer()
+	// gRPC methods that bypass authentication (health checks).
+	skipAuth := map[string]bool{
+		"/grpc.health.v1.Health/Check": true,
+		"/grpc.health.v1.Health/Watch": true,
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			auth.UnaryAuthInterceptor(tokenService, skipAuth),
+		),
+	)
 	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
 	reflection.Register(grpcServer)
 
@@ -151,7 +170,7 @@ func main() {
 	}()
 
 	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────
-	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport)
+	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService)
 
 	go func() {
 		if err := httpServer.Start(); err != nil {
