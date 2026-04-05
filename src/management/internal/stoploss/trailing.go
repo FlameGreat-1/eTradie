@@ -59,6 +59,7 @@ func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, check
 	brokerID := trade.BrokerOrderID
 	symbol := trade.Symbol
 	tp1Hit := trade.TP1Hit
+	userID := trade.UserID
 	trade.RUnlock()
 
 	// Get the trailing config for this style to ensure it's supported.
@@ -116,10 +117,11 @@ func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, check
 	trade.Unlock()
 
 	// Persist.
-	if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+	if err := e.journal.UpdateTradeSL(ctx, userID, tradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:    userID,
 		TradeID:   tradeID,
 		EventType: string(constants.EventTrailingSLMoved),
 		Symbol:    symbol,

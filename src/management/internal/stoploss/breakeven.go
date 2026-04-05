@@ -45,6 +45,7 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	isLong := trade.IsLong()
 	openedAt := trade.OpenedAt
 	initialSL := trade.InitialSL
+	userID := trade.UserID
 	trade.RUnlock()
 
 	triggered := false
@@ -116,10 +117,11 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	trade.Unlock()
 
 	// Persist.
-	if err := e.journal.UpdateTradeSL(ctx, trade.TradeID, newSL); err != nil {
+	if err := e.journal.UpdateTradeSL(ctx, userID, trade.TradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_sl_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:    userID,
 		TradeID:   trade.TradeID,
 		EventType: string(constants.EventBreakevenSet),
 		Symbol:    trade.Symbol,
@@ -184,10 +186,12 @@ func (e *BreakevenEngine) applyTimeTightening(ctx context.Context, trade *types.
 	trade.SLMoves++
 	trade.Unlock()
 
-	if err := e.journal.UpdateTradeSL(ctx, trade.TradeID, newSL); err != nil {
+	userID := trade.UserID
+	if err := e.journal.UpdateTradeSL(ctx, userID, trade.TradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_sl_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:    userID,
 		TradeID:   trade.TradeID,
 		EventType: string(constants.EventSLTightened),
 		Symbol:    trade.Symbol,

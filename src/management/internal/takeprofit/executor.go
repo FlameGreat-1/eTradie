@@ -52,11 +52,12 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 	symbol := trade.Symbol
 	entryPrice := trade.EntryPrice
 	riskAmount := trade.RiskAmount
+	userID := trade.UserID
 	trade.RUnlock()
 
 	// TP3 check first (runner close - full close of remaining).
 	if !tp3Hit && tp2Hit && tp3Price > 0 && trade.IsTP3Hit(checkPrice) {
-		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, remaining, "TP3", constants.EventTP3Hit, tp3Pct, true)
+		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, remaining, "TP3", constants.EventTP3Hit, tp3Pct, true, userID)
 	}
 
 	// TP2 check.
@@ -65,7 +66,7 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 		if closeVol > remaining {
 			closeVol = remaining
 		}
-		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, closeVol, "TP2", constants.EventTP2Hit, tp2Pct, false)
+		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, closeVol, "TP2", constants.EventTP2Hit, tp2Pct, false, userID)
 	}
 
 	// TP1 check.
@@ -74,7 +75,7 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 		if closeVol > remaining {
 			closeVol = remaining
 		}
-		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, closeVol, "TP1", constants.EventTP1Hit, tp1Pct, false)
+		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, closeVol, "TP1", constants.EventTP1Hit, tp1Pct, false, userID)
 	}
 
 	return "", nil
@@ -89,6 +90,7 @@ func (e *Executor) executeTP(
 	eventType constants.EventType,
 	tpPct int32,
 	fullClose bool,
+	userID string,
 ) (constants.EventType, error) {
 
 	var err error
@@ -141,11 +143,12 @@ func (e *Executor) executeTP(
 	trade.Unlock()
 
 	// Persist partial.
-	if err := e.journal.UpdateTradePartial(ctx, tradeID, pnlEstimate); err != nil {
+	if err := e.journal.UpdateTradePartial(ctx, userID, tradeID, pnlEstimate); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_partial_failed")
 	}
 
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+		UserID:       userID,
 		TradeID:      tradeID,
 		EventType:    string(eventType),
 		Symbol:       symbol,
