@@ -55,6 +55,10 @@ type Order struct {
 	// Timestamps.
 	CreatedAt time.Time
 
+	// Auth context (for background watcher goroutines).
+	UserID    string // Owner of this order
+	AuthToken string // JWT token for authenticated downstream calls
+
 	// Broker reference (populated after placement).
 	BrokerOrderID string
 }
