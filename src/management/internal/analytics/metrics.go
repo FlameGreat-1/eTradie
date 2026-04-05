@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -11,7 +12,7 @@ import (
 
 // Metrics calculates real-time performance analytics from the journal
 // database. Used by the GetPerformanceMetrics gRPC endpoint and the
-// dashboard.
+// dashboard. All queries are scoped by user_id for multi-tenant isolation.
 type Metrics struct {
 	pool *pgxpool.Pool
 	log  zerolog.Logger
@@ -46,8 +47,13 @@ type PerformanceSummary struct {
 	WinRateBySession     map[string]float64
 }
 
-// Calculate computes the full performance summary for a given period filter.
-func (m *Metrics) Calculate(ctx context.Context, period string) (*PerformanceSummary, error) {
+// Calculate computes the full performance summary for a given user and period filter.
+// All queries are scoped by user_id to ensure strict multi-tenant data isolation.
+func (m *Metrics) Calculate(ctx context.Context, userID, period string) (*PerformanceSummary, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("calculate metrics: user_id must not be empty")
+	}
+
 	summary := &PerformanceSummary{
 		WinRateBySymbol:  make(map[string]float64),
 		WinRateByStyle:   make(map[string]float64),
@@ -65,10 +71,10 @@ func (m *Metrics) Calculate(ctx context.Context, period string) (*PerformanceSum
 	case "MONTHLY":
 		periodFilter = "AND closed_at >= DATE_TRUNC('month', CURRENT_DATE)"
 	default:
-		// ALL_TIME — no filter.
+		// ALL_TIME \u2014 no additional filter.
 	}
 
-	// Core stats.
+	// Core stats. user_id is always $1.
 	coreQuery := `
 		SELECT
 			COUNT(*) as total,
@@ -80,9 +86,9 @@ func (m *Metrics) Calculate(ctx context.Context, period string) (*PerformanceSum
 			COALESCE(MAX(r_multiple), 0) as best_r,
 			COALESCE(MIN(r_multiple), 0) as worst_r
 		FROM management_trades
-		WHERE status = 'CLOSED' ` + periodFilter
+		WHERE status = 'CLOSED' AND user_id = $1 ` + periodFilter
 
-	err := m.pool.QueryRow(ctx, coreQuery).Scan(
+	err := m.pool.QueryRow(ctx, coreQuery, userID).Scan(
 		&summary.TotalTrades,
 		&summary.Wins,
 		&summary.Losses,
@@ -109,8 +115,8 @@ func (m *Metrics) Calculate(ctx context.Context, period string) (*PerformanceSum
 				COALESCE(AVG(r_multiple) FILTER (WHERE outcome = 'WIN'), 0),
 				COALESCE(ABS(AVG(r_multiple) FILTER (WHERE outcome = 'LOSS')), 0)
 			FROM management_trades
-			WHERE status = 'CLOSED' ` + periodFilter
-		if err := m.pool.QueryRow(ctx, statsQuery).Scan(&avgWinR, &avgLossR); err == nil {
+			WHERE status = 'CLOSED' AND user_id = $1 ` + periodFilter
+		if err := m.pool.QueryRow(ctx, statsQuery, userID).Scan(&avgWinR, &avgLossR); err == nil {
 			winRate := float64(summary.Wins) / float64(summary.TotalTrades)
 			lossRate := float64(summary.Losses) / float64(summary.TotalTrades)
 			summary.Expectancy = (winRate * avgWinR) - (lossRate * avgLossR)
@@ -118,22 +124,22 @@ func (m *Metrics) Calculate(ctx context.Context, period string) (*PerformanceSum
 	}
 
 	// Consecutive streaks.
-	summary.MaxConsecutiveWins, summary.MaxConsecutiveLosses = m.calculateStreaks(ctx, periodFilter)
+	summary.MaxConsecutiveWins, summary.MaxConsecutiveLosses = m.calculateStreaks(ctx, userID, periodFilter)
 
 	// Win rate breakdowns by dimension.
-	summary.WinRateBySymbol = m.winRateByDimension(ctx, "symbol", periodFilter)
-	summary.WinRateByStyle = m.winRateByDimension(ctx, "trading_style", periodFilter)
-	summary.WinRateBySetup = m.winRateByDimension(ctx, "setup_type", periodFilter)
-	summary.WinRateBySession = m.winRateByDimension(ctx, "session", periodFilter)
+	summary.WinRateBySymbol = m.winRateByDimension(ctx, userID, "symbol", periodFilter)
+	summary.WinRateByStyle = m.winRateByDimension(ctx, userID, "trading_style", periodFilter)
+	summary.WinRateBySetup = m.winRateByDimension(ctx, userID, "setup_type", periodFilter)
+	summary.WinRateBySession = m.winRateByDimension(ctx, userID, "session", periodFilter)
 
 	return summary, nil
 }
 
-func (m *Metrics) calculateStreaks(ctx context.Context, periodFilter string) (maxWins, maxLosses int) {
+func (m *Metrics) calculateStreaks(ctx context.Context, userID, periodFilter string) (maxWins, maxLosses int) {
 	rows, err := m.pool.Query(ctx, `
 		SELECT outcome FROM management_trades
-		WHERE status = 'CLOSED' `+periodFilter+`
-		ORDER BY closed_at ASC`)
+		WHERE status = 'CLOSED' AND user_id = $1 `+periodFilter+`
+		ORDER BY closed_at ASC`, userID)
 	if err != nil {
 		return 0, 0
 	}
@@ -166,17 +172,17 @@ func (m *Metrics) calculateStreaks(ctx context.Context, periodFilter string) (ma
 	return maxWins, maxLosses
 }
 
-func (m *Metrics) winRateByDimension(ctx context.Context, dimension, periodFilter string) map[string]float64 {
+func (m *Metrics) winRateByDimension(ctx context.Context, userID, dimension, periodFilter string) map[string]float64 {
 	result := make(map[string]float64)
 
 	query := `
 		SELECT ` + dimension + `,
 			COUNT(*) FILTER (WHERE outcome = 'WIN')::float / NULLIF(COUNT(*), 0) * 100 as win_rate
 		FROM management_trades
-		WHERE status = 'CLOSED' AND ` + dimension + ` != '' ` + periodFilter + `
+		WHERE status = 'CLOSED' AND user_id = $1 AND ` + dimension + ` != '' ` + periodFilter + `
 		GROUP BY ` + dimension
 
-	rows, err := m.pool.Query(ctx, query)
+	rows, err := m.pool.Query(ctx, query, userID)
 	if err != nil {
 		return result
 	}
