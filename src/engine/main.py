@@ -32,6 +32,12 @@ from engine.processor.storage.repositories.llm_connection_repository import (
     LLMConnectionRepository,
     decrypt_api_key,
 )
+from engine.shared.auth import (
+    AuthenticatedUser,
+    get_admin_user,
+    get_current_user,
+    get_optional_user,
+)
 from engine.shared.logging import configure_logging, get_logger
 from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.models.currency import get_correlation_config
@@ -163,11 +169,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_economic=settings.poll_interval_economic_data,
     )
 
-    # -- Broker Connection (DB-driven) ----------------------------------------
-    # Load the active broker connection from the database. This takes
-    # precedence over env-var-based broker created during Container.__init__.
-    # If no DB connection exists and no env vars were set, mt5_client
-    # remains None until the user configures one via the dashboard.
+    # -- Broker Connection ---------------------------------------------------
+    # In multi-tenant mode, per-user broker connections are resolved at
+    # request time. At startup, only env-var broker is configured.
     await container.build_broker()
     broker_status = (
         "configured" if container.mt5_client is not None else "not_configured"
@@ -175,6 +179,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("broker_startup", status=broker_status)
 
     # -- Processor LLM -------------------------------------------------------
+    # In multi-tenant mode, per-user LLM connections are resolved at
+    # request time. At startup, only env-var config is used.
     await container.build_processor()
     logger.info(
         "processor_built",
