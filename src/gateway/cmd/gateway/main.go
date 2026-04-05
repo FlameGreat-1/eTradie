@@ -9,7 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/container"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
@@ -32,8 +35,61 @@ func main() {
 
 	log.Info().Msg("gateway_starting")
 
-	// Initialize OpenTelemetry tracing.
+	// ── Auth configuration ─────────────────────────────────────────────
+	authCfg, err := auth.LoadConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth_config_load_failed")
+	}
+
+	// ── Auth database ──────────────────────────────────────────────────
+	// Auth uses the same PostgreSQL instance as Execution/Management.
+	// If AUTH_DATABASE_URL is not set, fall back to the gateway's Redis-
+	// adjacent DB URL pattern. We construct it from POSTGRES_ env vars.
+	authDBURL := authCfg.DatabaseURL
+	if authDBURL == "" {
+		// Build from standard POSTGRES_ env vars (same as .env.example).
+		pgUser := envOrDefault("POSTGRES_USER", "etradie")
+		pgPass := envOrDefault("POSTGRES_PASSWORD", "")
+		pgHost := envOrDefault("POSTGRES_HOST", "postgres")
+		pgPort := envOrDefault("POSTGRES_PORT", "5432")
+		pgDB := envOrDefault("POSTGRES_DB", "etradie")
+		authDBURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+			pgUser, pgPass, pgHost, pgPort, pgDB)
+	}
+
 	ctx := context.Background()
+
+	authPool, err := pgxpool.New(ctx, authDBURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("auth_database_pool_create_failed")
+	}
+	defer authPool.Close()
+
+	if err := authPool.Ping(ctx); err != nil {
+		log.Fatal().Err(err).Msg("auth_database_ping_failed")
+	}
+
+	// Create auth tables.
+	if _, err := authPool.Exec(ctx, auth.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("auth_schema_creation_failed")
+	}
+
+	// Build auth components.
+	userStore := auth.NewUserStore(authPool)
+	sessionStore := auth.NewSessionStore(authPool)
+	tokenService := auth.NewTokenService(authCfg)
+	authHandler := auth.NewHandler(userStore, sessionStore, tokenService, authCfg)
+
+	// Seed admin user on first startup.
+	if err := auth.SeedAdminUser(ctx, userStore, authCfg); err != nil {
+		log.Error().Err(err).Msg("auth_admin_seed_failed")
+	} else {
+		log.Info().Str("admin_username", authCfg.AdminUsername).Msg("auth_admin_seed_checked")
+	}
+
+	log.Info().Msg("auth_service_initialized")
+
+	// Initialize OpenTelemetry tracing.
 	shutdownTracing, err := observability.InitTracing(ctx, cfg.OTELServiceName, cfg.OTELEndpoint)
 	if err != nil {
 		log.Warn().Err(err).Msg("tracing_init_failed_continuing_without_tracing")
@@ -55,7 +111,7 @@ func main() {
 		log.Info().Msg("execution_engine_disabled")
 	}
 
-	c, err := container.New(cfg, execPort, execAdapter)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}
@@ -90,6 +146,25 @@ func main() {
 		c.Scheduler.Start(schedulerCtx)
 	}()
 
+	// Periodic session cleanup (every hour).
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-schedulerCtx.Done():
+				return
+			case <-ticker.C:
+				deleted, err := sessionStore.CleanupExpiredSessions(context.Background())
+				if err != nil {
+					log.Error().Err(err).Msg("auth_session_cleanup_failed")
+				} else if deleted > 0 {
+					log.Info().Int64("deleted", deleted).Msg("auth_expired_sessions_cleaned")
+				}
+			}
+		}
+	}()
+
 	log.Info().
 		Int("http_port", cfg.HTTPPort).
 		Int("grpc_port", cfg.GRPCPort).
@@ -108,6 +183,7 @@ func main() {
 				"cycle_interval_seconds": cfg.CycleIntervalSeconds,
 				"symbols":                cfg.DefaultSymbols,
 				"execution_enabled":      cfg.ExecutionEnabled,
+				"auth_enabled":           true,
 			}),
 	)
 
@@ -138,6 +214,9 @@ func main() {
 	schedulerCancel()
 	c.Shutdown(shutdownCtx)
 
+	// Close auth DB pool.
+	authPool.Close()
+
 	if shutdownTracing != nil {
 		if err := shutdownTracing(shutdownCtx); err != nil {
 			log.Error().Err(err).Msg("tracing_shutdown_error")
@@ -145,4 +224,12 @@ func main() {
 	}
 
 	log.Info().Msg("gateway_stopped")
+}
+
+// envOrDefault reads an environment variable with a fallback default.
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
