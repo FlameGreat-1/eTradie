@@ -321,6 +321,13 @@ func main() {
 			mgr.RegisterTrade(trade)
 		}
 
+		// Set the tick cache auth token. Any valid service token works
+		// since tick prices are not user-scoped.
+		for _, svcToken := range serviceTokens {
+			mgr.TickCache().SetAuthToken(svcToken)
+			break // Only need one token.
+		}
+
 		log.Info().
 			Int("trades_restored", len(activeTrades)).
 			Int("users_with_service_tokens", len(serviceTokens)).
@@ -415,6 +422,9 @@ func main() {
 						renewalLog.Error().Err(err).Str("user_id", uid).Msg("renewal_token_issue_failed")
 						continue
 					}
+
+					// Also refresh the tick cache token.
+					mgr.TickCache().SetAuthToken(svcToken)
 
 					count := mgr.RefreshUserTradeTokens(uid, svcToken)
 					if count > 0 {
