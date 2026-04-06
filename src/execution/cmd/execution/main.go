@@ -271,6 +271,13 @@ func main() {
 				Msg("watcher_restored")
 		}
 
+		// Set the tick cache auth token. Any valid service token works
+		// since tick prices are not user-scoped.
+		for _, svcToken := range serviceTokens {
+			wm.TickCache().SetAuthToken(svcToken)
+			break
+		}
+
 		log.Info().
 			Int("total_pending", len(pendingWatchers)).
 			Int("restored", restoredCount).
