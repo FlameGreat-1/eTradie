@@ -56,6 +56,7 @@ type Manager struct {
 	audit     *audit.Logger
 	transport *alertredis.Transport
 	store     WatcherPersistence
+	tickCache *TickCache
 	cfg       Config
 	log       zerolog.Logger
 
@@ -85,6 +86,7 @@ func NewManager(
 		audit:     al,
 		transport: transport,
 		store:     persistence,
+		tickCache: NewTickCache(bp, cfg.PollIntervalMs),
 		cfg:       cfg,
 		log:       observability.Logger("watcher_manager"),
 		watchers:  make(map[string]*Watcher),
@@ -122,6 +124,7 @@ func (m *Manager) Arm(order *models.Order) {
 		gateway:   m.gateway,
 		audit:     m.audit,
 		transport: m.transport,
+		tickCache: m.tickCache,
 		cfg:       m.cfg,
 		log: m.log.With().
 			Str("watcher_id", order.WatcherID).
@@ -132,6 +135,9 @@ func (m *Manager) Arm(order *models.Order) {
 	}
 
 	m.watchers[order.WatcherID] = w
+
+	// Subscribe to tick cache for this symbol.
+	m.tickCache.Subscribe(order.Symbol)
 
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "armed").Inc()
 
@@ -167,6 +173,7 @@ func (m *Manager) Disarm(watcherID string) {
 
 	if exists {
 		w.stop()
+		m.tickCache.Unsubscribe(w.order.Symbol)
 		// Remove persistence record.
 		if m.store != nil {
 			if err := m.store.Delete(context.Background(), watcherID); err != nil {
@@ -192,6 +199,7 @@ func (m *Manager) Shutdown() {
 	m.mu.Unlock()
 
 	m.log.Info().Int("active_watchers", m.ActiveCount()).Msg("watcher_manager_shutting_down")
+	m.tickCache.Shutdown()
 	m.cancel()
 
 	// Wait for all watchers to finish with a deadline.
@@ -218,8 +226,16 @@ func (m *Manager) Shutdown() {
 // Thread-safe.
 func (m *Manager) onWatcherDone(watcherID string) {
 	m.mu.Lock()
+	var symbol string
+	if w, ok := m.watchers[watcherID]; ok {
+		symbol = w.order.Symbol
+	}
 	delete(m.watchers, watcherID)
 	m.mu.Unlock()
+
+	if symbol != "" {
+		m.tickCache.Unsubscribe(symbol)
+	}
 
 	// Remove persistence record (order filled, timed out, or disarmed).
 	if m.store != nil {
@@ -271,6 +287,12 @@ func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
 	return refreshed
 }
 
+// TickCache returns the shared tick price cache. Exposed so that
+// main.go can set the auth token on startup.
+func (m *Manager) TickCache() *TickCache {
+	return m.tickCache
+}
+
 // Watcher monitors a single instant-mode order's entry zone, calls
 // the Gateway for LTF confirmation when price enters the zone, and
 // fires the market order upon confirmation. Runs as a single goroutine.
@@ -280,6 +302,7 @@ type Watcher struct {
 	gateway        GatewayPort
 	audit          *audit.Logger
 	transport      *alertredis.Transport
+	tickCache      *TickCache
 	cfg            Config
 	timeoutMinutes int // Resolved style-specific timeout (set in run())
 	log            zerolog.Logger
@@ -362,10 +385,12 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 // zone, and if so, triggers the confirmation + execution flow.
 // Returns true if the watcher should stop (order placed or fatal error).
 func (w *Watcher) checkAndExecute(ctx context.Context) bool {
-	tick, err := w.broker.GetTickPrice(ctx, w.order.Symbol)
-	if err != nil {
-		w.log.Warn().Err(err).Msg("watcher_tick_fetch_failed")
-		return false // Transient error, keep polling.
+	// Read tick price from the shared cache. The cache is populated
+	// by a single poller per symbol, eliminating redundant HTTP calls.
+	tick := w.tickCache.GetTickPrice(w.order.Symbol)
+	if tick == nil {
+		// Cache not yet populated. Skip this cycle.
+		return false
 	}
 
 	if !w.isPriceInZone(tick) {
@@ -385,6 +410,9 @@ func (w *Watcher) checkAndExecute(ctx context.Context) bool {
 // isPriceInZone checks if the current tick price is within the order's
 // entry zone, accounting for direction and overshoot tolerance.
 func (w *Watcher) isPriceInZone(tick *models.TickPrice) bool {
+	if tick == nil {
+		return false
+	}
 	tolerance := w.order.OvershootTolerance
 	entry := w.order.EntryPrice
 
