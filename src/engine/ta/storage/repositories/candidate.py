@@ -30,9 +30,10 @@ class CandidateRepository:
         self.session = session
         self._logger = get_logger(__name__)
 
-    async def create_smc_candidate(self, candidate: SMCCandidate) -> CandidateSchema:
-        """Create SMC candidate record."""
+    async def create_smc_candidate(self, candidate: SMCCandidate, *, user_id: str) -> CandidateSchema:
+        """Create SMC candidate record owned by user_id."""
         schema = CandidateSchema(
+            user_id=user_id,
             symbol=candidate.symbol,
             timeframe=candidate.timeframe,
             pattern=candidate.pattern.value,
@@ -93,9 +94,10 @@ class CandidateRepository:
 
         return schema
 
-    async def create_snd_candidate(self, candidate: SnDCandidate) -> CandidateSchema:
-        """Create SnD candidate record."""
+    async def create_snd_candidate(self, candidate: SnDCandidate, *, user_id: str) -> CandidateSchema:
+        """Create SnD candidate record owned by user_id."""
         schema = CandidateSchema(
+            user_id=user_id,
             symbol=candidate.symbol,
             timeframe=candidate.timeframe,
             pattern=candidate.pattern.value,
@@ -176,12 +178,15 @@ class CandidateRepository:
     async def find_active_candidates(
         self,
         symbol: str,
+        *,
+        user_id: str,
         timeframe: Optional[str] = None,
         pattern: Optional[str] = None,
         direction: Optional[str] = None,
     ) -> list[CandidateSchema]:
-        """Find active candidates with optional filters."""
+        """Find active candidates for a specific user with optional filters."""
         conditions = [
+            CandidateSchema.user_id == user_id,
             CandidateSchema.symbol == symbol,
             CandidateSchema.is_active == True,
         ]
@@ -205,10 +210,13 @@ class CandidateRepository:
         symbol: str,
         start_time: datetime,
         end_time: datetime,
+        *,
+        user_id: str,
         is_active: Optional[bool] = None,
     ) -> list[CandidateSchema]:
-        """Find candidates within time range."""
+        """Find candidates within time range for a specific user."""
         conditions = [
+            CandidateSchema.user_id == user_id,
             CandidateSchema.symbol == symbol,
             CandidateSchema.timestamp >= start_time,
             CandidateSchema.timestamp <= end_time,

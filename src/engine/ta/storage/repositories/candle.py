@@ -26,12 +26,16 @@ def _derive_close_time(timestamp: datetime, timeframe_str: str) -> datetime:
     return timestamp + timedelta(minutes=1)
 
 
-def _candle_to_schema(candle: Candle) -> CandleSchema:
+def _candle_to_schema(candle: Candle, user_id: str) -> CandleSchema:
     """Map a Candle domain model to a CandleSchema ORM row.
 
     Only maps fields that exist on the Candle model. Derives
     open_time/close_time from timestamp + timeframe duration.
     Crypto-specific fields are left as None.
+
+    Args:
+        candle: The candle domain model.
+        user_id: The owning user's ID. Required for multi-tenant isolation.
     """
     tf_str = (
         candle.timeframe.value
@@ -39,6 +43,7 @@ def _candle_to_schema(candle: Candle) -> CandleSchema:
         else str(candle.timeframe)
     )
     return CandleSchema(
+        user_id=user_id,
         symbol=candle.symbol,
         timeframe=tf_str,
         timestamp=candle.timestamp,
@@ -69,9 +74,9 @@ class CandleRepository:
         self.session = session
         self._logger = get_logger(__name__)
 
-    async def create(self, candle: Candle) -> CandleSchema:
-        """Create a single candle record."""
-        schema = _candle_to_schema(candle)
+    async def create(self, candle: Candle, *, user_id: str) -> CandleSchema:
+        """Create a single candle record owned by user_id."""
+        schema = _candle_to_schema(candle, user_id)
 
         self.session.add(schema)
         await self.session.flush()
@@ -87,12 +92,12 @@ class CandleRepository:
 
         return schema
 
-    async def bulk_create(self, candles: list[Candle]) -> list[CandleSchema]:
-        """Batch insert multiple candles."""
+    async def bulk_create(self, candles: list[Candle], *, user_id: str) -> list[CandleSchema]:
+        """Batch insert multiple candles owned by user_id."""
         if not candles:
             return []
 
-        schemas = [_candle_to_schema(c) for c in candles]
+        schemas = [_candle_to_schema(c, user_id) for c in candles]
 
         self.session.add_all(schemas)
         await self.session.flush()
@@ -123,11 +128,14 @@ class CandleRepository:
         symbol: str,
         timeframe: str,
         timestamp: datetime,
+        *,
+        user_id: str,
     ) -> Optional[CandleSchema]:
-        """Find candle by symbol, timeframe, and timestamp."""
+        """Find candle by user_id, symbol, timeframe, and timestamp."""
         result = await self.session.execute(
             select(CandleSchema).where(
                 and_(
+                    CandleSchema.user_id == user_id,
                     CandleSchema.symbol == symbol,
                     CandleSchema.timeframe == timeframe,
                     CandleSchema.timestamp == timestamp,
@@ -143,12 +151,15 @@ class CandleRepository:
         start_time: datetime,
         end_time: datetime,
         limit: Optional[int] = None,
+        *,
+        user_id: str,
     ) -> list[CandleSchema]:
-        """Find candles within time range, ordered by timestamp."""
+        """Find candles within time range for a specific user, ordered by timestamp."""
         query = (
             select(CandleSchema)
             .where(
                 and_(
+                    CandleSchema.user_id == user_id,
                     CandleSchema.symbol == symbol,
                     CandleSchema.timeframe == timeframe,
                     CandleSchema.timestamp >= start_time,
@@ -168,12 +179,15 @@ class CandleRepository:
         self,
         symbol: str,
         timeframe: str,
+        *,
+        user_id: str,
     ) -> Optional[CandleSchema]:
-        """Get most recent candle for symbol/timeframe."""
+        """Get most recent candle for user/symbol/timeframe."""
         result = await self.session.execute(
             select(CandleSchema)
             .where(
                 and_(
+                    CandleSchema.user_id == user_id,
                     CandleSchema.symbol == symbol,
                     CandleSchema.timeframe == timeframe,
                 )
@@ -187,11 +201,14 @@ class CandleRepository:
         self,
         symbol: str,
         timeframe: str,
+        *,
+        user_id: str,
     ) -> int:
-        """Count total candles for symbol/timeframe."""
+        """Count total candles for user/symbol/timeframe."""
         result = await self.session.execute(
             select(func.count(CandleSchema.id)).where(
                 and_(
+                    CandleSchema.user_id == user_id,
                     CandleSchema.symbol == symbol,
                     CandleSchema.timeframe == timeframe,
                 )
@@ -222,11 +239,14 @@ class CandleRepository:
         timeframe: str,
         start_time: datetime,
         end_time: datetime,
+        *,
+        user_id: str,
     ) -> int:
-        """Delete candles within time range. Returns count deleted."""
+        """Delete candles within time range for a specific user. Returns count deleted."""
         result = await self.session.execute(
             delete(CandleSchema).where(
                 and_(
+                    CandleSchema.user_id == user_id,
                     CandleSchema.symbol == symbol,
                     CandleSchema.timeframe == timeframe,
                     CandleSchema.timestamp >= start_time,
