@@ -383,6 +383,16 @@ def create_app() -> FastAPI:
 
         Called by the Go gateway. Delegates to TAOrchestrator.analyze()
         for each symbol and returns the aggregated results.
+
+        MULTI-TENANT NOTE: TA analysis uses the platform-level broker
+        (container.mt5_client) for candle data fetching. This is correct
+        because OHLCV candle data is identical across all brokers for the
+        same symbol/timeframe. The broker is a market data source, not
+        user-specific. User-specific broker connections are only needed
+        for trading operations (/internal/broker/* endpoints).
+
+        Auth is still required to ensure only authenticated users can
+        trigger analysis cycles (prevents unauthorized resource consumption).
         """
         container: Container = request.app.state.container
         if not hasattr(container, "ta_orchestrator"):
@@ -434,6 +444,12 @@ def create_app() -> FastAPI:
 
         Called by the Go gateway. Delegates to each macro collector
         and returns the aggregated results.
+
+        MULTI-TENANT NOTE: Macro data (central bank speeches, COT reports,
+        economic releases, news, calendar events, DXY, intermarket,
+        sentiment) is market-wide data identical for all users. The
+        collectors are global singletons by design. Auth is required to
+        prevent unauthorized resource consumption.
         """
         container: Container = request.app.state.container
 
