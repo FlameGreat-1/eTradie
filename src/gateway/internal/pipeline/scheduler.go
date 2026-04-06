@@ -17,7 +17,10 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 )
 
-// Scheduler manages the recurring gateway analysis cycle.
+// Scheduler manages the recurring gateway analysis cycles for ALL active users.
+// Each user gets their own cycle with their own identity, symbols, and broker
+// connection. The scheduler operates autonomously 24/7 regardless of whether
+// any user is logged into the dashboard.
 type Scheduler struct {
 	orchestrator    *Orchestrator
 	symbolStore     *symbolstore.Store
@@ -32,6 +35,10 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a gateway cycle scheduler.
+// tokenService and userStore enable autonomous operation: the scheduler
+// issues service tokens for each active user so downstream services
+// (Python engine, Module B, Module C) can identify the correct broker
+// connection and user context without requiring a dashboard login.
 func NewScheduler(
 	orchestrator *Orchestrator,
 	symbolStore *symbolstore.Store,
@@ -61,9 +68,6 @@ func NewScheduler(
 
 // LoadPersistedInterval checks Redis for a dashboard-set interval override
 // and applies it. Requires a userID since settings are user-scoped.
-// Called when a user authenticates and their persisted interval should
-// override the default. In the current single-scheduler architecture,
-// this applies the last-authenticated user's interval.
 func (s *Scheduler) LoadPersistedInterval(ctx context.Context, userID string) {
 	if s.settingsStore == nil || userID == "" {
 		return
@@ -102,49 +106,27 @@ func (s *Scheduler) UpdateInterval(newInterval time.Duration) {
 		Msg("scheduler_interval_updated")
 }
 
-// issueServiceContext creates a context with a valid service token
-// for autonomous background operations. The service token carries
-// the admin user's identity so downstream services (Python engine,
-// Module B, Module C) can identify the broker connection and user.
-// Returns the base context if token issuance fails (graceful degradation).
-func (s *Scheduler) issueServiceContext(ctx context.Context) context.Context {
-	if s.tokenService == nil || s.userStore == nil {
-		s.log.Warn().Msg("scheduler_no_token_service_running_without_auth")
-		return ctx
+// issueUserServiceContext creates a context with a valid service token
+// for the given user. The service token carries the user's identity so
+// downstream services resolve the correct broker connection and account.
+// Returns nil context if token issuance fails (caller should skip this user).
+func (s *Scheduler) issueUserServiceContext(ctx context.Context, user *auth.User) context.Context {
+	if s.tokenService == nil {
+		s.log.Warn().
+			Str("user_id", user.ID).
+			Msg("scheduler_no_token_service_skipping_user")
+		return nil
 	}
 
-	// Look up the admin user to get their ID and username.
-	// The admin is seeded at startup, so this should always succeed.
-	users, err := s.userStore.ListUsers(ctx)
-	if err != nil || len(users) == 0 {
-		s.log.Error().Err(err).Msg("scheduler_failed_to_find_admin_user_for_service_token")
-		return ctx
-	}
-
-	// Find the first active admin user.
-	var adminUser *auth.User
-	for _, u := range users {
-		if u.IsAdmin() && u.Active {
-			adminUser = u
-			break
-		}
-	}
-	if adminUser == nil {
-		s.log.Error().Msg("scheduler_no_active_admin_user_found_for_service_token")
-		return ctx
-	}
-
-	// Issue a long-lived service token for autonomous operation.
-	serviceToken, err := s.tokenService.IssueServiceToken(adminUser.ID, adminUser.Username, adminUser.Role)
+	serviceToken, err := s.tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
 	if err != nil {
-		s.log.Error().Err(err).Msg("scheduler_service_token_issuance_failed")
-		return ctx
+		s.log.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("username", user.Username).
+			Msg("scheduler_service_token_issuance_failed_for_user")
+		return nil
 	}
-
-	s.log.Info().
-		Str("admin_user_id", adminUser.ID).
-		Str("admin_username", adminUser.Username).
-		Msg("scheduler_service_token_issued_for_autonomous_operation")
 
 	return auth.InjectTokenIntoContext(ctx, serviceToken)
 }
@@ -159,11 +141,6 @@ func (s *Scheduler) Start(ctx context.Context) {
 		s.log.Info().Msg("gateway_disabled_skipping_scheduler")
 		return
 	}
-
-	// Issue a service token for autonomous 24/7 operation.
-	// This ensures all downstream calls (Python engine, Module B, Module C)
-	// carry valid authentication even when no user is logged in.
-	serviceCtx := s.issueServiceContext(ctx)
 
 	interval := time.Duration(s.intervalSeconds.Load()) * time.Second
 
@@ -192,7 +169,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	}
 
 	// Fire the first cycle immediately after jitter.
-	s.runCycle(serviceCtx)
+	s.runAllUserCycles(ctx)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -211,28 +188,107 @@ func (s *Scheduler) Start(ctx context.Context) {
 				Msg("scheduler_ticker_reset")
 
 		case <-ticker.C:
-			s.runCycle(serviceCtx)
+			s.runAllUserCycles(ctx)
 		}
 	}
 }
 
-func (s *Scheduler) runCycle(ctx context.Context) {
+// runAllUserCycles iterates over all active users and runs an analysis
+// cycle for each one with their own identity, symbols, and broker context.
+// This is the core of autonomous 24/7 multi-tenant operation.
+func (s *Scheduler) runAllUserCycles(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			observability.LogPanicRecovery(s.log, r, "scheduled_cycle")
+			observability.LogPanicRecovery(s.log, r, "scheduled_all_user_cycles")
 		}
 	}()
 
-	// Use the configured default symbols for scheduled cycles.
-	// The context carries a service token for downstream auth.
-	symbols := s.symbolStore.DefaultSymbols()
+	if s.userStore == nil {
+		// No user store available; fall back to unauthenticated cycle
+		// with default symbols (backward compatibility).
+		s.log.Warn().Msg("scheduler_no_user_store_running_unauthenticated_cycle")
+		symbols := s.symbolStore.DefaultSymbols()
+		s.orchestrator.RunCycle(ctx, symbols, "")
+		return
+	}
+
+	// List all active users from the database.
+	users, err := s.userStore.ListUsers(ctx)
+	if err != nil {
+		s.log.Error().Err(err).Msg("scheduler_failed_to_list_users")
+		return
+	}
+
+	// Filter to active users only.
+	var activeUsers []*auth.User
+	for _, u := range users {
+		if u.Active {
+			activeUsers = append(activeUsers, u)
+		}
+	}
+
+	if len(activeUsers) == 0 {
+		s.log.Warn().Msg("scheduler_no_active_users_found_skipping_cycle")
+		return
+	}
 
 	s.log.Info().
-		Strs("symbols", symbols).
-		Str("source", "default_config").
-		Msg("gateway_scheduled_cycle_starting")
+		Int("active_users", len(activeUsers)).
+		Msg("scheduler_starting_cycles_for_all_users")
 
-	s.orchestrator.RunCycle(ctx, symbols, "")
+	// Run a cycle for each active user sequentially.
+	// Sequential execution prevents resource contention when multiple
+	// users' cycles hit the Python engine and broker APIs simultaneously.
+	for _, user := range activeUsers {
+		if ctx.Err() != nil {
+			s.log.Info().Msg("scheduler_context_cancelled_stopping_user_cycles")
+			return
+		}
+
+		s.runUserCycle(ctx, user)
+	}
+
+	s.log.Info().
+		Int("users_processed", len(activeUsers)).
+		Msg("scheduler_completed_all_user_cycles")
+}
+
+// runUserCycle runs a single analysis cycle for one user with their
+// own identity, symbols, and broker connection context.
+func (s *Scheduler) runUserCycle(ctx context.Context, user *auth.User) {
+	defer func() {
+		if r := recover(); r != nil {
+			observability.LogPanicRecovery(s.log, r, "scheduled_user_cycle_"+user.ID)
+		}
+	}()
+
+	userLog := s.log.With().
+		Str("user_id", user.ID).
+		Str("username", user.Username).
+		Str("role", string(user.Role)).
+		Logger()
+
+	// Issue a service token for this user so downstream services
+	// (Python engine, Module B, Module C) resolve their broker connection.
+	userCtx := s.issueUserServiceContext(ctx, user)
+	if userCtx == nil {
+		userLog.Error().Msg("scheduler_skipping_user_no_service_context")
+		return
+	}
+
+	// Load this user's symbol selection from Redis.
+	// Falls back to config defaults if the user hasn't customized.
+	symbols := s.symbolStore.GetActiveSymbols(userCtx, user.ID)
+
+	userLog.Info().
+		Strs("symbols", symbols).
+		Msg("scheduler_starting_user_cycle")
+
+	s.orchestrator.RunCycle(userCtx, symbols, "")
+
+	userLog.Info().
+		Strs("symbols", symbols).
+		Msg("scheduler_completed_user_cycle")
 }
 
 // cryptoRandDuration returns a cryptographically random duration in [0, max).
