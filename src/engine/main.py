@@ -98,6 +98,24 @@ def _require_broker(container: "Container") -> None:
         )
 
 
+async def _resolve_user_processor(
+    container: "Container", user_id: str
+) -> "AnalysisProcessor":
+    """Resolve the authenticated user's LLM processor.
+
+    Called by every endpoint that runs the LLM processor to ensure
+    each user's analysis uses their own API key, model, and settings.
+
+    Uses the Container's per-user processor cache. Every user MUST
+    configure their own LLM connection via the dashboard. There is
+    no env-var fallback for regular users.
+    """
+    try:
+        return await container.resolve_user_processor(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 async def _resolve_user_broker(container: "Container", user_id: str):
     """Resolve the authenticated user's broker connection.
 
@@ -530,12 +548,11 @@ def create_app() -> FastAPI:
         retrieved_knowledge, and metadata.
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor"):
-            raise HTTPException(status_code=503, detail="Processor not initialized")
+        processor = await _resolve_user_processor(container, user.user_id)
 
         try:
             processor_input = ProcessorInput(**body.processor_input)
-            result = await container.processor.process(
+            result = await processor.process(
                 processor_input,
                 user_id=user.user_id,
                 trace_id=body.trace_id,
@@ -844,8 +861,7 @@ def create_app() -> FastAPI:
         execution routing (those are gateway-side concerns).
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor"):
-            raise HTTPException(status_code=503, detail="Processor not initialized")
+        processor = await _resolve_user_processor(container, user.user_id)
         if not hasattr(container, "ta_orchestrator"):
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
@@ -1118,7 +1134,7 @@ def create_app() -> FastAPI:
                 retrieved_knowledge=retrieved_knowledge,
                 metadata=metadata,
             )
-            result = await container.processor.process(
+            result = await processor.process(
                 processor_input,
                 user_id=user.user_id,
                 trace_id=trace_id,
@@ -1297,17 +1313,9 @@ def create_app() -> FastAPI:
 
             connection_id = str(row.id)
 
-        # Hot-swap the processor if this connection is now active.
-        if body.activate:
-            _hot_swap_processor(
-                container,
-                provider=body.provider,
-                model_name=body.model_name,
-                api_key=body.api_key,
-                base_url=body.base_url,
-                temperature=body.temperature,
-                max_output_tokens=body.max_output_tokens,
-            )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it from the newly created/activated connection.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": connection_id,
@@ -1366,20 +1374,9 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        # If this connection is active, hot-swap the processor with updated values.
-        if row is not None and row.is_active:
-            api_key = (
-                body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
-            )
-            _hot_swap_processor(
-                container,
-                provider=row.provider,
-                model_name=row.model_name,
-                api_key=api_key,
-                base_url=row.base_url,
-                temperature=row.temperature,
-                max_output_tokens=row.max_output_tokens,
-            )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it with the updated connection settings.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": str(row.id),
@@ -1410,16 +1407,9 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        api_key = decrypt_api_key(row.api_key_encrypted)
-        _hot_swap_processor(
-            container,
-            provider=row.provider,
-            model_name=row.model_name,
-            api_key=api_key,
-            base_url=row.base_url,
-            temperature=row.temperature,
-            max_output_tokens=row.max_output_tokens,
-        )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it from the newly activated connection.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": str(row.id),
@@ -1446,6 +1436,10 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
+        # Invalidate the user's cached processor since their active
+        # connection was just deactivated.
+        await container.invalidate_user_processor(user.user_id)
+
         return {
             "id": str(row.id),
             "provider": row.provider,
@@ -1471,83 +1465,23 @@ def create_app() -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail="Connection not found")
 
+        # Invalidate the user's cached processor in case the deleted
+        # connection was the one powering the cached processor.
+        await container.invalidate_user_processor(user.user_id)
+
         return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
-
-    def _hot_swap_processor(
-        container: Container,
-        *,
-        provider: str,
-        model_name: str,
-        api_key: str,
-        base_url: Optional[str],
-        temperature: float,
-        max_output_tokens: int,
-    ) -> None:
-        """Hot-swap the processor to use a new LLM connection.
-
-        Rebuilds the LLM client and processor with the new settings.
-        Takes effect on the next analysis cycle.
-        """
-        old_cfg = container.processor_config
-
-        config_overrides = {
-            "llm_provider": provider,
-            "model_name": model_name,
-            "temperature": temperature,
-            "max_output_tokens": max_output_tokens,
-            "llm_timeout_seconds": old_cfg.llm_timeout_seconds,
-            "total_timeout_seconds": old_cfg.total_timeout_seconds,
-            "max_retries": old_cfg.max_retries,
-            "retry_backoff_base_seconds": old_cfg.retry_backoff_base_seconds,
-            "retry_backoff_max_seconds": old_cfg.retry_backoff_max_seconds,
-            "strict_schema_validation": old_cfg.strict_schema_validation,
-            "require_citations": old_cfg.require_citations,
-            "persist_audit_logs": old_cfg.persist_audit_logs,
-            "log_raw_llm_response": old_cfg.log_raw_llm_response,
-            "anthropic_api_key": old_cfg.anthropic_api_key,
-            "openai_api_key": old_cfg.openai_api_key,
-            "gemini_api_key": old_cfg.gemini_api_key,
-            "self_hosted_api_key": old_cfg.self_hosted_api_key,
-            "api_base_url": base_url or old_cfg.api_base_url,
-        }
-
-        # Set the API key for the target provider.
-        key_field = f"{provider}_api_key"
-        if key_field in config_overrides:
-            config_overrides[key_field] = SecretStr(api_key)
-
-        new_cfg = ProcessorConfig(**config_overrides)
-        new_client = create_llm_client(new_cfg)
-        new_processor = AnalysisProcessor(
-            config=new_cfg,
-            llm_client=new_client,
-            uow_factory=container.processor_uow_factory,
-        )
-
-        container.processor_config = new_cfg
-        container.processor_llm_client = new_client
-        container.processor = new_processor
-
-        logger.info(
-            "processor_hot_swapped_from_connection",
-            extra={
-                "provider": provider,
-                "model": model_name,
-                "temperature": temperature,
-            },
-        )
 
     @app.get("/api/processor/models")
     async def get_available_models(
         request: Request,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> dict:
-        """Available models per provider for the dashboard model selector.
+        """Available models per provider for the admin processor config.
 
-        Returns the model list for each provider plus the currently
-        active provider and model. The user selects a model from this
-        list; the selection is applied via PUT /api/processor/config
-        which persists it as the active model until changed.
+        Admin-only. Returns the model list for each provider plus the
+        currently active system-level provider and model. Regular users
+        use GET /api/llm/providers to see available providers/models
+        when configuring their own LLM connections.
         """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
@@ -1577,9 +1511,15 @@ def create_app() -> FastAPI:
     @app.get("/api/processor/config")
     async def get_processor_config(
         request: Request,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> ProcessorConfigResponse:
-        """Current LLM provider and model configuration."""
+        """Current system-level LLM provider and model configuration.
+
+        Admin-only. Returns the global processor config built from
+        .env at startup or last updated via PUT /api/processor/config.
+        Regular users see their own active LLM connection via
+        GET /api/llm/connections/active.
+        """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
@@ -1597,13 +1537,14 @@ def create_app() -> FastAPI:
     async def update_processor_config(
         request: Request,
         body: ProcessorConfigUpdateRequest,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> dict:
-        """Switch LLM provider or model at runtime from the dashboard.
+        """Hot-swap the system-level LLM processor at runtime.
 
-        Rebuilds the LLM client and processor with the new settings.
-        Takes effect on the next analysis cycle (the Go gateway calls
-        /internal/processor/process which uses the latest processor).
+        Admin-only. Rebuilds the global container.processor with new
+        settings. This is the system/admin processor used for startup
+        validation and health checks. Regular users configure their
+        own LLM connections via /api/llm/connections/* endpoints.
         """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
