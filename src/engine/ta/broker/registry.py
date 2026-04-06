@@ -192,33 +192,3 @@ class BrokerRegistry:
         self._brokers.clear()
         self._initialized = False
 
-
-_registry: Optional[BrokerRegistry] = None
-
-
-async def get_broker_registry(
-    ta_config: TAConfig,
-    http_client: HttpClient,
-    cache: Optional[RedisCache] = None,
-) -> BrokerRegistry:
-    global _registry
-
-    if _registry is None:
-        _registry = BrokerRegistry(
-            ta_config=ta_config,
-            http_client=http_client,
-            cache=cache,
-        )
-        await _registry.initialize()
-
-    return _registry
-
-
-def get_broker(broker_id: Optional[str] = None) -> BrokerBase:
-    if _registry is None:
-        raise ConfigurationError(
-            "Broker registry not initialized",
-            details={"call_get_broker_registry_first": True},
-        )
-
-    return _registry.get_broker(broker_id)
