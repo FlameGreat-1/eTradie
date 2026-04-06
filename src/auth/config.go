@@ -23,6 +23,14 @@ type Config struct {
 	// Refresh token lifetime in seconds. Default: 7 days.
 	RefreshTokenTTLSeconds int `envconfig:"REFRESH_TOKEN_TTL_SECONDS" default:"604800"`
 
+	// Service token lifetime in seconds. Default: 30 days.
+	// Used for internal service-to-service authentication (e.g., background
+	// trade monitoring, EOD checks, news protection) that must operate
+	// autonomously 24/7 without user presence. These tokens carry the
+	// user's identity (sub, username, role) so the Python engine resolves
+	// the correct broker connection, but are not tied to user sessions.
+	ServiceTokenTTLSeconds int `envconfig:"SERVICE_TOKEN_TTL_SECONDS" default:"2592000"`
+
 	// Bcrypt cost factor. Default: 12. Range: 10-14.
 	BcryptCost int `envconfig:"BCRYPT_COST" default:"12"`
 
@@ -82,6 +90,9 @@ func (c *Config) validate() error {
 	if c.RefreshTokenTTLSeconds < 3600 || c.RefreshTokenTTLSeconds > 2592000 {
 		return fmt.Errorf("REFRESH_TOKEN_TTL_SECONDS must be 3600..2592000 (1h..30d), got %d", c.RefreshTokenTTLSeconds)
 	}
+	if c.ServiceTokenTTLSeconds < 3600 || c.ServiceTokenTTLSeconds > 7776000 {
+		return fmt.Errorf("SERVICE_TOKEN_TTL_SECONDS must be 3600..7776000 (1h..90d), got %d", c.ServiceTokenTTLSeconds)
+	}
 
 	// Bcrypt cost bounds.
 	if c.BcryptCost < 10 || c.BcryptCost > 14 {
@@ -132,6 +143,9 @@ func (c *Config) SetTestSecret(secret string) {
 	}
 	if c.Issuer == "" {
 		c.Issuer = "etradie-test"
+	}
+	if c.ServiceTokenTTLSeconds == 0 {
+		c.ServiceTokenTTLSeconds = 2592000 // 30 days for tests
 	}
 }
 

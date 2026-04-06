@@ -118,7 +118,59 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
+// IssueServiceToken creates a long-lived JWT for internal service-to-service
+// authentication. Used by background operations (trade monitoring, EOD checks,
+// news protection, invalidation engines) that must make authenticated broker
+// calls on behalf of a user without the user being present.
+//
+// The token carries the same claims structure (sub, username, role, iss, iat,
+// exp) as user session tokens so the Python engine validates and resolves the
+// correct broker connection identically. The "svc" token_type claim
+// distinguishes service tokens from user session tokens in audit logs.
+//
+// Service tokens have a long TTL (default 30 days) because they back
+// autonomous 24/7 operations. They are re-issued on service restart for
+// each user with active trades, and replaced by fresh user session tokens
+// when the user authenticates.
+func (ts *TokenService) IssueServiceToken(userID, username string, role Role) (string, error) {
+	if userID == "" {
+		return "", fmt.Errorf("issue service token: userID must not be empty")
+	}
+	if username == "" {
+		return "", fmt.Errorf("issue service token: username must not be empty")
+	}
+	if !role.IsValid() {
+		return "", fmt.Errorf("issue service token: invalid role %q", role)
+	}
+
+	now := time.Now().UTC()
+	expiry := now.Add(time.Duration(ts.cfg.ServiceTokenTTLSeconds) * time.Second)
+
+	claims := jwt.MapClaims{
+		"sub":        userID,
+		"username":   username,
+		"role":       string(role),
+		"iss":        ts.cfg.Issuer,
+		"iat":        now.Unix(),
+		"exp":        expiry.Unix(),
+		"token_type": "svc",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(ts.cfg.JWTSecretBytes())
+	if err != nil {
+		return "", fmt.Errorf("sign service token: %w", err)
+	}
+
+	return signed, nil
+}
+
 // RefreshTokenTTL returns the configured refresh token lifetime.
 func (ts *TokenService) RefreshTokenTTL() time.Duration {
 	return time.Duration(ts.cfg.RefreshTokenTTLSeconds) * time.Second
+}
+
+// ServiceTokenTTL returns the configured service token lifetime.
+func (ts *TokenService) ServiceTokenTTL() time.Duration {
+	return time.Duration(ts.cfg.ServiceTokenTTLSeconds) * time.Second
 }
