@@ -32,6 +32,7 @@ type TradeMonitor interface {
 	RegisterTrade(t *types.Trade)
 	GetAllTrades() []*types.Trade
 	TradeCount() int
+	RefreshUserTradeTokens(userID, newToken string) int
 }
 
 // MetricsCalculator defines the performance analytics operations required by the gRPC server.
@@ -191,6 +192,10 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 	// Register with monitoring manager \u2014 spawns the worker goroutine.
 	s.monitor.RegisterTrade(trade)
 
+	// Refresh auth tokens on all of this user's existing trades so that
+	// restored trades (from a service restart) regain broker access.
+	s.monitor.RefreshUserTradeTokens(userID, authToken)
+
 	observability.TradeRegisteredTotal.WithLabelValues(trade.Symbol, string(trade.TradingStyle)).Inc()
 
 	s.log.Info().
@@ -227,6 +232,13 @@ func (s *ManagementServer) GetManagedTrades(ctx context.Context, _ *managementv1
 	userID := auth.UserIDFromContext(ctx)
 	if userID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
+	// Refresh auth tokens on all of this user's trades. This is critical
+	// after a service restart: restored trades have empty AuthTokens and
+	// the user's first authenticated call refreshes them all.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		s.monitor.RefreshUserTradeTokens(userID, rawToken)
 	}
 
 	trades := s.monitor.GetAllTrades()

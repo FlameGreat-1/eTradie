@@ -171,6 +171,47 @@ func (m *Manager) GetTrade(tradeID string) *types.Trade {
 	return m.trades[tradeID]
 }
 
+// RefreshUserTradeTokens updates the AuthToken on all active trades
+// owned by the given user. Called when the user makes any authenticated
+// request (gRPC or HTTP) so that background workers (monitoring, EOD,
+// news) can make authenticated broker calls on the user's behalf.
+//
+// This is critical after a service restart: restored trades have empty
+// AuthTokens because the original JWT expired. The first authenticated
+// action by the user refreshes all their trades with the new token.
+func (m *Manager) RefreshUserTradeTokens(userID, newToken string) int {
+	if userID == "" || newToken == "" {
+		return 0
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	refreshed := 0
+	for _, t := range m.trades {
+		t.RLock()
+		ownerMatch := t.UserID == userID
+		currentToken := t.AuthToken
+		t.RUnlock()
+
+		if ownerMatch && currentToken != newToken {
+			t.Lock()
+			t.AuthToken = newToken
+			t.Unlock()
+			refreshed++
+		}
+	}
+
+	if refreshed > 0 {
+		m.log.Info().
+			Str("user_id", userID).
+			Int("trades_refreshed", refreshed).
+			Msg("trade_auth_tokens_refreshed")
+	}
+
+	return refreshed
+}
+
 // TradeCount returns the number of active trades.
 func (m *Manager) TradeCount() int {
 	m.mu.RLock()

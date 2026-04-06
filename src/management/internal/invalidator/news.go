@@ -11,6 +11,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
@@ -97,9 +98,12 @@ func (e *NewsEngine) pollCalendar(ctx context.Context, getTrades func() []*types
 				trades := getTrades()
 				for _, t := range trades {
 					if t.Status == constants.StatusActive {
-						price, err := getPrice(ctx, t.Symbol)
+						// Inject the trade's auth token into context so broker
+						// HTTP calls are authenticated for the correct user.
+						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+						price, err := getPrice(tradeCtx, t.Symbol)
 						if err == nil {
-							e.EvaluatePreNewsRiskOff(ctx, t, evt.EventName, timeToEvent, price)
+							e.EvaluatePreNewsRiskOff(tradeCtx, t, evt.EventName, timeToEvent, price)
 						}
 					}
 				}
@@ -120,6 +124,7 @@ func (e *NewsEngine) EvaluatePreNewsRiskOff(ctx context.Context, trade *types.Tr
 	currentSL := trade.StopLoss
 	isLong := trade.IsLong()
 	status := trade.Status
+	userID := trade.UserID
 	trade.RUnlock()
 
 	if status == constants.StatusClosed {
@@ -201,12 +206,13 @@ func (e *NewsEngine) EvaluatePreNewsRiskOff(ctx context.Context, trade *types.Tr
 
 	// Persist changes.
 	if e.journal != nil {
-		if err := e.journal.UpdateTradeSL(ctx, tradeID, newSL); err != nil {
+		if err := e.journal.UpdateTradeSL(ctx, userID, tradeID, newSL); err != nil {
 			e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_sl_update_failed")
 		}
 	}
 	if e.journal != nil {
 		if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
+			UserID:    userID,
 			TradeID:   tradeID,
 			EventType: string(constants.EventNewsProtection),
 			Symbol:    symbol,
