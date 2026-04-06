@@ -145,6 +145,7 @@ class TAOrchestrator:
         lookback_periods: int = 500,
         *,
         broker_client: BrokerBase,
+        user_id: str,
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
@@ -155,6 +156,9 @@ class TAOrchestrator:
             broker_client: The user's broker client for candle fetching.
                 Required. In multi-tenant mode, each user has their own
                 MT5 broker connection. There is no fallback.
+            user_id: The authenticated user's ID. Required. All storage
+                operations (candle reads, snapshot writes, candidate
+                writes) are scoped to this user.
 
         Returns:
             Structured multi-timeframe analysis result dict.
@@ -198,7 +202,7 @@ class TAOrchestrator:
             # ── Phase 1: Fetch candles for every timeframe ───────────
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
-                seq = await self._fetch_sequence(symbol, tf, lookback_periods, active_broker)
+                seq = await self._fetch_sequence(symbol, tf, lookback_periods, active_broker, user_id=user_id)
                 if seq is not None:
                     sequences[tf] = seq
 
@@ -327,6 +331,7 @@ class TAOrchestrator:
                 snapshots,
                 all_smc,
                 all_snd,
+                user_id=user_id,
             )
 
             self._logger.info(
@@ -428,11 +433,15 @@ class TAOrchestrator:
         timeframe: Timeframe,
         lookback_periods: int,
         broker: BrokerBase,
+        *,
+        user_id: str,
     ) -> Optional[CandleSequence]:
         """Fetch candles for a single timeframe from store or broker.
 
         Args:
             broker: The user's broker client. Required. No fallback.
+            user_id: The authenticated user's ID. Candle reads are
+                scoped to this user.
         """
         end_time = datetime.now(UTC)
         start_time = self._calculate_start_time(
@@ -447,6 +456,7 @@ class TAOrchestrator:
                 timeframe.value,
                 start_time,
                 end_time,
+                user_id=user_id,
             )
 
         active_broker = broker
@@ -977,16 +987,19 @@ class TAOrchestrator:
         snapshots: dict[Timeframe, TechnicalSnapshot],
         smc_candidates: list[SMCCandidate],
         snd_candidates: list[SnDCandidate],
+        *,
+        user_id: str,
     ) -> None:
-        """Persist every per-timeframe snapshot and all candidates."""
+        """Persist every per-timeframe snapshot and all candidates for user_id."""
         async with self._ta_uow_factory() as uow:
             for tf, snapshot in snapshots.items():
-                await self._persist_snapshot(snapshot, uow)
+                await self._persist_snapshot(snapshot, uow, user_id=user_id)
 
             for candidate in smc_candidates:
                 try:
                     await uow.candidate_repo.create_smc_candidate(
                         candidate,
+                        user_id=user_id,
                     )
                 except Exception as e:
                     self._logger.error(
@@ -1003,6 +1016,7 @@ class TAOrchestrator:
                 try:
                     await uow.candidate_repo.create_snd_candidate(
                         candidate,
+                        user_id=user_id,
                     )
                 except Exception as e:
                     self._logger.error(
@@ -1028,13 +1042,16 @@ class TAOrchestrator:
         self,
         snapshot: TechnicalSnapshot,
         uow,
+        *,
+        user_id: str,
     ) -> None:
-        """Persist a single TechnicalSnapshot to storage."""
+        """Persist a single TechnicalSnapshot to storage for user_id."""
         try:
             await uow.snapshot_repo.create(
                 symbol=snapshot.symbol,
                 timeframe=snapshot.timeframe.value,
                 timestamp=snapshot.timestamp,
+                user_id=user_id,
                 swing_highs=self._serialize_swing_highs(
                     snapshot.swing_highs,
                 ),
