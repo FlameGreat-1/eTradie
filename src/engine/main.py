@@ -384,27 +384,27 @@ def create_app() -> FastAPI:
         Called by the Go gateway. Delegates to TAOrchestrator.analyze()
         for each symbol and returns the aggregated results.
 
-        MULTI-TENANT NOTE: TA analysis uses the platform-level broker
-        (container.mt5_client) for candle data fetching. This is correct
-        because OHLCV candle data is identical across all brokers for the
-        same symbol/timeframe. The broker is a market data source, not
-        user-specific. User-specific broker connections are only needed
-        for trading operations (/internal/broker/* endpoints).
-
-        Auth is still required to ensure only authenticated users can
-        trigger analysis cycles (prevents unauthorized resource consumption).
+        MULTI-TENANT: Each user has their own MT5 broker connection
+        (MetaAPI or ZeroMQ EA). TA analysis uses the authenticated
+        user's broker to fetch candles from their specific MT5 account.
+        Different brokers may have different symbol names, available
+        symbols, and candle data. If the user has not configured a
+        broker connection, returns HTTP 503.
         """
         container: Container = request.app.state.container
         if not hasattr(container, "ta_orchestrator"):
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
             )
-        _require_broker(container)
+        user_broker = await _resolve_user_broker(container, user.user_id)
 
         results = []
         for symbol in body.symbols:
             try:
-                result = await container.ta_orchestrator.analyze(symbol=symbol)
+                result = await container.ta_orchestrator.analyze(
+                    symbol=symbol,
+                    broker_client=user_broker,
+                )
                 results.append(result)
             except Exception as exc:
                 logger.error(
@@ -891,15 +891,18 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
             )
-        _require_broker(container)
+        user_broker = await _resolve_user_broker(container, user.user_id)
 
         symbol = symbol.upper().strip()
         if not symbol:
             raise HTTPException(status_code=400, detail="Symbol is required")
 
-        # Step 1: Run TA analysis for the symbol.
+        # Step 1: Run TA analysis for the symbol using the user's broker.
         try:
-            ta_result = await container.ta_orchestrator.analyze(symbol=symbol)
+            ta_result = await container.ta_orchestrator.analyze(
+                symbol=symbol,
+                broker_client=user_broker,
+            )
         except Exception as exc:
             logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})
             raise HTTPException(status_code=500, detail=f"TA analysis failed: {exc}")
