@@ -73,6 +73,11 @@ type Config struct {
 
 	// gRPC server (gateway API).
 	GRPCPort int `envconfig:"GRPC_PORT" default:"50052"`
+
+	// CORS: explicit allowlist of origins permitted to make cross-origin
+	// requests. In production, set to the dashboard URL(s). The default
+	// allows common local development origins only.
+	AllowedOrigins []string `envconfig:"ALLOWED_ORIGINS" default:"http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"`
 }
 
 // Load reads configuration from environment variables with the GATEWAY_ prefix

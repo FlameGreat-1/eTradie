@@ -52,6 +52,7 @@ func New(
 	execAdapter *infra.ExecutionGRPCAdapter,
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
+	userStore *auth.UserStore,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -100,10 +101,9 @@ func New(
 	)
 
 	// Scheduler (with SettingsStore for persisted interval overrides).
-	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
-
-	// Load any dashboard-set interval override from Redis before starting.
-	scheduler.LoadPersistedInterval(context.Background())
+	// tokenService and userStore are passed so the scheduler can issue
+	// service tokens for autonomous 24/7 operation without a logged-in user.
+	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
 
 	// Management Client (Module C).
 	var mgmtClient *management.Client

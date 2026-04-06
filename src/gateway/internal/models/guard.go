@@ -17,7 +17,9 @@ type GuardEvaluationResult struct {
 	BlockingRules  []string               `json:"blocking_rules"`
 }
 
-// IsApproved returns true when the overall verdict is PASS.
+// IsApproved returns true when the overall verdict allows trade execution.
+// Both PASS (all checks clean) and WARN (advisory warnings only, no hard
+// rejections) are approved. Only REJECT blocks execution.
 func (r *GuardEvaluationResult) IsApproved() bool {
-	return r.OverallVerdict == constants.VerdictPass
+	return r.OverallVerdict == constants.VerdictPass || r.OverallVerdict == constants.VerdictWarn
 }

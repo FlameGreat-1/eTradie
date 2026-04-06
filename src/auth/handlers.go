@@ -30,11 +30,17 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 // Public routes (no auth required): login, register, refresh.
 // Protected routes (require valid token): logout, me, password change.
 // Admin routes (require admin role): user management.
+// Public endpoints are rate-limited per IP to prevent brute-force attacks.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
-	// Public endpoints (no auth).
-	mux.HandleFunc("/auth/login", h.handleLogin)
-	mux.HandleFunc("/auth/register", h.handleRegister)
-	mux.HandleFunc("/auth/refresh", h.handleRefresh)
+	// Rate limiters for public auth endpoints (per IP).
+	loginLimiter := NewRateLimiter(10, 1*time.Minute)    // 10 login attempts/min/IP
+	registerLimiter := NewRateLimiter(5, 1*time.Minute)  // 5 registrations/min/IP
+	refreshLimiter := NewRateLimiter(20, 1*time.Minute)  // 20 refresh attempts/min/IP
+
+	// Public endpoints (no auth, rate-limited).
+	mux.HandleFunc("/auth/login", loginLimiter.RateLimitMiddleware(h.handleLogin))
+	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddleware(h.handleRegister))
+	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddleware(h.handleRefresh))
 
 	// Protected endpoints (any authenticated user).
 	mux.Handle("/auth/logout", RequireAuthFunc(ts, h.handleLogout))

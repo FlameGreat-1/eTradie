@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
@@ -36,12 +37,12 @@ func NewMacroCollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient,
 }
 
 // Collect runs all 8 macro collectors via the Python engine and returns a MacroResult.
-// macroCacheKey is the fixed cache key for macro results (global, not per-symbol).
-const macroCacheKey = "latest"
-
 func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.MacroResult, error) {
+	// Extract userID for cache key scoping (multi-tenant isolation).
+	userID := auth.UserIDFromContext(ctx)
+
 	// Check cache first.
-	if cached := c.getFromCache(ctx, traceID); cached != nil {
+	if cached := c.getFromCache(ctx, userID, traceID); cached != nil {
 		return cached, nil
 	}
 
@@ -95,17 +96,25 @@ func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.M
 		Msg("macro_collection_completed")
 
 	// Cache successful result.
-	c.storeInCache(ctx, result, traceID)
+	c.storeInCache(ctx, userID, result, traceID)
 
 	return result, nil
 }
 
-func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *models.MacroResult {
+// macroCacheKey returns the user-scoped cache key for macro results.
+func macroCacheKey(userID string) string {
+	if userID != "" {
+		return userID + ":latest"
+	}
+	return "latest"
+}
+
+func (c *MacroCollector) getFromCache(ctx context.Context, userID string, traceID string) *models.MacroResult {
 	if c.redis == nil || c.cacheTTL <= 0 {
 		return nil
 	}
 
-	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey)
+	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey(userID))
 	if err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_read_error")
 		return nil
@@ -127,12 +136,12 @@ func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *mode
 	return &result
 }
 
-func (c *MacroCollector) storeInCache(ctx context.Context, result *models.MacroResult, traceID string) {
+func (c *MacroCollector) storeInCache(ctx context.Context, userID string, result *models.MacroResult, traceID string) {
 	if c.redis == nil || c.cacheTTL <= 0 {
 		return
 	}
 
-	if err := c.redis.Set(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey, result, c.cacheTTL); err != nil {
+	if err := c.redis.Set(ctx, constants.GatewayCacheNamespace, constants.MacroResultCacheKeyPrefix+":"+macroCacheKey(userID), result, c.cacheTTL); err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("macro_cache_write_error")
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -132,9 +131,10 @@ func (s *GRPCServer) InternalServer() *grpc.Server {
 
 // RunCycle triggers an analysis cycle.
 func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleRequest) (*gatewayv1.RunCycleResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
 	symbols := req.GetSymbols()
 	if len(symbols) == 0 {
-		symbols = s.symbolStore.GetActiveSymbols(ctx)
+		symbols = s.symbolStore.GetActiveSymbols(ctx, userID)
 	}
 
 	outputs := s.orchestrator.RunCycle(ctx, symbols, req.GetTraceId())
@@ -295,6 +295,7 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 
 // SetCycleInterval changes the analysis cycle interval at runtime.
 func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCycleIntervalRequest) (*gatewayv1.SetCycleIntervalResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
 	newInterval := int(req.GetIntervalSeconds())
 
 	if newInterval < 60 {
@@ -311,7 +312,7 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 	// for restart survival.
 	s.scheduler.UpdateInterval(time.Duration(newInterval) * time.Second)
 
-	if err := s.settingsStore.SetCycleInterval(ctx, newInterval); err != nil {
+	if err := s.settingsStore.SetCycleInterval(ctx, userID, newInterval); err != nil {
 		// Redis persistence failed. The interval IS active for this session
 		// but won't survive a restart. Log warning, don't fail the request.
 		s.log.Warn().Err(err).Int("interval", newInterval).Msg("set_cycle_interval_persist_failed_using_in_memory")
@@ -346,9 +347,10 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 
 // SetActiveSymbols updates the user's active symbol selection.
 func (s *GRPCServer) SetActiveSymbols(ctx context.Context, req *gatewayv1.SetActiveSymbolsRequest) (*gatewayv1.SetActiveSymbolsResponse, error) {
-	oldSymbols := s.symbolStore.GetActiveSymbols(ctx)
-	ok := s.symbolStore.SetActiveSymbols(ctx, req.GetSymbols())
-	active := s.symbolStore.GetActiveSymbols(ctx)
+	userID := auth.UserIDFromContext(ctx)
+	oldSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
+	ok := s.symbolStore.SetActiveSymbols(ctx, userID, req.GetSymbols())
+	active := s.symbolStore.GetActiveSymbols(ctx, userID)
 
 	if ok {
 		s.transport.Publish(ctx,
@@ -370,7 +372,8 @@ func (s *GRPCServer) SetActiveSymbols(ctx context.Context, req *gatewayv1.SetAct
 
 // GetActiveSymbols returns the current active symbol selection.
 func (s *GRPCServer) GetActiveSymbols(ctx context.Context, _ *gatewayv1.GetActiveSymbolsRequest) (*gatewayv1.GetActiveSymbolsResponse, error) {
-	symbols := s.symbolStore.GetActiveSymbols(ctx)
+	userID := auth.UserIDFromContext(ctx)
+	symbols := s.symbolStore.GetActiveSymbols(ctx, userID)
 	return &gatewayv1.GetActiveSymbolsResponse{
 		Symbols: symbols,
 		Source:  "redis",
@@ -379,9 +382,10 @@ func (s *GRPCServer) GetActiveSymbols(ctx context.Context, _ *gatewayv1.GetActiv
 
 // ResetActiveSymbols resets symbol selection to config defaults.
 func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetActiveSymbolsRequest) (*gatewayv1.ResetActiveSymbolsResponse, error) {
-	oldSymbols := s.symbolStore.GetActiveSymbols(ctx)
-	ok := s.symbolStore.ResetToDefaults(ctx)
-	active := s.symbolStore.GetActiveSymbols(ctx)
+	userID := auth.UserIDFromContext(ctx)
+	oldSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
+	ok := s.symbolStore.ResetToDefaults(ctx, userID)
+	active := s.symbolStore.GetActiveSymbols(ctx, userID)
 
 	if ok {
 		s.transport.Publish(ctx,
@@ -408,10 +412,11 @@ func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetA
 
 // GetGatewayConfig returns the current runtime-configurable settings.
 func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatewayConfigRequest) (*gatewayv1.GetGatewayConfigResponse, error) {
-	activeSymbols := s.symbolStore.GetActiveSymbols(ctx)
+	userID := auth.UserIDFromContext(ctx)
+	activeSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
 
 	source := "gateway_config"
-	persisted := s.settingsStore.Load(ctx)
+	persisted := s.settingsStore.Load(ctx, userID)
 	if persisted.CycleIntervalSeconds > 0 {
 		source = "redis"
 	}
@@ -445,7 +450,7 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 		healthStatus = "degraded"
 	}
 
-	activeCycles := int32(testutil.ToFloat64(observability.GatewayActiveCycles))
+	activeCycles := int32(observability.ReadGaugeValue(observability.GatewayActiveCycles))
 
 	return &gatewayv1.GetHealthResponse{
 		Status:          healthStatus,
@@ -465,7 +470,7 @@ func panicRecoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				observability.LogPanicRecovery(log, r, info.FullMethod)
-				err = fmt.Errorf("internal server error")
+				err = status.Errorf(codes.Internal, "internal server error")
 			}
 		}()
 		return handler(ctx, req)

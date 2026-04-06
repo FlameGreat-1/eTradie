@@ -109,7 +109,7 @@ func main() {
 		log.Info().Msg("execution_engine_disabled")
 	}
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
@@ -40,11 +41,15 @@ func NewTACollector(engine *infra.EngineHTTPClient, redis *infra.RedisClient, cf
 	}
 }
 
-// taCacheKey builds a deterministic cache key from the sorted symbol list.
-func taCacheKey(symbols []string) string {
+// taCacheKey builds a deterministic cache key from the user ID and sorted symbol list.
+// The userID ensures cache isolation between tenants.
+func taCacheKey(userID string, symbols []string) string {
 	sorted := make([]string, len(symbols))
 	copy(sorted, symbols)
 	sort.Strings(sorted)
+	if userID != "" {
+		return userID + ":" + strings.Join(sorted, ",")
+	}
 	return strings.Join(sorted, ",")
 }
 
@@ -58,9 +63,12 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 		}, nil
 	}
 
+	// Extract userID for cache key scoping (multi-tenant isolation).
+	userID := auth.UserIDFromContext(ctx)
+
 	// Check cache first (unless bypassing).
 	if !bypassCache {
-		if cached := c.getFromCache(ctx, symbols, traceID); cached != nil {
+		if cached := c.getFromCache(ctx, userID, symbols, traceID); cached != nil {
 			return cached, nil
 		}
 	}
@@ -115,17 +123,17 @@ func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID str
 	}
 
 	// Cache successful result.
-	c.storeInCache(ctx, symbols, result, traceID)
+	c.storeInCache(ctx, userID, symbols, result, traceID)
 
 	return result, nil
 }
 
-func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceID string) *models.TAResult {
+func (c *TACollector) getFromCache(ctx context.Context, userID string, symbols []string, traceID string) *models.TAResult {
 	if c.redis == nil || c.cacheTTL <= 0 {
 		return nil
 	}
 
-	key := taCacheKey(symbols)
+	key := taCacheKey(userID, symbols)
 	raw, err := c.redis.GetRaw(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key)
 	if err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_read_error")
@@ -149,12 +157,12 @@ func (c *TACollector) getFromCache(ctx context.Context, symbols []string, traceI
 	return &result
 }
 
-func (c *TACollector) storeInCache(ctx context.Context, symbols []string, result *models.TAResult, traceID string) {
+func (c *TACollector) storeInCache(ctx context.Context, userID string, symbols []string, result *models.TAResult, traceID string) {
 	if c.redis == nil || c.cacheTTL <= 0 {
 		return
 	}
 
-	key := taCacheKey(symbols)
+	key := taCacheKey(userID, symbols)
 	if err := c.redis.Set(ctx, constants.GatewayCacheNamespace, constants.TAResultCacheKeyPrefix+":"+key, result, c.cacheTTL); err != nil {
 		c.log.Warn().Err(err).Str("trace_id", traceID).Msg("ta_cache_write_error")
 	}

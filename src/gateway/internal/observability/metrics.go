@@ -3,6 +3,7 @@ package observability
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // Cycle-level metrics.
@@ -101,3 +102,17 @@ var GatewayStageErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 	Name: "etradie_gateway_stage_errors_total",
 	Help: "Errors by pipeline stage",
 }, []string{"stage", "error_type"})
+
+// ReadGaugeValue reads the current value of a prometheus.Gauge safely
+// for production use. Returns 0 on any error. This replaces the
+// test-only testutil.ToFloat64 which can panic in production.
+func ReadGaugeValue(g prometheus.Gauge) float64 {
+	dto := &dto.Metric{}
+	if err := g.Write(dto); err != nil {
+		return 0
+	}
+	if dto.Gauge != nil && dto.Gauge.Value != nil {
+		return *dto.Gauge.Value
+	}
+	return 0
+}
