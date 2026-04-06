@@ -14,10 +14,13 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
-// userState holds execution state for a single user. Each user has
-// their own positions, pending orders, account info, and P&L counters
-// because each user has their own MT5 broker account.
-type userState struct {
+// Manager maintains execution state with in-memory caching backed by
+// PostgreSQL for P&L persistence. Positions and pending orders are
+// refreshed from the broker on every execution attempt. P&L counters
+// are persisted to survive service restarts. Thread-safe via mutex.
+type Manager struct {
+	mu sync.RWMutex
+
 	positions     []models.Position
 	pendingOrders []models.BrokerPendingOrder
 	account       *models.AccountInfo
@@ -26,17 +29,6 @@ type userState struct {
 	weeklyPnL       float64
 	dailyPeriodKey  string
 	weeklyPeriodKey string
-}
-
-// Manager maintains per-user execution state with in-memory caching
-// backed by PostgreSQL for P&L persistence. Positions and pending
-// orders are refreshed from the broker on every execution attempt.
-// P&L counters are persisted to survive service restarts. Thread-safe
-// via mutex protecting the user state map.
-type Manager struct {
-	mu sync.RWMutex
-
-	users map[string]*userState // keyed by userID
 
 	broker   broker.Port
 	pnlStore *store.PnLStore
@@ -44,44 +36,28 @@ type Manager struct {
 }
 
 // NewManager creates a state manager backed by the given broker port
-// and P&L store. Per-user state is lazily initialized on first access.
+// and P&L store. Loads current P&L from PostgreSQL on construction
+// so counters survive service restarts.
 func NewManager(bp broker.Port, pnlStore *store.PnLStore) *Manager {
+	now := time.Now().UTC()
 	m := &Manager{
-		users:    make(map[string]*userState),
-		broker:   bp,
-		pnlStore: pnlStore,
-		log:      observability.Logger("state_manager"),
+		broker:          bp,
+		pnlStore:        pnlStore,
+		dailyPeriodKey:  store.DailyPeriodKey(now),
+		weeklyPeriodKey: store.WeeklyPeriodKey(now),
+		log:             observability.Logger("state_manager"),
 	}
 
-	m.log.Info().Msg("state_manager_created_per_user_state")
+	// P&L is NOT loaded at startup because there is no user context.
+	// P&L is loaded on the first Refresh() call which carries userID.
+	m.log.Info().Msg("state_manager_created_pnl_loaded_on_first_refresh")
+
 	return m
 }
 
-// getOrCreateUser returns the userState for the given userID, creating
-// it if it doesn't exist. Must be called with mu held (write lock).
-func (m *Manager) getOrCreateUser(userID string) *userState {
-	us, exists := m.users[userID]
-	if !exists {
-		now := time.Now().UTC()
-		us = &userState{
-			dailyPeriodKey:  store.DailyPeriodKey(now),
-			weeklyPeriodKey: store.WeeklyPeriodKey(now),
-		}
-		m.users[userID] = us
-	}
-	return us
-}
-
-// getUserRead returns the userState for reading, or nil if not found.
-// Must be called with mu held (read lock).
-func (m *Manager) getUserRead(userID string) *userState {
-	return m.users[userID]
-}
-
-// Refresh fetches live state from the broker for the given user.
-// Called before every execution attempt to ensure accuracy. Detects
-// day/week boundary crossings and reloads P&L from PostgreSQL with
-// new period keys.
+// Refresh fetches live state from the broker. Called before every
+// execution attempt to ensure accuracy. Detects day/week boundary
+// crossings and reloads P&L from PostgreSQL with new period keys.
 func (m *Manager) Refresh(ctx context.Context, userID string) error {
 	account, err := m.broker.GetAccountInfo(ctx)
 	if err != nil {
@@ -101,11 +77,9 @@ func (m *Manager) Refresh(ctx context.Context, userID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	us := m.getOrCreateUser(userID)
-
-	us.account = account
-	us.positions = positions
-	us.pendingOrders = pending
+	m.account = account
+	m.positions = positions
+	m.pendingOrders = pending
 
 	// Detect day/week boundary crossings and reload from DB.
 	now := time.Now().UTC()
@@ -113,14 +87,14 @@ func (m *Manager) Refresh(ctx context.Context, userID string) error {
 	newWeeklyKey := store.WeeklyPeriodKey(now)
 
 	boundaryChanged := false
-	if newDailyKey != us.dailyPeriodKey {
-		us.dailyPeriodKey = newDailyKey
-		us.dailyPnL = 0
+	if newDailyKey != m.dailyPeriodKey {
+		m.dailyPeriodKey = newDailyKey
+		m.dailyPnL = 0
 		boundaryChanged = true
 	}
-	if newWeeklyKey != us.weeklyPeriodKey {
-		us.weeklyPeriodKey = newWeeklyKey
-		us.weeklyPnL = 0
+	if newWeeklyKey != m.weeklyPeriodKey {
+		m.weeklyPeriodKey = newWeeklyKey
+		m.weeklyPnL = 0
 		boundaryChanged = true
 	}
 
@@ -129,84 +103,71 @@ func (m *Manager) Refresh(ctx context.Context, userID string) error {
 		// or from trades closed during the new period.
 		snap, err := m.pnlStore.LoadCurrent(ctx, userID)
 		if err != nil {
-			m.log.Error().Err(err).Str("user_id", userID).Msg("pnl_reload_on_boundary_failed")
+			m.log.Error().Err(err).Msg("pnl_reload_on_boundary_failed")
 		} else {
-			us.dailyPnL = snap.DailyPnL
-			us.weeklyPnL = snap.WeeklyPnL
+			m.dailyPnL = snap.DailyPnL
+			m.weeklyPnL = snap.WeeklyPnL
 		}
 	}
 
-	observability.OpenPositionCount.Set(float64(len(us.positions)))
-	observability.PendingOrderCount.Set(float64(len(us.pendingOrders)))
-	observability.DailyPnL.Set(us.dailyPnL)
-	observability.WeeklyPnL.Set(us.weeklyPnL)
+	observability.OpenPositionCount.Set(float64(len(m.positions)))
+	observability.PendingOrderCount.Set(float64(len(m.pendingOrders)))
+	observability.DailyPnL.Set(m.dailyPnL)
+	observability.WeeklyPnL.Set(m.weeklyPnL)
 
 	m.log.Debug().
-		Str("user_id", userID).
-		Int("positions", len(us.positions)).
-		Int("pending", len(us.pendingOrders)).
+		Int("positions", len(m.positions)).
+		Int("pending", len(m.pendingOrders)).
 		Float64("balance", account.Balance).
-		Float64("daily_pnl", us.dailyPnL).
-		Float64("weekly_pnl", us.weeklyPnL).
-		Str("daily_key", us.dailyPeriodKey).
-		Str("weekly_key", us.weeklyPeriodKey).
+		Float64("daily_pnl", m.dailyPnL).
+		Float64("weekly_pnl", m.weeklyPnL).
+		Str("daily_key", m.dailyPeriodKey).
+		Str("weekly_key", m.weeklyPeriodKey).
 		Msg("state_refreshed")
 
 	return nil
 }
 
-// OpenPositionCount returns the number of open positions for the user.
-func (m *Manager) OpenPositionCount(userID string) int {
+// OpenPositionCount returns the number of open positions.
+func (m *Manager) OpenPositionCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return 0
-	}
-	return len(us.positions)
+	return len(m.positions)
 }
 
-// HasPositionOnPair returns true if the user has an open position or
+// HasPositionOnPair returns true if there is an open position or
 // pending order on the given symbol.
-func (m *Manager) HasPositionOnPair(userID, symbol string) bool {
+func (m *Manager) HasPositionOnPair(symbol string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return false
-	}
 	norm := strings.ToUpper(symbol)
-	for i := range us.positions {
-		if strings.ToUpper(us.positions[i].Symbol) == norm {
+	for i := range m.positions {
+		if strings.ToUpper(m.positions[i].Symbol) == norm {
 			return true
 		}
 	}
-	for i := range us.pendingOrders {
-		if strings.ToUpper(us.pendingOrders[i].Symbol) == norm {
+	for i := range m.pendingOrders {
+		if strings.ToUpper(m.pendingOrders[i].Symbol) == norm {
 			return true
 		}
 	}
 	return false
 }
 
-// HasCorrelatedExposure returns true if the user has an open position
-// or pending order on any pair in the same correlation group as symbol.
-func (m *Manager) HasCorrelatedExposure(userID, symbol string) bool {
+// HasCorrelatedExposure returns true if there is an open position or
+// pending order on any pair in the same correlation group as symbol.
+func (m *Manager) HasCorrelatedExposure(symbol string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return false
-	}
 	norm := strings.ToUpper(symbol)
-	for i := range us.positions {
-		posSymbol := strings.ToUpper(us.positions[i].Symbol)
+	for i := range m.positions {
+		posSymbol := strings.ToUpper(m.positions[i].Symbol)
 		if posSymbol != norm && AreCorrelated(norm, posSymbol) {
 			return true
 		}
 	}
-	for i := range us.pendingOrders {
-		ordSymbol := strings.ToUpper(us.pendingOrders[i].Symbol)
+	for i := range m.pendingOrders {
+		ordSymbol := strings.ToUpper(m.pendingOrders[i].Symbol)
 		if ordSymbol != norm && AreCorrelated(norm, ordSymbol) {
 			return true
 		}
@@ -214,113 +175,92 @@ func (m *Manager) HasCorrelatedExposure(userID, symbol string) bool {
 	return false
 }
 
-// DailyLossPercent returns the user's daily realized loss as a
-// percentage of account balance. Returns 0 if no loss.
-func (m *Manager) DailyLossPercent(userID string) float64 {
+// DailyLossPercent returns the daily realized loss as a percentage
+// of account balance. Returns 0 if no loss.
+func (m *Manager) DailyLossPercent() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil || us.account == nil || us.account.Balance <= 0 {
+	if m.account == nil || m.account.Balance <= 0 {
 		return 0
 	}
-	if us.dailyPnL >= 0 {
+	if m.dailyPnL >= 0 {
 		return 0
 	}
-	return (-us.dailyPnL / us.account.Balance) * 100
+	return (-m.dailyPnL / m.account.Balance) * 100
 }
 
-// WeeklyDrawdownPercent returns the user's weekly realized loss as a
+// WeeklyDrawdownPercent returns the weekly realized loss as a
 // percentage of account balance. Returns 0 if no loss.
-func (m *Manager) WeeklyDrawdownPercent(userID string) float64 {
+func (m *Manager) WeeklyDrawdownPercent() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil || us.account == nil || us.account.Balance <= 0 {
+	if m.account == nil || m.account.Balance <= 0 {
 		return 0
 	}
-	if us.weeklyPnL >= 0 {
+	if m.weeklyPnL >= 0 {
 		return 0
 	}
-	return (-us.weeklyPnL / us.account.Balance) * 100
+	return (-m.weeklyPnL / m.account.Balance) * 100
 }
 
 // RecordPnL persists a realized P&L amount to PostgreSQL and updates
-// in-memory counters for the user. Called by Module C when a trade
-// closes. DB write is the source of truth; in-memory is updated only
-// on success.
+// in-memory counters. Called by Module C when a trade closes.
+// DB write is the source of truth; in-memory is updated only on success.
 func (m *Manager) RecordPnL(ctx context.Context, userID string, amount float64) error {
 	if err := m.pnlStore.RecordPnL(ctx, userID, amount); err != nil {
-		m.log.Error().Err(err).Str("user_id", userID).Float64("amount", amount).Msg("pnl_persist_failed")
+		m.log.Error().Err(err).Float64("amount", amount).Msg("pnl_persist_failed")
 		return err
 	}
 
 	m.mu.Lock()
-	us := m.getOrCreateUser(userID)
-	us.dailyPnL += amount
-	us.weeklyPnL += amount
-	observability.DailyPnL.Set(us.dailyPnL)
-	observability.WeeklyPnL.Set(us.weeklyPnL)
+	m.dailyPnL += amount
+	m.weeklyPnL += amount
+	observability.DailyPnL.Set(m.dailyPnL)
+	observability.WeeklyPnL.Set(m.weeklyPnL)
 	m.mu.Unlock()
 
 	return nil
 }
 
-// Positions returns a copy of the user's current open positions.
-func (m *Manager) Positions(userID string) []models.Position {
+// Positions returns a copy of current open positions.
+func (m *Manager) Positions() []models.Position {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return nil
-	}
-	out := make([]models.Position, len(us.positions))
-	copy(out, us.positions)
+	out := make([]models.Position, len(m.positions))
+	copy(out, m.positions)
 	return out
 }
 
-// PendingOrders returns a copy of the user's current pending orders.
-func (m *Manager) PendingOrders(userID string) []models.BrokerPendingOrder {
+// PendingOrders returns a copy of current pending orders.
+func (m *Manager) PendingOrders() []models.BrokerPendingOrder {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return nil
-	}
-	out := make([]models.BrokerPendingOrder, len(us.pendingOrders))
-	copy(out, us.pendingOrders)
+	out := make([]models.BrokerPendingOrder, len(m.pendingOrders))
+	copy(out, m.pendingOrders)
 	return out
 }
 
-// Account returns a copy of the user's current account info.
-func (m *Manager) Account(userID string) *models.AccountInfo {
+// Account returns a copy of the current account info.
+func (m *Manager) Account() *models.AccountInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil || us.account == nil {
+	if m.account == nil {
 		return nil
 	}
-	cpy := *us.account
+	cpy := *m.account
 	return &cpy
 }
 
-// DailyPnL returns the user's current daily realized P&L.
-func (m *Manager) DailyPnL(userID string) float64 {
+// DailyPnL returns the current daily realized P&L.
+func (m *Manager) DailyPnL() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return 0
-	}
-	return us.dailyPnL
+	return m.dailyPnL
 }
 
-// WeeklyPnL returns the user's current weekly realized P&L.
-func (m *Manager) WeeklyPnL(userID string) float64 {
+// WeeklyPnL returns the current weekly realized P&L.
+func (m *Manager) WeeklyPnL() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	us := m.getUserRead(userID)
-	if us == nil {
-		return 0
-	}
-	return us.weeklyPnL
+	return m.weeklyPnL
 }
