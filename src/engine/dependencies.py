@@ -136,6 +136,10 @@ class Container:
 
         self.rag_config = get_rag_config()
 
+        # Per-user LLM processor cache. Keyed by user_id.
+        # Invalidated when user changes their LLM connection.
+        self._user_processors: dict[str, AnalysisProcessor] = {}
+
     def _build_providers(self) -> None:
         s = self.settings
         h = self.http_client
@@ -631,6 +635,74 @@ class Container:
             llm_client=self.processor_llm_client,
             uow_factory=self.processor_uow_factory,
         )
+
+    async def resolve_user_processor(self, user_id: str) -> "AnalysisProcessor":
+        """Resolve the authenticated user's LLM processor.
+
+        Uses a per-user cache to avoid rebuilding the LLM client on
+        every request. The cache is invalidated when the user changes
+        their LLM connection via the dashboard.
+
+        Resolution order:
+          1. Cached processor for this user -> return immediately
+          2. Active LLM connection from DB -> build, cache, return
+          3. No connection configured -> raise (no env-var fallback)
+
+        Every user MUST configure their own LLM connection. The env-var
+        processor (self.processor) is for system/admin use only.
+
+        Raises:
+            ValueError: If no LLM connection is configured for this user.
+        """
+        # Check cache first.
+        cached = self._user_processors.get(user_id)
+        if cached is not None:
+            return cached
+
+        # Build from DB.
+        user_config = await self._load_active_llm_connection(user_id)
+        if user_config is None:
+            raise ValueError(
+                "No LLM connection configured. "
+                "Please set up an LLM connection via the dashboard."
+            )
+
+        user_llm_client = create_llm_client(user_config)
+        user_processor = AnalysisProcessor(
+            config=user_config,
+            llm_client=user_llm_client,
+            uow_factory=self.processor_uow_factory,
+        )
+
+        self._user_processors[user_id] = user_processor
+
+        _logger.info(
+            "user_processor_cached",
+            extra={
+                "user_id": user_id,
+                "provider": user_config.llm_provider,
+                "model": user_config.model_name,
+            },
+        )
+        return user_processor
+
+    async def invalidate_user_processor(self, user_id: str) -> None:
+        """Invalidate the cached processor for a user.
+
+        Called when the user activates, updates, deactivates, or deletes
+        their LLM connection. The next call to resolve_user_processor()
+        will rebuild from the DB.
+        """
+        old_processor = self._user_processors.pop(user_id, None)
+        if old_processor is not None:
+            try:
+                await old_processor._llm.close()
+            except Exception:
+                pass
+            _logger.info(
+                "user_processor_invalidated",
+                extra={"user_id": user_id},
+            )
 
     async def load_user_llm_config(self, user_id: str) -> "ProcessorConfig | None":
         """Load the active LLM connection for a specific user.
