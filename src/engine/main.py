@@ -7,6 +7,7 @@ from datetime import datetime as dt, timezone
 from typing import AsyncIterator, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field, SecretStr
 
@@ -2585,5 +2586,28 @@ def create_app() -> FastAPI:
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
+
+    # -- CORS middleware (defense-in-depth) ----------------------------------
+    # The Go gateway handles CORS for dashboard requests, but the engine
+    # should also restrict cross-origin access as a second layer of defense.
+    # Internal /internal/* endpoints are called server-to-server (no Origin
+    # header) and are unaffected by CORS.
+    allowed_origins_str = os.environ.get(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
+    )
+    allowed_origins = [
+        origin.strip()
+        for origin in allowed_origins_str.split(",")
+        if origin.strip()
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Trace-ID"],
+        max_age=86400,
+    )
 
     return app
