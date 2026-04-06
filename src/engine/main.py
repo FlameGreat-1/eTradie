@@ -98,6 +98,24 @@ def _require_broker(container: "Container") -> None:
         )
 
 
+async def _resolve_user_processor(
+    container: "Container", user_id: str
+) -> "AnalysisProcessor":
+    """Resolve the authenticated user's LLM processor.
+
+    Called by every endpoint that runs the LLM processor to ensure
+    each user's analysis uses their own API key, model, and settings.
+
+    Uses the Container's per-user processor cache. Every user MUST
+    configure their own LLM connection via the dashboard. There is
+    no env-var fallback for regular users.
+    """
+    try:
+        return await container.resolve_user_processor(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 async def _resolve_user_broker(container: "Container", user_id: str):
     """Resolve the authenticated user's broker connection.
 
@@ -530,12 +548,11 @@ def create_app() -> FastAPI:
         retrieved_knowledge, and metadata.
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor"):
-            raise HTTPException(status_code=503, detail="Processor not initialized")
+        processor = await _resolve_user_processor(container, user.user_id)
 
         try:
             processor_input = ProcessorInput(**body.processor_input)
-            result = await container.processor.process(
+            result = await processor.process(
                 processor_input,
                 user_id=user.user_id,
                 trace_id=body.trace_id,
@@ -844,8 +861,7 @@ def create_app() -> FastAPI:
         execution routing (those are gateway-side concerns).
         """
         container: Container = request.app.state.container
-        if not hasattr(container, "processor"):
-            raise HTTPException(status_code=503, detail="Processor not initialized")
+        processor = await _resolve_user_processor(container, user.user_id)
         if not hasattr(container, "ta_orchestrator"):
             raise HTTPException(
                 status_code=503, detail="TA orchestrator not initialized"
@@ -1118,7 +1134,7 @@ def create_app() -> FastAPI:
                 retrieved_knowledge=retrieved_knowledge,
                 metadata=metadata,
             )
-            result = await container.processor.process(
+            result = await processor.process(
                 processor_input,
                 user_id=user.user_id,
                 trace_id=trace_id,
@@ -1297,17 +1313,9 @@ def create_app() -> FastAPI:
 
             connection_id = str(row.id)
 
-        # Hot-swap the processor if this connection is now active.
-        if body.activate:
-            _hot_swap_processor(
-                container,
-                provider=body.provider,
-                model_name=body.model_name,
-                api_key=body.api_key,
-                base_url=body.base_url,
-                temperature=body.temperature,
-                max_output_tokens=body.max_output_tokens,
-            )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it from the newly created/activated connection.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": connection_id,
@@ -1366,20 +1374,9 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        # If this connection is active, hot-swap the processor with updated values.
-        if row is not None and row.is_active:
-            api_key = (
-                body.api_key if body.api_key else decrypt_api_key(row.api_key_encrypted)
-            )
-            _hot_swap_processor(
-                container,
-                provider=row.provider,
-                model_name=row.model_name,
-                api_key=api_key,
-                base_url=row.base_url,
-                temperature=row.temperature,
-                max_output_tokens=row.max_output_tokens,
-            )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it with the updated connection settings.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": str(row.id),
@@ -1410,16 +1407,9 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        api_key = decrypt_api_key(row.api_key_encrypted)
-        _hot_swap_processor(
-            container,
-            provider=row.provider,
-            model_name=row.model_name,
-            api_key=api_key,
-            base_url=row.base_url,
-            temperature=row.temperature,
-            max_output_tokens=row.max_output_tokens,
-        )
+        # Invalidate the user's cached processor so the next request
+        # rebuilds it from the newly activated connection.
+        await container.invalidate_user_processor(user.user_id)
 
         return {
             "id": str(row.id),
@@ -1446,6 +1436,10 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
+        # Invalidate the user's cached processor since their active
+        # connection was just deactivated.
+        await container.invalidate_user_processor(user.user_id)
+
         return {
             "id": str(row.id),
             "provider": row.provider,
@@ -1470,6 +1464,10 @@ def create_app() -> FastAPI:
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Connection not found")
+
+        # Invalidate the user's cached processor in case the deleted
+        # connection was the one powering the cached processor.
+        await container.invalidate_user_processor(user.user_id)
 
         return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
 
