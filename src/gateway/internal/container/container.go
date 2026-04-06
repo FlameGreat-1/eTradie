@@ -120,7 +120,7 @@ func New(
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
-		Int("cycle_interval", scheduler.CurrentIntervalSeconds()).
+		Int("default_cycle_interval", scheduler.DefaultIntervalSeconds()).
 		Int("cycle_timeout", cfg.CycleTimeoutSeconds).
 		Bool("execution_available", execution != nil).
 		Bool("management_available", mgmtClient != nil).
