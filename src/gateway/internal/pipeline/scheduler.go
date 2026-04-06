@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
@@ -23,19 +24,22 @@ type Scheduler struct {
 	settingsStore   *settingsstore.Store
 	cfg             *config.Config
 	transport       *alertredis.Transport
+	tokenService    *auth.TokenService
+	userStore       *auth.UserStore
 	intervalSeconds atomic.Int64
 	updateCh        chan time.Duration
 	log             zerolog.Logger
 }
 
 // NewScheduler creates a gateway cycle scheduler.
-// It loads any persisted interval override from Redis via SettingsStore.
 func NewScheduler(
 	orchestrator *Orchestrator,
 	symbolStore *symbolstore.Store,
 	settingsStore *settingsstore.Store,
 	cfg *config.Config,
 	transport *alertredis.Transport,
+	tokenService *auth.TokenService,
+	userStore *auth.UserStore,
 ) *Scheduler {
 	s := &Scheduler{
 		orchestrator:  orchestrator,
@@ -43,6 +47,8 @@ func NewScheduler(
 		settingsStore: settingsStore,
 		cfg:           cfg,
 		transport:     transport,
+		tokenService:  tokenService,
+		userStore:     userStore,
 		updateCh:      make(chan time.Duration, 1),
 		log:           observability.Logger("scheduler"),
 	}
@@ -96,8 +102,55 @@ func (s *Scheduler) UpdateInterval(newInterval time.Duration) {
 		Msg("scheduler_interval_updated")
 }
 
+// issueServiceContext creates a context with a valid service token
+// for autonomous background operations. The service token carries
+// the admin user's identity so downstream services (Python engine,
+// Module B, Module C) can identify the broker connection and user.
+// Returns the base context if token issuance fails (graceful degradation).
+func (s *Scheduler) issueServiceContext(ctx context.Context) context.Context {
+	if s.tokenService == nil || s.userStore == nil {
+		s.log.Warn().Msg("scheduler_no_token_service_running_without_auth")
+		return ctx
+	}
+
+	// Look up the admin user to get their ID and username.
+	// The admin is seeded at startup, so this should always succeed.
+	users, err := s.userStore.ListUsers(ctx)
+	if err != nil || len(users) == 0 {
+		s.log.Error().Err(err).Msg("scheduler_failed_to_find_admin_user_for_service_token")
+		return ctx
+	}
+
+	// Find the first active admin user.
+	var adminUser *auth.User
+	for _, u := range users {
+		if u.IsAdmin() && u.Active {
+			adminUser = u
+			break
+		}
+	}
+	if adminUser == nil {
+		s.log.Error().Msg("scheduler_no_active_admin_user_found_for_service_token")
+		return ctx
+	}
+
+	// Issue a long-lived service token for autonomous operation.
+	serviceToken, err := s.tokenService.IssueServiceToken(adminUser.ID, adminUser.Username, adminUser.Role)
+	if err != nil {
+		s.log.Error().Err(err).Msg("scheduler_service_token_issuance_failed")
+		return ctx
+	}
+
+	s.log.Info().
+		Str("admin_user_id", adminUser.ID).
+		Str("admin_username", adminUser.Username).
+		Msg("scheduler_service_token_issued_for_autonomous_operation")
+
+	return auth.InjectTokenIntoContext(ctx, serviceToken)
+}
+
 // Start begins the recurring cycle. Blocks until ctx is cancelled.
-// Applies random jitter (0–10% of interval) to the first tick to
+// Applies random jitter (0-10% of interval) to the first tick to
 // prevent thundering herd when multiple gateway instances start.
 // The first cycle fires immediately after the jitter delay, then
 // subsequent cycles fire on the configured interval.
@@ -107,9 +160,14 @@ func (s *Scheduler) Start(ctx context.Context) {
 		return
 	}
 
+	// Issue a service token for autonomous 24/7 operation.
+	// This ensures all downstream calls (Python engine, Module B, Module C)
+	// carry valid authentication even when no user is logged in.
+	serviceCtx := s.issueServiceContext(ctx)
+
 	interval := time.Duration(s.intervalSeconds.Load()) * time.Second
 
-	// Apply jitter to the first tick: random delay of 0–10% of the interval.
+	// Apply jitter to the first tick: random delay of 0-10% of the interval.
 	maxJitter := interval / 10
 	if maxJitter > 0 {
 		jitter := cryptoRandDuration(maxJitter)
@@ -134,10 +192,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	}
 
 	// Fire the first cycle immediately after jitter.
-	// Without this, the gateway would sit idle for the entire interval
-	// (default 4 hours) before performing any analysis — catastrophic
-	// for a trading system that must react to market conditions on startup.
-	s.runCycle(ctx)
+	s.runCycle(serviceCtx)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -156,7 +211,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 				Msg("scheduler_ticker_reset")
 
 		case <-ticker.C:
-			s.runCycle(ctx)
+			s.runCycle(serviceCtx)
 		}
 	}
 }
@@ -168,11 +223,8 @@ func (s *Scheduler) runCycle(ctx context.Context) {
 		}
 	}()
 
-	// The background scheduler has no authenticated user context.
 	// Use the configured default symbols for scheduled cycles.
-	// Per-user scheduling is an architectural enhancement for a future phase;
-	// user-triggered cycles via RunCycle (HTTP/gRPC) carry the user's context
-	// and use their user-scoped symbol selection.
+	// The context carries a service token for downstream auth.
 	symbols := s.symbolStore.DefaultSymbols()
 
 	s.log.Info().
