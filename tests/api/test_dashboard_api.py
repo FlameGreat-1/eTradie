@@ -205,11 +205,12 @@ class TestAnalysisDetail:
 
 class TestAnalysisRerun:
     async def test_analysis_rerun_ta_unavailable(self, app_client):
-        """POST /api/analysis/rerun returns 500 or 503 when TA broker/LLM is unavailable.
+        """POST /api/analysis/rerun returns 500 when TA broker is unavailable.
 
-        In the test environment, the MT5 broker is not connected and the
-        user has no LLM connection configured. The endpoint should return
-        an error (503 for missing LLM connection, or 500 for TA failure).
+        In the test environment, the MT5 broker is not connected (no live
+        terminal). The user has an LLM connection seeded by conftest, so
+        the processor resolves. The rerun endpoint should return a 500
+        error with a clear message about TA analysis failure.
         """
         headers = app_client._user_headers
         resp = await app_client.post(
@@ -217,21 +218,22 @@ class TestAnalysisRerun:
             params={"symbol": "EURUSD", "trace_id": "test-rerun-001"},
             headers=headers,
         )
-        # Either 503 (no LLM connection for user) or 500 (TA failed).
-        assert resp.status_code in (500, 503)
+        # TA orchestrator will fail because MT5 broker is not connected.
+        assert resp.status_code == 500
         data = resp.json()
         assert "detail" in data
+        assert "TA" in data["detail"] or "failed" in data["detail"].lower()
 
     async def test_analysis_rerun_empty_symbol(self, app_client):
-        """POST /api/analysis/rerun with empty symbol returns 400 or 503."""
+        """POST /api/analysis/rerun with empty symbol returns 400."""
         headers = app_client._user_headers
         resp = await app_client.post(
             "/api/analysis/rerun",
             params={"symbol": ""},
             headers=headers,
         )
-        # 503 if no LLM connection, 400 if LLM resolved but symbol empty.
-        assert resp.status_code in (400, 503)
+        assert resp.status_code == 400
+        assert "required" in resp.json()["detail"].lower()
 
     async def test_analysis_rerun_no_auth(self, app_client):
         """POST /api/analysis/rerun without auth returns 401."""

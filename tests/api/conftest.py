@@ -236,10 +236,32 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         async with app.router.lifespan_context(app):
             container = app.state.container
 
-            # Create processor tables if they don't exist.
+            # Create processor tables (analysis_outputs, analysis_audit_logs,
+            # llm_connections) if they don't exist.
             from engine.processor.storage.schemas.processor_schema import ProcessorBase
             async with container.db.engine.begin() as conn:
                 await conn.run_sync(ProcessorBase.metadata.create_all)
+
+            # Seed an active LLM connection for the test user so
+            # per-user processor resolution works in endpoint tests.
+            # Uses the same provider/model from the env-var processor
+            # config so the LLM client can be built without errors.
+            from engine.processor.storage.repositories.llm_connection_repository import LLMConnectionRepository
+            test_user_id = "user-001"  # matches _user_headers JWT sub claim
+            async with container.db.session() as session:
+                repo = LLMConnectionRepository(session)
+                existing = await repo.get_active(user_id=test_user_id)
+                if existing is None:
+                    cfg = container.processor_config
+                    await repo.create(
+                        user_id=test_user_id,
+                        provider=cfg.llm_provider,
+                        model_name=cfg.model_name,
+                        api_key=cfg.get_active_api_key() or "sk-test-placeholder",
+                        temperature=cfg.temperature,
+                        max_output_tokens=cfg.max_output_tokens,
+                        activate=True,
+                    )
 
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://testserver") as client:
