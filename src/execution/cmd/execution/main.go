@@ -141,7 +141,7 @@ func main() {
 	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
 
 	// ── gRPC server ───────────────────────────────────────────────────
-	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore)
+	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
