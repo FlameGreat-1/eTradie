@@ -13,6 +13,9 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
+// testUserID is a deterministic user ID used across all state manager tests.
+const testUserID = "test-user-state-001"
+
 // =============================================================================
 // AreCorrelated - pure logic, no infrastructure needed
 // =============================================================================
@@ -167,14 +170,14 @@ func TestManager_HasPositionOnPair_AfterRefresh(t *testing.T) {
 	})
 
 	// Refresh loads positions from the broker.
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	if !mgr.HasPositionOnPair("EURUSD") {
+	if !mgr.HasPositionOnPair(testUserID, "EURUSD") {
 		t.Fatal("should detect open EURUSD position after Refresh")
 	}
-	if mgr.HasPositionOnPair("GBPUSD") {
+	if mgr.HasPositionOnPair(testUserID, "GBPUSD") {
 		t.Fatal("should not detect GBPUSD when only EURUSD is open")
 	}
 }
@@ -190,11 +193,11 @@ func TestManager_HasPositionOnPair_PendingOrder(t *testing.T) {
 		LotSize:   0.05,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	if !mgr.HasPositionOnPair("GBPUSD") {
+	if !mgr.HasPositionOnPair(testUserID, "GBPUSD") {
 		t.Fatal("should detect pending order on GBPUSD")
 	}
 }
@@ -212,12 +215,12 @@ func TestManager_HasCorrelatedExposure_Detected(t *testing.T) {
 		LotSize:   0.10,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
 	// EURUSD and GBPUSD are in the same correlation group.
-	if !mgr.HasCorrelatedExposure("EURUSD") {
+	if !mgr.HasCorrelatedExposure(testUserID, "EURUSD") {
 		t.Fatal("should detect correlated exposure (GBPUSD open, checking EURUSD)")
 	}
 }
@@ -233,12 +236,12 @@ func TestManager_HasCorrelatedExposure_SamePair_Excluded(t *testing.T) {
 		LotSize:   0.10,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
 	// Same pair is NOT correlation.
-	if mgr.HasCorrelatedExposure("EURUSD") {
+	if mgr.HasCorrelatedExposure(testUserID, "EURUSD") {
 		t.Fatal("same pair should not count as correlated exposure")
 	}
 }
@@ -254,12 +257,12 @@ func TestManager_HasCorrelatedExposure_Uncorrelated(t *testing.T) {
 		LotSize:   0.10,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
 	// EURUSD and USDJPY are in different groups.
-	if mgr.HasCorrelatedExposure("EURUSD") {
+	if mgr.HasCorrelatedExposure(testUserID, "EURUSD") {
 		t.Fatal("USDJPY should not be correlated with EURUSD")
 	}
 }
@@ -270,16 +273,16 @@ func TestManager_DailyLossPercent_AfterRefresh(t *testing.T) {
 	mgr, _ := newRealManager(t)
 
 	// Refresh to load account info (balance = 10000 from mock broker).
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
 	// Record a loss via the real PnLStore.
-	if err := mgr.RecordPnL(context.Background(), -300.0); err != nil {
+	if err := mgr.RecordPnL(context.Background(), testUserID, -300.0); err != nil {
 		t.Fatalf("RecordPnL failed: %v", err)
 	}
 
-	pct := mgr.DailyLossPercent()
+	pct := mgr.DailyLossPercent(testUserID)
 	// -300 / 10000 * 100 = 3.0%
 	if math.Abs(pct-3.0) > 0.5 {
 		// Allow tolerance because DB may have accumulated P&L from previous test runs.
@@ -293,18 +296,18 @@ func TestManager_DailyLossPercent_AfterRefresh(t *testing.T) {
 func TestManager_DailyLossPercent_Profitable(t *testing.T) {
 	mgr, _ := newRealManager(t)
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
 	// Record a profit.
-	mgr.RecordPnL(context.Background(), 500.0)
+	mgr.RecordPnL(context.Background(), testUserID, 500.0)
 
 	// If daily P&L is positive overall, loss percent should be 0.
 	// Note: DB may have accumulated losses from other tests, so we
 	// check the in-memory value directly.
-	if mgr.DailyPnL() > 0 {
-		pct := mgr.DailyLossPercent()
+	if mgr.DailyPnL(testUserID) > 0 {
+		pct := mgr.DailyLossPercent(testUserID)
 		if pct != 0 {
 			t.Fatalf("profitable day should return 0, got %.2f", pct)
 		}
@@ -314,14 +317,14 @@ func TestManager_DailyLossPercent_Profitable(t *testing.T) {
 func TestManager_WeeklyDrawdownPercent_AfterLoss(t *testing.T) {
 	mgr, _ := newRealManager(t)
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	mgr.RecordPnL(context.Background(), -500.0)
+	mgr.RecordPnL(context.Background(), testUserID, -500.0)
 
-	pct := mgr.WeeklyDrawdownPercent()
-	if mgr.WeeklyPnL() < 0 && pct <= 0 {
+	pct := mgr.WeeklyDrawdownPercent(testUserID)
+	if mgr.WeeklyPnL(testUserID) < 0 && pct <= 0 {
 		t.Fatalf("expected positive drawdown percent after loss, got %.2f%%", pct)
 	}
 }
@@ -331,12 +334,12 @@ func TestManager_WeeklyDrawdownPercent_AfterLoss(t *testing.T) {
 func TestManager_OpenPositionCount_Empty(t *testing.T) {
 	mgr, _ := newRealManager(t)
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	if mgr.OpenPositionCount() != 0 {
-		t.Fatalf("expected 0 positions on fresh mock broker, got %d", mgr.OpenPositionCount())
+	if mgr.OpenPositionCount(testUserID) != 0 {
+		t.Fatalf("expected 0 positions on fresh mock broker, got %d", mgr.OpenPositionCount(testUserID))
 	}
 }
 
@@ -350,12 +353,12 @@ func TestManager_OpenPositionCount_WithPositions(t *testing.T) {
 		Symbol: "GBPUSD", Direction: "SELL", Price: 1.27, LotSize: 0.05,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	if mgr.OpenPositionCount() != 2 {
-		t.Fatalf("expected 2 positions, got %d", mgr.OpenPositionCount())
+	if mgr.OpenPositionCount(testUserID) != 2 {
+		t.Fatalf("expected 2 positions, got %d", mgr.OpenPositionCount(testUserID))
 	}
 }
 
@@ -368,14 +371,14 @@ func TestManager_Positions_ReturnsCopy(t *testing.T) {
 		Symbol: "EURUSD", Direction: "BUY", Price: 1.10, LotSize: 0.10,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	copy1 := mgr.Positions()
+	copy1 := mgr.Positions(testUserID)
 	copy1[0].LotSize = 999.0
 
-	original := mgr.Positions()
+	original := mgr.Positions(testUserID)
 	if original[0].LotSize == 999.0 {
 		t.Fatal("Positions() should return a defensive copy")
 	}
@@ -388,14 +391,14 @@ func TestManager_PendingOrders_ReturnsCopy(t *testing.T) {
 		Symbol: "GBPUSD", Direction: "SELL", Price: 1.27, LotSize: 0.05,
 	})
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	copy1 := mgr.PendingOrders()
+	copy1 := mgr.PendingOrders(testUserID)
 	copy1[0].LotSize = 999.0
 
-	original := mgr.PendingOrders()
+	original := mgr.PendingOrders(testUserID)
 	if original[0].LotSize == 999.0 {
 		t.Fatal("PendingOrders() should return a defensive copy")
 	}
@@ -406,11 +409,11 @@ func TestManager_PendingOrders_ReturnsCopy(t *testing.T) {
 func TestManager_Account_ReturnsCopy(t *testing.T) {
 	mgr, _ := newRealManager(t)
 
-	if err := mgr.Refresh(context.Background()); err != nil {
+	if err := mgr.Refresh(context.Background(), testUserID); err != nil {
 		t.Fatalf("Refresh failed: %v", err)
 	}
 
-	acct := mgr.Account()
+	acct := mgr.Account(testUserID)
 	if acct == nil {
 		t.Fatal("Account should not be nil after Refresh")
 	}
@@ -422,7 +425,7 @@ func TestManager_Account_ReturnsCopy(t *testing.T) {
 	acct.Balance = 0
 
 	// Original should be unchanged.
-	if mgr.Account().Balance != 10000.0 {
+	if mgr.Account(testUserID).Balance != 10000.0 {
 		t.Fatal("Account() should return a defensive copy")
 	}
 }
