@@ -155,9 +155,14 @@ func main() {
 			case alert.TypeCandleClosed:
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
-					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
-						// Use the trade's own auth context for broker calls.
-						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+					t.RLock()
+					sym := t.Symbol
+					st := t.Status
+					token := t.AuthToken
+					t.RUnlock()
+
+					if sym == evt.Symbol && st != constants.StatusClosed {
+						tradeCtx := auth.InjectTokenIntoContext(ctx, token)
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							structuralEngine.EvaluateStructuralBreak(tradeCtx, t, evt.Direction, price)
@@ -167,8 +172,14 @@ func main() {
 			case alert.TypeCOTFlip:
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
-					if t.Symbol == evt.Symbol && t.Status != constants.StatusClosed {
-						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
+					t.RLock()
+					sym := t.Symbol
+					st := t.Status
+					token := t.AuthToken
+					t.RUnlock()
+
+					if sym == evt.Symbol && st != constants.StatusClosed {
+						tradeCtx := auth.InjectTokenIntoContext(ctx, token)
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							macroEngine.EvaluateCOTFlip(tradeCtx, t, evt.Direction, price)
@@ -190,9 +201,15 @@ func main() {
 				if isLoss {
 					trades := mgr.GetAllTrades()
 					for _, t := range trades {
-						if t.Status != constants.StatusClosed {
-							tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
-							price, err := mgr.GetPriceForSymbol(tradeCtx, t.Symbol)
+						t.RLock()
+						st := t.Status
+						sym := t.Symbol
+						token := t.AuthToken
+						t.RUnlock()
+
+						if st != constants.StatusClosed {
+							tradeCtx := auth.InjectTokenIntoContext(ctx, token)
+							price, err := mgr.GetPriceForSymbol(tradeCtx, sym)
 							if err == nil {
 								exposureEngine.EvaluateCorrelationShock(tradeCtx, t, stoppedSymbol, price)
 							}
