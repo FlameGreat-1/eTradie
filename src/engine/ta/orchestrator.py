@@ -143,7 +143,8 @@ class TAOrchestrator:
         self,
         symbol: str,
         lookback_periods: int = 500,
-        broker_client: Optional[BrokerBase] = None,
+        *,
+        broker_client: BrokerBase,
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
@@ -152,15 +153,13 @@ class TAOrchestrator:
             symbol: The trading symbol to analyze (e.g. "EURUSD").
             lookback_periods: Number of candles to fetch per timeframe.
             broker_client: The user's broker client for candle fetching.
-                In multi-tenant mode, each user has their own MT5 broker
-                connection. This parameter MUST be provided by the caller.
-                If None, falls back to self.broker_client (legacy).
+                Required. In multi-tenant mode, each user has their own
+                MT5 broker connection. There is no fallback.
 
         Returns:
             Structured multi-timeframe analysis result dict.
         """
-        # Resolve the broker to use for this analysis call.
-        active_broker = broker_client or self.broker_client
+        active_broker = broker_client
         if active_broker is None:
             self._logger.error(
                 "ta_analysis_no_broker",
@@ -428,9 +427,13 @@ class TAOrchestrator:
         symbol: str,
         timeframe: Timeframe,
         lookback_periods: int,
-        broker: Optional[BrokerBase] = None,
+        broker: BrokerBase,
     ) -> Optional[CandleSequence]:
-        """Fetch candles for a single timeframe from store or broker."""
+        """Fetch candles for a single timeframe from store or broker.
+
+        Args:
+            broker: The user's broker client. Required. No fallback.
+        """
         end_time = datetime.now(UTC)
         start_time = self._calculate_start_time(
             end_time,
@@ -446,8 +449,7 @@ class TAOrchestrator:
                 end_time,
             )
 
-        # Use the per-request broker, falling back to instance broker.
-        active_broker = broker or self.broker_client
+        active_broker = broker
 
         if len(stored_rows) < lookback_periods * 0.8:
             if active_broker is None:
