@@ -194,9 +194,9 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	positions := s.state.Positions()
-	pending := s.state.PendingOrders()
-	account := s.state.Account()
+	positions := s.state.Positions(userID)
+	pending := s.state.PendingOrders(userID)
+	account := s.state.Account(userID)
 
 	var balance, equity float64
 	if account != nil {
@@ -207,8 +207,8 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"open_position_count": len(positions),
 		"pending_order_count": len(pending),
-		"daily_realized_pnl":  s.state.DailyPnL(),
-		"weekly_realized_pnl": s.state.WeeklyPnL(),
+		"daily_realized_pnl":  s.state.DailyPnL(userID),
+		"weekly_realized_pnl": s.state.WeeklyPnL(userID),
 		"account_balance":     balance,
 		"account_equity":      equity,
 		"open_positions":      positions,
@@ -254,7 +254,7 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ownsOrder := false
-	for _, po := range s.state.PendingOrders() {
+	for _, po := range s.state.PendingOrders(userID) {
 		if po.OrderID == req.OrderID {
 			ownsOrder = true
 			break

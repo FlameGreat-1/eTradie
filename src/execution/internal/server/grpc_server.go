@@ -264,12 +264,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		if valResult.Outcome == constants.OutcomeLock {
 			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeDailyLimitLocked, alert.SeverityCritical,
 				"Execution locked: daily loss limit reached").
-				WithUserID(userID).WithDetail("daily_loss_pct", s.state.DailyLossPercent()))
+				WithUserID(userID).WithDetail("daily_loss_pct", s.state.DailyLossPercent(userID)))
 		}
 		if valResult.Outcome == constants.OutcomePause {
 			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
 				"Execution paused: weekly drawdown limit reached").
-				WithUserID(userID).WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent()))
+				WithUserID(userID).WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent(userID)))
 		}
 
 		elapsed := time.Since(start).Seconds()
@@ -464,9 +464,9 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 		return nil, status.Errorf(codes.Unavailable, "broker state refresh failed")
 	}
 
-	positions := s.state.Positions()
-	pending := s.state.PendingOrders()
-	account := s.state.Account()
+	positions := s.state.Positions(userID)
+	pending := s.state.PendingOrders(userID)
+	account := s.state.Account(userID)
 
 	var balance, equity float64
 	if account != nil {
@@ -508,8 +508,8 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	return &executionv1.GetStateResponse{
 		OpenPositionCount: int32(len(positions)),
 		PendingOrderCount: int32(len(pending)),
-		DailyRealizedPnl:  s.state.DailyPnL(),
-		WeeklyRealizedPnl: s.state.WeeklyPnL(),
+		DailyRealizedPnl:  s.state.DailyPnL(userID),
+		WeeklyRealizedPnl: s.state.WeeklyPnL(userID),
 		AccountBalance:    balance,
 		AccountEquity:     equity,
 		OpenPositions:     protoPositions,

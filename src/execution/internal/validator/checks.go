@@ -74,7 +74,7 @@ func check5SessionFilter(
 }
 
 // check6SamePairPosition rejects if there is already an open position
-// or pending order on the same symbol.
+// or pending order on the same symbol for this user.
 func check6SamePairPosition(
 	_ context.Context,
 	req *models.TradeRequest,
@@ -84,7 +84,7 @@ func check6SamePairPosition(
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	if sm.HasPositionOnPair(req.Symbol) {
+	if sm.HasPositionOnPair(req.UserID, req.Symbol) {
 		return reject(
 			constants.CheckSamePairPosition,
 			fmt.Sprintf("existing position or pending order on %s", req.Symbol),
@@ -94,7 +94,7 @@ func check6SamePairPosition(
 }
 
 // check7CorrelatedExposure rejects if there is an open position or
-// pending order on any pair in the same correlation group.
+// pending order on any pair in the same correlation group for this user.
 // Correlation groups are defined in constants.CorrelatedPairGroups.
 // The gateway defines MR-REJECT-005 but does not implement it;
 // Module B is the single owner of this check.
@@ -107,7 +107,7 @@ func check7CorrelatedExposure(
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	if sm.HasCorrelatedExposure(req.Symbol) {
+	if sm.HasCorrelatedExposure(req.UserID, req.Symbol) {
 		return reject(
 			constants.CheckCorrelatedExposure,
 			fmt.Sprintf("correlated pair exposure: position exists in same group as %s", req.Symbol),
@@ -117,18 +117,19 @@ func check7CorrelatedExposure(
 }
 
 // check8MaxConcurrentTrades queues the trade if the maximum number
-// of concurrent open positions has been reached. Uses RuntimeParams
-// from the settings store so dashboard changes take effect immediately.
+// of concurrent open positions has been reached for this user. Uses
+// RuntimeParams from the settings store so dashboard changes take
+// effect immediately.
 func check8MaxConcurrentTrades(
 	_ context.Context,
-	_ *models.TradeRequest,
+	req *models.TradeRequest,
 	_ *config.Config,
 	params *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	count := sm.OpenPositionCount()
+	count := sm.OpenPositionCount(req.UserID)
 	if count >= params.MaxConcurrentTrades {
 		return queue(
 			constants.CheckMaxConcurrentTrades,
@@ -139,20 +140,20 @@ func check8MaxConcurrentTrades(
 }
 
 // check9DailyLossLimit locks execution when the daily realized loss
-// exceeds the configured percentage of account balance. The current
-// loss percentage is read from state.Manager (broker + PostgreSQL).
-// The limit threshold is read from RuntimeParams (settings store)
-// so dashboard changes take effect immediately.
+// exceeds the configured percentage of account balance for this user.
+// The current loss percentage is read from state.Manager (broker +
+// PostgreSQL). The limit threshold is read from RuntimeParams
+// (settings store) so dashboard changes take effect immediately.
 func check9DailyLossLimit(
 	_ context.Context,
-	_ *models.TradeRequest,
+	req *models.TradeRequest,
 	_ *config.Config,
 	params *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	loss := sm.DailyLossPercent()
+	loss := sm.DailyLossPercent(req.UserID)
 	if loss >= params.DailyLossLimitPct {
 		return lock(
 			constants.CheckDailyLossLimit,
@@ -163,21 +164,21 @@ func check9DailyLossLimit(
 }
 
 // check10WeeklyDrawdown pauses execution when the weekly realized
-// drawdown exceeds the configured percentage of account balance.
-// The current drawdown percentage is read from state.Manager
-// (broker + PostgreSQL). The limit threshold is read from
-// RuntimeParams (settings store) so dashboard changes take effect
-// immediately.
+// drawdown exceeds the configured percentage of account balance for
+// this user. The current drawdown percentage is read from
+// state.Manager (broker + PostgreSQL). The limit threshold is read
+// from RuntimeParams (settings store) so dashboard changes take
+// effect immediately.
 func check10WeeklyDrawdown(
 	_ context.Context,
-	_ *models.TradeRequest,
+	req *models.TradeRequest,
 	_ *config.Config,
 	params *RuntimeParams,
 	sm *state.Manager,
 	_ broker.Port,
 	_ time.Time,
 ) models.ValidationResult {
-	dd := sm.WeeklyDrawdownPercent()
+	dd := sm.WeeklyDrawdownPercent(req.UserID)
 	if dd >= params.WeeklyDrawdownPct {
 		return pause(
 			constants.CheckWeeklyDrawdown,
