@@ -22,7 +22,9 @@ import (
 	mockbroker "github.com/flamegreat-1/etradie/src/execution/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker/mt5"
 	"github.com/flamegreat-1/etradie/src/execution/internal/config"
+	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
 	"github.com/flamegreat-1/etradie/src/execution/internal/executor"
+	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 	"github.com/flamegreat-1/etradie/src/execution/internal/server"
 	"github.com/flamegreat-1/etradie/src/execution/internal/sizing"
@@ -80,10 +82,17 @@ func main() {
 		log.Fatal().Err(err).Msg("database_ping_failed")
 	}
 
-	// Create all execution tables (audit logs, pnl tracker, settings).
+	// Create all execution tables (audit logs, pnl tracker, settings, pending watchers).
 	if _, err := pool.Exec(ctx, store.SchemaSQL()); err != nil {
 		log.Fatal().Err(err).Msg("schema_creation_failed")
 	}
+
+	// Ensure auth schema exists (idempotent). Execution needs read access
+	// to auth_users for issuing service tokens on watcher restoration.
+	if _, err := pool.Exec(ctx, auth.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("auth_schema_creation_failed")
+	}
+	userStore := auth.NewUserStore(pool)
 
 	// ── Broker implementation ─────────────────────────────────────────
 	var bp broker.Port
@@ -132,11 +141,13 @@ func main() {
 	s := sizing.NewEngine(cfg, bp)
 	al := audit.NewLogger(auditStore)
 
+	watcherStore := store.NewWatcherStore(pool)
+
 	wm := watcher.NewManager(bp, gwClient, al, alertTransport, watcher.Config{
 		PollIntervalMs:          cfg.WatcherPollIntervalMs,
 		TimeoutMinutes:          cfg.WatcherTimeoutMinutes,
 		ConfirmPollIntervalSecs: cfg.WatcherConfirmPollIntervalSecs,
-	})
+	}, watcherStore)
 
 	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
 
@@ -178,6 +189,92 @@ func main() {
 		}
 	}()
 
+	// -- Restore pending watchers from database on restart ----------------
+	// Pending watchers are instant-mode orders waiting for price to enter
+	// the entry zone. Without restoration, a service restart silently
+	// kills all pending watchers and valid trade setups are lost.
+	pendingWatchers, err := watcherStore.GetAllPending(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("pending_watchers_restore_failed")
+	} else if len(pendingWatchers) > 0 {
+		log.Info().Int("count", len(pendingWatchers)).Msg("restoring_pending_watchers")
+
+		// Collect unique user IDs and issue service tokens.
+		userIDs := make(map[string]bool)
+		for _, rec := range pendingWatchers {
+			if rec.UserID != "" {
+				userIDs[rec.UserID] = true
+			}
+		}
+
+		serviceTokens := make(map[string]string)
+		for uid := range userIDs {
+			user, err := userStore.GetUserByID(ctx, uid)
+			if err != nil || user == nil {
+				log.Error().Err(err).Str("user_id", uid).Msg("watcher_restore_user_lookup_failed")
+				continue
+			}
+			if !user.Active {
+				log.Warn().Str("user_id", uid).Msg("skipping_watcher_restore_for_deactivated_user")
+				continue
+			}
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
+			if err != nil {
+				log.Error().Err(err).Str("user_id", uid).Msg("watcher_restore_service_token_failed")
+				continue
+			}
+			serviceTokens[uid] = svcToken
+			log.Info().Str("user_id", uid).Str("username", user.Username).Msg("service_token_issued_for_watcher_restoration")
+		}
+
+		now := time.Now()
+		timeoutDuration := time.Duration(cfg.WatcherTimeoutMinutes) * time.Minute
+		restoredCount := 0
+
+		for _, rec := range pendingWatchers {
+			// Calculate remaining timeout. If the original timeout has
+			// already elapsed, the setup is stale. Delete and skip.
+			elapsed := now.Sub(rec.CreatedAt)
+			remaining := timeoutDuration - elapsed
+			if remaining <= 0 {
+				log.Info().
+					Str("watcher_id", rec.WatcherID).
+					Str("symbol", rec.Symbol).
+					Dur("elapsed", elapsed).
+					Msg("stale_watcher_expired_deleting")
+				_ = watcherStore.Delete(ctx, rec.WatcherID)
+				continue
+			}
+
+			token := serviceTokens[rec.UserID]
+			if token == "" {
+				log.Warn().
+					Str("watcher_id", rec.WatcherID).
+					Str("user_id", rec.UserID).
+					Msg("no_service_token_for_watcher_skipping")
+				_ = watcherStore.Delete(ctx, rec.WatcherID)
+				continue
+			}
+
+			order := restoreOrderFromRecord(rec, token)
+			wm.Arm(order)
+			restoredCount++
+
+			log.Info().
+				Str("watcher_id", rec.WatcherID).
+				Str("symbol", rec.Symbol).
+				Str("user_id", rec.UserID).
+				Dur("remaining_timeout", remaining).
+				Msg("watcher_restored")
+		}
+
+		log.Info().
+			Int("total_pending", len(pendingWatchers)).
+			Int("restored", restoredCount).
+			Int("users_with_tokens", len(serviceTokens)).
+			Msg("pending_watchers_restoration_complete")
+	}
+
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).
@@ -203,4 +300,43 @@ func main() {
 	pool.Close()
 
 	log.Info().Msg("execution_engine_stopped")
+}
+
+// restoreOrderFromRecord reconstructs an Order from a persisted watcher record.
+// Used on service restart to resume monitoring of pending instant-mode orders.
+func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string) *models.Order {
+	return &models.Order{
+		OrderID:            rec.OrderID,
+		Symbol:             rec.Symbol,
+		Direction:          constants.Direction(rec.Direction),
+		ExecutionMode:      constants.ExecutionMode(rec.ExecutionMode),
+		EntryPrice:         rec.EntryPrice,
+		StopLoss:           rec.StopLoss,
+		TP1Price:           rec.TP1Price,
+		TP1Pct:             rec.TP1Pct,
+		TP2Price:           rec.TP2Price,
+		TP2Pct:             rec.TP2Pct,
+		TP3Price:           rec.TP3Price,
+		TP3Pct:             rec.TP3Pct,
+		LotSize:            rec.LotSize,
+		RiskPercent:        rec.RiskPercent,
+		RiskAmount:         rec.RiskAmount,
+		RRRatio:            rec.RRRatio,
+		AccountBalance:     rec.AccountBalance,
+		SLDistancePips:     rec.SLDistancePips,
+		PipValue:           rec.PipValue,
+		OvershootTolerance: rec.OvershootTolerance,
+		LTFConfirmed:       rec.LTFConfirmed,
+		AnalysisID:         rec.AnalysisID,
+		TradingStyle:       constants.TradingStyle(rec.TradingStyle),
+		Session:            rec.Session,
+		Grade:              rec.Grade,
+		Confluence:         rec.Confluence,
+		Confidence:         rec.Confidence,
+		SetupType:          rec.SetupType,
+		WatcherID:          rec.WatcherID,
+		CreatedAt:          rec.CreatedAt,
+		UserID:             rec.UserID,
+		AuthToken:          authToken,
+	}
 }
