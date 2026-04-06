@@ -236,12 +236,13 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 
 	tradeReq := parseRequest(req)
+	tradeReq.UserID = userID
 
 	// Step 1: Refresh broker state.
 	if err := s.state.Refresh(ctx, userID); err != nil {
 		s.log.Error().Err(err).Str("trace_id", traceID).Msg("state_refresh_failed")
 		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
-			"Failed to refresh broker state").WithSymbol(req.GetSymbol()).WithTraceID(traceID))
+			"Failed to refresh broker state").WithUserID(userID).WithSymbol(req.GetSymbol()).WithTraceID(traceID))
 		return rejectedResponse(tradeReq, "broker state refresh failed: "+err.Error(), 0, traceID), nil
 	}
 
@@ -253,7 +254,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityWarning,
 			"Trade rejected: "+valResult.Reason).
-			WithSymbol(req.GetSymbol()).WithDirection(req.GetDirection()).WithTraceID(traceID).
+			WithUserID(userID).WithSymbol(req.GetSymbol()).WithDirection(req.GetDirection()).WithTraceID(traceID).
 			WithDetails(map[string]interface{}{
 				"check":       int32(valResult.FailedCheck),
 				"outcome":     string(valResult.Outcome),
@@ -263,12 +264,12 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		if valResult.Outcome == constants.OutcomeLock {
 			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeDailyLimitLocked, alert.SeverityCritical,
 				"Execution locked: daily loss limit reached").
-				WithDetail("daily_loss_pct", s.state.DailyLossPercent()))
+				WithUserID(userID).WithDetail("daily_loss_pct", s.state.DailyLossPercent(userID)))
 		}
 		if valResult.Outcome == constants.OutcomePause {
 			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
 				"Execution paused: weekly drawdown limit reached").
-				WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent()))
+				WithUserID(userID).WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent(userID)))
 		}
 
 		elapsed := time.Since(start).Seconds()
@@ -292,7 +293,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", tradeReq.Symbol).Str("trace_id", traceID).Msg("sizing_failed")
 		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
-			"Position sizing failed: "+err.Error()).WithSymbol(tradeReq.Symbol).WithTraceID(traceID))
+			"Position sizing failed: "+err.Error()).WithUserID(userID).WithSymbol(tradeReq.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
 		observability.ExecutionDuration.Observe(elapsed)
@@ -323,7 +324,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if err != nil {
 		s.log.Error().Err(err).Str("symbol", order.Symbol).Str("trace_id", traceID).Msg("execution_failed")
 		s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityError,
-			"Order execution failed: "+err.Error()).WithSymbol(order.Symbol).WithTraceID(traceID))
+			"Order execution failed: "+err.Error()).WithUserID(userID).WithSymbol(order.Symbol).WithTraceID(traceID))
 
 		elapsed := time.Since(start).Seconds()
 		observability.ExecutionDuration.Observe(elapsed)
@@ -355,7 +356,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 	s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
 		modeLabel+" for "+order.Symbol).
-		WithSymbol(order.Symbol).WithDirection(string(order.Direction)).WithTraceID(traceID).
+		WithUserID(userID).WithSymbol(order.Symbol).WithDirection(string(order.Direction)).WithTraceID(traceID).
 		WithDetails(map[string]interface{}{
 			"order_id":       order.OrderID,
 			"entry_price":    order.EntryPrice,
@@ -438,7 +439,7 @@ func (s *ExecutionServer) CancelPendingOrder(ctx context.Context, req *execution
 
 	s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
 		fmt.Sprintf("Order %s cancelled: %s", req.GetOrderId(), req.GetReason())).
-		WithSymbol(req.GetSymbol()).WithTraceID(traceID).
+		WithUserID(userID).WithSymbol(req.GetSymbol()).WithTraceID(traceID).
 		WithDetails(map[string]interface{}{
 			"order_id": req.GetOrderId(),
 			"reason":   req.GetReason(),
@@ -463,9 +464,9 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 		return nil, status.Errorf(codes.Unavailable, "broker state refresh failed")
 	}
 
-	positions := s.state.Positions()
-	pending := s.state.PendingOrders()
-	account := s.state.Account()
+	positions := s.state.Positions(userID)
+	pending := s.state.PendingOrders(userID)
+	account := s.state.Account(userID)
 
 	var balance, equity float64
 	if account != nil {
@@ -507,8 +508,8 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	return &executionv1.GetStateResponse{
 		OpenPositionCount: int32(len(positions)),
 		PendingOrderCount: int32(len(pending)),
-		DailyRealizedPnl:  s.state.DailyPnL(),
-		WeeklyRealizedPnl: s.state.WeeklyPnL(),
+		DailyRealizedPnl:  s.state.DailyPnL(userID),
+		WeeklyRealizedPnl: s.state.WeeklyPnL(userID),
 		AccountBalance:    balance,
 		AccountEquity:     equity,
 		OpenPositions:     protoPositions,

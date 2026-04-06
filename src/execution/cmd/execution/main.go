@@ -178,18 +178,6 @@ func main() {
 		}
 	}()
 
-	// ── Publish service started event ─────────────────────────────────
-	alertTransport.Publish(ctx,
-		alert.NewEvent(alert.SourceExecution, alert.TypeServiceStarted, alert.SeverityInfo,
-			"Execution engine started").
-			WithDetails(map[string]interface{}{
-				"grpc_port":      cfg.GRPCPort,
-				"http_port":      cfg.HTTPPort,
-				"broker_mode":    cfg.BrokerMode,
-				"execution_mode": cfg.DefaultExecutionMode,
-			}),
-	)
-
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).
@@ -204,11 +192,6 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-
-	alertTransport.Publish(shutdownCtx,
-		alert.NewEvent(alert.SourceExecution, alert.TypeServiceStopping, alert.SeverityInfo,
-			"Execution engine shutting down"),
-	)
 
 	// Shutdown order: gRPC → watchers → HTTP → alerts → DB.
 	grpcServer.GracefulStop()

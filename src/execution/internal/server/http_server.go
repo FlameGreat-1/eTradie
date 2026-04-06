@@ -164,10 +164,11 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish settings change to all connected dashboards via Redis.
+	// Publish settings change to the user's connected dashboards via Redis.
 	s.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceExecution, alert.TypeSettingsUpdated, alert.SeverityInfo,
 			fmt.Sprintf("Settings updated: mode=%s, max_trades=%d", req.ExecutionMode, req.MaxConcurrentTrades)).
+			WithUserID(userID).
 			WithDetails(map[string]interface{}{
 				"execution_mode":        req.ExecutionMode,
 				"max_concurrent_trades": req.MaxConcurrentTrades,
@@ -193,9 +194,9 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	positions := s.state.Positions()
-	pending := s.state.PendingOrders()
-	account := s.state.Account()
+	positions := s.state.Positions(userID)
+	pending := s.state.PendingOrders(userID)
+	account := s.state.Account(userID)
 
 	var balance, equity float64
 	if account != nil {
@@ -206,8 +207,8 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"open_position_count": len(positions),
 		"pending_order_count": len(pending),
-		"daily_realized_pnl":  s.state.DailyPnL(),
-		"weekly_realized_pnl": s.state.WeeklyPnL(),
+		"daily_realized_pnl":  s.state.DailyPnL(userID),
+		"weekly_realized_pnl": s.state.WeeklyPnL(userID),
 		"account_balance":     balance,
 		"account_equity":      equity,
 		"open_positions":      positions,
@@ -242,6 +243,32 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		req.Reason = "MANUAL"
 	}
 
+	// Ownership verification: ensure the order belongs to this user.
+	// Refresh state to get the user's current pending orders from their
+	// own broker account, then verify the order_id is in that list.
+	userID := auth.UserIDFromContext(r.Context())
+	if err := s.state.Refresh(r.Context(), userID); err != nil {
+		s.log.Error().Err(err).Msg("cancel_order_state_refresh_failed")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "broker state refresh failed"})
+		return
+	}
+
+	ownsOrder := false
+	for _, po := range s.state.PendingOrders(userID) {
+		if po.OrderID == req.OrderID {
+			ownsOrder = true
+			break
+		}
+	}
+	if !ownsOrder {
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{
+			"success": false,
+			"status":  "FORBIDDEN",
+			"error":   "order not found in your pending orders",
+		})
+		return
+	}
+
 	if err := s.broker.CancelOrder(r.Context(), req.OrderID); err != nil {
 		s.log.Error().Err(err).Str("order_id", req.OrderID).Msg("cancel_order_failed")
 		writeJSON(w, http.StatusNotFound, map[string]interface{}{
@@ -258,6 +285,7 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	s.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityInfo,
 			fmt.Sprintf("Order %s cancelled: %s", req.OrderID, req.Reason)).
+			WithUserID(userID).
 			WithSymbol(req.Symbol).
 			WithDetails(map[string]interface{}{
 				"order_id": req.OrderID,

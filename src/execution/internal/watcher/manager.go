@@ -388,6 +388,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 			w.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityCritical,
 					fmt.Sprintf("CRITICAL: Market order FAILED for %s: %s", w.order.Symbol, err.Error())).
+					WithUserID(w.order.UserID).
 					WithSymbol(w.order.Symbol).
 					WithDirection(string(w.order.Direction)).
 					WithDetail("watcher_id", w.order.WatcherID).
@@ -407,6 +408,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 			w.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceExecution, alert.TypeOrderRejected, alert.SeverityCritical,
 					fmt.Sprintf("Market order REJECTED for %s: %s", w.order.Symbol, result.ErrorMessage)).
+					WithUserID(w.order.UserID).
 					WithSymbol(w.order.Symbol).
 					WithDirection(string(w.order.Direction)).
 					WithDetail("watcher_id", w.order.WatcherID),
@@ -441,6 +443,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 		w.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
 				fmt.Sprintf("Instant market order FILLED for %s at %.5f", w.order.Symbol, result.FillPrice)).
+				WithUserID(w.order.UserID).
 				WithSymbol(w.order.Symbol).
 				WithDirection(string(w.order.Direction)).
 				WithDetails(map[string]interface{}{
@@ -470,6 +473,7 @@ func (w *Watcher) handleTimeout() {
 			alert.NewEvent(alert.SourceExecution, alert.TypeOrderExpired, alert.SeverityWarning,
 				fmt.Sprintf("Instant watcher timed out for %s after %d minutes",
 					w.order.Symbol, w.cfg.TimeoutMinutes)).
+				WithUserID(w.order.UserID).
 				WithSymbol(w.order.Symbol).
 				WithDirection(string(w.order.Direction)).
 				WithDetails(map[string]interface{}{

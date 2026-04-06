@@ -98,6 +98,28 @@ def _require_broker(container: "Container") -> None:
         )
 
 
+async def _resolve_user_broker(container: "Container", user_id: str):
+    """Resolve the authenticated user's broker connection.
+
+    Called by every /internal/broker/* endpoint to ensure broker
+    operations execute against the correct user's MT5 account.
+
+    Resolution order (handled by container.load_user_broker):
+      1. Active broker connection from DB for this user
+      2. Env-var broker (container.mt5_client) as system fallback
+      3. None -> raises HTTP 503
+
+    Works for both MetaAPI and ZeroMQ EA connection types.
+    """
+    client = await container.load_user_broker(user_id)
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No broker connection configured. Please set up a broker connection via the dashboard.",
+        )
+    return client
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -2246,9 +2268,9 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Return live account balance, equity, margin, free margin."""
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            info = await container.mt5_client.get_account_info()
+            info = await broker_client.get_account_info()
             return {
                 "balance": info.balance,
                 "equity": info.equity,
@@ -2257,7 +2279,7 @@ def create_app() -> FastAPI:
                 "currency": info.currency,
             }
         except Exception as exc:
-            logger.error("broker_account_info_failed", extra={"error": str(exc)})
+            logger.error("broker_account_info_failed", extra={"error": str(exc), "user_id": user.user_id})
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/positions")
@@ -2267,9 +2289,9 @@ def create_app() -> FastAPI:
     ) -> list:
         """Return all open positions at the broker."""
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            positions = await container.mt5_client.get_positions()
+            positions = await broker_client.get_positions()
             return [
                 {
                     "symbol": p.symbol,
@@ -2287,7 +2309,7 @@ def create_app() -> FastAPI:
                 for p in positions
             ]
         except Exception as exc:
-            logger.error("broker_positions_failed", extra={"error": str(exc)})
+            logger.error("broker_positions_failed", extra={"error": str(exc), "user_id": user.user_id})
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/pending_orders")
@@ -2297,9 +2319,9 @@ def create_app() -> FastAPI:
     ) -> list:
         """Return all pending limit/stop orders at the broker."""
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            orders = await container.mt5_client.get_pending_orders()
+            orders = await broker_client.get_pending_orders()
             return [
                 {
                     "symbol": o.symbol,
@@ -2315,7 +2337,7 @@ def create_app() -> FastAPI:
                 for o in orders
             ]
         except Exception as exc:
-            logger.error("broker_pending_orders_failed", extra={"error": str(exc)})
+            logger.error("broker_pending_orders_failed", extra={"error": str(exc), "user_id": user.user_id})
             raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
 
     @app.get("/internal/broker/symbol_info")
@@ -2333,13 +2355,13 @@ def create_app() -> FastAPI:
         if not symbol:
             raise HTTPException(status_code=400, detail="symbol parameter required")
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            info = await container.mt5_client.get_symbol_info(symbol)
+            info = await broker_client.get_symbol_info(symbol)
             return info
         except Exception as exc:
             logger.error(
-                "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc)}
+                "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user.user_id}
             )
             raise HTTPException(
                 status_code=502, detail=f"Symbol info unavailable: {exc}"
@@ -2359,9 +2381,9 @@ def create_app() -> FastAPI:
         if not symbol:
             raise HTTPException(status_code=400, detail="symbol parameter required")
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            tick = await container.mt5_client.get_tick_price(symbol)
+            tick = await broker_client.get_tick_price(symbol)
             return {
                 "bid": tick.bid,
                 "ask": tick.ask,
@@ -2369,7 +2391,7 @@ def create_app() -> FastAPI:
             }
         except Exception as exc:
             logger.error(
-                "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc)}
+                "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user.user_id}
             )
             raise HTTPException(
                 status_code=502, detail=f"Tick price unavailable: {exc}"
@@ -2385,7 +2407,7 @@ def create_app() -> FastAPI:
         Called by Execution Module B's bridge.go placeOrder().
         """
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         body = await request.json()
 
         symbol = body.get("symbol", "")
@@ -2401,7 +2423,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="symbol and direction required")
 
         try:
-            result = await container.mt5_client.place_order(
+            result = await broker_client.place_order(
                 symbol=symbol,
                 direction=direction,
                 order_type=order_type,
@@ -2420,7 +2442,7 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger.error(
                 "broker_place_order_failed",
-                extra={"symbol": symbol, "direction": direction, "error": str(exc)},
+                extra={"symbol": symbol, "direction": direction, "error": str(exc), "user_id": user.user_id},
             )
             raise HTTPException(
                 status_code=502, detail=f"Order placement failed: {exc}"
@@ -2433,7 +2455,7 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Cancel a pending order by broker order ID."""
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         body = await request.json()
         order_id = str(body.get("order_id", ""))
 
@@ -2441,12 +2463,12 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="order_id required")
 
         try:
-            success = await container.mt5_client.cancel_order(order_id)
+            success = await broker_client.cancel_order(order_id)
             return {"success": success, "error": ""}
         except Exception as exc:
             logger.error(
                 "broker_cancel_order_failed",
-                extra={"order_id": order_id, "error": str(exc)},
+                extra={"order_id": order_id, "error": str(exc), "user_id": user.user_id},
             )
             return {"success": False, "error": str(exc)}
 
@@ -2463,9 +2485,9 @@ def create_app() -> FastAPI:
         if not ticket:
             raise HTTPException(status_code=400, detail="ticket parameter required")
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         try:
-            p = await container.mt5_client.get_position(ticket)
+            p = await broker_client.get_position(ticket)
             return {
                 "symbol": p.symbol,
                 "type": 0 if p.direction == "BUY" else 1,
@@ -2479,7 +2501,7 @@ def create_app() -> FastAPI:
             }
         except Exception as exc:
             logger.error(
-                "broker_position_failed", extra={"ticket": ticket, "error": str(exc)}
+                "broker_position_failed", extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id}
             )
             raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
 
@@ -2493,7 +2515,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ModifyPosition().
         """
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
@@ -2504,7 +2526,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="ticket required")
 
         try:
-            success = await container.mt5_client.modify_position(
+            success = await broker_client.modify_position(
                 ticket=ticket,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
@@ -2513,7 +2535,7 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger.error(
                 "broker_modify_position_failed",
-                extra={"ticket": ticket, "error": str(exc)},
+                extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id},
             )
             return {"success": False, "error": str(exc)}
 
@@ -2527,7 +2549,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ClosePartial().
         """
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
@@ -2539,7 +2561,7 @@ def create_app() -> FastAPI:
             )
 
         try:
-            result = await container.mt5_client.close_partial(
+            result = await broker_client.close_partial(
                 ticket=ticket,
                 volume=volume,
             )
@@ -2551,7 +2573,7 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger.error(
                 "broker_close_partial_failed",
-                extra={"ticket": ticket, "volume": volume, "error": str(exc)},
+                extra={"ticket": ticket, "volume": volume, "error": str(exc), "user_id": user.user_id},
             )
             return {"success": False, "close_price": 0, "error": str(exc)}
 
@@ -2565,7 +2587,7 @@ def create_app() -> FastAPI:
         Called by Management Module C's client.go ClosePosition().
         """
         container: Container = request.app.state.container
-        _require_broker(container)
+        broker_client = await _resolve_user_broker(container, user.user_id)
         body = await request.json()
 
         ticket = str(body.get("ticket", ""))
@@ -2574,7 +2596,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="ticket required")
 
         try:
-            result = await container.mt5_client.close_position(ticket)
+            result = await broker_client.close_position(ticket)
             return {
                 "success": result.get("success", False),
                 "close_price": result.get("close_price", 0),
@@ -2583,7 +2605,7 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger.error(
                 "broker_close_position_failed",
-                extra={"ticket": ticket, "error": str(exc)},
+                extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id},
             )
             return {"success": False, "close_price": 0, "error": str(exc)}
 
