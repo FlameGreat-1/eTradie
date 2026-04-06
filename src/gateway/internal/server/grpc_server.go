@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -445,7 +444,7 @@ func (s *GRPCServer) GetHealth(ctx context.Context, _ *gatewayv1.GetHealthReques
 		healthStatus = "degraded"
 	}
 
-	activeCycles := int32(testutil.ToFloat64(observability.GatewayActiveCycles))
+	activeCycles := int32(observability.ReadGaugeValue(observability.GatewayActiveCycles))
 
 	return &gatewayv1.GetHealthResponse{
 		Status:          healthStatus,

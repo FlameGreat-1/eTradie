@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat-1/etradie/src/alert"
@@ -344,7 +343,7 @@ func (h *APIHandler) handleDetailedHealth(w http.ResponseWriter, r *http.Request
 		healthStatus = "degraded"
 	}
 
-	activeCycles := int(testutil.ToFloat64(observability.GatewayActiveCycles))
+	activeCycles := int(observability.ReadGaugeValue(observability.GatewayActiveCycles))
 
 	statusCode := http.StatusOK
 	if healthStatus == "degraded" {
