@@ -85,7 +85,7 @@ class TAOrchestrator:
 
     def __init__(
         self,
-        broker_client: BrokerBase,
+        broker_client: Optional[BrokerBase],
         ta_uow_factory: TAUOWFactory,
         ta_read_uow_factory: TAReadUOWFactory,
         smc_detector: SMCDetector,
@@ -143,10 +143,36 @@ class TAOrchestrator:
         self,
         symbol: str,
         lookback_periods: int = 500,
+        broker_client: Optional[BrokerBase] = None,
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
+
+        Args:
+            symbol: The trading symbol to analyze (e.g. "EURUSD").
+            lookback_periods: Number of candles to fetch per timeframe.
+            broker_client: The user's broker client for candle fetching.
+                In multi-tenant mode, each user has their own MT5 broker
+                connection. This parameter MUST be provided by the caller.
+                If None, falls back to self.broker_client (legacy).
+
+        Returns:
+            Structured multi-timeframe analysis result dict.
         """
+        # Resolve the broker to use for this analysis call.
+        active_broker = broker_client or self.broker_client
+        if active_broker is None:
+            self._logger.error(
+                "ta_analysis_no_broker",
+                extra={"symbol": symbol},
+            )
+            return self._build_result(
+                symbol=symbol,
+                status="error",
+                htf_timeframes=self._config.htf_timeframes,
+                ltf_timeframes=self._config.ltf_timeframes,
+                error="No broker connection configured. Please set up a broker connection via the dashboard.",
+            )
         htf_timeframes = sorted(
             self._config.htf_timeframes,
             key=lambda tf: TIMEFRAME_MINUTES[tf],
@@ -173,7 +199,7 @@ class TAOrchestrator:
             # ── Phase 1: Fetch candles for every timeframe ───────────
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
-                seq = await self._fetch_sequence(symbol, tf, lookback_periods)
+                seq = await self._fetch_sequence(symbol, tf, lookback_periods, active_broker)
                 if seq is not None:
                     sequences[tf] = seq
 
@@ -402,6 +428,7 @@ class TAOrchestrator:
         symbol: str,
         timeframe: Timeframe,
         lookback_periods: int,
+        broker: Optional[BrokerBase] = None,
     ) -> Optional[CandleSequence]:
         """Fetch candles for a single timeframe from store or broker."""
         end_time = datetime.now(UTC)
@@ -419,18 +446,31 @@ class TAOrchestrator:
                 end_time,
             )
 
+        # Use the per-request broker, falling back to instance broker.
+        active_broker = broker or self.broker_client
+
         if len(stored_rows) < lookback_periods * 0.8:
-            self._logger.info(
-                "fetching_candles_from_broker",
-                extra={
-                    "symbol": symbol,
-                    "timeframe": timeframe.value,
-                    "stored_count": len(stored_rows),
-                    "required_count": lookback_periods,
-                },
-            )
-            try:
-                sequence = await self.broker_client.fetch_candles(
+            if active_broker is None:
+                self._logger.warning(
+                    "no_broker_available_for_candle_fetch",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": timeframe.value,
+                        "stored_count": len(stored_rows),
+                    },
+                )
+            else:
+                self._logger.info(
+                    "fetching_candles_from_broker",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": timeframe.value,
+                        "stored_count": len(stored_rows),
+                        "required_count": lookback_periods,
+                    },
+                )
+                try:
+                    sequence = await active_broker.fetch_candles(
                     symbol=symbol,
                     timeframe=timeframe,
                     start_time=start_time,
