@@ -39,7 +39,6 @@ from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProv
 
 from engine.ta.broker.twelve_data.client import TwelveDataClient
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
-from engine.ta.broker.registry import BrokerRegistry
 from engine.ta.common.analyzers.candles import CandleAnalyzer
 from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
@@ -296,11 +295,7 @@ class Container:
                 extra={"error": str(exc)},
             )
 
-        self.broker_registry = BrokerRegistry(
-            ta_config=self.ta_config,
-            http_client=self.http_client,
-            cache=self.cache,
-        )
+
 
     def _build_ta_repositories(self) -> None:
         self.ta_uow_factory = ta_uow_factory(self.db)
