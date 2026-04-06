@@ -57,6 +57,13 @@ type Order struct {
 	OvershootTolerance float64
 	LTFConfirmed       bool
 
+	// TimeoutOverride, when > 0, overrides the style-specific watcher
+	// timeout. Used when restoring watchers after a service restart:
+	// the remaining time (original timeout minus elapsed) is set here
+	// so the restored watcher expires at the correct absolute time,
+	// not with a fresh full-duration timeout.
+	TimeoutOverride time.Duration
+
 	// Timestamps.
 	CreatedAt time.Time
 

@@ -111,3 +111,11 @@ var (
 		Help: "Total audit log write failures to PostgreSQL",
 	})
 )
+
+// Tick cache metrics.
+var (
+	TickCacheFetchErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_tick_cache_fetch_errors_total",
+		Help: "Total tick cache fetch errors by symbol",
+	}, []string{"symbol"})
+)
