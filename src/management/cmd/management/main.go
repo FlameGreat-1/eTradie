@@ -347,6 +347,79 @@ func main() {
 		}
 	}()
 
+	// -- Proactive service token renewal ----------------------------------
+	// Service tokens have a 30-day TTL. For long-running trades (swing,
+	// positional), the service must proactively renew tokens before they
+	// expire. This goroutine runs every 24 hours and re-issues service
+	// tokens for all users with active trades.
+	go func() {
+		// Check every 24 hours. Service tokens last 30 days, so daily
+		// checks give ample margin for renewal.
+		renewalTicker := time.NewTicker(24 * time.Hour)
+		defer renewalTicker.Stop()
+
+		renewalLog := observability.Logger("service_token_renewal")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-renewalTicker.C:
+				trades := mgr.GetAllTrades()
+				if len(trades) == 0 {
+					continue
+				}
+
+				// Collect unique user IDs from active trades.
+				uniqueUsers := make(map[string]bool)
+				for _, t := range trades {
+					t.RLock()
+					uid := t.UserID
+					t.RUnlock()
+					if uid != "" && uid != "system" {
+						uniqueUsers[uid] = true
+					}
+				}
+
+				renewed := 0
+				for uid := range uniqueUsers {
+					user, err := userStore.GetUserByID(ctx, uid)
+					if err != nil || user == nil {
+						renewalLog.Error().Err(err).Str("user_id", uid).Msg("renewal_user_lookup_failed")
+						continue
+					}
+					if !user.Active {
+						renewalLog.Warn().Str("user_id", uid).Msg("skipping_renewal_for_deactivated_user")
+						continue
+					}
+
+					svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
+					if err != nil {
+						renewalLog.Error().Err(err).Str("user_id", uid).Msg("renewal_token_issue_failed")
+						continue
+					}
+
+					count := mgr.RefreshUserTradeTokens(uid, svcToken)
+					if count > 0 {
+						renewed += count
+						renewalLog.Info().
+							Str("user_id", uid).
+							Str("username", user.Username).
+							Int("trades_renewed", count).
+							Msg("service_token_renewed")
+					}
+				}
+
+				if renewed > 0 {
+					renewalLog.Info().
+						Int("total_trades_renewed", renewed).
+						Int("unique_users", len(uniqueUsers)).
+						Msg("service_token_renewal_cycle_complete")
+				}
+			}
+		}
+	}()
+
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("active_trades", len(activeTrades)).
