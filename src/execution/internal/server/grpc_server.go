@@ -28,6 +28,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 	"github.com/flamegreat-1/etradie/src/execution/internal/validator"
+	"github.com/flamegreat-1/etradie/src/execution/internal/watcher"
 )
 
 const (
