@@ -1471,81 +1471,17 @@ def create_app() -> FastAPI:
 
         return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
 
-    def _hot_swap_processor(
-        container: Container,
-        *,
-        provider: str,
-        model_name: str,
-        api_key: str,
-        base_url: Optional[str],
-        temperature: float,
-        max_output_tokens: int,
-    ) -> None:
-        """Hot-swap the processor to use a new LLM connection.
-
-        Rebuilds the LLM client and processor with the new settings.
-        Takes effect on the next analysis cycle.
-        """
-        old_cfg = container.processor_config
-
-        config_overrides = {
-            "llm_provider": provider,
-            "model_name": model_name,
-            "temperature": temperature,
-            "max_output_tokens": max_output_tokens,
-            "llm_timeout_seconds": old_cfg.llm_timeout_seconds,
-            "total_timeout_seconds": old_cfg.total_timeout_seconds,
-            "max_retries": old_cfg.max_retries,
-            "retry_backoff_base_seconds": old_cfg.retry_backoff_base_seconds,
-            "retry_backoff_max_seconds": old_cfg.retry_backoff_max_seconds,
-            "strict_schema_validation": old_cfg.strict_schema_validation,
-            "require_citations": old_cfg.require_citations,
-            "persist_audit_logs": old_cfg.persist_audit_logs,
-            "log_raw_llm_response": old_cfg.log_raw_llm_response,
-            "anthropic_api_key": old_cfg.anthropic_api_key,
-            "openai_api_key": old_cfg.openai_api_key,
-            "gemini_api_key": old_cfg.gemini_api_key,
-            "self_hosted_api_key": old_cfg.self_hosted_api_key,
-            "api_base_url": base_url or old_cfg.api_base_url,
-        }
-
-        # Set the API key for the target provider.
-        key_field = f"{provider}_api_key"
-        if key_field in config_overrides:
-            config_overrides[key_field] = SecretStr(api_key)
-
-        new_cfg = ProcessorConfig(**config_overrides)
-        new_client = create_llm_client(new_cfg)
-        new_processor = AnalysisProcessor(
-            config=new_cfg,
-            llm_client=new_client,
-            uow_factory=container.processor_uow_factory,
-        )
-
-        container.processor_config = new_cfg
-        container.processor_llm_client = new_client
-        container.processor = new_processor
-
-        logger.info(
-            "processor_hot_swapped_from_connection",
-            extra={
-                "provider": provider,
-                "model": model_name,
-                "temperature": temperature,
-            },
-        )
-
     @app.get("/api/processor/models")
     async def get_available_models(
         request: Request,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> dict:
-        """Available models per provider for the dashboard model selector.
+        """Available models per provider for the admin processor config.
 
-        Returns the model list for each provider plus the currently
-        active provider and model. The user selects a model from this
-        list; the selection is applied via PUT /api/processor/config
-        which persists it as the active model until changed.
+        Admin-only. Returns the model list for each provider plus the
+        currently active system-level provider and model. Regular users
+        use GET /api/llm/providers to see available providers/models
+        when configuring their own LLM connections.
         """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
@@ -1575,9 +1511,15 @@ def create_app() -> FastAPI:
     @app.get("/api/processor/config")
     async def get_processor_config(
         request: Request,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> ProcessorConfigResponse:
-        """Current LLM provider and model configuration."""
+        """Current system-level LLM provider and model configuration.
+
+        Admin-only. Returns the global processor config built from
+        .env at startup or last updated via PUT /api/processor/config.
+        Regular users see their own active LLM connection via
+        GET /api/llm/connections/active.
+        """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
             raise HTTPException(status_code=503, detail="Processor not initialized")
@@ -1595,13 +1537,14 @@ def create_app() -> FastAPI:
     async def update_processor_config(
         request: Request,
         body: ProcessorConfigUpdateRequest,
-        user: AuthenticatedUser = Depends(get_current_user),
+        user: AuthenticatedUser = Depends(get_admin_user),
     ) -> dict:
-        """Switch LLM provider or model at runtime from the dashboard.
+        """Hot-swap the system-level LLM processor at runtime.
 
-        Rebuilds the LLM client and processor with the new settings.
-        Takes effect on the next analysis cycle (the Go gateway calls
-        /internal/processor/process which uses the latest processor).
+        Admin-only. Rebuilds the global container.processor with new
+        settings. This is the system/admin processor used for startup
+        validation and health checks. Regular users configure their
+        own LLM connections via /api/llm/connections/* endpoints.
         """
         container: Container = request.app.state.container
         if not hasattr(container, "processor_config"):
