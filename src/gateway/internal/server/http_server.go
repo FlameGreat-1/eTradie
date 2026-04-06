@@ -82,9 +82,15 @@ func NewHTTPServer(
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
 	api.RegisterProtectedRoutes(mux, authMiddleware)
 
+	// Build the CORS origin allowlist from config.
+	allowedOrigins := make(map[string]bool, len(cfg.AllowedOrigins))
+	for _, o := range cfg.AllowedOrigins {
+		allowedOrigins[strings.TrimSpace(o)] = true
+	}
+
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler:      corsMiddleware(mux),
+		Handler:      corsMiddleware(allowedOrigins)(mux),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 120 * time.Second, // RunCycle can take up to cycle_timeout_seconds (default 300s)
 		IdleTimeout:  60 * time.Second,
@@ -110,27 +116,27 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 }
 
 // corsMiddleware adds CORS headers for dashboard cross-origin requests.
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			if strings.Contains(origin, "localhost") ||
-				strings.Contains(origin, "127.0.0.1") ||
-				strings.Contains(origin, r.Host) {
+// Uses an explicit allowlist of origins to prevent bypass attacks.
+func corsMiddleware(allowedOrigins map[string]bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && allowedOrigins[origin] {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID")
+				w.Header().Set("Access-Control-Max-Age", "86400")
 			}
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-		}
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (s *HTTPServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
