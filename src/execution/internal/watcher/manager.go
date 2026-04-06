@@ -195,6 +195,48 @@ func (m *Manager) onWatcherDone(watcherID string) {
 	m.mu.Unlock()
 }
 
+// RefreshUserOrderTokens updates the AuthToken on all active watchers
+// owned by the given user. Called when the user makes any authenticated
+// request so that watchers can make authenticated broker calls even
+// after the original session token expires.
+//
+// This is critical because the watcher timeout (default 45 min) can
+// exceed the access token TTL (default 15 min). Without token refresh,
+// broker calls fail with 401 after the token expires, causing missed
+// trade entries on valid setups.
+func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
+	if userID == "" || newToken == "" {
+		return 0
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	refreshed := 0
+	for _, w := range m.watchers {
+		w.order.RLock()
+		ownerMatch := w.order.UserID == userID
+		currentToken := w.order.AuthToken
+		w.order.RUnlock()
+
+		if ownerMatch && currentToken != newToken {
+			w.order.Lock()
+			w.order.AuthToken = newToken
+			w.order.Unlock()
+			refreshed++
+		}
+	}
+
+	if refreshed > 0 {
+		m.log.Info().
+			Str("user_id", userID).
+			Int("watchers_refreshed", refreshed).
+			Msg("watcher_auth_tokens_refreshed")
+	}
+
+	return refreshed
+}
+
 // Watcher monitors a single instant-mode order's entry zone, calls
 // the Gateway for LTF confirmation when price enters the zone, and
 // fires the market order upon confirmation. Runs as a single goroutine.
@@ -219,14 +261,8 @@ func (w *Watcher) stop() {
 func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	defer onDone(w.order.WatcherID)
 
-	// Inject the user's auth token into the watcher context so all
-	// downstream calls (broker bridge, gateway gRPC) are authenticated.
-	// The token was captured from the original gRPC request and stored
-	// on the Order struct by the gRPC server.
-	authCtx := auth.InjectTokenIntoContext(parentCtx, w.order.AuthToken)
-
 	timeout := time.Duration(w.cfg.TimeoutMinutes) * time.Minute
-	ctx, cancel := context.WithTimeout(authCtx, timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, timeout)
 	defer cancel()
 
 	pollInterval := time.Duration(w.cfg.PollIntervalMs) * time.Millisecond
@@ -248,7 +284,11 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	// we skip the waiting/polling loop and fire the market order immediately.
 	if w.order.LTFConfirmed {
 		w.log.Info().Msg("watcher_pre_confirmed_firing_market_order_immediately")
-		w.fireMarketOrder(ctx)
+		w.order.RLock()
+		token := w.order.AuthToken
+		w.order.RUnlock()
+		authCtx := auth.InjectTokenIntoContext(ctx, token)
+		w.fireMarketOrder(authCtx)
 		return
 	}
 
@@ -261,7 +301,18 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 			w.log.Info().Msg("watcher_disarmed_externally")
 			return
 		case <-ticker.C:
-			if w.checkAndExecute(ctx) {
+			// Build a fresh auth context on every tick cycle using the
+			// order's current AuthToken. The token may be refreshed by
+			// RefreshUserOrderTokens (user login or service token renewal).
+			// The watcher timeout (default 45 min) can exceed the access
+			// token TTL (default 15 min), so we must always use the
+			// latest token to avoid 401 errors on broker calls.
+			w.order.RLock()
+			currentToken := w.order.AuthToken
+			w.order.RUnlock()
+			authCtx := auth.InjectTokenIntoContext(ctx, currentToken)
+
+			if w.checkAndExecute(authCtx) {
 				return
 			}
 		}

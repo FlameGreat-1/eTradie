@@ -1,6 +1,7 @@
 package models
 
 import (
+	"sync"
 	"time"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
@@ -8,8 +9,12 @@ import (
 
 // Order is the Unified Order Object per TechSpec B.4.
 // Built by the order builder after validation and sizing pass.
-// Immutable after construction.
+// Mutable fields (AuthToken, BrokerOrderID) are protected by the
+// embedded mutex for concurrent access from the watcher goroutine
+// and the gRPC server / token refresh operations.
 type Order struct {
+	mu sync.RWMutex
+
 	// Identity.
 	OrderID       string
 	Symbol        string
@@ -56,9 +61,23 @@ type Order struct {
 	CreatedAt time.Time
 
 	// Auth context (for background watcher goroutines).
-	UserID    string // Owner of this order
+	// AuthToken is mutable: refreshed by RefreshUserOrderTokens when
+	// the user authenticates or when service tokens are renewed.
+	UserID    string // Owner of this order (auth user ID from JWT "sub" claim)
 	AuthToken string // JWT token for authenticated downstream calls
 
 	// Broker reference (populated after placement).
 	BrokerOrderID string
 }
+
+// Lock acquires the write lock.
+func (o *Order) Lock() { o.mu.Lock() }
+
+// Unlock releases the write lock.
+func (o *Order) Unlock() { o.mu.Unlock() }
+
+// RLock acquires the read lock.
+func (o *Order) RLock() { o.mu.RLock() }
+
+// RUnlock releases the read lock.
+func (o *Order) RUnlock() { o.mu.RUnlock() }
