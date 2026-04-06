@@ -275,15 +275,16 @@ func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
 // the Gateway for LTF confirmation when price enters the zone, and
 // fires the market order upon confirmation. Runs as a single goroutine.
 type Watcher struct {
-	order     *models.Order
-	broker    broker.Port
-	gateway   GatewayPort
-	audit     *audit.Logger
-	transport *alertredis.Transport
-	cfg       Config
-	log       zerolog.Logger
-	done      chan struct{}
-	stopOnce  sync.Once
+	order          *models.Order
+	broker         broker.Port
+	gateway        GatewayPort
+	audit          *audit.Logger
+	transport      *alertredis.Transport
+	cfg            Config
+	timeoutMinutes int // Resolved style-specific timeout (set in run())
+	log            zerolog.Logger
+	done           chan struct{}
+	stopOnce       sync.Once
 }
 
 func (w *Watcher) stop() {
@@ -298,8 +299,8 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	// Resolve timeout based on trading style. Each style operates on
 	// different timeframes, so the watcher must live long enough for
 	// price to reach the POI zone on that timeframe.
-	timeoutMinutes := constants.WatcherTimeoutForStyle(w.order.TradingStyle, w.cfg.TimeoutMinutes)
-	timeout := time.Duration(timeoutMinutes) * time.Minute
+	w.timeoutMinutes = constants.WatcherTimeoutForStyle(w.order.TradingStyle, w.cfg.TimeoutMinutes)
+	timeout := time.Duration(w.timeoutMinutes) * time.Minute
 	ctx, cancel := context.WithTimeout(parentCtx, timeout)
 	defer cancel()
 
@@ -554,7 +555,8 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 
 func (w *Watcher) handleTimeout() {
 	w.log.Warn().
-		Int("timeout_minutes", w.cfg.TimeoutMinutes).
+		Int("timeout_minutes", w.timeoutMinutes).
+		Str("trading_style", string(w.order.TradingStyle)).
 		Msg("watcher_timed_out")
 
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "timeout").Inc()
@@ -562,8 +564,8 @@ func (w *Watcher) handleTimeout() {
 	if w.transport != nil {
 		w.transport.Publish(context.Background(),
 			alert.NewEvent(alert.SourceExecution, alert.TypeOrderExpired, alert.SeverityWarning,
-				fmt.Sprintf("Instant watcher timed out for %s after %d minutes",
-					w.order.Symbol, w.cfg.TimeoutMinutes)).
+				fmt.Sprintf("Instant watcher timed out for %s after %d minutes (%s style)",
+					w.order.Symbol, w.timeoutMinutes, w.order.TradingStyle)).
 				WithUserID(w.order.UserID).
 				WithSymbol(w.order.Symbol).
 				WithDirection(string(w.order.Direction)).
@@ -571,7 +573,8 @@ func (w *Watcher) handleTimeout() {
 					"watcher_id":      w.order.WatcherID,
 					"analysis_id":     w.order.AnalysisID,
 					"entry_price":     w.order.EntryPrice,
-					"timeout_minutes": w.cfg.TimeoutMinutes,
+					"timeout_minutes": w.timeoutMinutes,
+					"trading_style":   string(w.order.TradingStyle),
 				}),
 		)
 	}
