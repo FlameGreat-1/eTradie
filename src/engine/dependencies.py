@@ -126,7 +126,6 @@ class Container:
         self._build_collectors()
 
         self._build_ta_configs()
-        self._build_ta_brokers()
         self._build_ta_repositories()
         self._build_ta_analyzers()
         self._build_ta_services()
@@ -278,39 +277,11 @@ class Container:
         self.smc_config = SMCConfig()
         self.snd_config = SnDConfig()
 
-    def _build_ta_brokers(self) -> None:
-        """Build broker clients from environment variables.
-
-        This is the synchronous startup path. It tries to create the
-        MT5 broker from env vars. If env vars are missing (user will
-        configure via dashboard), mt5_client is set to None and will
-        be populated later by build_broker() after the DB is ready.
-
-        The Twelve Data fallback client is always created since its
-        API key is a simple env var with no complex provider logic.
-        """
+        # Twelve Data fallback is always available for market data
+        # (public API, not user-specific). Used as a data fallback
+        # when the user's primary broker fails to return candles.
         s = self.settings
-
-        # Try to create MT5 client from env vars. If credentials are
-        # missing, this is expected when using DB-driven connections.
-        self.mt5_client = None
-        try:
-            mt5_config = MT5Config()
-            self.mt5_client = create_mt5_broker(
-                config=mt5_config,
-                http_client=self.http_client,
-            )
-            _logger.info(
-                "mt5_broker_created_from_env",
-                extra={"provider": mt5_config.provider},
-            )
-        except Exception as exc:
-            _logger.info(
-                "mt5_broker_env_not_configured_will_load_from_db",
-                extra={"reason": str(exc)},
-            )
-
-        # Twelve Data fallback is always available for market data.
+        self.twelve_data_client = None
         try:
             twelve_config = TwelveDataConfig(
                 api_key=s.twelvedata_api_key,
@@ -326,7 +297,6 @@ class Container:
                 "twelve_data_client_creation_failed",
                 extra={"error": str(exc)},
             )
-            self.twelve_data_client = None
 
         self.broker_registry = BrokerRegistry(
             ta_config=self.ta_config,
@@ -387,8 +357,16 @@ class Container:
         )
 
     def _build_ta_orchestrator(self) -> None:
+        """Build the TA orchestrator.
+
+        broker_client is None because in multi-tenant mode, the broker
+        is resolved per-request from the user's DB connection. The
+        orchestrator's analyze() method requires broker_client as a
+        keyword argument from the caller. The instance-level
+        broker_client is never used at runtime.
+        """
         self.ta_orchestrator = TAOrchestrator(
-            broker_client=self.mt5_client,
+            broker_client=None,
             ta_uow_factory=self.ta_uow_factory,
             ta_read_uow_factory=self.ta_read_uow_factory,
             smc_detector=self.smc_detector,
@@ -403,25 +381,19 @@ class Container:
     # -- Broker connection management (async, requires DB) ---------------------
 
     async def build_broker(self) -> None:
-        """Configure the default broker from environment variables.
+        """Initialize broker infrastructure.
 
         Called from the FastAPI lifespan after the database is ready.
-        In multi-tenant mode, per-user broker connections are resolved
-        at request time via load_user_broker(user_id). This startup
-        method only validates the env-var-based fallback broker.
-
-        Fallback chain at startup:
-          1. MT5 broker from env vars (created in _build_ta_brokers)
-          2. None (users configure via dashboard at request time)
+        In multi-tenant mode, every user (including admin) configures
+        their own broker connection via the dashboard. There is no
+        platform-level broker. Per-user broker connections are resolved
+        at request time via load_user_broker(user_id).
         """
-        if self.mt5_client is not None:
-            _logger.info("broker_using_env_var_configuration")
-            return
-
-        _logger.warning(
-            "no_broker_configured",
+        _logger.info(
+            "broker_startup",
             extra={
-                "action": "Users must configure broker connections via the dashboard.",
+                "mode": "multi_tenant",
+                "action": "Per-user broker connections resolved at request time.",
             },
         )
 
@@ -435,11 +407,11 @@ class Container:
         Every user (including admin) MUST configure their own broker
         connection via the dashboard. There is NO env-var fallback and
         NO platform-level broker. If a user has not configured a broker
-        connection, this returns None and the endpoint returns HTTP 503.
+        connection, this returns None and the caller returns HTTP 503.
 
         Resolution:
           1. Active broker connection from DB for this user
-          2. None (user must configure via dashboard -> HTTP 503)
+          2. None -> caller raises HTTP 503
         """
         return await self._load_active_broker_connection(user_id)
 
@@ -502,34 +474,6 @@ class Container:
                 extra={"error": str(exc)},
             )
             return None
-
-    def hot_swap_broker(self, new_client) -> None:
-        """Replace the platform-level broker client at runtime.
-
-        ADMIN-ONLY. Called when the admin activates a different broker
-        connection via the admin dashboard API. Updates both the
-        container reference and the TA orchestrator so all subsequent
-        platform-level operations (TA candle fetching, scheduler jobs)
-        use the new client immediately.
-
-        Regular users' broker connections are resolved per-request from
-        the database via load_user_broker(). This method MUST NOT be
-        called from regular user broker CRUD endpoints.
-
-        Args:
-            new_client: A fully configured BrokerBase implementation.
-        """
-        old_client = self.mt5_client
-        self.mt5_client = new_client
-        self.ta_orchestrator.broker_client = new_client
-
-        _logger.info(
-            "admin_broker_hot_swapped",
-            extra={
-                "old_broker": type(old_client).__name__ if old_client else "None",
-                "new_broker": type(new_client).__name__,
-            },
-        )
 
     # -- RAG -------------------------------------------------------------------
 
@@ -797,11 +741,6 @@ class Container:
 
     async def shutdown(self) -> None:
         self.scheduler.shutdown(wait=False)
-        if self.mt5_client is not None:
-            try:
-                await self.mt5_client.shutdown()
-            except Exception:
-                pass
         if hasattr(self, "rag_vector_store"):
             await self.rag_vector_store.close()
         if hasattr(self, "rag_embedding_provider"):
