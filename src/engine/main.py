@@ -92,21 +92,6 @@ async def _rate_limit(
 logger = get_logger(__name__)
 
 
-def _require_broker(container: "Container") -> None:
-    """Raise 503 if no broker client is configured.
-
-    Called at the top of every /internal/broker/* endpoint and
-    any endpoint that requires a live broker connection.
-    Returns a clean HTTP 503 that the Go services handle gracefully
-    (bridge.go checks for non-200 status codes).
-    """
-    if container.mt5_client is None:
-        raise HTTPException(
-            status_code=503,
-            detail="No broker connection configured. Please set up a broker connection via the dashboard.",
-        )
-
-
 async def _resolve_user_processor(
     container: "Container", user_id: str
 ) -> "AnalysisProcessor":
@@ -219,13 +204,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- Broker Connection ---------------------------------------------------
-    # In multi-tenant mode, per-user broker connections are resolved at
-    # request time. At startup, only env-var broker is configured.
+    # In multi-tenant mode, every user configures their own broker
+    # connection via the dashboard. There is no platform-level broker.
+    # Per-user broker connections are resolved at request time via
+    # _resolve_user_broker(container, user.user_id).
+    # The build_broker() call initializes the broker infrastructure
+    # (HTTP client, etc.) but does NOT require env-var credentials.
     await container.build_broker()
-    broker_status = (
-        "configured" if container.mt5_client is not None else "not_configured"
-    )
-    logger.info("broker_startup", status=broker_status)
+    logger.info("broker_startup", status="multi_tenant_per_user")
 
     # -- Processor LLM -------------------------------------------------------
     # In multi-tenant mode, per-user LLM connections are resolved at
@@ -245,20 +231,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
-    # Register TA jobs if a broker client is available at startup.
-    # If no broker is configured yet, TA jobs will be registered
-    # when the user activates a broker connection via the dashboard
-    # (see _register_ta_jobs_if_needed helper below).
-    if container.mt5_client is not None:
-        register_ta_jobs(
-            container.scheduler,
-            symbol_store=symbol_reader,
-            broker_client=container.mt5_client,
-            ta_uow_factory=container.ta_uow_factory,
-        )
-        app.state.ta_jobs_registered = True
-    else:
-        app.state.ta_jobs_registered = False
+    # In multi-tenant mode, TA data fetching happens per-user when
+    # the Go gateway triggers /internal/ta/analyze with the user's JWT.
+    # There are no platform-level TA scheduler jobs since there is no
+    # platform broker. Each user's broker is resolved at request time.
+    app.state.ta_jobs_registered = False
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
