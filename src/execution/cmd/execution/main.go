@@ -228,12 +228,15 @@ func main() {
 		}
 
 		now := time.Now()
-		timeoutDuration := time.Duration(cfg.WatcherTimeoutMinutes) * time.Minute
 		restoredCount := 0
 
 		for _, rec := range pendingWatchers {
-			// Calculate remaining timeout. If the original timeout has
-			// already elapsed, the setup is stale. Delete and skip.
+			// Calculate remaining timeout using the style-specific duration.
+			// Each trading style has a different timeout aligned with its
+			// analysis timeframe (e.g., swing = 16h, positional = 48h).
+			style := constants.TradingStyle(rec.TradingStyle)
+			timeoutMinutes := constants.WatcherTimeoutForStyle(style, cfg.WatcherTimeoutMinutes)
+			timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
 			elapsed := now.Sub(rec.CreatedAt)
 			remaining := timeoutDuration - elapsed
 			if remaining <= 0 {

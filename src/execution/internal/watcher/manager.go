@@ -295,7 +295,11 @@ func (w *Watcher) stop() {
 func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	defer onDone(w.order.WatcherID)
 
-	timeout := time.Duration(w.cfg.TimeoutMinutes) * time.Minute
+	// Resolve timeout based on trading style. Each style operates on
+	// different timeframes, so the watcher must live long enough for
+	// price to reach the POI zone on that timeframe.
+	timeoutMinutes := constants.WatcherTimeoutForStyle(w.order.TradingStyle, w.cfg.TimeoutMinutes)
+	timeout := time.Duration(timeoutMinutes) * time.Minute
 	ctx, cancel := context.WithTimeout(parentCtx, timeout)
 	defer cancel()
 
