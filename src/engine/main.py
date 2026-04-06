@@ -47,7 +47,6 @@ from engine.shared.tracing.otel import init_tracing
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
-from engine.ta.scheduler_jobs import register_ta_jobs
 
 
 async def _rate_limit(
@@ -113,13 +112,16 @@ async def _resolve_user_processor(
 async def _resolve_user_broker(container: "Container", user_id: str):
     """Resolve the authenticated user's broker connection.
 
-    Called by every /internal/broker/* endpoint to ensure broker
+    Called by every endpoint that needs broker access to ensure
     operations execute against the correct user's MT5 account.
 
-    Resolution order (handled by container.load_user_broker):
+    Every user (including admin) MUST configure their own broker
+    connection via the dashboard. There is NO env-var fallback and
+    NO platform-level broker.
+
+    Resolution (handled by container.load_user_broker):
       1. Active broker connection from DB for this user
-      2. Env-var broker (container.mt5_client) as system fallback
-      3. None -> raises HTTP 503
+      2. None -> raises HTTP 503
 
     Works for both MetaAPI and ZeroMQ EA connection types.
     """
@@ -204,14 +206,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- Broker Connection ---------------------------------------------------
-    # In multi-tenant mode, every user configures their own broker
-    # connection via the dashboard. There is no platform-level broker.
-    # Per-user broker connections are resolved at request time via
+    # In multi-tenant mode, every user (including admin) configures their
+    # own broker connection via the dashboard. There is no platform-level
+    # broker. Per-user broker connections are resolved at request time via
     # _resolve_user_broker(container, user.user_id).
-    # The build_broker() call initializes the broker infrastructure
-    # (HTTP client, etc.) but does NOT require env-var credentials.
     await container.build_broker()
-    logger.info("broker_startup", status="multi_tenant_per_user")
 
     # -- Processor LLM -------------------------------------------------------
     # In multi-tenant mode, per-user LLM connections are resolved at
@@ -224,18 +223,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # -- TA Data Infrastructure ----------------------------------------------
+    # TA data fetching happens per-user when the Go gateway triggers
+    # /internal/ta/analyze with the user's JWT. The user's broker is
+    # resolved at request time. There are no platform-level TA scheduler
+    # jobs because there is no platform broker.
     # The Go gateway owns the symbol selection via Redis.
     # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
-    # TA data jobs (candle refresh, backfill, broker sync) use this reader
-    # to know which symbols to fetch data for.
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
-
-    # In multi-tenant mode, TA data fetching happens per-user when
-    # the Go gateway triggers /internal/ta/analyze with the user's JWT.
-    # There are no platform-level TA scheduler jobs since there is no
-    # platform broker. Each user's broker is resolved at request time.
-    app.state.ta_jobs_registered = False
 
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
@@ -1686,96 +1681,6 @@ def create_app() -> FastAPI:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
 
-    def _register_ta_jobs_if_needed(app_ref: FastAPI, container: Container) -> None:
-        """Register TA scheduler jobs if they haven't been registered yet.
-
-        Called after a broker hot-swap when the app started without a
-        broker configured. Ensures TA data collection jobs run as soon
-        as the first broker connection is activated via the dashboard.
-        """
-        if getattr(app_ref.state, "ta_jobs_registered", False):
-            return
-        if container.mt5_client is None:
-            return
-
-        symbol_reader = getattr(app_ref.state, "symbol_reader", None)
-        if symbol_reader is None:
-            logger.warning("cannot_register_ta_jobs_no_symbol_reader")
-            return
-
-        register_ta_jobs(
-            container.scheduler,
-            symbol_store=symbol_reader,
-            broker_client=container.mt5_client,
-            ta_uow_factory=container.ta_uow_factory,
-        )
-        app_ref.state.ta_jobs_registered = True
-        logger.info("ta_jobs_registered_after_broker_hot_swap")
-
-    async def _admin_hot_swap_broker_from_row(container: Container, row) -> None:
-        """Build a broker client from a DB row and hot-swap the platform broker.
-
-        ADMIN-ONLY. Replaces container.mt5_client and ta_orchestrator.broker_client
-        so that platform-level TA data fetching and scheduler jobs use the new
-        broker. Must only be called from admin-protected endpoints.
-
-        Regular users' broker connections are resolved per-request from the
-        database and never touch the global platform broker.
-        """
-        ea_auth_token = ""
-        platform_token = ""
-        if row.connection_type == "ea" and row.ea_auth_token_encrypted:
-            ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-        if row.connection_type == "metaapi":
-            platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
-
-        new_client = create_mt5_broker_from_connection(
-            row=row,
-            http_client=container.http_client,
-            ea_auth_token=ea_auth_token,
-            platform_token=platform_token,
-        )
-
-        # Shut down old platform client if exists.
-        if container.mt5_client is not None:
-            try:
-                await container.mt5_client.shutdown()
-            except Exception:
-                pass
-
-        container.hot_swap_broker(new_client)
-
-        # Register TA jobs if this is the first broker activation.
-        _register_ta_jobs_if_needed(app, container)
-
-        # Run health check and update DB status.
-        try:
-            healthy = await new_client.health_check()
-            new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
-            status_msg = (
-                "Connection successful" if healthy else "Health check failed after swap"
-            )
-        except Exception as exc:
-            new_status = STATUS_ERROR
-            status_msg = f"Health check error: {exc}"
-            healthy = False
-
-        try:
-            async with container.db.session() as session:
-                repo = BrokerConnectionRepository(session)
-                await repo.update_status(
-                    str(row.id),
-                    user_id=str(row.user_id),
-                    status=new_status,
-                    status_message=status_msg,
-                    connected=healthy,
-                )
-        except Exception as exc:
-            logger.warning(
-                "broker_status_update_after_swap_failed",
-                extra={"connection_id": str(row.id), "error": str(exc)},
-            )
-
     @app.post("/api/broker/connections")
     async def create_broker_connection(
         request: Request,
@@ -1788,9 +1693,6 @@ def create_app() -> FastAPI:
         If activate=True (default), this becomes the active connection.
         The user's broker is resolved per-request from the database
         when they call trading endpoints (/internal/broker/*).
-
-        Admin users who activate a connection also hot-swap the
-        platform-level broker used for TA data fetching.
         """
         await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
@@ -1878,16 +1780,6 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-        # Admin users also hot-swap the platform broker for TA data.
-        if body.activate and user.is_admin:
-            try:
-                await _admin_hot_swap_broker_from_row(container, row)
-            except Exception as exc:
-                logger.error(
-                    "admin_broker_hot_swap_failed_after_create",
-                    extra={"connection_id": connection_id, "error": str(exc)},
-                )
-
         result["message"] = (
             "Connection created and activated."
             if body.activate
@@ -1925,8 +1817,8 @@ def create_app() -> FastAPI:
         if row is None:
             return {
                 "connection": None,
-                "broker_configured": container.mt5_client is not None,
-                "message": "No active broker connection. Please set up a connection.",
+                "broker_configured": False,
+                "message": "No active broker connection. Please set up a connection via the dashboard.",
             }
 
         return {
@@ -1964,9 +1856,6 @@ def create_app() -> FastAPI:
         Updates are saved to the database. The user's broker is resolved
         per-request from the DB, so the updated values take effect on
         the next trading operation automatically.
-
-        Admin users who update an active connection also hot-swap the
-        platform-level broker used for TA data fetching.
         """
         container: Container = request.app.state.container
 
@@ -1987,16 +1876,6 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        # Admin users also hot-swap the platform broker for TA data.
-        if row.is_active and user.is_admin:
-            try:
-                await _admin_hot_swap_broker_from_row(container, row)
-            except Exception as exc:
-                logger.error(
-                    "admin_broker_hot_swap_failed_after_update",
-                    extra={"connection_id": connection_id, "error": str(exc)},
-                )
-
         result = _serialize_broker_connection(row)
         result["message"] = "Connection updated."
         return result
@@ -2012,9 +1891,6 @@ def create_app() -> FastAPI:
         Deactivates all other connections for this user and marks
         this one as active. The user's broker is resolved per-request
         from the database when they call trading endpoints.
-
-        Admin users also hot-swap the platform-level broker used
-        for TA data fetching.
         """
         container: Container = request.app.state.container
 
@@ -2024,20 +1900,6 @@ def create_app() -> FastAPI:
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
-
-        # Admin users also hot-swap the platform broker for TA data.
-        if user.is_admin:
-            try:
-                await _admin_hot_swap_broker_from_row(container, row)
-            except Exception as exc:
-                logger.error(
-                    "admin_broker_hot_swap_failed_on_activate",
-                    extra={"connection_id": connection_id, "error": str(exc)},
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Connection activated in DB but platform broker swap failed: {exc}",
-                )
 
         result = _serialize_broker_connection(row)
         result["message"] = f"Connection activated. Broker now using {row.name}."
@@ -2071,8 +1933,8 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Set a connection as primary (also activates it).
 
-        Admin users also hot-swap the platform-level broker used
-        for TA data fetching.
+        The user's broker is resolved per-request from the database
+        when they call trading endpoints.
         """
         container: Container = request.app.state.container
 
@@ -2082,20 +1944,6 @@ def create_app() -> FastAPI:
 
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
-
-        # Admin users also hot-swap the platform broker for TA data.
-        if user.is_admin:
-            try:
-                await _admin_hot_swap_broker_from_row(container, row)
-            except Exception as exc:
-                logger.error(
-                    "admin_broker_hot_swap_failed_on_set_primary",
-                    extra={"connection_id": connection_id, "error": str(exc)},
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Set as primary in DB but platform broker swap failed: {exc}",
-                )
 
         result = _serialize_broker_connection(row)
         result["message"] = f"Connection set as primary. Broker now using {row.name}."

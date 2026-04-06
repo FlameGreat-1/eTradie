@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -17,21 +17,35 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 )
 
+// userRunner holds the state for a single user's independent scheduler goroutine.
+type userRunner struct {
+	userID   string
+	username string
+	role     auth.Role
+	cancel   context.CancelFunc
+}
+
 // Scheduler manages the recurring gateway analysis cycles for ALL active users.
-// Each user gets their own cycle with their own identity, symbols, and broker
-// connection. The scheduler operates autonomously 24/7 regardless of whether
-// any user is logged into the dashboard.
+// Each user gets their own independent goroutine with their own configured
+// interval. Users run concurrently and independently: User A's slow cycle
+// does not delay User B. Each user's interval is loaded from their Redis
+// settings and can be updated at runtime without affecting other users.
 type Scheduler struct {
-	orchestrator    *Orchestrator
-	symbolStore     *symbolstore.Store
-	settingsStore   *settingsstore.Store
-	cfg             *config.Config
-	transport       *alertredis.Transport
-	tokenService    *auth.TokenService
-	userStore       *auth.UserStore
-	intervalSeconds atomic.Int64
-	updateCh        chan time.Duration
-	log             zerolog.Logger
+	orchestrator  *Orchestrator
+	symbolStore   *symbolstore.Store
+	settingsStore *settingsstore.Store
+	cfg           *config.Config
+	transport     *alertredis.Transport
+	tokenService  *auth.TokenService
+	userStore     *auth.UserStore
+	log           zerolog.Logger
+
+	// Per-user goroutine management.
+	mu      sync.Mutex
+	runners map[string]*userRunner // keyed by user ID
+
+	// How often to re-scan the user list for new/removed users.
+	userScanInterval time.Duration
 }
 
 // NewScheduler creates a gateway cycle scheduler.
@@ -48,62 +62,68 @@ func NewScheduler(
 	tokenService *auth.TokenService,
 	userStore *auth.UserStore,
 ) *Scheduler {
-	s := &Scheduler{
-		orchestrator:  orchestrator,
-		symbolStore:   symbolStore,
-		settingsStore: settingsStore,
-		cfg:           cfg,
-		transport:     transport,
-		tokenService:  tokenService,
-		userStore:     userStore,
-		updateCh:      make(chan time.Duration, 1),
-		log:           observability.Logger("scheduler"),
-	}
-
-	// Set the initial interval from config.
-	s.intervalSeconds.Store(int64(cfg.CycleIntervalSeconds))
-
-	return s
-}
-
-// LoadPersistedInterval checks Redis for a dashboard-set interval override
-// and applies it. Requires a userID since settings are user-scoped.
-func (s *Scheduler) LoadPersistedInterval(ctx context.Context, userID string) {
-	if s.settingsStore == nil || userID == "" {
-		return
-	}
-	persisted := s.settingsStore.GetCycleInterval(ctx, userID)
-	if persisted >= 60 && persisted <= 86400 {
-		s.intervalSeconds.Store(int64(persisted))
-		s.log.Info().
-			Int("persisted_interval_seconds", persisted).
-			Str("user_id", userID).
-			Msg("scheduler_loaded_persisted_interval_from_redis")
+	return &Scheduler{
+		orchestrator:     orchestrator,
+		symbolStore:      symbolStore,
+		settingsStore:    settingsStore,
+		cfg:              cfg,
+		transport:        transport,
+		tokenService:     tokenService,
+		userStore:        userStore,
+		runners:          make(map[string]*userRunner),
+		userScanInterval: 60 * time.Second,
+		log:              observability.Logger("scheduler"),
 	}
 }
 
-// CurrentIntervalSeconds returns the current cycle interval.
-func (s *Scheduler) CurrentIntervalSeconds() int {
-	return int(s.intervalSeconds.Load())
+// CurrentIntervalForUser returns the cycle interval for a specific user.
+// Reads from the user's persisted Redis settings. Falls back to the
+// gateway config default if the user hasn't configured their own.
+// Used by dashboard config endpoints to show the user their current interval.
+func (s *Scheduler) CurrentIntervalForUser(ctx context.Context, userID string) int {
+	if s.settingsStore != nil && userID != "" {
+		persisted := s.settingsStore.GetCycleInterval(ctx, userID)
+		if persisted >= 60 && persisted <= 86400 {
+			return persisted
+		}
+	}
+	return s.cfg.CycleIntervalSeconds
 }
 
-// UpdateInterval changes the cycle interval at runtime.
-// The new interval takes effect immediately (ticker is reset).
-// The caller is responsible for persisting the value in SettingsStore.
-func (s *Scheduler) UpdateInterval(newInterval time.Duration) {
-	newSeconds := int64(newInterval.Seconds())
-	s.intervalSeconds.Store(newSeconds)
+// DefaultIntervalSeconds returns the gateway config default interval.
+// Used at startup for logging and as the fallback when no user-specific
+// interval is configured.
+func (s *Scheduler) DefaultIntervalSeconds() int {
+	return s.cfg.CycleIntervalSeconds
+}
 
-	// Non-blocking send: if the channel is full, the scheduler loop
-	// will pick up the atomic value on the next tick anyway.
-	select {
-	case s.updateCh <- newInterval:
-	default:
+// UpdateUserInterval persists the new interval for a specific user in Redis
+// and logs the change. The user's goroutine periodically re-reads its
+// interval from Redis, so the update takes effect within 5 minutes.
+// For immediate effect, the goroutine also checks on every tick.
+func (s *Scheduler) UpdateUserInterval(ctx context.Context, userID string, newInterval time.Duration) {
+	newSeconds := int(newInterval.Seconds())
+
+	// Persist to Redis so it survives restarts.
+	if s.settingsStore != nil {
+		if err := s.settingsStore.SetCycleInterval(ctx, userID, newSeconds); err != nil {
+			s.log.Warn().
+				Err(err).
+				Str("user_id", userID).
+				Int("interval_seconds", newSeconds).
+				Msg("scheduler_persist_user_interval_failed")
+		}
 	}
 
 	s.log.Info().
-		Int64("new_interval_seconds", newSeconds).
-		Msg("scheduler_interval_updated")
+		Str("user_id", userID).
+		Int("new_interval_seconds", newSeconds).
+		Msg("scheduler_user_interval_updated")
+}
+
+// getUserInterval returns the cycle interval for a specific user as a Duration.
+func (s *Scheduler) getUserInterval(ctx context.Context, userID string) time.Duration {
+	return time.Duration(s.CurrentIntervalForUser(ctx, userID)) * time.Second
 }
 
 // issueUserServiceContext creates a context with a valid service token
@@ -131,164 +151,217 @@ func (s *Scheduler) issueUserServiceContext(ctx context.Context, user *auth.User
 	return auth.InjectTokenIntoContext(ctx, serviceToken)
 }
 
-// Start begins the recurring cycle. Blocks until ctx is cancelled.
-// Applies random jitter (0-10% of interval) to the first tick to
-// prevent thundering herd when multiple gateway instances start.
-// The first cycle fires immediately after the jitter delay, then
-// subsequent cycles fire on the configured interval.
+// Start begins the scheduler. Blocks until ctx is cancelled.
+// Periodically scans the user list and ensures each active user has
+// their own independent goroutine running on their own interval.
 func (s *Scheduler) Start(ctx context.Context) {
 	if !s.cfg.Enabled {
 		s.log.Info().Msg("gateway_disabled_skipping_scheduler")
 		return
 	}
 
-	interval := time.Duration(s.intervalSeconds.Load()) * time.Second
-
-	// Apply jitter to the first tick: random delay of 0-10% of the interval.
-	maxJitter := interval / 10
-	if maxJitter > 0 {
-		jitter := cryptoRandDuration(maxJitter)
-		s.log.Info().
-			Int64("interval_seconds", s.intervalSeconds.Load()).
-			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
-			Float64("initial_jitter_seconds", jitter.Seconds()).
-			Msg("gateway_cycle_scheduler_started")
-
-		select {
-		case <-ctx.Done():
-			s.log.Info().Msg("gateway_cycle_scheduler_stopped_during_jitter")
-			return
-		case <-time.After(jitter):
-			// Jitter elapsed, proceed to first cycle.
-		}
-	} else {
-		s.log.Info().
-			Int64("interval_seconds", s.intervalSeconds.Load()).
-			Int("timeout_seconds", s.cfg.CycleTimeoutSeconds).
-			Msg("gateway_cycle_scheduler_started")
+	if s.userStore == nil {
+		s.log.Warn().Msg("scheduler_no_user_store_cannot_start_per_user_schedulers")
+		return
 	}
 
-	// Fire the first cycle immediately after jitter.
-	s.runAllUserCycles(ctx)
+	s.log.Info().
+		Float64("user_scan_interval_seconds", s.userScanInterval.Seconds()).
+		Int("default_cycle_interval_seconds", s.cfg.CycleIntervalSeconds).
+		Msg("scheduler_started_per_user_mode")
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// Initial scan and launch.
+	s.reconcileUserRunners(ctx)
+
+	scanTicker := time.NewTicker(s.userScanInterval)
+	defer scanTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			s.log.Info().Msg("gateway_cycle_scheduler_stopped")
+			s.stopAllRunners()
+			s.log.Info().Msg("scheduler_stopped")
 			return
-
-		case newInterval := <-s.updateCh:
-			// Dashboard changed the interval. Reset the ticker immediately.
-			ticker.Reset(newInterval)
-			s.log.Info().
-				Float64("new_interval_seconds", newInterval.Seconds()).
-				Msg("scheduler_ticker_reset")
-
-		case <-ticker.C:
-			s.runAllUserCycles(ctx)
+		case <-scanTicker.C:
+			s.reconcileUserRunners(ctx)
 		}
 	}
 }
 
-// runAllUserCycles iterates over all active users and runs an analysis
-// cycle for each one with their own identity, symbols, and broker context.
-// This is the core of autonomous 24/7 multi-tenant operation.
-func (s *Scheduler) runAllUserCycles(ctx context.Context) {
-	defer func() {
-		if r := recover(); r != nil {
-			observability.LogPanicRecovery(s.log, r, "scheduled_all_user_cycles")
-		}
-	}()
-
-	if s.userStore == nil {
-		// No user store available; fall back to unauthenticated cycle
-		// with default symbols (backward compatibility).
-		s.log.Warn().Msg("scheduler_no_user_store_running_unauthenticated_cycle")
-		symbols := s.symbolStore.DefaultSymbols()
-		s.orchestrator.RunCycle(ctx, symbols, "")
-		return
-	}
-
-	// List all active users from the database.
+// reconcileUserRunners ensures each active user has a running goroutine
+// and stops goroutines for users that are no longer active.
+func (s *Scheduler) reconcileUserRunners(ctx context.Context) {
 	users, err := s.userStore.ListUsers(ctx)
 	if err != nil {
 		s.log.Error().Err(err).Msg("scheduler_failed_to_list_users")
 		return
 	}
 
-	// Filter to active users only.
-	var activeUsers []*auth.User
+	// Build set of active user IDs.
+	activeIDs := make(map[string]*auth.User, len(users))
 	for _, u := range users {
 		if u.Active {
-			activeUsers = append(activeUsers, u)
+			activeIDs[u.ID] = u
 		}
 	}
 
-	if len(activeUsers) == 0 {
-		s.log.Warn().Msg("scheduler_no_active_users_found_skipping_cycle")
-		return
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	s.log.Info().
-		Int("active_users", len(activeUsers)).
-		Msg("scheduler_starting_cycles_for_all_users")
-
-	// Run a cycle for each active user sequentially.
-	// Sequential execution prevents resource contention when multiple
-	// users' cycles hit the Python engine and broker APIs simultaneously.
-	for _, user := range activeUsers {
-		if ctx.Err() != nil {
-			s.log.Info().Msg("scheduler_context_cancelled_stopping_user_cycles")
-			return
+	// Stop runners for users that are no longer active.
+	for uid, runner := range s.runners {
+		if _, stillActive := activeIDs[uid]; !stillActive {
+			s.log.Info().
+				Str("user_id", uid).
+				Str("username", runner.username).
+				Msg("scheduler_stopping_runner_for_inactive_user")
+			runner.cancel()
+			delete(s.runners, uid)
 		}
-
-		s.runUserCycle(ctx, user)
 	}
 
-	s.log.Info().
-		Int("users_processed", len(activeUsers)).
-		Msg("scheduler_completed_all_user_cycles")
+	// Start runners for new active users.
+	for uid, user := range activeIDs {
+		if _, exists := s.runners[uid]; !exists {
+			userCtx, cancel := context.WithCancel(ctx)
+			runner := &userRunner{
+				userID:   user.ID,
+				username: user.Username,
+				role:     user.Role,
+				cancel:   cancel,
+			}
+			s.runners[uid] = runner
+
+			s.log.Info().
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Msg("scheduler_starting_runner_for_user")
+
+			go s.runUserLoop(userCtx, user)
+		}
+	}
+
+	s.log.Debug().
+		Int("active_runners", len(s.runners)).
+		Int("active_users", len(activeIDs)).
+		Msg("scheduler_reconciliation_complete")
 }
 
-// runUserCycle runs a single analysis cycle for one user with their
-// own identity, symbols, and broker connection context.
-func (s *Scheduler) runUserCycle(ctx context.Context, user *auth.User) {
-	defer func() {
-		if r := recover(); r != nil {
-			observability.LogPanicRecovery(s.log, r, "scheduled_user_cycle_"+user.ID)
-		}
-	}()
-
+// runUserLoop is the independent goroutine for a single user.
+// It runs on the user's own configured interval, fetches their symbols,
+// issues their service token, and executes their analysis cycle.
+// Completely independent of all other users' goroutines.
+func (s *Scheduler) runUserLoop(ctx context.Context, user *auth.User) {
 	userLog := s.log.With().
 		Str("user_id", user.ID).
 		Str("username", user.Username).
-		Str("role", string(user.Role)).
 		Logger()
+
+	// Load this user's configured interval.
+	interval := s.getUserInterval(ctx, user.ID)
+
+	userLog.Info().
+		Float64("interval_seconds", interval.Seconds()).
+		Msg("user_scheduler_loop_started")
+
+	// Apply jitter to the first tick: random delay of 0-10% of the interval.
+	// Prevents thundering herd when multiple user goroutines start simultaneously.
+	maxJitter := interval / 10
+	if maxJitter > 0 {
+		jitter := cryptoRandDuration(maxJitter)
+		select {
+		case <-ctx.Done():
+			userLog.Info().Msg("user_scheduler_stopped_during_jitter")
+			return
+		case <-time.After(jitter):
+		}
+	}
+
+	// Fire the first cycle immediately after jitter.
+	s.executeUserCycle(ctx, user, userLog)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Re-check interval from Redis periodically to pick up dashboard changes.
+	intervalCheckTicker := time.NewTicker(5 * time.Minute)
+	defer intervalCheckTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			userLog.Info().Msg("user_scheduler_loop_stopped")
+			return
+
+		case <-intervalCheckTicker.C:
+			// Re-read the user's interval from Redis in case they changed it.
+			newInterval := s.getUserInterval(ctx, user.ID)
+			if newInterval != interval {
+				userLog.Info().
+					Float64("old_interval_seconds", interval.Seconds()).
+					Float64("new_interval_seconds", newInterval.Seconds()).
+					Msg("user_scheduler_interval_changed")
+				interval = newInterval
+				ticker.Reset(interval)
+			}
+
+		case <-ticker.C:
+			s.executeUserCycle(ctx, user, userLog)
+		}
+	}
+}
+
+// executeUserCycle runs a single analysis cycle for one user.
+func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userLog zerolog.Logger) {
+	defer func() {
+		if r := recover(); r != nil {
+			observability.LogPanicRecovery(userLog, r, "user_cycle_"+user.ID)
+		}
+	}()
 
 	// Issue a service token for this user so downstream services
 	// (Python engine, Module B, Module C) resolve their broker connection.
 	userCtx := s.issueUserServiceContext(ctx, user)
 	if userCtx == nil {
-		userLog.Error().Msg("scheduler_skipping_user_no_service_context")
+		userLog.Error().Msg("scheduler_skipping_cycle_no_service_context")
 		return
 	}
 
 	// Load this user's symbol selection from Redis.
-	// Falls back to config defaults if the user hasn't customized.
 	symbols := s.symbolStore.GetActiveSymbols(userCtx, user.ID)
 
 	userLog.Info().
 		Strs("symbols", symbols).
-		Msg("scheduler_starting_user_cycle")
+		Msg("user_cycle_started")
 
 	s.orchestrator.RunCycle(userCtx, symbols, "")
 
 	userLog.Info().
 		Strs("symbols", symbols).
-		Msg("scheduler_completed_user_cycle")
+		Msg("user_cycle_completed")
+}
+
+// stopAllRunners cancels all user goroutines.
+func (s *Scheduler) stopAllRunners() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for uid, runner := range s.runners {
+		s.log.Info().
+			Str("user_id", uid).
+			Str("username", runner.username).
+			Msg("scheduler_stopping_runner")
+		runner.cancel()
+	}
+	s.runners = make(map[string]*userRunner)
+}
+
+// ActiveRunnerCount returns the number of currently running user goroutines.
+// Used for observability and health checks.
+func (s *Scheduler) ActiveRunnerCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.runners)
 }
 
 // cryptoRandDuration returns a cryptographically random duration in [0, max).

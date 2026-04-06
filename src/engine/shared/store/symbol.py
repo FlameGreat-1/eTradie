@@ -49,12 +49,10 @@ def _user_symbols_key(user_id: str) -> str:
 class RedisSymbolReader:
     """Reads the active symbol list from Redis (written by the Go gateway).
 
-    Provides the same async interface as the old Python SymbolStore
-    so it can be passed directly to register_ta_jobs(symbol_store=...).
-
     In multi-tenant mode, each user has their own symbol selection.
-    Platform-level TA jobs (candle refresh, backfill) use the default
-    symbols since they serve all users.
+    TA data fetching happens per-user when the Go gateway triggers
+    /internal/ta/analyze with the user's JWT. There are no
+    platform-level TA scheduler jobs.
     """
 
     def __init__(

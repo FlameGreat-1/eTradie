@@ -305,20 +305,14 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 		return nil, status.Errorf(codes.InvalidArgument, "interval_seconds must be <= 86400 (24h), got %d", newInterval)
 	}
 
-	oldInterval := s.scheduler.CurrentIntervalSeconds()
+	oldInterval := s.scheduler.CurrentIntervalForUser(ctx, userID)
 
-	// Update the in-memory scheduler immediately. This always succeeds
-	// and takes effect on the next cycle. Redis persistence is best-effort
-	// for restart survival.
-	s.scheduler.UpdateInterval(time.Duration(newInterval) * time.Second)
-
-	if err := s.settingsStore.SetCycleInterval(ctx, userID, newInterval); err != nil {
-		// Redis persistence failed. The interval IS active for this session
-		// but won't survive a restart. Log warning, don't fail the request.
-		s.log.Warn().Err(err).Int("interval", newInterval).Msg("set_cycle_interval_persist_failed_using_in_memory")
-	}
+	// Persist and update this user's interval only. Other users are unaffected.
+	// The user's goroutine periodically re-reads from Redis.
+	s.scheduler.UpdateUserInterval(ctx, userID, time.Duration(newInterval)*time.Second)
 
 	s.log.Info().
+		Str("user_id", userID).
 		Int("old_interval_seconds", oldInterval).
 		Int("new_interval_seconds", newInterval).
 		Msg("cycle_interval_updated_via_dashboard")
@@ -327,7 +321,7 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 	s.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceGateway, alert.TypeIntervalChanged, alert.SeverityInfo,
 			fmt.Sprintf("Cycle interval changed from %ds to %ds", oldInterval, newInterval)).
-			WithUserID(auth.UserIDFromContext(ctx)).
+			WithUserID(userID).
 			WithDetails(map[string]interface{}{
 				"old_interval_seconds": oldInterval,
 				"new_interval_seconds": newInterval,
@@ -337,7 +331,7 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 	return &gatewayv1.SetCycleIntervalResponse{
 		Success:                true,
 		CurrentIntervalSeconds: int32(newInterval),
-		Message:                fmt.Sprintf("Cycle interval updated to %d seconds. Takes effect immediately.", newInterval),
+		Message:                fmt.Sprintf("Cycle interval updated to %d seconds. Your scheduler goroutine will pick up the change within 5 minutes.", newInterval),
 	}, nil
 }
 
@@ -415,6 +409,9 @@ func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatew
 	userID := auth.UserIDFromContext(ctx)
 	activeSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
 
+	// Read this user's interval (from Redis or config default).
+	userInterval := s.scheduler.CurrentIntervalForUser(ctx, userID)
+
 	source := "gateway_config"
 	persisted := s.settingsStore.Load(ctx, userID)
 	if persisted.CycleIntervalSeconds > 0 {
@@ -423,7 +420,7 @@ func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatew
 
 	return &gatewayv1.GetGatewayConfigResponse{
 		Enabled:              s.cfg.Enabled,
-		CycleIntervalSeconds: int32(s.scheduler.CurrentIntervalSeconds()),
+		CycleIntervalSeconds: int32(userInterval),
 		CycleTimeoutSeconds:  int32(s.cfg.CycleTimeoutSeconds),
 		MaxConcurrentSymbols: int32(s.cfg.MaxConcurrentSymbols),
 		TaCacheTtlSeconds:    int32(s.cfg.TACacheTTLSeconds),

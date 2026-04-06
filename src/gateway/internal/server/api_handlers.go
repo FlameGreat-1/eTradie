@@ -249,6 +249,9 @@ func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	activeSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 
+	// Read this user's interval (from Redis or config default).
+	userInterval := h.scheduler.CurrentIntervalForUser(r.Context(), userID)
+
 	source := "gateway_config"
 	persisted := h.settingsStore.Load(r.Context(), userID)
 	if persisted.CycleIntervalSeconds > 0 {
@@ -257,7 +260,7 @@ func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"enabled":                 h.cfg.Enabled,
-		"cycle_interval_seconds":  h.scheduler.CurrentIntervalSeconds(),
+		"cycle_interval_seconds":  userInterval,
 		"cycle_timeout_seconds":   h.cfg.CycleTimeoutSeconds,
 		"max_concurrent_symbols":  h.cfg.MaxConcurrentSymbols,
 		"ta_cache_ttl_seconds":    h.cfg.TACacheTTLSeconds,
@@ -299,16 +302,14 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldInterval := h.scheduler.CurrentIntervalSeconds()
-
-	h.scheduler.UpdateInterval(time.Duration(req.IntervalSeconds) * time.Second)
-
 	userID := auth.UserIDFromContext(r.Context())
-	if err := h.settingsStore.SetCycleInterval(r.Context(), userID, req.IntervalSeconds); err != nil {
-		h.log.Warn().Err(err).Int("interval", req.IntervalSeconds).Msg("set_cycle_interval_persist_failed_using_in_memory")
-	}
+	oldInterval := h.scheduler.CurrentIntervalForUser(r.Context(), userID)
+
+	// Persist and update this user's interval only. Other users are unaffected.
+	h.scheduler.UpdateUserInterval(r.Context(), userID, time.Duration(req.IntervalSeconds)*time.Second)
 
 	h.log.Info().
+		Str("user_id", userID).
 		Int("old_interval_seconds", oldInterval).
 		Int("new_interval_seconds", req.IntervalSeconds).
 		Msg("cycle_interval_updated_via_dashboard_rest")
@@ -316,7 +317,7 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	h.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceGateway, alert.TypeIntervalChanged, alert.SeverityInfo,
 			fmt.Sprintf("Cycle interval changed from %ds to %ds", oldInterval, req.IntervalSeconds)).
-			WithUserID(auth.UserIDFromContext(r.Context())).
+			WithUserID(userID).
 			WithDetails(map[string]interface{}{
 				"old_interval_seconds": oldInterval,
 				"new_interval_seconds": req.IntervalSeconds,
@@ -326,7 +327,7 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"success":                  true,
 		"current_interval_seconds": req.IntervalSeconds,
-		"message":                  fmt.Sprintf("Cycle interval updated to %d seconds. Takes effect immediately.", req.IntervalSeconds),
+		"message":                  fmt.Sprintf("Cycle interval updated to %d seconds. Your scheduler goroutine will pick up the change within 5 minutes.", req.IntervalSeconds),
 	})
 }
 
