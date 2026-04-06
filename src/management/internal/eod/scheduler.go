@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
@@ -95,9 +96,14 @@ func (s *Scheduler) runChecks(ctx context.Context) {
 	for _, trade := range trades {
 		trade.RLock()
 		style := trade.TradingStyle
+		authToken := trade.AuthToken
 		trade.RUnlock()
 
-		price, err := s.getPrice(ctx, trade.Symbol)
+		// Inject the trade's auth token into context so broker HTTP calls
+		// are authenticated for the correct user's broker connection.
+		tradeCtx := auth.InjectTokenIntoContext(ctx, authToken)
+
+		price, err := s.getPrice(tradeCtx, trade.Symbol)
 		if err != nil {
 			s.log.Error().Err(err).Str("symbol", trade.Symbol).Msg("eod_price_fetch_failed")
 			continue
@@ -106,11 +112,11 @@ func (s *Scheduler) runChecks(ctx context.Context) {
 		var closed bool
 		switch style {
 		case constants.StyleIntraday:
-			closed, err = s.intraday.Evaluate(ctx, trade, price)
+			closed, err = s.intraday.Evaluate(tradeCtx, trade, price)
 		case constants.StyleScalping:
-			closed, err = s.scalping.Evaluate(ctx, trade, price)
+			closed, err = s.scalping.Evaluate(tradeCtx, trade, price)
 		case constants.StyleSwing:
-			closed, err = s.swing.Evaluate(ctx, trade, price)
+			closed, err = s.swing.Evaluate(tradeCtx, trade, price)
 		}
 
 		if err != nil {
