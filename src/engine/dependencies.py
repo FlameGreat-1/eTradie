@@ -37,8 +37,6 @@ from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
 
-from engine.ta.broker.mt5.config import MT5Config
-from engine.ta.broker.mt5.factory import create_mt5_broker
 from engine.ta.broker.twelve_data.client import TwelveDataClient
 from engine.ta.broker.twelve_data.config import TwelveDataConfig
 from engine.ta.broker.registry import BrokerRegistry
