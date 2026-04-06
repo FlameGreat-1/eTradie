@@ -469,7 +469,9 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	}
 
 	// SUCCESS — order filled.
+	w.order.Lock()
 	w.order.BrokerOrderID = result.BrokerOrderID
+	w.order.Unlock()
 
 	w.log.Info().
 		Str("broker_order_id", result.BrokerOrderID).

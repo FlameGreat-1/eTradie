@@ -53,6 +53,7 @@ type ExecutionServer struct {
 	audit     *audit.Logger
 	transport *alertredis.Transport
 	settings  *store.SettingsStore
+	watcher   *watcher.Manager
 	log       zerolog.Logger
 
 	processedMu sync.RWMutex
@@ -71,6 +72,7 @@ func NewExecutionServer(
 	al *audit.Logger,
 	transport *alertredis.Transport,
 	ss *store.SettingsStore,
+	wm *watcher.Manager,
 ) *ExecutionServer {
 	srv := &ExecutionServer{
 		cfg:         cfg,
@@ -82,6 +84,7 @@ func NewExecutionServer(
 		audit:       al,
 		transport:   transport,
 		settings:    ss,
+		watcher:     wm,
 		log:         observability.Logger("grpc_server"),
 		processed:   make(map[string]idempotencyEntry),
 		stopCleanup: make(chan struct{}),
@@ -237,6 +240,13 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	tradeReq := parseRequest(req)
 	tradeReq.UserID = userID
+
+	// Refresh auth tokens on all active watchers for this user so that
+	// watchers armed with an older token get the fresh session JWT.
+	// This is critical because watcher timeout (45 min) > token TTL (15 min).
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		s.watcher.RefreshUserOrderTokens(userID, rawToken)
+	}
 
 	// Step 1: Refresh broker state.
 	if err := s.state.Refresh(ctx, userID); err != nil {
@@ -457,6 +467,11 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	userID := auth.UserIDFromContext(ctx)
 	if userID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
+	// Refresh auth tokens on active watchers for this user.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		s.watcher.RefreshUserOrderTokens(userID, rawToken)
 	}
 
 	if err := s.state.Refresh(ctx, userID); err != nil {
