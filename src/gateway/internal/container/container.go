@@ -102,8 +102,10 @@ func New(
 	// Scheduler (with SettingsStore for persisted interval overrides).
 	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
 
-	// Load any dashboard-set interval override from Redis before starting.
-	scheduler.LoadPersistedInterval(context.Background())
+	// Note: LoadPersistedInterval requires a userID (multi-tenant).
+	// At startup there is no authenticated user context. The scheduler
+	// starts with the config default interval. User-specific intervals
+	// are applied when users interact via the dashboard (SetCycleInterval).
 
 	// Management Client (Module C).
 	var mgmtClient *management.Client

@@ -54,16 +54,20 @@ func NewScheduler(
 }
 
 // LoadPersistedInterval checks Redis for a dashboard-set interval override
-// and applies it. Must be called after construction, before Start().
-func (s *Scheduler) LoadPersistedInterval(ctx context.Context) {
-	if s.settingsStore == nil {
+// and applies it. Requires a userID since settings are user-scoped.
+// Called when a user authenticates and their persisted interval should
+// override the default. In the current single-scheduler architecture,
+// this applies the last-authenticated user's interval.
+func (s *Scheduler) LoadPersistedInterval(ctx context.Context, userID string) {
+	if s.settingsStore == nil || userID == "" {
 		return
 	}
-	persisted := s.settingsStore.GetCycleInterval(ctx)
+	persisted := s.settingsStore.GetCycleInterval(ctx, userID)
 	if persisted >= 60 && persisted <= 86400 {
 		s.intervalSeconds.Store(int64(persisted))
 		s.log.Info().
 			Int("persisted_interval_seconds", persisted).
+			Str("user_id", userID).
 			Msg("scheduler_loaded_persisted_interval_from_redis")
 	}
 }
@@ -164,10 +168,16 @@ func (s *Scheduler) runCycle(ctx context.Context) {
 		}
 	}()
 
-	symbols := s.symbolStore.GetActiveSymbols(ctx)
+	// The background scheduler has no authenticated user context.
+	// Use the configured default symbols for scheduled cycles.
+	// Per-user scheduling is an architectural enhancement for a future phase;
+	// user-triggered cycles via RunCycle (HTTP/gRPC) carry the user's context
+	// and use their user-scoped symbol selection.
+	symbols := s.symbolStore.DefaultSymbols()
 
 	s.log.Info().
 		Strs("symbols", symbols).
+		Str("source", "default_config").
 		Msg("gateway_scheduled_cycle_starting")
 
 	s.orchestrator.RunCycle(ctx, symbols, "")
