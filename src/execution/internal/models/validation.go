@@ -38,6 +38,11 @@ type TradeRequest struct {
 	ExecutionMode   string
 	LTFConfirmed    bool
 	SetupType       string
+
+	// Auth context: authenticated user who owns this trade request.
+	// Set by the gRPC server after JWT extraction. Used by the
+	// validator to query per-user state (positions, P&L limits).
+	UserID string
 }
 
 // EntryPrice returns the midpoint of the entry zone (OTE approximation).
