@@ -21,13 +21,6 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 	tradeID := trade.TradeID
 	symbol := trade.Symbol
 
-	// Inject the user's auth token into the worker context so all
-	// downstream broker HTTP calls are authenticated. The token was
-	// captured from the original gRPC request and stored on the Trade
-	// struct by the gRPC server. This follows the same pattern as
-	// Execution's watcher/manager.go.
-	authCtx := auth.InjectTokenIntoContext(ctx, trade.AuthToken)
-
 	m.log.Info().
 		Str("trade_id", tradeID).
 		Str("symbol", symbol).
@@ -39,13 +32,14 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 
 	for {
 		select {
-		case <-authCtx.Done():
+		case <-ctx.Done():
 			m.log.Info().Str("trade_id", tradeID).Msg("monitoring_worker_stopped")
 			return
 
 		case <-ticker.C:
 			trade.RLock()
 			status := trade.Status
+			currentToken := trade.AuthToken
 			trade.RUnlock()
 
 			if status == constants.StatusClosed {
@@ -53,6 +47,16 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 				m.RemoveTrade(tradeID)
 				return
 			}
+
+			// Build a fresh auth context on every tick cycle using the
+			// trade's current AuthToken. This is critical because:
+			// - Service tokens are set on startup for restored trades
+			// - User session tokens replace service tokens on login
+			//   via RefreshUserTradeTokens
+			// - The worker must always use the most recent token
+			// Go contexts are immutable, so we cannot update a frozen
+			// authCtx created once at worker start.
+			authCtx := auth.InjectTokenIntoContext(ctx, currentToken)
 
 			tick, err := m.bp.GetTickPrice(authCtx, symbol)
 			if err != nil {
@@ -80,7 +84,7 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 
 			// === Evaluation order (priority-based) ===
 
-			// 1. Check SL hit first (highest priority — protect capital).
+			// 1. Check SL hit first (highest priority - protect capital).
 			if trade.IsSLHit(checkPrice) {
 				m.handleSLHit(authCtx, trade, checkPrice)
 				m.RemoveTrade(tradeID)
