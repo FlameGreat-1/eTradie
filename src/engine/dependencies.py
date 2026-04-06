@@ -730,8 +730,8 @@ class Container:
 
         except Exception as exc:
             _logger.warning(
-                "failed_to_load_llm_connection_from_db_falling_back_to_env",
-                extra={"error": str(exc)},
+                "failed_to_load_llm_connection_from_db",
+                extra={"error": str(exc), "user_id": user_id},
             )
             return None
 

@@ -1693,9 +1693,6 @@ def create_app() -> FastAPI:
         If activate=True (default), this becomes the active connection.
         The user's broker is resolved per-request from the database
         when they call trading endpoints (/internal/broker/*).
-
-        Admin users who activate a connection also hot-swap the
-        platform-level broker used for TA data fetching.
         """
         await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
@@ -1859,9 +1856,6 @@ def create_app() -> FastAPI:
         Updates are saved to the database. The user's broker is resolved
         per-request from the DB, so the updated values take effect on
         the next trading operation automatically.
-
-        Admin users who update an active connection also hot-swap the
-        platform-level broker used for TA data fetching.
         """
         container: Container = request.app.state.container
 
