@@ -429,13 +429,13 @@ class Container:
         """Load the active broker connection for a specific user.
 
         Called at request time when a user's API request needs broker
-        access (positions, orders, account info). Returns a BrokerBase
-        instance or None.
+        access (TA analysis, positions, orders, account info, trading).
+        Returns a BrokerBase instance or None.
 
-        Each user MUST configure their own broker connection via the
-        dashboard. There is no fallback to the admin/platform broker.
-        The admin broker (self.mt5_client) is reserved exclusively for
-        platform-level TA data fetching and scheduler jobs.
+        Every user (including admin) MUST configure their own broker
+        connection via the dashboard. There is NO env-var fallback and
+        NO platform-level broker. If a user has not configured a broker
+        connection, this returns None and the endpoint returns HTTP 503.
 
         Resolution:
           1. Active broker connection from DB for this user
