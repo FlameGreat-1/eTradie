@@ -41,6 +41,13 @@ type Config struct {
 	ConfirmPollIntervalSecs int
 }
 
+// WatcherPersistence is the interface for persisting watchers to survive
+// service restarts. Implemented by store.WatcherStore.
+type WatcherPersistence interface {
+	Insert(ctx context.Context, order *models.Order) error
+	Delete(ctx context.Context, watcherID string) error
+}
+
 // Manager tracks all active instant-mode watchers. Thread-safe.
 // Provides Arm/Disarm lifecycle and coordinates graceful shutdown.
 type Manager struct {
@@ -48,6 +55,7 @@ type Manager struct {
 	gateway   GatewayPort
 	audit     *audit.Logger
 	transport *alertredis.Transport
+	store     WatcherPersistence
 	cfg       Config
 	log       zerolog.Logger
 
@@ -60,12 +68,15 @@ type Manager struct {
 
 // NewManager creates a watcher manager. The provided context controls
 // the lifecycle of all spawned watchers — cancelling it stops all.
+// The store parameter is optional (nil-safe) for backward compatibility
+// with tests that don't need persistence.
 func NewManager(
 	bp broker.Port,
 	gw GatewayPort,
 	al *audit.Logger,
 	transport *alertredis.Transport,
 	cfg Config,
+	persistence WatcherPersistence,
 ) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
@@ -73,6 +84,7 @@ func NewManager(
 		gateway:   gw,
 		audit:     al,
 		transport: transport,
+		store:     persistence,
 		cfg:       cfg,
 		log:       observability.Logger("watcher_manager"),
 		watchers:  make(map[string]*Watcher),
@@ -125,6 +137,14 @@ func (m *Manager) Arm(order *models.Order) {
 
 	go w.run(m.ctx, m.onWatcherDone)
 
+	// Persist the watcher to DB so it survives service restarts.
+	// Fire-and-forget: errors are logged but don't block the watcher.
+	if m.store != nil {
+		if err := m.store.Insert(context.Background(), order); err != nil {
+			m.log.Error().Err(err).Str("watcher_id", order.WatcherID).Msg("watcher_persist_failed")
+		}
+	}
+
 	m.log.Info().
 		Str("watcher_id", order.WatcherID).
 		Str("symbol", order.Symbol).
@@ -147,6 +167,12 @@ func (m *Manager) Disarm(watcherID string) {
 
 	if exists {
 		w.stop()
+		// Remove persistence record.
+		if m.store != nil {
+			if err := m.store.Delete(context.Background(), watcherID); err != nil {
+				m.log.Error().Err(err).Str("watcher_id", watcherID).Msg("watcher_persist_delete_on_disarm_failed")
+			}
+		}
 		m.log.Info().Str("watcher_id", watcherID).Msg("watcher_disarmed")
 	}
 }
@@ -188,11 +214,19 @@ func (m *Manager) Shutdown() {
 }
 
 // onWatcherDone is a callback invoked when a watcher finishes. Removes
-// the watcher from the active map. Thread-safe.
+// the watcher from the active map and deletes the persistence record.
+// Thread-safe.
 func (m *Manager) onWatcherDone(watcherID string) {
 	m.mu.Lock()
 	delete(m.watchers, watcherID)
 	m.mu.Unlock()
+
+	// Remove persistence record (order filled, timed out, or disarmed).
+	if m.store != nil {
+		if err := m.store.Delete(context.Background(), watcherID); err != nil {
+			m.log.Error().Err(err).Str("watcher_id", watcherID).Msg("watcher_persist_delete_failed")
+		}
+	}
 }
 
 // RefreshUserOrderTokens updates the AuthToken on all active watchers
