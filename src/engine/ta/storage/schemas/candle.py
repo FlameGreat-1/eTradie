@@ -12,19 +12,26 @@ class CandleSchema(Base):
     Database schema for candle storage.
 
     Stores OHLCV data with:
+    - User-scoped ownership (every row belongs to a specific user)
     - Immutable historical records (never modified after insert)
     - Symbol/timeframe/timestamp composite index for fast queries
     - Support for backfill and real-time updates
-    - Cache snapshots for quick retrieval
 
     Indexes:
-    - (symbol, timeframe, timestamp) - primary query pattern
+    - (user_id, symbol, timeframe, timestamp) - primary query pattern (unique)
+    - user_id - per-user filtering
     - timestamp - time-based filtering
     """
 
     __tablename__ = "candles"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
 
     symbol: Mapped[str] = mapped_column(
         String(20),
@@ -91,7 +98,8 @@ class CandleSchema(Base):
 
     __table_args__ = (
         Index(
-            "ix_candles_symbol_timeframe_timestamp",
+            "ix_candles_user_symbol_timeframe_timestamp",
+            "user_id",
             "symbol",
             "timeframe",
             "timestamp",

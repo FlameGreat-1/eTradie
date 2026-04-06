@@ -33,6 +33,8 @@ class CandidateSchema(Base):
     # ── Core identity ──
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
     symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
 
     timeframe: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
@@ -234,19 +236,22 @@ class CandidateSchema(Base):
 
     __table_args__ = (
         Index(
-            "ix_candidates_symbol_timeframe_timestamp",
+            "ix_candidates_user_symbol_timeframe_timestamp",
+            "user_id",
             "symbol",
             "timeframe",
             "timestamp",
         ),
         Index(
-            "ix_candidates_symbol_pattern_direction",
+            "ix_candidates_user_symbol_pattern_direction",
+            "user_id",
             "symbol",
             "pattern",
             "direction",
         ),
         Index(
-            "ix_candidates_is_active_timestamp",
+            "ix_candidates_user_is_active_timestamp",
+            "user_id",
             "is_active",
             "timestamp",
         ),

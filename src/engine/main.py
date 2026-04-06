@@ -376,6 +376,7 @@ def create_app() -> FastAPI:
                 result = await container.ta_orchestrator.analyze(
                     symbol=symbol,
                     broker_client=user_broker,
+                    user_id=user.user_id,
                 )
                 results.append(result)
             except Exception as exc:
@@ -385,6 +386,7 @@ def create_app() -> FastAPI:
                         "symbol": symbol,
                         "error": str(exc),
                         "trace_id": body.trace_id,
+                        "user_id": user.user_id,
                     },
                 )
                 results.append(
@@ -874,6 +876,7 @@ def create_app() -> FastAPI:
             ta_result = await container.ta_orchestrator.analyze(
                 symbol=symbol,
                 broker_client=user_broker,
+                user_id=user.user_id,
             )
         except Exception as exc:
             logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})

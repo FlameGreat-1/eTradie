@@ -34,6 +34,8 @@ class SnapshotRepository:
         symbol: str,
         timeframe: str,
         timestamp: datetime,
+        *,
+        user_id: str,
         swing_highs: dict,
         swing_lows: dict,
         bms_events: dict,
@@ -58,9 +60,10 @@ class SnapshotRepository:
         notes: Optional[str] = None,
     ) -> SnapshotSchema:
         """Create a new technical snapshot."""
-        latest_version = await self._get_latest_version(symbol, timeframe)
+        latest_version = await self._get_latest_version(symbol, timeframe, user_id=user_id)
 
         schema = SnapshotSchema(
+            user_id=user_id,
             symbol=symbol,
             timeframe=timeframe,
             timestamp=timestamp,
@@ -116,12 +119,15 @@ class SnapshotRepository:
         symbol: str,
         timeframe: str,
         timestamp: datetime,
+        *,
+        user_id: str,
     ) -> Optional[SnapshotSchema]:
-        """Find snapshot by symbol, timeframe, and timestamp."""
+        """Find snapshot by user_id, symbol, timeframe, and timestamp."""
         result = await self.session.execute(
             select(SnapshotSchema)
             .where(
                 and_(
+                    SnapshotSchema.user_id == user_id,
                     SnapshotSchema.symbol == symbol,
                     SnapshotSchema.timeframe == timeframe,
                     SnapshotSchema.timestamp == timestamp,
@@ -136,12 +142,15 @@ class SnapshotRepository:
         self,
         symbol: str,
         timeframe: str,
+        *,
+        user_id: str,
     ) -> Optional[SnapshotSchema]:
-        """Get most recent snapshot for symbol/timeframe."""
+        """Get most recent snapshot for user/symbol/timeframe."""
         result = await self.session.execute(
             select(SnapshotSchema)
             .where(
                 and_(
+                    SnapshotSchema.user_id == user_id,
                     SnapshotSchema.symbol == symbol,
                     SnapshotSchema.timeframe == timeframe,
                 )
@@ -158,12 +167,15 @@ class SnapshotRepository:
         start_time: datetime,
         end_time: datetime,
         limit: Optional[int] = None,
+        *,
+        user_id: str,
     ) -> list[SnapshotSchema]:
-        """Find snapshots within time range."""
+        """Find snapshots within time range for a specific user."""
         query = (
             select(SnapshotSchema)
             .where(
                 and_(
+                    SnapshotSchema.user_id == user_id,
                     SnapshotSchema.symbol == symbol,
                     SnapshotSchema.timeframe == timeframe,
                     SnapshotSchema.timestamp >= start_time,
@@ -183,13 +195,16 @@ class SnapshotRepository:
         self,
         symbol: str,
         timeframe: str,
+        *,
+        user_id: str,
     ) -> int:
-        """Count total snapshots for symbol/timeframe."""
+        """Count total snapshots for user/symbol/timeframe."""
         from sqlalchemy import func
 
         result = await self.session.execute(
             select(func.count(SnapshotSchema.id)).where(
                 and_(
+                    SnapshotSchema.user_id == user_id,
                     SnapshotSchema.symbol == symbol,
                     SnapshotSchema.timeframe == timeframe,
                 )
@@ -218,13 +233,16 @@ class SnapshotRepository:
         self,
         symbol: str,
         timeframe: str,
+        *,
+        user_id: str,
     ) -> int:
-        """Get latest version number for symbol/timeframe."""
+        """Get latest version number for user/symbol/timeframe."""
         from sqlalchemy import func
 
         result = await self.session.execute(
             select(func.max(SnapshotSchema.version)).where(
                 and_(
+                    SnapshotSchema.user_id == user_id,
                     SnapshotSchema.symbol == symbol,
                     SnapshotSchema.timeframe == timeframe,
                 )

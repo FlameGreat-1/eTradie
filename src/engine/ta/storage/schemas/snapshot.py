@@ -12,6 +12,7 @@ class SnapshotSchema(Base):
     Database schema for TechnicalSnapshot storage.
 
     Stores complete technical analysis snapshots with:
+    - User-scoped ownership (every row belongs to a specific user)
     - All detected primitives (swings, structure events, zones, liquidity)
     - Versioning support (track changes over time)
     - Symbol/timeframe/timestamp indexing
@@ -21,14 +22,17 @@ class SnapshotSchema(Base):
     New analysis creates new snapshot version.
 
     Indexes:
-    - (symbol, timeframe, timestamp) - primary query pattern
-    - (symbol, timeframe, created_at) - version tracking
+    - (user_id, symbol, timeframe, timestamp) - primary query pattern
+    - (user_id, symbol, timeframe, created_at) - version tracking
+    - user_id - per-user filtering
     - timestamp - time-based filtering
     """
 
     __tablename__ = "technical_snapshots"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 
     symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
 
@@ -94,13 +98,15 @@ class SnapshotSchema(Base):
 
     __table_args__ = (
         Index(
-            "ix_snapshots_symbol_timeframe_timestamp",
+            "ix_snapshots_user_symbol_timeframe_timestamp",
+            "user_id",
             "symbol",
             "timeframe",
             "timestamp",
         ),
         Index(
-            "ix_snapshots_symbol_timeframe_created_at",
+            "ix_snapshots_user_symbol_timeframe_created_at",
+            "user_id",
             "symbol",
             "timeframe",
             "created_at",
