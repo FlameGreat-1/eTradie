@@ -1,14 +1,15 @@
 """Redis-based symbol reader for TA data jobs.
 
 Reads the active symbol list from the same Redis key that the Go
-gateway writes to: ``etradie:gateway:active_symbols``.
+gateway writes to. In multi-tenant mode, each user's symbols are
+stored at: ``etradie:gateway:user:{userID}:active_symbols``.
 
 Falls back to a configurable default list when no user selection
 exists in Redis. This is the Python-side counterpart of the Go
 gateway's SymbolStore.
 
-The Go gateway WRITES to this key.
-The Python engine READS from this key.
+The Go gateway WRITES to these keys.
+The Python engine READS from these keys.
 Both use the same Redis instance and the same key format.
 """
 
@@ -23,7 +24,6 @@ logger = get_logger(__name__)
 
 # Must match the Go gateway's constants exactly.
 _CACHE_NAMESPACE = "gateway"
-_ACTIVE_SYMBOLS_KEY = "active_symbols"
 
 _DEFAULT_SYMBOLS = [
     "EURUSD",
@@ -37,11 +37,24 @@ _DEFAULT_SYMBOLS = [
 ]
 
 
+def _user_symbols_key(user_id: str) -> str:
+    """Build the user-scoped Redis key for active symbols.
+
+    Must match the Go gateway's symbolstore.activeSymbolsKey() exactly:
+        "user:" + userID + ":active_symbols"
+    """
+    return f"user:{user_id}:active_symbols"
+
+
 class RedisSymbolReader:
     """Reads the active symbol list from Redis (written by the Go gateway).
 
     Provides the same async interface as the old Python SymbolStore
     so it can be passed directly to register_ta_jobs(symbol_store=...).
+
+    In multi-tenant mode, each user has their own symbol selection.
+    Platform-level TA jobs (candle refresh, backfill) use the default
+    symbols since they serve all users.
     """
 
     def __init__(
@@ -52,17 +65,31 @@ class RedisSymbolReader:
         self._cache = cache
         self._defaults = default_symbols or list(_DEFAULT_SYMBOLS)
 
-    async def get_active_symbols(self) -> list[str]:
+    async def get_active_symbols(self, user_id: Optional[str] = None) -> list[str]:
         """Return the active symbols from Redis, falling back to defaults.
 
+        Args:
+            user_id: If provided, reads the user-scoped symbol selection
+                     from Redis. If None, returns the configured defaults
+                     (used by platform-level TA scheduler jobs).
+
         Priority:
-        1. User selection persisted in Redis by the Go gateway
+        1. User-scoped selection persisted in Redis by the Go gateway
         2. Default symbols from configuration
         """
+        if user_id is None:
+            logger.debug(
+                "symbol_reader_no_user_id_using_defaults",
+                extra={"symbols": self._defaults, "source": "defaults"},
+            )
+            return list(self._defaults)
+
+        key = _user_symbols_key(user_id)
+
         try:
             stored = await self._cache.get(
                 _CACHE_NAMESPACE,
-                _ACTIVE_SYMBOLS_KEY,
+                key,
             )
 
             if stored is not None and isinstance(stored, list) and len(stored) > 0:
@@ -72,18 +99,22 @@ class RedisSymbolReader:
                 if symbols:
                     logger.debug(
                         "symbol_reader_loaded_from_redis",
-                        extra={"symbols": symbols, "source": "redis"},
+                        extra={
+                            "symbols": symbols,
+                            "source": "redis",
+                            "user_id": user_id,
+                        },
                     )
                     return symbols
 
         except Exception as exc:
             logger.warning(
                 "symbol_reader_redis_failed_using_defaults",
-                extra={"error": str(exc)},
+                extra={"error": str(exc), "user_id": user_id},
             )
 
         logger.debug(
             "symbol_reader_using_defaults",
-            extra={"symbols": self._defaults, "source": "defaults"},
+            extra={"symbols": self._defaults, "source": "defaults", "user_id": user_id},
         )
         return list(self._defaults)
