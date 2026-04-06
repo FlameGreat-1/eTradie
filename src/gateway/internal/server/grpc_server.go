@@ -465,7 +465,7 @@ func panicRecoveryInterceptor(log zerolog.Logger) grpc.UnaryServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				observability.LogPanicRecovery(log, r, info.FullMethod)
-				err = fmt.Errorf("internal server error")
+				err = status.Errorf(codes.Internal, "internal server error")
 			}
 		}()
 		return handler(ctx, req)
