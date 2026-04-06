@@ -800,6 +800,14 @@ class Container:
             await self.rag_vector_store.close()
         if hasattr(self, "rag_embedding_provider"):
             await self.rag_embedding_provider.close()
+        # Close per-user cached processor LLM clients.
+        for user_id, proc in self._user_processors.items():
+            try:
+                await proc._llm.close()
+            except Exception:
+                pass
+        self._user_processors.clear()
+        # Close the global system-level processor LLM client.
         if hasattr(self, "processor_llm_client"):
             await self.processor_llm_client.close()
         await self.http_client.close()

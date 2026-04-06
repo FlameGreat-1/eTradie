@@ -16,13 +16,49 @@ Run with: pytest tests/api/ -v -m integration
 from __future__ import annotations
 
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from typing import AsyncGenerator
 from uuid import uuid4
 
+import jwt as pyjwt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+# Deterministic JWT secret for tests. Must be set in env_overrides
+# so the Python engine's auth module can verify tokens we generate.
+TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-must-be-long-enough-64chars-ok"
+TEST_JWT_ISSUER = "etradie"
+
+
+def _make_test_jwt(
+    user_id: str = "test-user-001",
+    username: str = "testuser",
+    role: str = "etradie",
+    expires_in: int = 3600,
+) -> str:
+    """Generate a valid JWT token for test requests.
+
+    Args:
+        user_id: The sub claim (user ID).
+        username: The username claim.
+        role: 'admin' or 'etradie' (regular user).
+        expires_in: Token lifetime in seconds.
+
+    Returns:
+        Encoded JWT string.
+    """
+    now = int(time.time())
+    payload = {
+        "sub": user_id,
+        "username": username,
+        "role": role,
+        "iss": TEST_JWT_ISSUER,
+        "iat": now,
+        "exp": now + expires_in,
+    }
+    return pyjwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
 _DB_URL = os.getenv(
     "DATABASE_URL",
@@ -138,6 +174,9 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         "APP_ENV": "testing",
         "APP_LOG_LEVEL": "ERROR",
         "JSON_LOGS": "false",
+        # JWT auth: deterministic secret so tests can generate valid tokens.
+        "AUTH_JWT_SECRET": TEST_JWT_SECRET,
+        "AUTH_ISSUER": TEST_JWT_ISSUER,
         # RAG: connect to real ChromaDB with existing embeddings.
         # Do NOT re-ingest on startup (data already loaded).
         "RAG_ENABLED": "true" if CHROMA_AVAILABLE else "false",
@@ -197,15 +236,40 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         async with app.router.lifespan_context(app):
             container = app.state.container
 
-            # Create processor tables if they don't exist.
+            # Create processor tables (analysis_outputs, analysis_audit_logs,
+            # llm_connections) if they don't exist.
             from engine.processor.storage.schemas.processor_schema import ProcessorBase
             async with container.db.engine.begin() as conn:
                 await conn.run_sync(ProcessorBase.metadata.create_all)
+
+            # Seed an active LLM connection for the test user so
+            # per-user processor resolution works in endpoint tests.
+            # Uses the same provider/model from the env-var processor
+            # config so the LLM client can be built without errors.
+            from engine.processor.storage.repositories.llm_connection_repository import LLMConnectionRepository
+            test_user_id = "user-001"  # matches _user_headers JWT sub claim
+            async with container.db.session() as session:
+                repo = LLMConnectionRepository(session)
+                existing = await repo.get_active(user_id=test_user_id)
+                if existing is None:
+                    cfg = container.processor_config
+                    await repo.create(
+                        user_id=test_user_id,
+                        provider=cfg.llm_provider,
+                        model_name=cfg.model_name,
+                        api_key=cfg.get_active_api_key() or "sk-test-placeholder",
+                        temperature=cfg.temperature,
+                        max_output_tokens=cfg.max_output_tokens,
+                        activate=True,
+                    )
 
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://testserver") as client:
                 # Attach container to client for seed data access.
                 client._container = container  # type: ignore[attr-defined]
+                # Attach default auth headers for convenience.
+                client._admin_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='admin-001', username='admin', role='admin')}"}  # type: ignore[attr-defined]
+                client._user_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='user-001', username='testuser', role='etradie')}"}  # type: ignore[attr-defined]
                 yield client
 
 

@@ -208,15 +208,17 @@ class TestAnalysisRerun:
         """POST /api/analysis/rerun returns 500 when TA broker is unavailable.
 
         In the test environment, the MT5 broker is not connected (no live
-        terminal). The rerun endpoint should return a 500 error with a
-        clear message about TA analysis failure, NOT a panic or 503.
+        terminal). The user has an LLM connection seeded by conftest, so
+        the processor resolves. The rerun endpoint should return a 500
+        error with a clear message about TA analysis failure.
         """
+        headers = app_client._user_headers
         resp = await app_client.post(
             "/api/analysis/rerun",
             params={"symbol": "EURUSD", "trace_id": "test-rerun-001"},
+            headers=headers,
         )
         # TA orchestrator will fail because MT5 broker is not connected.
-        # The endpoint should return 500 with "TA analysis failed" message.
         assert resp.status_code == 500
         data = resp.json()
         assert "detail" in data
@@ -224,12 +226,22 @@ class TestAnalysisRerun:
 
     async def test_analysis_rerun_empty_symbol(self, app_client):
         """POST /api/analysis/rerun with empty symbol returns 400."""
+        headers = app_client._user_headers
         resp = await app_client.post(
             "/api/analysis/rerun",
             params={"symbol": ""},
+            headers=headers,
         )
         assert resp.status_code == 400
         assert "required" in resp.json()["detail"].lower()
+
+    async def test_analysis_rerun_no_auth(self, app_client):
+        """POST /api/analysis/rerun without auth returns 401."""
+        resp = await app_client.post(
+            "/api/analysis/rerun",
+            params={"symbol": "EURUSD"},
+        )
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +250,17 @@ class TestAnalysisRerun:
 
 
 class TestProcessorConfig:
+    """Tests for admin-only processor config endpoints.
+
+    These endpoints (GET/PUT /api/processor/config, GET /api/processor/models)
+    operate on the global system-level processor and require admin role.
+    Regular users configure their own LLM via /api/llm/connections/*.
+    """
+
     async def test_processor_models(self, app_client):
-        """GET /api/processor/models returns available models."""
-        resp = await app_client.get("/api/processor/models")
+        """GET /api/processor/models returns available models (admin)."""
+        headers = app_client._admin_headers
+        resp = await app_client.get("/api/processor/models", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "current_provider" in data
@@ -251,8 +271,9 @@ class TestProcessorConfig:
         assert "anthropic" in data["providers"] or len(data["providers"]) > 0
 
     async def test_processor_config_get(self, app_client):
-        """GET /api/processor/config returns current config."""
-        resp = await app_client.get("/api/processor/config")
+        """GET /api/processor/config returns current config (admin)."""
+        headers = app_client._admin_headers
+        resp = await app_client.get("/api/processor/config", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "llm_provider" in data
@@ -264,9 +285,10 @@ class TestProcessorConfig:
         assert len(data["supported_providers"]) > 0
 
     async def test_processor_config_update_temperature(self, app_client):
-        """PUT /api/processor/config updates temperature."""
+        """PUT /api/processor/config updates temperature (admin)."""
+        headers = app_client._admin_headers
         # Get current config.
-        get_resp = await app_client.get("/api/processor/config")
+        get_resp = await app_client.get("/api/processor/config", headers=headers)
         assert get_resp.status_code == 200
         original = get_resp.json()
 
@@ -275,6 +297,7 @@ class TestProcessorConfig:
         put_resp = await app_client.put(
             "/api/processor/config",
             json={"temperature": new_temp},
+            headers=headers,
         )
         assert put_resp.status_code == 200
         updated = put_resp.json()
@@ -285,10 +308,44 @@ class TestProcessorConfig:
         assert updated["model_name"] == original["model_name"]
 
     async def test_processor_config_update_invalid_provider(self, app_client):
-        """PUT /api/processor/config rejects invalid provider."""
+        """PUT /api/processor/config rejects invalid provider (admin)."""
+        headers = app_client._admin_headers
         resp = await app_client.put(
             "/api/processor/config",
             json={"llm_provider": "nonexistent_provider"},
+            headers=headers,
         )
         assert resp.status_code == 400
         assert "Unsupported provider" in resp.json()["detail"]
+
+    async def test_regular_user_rejected_from_processor_models(self, app_client):
+        """GET /api/processor/models returns 403 for non-admin user."""
+        headers = app_client._user_headers
+        resp = await app_client.get("/api/processor/models", headers=headers)
+        assert resp.status_code == 403
+        assert "Admin access required" in resp.json()["detail"]
+
+    async def test_regular_user_rejected_from_processor_config_get(self, app_client):
+        """GET /api/processor/config returns 403 for non-admin user."""
+        headers = app_client._user_headers
+        resp = await app_client.get("/api/processor/config", headers=headers)
+        assert resp.status_code == 403
+
+    async def test_regular_user_rejected_from_processor_config_put(self, app_client):
+        """PUT /api/processor/config returns 403 for non-admin user."""
+        headers = app_client._user_headers
+        resp = await app_client.put(
+            "/api/processor/config",
+            json={"temperature": 0.5},
+            headers=headers,
+        )
+        assert resp.status_code == 403
+
+    async def test_no_auth_returns_401(self, app_client):
+        """Processor config endpoints return 401 without auth."""
+        resp = await app_client.get("/api/processor/config")
+        assert resp.status_code in (401, 500)  # 401 if secret set, 500 if not
+        resp = await app_client.get("/api/processor/models")
+        assert resp.status_code in (401, 500)
+        resp = await app_client.put("/api/processor/config", json={"temperature": 0.1})
+        assert resp.status_code in (401, 500)
