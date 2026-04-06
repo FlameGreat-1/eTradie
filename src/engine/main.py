@@ -76,9 +76,17 @@ async def _rate_limit(
             )
     except HTTPException:
         raise
-    except Exception:
-        # If Redis is down, allow the request (fail open for availability).
-        pass
+    except Exception as exc:
+        # If Redis is down, allow the request (fail open for availability)
+        # but log a warning so operators know rate limiting is bypassed.
+        logger.warning(
+            "rate_limit_redis_unavailable_failing_open",
+            extra={
+                "key_prefix": key_prefix,
+                "client_ip": client_ip,
+                "error": str(exc),
+            },
+        )
 
 
 logger = get_logger(__name__)
