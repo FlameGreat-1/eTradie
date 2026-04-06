@@ -58,9 +58,14 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 			// authCtx created once at worker start.
 			authCtx := auth.InjectTokenIntoContext(ctx, currentToken)
 
-			tick, err := m.bp.GetTickPrice(authCtx, symbol)
-			if err != nil {
-				m.log.Error().Err(err).Str("trade_id", tradeID).Msg("tick_poll_failed")
+			// Read tick price from the shared cache. The cache is populated
+			// by a single poller per symbol, eliminating redundant HTTP calls.
+			// With 3,000 trades on 30 symbols, this is 30 HTTP calls/sec
+			// instead of 3,000.
+			tick := m.tickCache.GetTickPrice(symbol)
+			if tick == nil {
+				// Cache not yet populated (first poll hasn't completed).
+				// Skip this cycle; the cache will be ready on the next tick.
 				continue
 			}
 

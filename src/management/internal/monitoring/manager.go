@@ -42,6 +42,11 @@ type Manager struct {
 	journal   *journal.Repository
 	transport AlertTransport
 
+	// Shared tick price cache. One poller per symbol instead of one
+	// HTTP call per trade. Reduces broker load from O(trades) to
+	// O(unique_symbols).
+	tickCache *TickCache
+
 	// Config.
 	tickPollMs int
 
@@ -68,6 +73,7 @@ func NewManager(
 		tp:         tp,
 		journal:    journal,
 		transport:  transport,
+		tickCache:  NewTickCache(bp, tickPollMs),
 		tickPollMs: tickPollMs,
 		log:        observability.Logger("monitoring"),
 	}
@@ -94,6 +100,10 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancels[trade.TradeID] = cancel
+
+	// Subscribe to tick cache for this symbol. Starts a poller if
+	// this is the first trade on this symbol.
+	m.tickCache.Subscribe(trade.Symbol)
 
 	m.wg.Add(1)
 	go m.runWorker(ctx, trade)
@@ -141,13 +151,25 @@ func (m *Manager) updateGauges(ctx context.Context) {
 // RemoveTrade stops monitoring a trade and removes it from the map.
 func (m *Manager) RemoveTrade(tradeID string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+
+	// Get symbol before deleting for cache unsubscribe.
+	var symbol string
+	if t, ok := m.trades[tradeID]; ok {
+		symbol = t.Symbol
+	}
 
 	if cancel, ok := m.cancels[tradeID]; ok {
 		cancel()
 		delete(m.cancels, tradeID)
 	}
 	delete(m.trades, tradeID)
+	m.mu.Unlock()
+
+	// Unsubscribe from tick cache. Stops the poller if this was the
+	// last trade on this symbol.
+	if symbol != "" {
+		m.tickCache.Unsubscribe(symbol)
+	}
 
 	observability.ManagedTradesGauge.Dec()
 }
@@ -219,7 +241,7 @@ func (m *Manager) TradeCount() int {
 	return len(m.trades)
 }
 
-// Shutdown stops all monitoring workers and waits for completion.
+// Shutdown stops all monitoring workers and the tick cache.
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
 	for id, cancel := range m.cancels {
@@ -228,18 +250,33 @@ func (m *Manager) Shutdown() {
 	}
 	m.mu.Unlock()
 
+	m.tickCache.Shutdown()
 	m.wg.Wait()
 	m.log.Info().Msg("monitoring_manager_shutdown_complete")
 }
 
-// GetPriceForSymbol fetches the current check price for a symbol.
-// Exposed for the EOD scheduler.
+// GetPriceForSymbol returns the current check price for a symbol
+// from the shared tick cache. No HTTP call is made; the cache is
+// populated by background pollers.
+// Exposed for the EOD scheduler, news engine, and alert hub subscriber.
 func (m *Manager) GetPriceForSymbol(ctx context.Context, symbol string) (float64, error) {
-	tick, err := m.bp.GetTickPrice(ctx, symbol)
-	if err != nil {
-		return 0, err
+	tick := m.tickCache.GetTickPrice(symbol)
+	if tick == nil {
+		// Cache miss: symbol not yet polled or poller hasn't completed
+		// first fetch. Fall back to direct broker call.
+		var err error
+		tick, err = m.bp.GetTickPrice(ctx, symbol)
+		if err != nil {
+			return 0, err
+		}
 	}
 	return (tick.Bid + tick.Ask) / 2.0, nil
+}
+
+// TickCache returns the shared tick price cache. Exposed so that
+// main.go can set the auth token on startup.
+func (m *Manager) TickCache() *TickCache {
+	return m.tickCache
 }
 
 // GenerateTradeID creates a unique trade management ID.

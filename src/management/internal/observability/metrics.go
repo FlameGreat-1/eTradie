@@ -94,3 +94,16 @@ var (
 		Help: "Total journal write failures to PostgreSQL",
 	})
 )
+
+// Tick cache metrics.
+var (
+	TickCacheFetchErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_management_tick_cache_fetch_errors_total",
+		Help: "Total tick cache fetch errors by symbol",
+	}, []string{"symbol"})
+
+	TickCacheActiveSymbols = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "etradie_management_tick_cache_active_symbols",
+		Help: "Number of symbols actively being polled by the tick cache",
+	})
+)
