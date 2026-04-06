@@ -18,6 +18,7 @@ func TestManager_ShutdownPreventsNewArms(t *testing.T) {
 		nil,
 		nil,
 		watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60},
+		nil,
 	)
 
 	order1 := &models.Order{
@@ -59,6 +60,7 @@ func TestManager_Disarm(t *testing.T) {
 		nil,
 		nil,
 		watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60},
+		nil,
 	)
 
 	order := &models.Order{
@@ -79,7 +81,7 @@ func TestManager_Disarm(t *testing.T) {
 
 func TestManager_ContextCancellation(t *testing.T) {
 	// A manual context cancellation shouldn't deadlock.
-	manager := watcher.NewManager(nil, nil, nil, nil, watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60})
+	manager := watcher.NewManager(nil, nil, nil, nil, watcher.Config{PollIntervalMs: 10, TimeoutMinutes: 60}, nil)
 
 	order := &models.Order{
 		WatcherID: "W-CTX-TEST",
