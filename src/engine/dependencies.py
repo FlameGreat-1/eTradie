@@ -429,17 +429,19 @@ class Container:
         """Load the active broker connection for a specific user.
 
         Called at request time when a user's API request needs broker
-        access. Returns a BrokerBase instance or None.
+        access (positions, orders, account info). Returns a BrokerBase
+        instance or None.
 
-        Fallback chain:
+        Each user MUST configure their own broker connection via the
+        dashboard. There is no fallback to the admin/platform broker.
+        The admin broker (self.mt5_client) is reserved exclusively for
+        platform-level TA data fetching and scheduler jobs.
+
+        Resolution:
           1. Active broker connection from DB for this user
-          2. Env-var broker (self.mt5_client) as system default
-          3. None (user must configure via dashboard)
+          2. None (user must configure via dashboard -> HTTP 503)
         """
-        db_client = await self._load_active_broker_connection(user_id)
-        if db_client is not None:
-            return db_client
-        return self.mt5_client  # env-var fallback or None
+        return await self._load_active_broker_connection(user_id)
 
     async def _load_active_broker_connection(self, user_id: str):
         """Load the active broker connection from the database.
@@ -502,13 +504,17 @@ class Container:
             return None
 
     def hot_swap_broker(self, new_client) -> None:
-        """Replace the active broker client at runtime.
+        """Replace the platform-level broker client at runtime.
 
-        Called when a user activates a different broker connection
-        via the dashboard API. Updates both the container reference
-        and the TA orchestrator so all subsequent broker calls
-        (including /internal/broker/* endpoints and TA analysis)
+        ADMIN-ONLY. Called when the admin activates a different broker
+        connection via the admin dashboard API. Updates both the
+        container reference and the TA orchestrator so all subsequent
+        platform-level operations (TA candle fetching, scheduler jobs)
         use the new client immediately.
+
+        Regular users' broker connections are resolved per-request from
+        the database via load_user_broker(). This method MUST NOT be
+        called from regular user broker CRUD endpoints.
 
         Args:
             new_client: A fully configured BrokerBase implementation.
@@ -518,7 +524,7 @@ class Container:
         self.ta_orchestrator.broker_client = new_client
 
         _logger.info(
-            "broker_hot_swapped",
+            "admin_broker_hot_swapped",
             extra={
                 "old_broker": type(old_client).__name__ if old_client else "None",
                 "new_broker": type(new_client).__name__,

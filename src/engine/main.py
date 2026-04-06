@@ -1707,8 +1707,16 @@ def create_app() -> FastAPI:
         app_ref.state.ta_jobs_registered = True
         logger.info("ta_jobs_registered_after_broker_hot_swap")
 
-    async def _hot_swap_broker_from_row(container: Container, row) -> None:
-        """Build a broker client from a DB row and hot-swap it into the container."""
+    async def _admin_hot_swap_broker_from_row(container: Container, row) -> None:
+        """Build a broker client from a DB row and hot-swap the platform broker.
+
+        ADMIN-ONLY. Replaces container.mt5_client and ta_orchestrator.broker_client
+        so that platform-level TA data fetching and scheduler jobs use the new
+        broker. Must only be called from admin-protected endpoints.
+
+        Regular users' broker connections are resolved per-request from the
+        database and never touch the global platform broker.
+        """
         ea_auth_token = ""
         platform_token = ""
         if row.connection_type == "ea" and row.ea_auth_token_encrypted:
@@ -1723,7 +1731,7 @@ def create_app() -> FastAPI:
             platform_token=platform_token,
         )
 
-        # Shut down old client if exists.
+        # Shut down old platform client if exists.
         if container.mt5_client is not None:
             try:
                 await container.mt5_client.shutdown()
@@ -1772,8 +1780,12 @@ def create_app() -> FastAPI:
         """Create a new broker connection (EA or MetaAPI).
 
         User selects connection type, enters credentials, and saves.
-        If activate=True (default), this becomes the active connection
-        and the broker client is hot-swapped immediately.
+        If activate=True (default), this becomes the active connection.
+        The user's broker is resolved per-request from the database
+        when they call trading endpoints (/internal/broker/*).
+
+        Admin users who activate a connection also hot-swap the
+        platform-level broker used for TA data fetching.
         """
         await _rate_limit(request, "broker_create", max_requests=10, window_seconds=60)
         container: Container = request.app.state.container
@@ -1861,12 +1873,13 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-        if body.activate:
+        # Admin users also hot-swap the platform broker for TA data.
+        if body.activate and user.is_admin:
             try:
-                await _hot_swap_broker_from_row(container, row)
+                await _admin_hot_swap_broker_from_row(container, row)
             except Exception as exc:
                 logger.error(
-                    "broker_hot_swap_failed_after_create",
+                    "admin_broker_hot_swap_failed_after_create",
                     extra={"connection_id": connection_id, "error": str(exc)},
                 )
 
@@ -1941,7 +1954,15 @@ def create_app() -> FastAPI:
         body: UpdateBrokerConnectionRequest,
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
-        """Update an existing broker connection."""
+        """Update an existing broker connection.
+
+        Updates are saved to the database. The user's broker is resolved
+        per-request from the DB, so the updated values take effect on
+        the next trading operation automatically.
+
+        Admin users who update an active connection also hot-swap the
+        platform-level broker used for TA data fetching.
+        """
         container: Container = request.app.state.container
 
         try:
@@ -1961,13 +1982,13 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        # If this connection is active, hot-swap the broker with updated values.
-        if row.is_active:
+        # Admin users also hot-swap the platform broker for TA data.
+        if row.is_active and user.is_admin:
             try:
-                await _hot_swap_broker_from_row(container, row)
+                await _admin_hot_swap_broker_from_row(container, row)
             except Exception as exc:
                 logger.error(
-                    "broker_hot_swap_failed_after_update",
+                    "admin_broker_hot_swap_failed_after_update",
                     extra={"connection_id": connection_id, "error": str(exc)},
                 )
 
@@ -1983,8 +2004,12 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Activate a broker connection.
 
-        Deactivates all other connections and hot-swaps the broker
-        client to use this connection's credentials.
+        Deactivates all other connections for this user and marks
+        this one as active. The user's broker is resolved per-request
+        from the database when they call trading endpoints.
+
+        Admin users also hot-swap the platform-level broker used
+        for TA data fetching.
         """
         container: Container = request.app.state.container
 
@@ -1995,17 +2020,19 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        try:
-            await _hot_swap_broker_from_row(container, row)
-        except Exception as exc:
-            logger.error(
-                "broker_hot_swap_failed_on_activate",
-                extra={"connection_id": connection_id, "error": str(exc)},
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Connection activated in DB but broker swap failed: {exc}",
-            )
+        # Admin users also hot-swap the platform broker for TA data.
+        if user.is_admin:
+            try:
+                await _admin_hot_swap_broker_from_row(container, row)
+            except Exception as exc:
+                logger.error(
+                    "admin_broker_hot_swap_failed_on_activate",
+                    extra={"connection_id": connection_id, "error": str(exc)},
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Connection activated in DB but platform broker swap failed: {exc}",
+                )
 
         result = _serialize_broker_connection(row)
         result["message"] = f"Connection activated. Broker now using {row.name}."
@@ -2037,7 +2064,11 @@ def create_app() -> FastAPI:
         connection_id: str,
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
-        """Set a connection as primary (also activates it)."""
+        """Set a connection as primary (also activates it).
+
+        Admin users also hot-swap the platform-level broker used
+        for TA data fetching.
+        """
         container: Container = request.app.state.container
 
         async with container.db.session() as session:
@@ -2047,17 +2078,19 @@ def create_app() -> FastAPI:
         if row is None:
             raise HTTPException(status_code=404, detail="Connection not found")
 
-        try:
-            await _hot_swap_broker_from_row(container, row)
-        except Exception as exc:
-            logger.error(
-                "broker_hot_swap_failed_on_set_primary",
-                extra={"connection_id": connection_id, "error": str(exc)},
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Set as primary in DB but broker swap failed: {exc}",
-            )
+        # Admin users also hot-swap the platform broker for TA data.
+        if user.is_admin:
+            try:
+                await _admin_hot_swap_broker_from_row(container, row)
+            except Exception as exc:
+                logger.error(
+                    "admin_broker_hot_swap_failed_on_set_primary",
+                    extra={"connection_id": connection_id, "error": str(exc)},
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Set as primary in DB but platform broker swap failed: {exc}",
+                )
 
         result = _serialize_broker_connection(row)
         result["message"] = f"Connection set as primary. Broker now using {row.name}."
