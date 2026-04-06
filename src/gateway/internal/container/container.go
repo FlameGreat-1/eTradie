@@ -52,6 +52,7 @@ func New(
 	execAdapter *infra.ExecutionGRPCAdapter,
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
+	userStore *auth.UserStore,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
