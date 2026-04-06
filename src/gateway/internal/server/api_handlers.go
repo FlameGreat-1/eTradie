@@ -98,9 +98,10 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	userID := auth.UserIDFromContext(r.Context())
 	symbols := req.Symbols
 	if len(symbols) == 0 {
-		symbols = h.symbolStore.GetActiveSymbols(r.Context())
+		symbols = h.symbolStore.GetActiveSymbols(r.Context(), userID)
 	}
 
 	h.log.Info().
@@ -158,7 +159,8 @@ func (h *APIHandler) handleSymbols(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) getSymbols(w http.ResponseWriter, r *http.Request) {
-	symbols := h.symbolStore.GetActiveSymbols(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
+	symbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"symbols": symbols,
 		"source":  "redis",
@@ -177,15 +179,16 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context())
-	ok := h.symbolStore.SetActiveSymbols(r.Context(), req.Symbols)
-	active := h.symbolStore.GetActiveSymbols(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
+	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
+	ok := h.symbolStore.SetActiveSymbols(r.Context(), userID, req.Symbols)
+	active := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 
 	if ok {
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Active symbols changed: %s", strings.Join(active, ", "))).
-				WithUserID(auth.UserIDFromContext(r.Context())).
+				WithUserID(userID).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
@@ -209,15 +212,16 @@ func (h *APIHandler) handleResetSymbols(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context())
-	ok := h.symbolStore.ResetToDefaults(r.Context())
-	active := h.symbolStore.GetActiveSymbols(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
+	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
+	ok := h.symbolStore.ResetToDefaults(r.Context(), userID)
+	active := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 
 	if ok {
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
 				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
-				WithUserID(auth.UserIDFromContext(r.Context())).
+				WithUserID(userID).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
@@ -242,10 +246,11 @@ func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	activeSymbols := h.symbolStore.GetActiveSymbols(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
+	activeSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 
 	source := "gateway_config"
-	persisted := h.settingsStore.Load(r.Context())
+	persisted := h.settingsStore.Load(r.Context(), userID)
 	if persisted.CycleIntervalSeconds > 0 {
 		source = "redis"
 	}
@@ -298,7 +303,8 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 
 	h.scheduler.UpdateInterval(time.Duration(req.IntervalSeconds) * time.Second)
 
-	if err := h.settingsStore.SetCycleInterval(r.Context(), req.IntervalSeconds); err != nil {
+	userID := auth.UserIDFromContext(r.Context())
+	if err := h.settingsStore.SetCycleInterval(r.Context(), userID, req.IntervalSeconds); err != nil {
 		h.log.Warn().Err(err).Int("interval", req.IntervalSeconds).Msg("set_cycle_interval_persist_failed_using_in_memory")
 	}
 
