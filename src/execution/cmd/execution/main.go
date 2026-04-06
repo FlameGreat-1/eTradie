@@ -260,6 +260,7 @@ func main() {
 			}
 
 			order := restoreOrderFromRecord(rec, token)
+			order.TimeoutOverride = remaining
 			wm.Arm(order)
 			restoredCount++
 

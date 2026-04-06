@@ -173,8 +173,13 @@ func (c *Config) validate() error {
 	if c.WatcherPollIntervalMs < 100 || c.WatcherPollIntervalMs > 5000 {
 		return fmt.Errorf("WATCHER_POLL_INTERVAL_MS must be 100..5000, got %d", c.WatcherPollIntervalMs)
 	}
-	if c.WatcherTimeoutMinutes < 5 || c.WatcherTimeoutMinutes > 120 {
-		return fmt.Errorf("WATCHER_TIMEOUT_MINUTES must be 5..120, got %d", c.WatcherTimeoutMinutes)
+	// WatcherTimeoutMinutes is the fallback for unrecognized trading
+	// styles. The style-specific map (constants.WatcherTimeoutMinutesByStyle)
+	// takes precedence for known styles (up to 10080 min / 7 days for
+	// positional). The fallback must support the same range so operators
+	// can set a global override if needed.
+	if c.WatcherTimeoutMinutes < 5 || c.WatcherTimeoutMinutes > 10080 {
+		return fmt.Errorf("WATCHER_TIMEOUT_MINUTES must be 5..10080, got %d", c.WatcherTimeoutMinutes)
 	}
 	if c.WatcherConfirmPollIntervalSecs < 60 || c.WatcherConfirmPollIntervalSecs > 600 {
 		return fmt.Errorf("WATCHER_CONFIRM_POLL_INTERVAL_SECS must be 60..600, got %d", c.WatcherConfirmPollIntervalSecs)
