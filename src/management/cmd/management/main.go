@@ -85,6 +85,14 @@ func main() {
 		log.Fatal().Err(err).Msg("schema_creation_failed")
 	}
 
+	// Ensure auth schema exists (idempotent). The auth tables live in the
+	// same PostgreSQL instance. Management needs read access to auth_users
+	// to look up user details when issuing service tokens on restart.
+	if _, err := pool.Exec(ctx, auth.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("auth_schema_creation_failed")
+	}
+	userStore := auth.NewUserStore(pool)
+
 	// -- Broker implementation ---------------------------------------------
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
@@ -241,18 +249,65 @@ func main() {
 	// -- Restore active trades from database on restart -------------------
 	// Use GetAllActiveTrades (cross-user) to restore monitoring for every
 	// user's active trades. Each restored trade carries its UserID from
-	// the database. AuthToken will be empty (original token expired after
-	// restart), so broker calls for restored trades will run without
-	// user-scoped auth until the user's next authenticated action.
+	// the database.
+	//
+	// CRITICAL: Issue long-lived service tokens for each user so that
+	// background operations (monitoring, EOD, news, invalidation) can
+	// make authenticated broker calls from second zero after restart.
+	// The system must operate autonomously 24/7 without user presence.
 	activeTrades, err := journalRepo.GetAllActiveTrades(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("active_trades_restore_failed")
 	} else if len(activeTrades) > 0 {
 		log.Info().Int("count", len(activeTrades)).Msg("restoring_active_trades")
+
+		// Collect unique user IDs from restored trades.
+		userIDs := make(map[string]bool)
 		for _, rec := range activeTrades {
-			trade := restoreTradeFromRecord(rec)
+			if rec.UserID != "" && rec.UserID != "system" {
+				userIDs[rec.UserID] = true
+			}
+		}
+
+		// Issue a service token for each unique user. This token carries
+		// the user's identity (sub, username, role) so the Python engine
+		// resolves the correct broker connection identically to a session
+		// token. The service token has a 30-day TTL for autonomous operation.
+		serviceTokens := make(map[string]string) // userID -> service JWT
+		for userID := range userIDs {
+			user, err := userStore.GetUserByID(ctx, userID)
+			if err != nil || user == nil {
+				log.Error().Err(err).Str("user_id", userID).Msg("service_token_user_lookup_failed")
+				continue
+			}
+			if !user.Active {
+				log.Warn().Str("user_id", userID).Str("username", user.Username).Msg("skipping_service_token_for_deactivated_user")
+				continue
+			}
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
+			if err != nil {
+				log.Error().Err(err).Str("user_id", userID).Msg("service_token_issue_failed")
+				continue
+			}
+			serviceTokens[userID] = svcToken
+			log.Info().
+				Str("user_id", userID).
+				Str("username", user.Username).
+				Str("role", string(user.Role)).
+				Msg("service_token_issued_for_trade_restoration")
+		}
+
+		// Restore trades with their service tokens and register for monitoring.
+		for _, rec := range activeTrades {
+			authToken := serviceTokens[rec.UserID] // empty string if lookup failed
+			trade := restoreTradeFromRecord(rec, authToken)
 			mgr.RegisterTrade(trade)
 		}
+
+		log.Info().
+			Int("trades_restored", len(activeTrades)).
+			Int("users_with_service_tokens", len(serviceTokens)).
+			Msg("active_trades_restoration_complete")
 	}
 
 	// -- gRPC server (with auth interceptor) -------------------------------
@@ -321,10 +376,11 @@ func main() {
 
 // restoreTradeFromRecord reconstructs an in-memory Trade from a DB record.
 // Used on service restart to resume monitoring of active trades.
-// UserID is restored from the database. AuthToken is empty because the
-// original JWT has expired; broker calls for restored trades will run
-// without user-scoped auth until the user's next authenticated action.
-func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
+// UserID is restored from the database. authToken is a long-lived service
+// token issued for the trade's owner so that background monitoring,
+// EOD checks, news protection, and invalidation engines can make
+// authenticated broker calls from second zero after restart.
+func restoreTradeFromRecord(rec *journal.TradeRecord, authToken string) *types.Trade {
 	return &types.Trade{
 		TradeID:          rec.TradeID,
 		Symbol:           rec.Symbol,
@@ -332,7 +388,7 @@ func restoreTradeFromRecord(rec *journal.TradeRecord) *types.Trade {
 		BrokerOrderID:    rec.BrokerOrderID,
 		AnalysisID:       rec.AnalysisID,
 		UserID:           rec.UserID,
-		AuthToken:        "", // Token expired after restart; empty is safe.
+		AuthToken:        authToken,
 		TradingStyle:     constants.TradingStyle(rec.TradingStyle),
 		Grade:            rec.Grade,
 		Session:          rec.Session,
