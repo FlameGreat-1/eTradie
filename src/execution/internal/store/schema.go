@@ -61,5 +61,47 @@ CREATE TABLE IF NOT EXISTS execution_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_exec_settings_user_id ON execution_settings (user_id);
+
+CREATE TABLE IF NOT EXISTS execution_pending_watchers (
+    id                  BIGSERIAL PRIMARY KEY,
+    watcher_id          TEXT NOT NULL UNIQUE,
+    order_id            TEXT NOT NULL,
+    user_id             VARCHAR(64) NOT NULL,
+    symbol              VARCHAR(20) NOT NULL,
+    direction           VARCHAR(10) NOT NULL,
+    execution_mode      VARCHAR(10) NOT NULL DEFAULT 'INSTANT',
+    entry_price         DOUBLE PRECISION NOT NULL,
+    stop_loss           DOUBLE PRECISION NOT NULL,
+    tp1_price           DOUBLE PRECISION NOT NULL DEFAULT 0,
+    tp1_pct             INTEGER NOT NULL DEFAULT 0,
+    tp2_price           DOUBLE PRECISION NOT NULL DEFAULT 0,
+    tp2_pct             INTEGER NOT NULL DEFAULT 0,
+    tp3_price           DOUBLE PRECISION NOT NULL DEFAULT 0,
+    tp3_pct             INTEGER NOT NULL DEFAULT 0,
+    lot_size            DOUBLE PRECISION NOT NULL,
+    risk_percent        DOUBLE PRECISION NOT NULL DEFAULT 0,
+    risk_amount         DOUBLE PRECISION NOT NULL DEFAULT 0,
+    rr_ratio            DOUBLE PRECISION NOT NULL DEFAULT 0,
+    account_balance     DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sl_distance_pips    DOUBLE PRECISION NOT NULL DEFAULT 0,
+    pip_value           DOUBLE PRECISION NOT NULL DEFAULT 0,
+    overshoot_tolerance DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ltf_confirmed       BOOLEAN NOT NULL DEFAULT FALSE,
+    analysis_id         TEXT NOT NULL DEFAULT '',
+    trading_style       VARCHAR(20) NOT NULL DEFAULT '',
+    session             VARCHAR(30) NOT NULL DEFAULT '',
+    grade               VARCHAR(10) NOT NULL DEFAULT '',
+    confluence          DOUBLE PRECISION NOT NULL DEFAULT 0,
+    confidence          DOUBLE PRECISION NOT NULL DEFAULT 0,
+    setup_type          TEXT NOT NULL DEFAULT '',
+    trace_id            TEXT NOT NULL DEFAULT '',
+    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_watchers_user_id ON execution_pending_watchers (user_id);
+CREATE INDEX IF NOT EXISTS idx_exec_watchers_status ON execution_pending_watchers (status);
+CREATE INDEX IF NOT EXISTS idx_exec_watchers_symbol ON execution_pending_watchers (symbol);
+CREATE INDEX IF NOT EXISTS idx_exec_watchers_watcher_id ON execution_pending_watchers (watcher_id);
 `
 }
