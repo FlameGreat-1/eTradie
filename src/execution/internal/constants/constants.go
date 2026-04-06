@@ -204,19 +204,22 @@ const DefaultOvershootToleranceMultiplier = 1.5
 
 // WatcherTimeoutMinutesByStyle defines how long an instant-mode watcher
 // monitors the entry zone before timing out, per trading style.
-// Each style operates on different timeframes, so the timeout must
-// match the expected time for price to reach the POI zone.
 //
-// Derived from zone timeframes (roughly 4x the primary candle period):
-//   - Scalping (5M-15M):   60 min  = 4x 15M candles
-//   - Intraday (15M-1H):  240 min  = 4x 1H candles (one full session)
-//   - Swing (4H-1D):      960 min  = 4x 4H candles (16 hours, cross-session)
-//   - Positional (1D-1W): 2880 min = 2x 1D candles (48 hours, multi-day)
+// These values are aligned with LimitTTLCandlesByStyle because the
+// entry zone validity is a property of the trading setup, not the
+// execution mechanism. A swing zone valid for 3 days as a limit order
+// must also be valid for 3 days as an instant-mode watcher.
+//
+// Derived from LimitTTLCandlesByStyle (each candle = 4 hours = 240 min):
+//   - Scalping:    1 candle  x 240 =   240 min (4 hours)
+//   - Intraday:    4 candles x 240 =   960 min (16 hours)
+//   - Swing:      18 candles x 240 =  4320 min (3 days)
+//   - Positional: 42 candles x 240 = 10080 min (7 days)
 var WatcherTimeoutMinutesByStyle = map[TradingStyle]int{
-	StyleScalping:   60,
-	StyleIntraday:   240,
-	StyleSwing:      960,
-	StylePositional: 2880,
+	StyleScalping:   240,
+	StyleIntraday:   960,
+	StyleSwing:      4320,
+	StylePositional: 10080,
 }
 
 // WatcherTimeoutForStyle returns the watcher timeout in minutes for
