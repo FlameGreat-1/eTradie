@@ -5,8 +5,8 @@ COT collector) into SentimentReading objects per currency.  Speculative
 (non-commercial) net positioning is the most reliable free proxy for
 market sentiment across all 8 major currencies.
 
-Reads from the Redis COT cache, so this provider has zero external API
-calls and zero cost.
+Reads from the user-scoped Redis COT cache, so this provider has zero
+external API calls and zero cost.
 """
 
 from __future__ import annotations
@@ -44,6 +44,10 @@ class COTDerivedSentimentProvider(BaseSentimentProvider):
 
     The percentile rank from the COT enrichment is used to normalize
     the reading into a 0-100 scale where 50 is neutral.
+
+    IMPORTANT: This provider reads user-scoped COT cache data.
+    Callers MUST use ``fetch_for_user(user_id)`` instead of ``fetch()``
+    to ensure correct tenant isolation.
     """
 
     provider_name = "cot_derived_sentiment"
@@ -53,9 +57,36 @@ class COTDerivedSentimentProvider(BaseSentimentProvider):
         self._cache = cache
 
     async def fetch(self) -> list[SentimentReading]:
+        """Fetch without user context - returns empty.
+
+        COT-derived sentiment requires user-scoped cache access.
+        Use ``fetch_for_user(user_id)`` instead.
+        """
+        logger.warning(
+            "cot_derived_fetch_called_without_user_id",
+            detail="Use fetch_for_user(user_id) for user-scoped COT data",
+        )
+        return []
+
+    async def fetch_for_user(self, user_id: str) -> list[SentimentReading]:
+        """Fetch sentiment readings from user-scoped COT cache.
+
+        Args:
+            user_id: The authenticated user's ID.  Used to build the
+                     cache key ``{user_id}:latest`` matching what the
+                     COT collector wrote.
+        """
+        if not user_id:
+            logger.warning("cot_derived_sentiment_missing_user_id")
+            return []
+
         start = time.monotonic()
         try:
-            cot_raw = await self._cache.get("cot", "latest")
+            # Read user-scoped COT cache: key is "{user_id}:latest"
+            # This matches the key written by COTCollector via
+            # BaseCollector._user_cache_key(user_id)
+            cache_key = f"{user_id}:latest"
+            cot_raw = await self._cache.get("cot", cache_key)
             if not isinstance(cot_raw, dict):
                 self._record_success(time.monotonic() - start)
                 return []
@@ -84,7 +115,8 @@ class COTDerivedSentimentProvider(BaseSentimentProvider):
 
                 # Convert percentile rank to long/short split.
                 # percentile_rank is 0-100 where high = extreme positioning.
-                # If net > 0, high percentile = very long; if net < 0, high percentile = very short.
+                # If net > 0, high percentile = very long.
+                # If net < 0, high percentile = very short.
                 if net >= 0:
                     long_pct = min(50.0 + (percentile / 2.0), 100.0)
                 else:
@@ -107,5 +139,9 @@ class COTDerivedSentimentProvider(BaseSentimentProvider):
             return readings
         except Exception as exc:
             self._record_failure(time.monotonic() - start, type(exc).__name__)
-            logger.error("cot_derived_sentiment_failed", error=str(exc))
+            logger.error(
+                "cot_derived_sentiment_failed",
+                user_id=user_id,
+                error=str(exc),
+            )
             raise

@@ -6,11 +6,19 @@ from typing import Any
 from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.risk_environment import assess_risk_environment
+from engine.macro.providers.sentiment.base import BaseSentimentProvider
 
 logger = get_logger(__name__)
 
 
 class SentimentCollector(BaseCollector):
+    """Collect sentiment data from all registered sentiment providers.
+
+    This collector is user-scoped: it passes user_id to providers that
+    need it (e.g. COTDerivedSentimentProvider reads user-scoped COT
+    cache) and reads user-scoped intermarket cache for risk assessment.
+    """
+
     collector_name = "sentiment"
     cache_namespace = "sentiment"
 
@@ -19,12 +27,20 @@ class SentimentCollector(BaseCollector):
         sources = []
         for provider in self._providers:
             try:
-                data = await provider.fetch()
+                # Use fetch_for_user when available (sentiment providers
+                # that need user-scoped cache access).  Fall back to
+                # fetch() for providers that only consume public data.
+                if isinstance(provider, BaseSentimentProvider):
+                    data = await provider.fetch_for_user(user_id)
+                else:
+                    data = await provider.fetch()
                 all_sentiments.extend(data)
                 sources.append(provider.provider_name)
             except Exception:
                 logger.warning(
-                    "sentiment_provider_skipped", provider=provider.provider_name
+                    "sentiment_provider_skipped",
+                    provider=provider.provider_name,
+                    user_id=user_id,
                 )
 
         # Read this user's intermarket cache for risk environment assessment.
