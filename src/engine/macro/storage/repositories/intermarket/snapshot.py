@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Sequence
+from typing import Any, Sequence
 
 from sqlalchemy import select
 
@@ -40,3 +40,26 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
             .limit(limit)
         )
         return await self.execute_query(stmt)
+
+    async def upsert_snapshot(
+        self,
+        user_id: str,
+        *,
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Upsert an intermarket snapshot with deduplication.
+
+        Deduplication key: (user_id, snapshot_at).
+        On conflict, updates all market data fields.
+        """
+        row = {"user_id": user_id, **snapshot_data}
+        await self.bulk_upsert(
+            [row],
+            index_elements=["user_id", "snapshot_at"],
+            update_fields=[
+                "gold_price", "silver_price", "oil_price",
+                "iron_ore", "dairy_gdt", "copper", "natural_gas",
+                "us2y_yield", "us10y_yield", "us30y_yield",
+                "dxy_value", "sp500", "vix",
+            ],
+        )

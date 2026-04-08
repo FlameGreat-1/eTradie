@@ -6,7 +6,7 @@ from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.models.provider.market_data import IntermarketSnapshot
-from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
+from engine.macro.storage.repositories.intermarket.snapshot import IntermarketRepository
 
 logger = get_logger(__name__)
 
@@ -75,13 +75,20 @@ def _merge_snapshots(
 
 
 class IntermarketCollector(BaseCollector):
+    """Collect intermarket data from multiple providers and merge.
+
+    Persists via IntermarketRepository.upsert_snapshot() with
+    deduplication on (user_id, snapshot_at) to prevent unbounded
+    row growth.
+    """
+
     collector_name = "intermarket"
     cache_namespace = "intermarket"
 
     async def _do_collect(self, user_id: str) -> MarketDataSet:
-        # Fetch from all providers concurrently and merge results.
-        # This allows TwelveData to provide core data while the
-        # CommodityProxyProvider fills iron_ore and dairy_gdt.
+        # Fetch from all providers and merge results.
+        # TwelveData provides core data; CommodityProxyProvider
+        # fills iron_ore and dairy_gdt.
         snapshots: list[IntermarketSnapshot] = []
         for provider in self._providers:
             try:
@@ -98,24 +105,26 @@ class IntermarketCollector(BaseCollector):
 
         if snapshot:
             async with self._db.session() as session:
-                row = IntermarketSnapshotRow(
-                    user_id=user_id,
-                    gold_price=snapshot.gold_price,
-                    silver_price=snapshot.silver_price,
-                    oil_price=snapshot.oil_price,
-                    iron_ore=snapshot.iron_ore,
-                    dairy_gdt=snapshot.dairy_gdt,
-                    copper=snapshot.copper,
-                    natural_gas=snapshot.natural_gas,
-                    us2y_yield=snapshot.us2y_yield,
-                    us10y_yield=snapshot.us10y_yield,
-                    us30y_yield=snapshot.us30y_yield,
-                    dxy_value=snapshot.dxy_value,
-                    sp500=snapshot.sp500,
-                    vix=snapshot.vix,
-                    snapshot_at=snapshot.snapshot_at,
+                repo = IntermarketRepository(session)
+                await repo.upsert_snapshot(
+                    user_id,
+                    snapshot_data={
+                        "gold_price": snapshot.gold_price,
+                        "silver_price": snapshot.silver_price,
+                        "oil_price": snapshot.oil_price,
+                        "iron_ore": snapshot.iron_ore,
+                        "dairy_gdt": snapshot.dairy_gdt,
+                        "copper": snapshot.copper,
+                        "natural_gas": snapshot.natural_gas,
+                        "us2y_yield": snapshot.us2y_yield,
+                        "us10y_yield": snapshot.us10y_yield,
+                        "us30y_yield": snapshot.us30y_yield,
+                        "dxy_value": snapshot.dxy_value,
+                        "sp500": snapshot.sp500,
+                        "vix": snapshot.vix,
+                        "snapshot_at": snapshot.snapshot_at,
+                    },
                 )
-                session.add(row)
 
         dataset = MarketDataSet(
             snapshots=[snapshot] if snapshot else [],

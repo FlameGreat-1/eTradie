@@ -3,8 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, String, func
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy import DateTime, Float, Index, String, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from engine.shared.db.migrations._schema_registry import Base
@@ -30,9 +30,6 @@ class IntermarketSnapshotRow(Base):
     dxy_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     sp500: Mapped[float | None] = mapped_column(Float, nullable=True)
     vix: Mapped[float | None] = mapped_column(Float, nullable=True)
-    correlation_signals_json: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default={}
-    )
     snapshot_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -43,6 +40,10 @@ class IntermarketSnapshotRow(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "user_id", "snapshot_at",
+            name="uq_intermarket_user_snapshot_at",
+        ),
         Index("ix_intermarket_user_id", "user_id"),
         Index("ix_intermarket_user_snapshot_at", "user_id", "snapshot_at"),
     )

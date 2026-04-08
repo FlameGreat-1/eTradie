@@ -40,3 +40,29 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
             .limit(limit)
         )
         return await self.execute_query(stmt)
+
+    async def upsert_snapshot(
+        self,
+        user_id: str,
+        *,
+        value: float,
+        momentum: str,
+        analyzed_at: datetime,
+    ) -> None:
+        """Upsert a DXY snapshot with deduplication.
+
+        Deduplication key: (user_id, analyzed_at).
+        On conflict, updates value and momentum.
+        """
+        await self.bulk_upsert(
+            [
+                {
+                    "user_id": user_id,
+                    "value": value,
+                    "momentum": momentum,
+                    "analyzed_at": analyzed_at,
+                }
+            ],
+            index_elements=["user_id", "analyzed_at"],
+            update_fields=["value", "momentum"],
+        )

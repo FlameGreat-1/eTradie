@@ -7,7 +7,6 @@ from engine.shared.models.events import DXYMomentum
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.storage.repositories.dxy.snapshot import DXYRepository
-from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 
 logger = get_logger(__name__)
 
@@ -28,6 +27,12 @@ def _compute_momentum(current: float, previous: float | None) -> DXYMomentum:
 
 
 class DXYCollector(BaseCollector):
+    """Collect DXY (US Dollar Index) snapshots with momentum analysis.
+
+    Persists via DXYRepository.upsert_snapshot() with deduplication
+    on (user_id, analyzed_at) to prevent unbounded row growth.
+    """
+
     collector_name = "dxy"
     cache_namespace = "dxy"
 
@@ -42,13 +47,12 @@ class DXYCollector(BaseCollector):
                 prev_value = prev.value if prev else None
                 momentum = _compute_momentum(snapshot.dxy_value, prev_value)
 
-                row = DXYSnapshotRow(
-                    user_id=user_id,
+                await repo.upsert_snapshot(
+                    user_id,
                     value=snapshot.dxy_value,
                     momentum=momentum.value,
                     analyzed_at=snapshot.snapshot_at,
                 )
-                session.add(row)
 
             snapshot = snapshot.model_copy(update={"dxy_momentum": momentum})
 
