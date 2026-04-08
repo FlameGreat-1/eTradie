@@ -8,7 +8,6 @@ from engine.shared.models.events import DXYMomentum, MacroBias, TrendDirection
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.storage.repositories.dxy.snapshot import DXYRepository
-from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 
 logger = get_logger(__name__)
 
