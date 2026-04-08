@@ -61,5 +61,6 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
                 "iron_ore", "dairy_gdt", "copper", "natural_gas",
                 "us2y_yield", "us10y_yield", "us30y_yield",
                 "dxy_value", "sp500", "vix",
+                "correlation_signals_json",
             ],
         )
