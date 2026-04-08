@@ -117,12 +117,16 @@ func RequireAdmin(next http.Handler) http.Handler {
 // OptionalAuth returns HTTP middleware that sets claims in context if
 // a valid token is present, but does NOT reject unauthenticated requests.
 // Useful for endpoints that behave differently for authenticated users.
+// Both claims and raw token are stored (consistent with RequireAuth)
+// so downstream calls to RawTokenFromContext work correctly.
 func OptionalAuth(ts *TokenService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, _ := extractAndVerifyHTTP(r, ts)
 			if claims != nil {
+				rawToken := extractBearerToken(r.Header.Get("Authorization"))
 				ctx := context.WithValue(r.Context(), claimsKey, claims)
+				ctx = context.WithValue(ctx, rawTokenKey, rawToken)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

@@ -14,6 +14,7 @@ type RateLimiter struct {
 	windows  map[string]*window
 	limit    int
 	interval time.Duration
+	done     chan struct{}
 }
 
 type window struct {
@@ -28,6 +29,7 @@ func NewRateLimiter(limit int, interval time.Duration) *RateLimiter {
 		windows:  make(map[string]*window),
 		limit:    limit,
 		interval: interval,
+		done:     make(chan struct{}),
 	}
 	// Background cleanup of stale entries every 5 minutes.
 	go rl.cleanup()
@@ -74,17 +76,28 @@ func (rl *RateLimiter) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFu
 	}
 }
 
+// Close stops the background cleanup goroutine.
+// Must be called during graceful shutdown to prevent goroutine leaks.
+func (rl *RateLimiter) Close() {
+	close(rl.done)
+}
+
 func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, w := range rl.windows {
-			if now.After(w.resetAt) {
-				delete(rl.windows, ip)
+	for {
+		select {
+		case <-rl.done:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, w := range rl.windows {
+				if now.After(w.resetAt) {
+					delete(rl.windows, ip)
+				}
 			}
+			rl.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
 }
