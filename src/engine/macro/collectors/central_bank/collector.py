@@ -15,7 +15,7 @@ class CentralBankCollector(BaseCollector):
     collector_name = "central_bank"
     cache_namespace = "cb"
 
-    async def _do_collect(self) -> CentralBankDataSet:
+    async def _do_collect(self, user_id: str) -> CentralBankDataSet:
         all_events = []
         banks_reporting = []
         policy_actions: list[PolicyAction] = []
@@ -30,7 +30,14 @@ class CentralBankCollector(BaseCollector):
             except Exception:
                 logger.warning("cb_provider_skipped", provider=provider.provider_name)
 
+        # Upsert with deduplication: same user + bank + title + timestamp = one row.
         async with self._db.session() as session:
+            from engine.macro.storage.repositories.central_bank.event import (
+                CentralBankRepository,
+            )
+
+            repo = CentralBankRepository(session)
+            rows = []
             for event in all_events:
                 policy_action_val = getattr(
                     event, "monetary_policy_action", MonetaryPolicyAction.NONE
@@ -53,27 +60,47 @@ class CentralBankCollector(BaseCollector):
                             )
                         )
 
-                row = CentralBankEventRow(
-                    bank=event.bank.value if hasattr(event, "bank") else "",
-                    event_type=(
-                        event.event_type.value
-                        if hasattr(event, "event_type")
-                        else "CB_SPEECH"
-                    ),
-                    title=getattr(event, "title", ""),
-                    content=getattr(event, "summary", ""),
-                    speaker=getattr(event, "speaker", ""),
-                    tone=event.tone.value if hasattr(event, "tone") else "NEUTRAL",
-                    policy_action=(
-                        policy_action_val.value if policy_action_val else "NONE"
-                    ),
-                    balance_sheet_direction=balance_sheet_dir,
-                    source_url=getattr(event, "source_url", ""),
-                    event_timestamp=getattr(event, "speech_date", None)
+                event_ts = (
+                    getattr(event, "speech_date", None)
                     or getattr(event, "guidance_date", None)
-                    or datetime.now(UTC),
+                    or datetime.now(UTC)
                 )
-                session.add(row)
+
+                rows.append(
+                    {
+                        "user_id": user_id,
+                        "bank": event.bank.value if hasattr(event, "bank") else "",
+                        "event_type": (
+                            event.event_type.value
+                            if hasattr(event, "event_type")
+                            else "CB_SPEECH"
+                        ),
+                        "title": getattr(event, "title", ""),
+                        "content": getattr(event, "summary", ""),
+                        "speaker": getattr(event, "speaker", ""),
+                        "tone": (
+                            event.tone.value if hasattr(event, "tone") else "NEUTRAL"
+                        ),
+                        "policy_action": (
+                            policy_action_val.value if policy_action_val else "NONE"
+                        ),
+                        "balance_sheet_direction": balance_sheet_dir,
+                        "source_url": getattr(event, "source_url", ""),
+                        "event_timestamp": event_ts,
+                    }
+                )
+
+            if rows:
+                await repo.bulk_upsert(
+                    rows,
+                    index_elements=[
+                        "user_id", "bank", "title", "event_timestamp",
+                    ],
+                    update_fields=[
+                        "content", "speaker", "tone", "policy_action",
+                        "balance_sheet_direction", "source_url", "event_type",
+                    ],
+                )
 
         dataset = CentralBankDataSet(
             speeches=[e for e in all_events if hasattr(e, "speech_date")],
@@ -85,7 +112,7 @@ class CentralBankCollector(BaseCollector):
 
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

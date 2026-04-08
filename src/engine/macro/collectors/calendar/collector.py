@@ -14,7 +14,7 @@ class CalendarCollector(BaseCollector):
     collector_name = "calendar"
     cache_namespace = "calendar"
 
-    async def _do_collect(self) -> CalendarDataSet:
+    async def _do_collect(self, user_id: str) -> CalendarDataSet:
         all_events = []
         sources = []
         for provider in self._providers:
@@ -27,19 +27,33 @@ class CalendarCollector(BaseCollector):
                     "calendar_provider_skipped", provider=provider.provider_name
                 )
 
+        # Upsert with deduplication: same user + event + currency + time = one row.
         async with self._db.session() as session:
-            for event in all_events:
-                row = CalendarEventRow(
-                    event_name=event.event_name,
-                    currency=event.currency.value,
-                    impact=event.impact.value,
-                    event_time=event.event_time,
-                    actual=event.actual,
-                    forecast=event.forecast,
-                    previous=event.previous,
-                    source=event.source,
+            from engine.macro.storage.repositories.calendar.event import (
+                CalendarRepository,
+            )
+
+            repo = CalendarRepository(session)
+            rows = [
+                {
+                    "user_id": user_id,
+                    "event_name": event.event_name,
+                    "currency": event.currency.value,
+                    "impact": event.impact.value,
+                    "event_time": event.event_time,
+                    "actual": event.actual,
+                    "forecast": event.forecast,
+                    "previous": event.previous,
+                    "source": event.source,
+                }
+                for event in all_events
+            ]
+            if rows:
+                await repo.bulk_upsert(
+                    rows,
+                    index_elements=["user_id", "event_name", "currency", "event_time"],
+                    update_fields=["actual", "forecast", "previous", "impact", "source"],
                 )
-                session.add(row)
 
         dataset = CalendarDataSet(
             events=all_events,
@@ -49,7 +63,7 @@ class CalendarCollector(BaseCollector):
 
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )
