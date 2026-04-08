@@ -13,20 +13,29 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
     model = IntermarketSnapshotRow
     _repo_name = "intermarket"
 
-    async def get_latest(self) -> IntermarketSnapshotRow | None:
-        stmt = select(self.model).order_by(self.model.snapshot_at.desc()).limit(1)
+    async def get_latest(self, user_id: str) -> IntermarketSnapshotRow | None:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .order_by(self.model.snapshot_at.desc())
+            .limit(1)
+        )
         result = await self.execute_query(stmt)
         return result[0] if result else None
 
     async def get_daily_history(
         self,
+        user_id: str,
         *,
         since: datetime,
         limit: int = 30,
     ) -> Sequence[IntermarketSnapshotRow]:
         stmt = (
             select(self.model)
-            .where(self.model.snapshot_at >= since)
+            .where(
+                self.model.user_id == user_id,
+                self.model.snapshot_at >= since,
+            )
             .order_by(self.model.snapshot_at.desc())
             .limit(limit)
         )

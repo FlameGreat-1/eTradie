@@ -30,10 +30,10 @@ class EconomicDataCollector(BaseCollector):
         # Upsert with deduplication: same user + currency + indicator + time = one row.
         async with self._db.session() as session:
             from engine.macro.storage.repositories.economic.release import (
-                EconomicRepository,
+                EconomicReleaseRepository,
             )
 
-            repo = EconomicRepository(session)
+            repo = EconomicReleaseRepository(session)
             rows = [
                 {
                     "user_id": user_id,

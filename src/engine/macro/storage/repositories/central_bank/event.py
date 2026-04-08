@@ -14,11 +14,14 @@ class CentralBankRepository(BaseRepository[CentralBankEventRow]):
     _repo_name = "central_bank"
 
     async def get_latest_by_bank(
-        self, bank: str, limit: int = 10
+        self, user_id: str, bank: str, limit: int = 10,
     ) -> Sequence[CentralBankEventRow]:
         stmt = (
             select(self.model)
-            .where(self.model.bank == bank)
+            .where(
+                self.model.user_id == user_id,
+                self.model.bank == bank,
+            )
             .order_by(self.model.event_timestamp.desc())
             .limit(limit)
         )
@@ -26,6 +29,7 @@ class CentralBankRepository(BaseRepository[CentralBankEventRow]):
 
     async def get_by_date_range(
         self,
+        user_id: str,
         start: datetime,
         end: datetime,
         *,
@@ -34,6 +38,7 @@ class CentralBankRepository(BaseRepository[CentralBankEventRow]):
         stmt = (
             select(self.model)
             .where(
+                self.model.user_id == user_id,
                 self.model.event_timestamp >= start,
                 self.model.event_timestamp <= end,
             )
@@ -45,12 +50,14 @@ class CentralBankRepository(BaseRepository[CentralBankEventRow]):
 
     async def get_rate_decisions(
         self,
+        user_id: str,
         bank: str,
         limit: int = 5,
     ) -> Sequence[CentralBankEventRow]:
         stmt = (
             select(self.model)
             .where(
+                self.model.user_id == user_id,
                 self.model.bank == bank,
                 self.model.event_type == "RATE_DECISION",
             )
