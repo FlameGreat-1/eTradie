@@ -6,6 +6,7 @@ from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 from engine.macro.storage.schemas.economic import EconomicReleaseRow
 from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
 from engine.macro.storage.schemas.news import NewsItemRow
+from engine.macro.storage.schemas.sentiment import SentimentReadingRow
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "EconomicReleaseRow",
     "IntermarketSnapshotRow",
     "NewsItemRow",
+    "SentimentReadingRow",
 ]
