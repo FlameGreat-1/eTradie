@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.calendar import CalendarDataSet
-from engine.macro.storage.schemas.calendar import CalendarEventRow
 
 logger = get_logger(__name__)
 

@@ -3,15 +3,28 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from engine.shared.logging import get_logger
-from engine.shared.models.events import MonetaryPolicyAction
+from engine.shared.models.events import EventType, MonetaryPolicyAction
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.central_bank import CentralBankDataSet, PolicyAction
-from engine.macro.storage.schemas.central_bank import CentralBankEventRow
+from engine.macro.models.provider.central_bank import (
+    CentralBankSpeech,
+    ForwardGuidance,
+    MeetingMinutes,
+    RateDecision,
+)
+from engine.macro.providers.central_bank.base import compute_tone_score
 
 logger = get_logger(__name__)
 
 
 class CentralBankCollector(BaseCollector):
+    """Collect central bank events from all registered CB providers.
+
+    Categorizes events into speeches, rate decisions, meeting minutes,
+    and forward guidance. Computes tone_score for each event and
+    extracts rate_current/rate_previous from rate decisions.
+    """
+
     collector_name = "central_bank"
     cache_namespace = "cb"
 
@@ -29,6 +42,25 @@ class CentralBankCollector(BaseCollector):
                     banks_reporting.append(bank)
             except Exception:
                 logger.warning("cb_provider_skipped", provider=provider.provider_name)
+
+        # Categorize events by type for the dataset
+        speeches: list[CentralBankSpeech] = []
+        rate_decisions: list[RateDecision] = []
+        meeting_minutes: list[MeetingMinutes] = []
+        forward_guidance: list[ForwardGuidance] = []
+
+        for event in all_events:
+            if isinstance(event, RateDecision):
+                rate_decisions.append(event)
+            elif isinstance(event, MeetingMinutes):
+                meeting_minutes.append(event)
+            elif isinstance(event, ForwardGuidance):
+                forward_guidance.append(event)
+            elif isinstance(event, CentralBankSpeech):
+                speeches.append(event)
+            else:
+                # Fallback: treat as speech if type is unknown
+                speeches.append(event)
 
         # Upsert with deduplication: same user + bank + title + timestamp = one row.
         async with self._db.session() as session:
@@ -60,10 +92,33 @@ class CentralBankCollector(BaseCollector):
                             )
                         )
 
+                # Determine event timestamp from the appropriate date field
                 event_ts = (
-                    getattr(event, "speech_date", None)
+                    getattr(event, "decision_date", None)
+                    or getattr(event, "speech_date", None)
+                    or getattr(event, "release_date", None)
                     or getattr(event, "guidance_date", None)
                     or datetime.now(UTC)
+                )
+
+                # Compute numeric tone score from event text
+                event_text = (
+                    f"{getattr(event, 'title', '')} "
+                    f"{getattr(event, 'summary', '')} "
+                    f"{getattr(event, 'statement_summary', '')}"
+                )
+                tone_score = compute_tone_score(event_text)
+
+                # Extract rate values from RateDecision events
+                rate_current = (
+                    event.rate_current
+                    if isinstance(event, RateDecision)
+                    else None
+                )
+                rate_previous = (
+                    event.rate_previous
+                    if isinstance(event, RateDecision)
+                    else None
                 )
 
                 rows.append(
@@ -73,7 +128,7 @@ class CentralBankCollector(BaseCollector):
                         "event_type": (
                             event.event_type.value
                             if hasattr(event, "event_type")
-                            else "CB_SPEECH"
+                            else EventType.CB_SPEECH.value
                         ),
                         "title": getattr(event, "title", ""),
                         "content": getattr(event, "summary", ""),
@@ -81,10 +136,13 @@ class CentralBankCollector(BaseCollector):
                         "tone": (
                             event.tone.value if hasattr(event, "tone") else "NEUTRAL"
                         ),
+                        "tone_score": tone_score,
                         "policy_action": (
                             policy_action_val.value if policy_action_val else "NONE"
                         ),
                         "balance_sheet_direction": balance_sheet_dir,
+                        "rate_current": rate_current,
+                        "rate_previous": rate_previous,
                         "source_url": getattr(event, "source_url", ""),
                         "event_timestamp": event_ts,
                     }
@@ -97,14 +155,18 @@ class CentralBankCollector(BaseCollector):
                         "user_id", "bank", "title", "event_timestamp",
                     ],
                     update_fields=[
-                        "content", "speaker", "tone", "policy_action",
-                        "balance_sheet_direction", "source_url", "event_type",
+                        "content", "speaker", "tone", "tone_score",
+                        "policy_action", "balance_sheet_direction",
+                        "rate_current", "rate_previous",
+                        "source_url", "event_type",
                     ],
                 )
 
         dataset = CentralBankDataSet(
-            speeches=[e for e in all_events if hasattr(e, "speech_date")],
-            forward_guidance=[e for e in all_events if hasattr(e, "guidance_date")],
+            rate_decisions=rate_decisions,
+            speeches=speeches,
+            meeting_minutes=meeting_minutes,
+            forward_guidance=forward_guidance,
             policy_actions=policy_actions,
             banks_reporting=banks_reporting,
             collected_at=datetime.now(UTC),

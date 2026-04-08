@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Sequence
+from typing import Any, Sequence
 
 from sqlalchemy import select
 
@@ -40,3 +40,54 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
             .limit(limit)
         )
         return await self.execute_query(stmt)
+
+    async def get_recent_values(
+        self,
+        user_id: str,
+        limit: int = 20,
+    ) -> Sequence[DXYSnapshotRow]:
+        """Get recent DXY snapshots for trend and key level analysis."""
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .order_by(self.model.analyzed_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    async def upsert_snapshot(
+        self,
+        user_id: str,
+        *,
+        value: float,
+        trend_direction: str,
+        momentum: str,
+        key_levels_json: dict[str, Any],
+        divergence_signals_json: dict[str, Any],
+        bias: str,
+        analyzed_at: datetime,
+    ) -> None:
+        """Upsert a DXY snapshot with deduplication.
+
+        Deduplication key: (user_id, analyzed_at).
+        On conflict, updates all analytical fields.
+        """
+        await self.bulk_upsert(
+            [
+                {
+                    "user_id": user_id,
+                    "value": value,
+                    "trend_direction": trend_direction,
+                    "momentum": momentum,
+                    "key_levels_json": key_levels_json,
+                    "divergence_signals_json": divergence_signals_json,
+                    "bias": bias,
+                    "analyzed_at": analyzed_at,
+                }
+            ],
+            index_elements=["user_id", "analyzed_at"],
+            update_fields=[
+                "value", "trend_direction", "momentum",
+                "key_levels_json", "divergence_signals_json", "bias",
+            ],
+        )

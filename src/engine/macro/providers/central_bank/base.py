@@ -17,6 +17,7 @@ from engine.shared.rss.parser import RSSEntry
 from engine.macro.models.provider.central_bank import (
     CentralBankSpeech,
     ForwardGuidance,
+    MeetingMinutes,
     RateDecision,
 )
 from engine.macro.providers.base import BaseProvider
@@ -85,6 +86,26 @@ def classify_tone(text: str) -> CBTone:
     return CBTone.NEUTRAL
 
 
+def compute_tone_score(text: str) -> float:
+    """Compute a numeric tone score from text.
+
+    Returns a float between 0.0 and 1.0:
+    - 0.0 = strongly dovish
+    - 0.5 = neutral
+    - 1.0 = strongly hawkish
+
+    The score is based on keyword density: the ratio of hawkish
+    keywords to total (hawkish + dovish) keywords found.
+    """
+    lower = text.lower()
+    hawk_count = sum(1 for kw in _HAWKISH_KEYWORDS if kw in lower)
+    dove_count = sum(1 for kw in _DOVISH_KEYWORDS if kw in lower)
+    total = hawk_count + dove_count
+    if total == 0:
+        return 0.5
+    return round(hawk_count / total, 3)
+
+
 def classify_policy_action(text: str) -> MonetaryPolicyAction:
     lower = text.lower()
     if any(kw in lower for kw in _QT_KEYWORDS):
@@ -118,7 +139,9 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
         super().__init__()
         self._rss = rss_parser
 
-    async def fetch(self) -> list[CentralBankSpeech | RateDecision | ForwardGuidance]:
+    async def fetch(
+        self,
+    ) -> list[CentralBankSpeech | RateDecision | ForwardGuidance | MeetingMinutes]:
         start = time.monotonic()
         try:
             entries = await self._rss.fetch_and_parse(
@@ -138,7 +161,7 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
 
     def _parse_entry(
         self, entry: RSSEntry
-    ) -> CentralBankSpeech | RateDecision | ForwardGuidance:
+    ) -> CentralBankSpeech | RateDecision | ForwardGuidance | MeetingMinutes:
         event_type = classify_event_type(entry.title)
         full_text = f"{entry.title} {entry.summary}"
         tone = classify_tone(full_text)
@@ -152,6 +175,24 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
                 tone=tone,
                 monetary_policy_action=policy_action,
                 guidance_date=entry.published_at,
+                source_url=entry.link,
+            )
+
+        if event_type == EventType.MEETING_MINUTES:
+            return MeetingMinutes(
+                bank=self.bank,
+                title=entry.title,
+                summary=entry.summary[:2000],
+                tone=tone,
+                monetary_policy_action=policy_action,
+                hawkish_count=sum(
+                    1 for kw in _HAWKISH_KEYWORDS if kw in full_text.lower()
+                ),
+                dovish_count=sum(
+                    1 for kw in _DOVISH_KEYWORDS if kw in full_text.lower()
+                ),
+                meeting_date=entry.published_at,
+                release_date=entry.published_at,
                 source_url=entry.link,
             )
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, String, func
+from sqlalchemy import DateTime, Float, Index, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,10 @@ class IntermarketSnapshotRow(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "user_id", "snapshot_at",
+            name="uq_intermarket_user_snapshot_at",
+        ),
         Index("ix_intermarket_user_id", "user_id"),
         Index("ix_intermarket_user_snapshot_at", "user_id", "snapshot_at"),
     )

@@ -15,7 +15,7 @@ _CURRENCY_KEYWORDS: dict[str, Currency] = {
     "fomc": Currency.USD,
     "euro": Currency.EUR,
     "eur": Currency.EUR,
-    "ecb": Currency.ECB if hasattr(Currency, "ECB") else Currency.EUR,
+    "ecb": Currency.EUR,
     "pound": Currency.GBP,
     "gbp": Currency.GBP,
     "boe": Currency.GBP,
