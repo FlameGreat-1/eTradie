@@ -359,8 +359,10 @@ func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 
 	// Use configured password or a generated one.
 	password := cfg.AdminPassword
+	generated := false
 	if !cfg.HasAdminSeedPassword() {
 		password = GenerateRefreshToken()[:16] // 16-char random password
+		generated = true
 	}
 
 	if err := user.SetPassword(password); err != nil {
@@ -369,6 +371,22 @@ func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 
 	if err := store.CreateUser(ctx, user); err != nil {
 		return fmt.Errorf("seed admin: create user: %w", err)
+	}
+
+	if generated {
+		// Log the generated password so the admin can log in.
+		// This is printed ONCE at first startup only.
+		// In production, set AUTH_ADMIN_PASSWORD explicitly.
+		fmt.Printf("\n" +
+			"==========================================================\n" +
+			"  ADMIN ACCOUNT CREATED (first startup)\n" +
+			"  Username: %s\n" +
+			"  Password: %s\n" +
+			"  \n" +
+			"  CHANGE THIS PASSWORD IMMEDIATELY after first login.\n" +
+			"  Set AUTH_ADMIN_PASSWORD env var to avoid this message.\n" +
+			"==========================================================\n\n",
+			user.Username, password)
 	}
 
 	return nil

@@ -78,7 +78,7 @@ class IntermarketCollector(BaseCollector):
     collector_name = "intermarket"
     cache_namespace = "intermarket"
 
-    async def _do_collect(self) -> MarketDataSet:
+    async def _do_collect(self, user_id: str) -> MarketDataSet:
         # Fetch from all providers concurrently and merge results.
         # This allows TwelveData to provide core data while the
         # CommodityProxyProvider fills iron_ore and dairy_gdt.
@@ -99,6 +99,7 @@ class IntermarketCollector(BaseCollector):
         if snapshot:
             async with self._db.session() as session:
                 row = IntermarketSnapshotRow(
+                    user_id=user_id,
                     gold_price=snapshot.gold_price,
                     silver_price=snapshot.silver_price,
                     oil_price=snapshot.oil_price,
@@ -124,7 +125,7 @@ class IntermarketCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

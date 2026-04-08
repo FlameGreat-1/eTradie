@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from engine.shared.logging import get_logger
 from engine.shared.models.events import DXYMomentum
@@ -31,18 +31,19 @@ class DXYCollector(BaseCollector):
     collector_name = "dxy"
     cache_namespace = "dxy"
 
-    async def _do_collect(self) -> MarketDataSet:
+    async def _do_collect(self, user_id: str) -> MarketDataSet:
         snapshot = await self._fetch_with_failover(self._providers)
 
         momentum = DXYMomentum.FLAT
         if snapshot and snapshot.dxy_value is not None:
             async with self._db.session() as session:
                 repo = DXYRepository(session)
-                prev = await repo.get_latest()
+                prev = await repo.get_latest(user_id)
                 prev_value = prev.value if prev else None
                 momentum = _compute_momentum(snapshot.dxy_value, prev_value)
 
                 row = DXYSnapshotRow(
+                    user_id=user_id,
                     value=snapshot.dxy_value,
                     momentum=momentum.value,
                     analyzed_at=snapshot.snapshot_at,
@@ -59,7 +60,7 @@ class DXYCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

@@ -14,7 +14,7 @@ class NewsCollector(BaseCollector):
     collector_name = "news"
     cache_namespace = "news"
 
-    async def _do_collect(self) -> NewsDataSet:
+    async def _do_collect(self, user_id: str) -> NewsDataSet:
         all_items = []
         seen_hashes: set[str] = set()
         sources = []
@@ -30,27 +30,32 @@ class NewsCollector(BaseCollector):
             except Exception:
                 logger.warning("news_provider_skipped", provider=provider.provider_name)
 
+        # Upsert with deduplication: same user + dedupe_hash = one row.
         async with self._db.session() as session:
             repo = NewsRepository(session)
-            for item in all_items:
-                if await repo.exists_by_hash(item.dedupe_hash):
-                    continue
-                rows = [
-                    {
-                        "headline": item.headline,
-                        "source": item.source,
-                        "url": item.url,
-                        "summary": item.summary,
-                        "currencies": [c.value for c in item.currencies_mentioned],
-                        "sentiment": item.sentiment.value,
-                        "impact": item.impact.value,
-                        "dedupe_hash": item.dedupe_hash,
-                        "published_at": item.published_at,
-                    }
-                ]
+            rows = [
+                {
+                    "user_id": user_id,
+                    "headline": item.headline,
+                    "source": item.source,
+                    "url": item.url,
+                    "summary": item.summary,
+                    "currencies": [c.value for c in item.currencies_mentioned],
+                    "sentiment": item.sentiment.value,
+                    "impact": item.impact.value,
+                    "dedupe_hash": item.dedupe_hash,
+                    "published_at": item.published_at,
+                }
+                for item in all_items
+            ]
+            if rows:
                 await repo.bulk_upsert(
                     rows,
-                    index_elements=["dedupe_hash"],
+                    index_elements=["user_id", "dedupe_hash"],
+                    update_fields=[
+                        "headline", "summary", "sentiment", "impact",
+                        "currencies",
+                    ],
                 )
 
         dataset = NewsDataSet(
@@ -60,7 +65,7 @@ class NewsCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

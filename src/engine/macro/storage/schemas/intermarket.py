@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, func
+from sqlalchemy import DateTime, Float, Index, String, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,7 @@ class IntermarketSnapshotRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     gold_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     silver_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     oil_price: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -41,4 +42,7 @@ class IntermarketSnapshotRow(Base):
         server_default=func.now(),
     )
 
-    __table_args__ = (Index("ix_intermarket_snapshot_at", "snapshot_at"),)
+    __table_args__ = (
+        Index("ix_intermarket_user_id", "user_id"),
+        Index("ix_intermarket_user_snapshot_at", "user_id", "snapshot_at"),
+    )

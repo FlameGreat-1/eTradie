@@ -14,7 +14,7 @@ class SentimentCollector(BaseCollector):
     collector_name = "sentiment"
     cache_namespace = "sentiment"
 
-    async def _do_collect(self) -> dict[str, Any]:
+    async def _do_collect(self, user_id: str) -> dict[str, Any]:
         all_sentiments = []
         sources = []
         for provider in self._providers:
@@ -27,8 +27,11 @@ class SentimentCollector(BaseCollector):
                     "sentiment_provider_skipped", provider=provider.provider_name
                 )
 
-        # Attempt to read intermarket cache for risk environment assessment
-        intermarket_raw = await self._cache.get("intermarket", "latest")
+        # Read this user's intermarket cache for risk environment assessment.
+        # Cache key is user-scoped: intermarket:{user_id}:latest
+        intermarket_raw = await self._cache.get(
+            "intermarket", self._user_cache_key(user_id),
+        )
         vix: float | None = None
         us2y: float | None = None
         us10y: float | None = None
@@ -56,7 +59,7 @@ class SentimentCollector(BaseCollector):
         }
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             result,
             self.cache_ttl,
         )

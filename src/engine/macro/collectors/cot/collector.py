@@ -67,7 +67,7 @@ class COTCollector(BaseCollector):
     collector_name = "cot"
     cache_namespace = "cot"
 
-    async def _do_collect(self) -> COTDataSet:
+    async def _do_collect(self, user_id: str) -> COTDataSet:
         report = await self._fetch_with_failover(self._providers)
         positions = report.positions if report else []
         tff_positions = report.tff_positions if report else []
@@ -81,10 +81,14 @@ class COTCollector(BaseCollector):
             repo = COTRepository(session)
 
             for p in positions:
-                prev_net = await repo.get_previous_net(p.currency.value, p.report_date)
+                prev_net = await repo.get_previous_net(
+                    user_id, p.currency.value, p.report_date,
+                )
                 wow = (p.non_commercial_net - prev_net) if prev_net is not None else 0
 
-                min_net, max_net = await repo.get_52_week_net_range(p.currency.value)
+                min_net, max_net = await repo.get_52_week_net_range(
+                    user_id, p.currency.value,
+                )
                 percentile = _compute_percentile(p.non_commercial_net, min_net, max_net)
                 extreme = (
                     percentile >= _EXTREME_HIGH_PERCENTILE
@@ -121,6 +125,7 @@ class COTCollector(BaseCollector):
                 )
 
                 row_data = {
+                    "user_id": user_id,
                     "currency": p.currency.value,
                     "contract_name": p.contract_name,
                     "non_commercial_long": p.non_commercial_long,
@@ -151,7 +156,7 @@ class COTCollector(BaseCollector):
                 }
                 await repo.bulk_upsert(
                     [row_data],
-                    index_elements=["currency", "report_date"],
+                    index_elements=["user_id", "currency", "report_date"],
                     update_fields=[
                         "non_commercial_long",
                         "non_commercial_short",
@@ -186,7 +191,7 @@ class COTCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

@@ -14,7 +14,7 @@ class EconomicDataCollector(BaseCollector):
     collector_name = "economic_data"
     cache_namespace = "economic"
 
-    async def _do_collect(self) -> EconomicDataSet:
+    async def _do_collect(self, user_id: str) -> EconomicDataSet:
         all_releases = []
         sources = []
         for provider in self._providers:
@@ -27,25 +27,46 @@ class EconomicDataCollector(BaseCollector):
                     "economic_provider_skipped", provider=provider.provider_name
                 )
 
+        # Upsert with deduplication: same user + currency + indicator + time = one row.
         async with self._db.session() as session:
-            for release in all_releases:
-                row = EconomicReleaseRow(
-                    currency=release.currency.value,
-                    indicator=release.indicator.value,
-                    indicator_name=release.indicator_name,
-                    actual=release.actual,
-                    forecast=release.forecast,
-                    previous=release.previous,
-                    surprise=release.surprise,
-                    surprise_direction=release.surprise_direction.value,
-                    impact=release.impact.value,
-                    inflation_type=(
-                        release.inflation_type.value if release.inflation_type else None
+            from engine.macro.storage.repositories.economic.release import (
+                EconomicReleaseRepository,
+            )
+
+            repo = EconomicReleaseRepository(session)
+            rows = [
+                {
+                    "user_id": user_id,
+                    "currency": release.currency.value,
+                    "indicator": release.indicator.value,
+                    "indicator_name": release.indicator_name,
+                    "actual": release.actual,
+                    "forecast": release.forecast,
+                    "previous": release.previous,
+                    "surprise": release.surprise,
+                    "surprise_direction": release.surprise_direction.value,
+                    "impact": release.impact.value,
+                    "inflation_type": (
+                        release.inflation_type.value
+                        if release.inflation_type
+                        else None
                     ),
-                    source=release.source,
-                    release_time=release.release_time,
+                    "source": release.source,
+                    "release_time": release.release_time,
+                }
+                for release in all_releases
+            ]
+            if rows:
+                await repo.bulk_upsert(
+                    rows,
+                    index_elements=[
+                        "user_id", "currency", "indicator", "release_time",
+                    ],
+                    update_fields=[
+                        "actual", "forecast", "previous", "surprise",
+                        "surprise_direction", "impact", "inflation_type", "source",
+                    ],
                 )
-                session.add(row)
 
         dataset = EconomicDataSet(
             releases=all_releases,
@@ -54,7 +75,7 @@ class EconomicDataCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            "latest",
+            self._user_cache_key(user_id),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

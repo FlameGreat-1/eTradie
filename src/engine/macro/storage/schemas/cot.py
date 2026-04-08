@@ -26,6 +26,7 @@ class COTReportRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     contract_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     non_commercial_long: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -58,8 +59,12 @@ class COTReportRow(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("currency", "report_date", name="uq_cot_currency_date"),
-        Index("ix_cot_currency_date", "currency", "report_date"),
-        Index("ix_cot_report_date", "report_date"),
-        Index("ix_cot_extreme_flag", "extreme_flag", "report_date"),
+        UniqueConstraint(
+            "user_id", "currency", "report_date",
+            name="uq_cot_user_currency_date",
+        ),
+        Index("ix_cot_user_id", "user_id"),
+        Index("ix_cot_user_currency_date", "user_id", "currency", "report_date"),
+        Index("ix_cot_user_report_date", "user_id", "report_date"),
+        Index("ix_cot_user_extreme_flag", "user_id", "extreme_flag", "report_date"),
     )
