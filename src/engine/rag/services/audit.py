@@ -22,6 +22,7 @@ class AuditService:
     async def log_retrieval(
         self,
         *,
+        user_id: UUID,
         query_text: str,
         strategy: str,
         filters_applied: dict,
@@ -34,6 +35,7 @@ class AuditService:
         trace_id: str | None = None,
     ) -> UUID:
         row = RetrievalLogRow(
+            user_id=user_id,
             query_text=query_text,
             strategy=strategy,
             filters_applied=filters_applied,
@@ -52,6 +54,7 @@ class AuditService:
     async def log_citations(
         self,
         *,
+        user_id: UUID,
         retrieval_log_id: UUID,
         citations: list[Citation],
     ) -> int:
@@ -59,6 +62,7 @@ class AuditService:
         async with self._uow() as uow:
             for citation in citations:
                 row = AnalysisCitationRow(
+                    user_id=user_id,
                     retrieval_log_id=retrieval_log_id,
                     chunk_id=citation.chunk_id,
                     document_id=citation.document_id,

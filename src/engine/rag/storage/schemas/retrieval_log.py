@@ -16,6 +16,9 @@ class RetrievalLogRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     strategy: Mapped[str] = mapped_column(String(32), nullable=False)
     filters_applied: Mapped[dict] = mapped_column(
@@ -40,6 +43,7 @@ class RetrievalLogRow(Base):
     )
 
     __table_args__ = (
+        Index("ix_rag_retlog_user_id", "user_id"),
         Index("ix_rag_retlog_strategy", "strategy"),
         Index("ix_rag_retlog_coverage", "coverage_result"),
         Index("ix_rag_retlog_created_at", "created_at"),

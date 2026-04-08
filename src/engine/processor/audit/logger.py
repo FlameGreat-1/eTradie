@@ -18,7 +18,7 @@ from engine.processor.models.audit import AnalysisRecord, AuditLogRecord
 def build_analysis_record(
     output: AnalysisOutput,
     *,
-    user_id: str = "",
+    user_id: str,
     status: str = "success",
     error_message: Optional[str] = None,
     duration_ms: float = 0.0,
@@ -68,7 +68,7 @@ def build_audit_log_record(
     output: AnalysisOutput,
     llm_response: LLMResponse,
     *,
-    user_id: str = "",
+    user_id: str,
     prompt_hash: str,
     validation_passed: bool,
     validation_errors: list[str],
@@ -120,7 +120,7 @@ def build_audit_log_record(
 
 def build_error_analysis_record(
     *,
-    user_id: str = "",
+    user_id: str,
     pair: str,
     error_message: str,
     status: str,

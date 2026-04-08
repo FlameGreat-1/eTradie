@@ -15,6 +15,66 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
 
     async def get_by_retrieval(
         self,
+        user_id: UUID,
+        retrieval_log_id: UUID,
+    ) -> Sequence[AnalysisCitationRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.retrieval_log_id == retrieval_log_id)
+            .order_by(self.model.relevance_score.desc())
+        )
+        return await self.execute_query(stmt)
+
+    async def get_by_document(
+        self,
+        user_id: UUID,
+        document_id: UUID,
+        *,
+        limit: int = 100,
+    ) -> Sequence[AnalysisCitationRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.document_id == document_id)
+            .order_by(self.model.created_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    async def get_by_chunk(
+        self,
+        user_id: UUID,
+        chunk_id: UUID,
+    ) -> Sequence[AnalysisCitationRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.chunk_id == chunk_id)
+            .order_by(self.model.created_at.desc())
+        )
+        return await self.execute_query(stmt)
+
+    async def get_by_doc_type(
+        self,
+        user_id: UUID,
+        doc_type: str,
+        *,
+        limit: int = 100,
+    ) -> Sequence[AnalysisCitationRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.doc_type == doc_type)
+            .order_by(self.model.created_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    # ── Admin-scoped queries (cross-tenant oversight) ──
+
+    async def admin_get_by_retrieval(
+        self,
         retrieval_log_id: UUID,
     ) -> Sequence[AnalysisCitationRow]:
         stmt = (
@@ -24,7 +84,7 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
         )
         return await self.execute_query(stmt)
 
-    async def get_by_document(
+    async def admin_get_by_document(
         self,
         document_id: UUID,
         *,
@@ -38,18 +98,7 @@ class CitationLogRepository(BaseRepository[AnalysisCitationRow]):
         )
         return await self.execute_query(stmt)
 
-    async def get_by_chunk(
-        self,
-        chunk_id: UUID,
-    ) -> Sequence[AnalysisCitationRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.chunk_id == chunk_id)
-            .order_by(self.model.created_at.desc())
-        )
-        return await self.execute_query(stmt)
-
-    async def get_by_doc_type(
+    async def admin_get_by_doc_type(
         self,
         doc_type: str,
         *,

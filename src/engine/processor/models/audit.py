@@ -21,7 +21,7 @@ class AnalysisRecord(TimestampedModel):
     Written to analysis_outputs table on every processor invocation.
     """
 
-    user_id: str = ""
+    user_id: str
     analysis_id: str
     pair: str
     direction: str
@@ -54,7 +54,7 @@ class AuditLogRecord(TimestampedModel):
     Contains retrieval context, citations, and verification results.
     """
 
-    user_id: str = ""
+    user_id: str
     analysis_id: str
     pair: str
     timestamp: datetime

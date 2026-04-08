@@ -14,13 +14,6 @@ Cardinality Warning:
 - Use bounded label sets (status, operation type, error category)
 - Monitor metric cardinality in production
 
-Usage Example:
-    >>> from engine.shared.metrics.prometheus import PROVIDER_FETCH_TOTAL
-    >>> PROVIDER_FETCH_TOTAL.labels(
-    ...     provider="fred",
-    ...     category="economic",
-    ...     status="success"
-    ... ).inc()
 """
 
 from __future__ import annotations

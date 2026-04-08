@@ -110,7 +110,7 @@ class ProcessorPort(abc.ABC):
         self,
         context: ProcessorInput,
         *,
-        user_id: str = "",
+        user_id: str,
         trace_id: Optional[str] = None,
     ) -> ProcessorOutput:
         """Process the assembled context and return a trade decision."""

@@ -57,6 +57,7 @@ class RAGOrchestrator:
     async def retrieve_context(
         self,
         query_text: str,
+        user_id: UUID,
         *,
         strategy: str | None = None,
         framework: str | None = None,
@@ -190,6 +191,7 @@ class RAGOrchestrator:
         )
 
         retrieval_log_id = await self._audit.log_retrieval(
+            user_id=user_id,
             query_text=query_text,
             strategy=effective_strategy,
             filters_applied={
@@ -212,6 +214,7 @@ class RAGOrchestrator:
         )
 
         await self._audit.log_citations(
+            user_id=user_id,
             retrieval_log_id=retrieval_log_id,
             citations=citations,
         )

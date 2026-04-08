@@ -16,6 +16,9 @@ class AnalysisCitationRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
     retrieval_log_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("rag_retrieval_logs.id", ondelete="CASCADE"),
@@ -48,6 +51,7 @@ class AnalysisCitationRow(Base):
     )
 
     __table_args__ = (
+        Index("ix_rag_acit_user_id", "user_id"),
         Index("ix_rag_acit_retrieval_id", "retrieval_log_id"),
         Index("ix_rag_acit_chunk_id", "chunk_id"),
         Index("ix_rag_acit_document_id", "document_id"),

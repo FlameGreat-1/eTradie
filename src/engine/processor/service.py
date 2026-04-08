@@ -74,7 +74,7 @@ class AnalysisProcessor(ProcessorPort):
         self,
         context: ProcessorInput,
         *,
-        user_id: str = "",
+        user_id: str,
         trace_id: Optional[str] = None,
     ) -> ProcessorOutput:
         """Process the assembled context and return a trade decision.
@@ -185,7 +185,7 @@ class AnalysisProcessor(ProcessorPort):
         self,
         context: ProcessorInput,
         *,
-        user_id: str = "",
+        user_id: str,
         trace_id: Optional[str] = None,
         start: float,
     ) -> ProcessorOutput:
@@ -340,7 +340,7 @@ class AnalysisProcessor(ProcessorPort):
     async def _persist_success(
         self,
         *,
-        user_id: str = "",
+        user_id: str,
         analysis_output: AO,
         llm_response: LLMResponse,
         prompt_hash: str,
@@ -448,7 +448,7 @@ class AnalysisProcessor(ProcessorPort):
     async def _persist_error(
         self,
         *,
-        user_id: str = "",
+        user_id: str,
         pair: str,
         error_message: str,
         status: str,

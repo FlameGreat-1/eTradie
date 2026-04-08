@@ -31,7 +31,7 @@ async def seed_knowledge_assets(
             status="draft",
             checksum="",
             framework_tags=[],
-            metadata={},
+            meta_data={},
         )
         created = await document_repo.add(row)
         seeded.append(created)

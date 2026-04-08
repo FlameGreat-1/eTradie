@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Sequence
+from uuid import UUID
 
 from sqlalchemy import select
 
@@ -15,6 +16,81 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
 
     async def get_by_strategy(
         self,
+        user_id: UUID,
+        strategy: str,
+        *,
+        limit: int = 50,
+    ) -> Sequence[RetrievalLogRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.strategy == strategy)
+            .order_by(self.model.created_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    async def get_by_trace_id(
+        self,
+        user_id: UUID,
+        trace_id: str,
+    ) -> Sequence[RetrievalLogRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.trace_id == trace_id)
+            .order_by(self.model.created_at.desc())
+        )
+        return await self.execute_query(stmt)
+
+    async def get_recent(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 100,
+    ) -> Sequence[RetrievalLogRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .order_by(self.model.created_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    async def get_by_coverage_result(
+        self,
+        user_id: UUID,
+        coverage_result: str,
+        *,
+        since: datetime | None = None,
+        limit: int = 50,
+    ) -> Sequence[RetrievalLogRow]:
+        stmt = (
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.coverage_result == coverage_result)
+        )
+        if since:
+            stmt = stmt.where(self.model.created_at >= since)
+        stmt = stmt.order_by(self.model.created_at.desc()).limit(limit)
+        return await self.execute_query(stmt)
+
+    # ── Admin-scoped queries (cross-tenant oversight) ──
+
+    async def admin_get_recent(
+        self,
+        *,
+        limit: int = 100,
+    ) -> Sequence[RetrievalLogRow]:
+        stmt = (
+            select(self.model)
+            .order_by(self.model.created_at.desc())
+            .limit(limit)
+        )
+        return await self.execute_query(stmt)
+
+    async def admin_get_by_strategy(
+        self,
         strategy: str,
         *,
         limit: int = 50,
@@ -27,7 +103,7 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
         )
         return await self.execute_query(stmt)
 
-    async def get_by_trace_id(
+    async def admin_get_by_trace_id(
         self,
         trace_id: str,
     ) -> Sequence[RetrievalLogRow]:
@@ -36,25 +112,4 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
             .where(self.model.trace_id == trace_id)
             .order_by(self.model.created_at.desc())
         )
-        return await self.execute_query(stmt)
-
-    async def get_recent(
-        self,
-        *,
-        limit: int = 100,
-    ) -> Sequence[RetrievalLogRow]:
-        stmt = select(self.model).order_by(self.model.created_at.desc()).limit(limit)
-        return await self.execute_query(stmt)
-
-    async def get_by_coverage_result(
-        self,
-        coverage_result: str,
-        *,
-        since: datetime | None = None,
-        limit: int = 50,
-    ) -> Sequence[RetrievalLogRow]:
-        stmt = select(self.model).where(self.model.coverage_result == coverage_result)
-        if since:
-            stmt = stmt.where(self.model.created_at >= since)
-        stmt = stmt.order_by(self.model.created_at.desc()).limit(limit)
         return await self.execute_query(stmt)
