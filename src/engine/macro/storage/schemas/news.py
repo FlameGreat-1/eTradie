@@ -16,6 +16,7 @@ class NewsItemRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     headline: Mapped[str] = mapped_column(String(1000), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     url: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
@@ -38,7 +39,11 @@ class NewsItemRow(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("dedupe_hash", name="uq_news_dedupe_hash"),
-        Index("ix_news_published_at", "published_at"),
-        Index("ix_news_impact", "impact"),
+        UniqueConstraint(
+            "user_id", "dedupe_hash",
+            name="uq_news_user_dedupe_hash",
+        ),
+        Index("ix_news_user_id", "user_id"),
+        Index("ix_news_user_published_at", "user_id", "published_at"),
+        Index("ix_news_user_impact", "user_id", "impact"),
     )
