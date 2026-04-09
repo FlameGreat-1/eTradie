@@ -165,7 +165,7 @@ class DXYCollector(BaseCollector):
     collector_name = "dxy"
     cache_namespace = "dxy"
 
-    async def _do_collect(self, user_id: str) -> MarketDataSet:
+    async def _do_collect(self) -> MarketDataSet:
         snapshot = await self._fetch_with_failover(self._providers)
 
         momentum = DXYMomentum.FLAT
@@ -174,12 +174,12 @@ class DXYCollector(BaseCollector):
                 repo = DXYRepository(session)
 
                 # Get previous snapshot for momentum calculation
-                prev = await repo.get_latest(user_id)
+                prev = await repo.get_latest()
                 prev_value = prev.value if prev else None
                 momentum = _compute_momentum(snapshot.dxy_value, prev_value)
 
                 # Get recent history for trend and key level analysis
-                recent_rows = await repo.get_recent_values(user_id, limit=20)
+                recent_rows = await repo.get_recent_values(limit=20)
                 history_values = [
                     row.value for row in reversed(recent_rows)
                 ]
@@ -192,7 +192,6 @@ class DXYCollector(BaseCollector):
                 bias = _compute_bias(momentum, trend)
 
                 await repo.upsert_snapshot(
-                    user_id,
                     value=snapshot.dxy_value,
                     trend_direction=trend.value,
                     momentum=momentum.value,
@@ -212,7 +211,7 @@ class DXYCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

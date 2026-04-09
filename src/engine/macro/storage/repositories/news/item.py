@@ -15,7 +15,6 @@ class NewsRepository(BaseRepository[NewsItemRow]):
 
     async def get_recent(
         self,
-        user_id: str,
         *,
         since: datetime,
         impact: str | None = None,
@@ -24,7 +23,6 @@ class NewsRepository(BaseRepository[NewsItemRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.published_at >= since,
             )
             .order_by(self.model.published_at.desc())
@@ -34,11 +32,10 @@ class NewsRepository(BaseRepository[NewsItemRow]):
             stmt = stmt.where(self.model.impact == impact)
         return await self.execute_query(stmt)
 
-    async def exists_by_hash(self, user_id: str, dedupe_hash: str) -> bool:
+    async def exists_by_hash(self, dedupe_hash: str) -> bool:
         stmt = (
             select(self.model.id)
             .where(
-                self.model.user_id == user_id,
                 self.model.dedupe_hash == dedupe_hash,
             )
             .limit(1)
@@ -47,10 +44,9 @@ class NewsRepository(BaseRepository[NewsItemRow]):
         return result.scalar_one_or_none() is not None
 
     async def purge_older_than(
-        self, user_id: str, cutoff: datetime,
+        self, cutoff: datetime,
     ) -> int:
         stmt = delete(self.model).where(
-            self.model.user_id == user_id,
             self.model.published_at < cutoff,
         )
         result = await self._session.execute(stmt)

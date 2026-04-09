@@ -14,7 +14,7 @@ class NewsCollector(BaseCollector):
     collector_name = "news"
     cache_namespace = "news"
 
-    async def _do_collect(self, user_id: str) -> NewsDataSet:
+    async def _do_collect(self) -> NewsDataSet:
         all_items = []
         seen_hashes: set[str] = set()
         sources = []
@@ -30,12 +30,11 @@ class NewsCollector(BaseCollector):
             except Exception:
                 logger.warning("news_provider_skipped", provider=provider.provider_name)
 
-        # Upsert with deduplication: same user + dedupe_hash = one row.
+        # Upsert with deduplication: dedupe_hash = one row.
         async with self._db.session() as session:
             repo = NewsRepository(session)
             rows = [
                 {
-                    "user_id": user_id,
                     "headline": item.headline,
                     "source": item.source,
                     "url": item.url,
@@ -51,7 +50,7 @@ class NewsCollector(BaseCollector):
             if rows:
                 await repo.bulk_upsert(
                     rows,
-                    index_elements=["user_id", "dedupe_hash"],
+                    index_elements=["dedupe_hash"],
                     update_fields=[
                         "headline", "summary", "sentiment", "impact",
                         "currencies",
@@ -65,7 +64,7 @@ class NewsCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

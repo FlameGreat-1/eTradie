@@ -16,7 +16,6 @@ class IntermarketSnapshotRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     gold_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     silver_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     oil_price: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -44,9 +43,8 @@ class IntermarketSnapshotRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "snapshot_at",
-            name="uq_intermarket_user_snapshot_at",
+            "snapshot_at",
+            name="uq_intermarket_snapshot_at",
         ),
-        Index("ix_intermarket_user_id", "user_id"),
-        Index("ix_intermarket_user_snapshot_at", "user_id", "snapshot_at"),
+        Index("ix_intermarket_snapshot_at", "snapshot_at"),
     )

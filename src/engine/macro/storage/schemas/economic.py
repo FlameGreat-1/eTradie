@@ -16,7 +16,6 @@ class EconomicReleaseRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     indicator: Mapped[str] = mapped_column(String(30), nullable=False)
     indicator_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -41,15 +40,14 @@ class EconomicReleaseRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "currency", "indicator", "release_time",
-            name="uq_econ_user_currency_indicator_time",
+            "currency", "indicator", "release_time",
+            name="uq_econ_currency_indicator_time",
         ),
-        Index("ix_econ_user_id", "user_id"),
-        Index("ix_econ_user_currency_indicator", "user_id", "currency", "indicator"),
-        Index("ix_econ_user_release_time", "user_id", "release_time"),
-        Index("ix_econ_user_currency_release", "user_id", "currency", "release_time"),
+        Index("ix_econ_currency_indicator", "currency", "indicator"),
+        Index("ix_econ_release_time", "release_time"),
+        Index("ix_econ_currency_release", "currency", "release_time"),
         Index(
-            "ix_econ_user_inflation_type",
-            "user_id", "inflation_type", "release_time",
+            "ix_econ_inflation_type",
+            "inflation_type", "release_time",
         ),
     )

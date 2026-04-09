@@ -14,12 +14,11 @@ class COTRepository(BaseRepository[COTReportRow]):
     _repo_name = "cot"
 
     async def get_latest_by_currency(
-        self, user_id: str, currency: str,
+        self, currency: str,
     ) -> COTReportRow | None:
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
             )
             .order_by(self.model.report_date.desc())
@@ -29,20 +28,18 @@ class COTRepository(BaseRepository[COTReportRow]):
         return result[0] if result else None
 
     async def get_latest_all_currencies(
-        self, user_id: str,
+        self,
     ) -> Sequence[COTReportRow]:
         subq = (
             select(
                 self.model.currency,
                 func.max(self.model.report_date).label("max_date"),
             )
-            .where(self.model.user_id == user_id)
             .group_by(self.model.currency)
             .subquery()
         )
         stmt = (
             select(self.model)
-            .where(self.model.user_id == user_id)
             .join(
                 subq,
                 (self.model.currency == subq.c.currency)
@@ -53,13 +50,11 @@ class COTRepository(BaseRepository[COTReportRow]):
 
     async def get_wow_pair(
         self,
-        user_id: str,
         currency: str,
     ) -> tuple[COTReportRow | None, COTReportRow | None]:
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
             )
             .order_by(self.model.report_date.desc())
@@ -72,14 +67,12 @@ class COTRepository(BaseRepository[COTReportRow]):
 
     async def get_history(
         self,
-        user_id: str,
         currency: str,
         limit: int = 52,
     ) -> Sequence[COTReportRow]:
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
             )
             .order_by(self.model.report_date.desc())
@@ -88,14 +81,13 @@ class COTRepository(BaseRepository[COTReportRow]):
         return await self.execute_query(stmt)
 
     async def get_52_week_net_range(
-        self, user_id: str, currency: str,
+        self, currency: str,
     ) -> tuple[int, int]:
         result = await self._session.execute(
             select(
                 func.min(COTReportRow.non_commercial_net),
                 func.max(COTReportRow.non_commercial_net),
             ).where(
-                COTReportRow.user_id == user_id,
                 COTReportRow.currency == currency,
                 COTReportRow.report_date >= func.current_date() - 365,
             )
@@ -106,12 +98,11 @@ class COTRepository(BaseRepository[COTReportRow]):
         return 0, 0
 
     async def get_previous_net(
-        self, user_id: str, currency: str, current_date: date,
+        self, currency: str, current_date: date,
     ) -> int | None:
         stmt = (
             select(self.model.non_commercial_net)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
                 self.model.report_date < current_date,
             )

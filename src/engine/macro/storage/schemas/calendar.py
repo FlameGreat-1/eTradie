@@ -16,7 +16,6 @@ class CalendarEventRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     event_name: Mapped[str] = mapped_column(String(300), nullable=False)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     impact: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -35,11 +34,10 @@ class CalendarEventRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "event_name", "currency", "event_time",
-            name="uq_cal_user_event",
+            "event_name", "currency", "event_time",
+            name="uq_cal_event",
         ),
-        Index("ix_cal_user_id", "user_id"),
-        Index("ix_cal_user_currency_time", "user_id", "currency", "event_time"),
-        Index("ix_cal_user_event_time", "user_id", "event_time"),
-        Index("ix_cal_user_impact_time", "user_id", "impact", "event_time"),
+        Index("ix_cal_currency_time", "currency", "event_time"),
+        Index("ix_cal_event_time", "event_time"),
+        Index("ix_cal_impact_time", "impact", "event_time"),
     )

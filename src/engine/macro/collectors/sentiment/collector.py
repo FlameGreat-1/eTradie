@@ -15,9 +15,8 @@ logger = get_logger(__name__)
 class SentimentCollector(BaseCollector):
     """Collect sentiment data from all registered sentiment providers.
 
-    This collector is user-scoped: it passes user_id to providers that
-    need it (e.g. COTDerivedSentimentProvider reads user-scoped COT
-    cache) and reads user-scoped intermarket cache for risk assessment.
+    This collector is global: it reads global COT
+    cache and reads global intermarket cache for risk assessment.
 
     Persists sentiment readings to both database (via SentimentRepository)
     and cache for durability and fast access.
@@ -26,25 +25,18 @@ class SentimentCollector(BaseCollector):
     collector_name = "sentiment"
     cache_namespace = "sentiment"
 
-    async def _do_collect(self, user_id: str) -> dict[str, Any]:
+    async def _do_collect(self) -> dict[str, Any]:
         all_sentiments = []
         sources = []
         for provider in self._providers:
             try:
-                # Use fetch_for_user when available (sentiment providers
-                # that need user-scoped cache access).  Fall back to
-                # fetch() for providers that only consume public data.
-                if isinstance(provider, BaseSentimentProvider):
-                    data = await provider.fetch_for_user(user_id)
-                else:
-                    data = await provider.fetch()
+                data = await provider.fetch()
                 all_sentiments.extend(data)
                 sources.append(provider.provider_name)
             except Exception:
                 logger.warning(
                     "sentiment_provider_skipped",
                     provider=provider.provider_name,
-                    user_id=user_id,
                 )
 
         # Persist sentiment readings to database for durability.
@@ -54,7 +46,6 @@ class SentimentCollector(BaseCollector):
                 repo = SentimentRepository(session)
                 rows = [
                     {
-                        "user_id": user_id,
                         "currency": (
                             s.currency.value
                             if hasattr(s, "currency") and hasattr(s.currency, "value")
@@ -75,17 +66,17 @@ class SentimentCollector(BaseCollector):
                 if rows:
                     await repo.bulk_upsert(
                         rows,
-                        index_elements=["user_id", "currency", "source"],
+                        index_elements=["currency", "source"],
                         update_fields=[
                             "long_percentage", "short_percentage",
                             "net_positioning", "collected_at",
                         ],
                     )
 
-        # Read this user's intermarket cache for risk environment assessment.
-        # Cache key is user-scoped: intermarket:{user_id}:latest
+        # Read global intermarket cache for risk environment assessment.
+        # Cache key is global: latest
         intermarket_raw = await self._cache.get(
-            "intermarket", self._user_cache_key(user_id),
+            "intermarket", self._cache_key(),
         )
         vix: float | None = None
         us2y: float | None = None
@@ -114,7 +105,7 @@ class SentimentCollector(BaseCollector):
         }
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             result,
             self.cache_ttl,
         )

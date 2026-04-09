@@ -13,10 +13,9 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
     model = DXYSnapshotRow
     _repo_name = "dxy"
 
-    async def get_latest(self, user_id: str) -> DXYSnapshotRow | None:
+    async def get_latest(self) -> DXYSnapshotRow | None:
         stmt = (
             select(self.model)
-            .where(self.model.user_id == user_id)
             .order_by(self.model.analyzed_at.desc())
             .limit(1)
         )
@@ -25,7 +24,6 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
 
     async def get_history(
         self,
-        user_id: str,
         *,
         since: datetime,
         limit: int = 100,
@@ -33,7 +31,6 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.analyzed_at >= since,
             )
             .order_by(self.model.analyzed_at.desc())
@@ -43,13 +40,11 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
 
     async def get_recent_values(
         self,
-        user_id: str,
         limit: int = 20,
     ) -> Sequence[DXYSnapshotRow]:
         """Get recent DXY snapshots for trend and key level analysis."""
         stmt = (
             select(self.model)
-            .where(self.model.user_id == user_id)
             .order_by(self.model.analyzed_at.desc())
             .limit(limit)
         )
@@ -57,7 +52,6 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
 
     async def upsert_snapshot(
         self,
-        user_id: str,
         *,
         value: float,
         trend_direction: str,
@@ -69,13 +63,12 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
     ) -> None:
         """Upsert a DXY snapshot with deduplication.
 
-        Deduplication key: (user_id, analyzed_at).
+        Deduplication key: (analyzed_at).
         On conflict, updates all analytical fields.
         """
         await self.bulk_upsert(
             [
                 {
-                    "user_id": user_id,
                     "value": value,
                     "trend_direction": trend_direction,
                     "momentum": momentum,
@@ -85,7 +78,7 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
                     "analyzed_at": analyzed_at,
                 }
             ],
-            index_elements=["user_id", "analyzed_at"],
+            index_elements=["analyzed_at"],
             update_fields=[
                 "value", "trend_direction", "momentum",
                 "key_levels_json", "divergence_signals_json", "bias",

@@ -16,7 +16,6 @@ class SentimentReadingRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     long_percentage: Mapped[float] = mapped_column(
@@ -41,10 +40,9 @@ class SentimentReadingRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "currency", "source",
-            name="uq_sentiment_user_currency_source",
+            "currency", "source",
+            name="uq_sentiment_currency_source",
         ),
-        Index("ix_sentiment_user_id", "user_id"),
-        Index("ix_sentiment_user_currency", "user_id", "currency"),
-        Index("ix_sentiment_user_collected_at", "user_id", "collected_at"),
+        Index("ix_sentiment_currency", "currency"),
+        Index("ix_sentiment_collected_at", "collected_at"),
     )

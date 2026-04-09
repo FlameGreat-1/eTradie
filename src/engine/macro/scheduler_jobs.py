@@ -28,16 +28,7 @@ def register_macro_jobs(
 ) -> None:
     """Register macro data collection jobs on the scheduler.
 
-    Each collector function MUST accept a ``user_id: str`` parameter.
-    The caller is responsible for wrapping the collector's ``.collect()``
-    method with the appropriate user_id.  In multi-tenant mode, the
-    Gateway scheduler issues per-user service tokens and calls the
-    Python engine's ``/internal/macro/collect`` endpoint with the
-    user's JWT, so the engine resolves user_id from the token.
-
-    For the Python-side APScheduler jobs (background polling), the
-    caller wraps each collector call with a closure that provides
-    the user_id from the request context or service token.
+    These jobs run on global data and do not require user scoping.
     """
     scheduler.add_interval_job(
         cb_collector_fn,  # type: ignore[arg-type]

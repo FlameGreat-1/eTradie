@@ -13,7 +13,7 @@ class EconomicDataCollector(BaseCollector):
     collector_name = "economic_data"
     cache_namespace = "economic"
 
-    async def _do_collect(self, user_id: str) -> EconomicDataSet:
+    async def _do_collect(self) -> EconomicDataSet:
         all_releases = []
         sources = []
         for provider in self._providers:
@@ -26,7 +26,7 @@ class EconomicDataCollector(BaseCollector):
                     "economic_provider_skipped", provider=provider.provider_name
                 )
 
-        # Upsert with deduplication: same user + currency + indicator + time = one row.
+        # Upsert with deduplication: currency + indicator + time = one row.
         async with self._db.session() as session:
             from engine.macro.storage.repositories.economic.release import (
                 EconomicReleaseRepository,
@@ -35,7 +35,6 @@ class EconomicDataCollector(BaseCollector):
             repo = EconomicReleaseRepository(session)
             rows = [
                 {
-                    "user_id": user_id,
                     "currency": release.currency.value,
                     "indicator": release.indicator.value,
                     "indicator_name": release.indicator_name,
@@ -59,7 +58,7 @@ class EconomicDataCollector(BaseCollector):
                 await repo.bulk_upsert(
                     rows,
                     index_elements=[
-                        "user_id", "currency", "indicator", "release_time",
+                        "currency", "indicator", "release_time",
                     ],
                     update_fields=[
                         "actual", "forecast", "previous", "surprise",
@@ -74,7 +73,7 @@ class EconomicDataCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

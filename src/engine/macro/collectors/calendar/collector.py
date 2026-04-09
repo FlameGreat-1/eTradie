@@ -13,7 +13,7 @@ class CalendarCollector(BaseCollector):
     collector_name = "calendar"
     cache_namespace = "calendar"
 
-    async def _do_collect(self, user_id: str) -> CalendarDataSet:
+    async def _do_collect(self) -> CalendarDataSet:
         all_events = []
         sources = []
         for provider in self._providers:
@@ -26,7 +26,7 @@ class CalendarCollector(BaseCollector):
                     "calendar_provider_skipped", provider=provider.provider_name
                 )
 
-        # Upsert with deduplication: same user + event + currency + time = one row.
+        # Upsert with deduplication: event + currency + time = one row.
         async with self._db.session() as session:
             from engine.macro.storage.repositories.calendar.event import (
                 CalendarRepository,
@@ -35,7 +35,6 @@ class CalendarCollector(BaseCollector):
             repo = CalendarRepository(session)
             rows = [
                 {
-                    "user_id": user_id,
                     "event_name": event.event_name,
                     "currency": event.currency.value,
                     "impact": event.impact.value,
@@ -50,7 +49,7 @@ class CalendarCollector(BaseCollector):
             if rows:
                 await repo.bulk_upsert(
                     rows,
-                    index_elements=["user_id", "event_name", "currency", "event_time"],
+                    index_elements=["event_name", "currency", "event_time"],
                     update_fields=["actual", "forecast", "previous", "impact", "source"],
                 )
 
@@ -62,7 +61,7 @@ class CalendarCollector(BaseCollector):
 
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

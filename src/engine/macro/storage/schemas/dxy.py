@@ -16,7 +16,6 @@ class DXYSnapshotRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     trend_direction: Mapped[str] = mapped_column(
         String(10), nullable=False, default="SIDEWAYS"
@@ -38,9 +37,8 @@ class DXYSnapshotRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "analyzed_at",
-            name="uq_dxy_user_analyzed_at",
+            "analyzed_at",
+            name="uq_dxy_analyzed_at",
         ),
-        Index("ix_dxy_user_id", "user_id"),
-        Index("ix_dxy_user_analyzed_at", "user_id", "analyzed_at"),
+        Index("ix_dxy_analyzed_at", "analyzed_at"),
     )

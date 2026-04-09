@@ -15,7 +15,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
 
     async def get_upcoming(
         self,
-        user_id: str,
         *,
         from_time: datetime,
         hours_ahead: int = 48,
@@ -25,7 +24,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.event_time >= from_time,
                 self.model.event_time <= until,
             )
@@ -37,7 +35,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
 
     async def get_high_impact_within_window(
         self,
-        user_id: str,
         *,
         center_time: datetime,
         window_minutes: int = 30,
@@ -47,7 +44,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.event_time >= start,
                 self.model.event_time <= end,
                 self.model.impact == "HIGH",
@@ -58,7 +54,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
 
     async def get_by_currency(
         self,
-        user_id: str,
         currency: str,
         *,
         from_time: datetime,
@@ -67,7 +62,6 @@ class CalendarRepository(BaseRepository[CalendarEventRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
                 self.model.event_time >= from_time,
             )

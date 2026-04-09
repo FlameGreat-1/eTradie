@@ -13,12 +13,11 @@ class SentimentRepository(BaseRepository[SentimentReadingRow]):
     _repo_name = "sentiment"
 
     async def get_latest_by_currency(
-        self, user_id: str, currency: str,
+        self, currency: str,
     ) -> SentimentReadingRow | None:
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
             )
             .order_by(self.model.collected_at.desc())
@@ -28,14 +27,11 @@ class SentimentRepository(BaseRepository[SentimentReadingRow]):
         return result[0] if result else None
 
     async def get_all_latest(
-        self, user_id: str,
+        self,
     ) -> Sequence[SentimentReadingRow]:
         """Get the most recent sentiment reading for each currency."""
-        # Since we upsert on (user_id, currency, source), each
-        # combination has at most one row. Return all for this user.
         stmt = (
             select(self.model)
-            .where(self.model.user_id == user_id)
             .order_by(self.model.currency.asc())
         )
         return await self.execute_query(stmt)

@@ -66,3 +66,54 @@ Dairy GDT: NZD correlation proxy. Niche and TE rarely found it anyway.
 The sentiment collector now produces zero SentimentReading objects. The risk assessment still works because it reads from intermarket cache. But any downstream code that expects sentiments list to have data will get an empty list.
 
 
+
+---
+
+## TA DATABASE STORAGE BLOAT — FUTURE OPTIMIZATION
+
+### The Problem
+
+With TA kept user-scoped (which is correct because different brokers produce different OHLCV candles due to liquidity providers, spreads, and timezone shifts), storage grows linearly with users:
+
+- 1,000 users × 5 pairs × 4 cycles/hour × 24 hours = **~480,000 new DB rows/day**
+- Tables affected: `candles`, `technical_snapshots`, `candidates`
+
+### Why Streaming Alone Doesn't Fix It
+
+The storage bloat comes from **persisting snapshots and candle rows**, not from how candles are acquired. Whether you poll 500 candles every 15 minutes or stream them one-by-one 24/7, you still end up with the same volume of candle data in the database. Streaming is actually *more* granular (writing on every single candle close), so it would write MORE rows, not fewer.
+
+### The Real Solution: Hybrid Compute-on-Demand Architecture
+
+| Current (Poll + Store) | Optimal (Stream + Compute-in-Memory) |
+|------------------------|--------------------------------------|
+| Fetch 500 candles → Write all to DB | Stream candle closes → Hold in memory (ring buffer) |
+| Run TA on DB-stored candles | Run TA on in-memory candles |
+| Write snapshot to DB | **Don't persist snapshot at all** — pass directly to Processor |
+| ~480,000 rows/day | Near-zero DB writes for candles/snapshots |
+
+The key insight: **TA snapshots and raw candles are ephemeral compute artifacts, not permanent records.** Nobody needs a Fair Value Gap snapshot from 3 days ago. The only things worth persisting permanently are:
+- The **Processor's final analysis output** (the trade decision) — already stored user-scoped in `analysis_outputs`.
+- The **Audit trail** — already stored in `analysis_audit_logs`.
+
+### Implementation Steps (Future)
+
+1. **Stream** candle closes into an in-memory ring buffer (e.g., last 500 candles per symbol per timeframe per user).
+2. **Compute** TA entirely in memory — no DB reads or writes for candles/snapshots.
+3. **Pass** the result directly to the Processor pipeline.
+4. **Only persist** the final trade decision and audit log (which we already do).
+5. **Result:** Daily DB writes drop from ~480,000 rows to ~5,000–10,000 rows (analysis records only). A **98% reduction**.
+
+### Prerequisite Changes
+
+- Refactor `TAOrchestrator._fetch_sequence()` to read from an in-memory candle store instead of Postgres.
+- Build a candle streaming service (ZMQ PUB/SUB from EA → Python ring buffer).
+- Add a per-user in-memory candle manager that maintains the ring buffers.
+
+### Short-Term Mitigation (Before Streaming)
+
+Add an aggressive **data pruning cron job** that permanently deletes:
+- `candles` rows older than 7 days
+- `technical_snapshots` rows older than 7 days
+- `candidates` rows where `is_active = false` and older than 14 days
+
+This keeps the DB lean without requiring the full streaming refactor.

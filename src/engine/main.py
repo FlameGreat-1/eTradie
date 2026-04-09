@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 from engine.config import get_rag_config, get_settings
 from engine.dependencies import Container
 from engine.macro.scheduler_jobs import register_macro_jobs
+from engine.shared.retention import RetentionPruner, register_retention_jobs
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider
 from engine.processor.llm.factory import create_llm_client
@@ -204,6 +205,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_sentiment=settings.poll_interval_sentiment,
         poll_economic=settings.poll_interval_economic_data,
     )
+
+    # -- Data Retention Pruning -----------------------------------------------
+    # Runs daily at 03:00 UTC to prune expired TA and Macro data.
+    # All pruned data self-heals from external sources on next cycle.
+    retention_pruner = RetentionPruner(container.db)
+    register_retention_jobs(container.scheduler, retention_pruner)
 
     # -- Broker Connection ---------------------------------------------------
     # In multi-tenant mode, every user (including admin) configures their

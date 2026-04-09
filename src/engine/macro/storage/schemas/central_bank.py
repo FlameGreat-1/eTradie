@@ -16,7 +16,6 @@ class CentralBankEventRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     bank: Mapped[str] = mapped_column(String(10), nullable=False)
     event_type: Mapped[str] = mapped_column(String(30), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
@@ -44,15 +43,14 @@ class CentralBankEventRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "bank", "title", "event_timestamp",
-            name="uq_cb_user_bank_title_ts",
+            "bank", "title", "event_timestamp",
+            name="uq_cb_bank_title_ts",
         ),
-        Index("ix_cb_events_user_id", "user_id"),
-        Index("ix_cb_events_user_bank_timestamp", "user_id", "bank", "event_timestamp"),
-        Index("ix_cb_events_user_event_type", "user_id", "event_type"),
-        Index("ix_cb_events_user_created_at", "user_id", "created_at"),
+        Index("ix_cb_events_bank_timestamp", "bank", "event_timestamp"),
+        Index("ix_cb_events_event_type", "event_type"),
+        Index("ix_cb_events_created_at", "created_at"),
         Index(
-            "ix_cb_events_user_policy_action",
-            "user_id", "policy_action", "event_timestamp",
+            "ix_cb_events_policy_action",
+            "policy_action", "event_timestamp",
         ),
     )

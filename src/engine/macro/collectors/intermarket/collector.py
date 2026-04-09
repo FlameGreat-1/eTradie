@@ -148,13 +148,13 @@ class IntermarketCollector(BaseCollector):
 
     Computes cross-asset correlation signals and persists via
     IntermarketRepository.upsert_snapshot() with deduplication on
-    (user_id, snapshot_at) to prevent unbounded row growth.
+    (snapshot_at) to prevent unbounded row growth.
     """
 
     collector_name = "intermarket"
     cache_namespace = "intermarket"
 
-    async def _do_collect(self, user_id: str) -> MarketDataSet:
+    async def _do_collect(self) -> MarketDataSet:
         # Fetch from all providers and merge results.
         # TwelveData provides core data; CommodityProxyProvider
         # fills iron_ore and dairy_gdt.
@@ -178,7 +178,6 @@ class IntermarketCollector(BaseCollector):
             async with self._db.session() as session:
                 repo = IntermarketRepository(session)
                 await repo.upsert_snapshot(
-                    user_id,
                     snapshot_data={
                         "gold_price": snapshot.gold_price,
                         "silver_price": snapshot.silver_price,
@@ -206,7 +205,7 @@ class IntermarketCollector(BaseCollector):
         )
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )

@@ -15,7 +15,6 @@ class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):
 
     async def get_latest_by_indicator(
         self,
-        user_id: str,
         currency: str,
         indicator: str,
         limit: int = 5,
@@ -23,7 +22,6 @@ class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
                 self.model.indicator == indicator,
             )
@@ -34,7 +32,6 @@ class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):
 
     async def get_by_currency(
         self,
-        user_id: str,
         currency: str,
         *,
         since: datetime | None = None,
@@ -43,7 +40,6 @@ class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.currency == currency,
             )
             .order_by(self.model.release_time.desc())
@@ -55,13 +51,11 @@ class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):
 
     async def get_recent_high_impact(
         self,
-        user_id: str,
         since: datetime,
     ) -> Sequence[EconomicReleaseRow]:
         stmt = (
             select(self.model)
             .where(
-                self.model.user_id == user_id,
                 self.model.release_time >= since,
                 self.model.impact == "HIGH",
             )

@@ -28,7 +28,7 @@ class CentralBankCollector(BaseCollector):
     collector_name = "central_bank"
     cache_namespace = "cb"
 
-    async def _do_collect(self, user_id: str) -> CentralBankDataSet:
+    async def _do_collect(self) -> CentralBankDataSet:
         all_events = []
         banks_reporting = []
         policy_actions: list[PolicyAction] = []
@@ -62,7 +62,7 @@ class CentralBankCollector(BaseCollector):
                 # Fallback: treat as speech if type is unknown
                 speeches.append(event)
 
-        # Upsert with deduplication: same user + bank + title + timestamp = one row.
+        # Upsert with deduplication: bank + title + timestamp = one row.
         async with self._db.session() as session:
             from engine.macro.storage.repositories.central_bank.event import (
                 CentralBankRepository,
@@ -123,7 +123,6 @@ class CentralBankCollector(BaseCollector):
 
                 rows.append(
                     {
-                        "user_id": user_id,
                         "bank": event.bank.value if hasattr(event, "bank") else "",
                         "event_type": (
                             event.event_type.value
@@ -152,7 +151,7 @@ class CentralBankCollector(BaseCollector):
                 await repo.bulk_upsert(
                     rows,
                     index_elements=[
-                        "user_id", "bank", "title", "event_timestamp",
+                        "bank", "title", "event_timestamp",
                     ],
                     update_fields=[
                         "content", "speaker", "tone", "tone_score",
@@ -174,7 +173,7 @@ class CentralBankCollector(BaseCollector):
 
         await self._cache.set(
             self.cache_namespace,
-            self._user_cache_key(user_id),
+            self._cache_key(),
             dataset.model_dump(mode="json"),
             self.cache_ttl,
         )
