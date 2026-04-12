@@ -264,12 +264,15 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
                     )
 
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            user_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='user-001', username='testuser', role='etradie')}"}
+            admin_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='admin-001', username='admin', role='admin')}"}
+            
+            async with AsyncClient(transport=transport, base_url="http://testserver", headers=user_headers) as client:
                 # Attach container to client for seed data access.
                 client._container = container  # type: ignore[attr-defined]
                 # Attach default auth headers for convenience.
-                client._admin_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='admin-001', username='admin', role='admin')}"}  # type: ignore[attr-defined]
-                client._user_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='user-001', username='testuser', role='etradie')}"}  # type: ignore[attr-defined]
+                client._admin_headers = admin_headers  # type: ignore[attr-defined]
+                client._user_headers = user_headers  # type: ignore[attr-defined]
                 yield client
 
 
@@ -376,6 +379,7 @@ async def seeded_client(app_client: AsyncClient) -> AsyncClient:
         for i, row_data in enumerate(seed_rows):
             row = AnalysisOutputRow(
                 id=uuid4(),
+                user_id="user-001",
                 created_at=now - timedelta(hours=len(seed_rows) - i),
                 **row_data,
             )

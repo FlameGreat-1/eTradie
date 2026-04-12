@@ -57,7 +57,7 @@ class RAGOrchestrator:
     async def retrieve_context(
         self,
         query_text: str,
-        user_id: UUID,
+        user_id: str,
         *,
         strategy: str | None = None,
         framework: str | None = None,

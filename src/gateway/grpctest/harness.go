@@ -180,14 +180,14 @@ func NewHarness(t *testing.T) *Harness {
 		settStore = settingsstore.NewStore(redisWrapper)
 	}
 
+	// Build a real TokenService so the auth interceptor works in tests.
+	tokenService := newTestTokenService()
+
 	// Scheduler (not started, just wired for SetCycleInterval).
 	var scheduler *pipeline.Scheduler
 	if symStore != nil && settStore != nil {
-		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
+		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil)
 	}
-
-	// Build a real TokenService so the auth interceptor works in tests.
-	tokenService := newTestTokenService()
 
 	// Build the real GRPCServer. Pass nil for mgmtClient (tested separately).
 	grpcSrv := server.NewGRPCServer(

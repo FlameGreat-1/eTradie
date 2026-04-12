@@ -129,6 +129,10 @@ func (tc *TickCache) pollSymbol(ctx context.Context, symbol string) {
 }
 
 func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
+	if tc.bp == nil {
+		return // No broker port available (test mode).
+	}
+
 	tc.tokenMu.RLock()
 	token := tc.authToken
 	tc.tokenMu.RUnlock()

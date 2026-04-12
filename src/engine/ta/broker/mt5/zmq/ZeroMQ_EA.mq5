@@ -130,7 +130,7 @@ void OnDeinit(const int reason)
       // NOTE: REP socket must NOT send without a prior recv (ZMQ EFSM protocol).
       // Python client detects disconnection via its own socket timeout.
       g_socket.unbind("tcp://*:" + IntegerToString(ZMQ_PORT));
-      g_socket.close();
+      // g_socket.close() removed — socket closes automatically via ~Socket() destructor
       g_initialized = false;
       
       Log(LOG_INFO, "=== eTradie ZeroMQ Bridge Stopped ===");
@@ -1060,11 +1060,10 @@ string HandlePositionClose(CJAVal &cmd)
    j["close_price"] = result.price;
    j["volume"]      = result.volume;
    j["deal_id"]     = (long)result.deal;
-   j["profit"]      = result.profit;
    j["error"]       = "";
    
    Log(LOG_INFO, "Position closed: ticket=" + IntegerToString(ticket) + 
-       " price=" + DoubleToString(result.price, 5) + " profit=" + DoubleToString(result.profit, 2));
+       " price=" + DoubleToString(result.price, 5));
    
    return j.Serialize();
 }
@@ -1204,7 +1203,7 @@ double NormalizePrice(string symbol, double price)
 }
 
 //+------------------------------------------------------------------+
-//| Convert Timeframe String to ENUM_TIMEFRAMES                      |
+//| Convert Timeframe String to ENUM_TIMEFRAMES......                |
 //+------------------------------------------------------------------+
 ENUM_TIMEFRAMES StringToTimeframe(string tf)
 {

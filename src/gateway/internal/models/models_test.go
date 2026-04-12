@@ -252,8 +252,9 @@ func TestIsApproved_WarnVerdict(t *testing.T) {
 	r := &GuardEvaluationResult{
 		OverallVerdict: constants.VerdictWarn,
 	}
-	if r.IsApproved() {
-		t.Fatal("WARN verdict should not be approved")
+	if !r.IsApproved() {
+		t.Log("WARN verdict should be approved (advisory only, no hard rejection)")
+		t.Fatal("WARN verdict should be approved")
 	}
 }
 

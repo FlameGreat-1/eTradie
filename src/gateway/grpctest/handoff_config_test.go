@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	e2e "github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
 
@@ -26,7 +27,8 @@ func TestGRPC_NotifyExecutionCompleted_NoMgmtClient(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.NotifyExecutionCompleted(ctx, &gatewayv1.NotifyExecutionCompletedRequest{
@@ -73,7 +75,8 @@ func TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	req := &gatewayv1.NotifyExecutionCompletedRequest{
@@ -119,7 +122,8 @@ func TestGRPC_SetCycleInterval_Valid(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.SetCycleInterval(ctx, &gatewayv1.SetCycleIntervalRequest{
@@ -139,7 +143,8 @@ func TestGRPC_SetCycleInterval_TooLow(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	_, err := h.Client.SetCycleInterval(ctx, &gatewayv1.SetCycleIntervalRequest{
@@ -159,7 +164,8 @@ func TestGRPC_SetCycleInterval_TooHigh(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	_, err := h.Client.SetCycleInterval(ctx, &gatewayv1.SetCycleIntervalRequest{
@@ -183,7 +189,8 @@ func TestGRPC_GetGatewayConfig(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-config-001", "testuser-config", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.GetGatewayConfig(ctx, &gatewayv1.GetGatewayConfigRequest{})
@@ -215,7 +222,8 @@ func TestGRPC_GetActiveSymbols(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.GetActiveSymbols(ctx, &gatewayv1.GetActiveSymbolsRequest{})
@@ -240,7 +248,8 @@ func TestGRPC_SetActiveSymbols_Valid(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.SetActiveSymbols(ctx, &gatewayv1.SetActiveSymbolsRequest{
@@ -265,7 +274,8 @@ func TestGRPC_ResetActiveSymbols(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.ResetActiveSymbols(ctx, &gatewayv1.ResetActiveSymbolsRequest{})
@@ -291,7 +301,8 @@ func TestGRPC_GetHealth(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.GetHealth(ctx, &gatewayv1.GetHealthRequest{})
@@ -325,7 +336,8 @@ func TestGRPC_RunCycle_InvalidSymbol_EmptyString(t *testing.T) {
 	h.Engine.TAResponse = e2e.TAResponseNoCandidates()
 	h.Engine.MacroResponse = e2e.MacroResponseFull()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
 	defer cancel()
 
 	// Send a symbol list containing an empty string.

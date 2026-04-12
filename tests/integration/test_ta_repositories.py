@@ -31,6 +31,7 @@ class TestSnapshotRepository:
             symbol = f"EURUSD_{uuid4().hex[:6]}"
 
             snapshot = await repo.create(
+                user_id="test_user_id_123",
                 symbol=symbol,
                 timeframe="H4",
                 timestamp=now,
@@ -78,6 +79,7 @@ class TestSnapshotRepository:
             empty = {}
 
             await repo.create(
+                user_id="test_user_id_123",
                 symbol=symbol, timeframe="D1", timestamp=base,
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,
@@ -89,6 +91,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
             await repo.create(
+                user_id="test_user_id_123",
                 symbol=symbol, timeframe="D1",
                 timestamp=base + timedelta(hours=4),
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
@@ -101,7 +104,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
 
-            latest = await repo.get_latest_snapshot(symbol, "D1")
+            latest = await repo.get_latest_snapshot(symbol, "D1", user_id="test_user_id_123")
             assert latest is not None
             assert latest.timestamp == base + timedelta(hours=4)
 
@@ -117,6 +120,7 @@ class TestSnapshotRepository:
             ts = datetime(2024, 7, 1, 8, 0, tzinfo=UTC)
 
             s1 = await repo.create(
+                user_id="test_user_id_123",
                 symbol=symbol, timeframe="H1", timestamp=ts,
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
                 choch_events=empty, sms_events=empty, order_blocks=empty,
@@ -128,6 +132,7 @@ class TestSnapshotRepository:
                 fibonacci_retracements=empty, dealing_ranges=empty,
             )
             s2 = await repo.create(
+                user_id="test_user_id_123",
                 symbol=symbol, timeframe="H1",
                 timestamp=ts + timedelta(hours=1),
                 swing_highs=empty, swing_lows=empty, bms_events=empty,
@@ -155,6 +160,7 @@ class TestSnapshotRepository:
 
             for i in range(3):
                 await repo.create(
+                    user_id="test_user_id_123",
                     symbol=unique_symbol, timeframe="M15",
                     timestamp=datetime(2024, 8, 1, i, 0, tzinfo=UTC),
                     swing_highs=empty, swing_lows=empty, bms_events=empty,
@@ -167,7 +173,7 @@ class TestSnapshotRepository:
                     fibonacci_retracements=empty, dealing_ranges=empty,
                 )
 
-            count = await repo.get_snapshot_count(unique_symbol, "M15")
+            count = await repo.get_snapshot_count(unique_symbol, "M15", user_id="test_user_id_123")
             assert count == 3
 
     @pytest.mark.asyncio
@@ -180,6 +186,7 @@ class TestSnapshotRepository:
             empty = {}
 
             snapshot = await repo.create(
+                user_id="test_user_id_123",
                 symbol="XAUUSD", timeframe="W1",
                 timestamp=datetime(2024, 9, 1, tzinfo=UTC),
                 swing_highs=empty, swing_lows=empty, bms_events=empty,

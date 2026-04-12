@@ -122,7 +122,7 @@ menu: ## Start the interactive guided menu
 	read choice; \
 	echo -e ""; \
 	case $$choice in \
-		1) $(MAKE) db-migrate && docker compose up -d ;; \
+		1) docker compose up -d ;; \
 		2) docker compose down ;; \
 		3) docker compose up -d --build ;; \
 		4) docker compose logs -f ;; \
@@ -195,12 +195,12 @@ clean: ## Remove generated binaries
 ##@ Database & Migrations (Python)
 db-migrate: ## Run Alembic migrations to head
 	echo -e "$(BLUE)Running database migrations...$(NC)"
-	alembic upgrade head
+	docker compose run --rm migrator alembic upgrade head
 	echo -e "$(GREEN)✓ Database is up to date$(NC)"
 
 db-downgrade: ## Downgrade database by 1 revision
 	echo -e "$(YELLOW)Downgrading database -1 revision...$(NC)"
-	alembic downgrade -1
+	docker compose run --rm migrator alembic downgrade -1
 	echo -e "$(GREEN)✓ Database downgraded$(NC)"
 
 ##@ Quality & Validation
@@ -257,9 +257,9 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 	set -a && source .env && set +a && \
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
-		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
 		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
@@ -271,9 +271,9 @@ test-go: ## Run Go unit and integration tests (requires Redis + PostgreSQL)
 	set -a && source .env && set +a && \
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
-		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
 		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
@@ -290,9 +290,9 @@ test-e2e: ## Run E2E pipeline tests (requires Redis for alert transport)
 	set -a && source .env && set +a && \
 		export POSTGRES_HOST=localhost && \
 		export REDIS_HOST=localhost && \
-		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
-		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5432/$${POSTGRES_DB}?sslmode=disable" && \
+		export DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export EXECUTION_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
+		export MANAGEMENT_DATABASE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@localhost:5433/$${POSTGRES_DB}?sslmode=disable" && \
 		export EXECUTION_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/1" && \
 		export GATEWAY_REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \
 		export REDIS_URL="redis://:$${REDIS_PASSWORD}@localhost:6379/0" && \

@@ -114,7 +114,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 			user = "etradie"
 		}
 		if pass == "" {
-			pass = "etradie_dev"
+			pass = "etradie123abcChuks"
 		}
 		if db == "" {
 			db = "etradie"
@@ -122,7 +122,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 		if host == "" {
 			host = "localhost"
 		}
-		dsn = "postgres://" + user + ":" + pass + "@" + host + ":5432/" + db + "?sslmode=disable"
+		dsn = "postgres://" + user + ":" + pass + "@" + host + ":5433/" + db + "?sslmode=disable"
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {

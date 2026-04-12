@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/flamegreat-1/etradie/proto/gateway/v1"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/e2etest"
 )
 
@@ -27,7 +28,8 @@ func TestGRPC_RunCycle_HappyPath(t *testing.T) {
 	h.Engine.RAGResponse = e2e.RAGResponseWithChunks()
 	h.Engine.ProcessorResponse = e2e.ProcessorResponseTradeValid()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
@@ -79,7 +81,8 @@ func TestGRPC_RunCycle_NoCandidates(t *testing.T) {
 	h.Engine.TAResponse = e2e.TAResponseNoCandidates()
 	h.Engine.MacroResponse = e2e.MacroResponseFull()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
@@ -112,7 +115,8 @@ func TestGRPC_RunCycle_EmptySymbols_UsesDefaults(t *testing.T) {
 	h.Engine.TAResponse = e2e.TAResponseNoCandidates()
 	h.Engine.MacroResponse = e2e.MacroResponseFull()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
@@ -144,7 +148,8 @@ func TestGRPC_ConfirmSetup_Confirmed(t *testing.T) {
 
 	h.Engine.TAResponse = e2e.TAResponseWithCandidates()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 30*time.Second)
 	defer cancel()
 
 	resp, err := h.Client.ConfirmSetup(ctx, &gatewayv1.ConfirmSetupRequest{
@@ -174,7 +179,8 @@ func TestGRPC_ConfirmSetup_ValidationError(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
 	// Missing symbol.

@@ -10,6 +10,8 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 )
 
+const testUserID = "test-user-symbols-001"
+
 func testRedisURL() string {
 	if url := os.Getenv("REDIS_URL"); url != "" {
 		return url
@@ -32,7 +34,7 @@ func testRedis(t *testing.T) *infra.RedisClient {
 		t.Fatal("Redis health check failed")
 	}
 	t.Cleanup(func() {
-		rc.Delete(context.Background(), "gateway", activeSymbolsKey)
+		rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 		rc.Close()
 	})
 	return rc
@@ -51,10 +53,10 @@ func testConfig() *config.Config {
 func TestGetActiveSymbols_ReturnsDefaults_WhenEmpty(t *testing.T) {
 	rc := testRedis(t)
 	// Ensure clean state.
-	rc.Delete(context.Background(), "gateway", activeSymbolsKey)
+	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 
 	store := NewStore(rc, testConfig())
-	symbols := store.GetActiveSymbols(context.Background())
+	symbols := store.GetActiveSymbols(context.Background(), testUserID)
 
 	if len(symbols) != 3 {
 		t.Fatalf("expected 3 default symbols, got %d: %v", len(symbols), symbols)
@@ -66,14 +68,14 @@ func TestGetActiveSymbols_ReturnsDefaults_WhenEmpty(t *testing.T) {
 
 func TestGetActiveSymbols_DefaultsAreCopy(t *testing.T) {
 	rc := testRedis(t)
-	rc.Delete(context.Background(), "gateway", activeSymbolsKey)
+	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 
 	store := NewStore(rc, testConfig())
 
-	symbols1 := store.GetActiveSymbols(context.Background())
+	symbols1 := store.GetActiveSymbols(context.Background(), testUserID)
 	symbols1[0] = "MUTATED"
 
-	symbols2 := store.GetActiveSymbols(context.Background())
+	symbols2 := store.GetActiveSymbols(context.Background(), testUserID)
 	if symbols2[0] == "MUTATED" {
 		t.Fatal("GetActiveSymbols should return a copy, not a shared reference")
 	}
@@ -88,12 +90,12 @@ func TestSetActiveSymbols_RoundTrip(t *testing.T) {
 	store := NewStore(rc, testConfig())
 	ctx := context.Background()
 
-	ok := store.SetActiveSymbols(ctx, []string{"USDJPY", "USDCHF"})
+	ok := store.SetActiveSymbols(ctx, testUserID, []string{"USDJPY", "USDCHF"})
 	if !ok {
 		t.Fatal("SetActiveSymbols should return true")
 	}
 
-	symbols := store.GetActiveSymbols(ctx)
+	symbols := store.GetActiveSymbols(ctx, testUserID)
 	if len(symbols) != 2 {
 		t.Fatalf("expected 2 symbols, got %d: %v", len(symbols), symbols)
 	}
@@ -107,9 +109,9 @@ func TestSetActiveSymbols_NormalizesToUppercase(t *testing.T) {
 	store := NewStore(rc, testConfig())
 	ctx := context.Background()
 
-	store.SetActiveSymbols(ctx, []string{"eurusd", "gbpusd"})
+	store.SetActiveSymbols(ctx, testUserID, []string{"eurusd", "gbpusd"})
 
-	symbols := store.GetActiveSymbols(ctx)
+	symbols := store.GetActiveSymbols(ctx, testUserID)
 	if symbols[0] != "EURUSD" || symbols[1] != "GBPUSD" {
 		t.Fatalf("expected uppercase, got %v", symbols)
 	}
@@ -120,9 +122,9 @@ func TestSetActiveSymbols_TrimsWhitespace(t *testing.T) {
 	store := NewStore(rc, testConfig())
 	ctx := context.Background()
 
-	store.SetActiveSymbols(ctx, []string{" EURUSD ", "\tGBPUSD\n"})
+	store.SetActiveSymbols(ctx, testUserID, []string{" EURUSD ", "\tGBPUSD\n"})
 
-	symbols := store.GetActiveSymbols(ctx)
+	symbols := store.GetActiveSymbols(ctx, testUserID)
 	if symbols[0] != "EURUSD" || symbols[1] != "GBPUSD" {
 		t.Fatalf("expected trimmed symbols, got %v", symbols)
 	}
@@ -132,7 +134,7 @@ func TestSetActiveSymbols_EmptyList_ReturnsFalse(t *testing.T) {
 	rc := testRedis(t)
 	store := NewStore(rc, testConfig())
 
-	ok := store.SetActiveSymbols(context.Background(), []string{})
+	ok := store.SetActiveSymbols(context.Background(), testUserID, []string{})
 	if ok {
 		t.Fatal("empty list should return false")
 	}
@@ -142,7 +144,7 @@ func TestSetActiveSymbols_AllWhitespace_ReturnsFalse(t *testing.T) {
 	rc := testRedis(t)
 	store := NewStore(rc, testConfig())
 
-	ok := store.SetActiveSymbols(context.Background(), []string{" ", "\t", ""})
+	ok := store.SetActiveSymbols(context.Background(), testUserID, []string{" ", "\t", ""})
 	if ok {
 		t.Fatal("all-whitespace entries should return false")
 	}
@@ -153,10 +155,10 @@ func TestSetActiveSymbols_OverwritesPrevious(t *testing.T) {
 	store := NewStore(rc, testConfig())
 	ctx := context.Background()
 
-	store.SetActiveSymbols(ctx, []string{"EURUSD", "GBPUSD"})
-	store.SetActiveSymbols(ctx, []string{"XAUUSD"})
+	store.SetActiveSymbols(ctx, testUserID, []string{"EURUSD", "GBPUSD"})
+	store.SetActiveSymbols(ctx, testUserID, []string{"XAUUSD"})
 
-	symbols := store.GetActiveSymbols(ctx)
+	symbols := store.GetActiveSymbols(ctx, testUserID)
 	if len(symbols) != 1 || symbols[0] != "XAUUSD" {
 		t.Fatalf("expected [XAUUSD] after overwrite, got %v", symbols)
 	}
@@ -172,16 +174,16 @@ func TestResetToDefaults_ClearsSelection(t *testing.T) {
 	ctx := context.Background()
 
 	// Set custom symbols.
-	store.SetActiveSymbols(ctx, []string{"USDJPY"})
+	store.SetActiveSymbols(ctx, testUserID, []string{"USDJPY"})
 
 	// Reset.
-	ok := store.ResetToDefaults(ctx)
+	ok := store.ResetToDefaults(ctx, testUserID)
 	if !ok {
 		t.Fatal("ResetToDefaults should return true")
 	}
 
 	// Should fall back to defaults.
-	symbols := store.GetActiveSymbols(ctx)
+	symbols := store.GetActiveSymbols(ctx, testUserID)
 	if len(symbols) != 3 {
 		t.Fatalf("expected 3 defaults after reset, got %d: %v", len(symbols), symbols)
 	}
@@ -192,12 +194,12 @@ func TestResetToDefaults_ClearsSelection(t *testing.T) {
 
 func TestResetToDefaults_WhenAlreadyEmpty(t *testing.T) {
 	rc := testRedis(t)
-	rc.Delete(context.Background(), "gateway", activeSymbolsKey)
+	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 
 	store := NewStore(rc, testConfig())
 
 	// Reset when nothing is set should still succeed.
-	ok := store.ResetToDefaults(context.Background())
+	ok := store.ResetToDefaults(context.Background(), testUserID)
 	if !ok {
 		t.Fatal("ResetToDefaults on empty state should return true")
 	}

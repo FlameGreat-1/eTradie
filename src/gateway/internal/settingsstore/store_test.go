@@ -9,6 +9,8 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 )
 
+const testUserID = "test-user-settings-001"
+
 func testRedisURL() string {
 	if url := os.Getenv("REDIS_URL"); url != "" {
 		return url
@@ -32,7 +34,7 @@ func testRedis(t *testing.T) *infra.RedisClient {
 	}
 	t.Cleanup(func() {
 		// Clean up test keys.
-		rc.Delete(context.Background(), "gateway", settingsKey)
+		rc.Delete(context.Background(), "gateway", settingsKey(testUserID))
 		rc.Close()
 	})
 	return rc
@@ -41,10 +43,10 @@ func testRedis(t *testing.T) *infra.RedisClient {
 func TestLoad_EmptyRedis_ReturnsDefaults(t *testing.T) {
 	rc := testRedis(t)
 	// Ensure key doesn't exist.
-	rc.Delete(context.Background(), "gateway", settingsKey)
+	rc.Delete(context.Background(), "gateway", settingsKey(testUserID))
 
 	store := NewStore(rc)
-	settings := store.Load(context.Background())
+	settings := store.Load(context.Background(), testUserID)
 
 	if settings == nil {
 		t.Fatal("Load should never return nil")
@@ -60,13 +62,13 @@ func TestSave_Load_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Save.
-	err := store.Save(ctx, &Settings{CycleIntervalSeconds: 7200})
+	err := store.Save(ctx, testUserID, &Settings{CycleIntervalSeconds: 7200})
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
 	// Load.
-	settings := store.Load(ctx)
+	settings := store.Load(ctx, testUserID)
 	if settings.CycleIntervalSeconds != 7200 {
 		t.Fatalf("expected 7200, got %d", settings.CycleIntervalSeconds)
 	}
@@ -77,12 +79,12 @@ func TestSetCycleInterval_GetCycleInterval(t *testing.T) {
 	store := NewStore(rc)
 	ctx := context.Background()
 
-	err := store.SetCycleInterval(ctx, 3600)
+	err := store.SetCycleInterval(ctx, testUserID, 3600)
 	if err != nil {
 		t.Fatalf("SetCycleInterval failed: %v", err)
 	}
 
-	got := store.GetCycleInterval(ctx)
+	got := store.GetCycleInterval(ctx, testUserID)
 	if got != 3600 {
 		t.Fatalf("expected 3600, got %d", got)
 	}
@@ -93,10 +95,10 @@ func TestSetCycleInterval_OverwritesPrevious(t *testing.T) {
 	store := NewStore(rc)
 	ctx := context.Background()
 
-	store.SetCycleInterval(ctx, 3600)
-	store.SetCycleInterval(ctx, 1800)
+	store.SetCycleInterval(ctx, testUserID, 3600)
+	store.SetCycleInterval(ctx, testUserID, 1800)
 
-	got := store.GetCycleInterval(ctx)
+	got := store.GetCycleInterval(ctx, testUserID)
 	if got != 1800 {
 		t.Fatalf("expected 1800 after overwrite, got %d", got)
 	}
@@ -105,10 +107,10 @@ func TestSetCycleInterval_OverwritesPrevious(t *testing.T) {
 func TestGetCycleInterval_NoOverride_ReturnsZero(t *testing.T) {
 	rc := testRedis(t)
 	// Ensure clean state.
-	rc.Delete(context.Background(), "gateway", settingsKey)
+	rc.Delete(context.Background(), "gateway", settingsKey(testUserID))
 
 	store := NewStore(rc)
-	got := store.GetCycleInterval(context.Background())
+	got := store.GetCycleInterval(context.Background(), testUserID)
 	if got != 0 {
 		t.Fatalf("expected 0 when no override, got %d", got)
 	}
@@ -120,12 +122,12 @@ func TestSave_OverwritesCompletely(t *testing.T) {
 	ctx := context.Background()
 
 	// Save with interval.
-	store.Save(ctx, &Settings{CycleIntervalSeconds: 9000})
+	store.Save(ctx, testUserID, &Settings{CycleIntervalSeconds: 9000})
 
 	// Overwrite with zero (clear override).
-	store.Save(ctx, &Settings{CycleIntervalSeconds: 0})
+	store.Save(ctx, testUserID, &Settings{CycleIntervalSeconds: 0})
 
-	got := store.GetCycleInterval(ctx)
+	got := store.GetCycleInterval(ctx, testUserID)
 	if got != 0 {
 		t.Fatalf("expected 0 after overwrite with zero, got %d", got)
 	}

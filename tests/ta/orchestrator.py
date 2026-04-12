@@ -34,9 +34,6 @@ class TestTAOrchestratorImports:
         from engine.ta.common.timeframe.manager import TimeframeManager
         assert TimeframeManager is not None
 
-    def test_broker_registry_importable(self):
-        from engine.ta.broker.registry import BrokerRegistry
-        assert BrokerRegistry is not None
 
 
 class TestTAConfigForOrchestrator:

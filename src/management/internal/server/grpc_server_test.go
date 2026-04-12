@@ -97,6 +97,10 @@ func (m *mockMonitor) TradeCount() int {
 	return 0
 }
 
+func (m *mockMonitor) RefreshUserTradeTokens(userID, newToken string) int {
+	return 0
+}
+
 type mockMetrics struct{}
 
 func (m *mockMetrics) Calculate(ctx context.Context, userID, period string) (*analytics.PerformanceSummary, error) {

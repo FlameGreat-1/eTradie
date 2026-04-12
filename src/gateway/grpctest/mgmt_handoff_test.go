@@ -203,13 +203,14 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		symStore = symbolstore.NewStore(redisWrapper, cfg)
 		settStore = settingsstore.NewStore(redisWrapper)
 	}
-	var scheduler *pipeline.Scheduler
-	if symStore != nil && settStore != nil {
-		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport)
-	}
 
 	// Build a real TokenService so the auth interceptor works in tests.
 	tokenService := newTestTokenService()
+
+	var scheduler *pipeline.Scheduler
+	if symStore != nil && settStore != nil {
+		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil)
+	}
 
 	// Build GRPCServer WITH the real mgmtClient.
 	grpcSrv := server.NewGRPCServer(

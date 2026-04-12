@@ -95,7 +95,7 @@ async def test_fetch_sequence_success_primary_broker(orchestrator, mock_broker, 
     expected_sequence = _make_sequence()
     mock_broker.fetch_candles.return_value = expected_sequence
 
-    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100)
+    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100, mock_broker, user_id="test-user-001")
 
     # Asserts
     assert result is expected_sequence
@@ -112,7 +112,7 @@ async def test_fetch_sequence_fails_over_to_fallback(orchestrator, mock_broker, 
     fallback_sequence = _make_sequence()
     mock_fallback_broker.fetch_candles.return_value = fallback_sequence
 
-    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100)
+    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.H1, 100, mock_broker, user_id="test-user-001")
 
     # Asserts
     assert result is fallback_sequence
@@ -126,7 +126,7 @@ async def test_fetch_sequence_both_brokers_fail(orchestrator, mock_broker, mock_
     mock_broker.fetch_candles.side_effect = Exception("MT5 Down")
     mock_fallback_broker.fetch_candles.side_effect = Exception("TwelveData Rate Limit Exceeded")
 
-    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.M15, 50)
+    result = await orchestrator._fetch_sequence("EURUSD", Timeframe.M15, 50, mock_broker, user_id="test-user-001")
 
     # If both fail and local DB is empty, it returns None
     assert result is None

@@ -22,7 +22,7 @@ class AuditService:
     async def log_retrieval(
         self,
         *,
-        user_id: UUID,
+        user_id: str,
         query_text: str,
         strategy: str,
         filters_applied: dict,
@@ -54,7 +54,7 @@ class AuditService:
     async def log_citations(
         self,
         *,
-        user_id: UUID,
+        user_id: str,
         retrieval_log_id: UUID,
         citations: list[Citation],
     ) -> int:

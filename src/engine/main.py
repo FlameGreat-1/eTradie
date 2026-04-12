@@ -212,16 +212,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     retention_pruner = RetentionPruner(container.db)
     register_retention_jobs(container.scheduler, retention_pruner)
 
-    # -- Broker Connection ---------------------------------------------------
-    # In multi-tenant mode, every user (including admin) configures their
-    # own broker connection via the dashboard. There is no platform-level
-    # broker. Per-user broker connections are resolved at request time via
-    # _resolve_user_broker(container, user.user_id).
     await container.build_broker()
 
-    # -- Processor LLM -------------------------------------------------------
-    # In multi-tenant mode, per-user LLM connections are resolved at
-    # request time. At startup, only env-var config is used.
     await container.build_processor()
     logger.info(
         "processor_built",
@@ -229,11 +221,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         model=container.processor_config.model_name,
     )
 
-    # -- TA Data Infrastructure ----------------------------------------------
-    # TA data fetching happens per-user when the Go gateway triggers
-    # /internal/ta/analyze with the user's JWT. The user's broker is
-    # resolved at request time. There are no platform-level TA scheduler
-    # jobs because there is no platform broker.
     # The Go gateway owns the symbol selection via Redis.
     # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
     symbol_reader = RedisSymbolReader(cache=container.cache)
@@ -502,6 +489,7 @@ def create_app() -> FastAPI:
         try:
             bundle = await container.rag_orchestrator.retrieve_context(
                 body.query_text,
+                user.user_id,
                 strategy=body.strategy,
                 framework=body.framework,
                 setup_family=body.setup_family,
@@ -1026,6 +1014,7 @@ def create_app() -> FastAPI:
         try:
             bundle = await container.rag_orchestrator.retrieve_context(
                 query_text,
+                user.user_id,
                 strategy=None,
                 framework=ta_signals["framework"] or None,
                 setup_family=(

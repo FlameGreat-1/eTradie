@@ -483,24 +483,24 @@ class TAOrchestrator:
                 )
                 try:
                     sequence = await active_broker.fetch_candles(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    start_time=start_time,
-                    end_time=end_time,
-                    count=lookback_periods,
-                )
-                if sequence and sequence.count > 0:
-                    return sequence
-            except Exception as e:
-                self._logger.error(
-                    "broker_fetch_failed",
-                    extra={
-                        "symbol": symbol,
-                        "timeframe": timeframe.value,
-                        "error": str(e),
-                    },
-                    exc_info=True,
-                )
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        start_time=start_time,
+                        end_time=end_time,
+                        count=lookback_periods,
+                    )
+                    if sequence and sequence.count > 0:
+                        return sequence
+                except Exception as e:
+                    self._logger.error(
+                        "broker_fetch_failed",
+                        extra={
+                            "symbol": symbol,
+                            "timeframe": timeframe.value,
+                            "error": str(e),
+                        },
+                        exc_info=True,
+                    )
 
                 if self.fallback_client:
                     self._logger.info(

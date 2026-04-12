@@ -78,7 +78,7 @@ class TestSuccess:
     async def test_long_setup(self, cfg, ctx):
         llm = MockLLM(text=_valid_json())
         p = AnalysisProcessor(config=cfg, llm_client=llm)
-        r = await p.process(ctx, trace_id="t")
+        r = await p.process(ctx, user_id="test_user_id_123", trace_id="t")
         assert r.trade_valid is True
         assert r.direction == "LONG"
         assert r.grade == "A"
@@ -90,7 +90,7 @@ class TestSuccess:
     async def test_no_setup(self, cfg, ctx):
         llm = MockLLM(text=_valid_json(direction="NO SETUP", grade="REJECT", proceed="NO"))
         p = AnalysisProcessor(config=cfg, llm_client=llm)
-        r = await p.process(ctx, trace_id="t")
+        r = await p.process(ctx, user_id="test_user_id_123", trace_id="t")
         assert r.trade_valid is False
         assert r.direction is None
 
@@ -101,7 +101,7 @@ class TestInsufficientData:
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}))
+            await p.process(ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}), user_id="test_user_id_123")
         assert llm.call_count == 0
 
     @pytest.mark.asyncio
@@ -109,14 +109,14 @@ class TestInsufficientData:
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}))
+            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}), user_id="test_user_id_123")
 
     @pytest.mark.asyncio
     async def test_empty_rag(self, cfg):
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [{"p": 1}]}, retrieved_knowledge={}))
+            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [{"p": 1}]}, retrieved_knowledge={}), user_id="test_user_id_123")
 
 
 class TestErrors:
@@ -125,11 +125,11 @@ class TestErrors:
         llm = MockLLM(text="not json")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorError):
-            await p.process(ctx)
+            await p.process(ctx, user_id="test_user_id_123")
 
     @pytest.mark.asyncio
     async def test_llm_failure(self, cfg, ctx):
         llm = MockLLM(fail=True)
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorError):
-            await p.process(ctx)
+            await p.process(ctx, user_id="test_user_id_123")

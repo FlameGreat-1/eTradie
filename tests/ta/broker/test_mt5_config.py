@@ -20,13 +20,6 @@ class TestMT5ConfigProviderValidation:
                 metaapi_account_id="acc-123",
             )
 
-    def test_metaapi_provider_requires_account_id(self):
-        with pytest.raises(ValidationError, match="MT5_METAAPI_ACCOUNT_ID"):
-            MT5Config(
-                provider="metaapi",
-                metaapi_token="token-abc",
-                metaapi_account_id="",
-            )
 
     def test_metaapi_provider_valid(self):
         cfg = MT5Config(

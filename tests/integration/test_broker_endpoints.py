@@ -12,9 +12,28 @@ from datetime import UTC, datetime
 from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import time
+
+import jwt as pyjwt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+# Deterministic JWT for broker integration tests
+_BROKER_TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-must-be-long-enough-64chars-ok"
+
+def _broker_test_jwt() -> str:
+    now = int(time.time())
+    payload = {
+        "sub": "broker-test-user",
+        "username": "brokertest",
+        "role": "etradie",
+        "iss": "etradie",
+        "iat": now,
+        "exp": now + 3600,
+    }
+    return pyjwt.encode(payload, _BROKER_TEST_JWT_SECRET, algorithm="HS256")
+
 
 from engine.ta.broker.base import (
     AccountInfo,
@@ -138,10 +157,17 @@ def mock_broker() -> MockBroker:
 @pytest_asyncio.fixture
 async def client(mock_broker):
     """FastAPI test client with mock broker injected into Container."""
+    import os
+    env_overrides = {
+        "AUTH_JWT_SECRET": _BROKER_TEST_JWT_SECRET,
+        "AUTH_ISSUER": "etradie",
+        "APP_ENV": "testing",
+    }
     # Patch Container so it doesn't try to connect to real DB/Redis/broker
-    with patch("engine.main.Container") as MockContainer:
+    with patch.dict(os.environ, env_overrides), patch("engine.main.Container") as MockContainer:
         container = MagicMock()
         container.mt5_client = mock_broker
+        container.load_user_broker = AsyncMock(return_value=mock_broker)
         container.cache = AsyncMock()
         container.cache.health_check = AsyncMock(return_value=True)
         container.cache.set = AsyncMock()
@@ -157,8 +183,9 @@ async def client(mock_broker):
         # Manually set container on app state (lifespan won't run in test)
         app.state.container = container
 
+        auth_headers = {"Authorization": f"Bearer {_broker_test_jwt()}"}
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers) as ac:
             yield ac
 
 

@@ -147,7 +147,7 @@ def upgrade() -> None:
 
         op.add_column(
             table_name,
-            sa.Column("user_id", sa.String(64), nullable=False),
+            sa.Column("user_id", sa.String(64), nullable=False, server_default="system"),
         )
 
         index_name = _USER_ID_INDEXES[table_name]

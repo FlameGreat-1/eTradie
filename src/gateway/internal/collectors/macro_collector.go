@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
