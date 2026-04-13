@@ -10,7 +10,7 @@ from engine.ta.constants import Timeframe, Direction, StructureType
 
 class StructureEvent(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     event_type: StructureType
     timestamp: datetime
@@ -38,7 +38,7 @@ class StructureEvent(FrozenModel):
 
 class BreakOfStructure(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -79,7 +79,7 @@ class BreakOfStructure(FrozenModel):
 
 class ChangeOfCharacter(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -120,7 +120,7 @@ class ChangeOfCharacter(FrozenModel):
 
 class BreakInMarketStructure(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -162,7 +162,7 @@ class BreakInMarketStructure(FrozenModel):
 
 class ShiftInMarketStructure(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -217,7 +217,7 @@ class SRFlip(FrozenModel):
     - is_valid: whether the flip is confirmed
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     original_support_level: float = Field(gt=0)
@@ -279,7 +279,7 @@ class RSFlip(FrozenModel):
     - is_valid: whether the flip is confirmed
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     original_resistance_level: float = Field(gt=0)

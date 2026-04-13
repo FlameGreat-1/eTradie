@@ -10,6 +10,9 @@
 .SILENT:
 MAKEFLAGS += --no-print-directory
 
+# Dynamically extract Windows Host IP for WSL traffic routing
+export WSL_HOST_IP ?= $(shell ip route show default | awk '{print $$3}')
+
 # Force bash shell instead of Ubuntu's default dash shell for 'echo -e' support
 SHELL := /bin/bash
 

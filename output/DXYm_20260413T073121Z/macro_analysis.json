@@ -1,0 +1,93 @@
+{
+  "central_bank": {
+    "id": "96bfffb5-9180-4374-9012-4b70ebfcf292",
+    "created_at": "2026-04-13T07:31:20.638350Z",
+    "rate_decisions": [],
+    "speeches": [],
+    "meeting_minutes": [],
+    "forward_guidance": [],
+    "policy_actions": [],
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA"
+    ],
+    "collected_at": "2026-04-13T07:31:20.638281Z"
+  },
+  "cot": null,
+  "economic": null,
+  "news": null,
+  "calendar": null,
+  "dxy": {
+    "id": "bddc89e1-1b7f-40e7-8bcc-9bd8d2cdc257",
+    "created_at": "2026-04-13T07:30:42.057394Z",
+    "snapshots": [
+      {
+        "id": "3c02ae70-fbed-4ee9-8a9e-de0e2c18ec44",
+        "created_at": "2026-04-13T07:30:42.057265Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-13T07:30:42.057220Z",
+        "source": "twelve_data"
+      }
+    ],
+    "latest": {
+      "id": "3c02ae70-fbed-4ee9-8a9e-de0e2c18ec44",
+      "created_at": "2026-04-13T07:30:42.057265Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-13T07:30:42.057220Z",
+      "source": "twelve_data"
+    },
+    "sources": [
+      "twelve_data"
+    ],
+    "collected_at": "2026-04-13T07:30:42.057363Z"
+  },
+  "intermarket": null,
+  "sentiment": {
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ],
+    "risk_environment": "NEUTRAL",
+    "risk_assessment": {
+      "id": "7e068302-1ffa-45db-9b18-cbcd43a3e82d",
+      "created_at": "2026-04-13T07:30:41.815991Z",
+      "environment": "NEUTRAL",
+      "vix_level": null,
+      "yield_curve_inverted": false,
+      "safe_haven_demand_elevated": false,
+      "commodity_currencies_weak": false,
+      "stagflation_detected": false,
+      "reasoning": [],
+      "assessed_at": "2026-04-13T07:30:41.816021Z"
+    },
+    "collected_at": "2026-04-13T07:30:41.813940+00:00"
+  }
+}

@@ -116,6 +116,7 @@ services:
       - ./pyproject.toml:/app/pyproject.toml:ro
       - ./knowledge:/app/knowledge:ro
       - ./model_cache:/home/etradie/.cache
+      - ./output:/output
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,7 +127,7 @@ services:
     networks:
       - etradie-net
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:${WSL_HOST_IP:-host-gateway}"
     deploy:
       resources:
         limits:

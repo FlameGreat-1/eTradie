@@ -9,7 +9,7 @@ from engine.ta.constants import Timeframe, Direction
 
 class SwingPoint(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     price: float = Field(gt=0)
@@ -35,7 +35,7 @@ class SwingPoint(FrozenModel):
 
 class SwingHigh(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     price: float = Field(gt=0)
@@ -70,7 +70,7 @@ class SwingHigh(FrozenModel):
 
 class SwingLow(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     price: float = Field(gt=0)

@@ -71,6 +71,8 @@ class LiquidityType(StrEnum):
     EQUAL_LOWS = "EQUAL_LOWS"
     INDUCEMENT = "INDUCEMENT"
     COMPRESSION = "COMPRESSION"
+    PDH_SWEEP = "PDH_SWEEP"
+    PDL_SWEEP = "PDL_SWEEP"
 
 
 class ZoneType(StrEnum):

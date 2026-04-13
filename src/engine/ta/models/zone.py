@@ -10,7 +10,7 @@ from engine.ta.constants import Timeframe, Direction, ZoneType
 
 class Zone(FrozenModel):
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     zone_type: ZoneType
     upper_bound: float = Field(gt=0)
@@ -66,7 +66,7 @@ class Zone(FrozenModel):
 
 class OrderBlock(FrozenModel):
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
@@ -128,7 +128,7 @@ class OrderBlock(FrozenModel):
 
 class FairValueGap(FrozenModel):
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
@@ -189,7 +189,7 @@ class FairValueGap(FrozenModel):
 
 class BreakerBlock(FrozenModel):
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
@@ -260,7 +260,7 @@ class SupplyZone(FrozenModel):
     upper_bound/lower_bound are derived from max/min of qml and sr_flip.
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
@@ -331,7 +331,7 @@ class DemandZone(FrozenModel):
     upper_bound/lower_bound are derived from max/min of qmh and rs_flip.
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     upper_bound: float = Field(gt=0)
     lower_bound: float = Field(gt=0)
@@ -410,7 +410,7 @@ class QuasiModoLevel(FrozenModel):
     For bullish QM (QMH): L -> LL -> break above L = QMH
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     qml_price: float = Field(gt=0)
     timestamp: datetime
@@ -515,7 +515,7 @@ class MiniPriceLevel(FrozenModel):
     - Type 2: MPL breaks cleanly without internal structure
     """
 
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     level: float = Field(gt=0)
     timestamp: datetime

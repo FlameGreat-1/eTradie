@@ -65,7 +65,7 @@ def create_mt5_broker(
     if config.provider == "native":
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config)
+        client = ZmqClient(config=config, auth_token=config.zmq_auth_token)
         logger.info(
             "mt5_broker_created",
             extra={
@@ -123,6 +123,7 @@ def create_mt5_broker_from_connection(
             metaapi_base_url="",
             zmq_host=row.ea_host,
             zmq_port=row.ea_port,
+            zmq_auth_token=ea_auth_token,
             terminal_path=None,
             account=0,
             password="",
@@ -137,7 +138,7 @@ def create_mt5_broker_from_connection(
 
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config)
+        client = ZmqClient(config=config, auth_token=ea_auth_token)
         logger.info(
             "mt5_broker_created_from_db",
             extra={

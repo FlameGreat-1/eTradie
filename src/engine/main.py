@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime as dt, timezone
 from typing import AsyncIterator, Optional
@@ -45,6 +47,7 @@ from engine.shared.metrics.prometheus import APP_INFO
 from engine.shared.models.currency import get_correlation_config
 from engine.shared.store import RedisSymbolReader
 from engine.shared.tracing.otel import init_tracing
+from engine.shared.exceptions import ProcessorInsufficientDataError
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
@@ -304,6 +307,40 @@ class InternalRAGRequest(BaseModel):
 class InternalProcessorRequest(BaseModel):
     processor_input: dict
     trace_id: Optional[str] = None
+class CreateLLMConnectionRequest(BaseModel):
+    provider: str
+    model_name: str
+    api_key: str
+    base_url: Optional[str] = None
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    max_output_tokens: int = Field(default=16384, ge=1024, le=131072)
+    label: Optional[str] = None
+    activate: bool = True
+
+class UpdateLLMConnectionRequest(BaseModel):
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+    max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
+    label: Optional[str] = None
+
+class CreateBrokerConnectionRequest(BaseModel):
+    connection_type: str  # 'ea' or 'metaapi'
+    name: str
+    # MetaAPI: user's MT5 broker credentials
+    mt5_login: Optional[str] = None
+    mt5_password: Optional[str] = None
+    mt5_server: Optional[str] = None
+    # EA: no user-facing fields (auto from env)
+    activate: bool = True
+
+class UpdateBrokerConnectionRequest(BaseModel):
+    name: Optional[str] = None
+    mt5_server: Optional[str] = None
+    mt5_login: Optional[str] = None
+    mt5_password: Optional[str] = None
 
 
 def create_app() -> FastAPI:
@@ -836,6 +873,48 @@ def create_app() -> FastAPI:
 
     # -- Re-run analysis endpoint --------------------------------------------
 
+    def _save_rerun_output(
+        symbol: str,
+        ta_data: dict,
+        macro_data: dict | None = None,
+        rag_data: dict | None = None,
+        processor_data: dict | None = None,
+    ) -> dict:
+        """Persist analysis outputs to /output/<symbol>_<ts>/ as separate JSON files.
+
+        Returns a dict of {label: filepath} for every file written.
+        """
+        ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out_dir = Path("/output") / f"{symbol}_{ts}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        files: dict[str, str] = {}
+
+        def _write(name: str, data: dict | None) -> None:
+            if data is None:
+                return
+            path = out_dir / f"{name}.json"
+            path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+            files[name] = str(path)
+
+        if ta_data is not None:
+            _write("ta_snapshots", ta_data.get("snapshots"))
+            _write("ta_smc_candidates", ta_data.get("smc_candidates"))
+            _write("ta_snd_candidates", ta_data.get("snd_candidates"))
+            
+            ta_meta = {k: v for k, v in ta_data.items() if k not in ("snapshots", "smc_candidates", "snd_candidates")}
+            _write("ta_metadata", ta_meta)
+            
+        _write("macro_analysis", macro_data)
+        _write("rag_knowledge", rag_data)
+        _write("processor_result", processor_data)
+
+        logger.info(
+            "rerun_output_saved",
+            extra={"symbol": symbol, "directory": str(out_dir), "files": list(files.keys())},
+        )
+        return files
+
     @app.post("/api/analysis/rerun")
     async def rerun_analysis(
         request: Request,
@@ -862,7 +941,7 @@ def create_app() -> FastAPI:
             )
         user_broker = await _resolve_user_broker(container, user.user_id)
 
-        symbol = symbol.upper().strip()
+        symbol = symbol.strip()
         if not symbol:
             raise HTTPException(status_code=400, detail="Symbol is required")
 
@@ -893,10 +972,17 @@ def create_app() -> FastAPI:
         )
         if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
             ta_error = ta_analysis.get("error", "unknown error")
-            raise HTTPException(
-                status_code=500,
-                detail=f"TA analysis failed: {ta_error}",
-            )
+            saved = _save_rerun_output(symbol, ta_data=ta_analysis)
+            return {
+                "status": "completed",
+                "symbol": symbol,
+                "result": {
+                    "direction": "NO SETUP",
+                    "reason": f"TA analysis: {ta_error}",
+                    "proceed_to_module_b": False,
+                },
+                "output_files": saved,
+            }
 
         # Step 2: Run macro collection.
         macro_analysis: dict = {}
@@ -1138,21 +1224,53 @@ def create_app() -> FastAPI:
                 user_id=user.user_id,
                 trace_id=trace_id,
             )
+        except ProcessorInsufficientDataError as exc:
+            logger.info(
+                "rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)}
+            )
+            saved = _save_rerun_output(
+                symbol,
+                ta_data=ta_analysis,
+                macro_data=macro_analysis,
+                rag_data=retrieved_knowledge,
+            )
+            return {
+                "status": "completed",
+                "symbol": symbol,
+                "result": {
+                    "direction": "NO SETUP",
+                    "reason": str(exc),
+                    "proceed_to_module_b": False,
+                },
+                "output_files": saved,
+            }
         except Exception as exc:
             logger.error(
                 "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
             )
             raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
 
+        # Build processor result dict.
         if hasattr(result, "model_dump"):
-            return {
-                "status": "completed",
-                "symbol": symbol,
-                "result": result.model_dump(mode="json"),
-            }
-        if isinstance(result, dict):
-            return {"status": "completed", "symbol": symbol, "result": result}
-        return {"status": "completed", "symbol": symbol, "result": {"raw": str(result)}}
+            processor_dict = result.model_dump(mode="json")
+        elif isinstance(result, dict):
+            processor_dict = result
+        else:
+            processor_dict = {"raw": str(result)}
+
+        saved = _save_rerun_output(
+            symbol,
+            ta_data=ta_analysis,
+            macro_data=macro_analysis,
+            rag_data=retrieved_knowledge,
+            processor_data=processor_dict,
+        )
+        return {
+            "status": "completed",
+            "symbol": symbol,
+            "result": processor_dict,
+            "output_files": saved,
+        }
 
     # -- Processor config endpoints (LLM provider/model switching) -----------
 
@@ -1255,15 +1373,7 @@ def create_app() -> FastAPI:
             }
         }
 
-    class CreateLLMConnectionRequest(BaseModel):
-        provider: str
-        model_name: str
-        api_key: str
-        base_url: Optional[str] = None
-        temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-        max_output_tokens: int = Field(default=16384, ge=1024, le=131072)
-        label: Optional[str] = None
-        activate: bool = True
+
 
     @app.post("/api/llm/connections")
     async def create_llm_connection(
@@ -1329,14 +1439,7 @@ def create_app() -> FastAPI:
             ),
         }
 
-    class UpdateLLMConnectionRequest(BaseModel):
-        provider: Optional[str] = None
-        model_name: Optional[str] = None
-        api_key: Optional[str] = None
-        base_url: Optional[str] = None
-        temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
-        max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
-        label: Optional[str] = None
+
 
     @app.put("/api/llm/connections/{connection_id}")
     async def update_llm_connection(
@@ -1642,21 +1745,9 @@ def create_app() -> FastAPI:
     # activate/deactivate/delete connections. Follows the exact same
     # pattern as the LLM Connection Management endpoints above.
 
-    class CreateBrokerConnectionRequest(BaseModel):
-        connection_type: str  # 'ea' or 'metaapi'
-        name: str
-        # MetaAPI: user's MT5 broker credentials
-        mt5_login: Optional[str] = None
-        mt5_password: Optional[str] = None
-        mt5_server: Optional[str] = None
-        # EA: no user-facing fields (auto from env)
-        activate: bool = True
 
-    class UpdateBrokerConnectionRequest(BaseModel):
-        name: Optional[str] = None
-        mt5_server: Optional[str] = None
-        mt5_login: Optional[str] = None
-        mt5_password: Optional[str] = None
+
+
 
     def _serialize_broker_connection(row) -> dict:
         """Serialize a BrokerConnectionRow to a JSON-safe dict."""

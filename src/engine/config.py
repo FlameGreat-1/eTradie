@@ -258,7 +258,6 @@ class TAConfig(BaseSettings):
         ]
     )
 
-    candle_lookback_periods: int = Field(default=500, ge=100, le=5000)
 
     snapshot_cache_ttl_seconds: int = Field(default=300, ge=60, le=3600)
 

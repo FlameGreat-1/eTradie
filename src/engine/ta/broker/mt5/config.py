@@ -45,6 +45,10 @@ class MT5Config(BaseSettings):
         le=65535,
         description="ZeroMQ REQ/REP port on the EA bridge.",
     )
+    zmq_auth_token: str = Field(
+        default="",
+        description="Authentication token for ZeroMQ EA.",
+    )
 
     # -- Legacy MT5 terminal settings (native mode only) -----------------------
     terminal_path: Optional[str] = Field(default=None)

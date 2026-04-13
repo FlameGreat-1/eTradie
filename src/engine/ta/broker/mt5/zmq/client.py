@@ -68,9 +68,10 @@ _ZMQ_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
-    def __init__(self, config: MT5Config) -> None:
+    def __init__(self, config: MT5Config, auth_token: str = "") -> None:
         super().__init__(broker_id="mt5")
         self.config = config
+        self.auth_token = auth_token or getattr(config, "zmq_auth_token", "")
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         self._ctx: zmq_async.Context | None = None  # type: ignore[type-arg]
@@ -147,9 +148,23 @@ class ZmqClient(BrokerBase):
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Thread-safe async wrapper around the ZMQ call."""
         async with self._lock:
+            was_initialized = self._initialized
             if not self._initialized:
                 self._connect_sync()
-            return await self._send_recv_async(request)
+            
+            # Auto-authenticate on first connect (or reconnect) if it's not a PING command
+            if not was_initialized and request.get("command") not in ("PING", "HEALTH"):
+                ping_reply = await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+            
+            reply = await self._send_recv_async(request)
+
+            # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
+            if isinstance(reply, dict) and reply.get("error") and "Not authenticated" in str(reply.get("error")):
+                ping_reply = await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                if isinstance(ping_reply, dict) and ping_reply.get("status") == "ok":
+                    reply = await self._send_recv_async(request)
+
+            return reply
 
     # -- BrokerBase implementation ---------------------------------------------
 
@@ -337,7 +352,7 @@ class ZmqClient(BrokerBase):
 
     async def health_check(self) -> bool:
         try:
-            reply = await self._request({"command": "PING"})
+            reply = await self._request({"command": "PING", "auth_token": self.auth_token})
             if isinstance(reply, dict):
                 return reply.get("status") == "ok"
             return False

@@ -9,7 +9,7 @@ from engine.ta.constants import Timeframe, Direction, LiquidityType
 
 class LiquidityPool(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     liquidity_type: LiquidityType
     price_level: float = Field(gt=0)
@@ -41,7 +41,7 @@ class LiquidityPool(FrozenModel):
 
 class LiquiditySweep(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     liquidity_type: LiquidityType
@@ -53,6 +53,7 @@ class LiquiditySweep(FrozenModel):
     closed_back_inside: bool = Field(default=False)
     close_price: Optional[float] = Field(default=None, gt=0)
     candle_index: int = Field(ge=0)
+    is_major_sweep: bool = Field(default=False)
     
     @field_validator("symbol")
     @classmethod
@@ -65,6 +66,7 @@ class LiquiditySweep(FrozenModel):
         return self.liquidity_type in (
             LiquidityType.BSL,
             LiquidityType.EQUAL_HIGHS,
+            LiquidityType.PDH_SWEEP,
         )
     
     @computed_field
@@ -73,6 +75,7 @@ class LiquiditySweep(FrozenModel):
         return self.liquidity_type in (
             LiquidityType.SSL,
             LiquidityType.EQUAL_LOWS,
+            LiquidityType.PDL_SWEEP,
         )
     
     @computed_field
@@ -83,7 +86,7 @@ class LiquiditySweep(FrozenModel):
 
 class LiquidityGrab(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -112,7 +115,7 @@ class LiquidityGrab(FrozenModel):
 
 class InducementEvent(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     timestamp: datetime
     inducement_level: float = Field(gt=0)
@@ -141,7 +144,7 @@ class InducementEvent(FrozenModel):
 
 class CompressionEvent(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     start_timestamp: datetime
     end_timestamp: Optional[datetime] = None
@@ -177,7 +180,7 @@ class CompressionEvent(FrozenModel):
 
 class EqualHighsLows(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     liquidity_type: LiquidityType
     price_level: float = Field(gt=0)

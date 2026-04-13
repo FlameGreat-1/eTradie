@@ -583,11 +583,13 @@ class SMCDetector:
                 if direction == Direction.BULLISH and sweep.liquidity_type.value in [
                     "SSL",
                     "EQUAL_LOWS",
+                    "PDL_SWEEP"
                 ]:
                     return sweep
                 elif direction == Direction.BEARISH and sweep.liquidity_type.value in [
                     "BSL",
                     "EQUAL_HIGHS",
+                    "PDH_SWEEP"
                 ]:
                     return sweep
 

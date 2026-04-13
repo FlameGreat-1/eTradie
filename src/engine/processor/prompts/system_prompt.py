@@ -167,11 +167,29 @@ def build_user_message(context: ProcessorInput) -> str:
     assembled by the gateway's ContextAssembler. This function
     serializes them into the JSON payload the LLM receives.
     """
+    # Strip out massive vector database metadata (scores, rankings, hashes)
+    # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
+    clean_rag = {}
+    if context.retrieved_knowledge:
+        clean_rag["strategy_used"] = context.retrieved_knowledge.get("strategy_used")
+        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", [])
+        
+        clean_rag["retrieved_chunks"] = [
+            {
+                "chunk_id": c.get("chunk_id"),
+                "document_id": c.get("document_id"),
+                "doc_type": c.get("doc_type") or c.get("metadata", {}).get("doc_type"),
+                "section": c.get("section") or c.get("metadata", {}).get("section"),
+                "content": c.get("content"),
+            }
+            for c in raw_chunks
+        ]
+
     payload: dict[str, Any] = {
         "symbol": context.symbol,
         "ta_analysis": context.ta_analysis,
         "macro_analysis": context.macro_analysis,
-        "retrieved_knowledge": context.retrieved_knowledge,
+        "retrieved_knowledge": clean_rag,
         "metadata": context.metadata,
     }
     return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()

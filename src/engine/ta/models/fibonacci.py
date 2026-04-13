@@ -17,7 +17,7 @@ from engine.ta.constants import (
 
 class FibonacciRetracement(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     swing_high: float = Field(gt=0)
     swing_low: float = Field(gt=0)
@@ -109,7 +109,7 @@ class FibonacciRetracement(FrozenModel):
 
 class PremiumDiscountZone(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     zone_type: PriceZone
     upper_bound: float = Field(gt=0)
@@ -159,7 +159,7 @@ class PremiumDiscountZone(FrozenModel):
 
 class DealingRange(FrozenModel):
     
-    symbol: str = Field(min_length=6, max_length=10)
+    symbol: str = Field(min_length=3, max_length=15)
     timeframe: Timeframe
     high: float = Field(gt=0)
     low: float = Field(gt=0)

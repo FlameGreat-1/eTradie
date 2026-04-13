@@ -202,7 +202,8 @@ class TAOrchestrator:
             # ── Phase 1: Fetch candles for every timeframe ───────────
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
-                seq = await self._fetch_sequence(symbol, tf, lookback_periods, active_broker, user_id=user_id)
+                adaptive_lookback = self._get_adaptive_lookback(tf, lookback_periods)
+                seq = await self._fetch_sequence(symbol, tf, adaptive_lookback, active_broker, user_id=user_id)
                 if seq is not None:
                     sequences[tf] = seq
 
@@ -574,6 +575,26 @@ class TAOrchestrator:
             raise ValueError(f"Unknown timeframe: {timeframe}")
         return end_time - timedelta(minutes=minutes * lookback_periods)
 
+    @staticmethod
+    def _get_adaptive_lookback(timeframe: Timeframe, default_lookback: int) -> int:
+        """
+        Derive dynamic lookback periods depending on the timeframe.
+        HTFs require far fewer candles (preventing decades of irrelevant data),
+        while LTFs need more to maintain structural integrity.
+        """
+        mapping = {
+            Timeframe.MN1: 30,
+            Timeframe.W1: 30,
+            Timeframe.D1: 60,
+            Timeframe.H4: 150,
+            Timeframe.H1: 300,
+            Timeframe.M30: 500,
+            Timeframe.M15: 750,
+            Timeframe.M5: 1000,
+            Timeframe.M1: 1500,
+        }
+        return mapping.get(timeframe, default_lookback)
+
     # ── Per-timeframe structural detection + enriched snapshot ────────
 
     def _build_enriched_snapshot(
@@ -692,10 +713,12 @@ class TAOrchestrator:
             qml_levels = self._qm_detector.detect_qml(
                 sequence,
                 swing_highs,
+                swing_lows,
             )
             qmh_levels = self._qm_detector.detect_qmh(
                 sequence,
                 swing_lows,
+                swing_highs,
             )
             all_qm_levels = qml_levels + qmh_levels
 
@@ -1128,34 +1151,34 @@ class TAOrchestrator:
             "timestamp": snapshot.timestamp.isoformat(),
             "candle_count": snapshot.candle_count,
             "trend_direction": snapshot.trend_direction.value,
-            "swing_highs": self._serialize_swing_highs(snapshot.swing_highs),
-            "swing_lows": self._serialize_swing_lows(snapshot.swing_lows),
-            "bms_events": self._serialize_bms_events(snapshot.bms_events),
-            "choch_events": self._serialize_choch_events(snapshot.choch_events),
-            "sms_events": self._serialize_sms_events(snapshot.sms_events),
-            "order_blocks": self._serialize_order_blocks(snapshot.order_blocks),
-            "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs),
-            "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks),
-            "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps),
+            "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),
+            "swing_lows": self._serialize_swing_lows(snapshot.swing_lows[-12:]),
+            "bms_events": self._serialize_bms_events(snapshot.bms_events[-5:]),
+            "choch_events": self._serialize_choch_events(snapshot.choch_events[-5:]),
+            "sms_events": self._serialize_sms_events(snapshot.sms_events[-5:]),
+            "order_blocks": self._serialize_order_blocks(snapshot.order_blocks[-5:]),
+            "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs[-5:]),
+            "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks[-5:]),
+            "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps[-8:]),
             "inducement_events": self._serialize_inducements(
-                snapshot.inducement_events
+                snapshot.inducement_events[-5:]
             ),
             "equal_highs_lows": self._serialize_equal_highs_lows(
-                snapshot.equal_highs_lows
+                snapshot.equal_highs_lows[-5:]
             ),
             "liquidity_grabs": self._serialize_liquidity_grabs(
-                snapshot.liquidity_grabs
+                snapshot.liquidity_grabs[-5:]
             ),
-            "qm_levels": self._serialize_qm_levels(snapshot.qml_levels),
-            "sr_flips": self._serialize_sr_flips(snapshot.sr_flips),
-            "rs_flips": self._serialize_rs_flips(snapshot.rs_flips),
-            "mpl_levels": self._serialize_mpl_levels(snapshot.mpl_levels),
-            "supply_zones": self._serialize_supply_zones(snapshot.supply_zones),
-            "demand_zones": self._serialize_demand_zones(snapshot.demand_zones),
+            "qm_levels": self._serialize_qm_levels(snapshot.qml_levels[-5:]),
+            "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-5:]),
+            "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-5:]),
+            "mpl_levels": self._serialize_mpl_levels(snapshot.mpl_levels[-5:]),
+            "supply_zones": self._serialize_supply_zones(snapshot.supply_zones[-5:]),
+            "demand_zones": self._serialize_demand_zones(snapshot.demand_zones[-5:]),
             "fibonacci_retracements": self._serialize_fibonacci(
                 snapshot.fibonacci_retracements
             ),
-            "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges),
+            "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges[-3:]),
             "total_structure_events": snapshot.total_structure_events,
             "total_liquidity_events": snapshot.total_liquidity_events,
             "total_zones": snapshot.total_zones,
