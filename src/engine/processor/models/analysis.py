@@ -14,9 +14,14 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from engine.shared.models.base import FrozenModel, TimestampedModel
+
+
+def _coerce_none_to_empty_str(v):
+    """Coerce None to empty string for optional-in-practice str fields."""
+    return v if v is not None else ""
 
 
 class EvidenceItem(FrozenModel):
@@ -123,6 +128,11 @@ class StopLossOutput(FrozenModel):
     reason: str = ""
     evidence: list[EvidenceItem] = Field(default_factory=list)
 
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _coerce_reason(cls, v):
+        return _coerce_none_to_empty_str(v)
+
 
 class TakeProfitLevel(FrozenModel):
     """A single take profit target."""
@@ -130,6 +140,11 @@ class TakeProfitLevel(FrozenModel):
     level: Optional[float] = None
     size_pct: int = 0  # percentage of position to close
     basis: str = ""  # structural reasoning
+
+    @field_validator("basis", mode="before")
+    @classmethod
+    def _coerce_basis(cls, v):
+        return _coerce_none_to_empty_str(v)
 
 
 class RAGSourceCitation(FrozenModel):
