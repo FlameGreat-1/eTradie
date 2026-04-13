@@ -1248,7 +1248,22 @@ def create_app() -> FastAPI:
             logger.error(
                 "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
             )
-            raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
+            saved = _save_rerun_output(
+                symbol,
+                ta_data=ta_analysis,
+                macro_data=macro_analysis,
+                rag_data=retrieved_knowledge,
+            )
+            return {
+                "status": "error",
+                "symbol": symbol,
+                "result": {
+                    "direction": "LLM_ERROR",
+                    "reason": f"Processor failed: {exc}",
+                    "proceed_to_module_b": False,
+                },
+                "output_files": saved,
+            }
 
         # Build processor result dict.
         if hasattr(result, "model_dump"):
