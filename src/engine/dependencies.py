@@ -305,7 +305,13 @@ class Container:
         self.candle_analyzer = CandleAnalyzer()
         self.swing_analyzer = SwingAnalyzer()
         self.fibonacci_analyzer = FibonacciAnalyzer()
-        self.marubozu_analyzer = MarubozuAnalyzer()
+        # Wire SnD config values into MarubozuAnalyzer so .env
+        # settings (SND_MARUBOZU_BODY_PERCENTAGE_THRESHOLD,
+        # SND_MARUBOZU_MAX_WICK_PERCENTAGE) are respected.
+        self.marubozu_analyzer = MarubozuAnalyzer(
+            min_body_percentage=self.snd_config.marubozu_body_percentage_threshold,
+            max_wick_percentage=self.snd_config.marubozu_max_wick_percentage,
+        )
         self.compression_analyzer = CompressionAnalyzer()
         self.liquidity_analyzer = LiquidityAnalyzer()
         self.sweep_analyzer = SweepAnalyzer()
