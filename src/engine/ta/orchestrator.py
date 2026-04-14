@@ -617,23 +617,27 @@ class TAOrchestrator:
             swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
 
             # ── SMC structure events ─────────────────────────────────
+            # Bullish BMS = price breaks above a previous swing HIGH.
+            # Bearish BMS = price breaks below a previous swing LOW.
             bms_bullish = self._bms_detector.detect_bullish_bms(
                 sequence,
-                swing_lows,
+                swing_highs,
             )
             bms_bearish = self._bms_detector.detect_bearish_bms(
                 sequence,
-                swing_highs,
+                swing_lows,
             )
             all_bms = bms_bullish + bms_bearish
 
+            # Bullish ChoCH = price breaks above a minor swing HIGH.
+            # Bearish ChoCH = price breaks below a minor swing LOW.
             choch_bullish = self._choch_detector.detect_bullish_choch(
                 sequence,
-                swing_lows,
+                swing_highs,
             )
             choch_bearish = self._choch_detector.detect_bearish_choch(
                 sequence,
-                swing_highs,
+                swing_lows,
             )
             all_choch = choch_bullish + choch_bearish
 
