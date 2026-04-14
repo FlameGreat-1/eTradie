@@ -48,6 +48,9 @@ class RSFlipDetector:
         For each swing high (Resistance level), look for a bullish Marubozu
         that closes above it. That Marubozu breaks Resistance -> the level
         flips to Support.
+
+        Uses timeframe-aware Marubozu detection so that LTF candles
+        are not held to the same absolute pip displacement as HTF.
         """
         rs_flips = []
 
@@ -58,7 +61,9 @@ class RSFlipDetector:
             for i in range(swing_high.index + 1, len(sequence.candles)):
                 candle = sequence.candles[i]
 
-                if not self.marubozu_analyzer.is_bullish_marubozu(candle):
+                if not self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(
+                    candle, sequence.timeframe
+                ):
                     continue
 
                 if candle.close <= swing_high.price:
@@ -117,4 +122,6 @@ class RSFlipDetector:
 
         breakout_candle = sequence.candles[rs_flip.candle_index]
 
-        return self.marubozu_analyzer.is_bullish_marubozu(breakout_candle)
+        return self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(
+            breakout_candle, sequence.timeframe
+        )

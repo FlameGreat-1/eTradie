@@ -2,10 +2,26 @@ from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import calculate_body_percentage
-from engine.ta.constants import Direction
+from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 
 logger = get_logger(__name__)
+
+# Timeframe scaling factors for Marubozu displacement threshold.
+# Higher timeframes naturally produce larger candles, so the minimum
+# displacement must scale accordingly.  Lower timeframes produce
+# smaller candles, so the threshold is reduced.
+_TF_DISPLACEMENT_SCALE: dict[Timeframe, float] = {
+    Timeframe.M1: 0.15,
+    Timeframe.M5: 0.25,
+    Timeframe.M15: 0.40,
+    Timeframe.M30: 0.55,
+    Timeframe.H1: 1.00,
+    Timeframe.H4: 2.00,
+    Timeframe.D1: 5.00,
+    Timeframe.W1: 12.00,
+    Timeframe.MN1: 25.00,
+}
 
 
 class MarubozuAnalyzer:
@@ -22,6 +38,11 @@ class MarubozuAnalyzer:
         self.min_displacement_pips = min_displacement_pips
 
     def is_marubozu(self, candle: Candle) -> bool:
+        """Check if candle is a Marubozu using the base displacement threshold.
+
+        This method does NOT scale by timeframe.  Use
+        is_marubozu_for_timeframe() when the timeframe is known.
+        """
         body_pct = calculate_body_percentage(
             candle.open,
             candle.close,
@@ -51,11 +72,75 @@ class MarubozuAnalyzer:
 
         return True
 
+    def is_marubozu_for_timeframe(
+        self,
+        candle: Candle,
+        timeframe: Timeframe,
+    ) -> bool:
+        """Check if candle is a Marubozu with timeframe-scaled displacement.
+
+        The displacement threshold is scaled per timeframe so that LTF
+        candles (M1, M5, M15) are not held to the same absolute pip
+        standard as HTF candles (H4, D1).  Body percentage and wick
+        percentage thresholds remain constant across timeframes.
+        """
+        body_pct = calculate_body_percentage(
+            candle.open,
+            candle.close,
+            candle.high,
+            candle.low,
+        )
+
+        if body_pct < self.min_body_percentage:
+            return False
+
+        if candle.upper_wick_percentage > self.max_wick_percentage:
+            return False
+
+        if candle.lower_wick_percentage > self.max_wick_percentage:
+            return False
+
+        from engine.ta.common.utils.price.math import calculate_pips
+
+        displacement = calculate_pips(
+            candle.open,
+            candle.close,
+            candle.symbol,
+        )
+
+        scale = _TF_DISPLACEMENT_SCALE.get(timeframe, 1.0)
+        scaled_threshold = self.min_displacement_pips * scale
+
+        if displacement < scaled_threshold:
+            return False
+
+        return True
+
     def is_bullish_marubozu(self, candle: Candle) -> bool:
         return candle.is_bullish and self.is_marubozu(candle)
 
     def is_bearish_marubozu(self, candle: Candle) -> bool:
         return candle.is_bearish and self.is_marubozu(candle)
+
+    def is_bullish_marubozu_for_timeframe(
+        self,
+        candle: Candle,
+        timeframe: Timeframe,
+    ) -> bool:
+        """Bullish Marubozu check with timeframe-scaled displacement."""
+        return candle.is_bullish and self.is_marubozu_for_timeframe(
+            candle, timeframe
+        )
+
+    def is_bearish_marubozu_for_timeframe(
+        self,
+        candle: Candle,
+        timeframe: Timeframe,
+    ) -> bool:
+        """Bearish Marubozu check with timeframe-scaled displacement."""
+        return candle.is_bearish and self.is_marubozu_for_timeframe(
+            candle, timeframe
+        )
 
     def detect_marubozu_sequence(
         self,
@@ -68,7 +153,7 @@ class MarubozuAnalyzer:
         while i < len(sequence.candles):
             candle = sequence.candles[i]
 
-            if not self.is_marubozu(candle):
+            if not self.is_marubozu_for_timeframe(candle, sequence.timeframe):
                 i += 1
                 continue
 
@@ -80,7 +165,9 @@ class MarubozuAnalyzer:
             while j < len(sequence.candles):
                 next_candle = sequence.candles[j]
 
-                if not self.is_marubozu(next_candle):
+                if not self.is_marubozu_for_timeframe(
+                    next_candle, sequence.timeframe
+                ):
                     break
 
                 next_direction = (
@@ -138,7 +225,7 @@ class MarubozuAnalyzer:
         strongest_displacement = 0.0
 
         for i, candle in enumerate(sequence.candles):
-            if not self.is_marubozu(candle):
+            if not self.is_marubozu_for_timeframe(candle, sequence.timeframe):
                 continue
 
             from engine.ta.common.utils.price.math import calculate_pips

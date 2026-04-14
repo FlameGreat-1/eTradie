@@ -48,6 +48,9 @@ class SRFlipDetector:
         For each swing low (Support level), look for a bearish Marubozu
         that closes below it. That Marubozu breaks Support -> the level
         flips to Resistance.
+
+        Uses timeframe-aware Marubozu detection so that LTF candles
+        are not held to the same absolute pip displacement as HTF.
         """
         sr_flips = []
 
@@ -58,7 +61,9 @@ class SRFlipDetector:
             for i in range(swing_low.index + 1, len(sequence.candles)):
                 candle = sequence.candles[i]
 
-                if not self.marubozu_analyzer.is_bearish_marubozu(candle):
+                if not self.marubozu_analyzer.is_bearish_marubozu_for_timeframe(
+                    candle, sequence.timeframe
+                ):
                     continue
 
                 if candle.close >= swing_low.price:
@@ -117,4 +122,6 @@ class SRFlipDetector:
 
         breakout_candle = sequence.candles[sr_flip.candle_index]
 
-        return self.marubozu_analyzer.is_bearish_marubozu(breakout_candle)
+        return self.marubozu_analyzer.is_bearish_marubozu_for_timeframe(
+            breakout_candle, sequence.timeframe
+        )
