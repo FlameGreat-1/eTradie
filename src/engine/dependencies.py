@@ -161,7 +161,11 @@ class Container:
         ):
             self.registry.register(p)
 
-        self.cftc_provider = CFTCProvider(h, base_url=s.cftc_api_base_url)
+        self.cftc_provider = CFTCProvider(
+            h,
+            base_url=s.cftc_api_base_url,
+            app_token=getattr(s, "cftc_app_token", "") or "",
+        )
         self.registry.register(self.cftc_provider)
 
         self.fred_provider = FREDEconomicProvider(
