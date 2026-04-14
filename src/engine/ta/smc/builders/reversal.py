@@ -4,6 +4,7 @@ from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -69,6 +70,7 @@ class ReversalBuilder:
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
+        swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
         if htf_sms.direction != Direction.BULLISH:
             return None
@@ -117,7 +119,9 @@ class ReversalBuilder:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.lower_bound - (10 * pip_val)
-        take_profit = htf_sms.failed_level + (50 * pip_val)
+        take_profit = self._find_nearest_bsl_target(
+            entry_price, swing_highs or [], pip_val,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -177,6 +181,7 @@ class ReversalBuilder:
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
+        swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
         if htf_sms.direction != Direction.BEARISH:
             return None
@@ -225,7 +230,9 @@ class ReversalBuilder:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.upper_bound + (10 * pip_val)
-        take_profit = htf_sms.failed_level - (50 * pip_val)
+        take_profit = self._find_nearest_ssl_target(
+            entry_price, swing_lows or [], pip_val,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -278,6 +285,7 @@ class ReversalBuilder:
         self,
         ltf_sequence: CandleSequence,
         sweep: LiquiditySweep,
+        swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
         if not sweep.closed_back_inside:
             return None
@@ -291,7 +299,9 @@ class ReversalBuilder:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
         stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
-        take_profit = sweep.swept_level + (sweep.sweep_pips * 2 * pip_val)
+        take_profit = self._find_nearest_bsl_target(
+            entry_price, swing_highs or [], pip_val,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -327,6 +337,7 @@ class ReversalBuilder:
         self,
         ltf_sequence: CandleSequence,
         sweep: LiquiditySweep,
+        swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
         if not sweep.closed_back_inside:
             return None
@@ -340,7 +351,9 @@ class ReversalBuilder:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
         stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
-        take_profit = sweep.swept_level - (sweep.sweep_pips * 2 * pip_val)
+        take_profit = self._find_nearest_ssl_target(
+            entry_price, swing_lows or [], pip_val,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -399,6 +412,50 @@ class ReversalBuilder:
             confluences += 1
 
         return confluences
+
+    def _find_nearest_bsl_target(
+        self,
+        entry_price: float,
+        swing_highs: list[SwingHigh],
+        pip_val: float,
+    ) -> float:
+        """Find the nearest BSL (swing high) above entry as the TP target.
+
+        Per SMC rules: price runs from liquidity to liquidity.
+        TP must always target the next draw on liquidity — the nearest
+        opposing swing high (BSL) above the entry for bullish trades.
+        If no structural target is found, returns None so the LLM
+        can determine the TP independently.
+        """
+        candidates = [
+            sh.price for sh in swing_highs
+            if sh.price > entry_price
+        ]
+        if candidates:
+            return min(candidates)
+        return None
+
+    def _find_nearest_ssl_target(
+        self,
+        entry_price: float,
+        swing_lows: list[SwingLow],
+        pip_val: float,
+    ) -> float:
+        """Find the nearest SSL (swing low) below entry as the TP target.
+
+        Per SMC rules: price runs from liquidity to liquidity.
+        TP must always target the next draw on liquidity — the nearest
+        opposing swing low (SSL) below the entry for bearish trades.
+        If no structural target is found, returns None so the LLM
+        can determine the TP independently.
+        """
+        candidates = [
+            sl.price for sl in swing_lows
+            if sl.price < entry_price
+        ]
+        if candidates:
+            return max(candidates)
+        return None
 
     def _get_fib_level(
         self,

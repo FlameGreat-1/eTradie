@@ -103,3 +103,6 @@ But, I added a powerful override feature for the Gateway. Because the Gateway ho
 **Summary:** The Execution Service (Module B) does 100% of the heavy lifting (placing orders, watching ticks, calling for confirmation), but the Gateway (Module A) now has the power to dictate the mode and tell Execution when a trade is already "pre-confirmed" to save time.
 
 
+
+
+

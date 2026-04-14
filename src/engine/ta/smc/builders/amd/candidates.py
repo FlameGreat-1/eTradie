@@ -4,6 +4,7 @@ from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -60,6 +61,7 @@ class AMDCandidateBuilder:
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
+        swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
@@ -121,9 +123,16 @@ class AMDCandidateBuilder:
         stop_loss = ltf_ob.lower_bound - (10 * pip_val)
 
         if amd_context.asian_range:
-            take_profit = amd_context.asian_range.high + (50 * pip_val)
+            # Use Asian range high as baseline, but prefer structural BSL
+            take_profit = self._find_nearest_bsl_target(
+                entry_price, swing_highs or [], pip_val,
+            )
+            if take_profit is None:
+                take_profit = amd_context.asian_range.high
         else:
-            take_profit = entry_price + (100 * pip_val)
+            take_profit = self._find_nearest_bsl_target(
+                entry_price, swing_highs or [], pip_val,
+            )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -195,6 +204,7 @@ class AMDCandidateBuilder:
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
+        swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
@@ -256,9 +266,16 @@ class AMDCandidateBuilder:
         stop_loss = ltf_ob.upper_bound + (10 * pip_val)
 
         if amd_context.asian_range:
-            take_profit = amd_context.asian_range.low - (50 * pip_val)
+            # Use Asian range low as baseline, but prefer structural SSL
+            take_profit = self._find_nearest_ssl_target(
+                entry_price, swing_lows or [], pip_val,
+            )
+            if take_profit is None:
+                take_profit = amd_context.asian_range.low
         else:
-            take_profit = entry_price - (100 * pip_val)
+            take_profit = self._find_nearest_ssl_target(
+                entry_price, swing_lows or [], pip_val,
+            )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -349,6 +366,36 @@ class AMDCandidateBuilder:
             confluences += 1
 
         return confluences
+
+    def _find_nearest_bsl_target(
+        self,
+        entry_price: float,
+        swing_highs: list[SwingHigh],
+        pip_val: float,
+    ) -> float:
+        """Find the nearest BSL (swing high) above entry as the TP target."""
+        candidates = [
+            sh.price for sh in swing_highs
+            if sh.price > entry_price
+        ]
+        if candidates:
+            return min(candidates)
+        return None
+
+    def _find_nearest_ssl_target(
+        self,
+        entry_price: float,
+        swing_lows: list[SwingLow],
+        pip_val: float,
+    ) -> float:
+        """Find the nearest SSL (swing low) below entry as the TP target."""
+        candidates = [
+            sl.price for sl in swing_lows
+            if sl.price < entry_price
+        ]
+        if candidates:
+            return max(candidates)
+        return None
 
     def _get_fib_level(
         self,

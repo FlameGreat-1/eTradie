@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "symbol": "EURUSD",
+  "symbol": "EURUSDm",
   "htf_timeframes": [
     "W1",
     "D1",
@@ -13,25 +13,9 @@
     "M5",
     "M1"
   ],
-  "smc_candidates_count": 0,
+  "smc_candidates_count": 33,
   "snd_candidates_count": 0,
   "alignment": {
-    "W1_D1": {
-      "htf_timeframe": "W1",
-      "ltf_timeframe": "D1",
-      "trends_aligned": false,
-      "htf_ltf_aligned": false,
-      "htf_trend": "NEUTRAL",
-      "ltf_trend": "NEUTRAL",
-      "alignment_metadata": {
-        "trends_aligned": false,
-        "zones_nested": false,
-        "htf_trend": "NEUTRAL",
-        "ltf_trend": "NEUTRAL",
-        "htf_timeframe": "W1",
-        "ltf_timeframe": "D1"
-      }
-    },
     "D1_H4": {
       "htf_timeframe": "D1",
       "ltf_timeframe": "H4",
@@ -57,7 +41,7 @@
       "ltf_trend": "NEUTRAL",
       "alignment_metadata": {
         "trends_aligned": false,
-        "zones_nested": true,
+        "zones_nested": false,
         "htf_trend": "BULLISH",
         "ltf_trend": "NEUTRAL",
         "htf_timeframe": "H4",
@@ -70,12 +54,12 @@
       "trends_aligned": false,
       "htf_ltf_aligned": false,
       "htf_trend": "NEUTRAL",
-      "ltf_trend": "NEUTRAL",
+      "ltf_trend": "BULLISH",
       "alignment_metadata": {
         "trends_aligned": false,
-        "zones_nested": false,
+        "zones_nested": true,
         "htf_trend": "NEUTRAL",
-        "ltf_trend": "NEUTRAL",
+        "ltf_trend": "BULLISH",
         "htf_timeframe": "H1",
         "ltf_timeframe": "M30"
       }
@@ -83,15 +67,15 @@
     "M30_M15": {
       "htf_timeframe": "M30",
       "ltf_timeframe": "M15",
-      "trends_aligned": false,
-      "htf_ltf_aligned": false,
-      "htf_trend": "NEUTRAL",
-      "ltf_trend": "BEARISH",
+      "trends_aligned": true,
+      "htf_ltf_aligned": true,
+      "htf_trend": "BULLISH",
+      "ltf_trend": "BULLISH",
       "alignment_metadata": {
-        "trends_aligned": false,
-        "zones_nested": false,
-        "htf_trend": "NEUTRAL",
-        "ltf_trend": "BEARISH",
+        "trends_aligned": true,
+        "zones_nested": true,
+        "htf_trend": "BULLISH",
+        "ltf_trend": "BULLISH",
         "htf_timeframe": "M30",
         "ltf_timeframe": "M15"
       }
@@ -101,15 +85,31 @@
       "ltf_timeframe": "M5",
       "trends_aligned": false,
       "htf_ltf_aligned": false,
-      "htf_trend": "BEARISH",
+      "htf_trend": "BULLISH",
       "ltf_trend": "NEUTRAL",
       "alignment_metadata": {
         "trends_aligned": false,
         "zones_nested": true,
-        "htf_trend": "BEARISH",
+        "htf_trend": "BULLISH",
         "ltf_trend": "NEUTRAL",
         "htf_timeframe": "M15",
         "ltf_timeframe": "M5"
+      }
+    },
+    "M5_M1": {
+      "htf_timeframe": "M5",
+      "ltf_timeframe": "M1",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "NEUTRAL",
+      "ltf_trend": "BULLISH",
+      "alignment_metadata": {
+        "trends_aligned": false,
+        "zones_nested": false,
+        "htf_trend": "NEUTRAL",
+        "ltf_trend": "BULLISH",
+        "htf_timeframe": "M5",
+        "ltf_timeframe": "M1"
       }
     }
   },

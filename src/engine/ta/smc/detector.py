@@ -248,6 +248,8 @@ class SMCDetector:
                     ltf_fvgs,
                     ltf_inducement_bullish + ltf_inducement_bearish,
                     retracement,
+                    ltf_swing_highs,
+                    ltf_swing_lows,
                 )
             )
 
@@ -258,6 +260,8 @@ class SMCDetector:
                     ltf_sequence,
                     turtle_soup_long,
                     turtle_soup_short,
+                    ltf_swing_highs,
+                    ltf_swing_lows,
                 )
             )
 
@@ -276,6 +280,8 @@ class SMCDetector:
                     ltf_inducement_bullish + ltf_inducement_bearish,
                     turtle_soup_long + turtle_soup_short,
                     retracement,
+                    ltf_swing_highs,
+                    ltf_swing_lows,
                 )
             )
 
@@ -389,6 +395,8 @@ class SMCDetector:
         ltf_fvgs: list,
         inducement_events: list,
         retracement: Optional[FibonacciRetracement],
+        ltf_swing_highs: list = None,
+        ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
         candidates = []
 
@@ -413,6 +421,7 @@ class SMCDetector:
                     ltf_fvgs,
                     inducement_events,
                     retracement,
+                    swing_highs=ltf_swing_highs,
                 )
 
                 if candidate:
@@ -439,6 +448,7 @@ class SMCDetector:
                     ltf_fvgs,
                     inducement_events,
                     retracement,
+                    swing_lows=ltf_swing_lows,
                 )
 
                 if candidate:
@@ -451,6 +461,8 @@ class SMCDetector:
         ltf_sequence: CandleSequence,
         turtle_soup_long: list,
         turtle_soup_short: list,
+        ltf_swing_highs: list = None,
+        ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
         candidates = []
 
@@ -458,6 +470,7 @@ class SMCDetector:
             candidate = self.reversal_builder.build_turtle_soup_long(
                 ltf_sequence,
                 sweep,
+                swing_highs=ltf_swing_highs,
             )
             if candidate:
                 candidates.append(candidate)
@@ -466,6 +479,7 @@ class SMCDetector:
             candidate = self.reversal_builder.build_turtle_soup_short(
                 ltf_sequence,
                 sweep,
+                swing_lows=ltf_swing_lows,
             )
             if candidate:
                 candidates.append(candidate)
@@ -485,6 +499,8 @@ class SMCDetector:
         inducement_events: list,
         sweeps: list,
         retracement: Optional[FibonacciRetracement],
+        ltf_swing_highs: list = None,
+        ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
         candidates = []
 
@@ -513,6 +529,7 @@ class SMCDetector:
                     ltf_fvgs,
                     inducement_events,
                     retracement,
+                    swing_highs=ltf_swing_highs,
                 )
 
                 if candidate:
@@ -543,6 +560,7 @@ class SMCDetector:
                     ltf_fvgs,
                     inducement_events,
                     retracement,
+                    swing_lows=ltf_swing_lows,
                 )
 
                 if candidate:

@@ -12,7 +12,7 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 logger = get_logger(__name__)
 
 _SYMBOLS = {
-    "dxy": "DXY",
+    "dxy": "USDX",
     "gold": "XAU/USD",
     "silver": "XAG/USD",
     "oil": "CL",
