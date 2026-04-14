@@ -1,4 +1,4 @@
-"""FRED (Federal Reserve Economic Data) — US Economic Data backup provider.
+"""FRED (Federal Reserve Economic Data) -- US Economic Data backup provider.
 
 Free, official US economic data from the Federal Reserve Bank of St. Louis.
 Fetches latest observations for key macro series (CPI, GDP, unemployment,
@@ -116,17 +116,38 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
 
     async def fetch(self) -> list[EconomicRelease]:
         start = time.monotonic()
+
+        if not self._api_key:
+            logger.warning(
+                "fred_api_key_missing",
+                extra={"action": "skipping FRED provider - no API key configured"},
+            )
+            return []
+
         try:
             releases: list[EconomicRelease] = []
             for series_cfg in _FRED_SERIES:
                 release = await self._fetch_series(series_cfg)
                 if release is not None:
                     releases.append(release)
+
+            if not releases:
+                logger.warning(
+                    "fred_no_releases_fetched",
+                    extra={
+                        "series_attempted": len(_FRED_SERIES),
+                        "api_key_present": bool(self._api_key),
+                    },
+                )
+
             self._record_success(time.monotonic() - start)
             return releases
         except Exception as exc:
             self._record_failure(time.monotonic() - start, type(exc).__name__)
-            logger.error("fred_fetch_failed", error=str(exc))
+            logger.error(
+                "fred_fetch_failed",
+                extra={"error": str(exc), "error_type": type(exc).__name__},
+            )
             raise
 
     async def _fetch_series(self, series_cfg: dict[str, Any]) -> EconomicRelease | None:
@@ -136,13 +157,14 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
         (latest) and ``previous`` (prior period).  FRED does not provide
         forecast/consensus values so those fields are left as ``None``.
         """
+        series_id = series_cfg["series_id"]
         try:
             raw = await self._http.get(
                 f"{self._base_url}/series/observations",
                 provider_name=self.provider_name,
                 category=self.category.value,
                 params={
-                    "series_id": series_cfg["series_id"],
+                    "series_id": series_id,
                     "api_key": self._api_key,
                     "file_type": "json",
                     "sort_order": "desc",
@@ -151,6 +173,10 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
             )
             observations = raw.get("observations", []) if isinstance(raw, dict) else []
             if not observations:
+                logger.debug(
+                    "fred_series_no_observations",
+                    extra={"series_id": series_id},
+                )
                 return None
 
             actual = self._parse_float(observations[0].get("value"))
@@ -159,6 +185,16 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                 if len(observations) > 1
                 else None
             )
+
+            if actual is None:
+                logger.debug(
+                    "fred_series_no_actual_value",
+                    extra={
+                        "series_id": series_id,
+                        "raw_value": observations[0].get("value"),
+                    },
+                )
+                return None
 
             date_str = str(observations[0].get("date", ""))
             try:
@@ -180,8 +216,15 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                 release_time=release_time,
                 source="fred",
             )
-        except Exception:
-            logger.warning("fred_series_skipped", series_id=series_cfg["series_id"])
+        except Exception as exc:
+            logger.warning(
+                "fred_series_skipped",
+                extra={
+                    "series_id": series_id,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
+            )
             return None
 
     @staticmethod
