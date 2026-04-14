@@ -14,28 +14,45 @@ class CHOCHDetector:
     """
     Detects Change of Character (CHOCH) events.
 
-    CHOCH is the initial signal of a shift in order flow — earlier and
+    CHOCH is the initial signal of a shift in order flow -- earlier and
     smaller than BMS.
 
     CHOCH occurs when price breaks an **opposing internal** swing point:
-    - Bullish CHOCH: Price closes above a minor swing **high**
-      (strength < 5).  In a downtrend this is the first sign of buyer
-      strength — the internal highs are being broken.
-    - Bearish CHOCH: Price closes below a minor swing **low**
-      (strength < 5).  In an uptrend this is the first sign of seller
-      strength — the internal lows are being broken.
+    - Bullish CHOCH: Price closes above a minor/internal swing **high**
+      that is NOT a major structural pivot.  In a downtrend this is the
+      first sign of buyer strength -- the internal highs are being broken.
+    - Bearish CHOCH: Price closes below a minor/internal swing **low**
+      that is NOT a major structural pivot.  In an uptrend this is the
+      first sign of seller strength -- the internal lows are being broken.
+
+    Swing strength filtering:
+      The SwingAnalyzer calculates strength by counting how many of the
+      previous N candles are below/above the swing point (capped at 10).
+      With left_bars=5 and right_bars=5, most swing points naturally
+      reach strength 8-10.  Only the very strongest structural pivots
+      (strength 9-10) are excluded from CHOCH detection.  Swing points
+      with strength <= choch_max_swing_strength (default 8) are valid
+      internal/minor swings for CHOCH purposes.
 
     Confirmation requires dynamic consecutive candle closes based on the
     timeframe, so higher timeframes require more closes to avoid fakeouts:
-        - M1, M5   → 1 candle close (aggressive LTF)
-        - M15, M30 → 2 candle closes
-        - H1+      → 3 candle closes
+        - M1, M5   -> 1 candle close (aggressive LTF)
+        - M15, M30 -> 2 candle closes
+        - H1+      -> 3 candle closes
 
-    Sequence: CHOCH appears first → BMS confirms → entry on RTO to OB.
+    Sequence: CHOCH appears first -> BMS confirms -> entry on RTO to OB.
     """
+
+    # Default max swing strength for CHOCH candidates.  Swing points
+    # with strength ABOVE this value are considered major structural
+    # pivots and are excluded -- only internal/minor swings qualify.
+    DEFAULT_CHOCH_MAX_SWING_STRENGTH = 8
 
     def __init__(self, config: SMCConfig) -> None:
         self.config = config
+        self._choch_max_strength = getattr(
+            config, "choch_max_swing_strength", self.DEFAULT_CHOCH_MAX_SWING_STRENGTH
+        )
         self._logger = get_logger(__name__)
 
     # ------------------------------------------------------------------
@@ -50,9 +67,9 @@ class CHOCHDetector:
         """
         Bullish CHOCH: price breaks above a minor/internal swing HIGH.
 
-        In a downtrend (LL, LH, LL, LH …), when price closes above one
+        In a downtrend (LL, LH, LL, LH ...), when price closes above one
         of the recent internal swing highs, it signals that selling
-        pressure is fading — the first "change of character."
+        pressure is fading -- the first "change of character."
         """
         choch_events: list[ChangeOfCharacter] = []
 
@@ -65,8 +82,10 @@ class CHOCHDetector:
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for sh in sorted_highs:
-            # Only use internal/minor swing highs (strength < 5).
-            if sh.strength >= 5:
+            # Only use internal/minor swing highs -- exclude the strongest
+            # structural pivots which represent major swing points, not
+            # the internal structure breaks that CHOCH targets.
+            if sh.strength > self._choch_max_strength:
                 continue
 
             level = sh.price
@@ -116,7 +135,7 @@ class CHOCHDetector:
                 broken_level_timestamp=sh.timestamp,
                 breakout_price=breakout_candle.close,
                 candle_index=first_break_idx,
-                is_minor=True,
+                is_minor=sh.strength <= 5,
             )
 
             choch_events.append(choch)
@@ -129,10 +148,10 @@ class CHOCHDetector:
                     "broken_level": level,
                     "breakout_price": breakout_candle.close,
                     "swing_strength": sh.strength,
+                    "max_strength_threshold": self._choch_max_strength,
                     "confirm_candles_required": required_closes,
                 },
             )
-            break  # Only detect the first break per swing high
 
         return choch_events
 
@@ -144,9 +163,9 @@ class CHOCHDetector:
         """
         Bearish CHOCH: price breaks below a minor/internal swing LOW.
 
-        In an uptrend (HH, HL, HH, HL …), when price closes below one
+        In an uptrend (HH, HL, HH, HL ...), when price closes below one
         of the recent internal swing lows, it signals that buying
-        pressure is fading — the first "change of character."
+        pressure is fading -- the first "change of character."
         """
         choch_events: list[ChangeOfCharacter] = []
 
@@ -159,8 +178,10 @@ class CHOCHDetector:
         required_closes = self._get_required_confirmations(sequence.timeframe)
 
         for sl in sorted_lows:
-            # Only use internal/minor swing lows (strength < 5).
-            if sl.strength >= 5:
+            # Only use internal/minor swing lows -- exclude the strongest
+            # structural pivots which represent major swing points, not
+            # the internal structure breaks that CHOCH targets.
+            if sl.strength > self._choch_max_strength:
                 continue
 
             level = sl.price
@@ -210,7 +231,7 @@ class CHOCHDetector:
                 broken_level_timestamp=sl.timestamp,
                 breakout_price=breakout_candle.close,
                 candle_index=first_break_idx,
-                is_minor=True,
+                is_minor=sl.strength <= 5,
             )
 
             choch_events.append(choch)
@@ -223,10 +244,10 @@ class CHOCHDetector:
                     "broken_level": level,
                     "breakout_price": breakout_candle.close,
                     "swing_strength": sl.strength,
+                    "max_strength_threshold": self._choch_max_strength,
                     "confirm_candles_required": required_closes,
                 },
             )
-            break  # Only detect the first break per swing low
 
         return choch_events
 
