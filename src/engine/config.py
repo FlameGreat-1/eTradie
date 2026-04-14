@@ -80,8 +80,13 @@ class Settings(BaseSettings):
     redis_socket_connect_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
 
     # ── API Keys — Data Providers ────────────────────────────
-    # CFTC (no key required — public API)
+    # CFTC Socrata API (public, but app token strongly recommended)
     cftc_api_base_url: str = "https://publicreporting.cftc.gov/resource"
+    cftc_app_token: str = Field(
+        default="",
+        description="CFTC Socrata app token for reliable COT data access. "
+        "Register free at https://publicreporting.cftc.gov/profile/edit/developer_settings",
+    )
 
     # Twelve Data — primary market data provider
     twelvedata_api_key: str = Field(default="", description="TwelveData API key")

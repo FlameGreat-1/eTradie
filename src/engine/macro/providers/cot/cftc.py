@@ -30,12 +30,32 @@ _CFTC_TFF_DATASET_ID = "gpe5-46if"
 
 
 class CFTCProvider(BaseCOTProvider):
+    """Fetch COT data from the CFTC Socrata API.
+
+    The CFTC publishes Commitments of Traders reports via a Socrata
+    open data portal.  Without an app token, requests are throttled
+    to approximately 1 per minute and may be blocked entirely during
+    high-traffic periods.  An app token is strongly recommended.
+
+    Register for a free app token at:
+    https://publicreporting.cftc.gov/profile/edit/developer_settings
+
+    Set CFTC_APP_TOKEN in .env to enable authenticated access.
+    """
+
     provider_name = "cftc"
 
-    def __init__(self, http_client: HttpClient, *, base_url: str) -> None:
+    def __init__(
+        self,
+        http_client: HttpClient,
+        *,
+        base_url: str,
+        app_token: str = "",
+    ) -> None:
         super().__init__()
         self._http = http_client
         self._base_url = base_url.rstrip("/")
+        self._app_token = app_token
 
     async def fetch(self) -> COTReport:
         start = time.monotonic()
@@ -44,7 +64,27 @@ class CFTCProvider(BaseCOTProvider):
                 _CFTC_LEGACY_DATASET_ID,
                 where="market_and_exchange_names LIKE '%CHICAGO MERCANTILE%'",
             )
+
+            if not legacy_raw:
+                logger.warning(
+                    "cftc_legacy_empty_response",
+                    extra={
+                        "dataset_id": _CFTC_LEGACY_DATASET_ID,
+                        "has_app_token": bool(self._app_token),
+                    },
+                )
+
             positions = self._parse_legacy_positions(legacy_raw)
+
+            if not positions:
+                logger.warning(
+                    "cftc_no_positions_parsed",
+                    extra={
+                        "raw_rows": len(legacy_raw),
+                        "has_app_token": bool(self._app_token),
+                    },
+                )
+
             report_date = positions[0].report_date if positions else date.today()
 
             tff_positions: list[TFFPosition] = []
@@ -67,18 +107,28 @@ class CFTCProvider(BaseCOTProvider):
             return report
         except Exception as exc:
             self._record_failure(time.monotonic() - start, type(exc).__name__)
-            logger.error("cftc_fetch_failed", error=str(exc))
+            logger.error(
+                "cftc_fetch_failed",
+                error=str(exc),
+                extra={"has_app_token": bool(self._app_token)},
+            )
             raise
 
     async def _fetch_dataset(
         self, dataset_id: str, *, where: str
     ) -> list[dict[str, Any]]:
         url = f"{self._base_url}/{dataset_id}.json"
-        params = {
+        params: dict[str, str] = {
             "$order": "report_date_as_yyyy_mm_dd DESC",
             "$limit": "100",
             "$where": where,
         }
+
+        # Socrata app token for authenticated access (higher rate limits).
+        # Without this, requests are throttled and may return 403.
+        if self._app_token:
+            params["$$app_token"] = self._app_token
+
         raw = await self._http.get(
             url,
             provider_name=self.provider_name,
