@@ -1,7 +1,8 @@
-from typing import Optional
+from typing import ClassVar, Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import is_within_tolerance
+from engine.ta.constants import Timeframe
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.swing import SwingHigh, SwingLow
 
@@ -9,6 +10,34 @@ logger = get_logger(__name__)
 
 
 class SwingAnalyzer:
+
+    # Timeframe-adaptive bar requirements for higher timeframes.
+    #
+    # HTFs (D1, W1, MN1) naturally have far fewer candles per
+    # lookback window (30-60 candles vs 300-1500 on LTF).  Using
+    # the default left_bars=5 / right_bars=5 on these timeframes
+    # causes two critical data quality problems:
+    #
+    #   1. The last `right_bars` candles can NEVER be swing points,
+    #      which means recent swing structure in the final 5 candles
+    #      is invisible -- exactly where the most actionable data is.
+    #
+    #   2. During impulsive V-shaped recoveries or corrections where
+    #      every candle makes a new high/low, intermediate swing
+    #      points never satisfy the right-side confirmation check
+    #      because the next candle immediately exceeds them.
+    #
+    # These reduced values ensure intermediate swing structure is
+    # captured -- enabling BMS, CHoCH, SMS, and trend direction to
+    # accurately reflect recent price action on higher timeframes.
+    #
+    # LTF timeframes (M1-H4) are NOT affected and retain the
+    # original left_bars=5 / right_bars=5 defaults.
+    _HTF_BAR_OVERRIDES: ClassVar[dict[Timeframe, tuple[int, int]]] = {
+        Timeframe.D1: (3, 3),
+        Timeframe.W1: (2, 2),
+        Timeframe.MN1: (2, 2),
+    }
 
     def __init__(
         self,
@@ -21,25 +50,47 @@ class SwingAnalyzer:
         self.right_bars = right_bars
         self.equal_tolerance_pips = equal_tolerance_pips
 
+    def _get_effective_bars(
+        self,
+        sequence: CandleSequence,
+    ) -> tuple[int, int]:
+        """Return (left_bars, right_bars) adapted for the sequence's timeframe.
+
+        For HTF timeframes (D1, W1, MN1) where candle counts are
+        naturally low (30-60), the default left_bars=5 / right_bars=5
+        prevents detection of intermediate swing structure during
+        impulsive recovery or correction phases.  This method returns
+        reduced bar requirements for those timeframes while preserving
+        the original defaults for all LTF timeframes (M1-H4).
+
+        Returns:
+            Tuple of (effective_left_bars, effective_right_bars).
+        """
+        override = self._HTF_BAR_OVERRIDES.get(sequence.timeframe)
+        if override is not None:
+            return override
+        return (self.left_bars, self.right_bars)
+
     def detect_swing_highs(
         self,
         sequence: CandleSequence,
     ) -> list[SwingHigh]:
         swing_highs = []
         candles = sequence.candles
+        effective_left, effective_right = self._get_effective_bars(sequence)
 
-        for i in range(self.left_bars, len(candles) - self.right_bars):
+        for i in range(effective_left, len(candles) - effective_right):
             current = candles[i]
 
             is_swing_high = True
 
-            for j in range(i - self.left_bars, i):
+            for j in range(i - effective_left, i):
                 if candles[j].high >= current.high:
                     is_swing_high = False
                     break
 
             if is_swing_high:
-                for j in range(i + 1, i + self.right_bars + 1):
+                for j in range(i + 1, i + effective_right + 1):
                     if candles[j].high >= current.high:
                         is_swing_high = False
                         break
@@ -58,8 +109,8 @@ class SwingAnalyzer:
                     price=current.high,
                     index=i,
                     strength=self._calculate_strength(candles, i, is_high=True),
-                    left_bars=self.left_bars,
-                    right_bars=self.right_bars,
+                    left_bars=effective_left,
+                    right_bars=effective_right,
                     is_equal_high=is_equal,
                     equal_high_tolerance_pips=(
                         self.equal_tolerance_pips if is_equal else None
@@ -76,19 +127,20 @@ class SwingAnalyzer:
     ) -> list[SwingLow]:
         swing_lows = []
         candles = sequence.candles
+        effective_left, effective_right = self._get_effective_bars(sequence)
 
-        for i in range(self.left_bars, len(candles) - self.right_bars):
+        for i in range(effective_left, len(candles) - effective_right):
             current = candles[i]
 
             is_swing_low = True
 
-            for j in range(i - self.left_bars, i):
+            for j in range(i - effective_left, i):
                 if candles[j].low <= current.low:
                     is_swing_low = False
                     break
 
             if is_swing_low:
-                for j in range(i + 1, i + self.right_bars + 1):
+                for j in range(i + 1, i + effective_right + 1):
                     if candles[j].low <= current.low:
                         is_swing_low = False
                         break
@@ -107,8 +159,8 @@ class SwingAnalyzer:
                     price=current.low,
                     index=i,
                     strength=self._calculate_strength(candles, i, is_high=False),
-                    left_bars=self.left_bars,
-                    right_bars=self.right_bars,
+                    left_bars=effective_left,
+                    right_bars=effective_right,
                     is_equal_low=is_equal,
                     equal_low_tolerance_pips=(
                         self.equal_tolerance_pips if is_equal else None

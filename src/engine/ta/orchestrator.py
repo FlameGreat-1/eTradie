@@ -669,6 +669,27 @@ class TAOrchestrator:
                 if ob is not None:
                     order_blocks.append(ob)
 
+            # ── OB mitigation check ──────────────────────────────────
+            # Mark OBs that have been traded through as mitigated.
+            # The OB is created with mitigated=False by default.  If
+            # subsequent candles close through the zone, the OB's
+            # institutional intent has been consumed and it should
+            # not be presented as a fresh, tradeable zone.
+            #
+            # OrderBlock extends FrozenModel so we use model_copy()
+            # to produce an updated instance.
+            for idx, ob in enumerate(order_blocks):
+                mitigated, mitigated_at = self._mitigation_detector.check_ob_mitigation(
+                    ob, sequence,
+                )
+                if mitigated:
+                    order_blocks[idx] = ob.model_copy(
+                        update={
+                            "mitigated": True,
+                            "mitigation_timestamp": mitigated_at,
+                        },
+                    )
+
             breaker_blocks = []
             for ob in order_blocks:
                 breaker = self._breaker_detector.detect_breaker_from_ob(

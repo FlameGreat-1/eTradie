@@ -63,6 +63,11 @@ class COTSignalOutput(FrozenModel):
     extreme_flag: bool = False
     evidence: list[EvidenceItem] = Field(default_factory=list)
 
+    @field_validator("summary", mode="before")
+    @classmethod
+    def _coerce_summary(cls, v):
+        return _coerce_none_to_empty_str(v)
+
 
 class EventRiskItem(FrozenModel):
     """A single upcoming high-impact event."""
