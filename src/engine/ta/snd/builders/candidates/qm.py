@@ -122,7 +122,9 @@ class QMCandidateBuilder:
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
@@ -227,7 +229,9 @@ class QMCandidateBuilder:
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             previous_highs_count=previous_highs.touch_count,
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
@@ -335,7 +339,9 @@ class QMCandidateBuilder:
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
@@ -443,7 +449,9 @@ class QMCandidateBuilder:
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             previous_lows_count=previous_lows.touch_count,
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
@@ -524,6 +532,19 @@ class QMCandidateBuilder:
                 confluences += 2
 
         return confluences
+
+    def _check_compression(
+        self,
+        sequence: CandleSequence,
+        fakeout_tests: list[FakeoutTest],
+    ) -> bool:
+        """Check if real compression exists at the fakeout zone."""
+        if not fakeout_tests:
+            return False
+        last_fakeout = fakeout_tests[-1]
+        return self.ltf_validator.validate_compression_at_zone(
+            sequence, fakeout_tests,
+        )
 
     def _get_fib_level(
         self,

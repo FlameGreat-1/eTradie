@@ -249,6 +249,23 @@ class SnDDetector:
                         if candidate:
                             candidates.append(candidate)
 
+                # Build continuation candidates (bearish)
+                # Requires 2+ fakeout tests + previous highs (stricter)
+                if matching_previous_highs and len(fakeout_tests) >= 2:
+                    for prev_high in matching_previous_highs:
+                        candidate = self.continuation_builder.build_continuation_short(
+                            htf_sequence,
+                            ltf_sequence,
+                            qml,
+                            sr_flip.new_resistance_level,
+                            fakeout_tests,
+                            breakout_candle_index,
+                            prev_high,
+                            retracement,
+                        )
+                        if candidate:
+                            candidates.append(candidate)
+
         # Build QMH-based candidates (bullish setups)
         for qmh in htf_qmh_levels:
             matching_previous_lows = (
@@ -323,6 +340,22 @@ class SnDDetector:
                         candidate = self.fakeout_builder.build_fakeout_king_long(
                             htf_sequence,
                             ltf_sequence,
+                            rs_flip.new_support_level,
+                            fakeout_tests,
+                            breakout_candle_index,
+                            prev_low,
+                            retracement,
+                        )
+                        if candidate:
+                            candidates.append(candidate)
+
+                # Build continuation candidates (bullish)
+                if matching_previous_lows and len(fakeout_tests) >= 2:
+                    for prev_low in matching_previous_lows:
+                        candidate = self.continuation_builder.build_continuation_long(
+                            htf_sequence,
+                            ltf_sequence,
+                            qmh,
                             rs_flip.new_support_level,
                             fakeout_tests,
                             breakout_candle_index,
