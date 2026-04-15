@@ -67,6 +67,10 @@ class SMCConfig(BaseSettings):
     # proximity measure that works across all timeframes.
     fvg_max_candle_distance: int = Field(default=5, ge=1, le=20)
 
+    # --- Sweep association settings ---
+    # Maximum candle-index distance for sweep-to-BMS association.
+    sweep_max_candle_distance: int = Field(default=10, ge=3, le=30)
+
     # --- Zone freshness / mitigation settings ---
     # Minimum percentage of the candle body that must close through the
     # OB zone for it to count as true mitigation.  A wick into the zone

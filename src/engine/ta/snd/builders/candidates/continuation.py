@@ -140,7 +140,9 @@ class ContinuationCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             previous_highs_count=previous_highs.touch_count,
@@ -259,7 +261,9 @@ class ContinuationCandidateBuilder:
             fakeout_detected=len(fakeout_tests) > 0,
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
-            compression_detected=True,
+            compression_detected=self._check_compression(
+                ltf_sequence, fakeout_tests,
+            ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             previous_lows_count=previous_lows.touch_count,
@@ -308,6 +312,18 @@ class ContinuationCandidateBuilder:
                 confluences += 2
 
         return confluences
+
+    def _check_compression(
+        self,
+        sequence: CandleSequence,
+        fakeout_tests: list,
+    ) -> bool:
+        """Check if real compression exists at the fakeout zone."""
+        if not fakeout_tests:
+            return False
+        return self.ltf_validator.validate_compression_at_zone(
+            sequence, fakeout_tests,
+        )
 
     def _get_fib_level(
         self,

@@ -31,7 +31,35 @@ class CandidateRepository:
         self._logger = get_logger(__name__)
 
     async def create_smc_candidate(self, candidate: SMCCandidate, *, user_id: str) -> CandidateSchema:
-        """Create SMC candidate record owned by user_id."""
+        """Create SMC candidate record owned by user_id.
+
+        Deduplicates by (user_id, symbol, pattern, direction, entry_price
+        rounded to 4 decimals) to prevent duplicate candidates from
+        repeated analysis runs.
+        """
+        # Check for existing duplicate
+        existing = await self.session.execute(
+            select(CandidateSchema).where(
+                and_(
+                    CandidateSchema.user_id == user_id,
+                    CandidateSchema.symbol == candidate.symbol,
+                    CandidateSchema.pattern == candidate.pattern.value,
+                    CandidateSchema.direction == candidate.direction.value,
+                    CandidateSchema.entry_price == round(candidate.entry_price, 4),
+                    CandidateSchema.is_active == True,
+                )
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            self._logger.debug(
+                "smc_candidate_duplicate_skipped",
+                extra={
+                    "symbol": candidate.symbol,
+                    "pattern": candidate.pattern.value,
+                    "entry_price": candidate.entry_price,
+                },
+            )
+            return existing.scalar_one_or_none()
         schema = CandidateSchema(
             user_id=user_id,
             symbol=candidate.symbol,
@@ -95,7 +123,33 @@ class CandidateRepository:
         return schema
 
     async def create_snd_candidate(self, candidate: SnDCandidate, *, user_id: str) -> CandidateSchema:
-        """Create SnD candidate record owned by user_id."""
+        """Create SnD candidate record owned by user_id.
+
+        Deduplicates by (user_id, symbol, pattern, direction, entry_price
+        rounded to 4 decimals).
+        """
+        existing = await self.session.execute(
+            select(CandidateSchema).where(
+                and_(
+                    CandidateSchema.user_id == user_id,
+                    CandidateSchema.symbol == candidate.symbol,
+                    CandidateSchema.pattern == candidate.pattern.value,
+                    CandidateSchema.direction == candidate.direction.value,
+                    CandidateSchema.entry_price == round(candidate.entry_price, 4),
+                    CandidateSchema.is_active == True,
+                )
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            self._logger.debug(
+                "snd_candidate_duplicate_skipped",
+                extra={
+                    "symbol": candidate.symbol,
+                    "pattern": candidate.pattern.value,
+                    "entry_price": candidate.entry_price,
+                },
+            )
+            return existing.scalar_one_or_none()
         schema = CandidateSchema(
             user_id=user_id,
             symbol=candidate.symbol,

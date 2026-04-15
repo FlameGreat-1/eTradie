@@ -34,8 +34,8 @@ from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
 
 logger = get_logger(__name__)
 
-# Maximum candle-index distance for sweep-to-BMS association.
-_SWEEP_MAX_CANDLE_DISTANCE = 10
+# Default fallback; actual value read from config.sweep_max_candle_distance.
+_SWEEP_MAX_CANDLE_DISTANCE_DEFAULT = 10
 
 
 class SMCDetector:
@@ -926,15 +926,19 @@ class SMCDetector:
         time.  Returning None is perfectly valid and the builders
         handle it gracefully.
         """
+        max_distance = getattr(
+            self.config, "sweep_max_candle_distance",
+            _SWEEP_MAX_CANDLE_DISTANCE_DEFAULT,
+        )
         best_sweep: Optional[LiquiditySweep] = None
-        best_distance = _SWEEP_MAX_CANDLE_DISTANCE + 1
+        best_distance = max_distance + 1
 
         for sweep in sweeps:
             if sweep is None:
                 continue
 
             distance = abs(sweep.candle_index - bms.candle_index)
-            if distance > _SWEEP_MAX_CANDLE_DISTANCE:
+            if distance > max_distance:
                 continue
 
             if direction == Direction.BULLISH and sweep.liquidity_type.value in (
