@@ -44,8 +44,24 @@ func NewGatewayGRPCClient(addr string) (*GatewayGRPCClient, error) {
 	}, nil
 }
 
+// ConfirmSetupParams holds optional structural parameters for the
+// lightweight LTF confirmation path.
+type ConfirmSetupParams struct {
+	OBUpper      float64
+	OBLower      float64
+	LTFTimeframe string
+	Direction    string
+	EntryPrice   float64
+}
+
 // ConfirmSetup calls the Gateway's ConfirmSetup RPC.
 func (g *GatewayGRPCClient) ConfirmSetup(ctx context.Context, symbol, analysisID, traceID string) (*ConfirmResult, error) {
+	return g.ConfirmSetupWithParams(ctx, symbol, analysisID, traceID, nil)
+}
+
+// ConfirmSetupWithParams calls the Gateway's ConfirmSetup RPC with
+// optional structural parameters for the lightweight LTF path.
+func (g *GatewayGRPCClient) ConfirmSetupWithParams(ctx context.Context, symbol, analysisID, traceID string, params *ConfirmSetupParams) (*ConfirmResult, error) {
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -54,11 +70,22 @@ func (g *GatewayGRPCClient) ConfirmSetup(ctx context.Context, symbol, analysisID
 		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "Bearer "+rawToken)
 	}
 
-	resp, err := g.client.ConfirmSetup(callCtx, &gatewayv1.ConfirmSetupRequest{
+	req := &gatewayv1.ConfirmSetupRequest{
 		Symbol:     symbol,
 		AnalysisId: analysisID,
 		TraceId:    traceID,
-	})
+	}
+
+	// Attach structural parameters for lightweight LTF confirmation
+	if params != nil {
+		req.ObUpper = params.OBUpper
+		req.ObLower = params.OBLower
+		req.LtfTimeframe = params.LTFTimeframe
+		req.Direction = params.Direction
+		req.EntryPrice = params.EntryPrice
+	}
+
+	resp, err := g.client.ConfirmSetup(callCtx, req)
 	if err != nil {
 		return nil, fmt.Errorf("gateway confirm setup: %w", err)
 	}

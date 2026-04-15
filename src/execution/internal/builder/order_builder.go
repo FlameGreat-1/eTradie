@@ -70,6 +70,11 @@ func BuildWithMode(
 		// If the Gateway already confirmed this setup (e.g. LTF structure existed
 		// at analysis time), we start the watcher in a pre-confirmed state.
 		order.LTFConfirmed = req.LTFConfirmed
+
+		// Carry candidate structural parameters for lightweight LTF confirmation.
+		order.OBUpper = req.OBUpper
+		order.OBLower = req.OBLower
+		order.LTFTimeframe = req.LTFTimeframe
 	}
 
 	return order

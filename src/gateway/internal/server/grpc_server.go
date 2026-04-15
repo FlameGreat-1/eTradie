@@ -184,7 +184,20 @@ func (s *GRPCServer) ConfirmSetup(ctx context.Context, req *gatewayv1.ConfirmSet
 		Str("trace_id", traceID).
 		Msg("confirm_setup_received")
 
-	result := s.orchestrator.RunConfirmationPulse(ctx, symbol, analysisID, traceID)
+	// Extract optional LTF params for lightweight confirmation path
+	var ltfParams *pipeline.LTFConfirmParams
+	if req.GetObUpper() > 0 && req.GetObLower() > 0 {
+		ltfParams = &pipeline.LTFConfirmParams{
+			Symbol:       symbol,
+			Direction:    req.GetDirection(),
+			LTFTimeframe: req.GetLtfTimeframe(),
+			OBUpper:      req.GetObUpper(),
+			OBLower:      req.GetObLower(),
+			EntryPrice:   req.GetEntryPrice(),
+		}
+	}
+
+	result := s.orchestrator.RunConfirmationPulseWithParams(ctx, symbol, analysisID, traceID, ltfParams)
 
 	s.log.Info().
 		Str("symbol", symbol).

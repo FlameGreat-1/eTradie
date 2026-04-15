@@ -469,7 +469,35 @@ func (w *Watcher) confirmAndExecute(ctx context.Context) bool {
 // tryConfirmAndFire makes a single ConfirmSetup call and, if confirmed,
 // fires the market order. Returns true if the watcher should stop.
 func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
-	result, err := w.gateway.ConfirmSetup(ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID)
+	// Pass structural parameters for the lightweight LTF confirmation path.
+	// This allows the Gateway to call /internal/ta/confirm_ltf instead of
+	// re-running the full TA pipeline (~100ms vs ~5s).
+	var params *ConfirmSetupParams
+	if w.order.OBUpper > 0 && w.order.OBLower > 0 {
+		dir := "BULLISH"
+		if w.order.Direction == "SHORT" {
+			dir = "BEARISH"
+		}
+		params = &ConfirmSetupParams{
+			OBUpper:      w.order.OBUpper,
+			OBLower:      w.order.OBLower,
+			LTFTimeframe: w.order.LTFTimeframe,
+			Direction:    dir,
+			EntryPrice:   w.order.EntryPrice,
+		}
+	}
+
+	var result *ConfirmResult
+	var err error
+	if gwWithParams, ok := w.gateway.(*GatewayGRPCClient); ok && params != nil {
+		result, err = gwWithParams.ConfirmSetupWithParams(
+			ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID, params,
+		)
+	} else {
+		result, err = w.gateway.ConfirmSetup(
+			ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID,
+		)
+	}
 	if err != nil {
 		w.log.Warn().Err(err).Msg("watcher_confirm_call_failed")
 		return false // Transient error, retry on next tick.

@@ -39,6 +39,11 @@ type TradeRequest struct {
 	LTFConfirmed    bool
 	SetupType       string
 
+	// Candidate structural parameters for lightweight LTF confirmation.
+	OBUpper      float64
+	OBLower      float64
+	LTFTimeframe string
+
 	// Auth context: authenticated user who owns this trade request.
 	// Set by the gRPC server after JWT extraction. Used by the
 	// validator to query per-user state (positions, P&L limits).

@@ -57,6 +57,12 @@ type Order struct {
 	OvershootTolerance float64
 	LTFConfirmed       bool
 
+	// Candidate structural parameters for lightweight LTF confirmation.
+	// Carried from the TA candidate through ProcessorOutput → TradeRequest → Order.
+	OBUpper      float64
+	OBLower      float64
+	LTFTimeframe string
+
 	// TimeoutOverride, when > 0, overrides the style-specific watcher
 	// timeout. Used when restoring watchers after a service restart:
 	// the remaining time (original timeout minus elapsed) is set here
