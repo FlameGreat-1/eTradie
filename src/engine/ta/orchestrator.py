@@ -1038,51 +1038,59 @@ class TAOrchestrator:
         *,
         user_id: str,
     ) -> None:
-        """Persist every per-timeframe snapshot and all candidates for user_id."""
+        """Persist every per-timeframe snapshot and all candidates for user_id.
+
+        Uses bulk candidate persistence to minimize DB round-trips:
+        one dedup query + one flush per candidate type instead of
+        one query + one flush per individual candidate.
+        """
+        smc_persisted = 0
+        snd_persisted = 0
+
         async with self._ta_uow_factory() as uow:
             for tf, snapshot in snapshots.items():
                 await self._persist_snapshot(snapshot, uow, user_id=user_id)
 
-            for candidate in smc_candidates:
-                try:
-                    await uow.candidate_repo.create_smc_candidate(
-                        candidate,
-                        user_id=user_id,
-                    )
-                except Exception as e:
-                    self._logger.error(
-                        "smc_candidate_persistence_failed",
-                        extra={
-                            "symbol": candidate.symbol,
-                            "pattern": candidate.pattern.value,
-                            "error": str(e),
-                        },
-                        exc_info=True,
-                    )
+            try:
+                smc_schemas = await uow.candidate_repo.bulk_create_smc_candidates(
+                    smc_candidates,
+                    user_id=user_id,
+                )
+                smc_persisted = len(smc_schemas)
+            except Exception as e:
+                self._logger.error(
+                    "smc_candidates_bulk_persistence_failed",
+                    extra={
+                        "total_candidates": len(smc_candidates),
+                        "error": str(e),
+                    },
+                    exc_info=True,
+                )
 
-            for candidate in snd_candidates:
-                try:
-                    await uow.candidate_repo.create_snd_candidate(
-                        candidate,
-                        user_id=user_id,
-                    )
-                except Exception as e:
-                    self._logger.error(
-                        "snd_candidate_persistence_failed",
-                        extra={
-                            "symbol": candidate.symbol,
-                            "pattern": candidate.pattern.value,
-                            "error": str(e),
-                        },
-                        exc_info=True,
-                    )
+            try:
+                snd_schemas = await uow.candidate_repo.bulk_create_snd_candidates(
+                    snd_candidates,
+                    user_id=user_id,
+                )
+                snd_persisted = len(snd_schemas)
+            except Exception as e:
+                self._logger.error(
+                    "snd_candidates_bulk_persistence_failed",
+                    extra={
+                        "total_candidates": len(snd_candidates),
+                        "error": str(e),
+                    },
+                    exc_info=True,
+                )
 
         self._logger.debug(
             "persistence_completed",
             extra={
                 "snapshots_persisted": len(snapshots),
-                "smc_candidates_persisted": len(smc_candidates),
-                "snd_candidates_persisted": len(snd_candidates),
+                "smc_candidates_total": len(smc_candidates),
+                "smc_candidates_new": smc_persisted,
+                "snd_candidates_total": len(snd_candidates),
+                "snd_candidates_new": snd_persisted,
             },
         )
 
