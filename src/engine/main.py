@@ -274,6 +274,12 @@ class InternalLTFConfirmRequest(BaseModel):
     entry_price: float
     trace_id: Optional[str] = None
 
+    # Invalidation layer fields. When provided, the service runs HTF
+    # invalidation checks (OB mitigation, opposing BMS, SL blown)
+    # before the LTF confirmation checks.
+    stop_loss: Optional[float] = None
+    htf_timeframe: Optional[str] = None  # e.g. "H4" - derived from LTF if not set
+
 
 class InternalTARequest(BaseModel):
     symbols: list[str]
@@ -441,6 +447,8 @@ def create_app() -> FastAPI:
             ob_lower=body.ob_lower,
             entry_price=body.entry_price,
             trace_id=body.trace_id,
+            stop_loss=body.stop_loss,
+            htf_timeframe=body.htf_timeframe,
         )
 
         result = await container.ltf_confirmation_service.confirm(
