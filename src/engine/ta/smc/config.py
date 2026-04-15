@@ -53,6 +53,30 @@ class SMCConfig(BaseSettings):
 
     enable_combined_patterns: bool = Field(default=True)
 
+    # --- Fibonacci / OTE confluence settings ---
+    # OTE alignment is a confluence booster, not a hard gate.
+    # When an OB sits inside the OTE pocket (61.8%-78.6%) it gets the
+    # maximum Fib confluence score.  OBs at broader premium/discount
+    # (above/below equilibrium) still receive partial credit.  OBs at
+    # equilibrium receive zero Fib confluence but are NOT rejected.
+    fibonacci_tolerance_pips: float = Field(default=5.0, ge=1.0, le=20.0)
+
+    # --- FVG association settings ---
+    # Maximum number of candles between the OB candle and an associated
+    # FVG.  Replaces the old 1-hour clock-time check with a structural
+    # proximity measure that works across all timeframes.
+    fvg_max_candle_distance: int = Field(default=5, ge=1, le=20)
+
+    # --- Zone freshness / mitigation settings ---
+    # Minimum percentage of the candle body that must close through the
+    # OB zone for it to count as true mitigation.  A wick into the zone
+    # (RTO) is the entry opportunity, not invalidation.
+    # 0.0 = any body overlap counts as mitigation (old behaviour).
+    # 50.0 = at least 50% of the body must be inside the zone.
+    zone_mitigation_body_threshold: float = Field(
+        default=50.0, ge=0.0, le=100.0,
+    )
+
     @field_validator("min_confluences")
     @classmethod
     def validate_min_confluences(cls, v: int) -> int:
