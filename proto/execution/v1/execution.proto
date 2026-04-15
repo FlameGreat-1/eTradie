@@ -56,6 +56,14 @@ message ExecuteTradeRequest {
   // confirmed fast path) without spawning a price watcher.
   bool   ltf_confirmed = 22;
   string setup_type = 23;        // Passes the structural TA setup type (e.g., OB, FVG)
+
+  // Candidate structural parameters for lightweight LTF confirmation.
+  // Carried from the TA candidate through ProcessorOutput so the
+  // Execution watcher can call the fast-path /internal/ta/confirm_ltf
+  // endpoint (~100ms) instead of re-running the full TA pipeline (~5s).
+  double ob_upper = 24;           // Order Block upper bound
+  double ob_lower = 25;           // Order Block lower bound
+  string ltf_timeframe = 26;      // LTF timeframe e.g. "M5", "M15"
 }
 
 message ExecuteTradeResponse {
