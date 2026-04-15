@@ -94,7 +94,7 @@ class SnapshotBuilder:
         trend_direction = self._determine_trend_direction(
             swing_highs=swing_highs,
             swing_lows=swing_lows,
-            bos_events=bos_events or [],
+            bms_events=bms_events or [],
             choch_events=choch_events or [],
         )
 
@@ -152,24 +152,24 @@ class SnapshotBuilder:
         self,
         swing_highs: list,
         swing_lows: list,
-        bos_events: list[BreakOfStructure],
+        bms_events: list[BreakInMarketStructure],
         choch_events: list[ChangeOfCharacter],
     ) -> Direction:
         if not swing_highs or not swing_lows:
             return Direction.NEUTRAL
 
-        latest_bos = max(bos_events, key=lambda x: x.timestamp) if bos_events else None
+        latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
         latest_choch = (
             max(choch_events, key=lambda x: x.timestamp) if choch_events else None
         )
 
-        if latest_bos and latest_choch:
-            if latest_bos.timestamp > latest_choch.timestamp:
-                return latest_bos.direction
+        if latest_bms and latest_choch:
+            if latest_bms.timestamp > latest_choch.timestamp:
+                return latest_bms.direction
             else:
                 return latest_choch.direction
-        elif latest_bos:
-            return latest_bos.direction
+        elif latest_bms:
+            return latest_bms.direction
         elif latest_choch:
             return latest_choch.direction
 

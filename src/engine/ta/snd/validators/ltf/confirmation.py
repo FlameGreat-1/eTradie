@@ -182,9 +182,7 @@ class LTFConfirmationValidator:
         if not nearest_level:
             return False
 
-        level_price = self.fibonacci_analyzer.get_fib_level_price(
-            nearest_level, retracement
-        )
+        level_price = retracement.get_level_price(nearest_level)
 
         if not level_price:
             return False

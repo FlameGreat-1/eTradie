@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -83,10 +84,22 @@ class QMCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BEARISH
+        )
+
+        # SL above the structural extreme (HH that formed the QM pattern)
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
-        stop_loss = qml.level + (20 * pip_val)
-        take_profit = qml.level - (100 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        if qml.hh_price is not None:
+            stop_loss = qml.hh_price + sl_buffer
+        else:
+            stop_loss = qml.level + sl_buffer
+        
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price - (risk * 3.0)
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -105,6 +118,10 @@ class QMCandidateBuilder:
             sr_flip_detected=True,
             sr_flip_price=sr_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             compression_detected=True,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -122,6 +139,7 @@ class QMCandidateBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "confluences": confluences,
+                "marubozu_detected": marubozu_valid,
             },
         )
 
@@ -165,10 +183,22 @@ class QMCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BEARISH
+        )
+
+        # SL above the structural extreme (HH that formed the QM pattern)
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qml.level
-        stop_loss = qml.level + (20 * pip_val)
-        take_profit = qml.level - (100 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        if qml.hh_price is not None:
+            stop_loss = qml.hh_price + sl_buffer
+        else:
+            stop_loss = qml.level + sl_buffer
+            
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price - (risk * 3.0)
 
         pattern_type = (
             CandidatePattern.QML_KILLER_TYPE1
@@ -193,6 +223,10 @@ class QMCandidateBuilder:
             sr_flip_detected=True,
             sr_flip_price=sr_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             compression_detected=True,
             previous_highs_count=previous_highs.touch_count,
             mpl_detected=mpl is not None,
@@ -221,6 +255,7 @@ class QMCandidateBuilder:
                 "confluences": confluences,
                 "previous_highs_count": previous_highs.touch_count,
                 "has_mpl": mpl is not None,
+                "marubozu_detected": marubozu_valid,
             },
         )
 
@@ -259,10 +294,25 @@ class QMCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BULLISH
+        )
+
+        # SL below the structural extreme (LL that formed the QM pattern)
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
-        stop_loss = qmh.level - (20 * pip_val)
-        take_profit = qmh.level + (100 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        if qmh.ll_price is not None:
+            stop_loss = qmh.ll_price - sl_buffer
+        else:
+            stop_loss = qmh.level - sl_buffer
+        # Ensure SL is always positive
+        if stop_loss <= 0:
+            stop_loss = entry_price * 0.99
+            
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price + (risk * 3.0)
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -281,6 +331,10 @@ class QMCandidateBuilder:
             rs_flip_detected=True,
             rs_flip_price=rs_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             compression_detected=True,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -298,6 +352,7 @@ class QMCandidateBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "confluences": confluences,
+                "marubozu_detected": marubozu_valid,
             },
         )
 
@@ -341,10 +396,25 @@ class QMCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BULLISH
+        )
+
+        # SL below the structural extreme (LL that formed the QM pattern)
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = qmh.level
-        stop_loss = qmh.level - (20 * pip_val)
-        take_profit = qmh.level + (100 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        if qmh.ll_price is not None:
+            stop_loss = qmh.ll_price - sl_buffer
+        else:
+            stop_loss = qmh.level - sl_buffer
+        # Ensure SL is always positive
+        if stop_loss <= 0:
+            stop_loss = entry_price * 0.99
+            
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price + (risk * 3.0)
 
         pattern_type = (
             CandidatePattern.QMH_KILLER_TYPE1
@@ -369,6 +439,10 @@ class QMCandidateBuilder:
             rs_flip_detected=True,
             rs_flip_price=rs_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             compression_detected=True,
             previous_lows_count=previous_lows.touch_count,
             mpl_detected=mpl is not None,
@@ -397,6 +471,7 @@ class QMCandidateBuilder:
                 "confluences": confluences,
                 "previous_lows_count": previous_lows.touch_count,
                 "has_mpl": mpl is not None,
+                "marubozu_detected": marubozu_valid,
             },
         )
 
@@ -455,7 +530,48 @@ class QMCandidateBuilder:
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
-            price, retracement
-        )
-        return str(nearest_level) if nearest_level else None
+        """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
+        but only if within the configured tolerance. Returns None if no OTE
+        level is close enough — never returns 0.0 or 1.0."""
+        pip_val = float(get_pip_value(retracement.symbol))
+        tolerance = self.config.fibonacci_tolerance_pips * pip_val
+
+        best_level = None
+        best_distance = float("inf")
+
+        for level in OTE_LEVELS:
+            level_price = retracement.get_level_price(level)
+            distance = abs(price - level_price)
+            if distance <= tolerance and distance < best_distance:
+                best_distance = distance
+                best_level = level
+
+        if best_level is None:
+            return None
+
+        return str(FIBONACCI_VALUES[best_level])
+
+    def _validate_marubozu(
+        self,
+        sequence: CandleSequence,
+        breakout_candle_index: Optional[int],
+        direction: Direction,
+    ) -> tuple[bool, Optional["datetime"]]:
+        """Validate whether the breakout candle is a valid Marubozu.
+
+        Returns (is_valid, timestamp) tuple.
+        """
+        if breakout_candle_index is None:
+            return False, None
+
+        if breakout_candle_index >= len(sequence.candles):
+            return False, None
+
+        candle = sequence.candles[breakout_candle_index]
+
+        if direction == Direction.BEARISH:
+            is_valid = self.marubozu_validator.validate_bearish_marubozu(candle)
+        else:
+            is_valid = self.marubozu_validator.validate_bullish_marubozu(candle)
+
+        return is_valid, candle.timestamp if is_valid else None

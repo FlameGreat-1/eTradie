@@ -3,7 +3,7 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -120,7 +120,7 @@ class AMDCandidateBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (10 * pip_val)
+        stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
 
         if amd_context.asian_range:
             # Use Asian range high as baseline, but prefer structural BSL
@@ -263,7 +263,7 @@ class AMDCandidateBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (10 * pip_val)
+        stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
 
         if amd_context.asian_range:
             # Use Asian range low as baseline, but prefer structural SSL
@@ -402,7 +402,23 @@ class AMDCandidateBuilder:
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
-            price, retracement
-        )
-        return str(nearest_level) if nearest_level else None
+        """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
+        but only if within the configured tolerance. Returns None if no OTE
+        level is close enough — never returns 0.0 or 1.0."""
+        pip_val = float(get_pip_value(retracement.symbol))
+        tolerance = self.config.fibonacci_tolerance_pips * pip_val
+
+        best_level = None
+        best_distance = float("inf")
+
+        for level in OTE_LEVELS:
+            level_price = retracement.get_level_price(level)
+            distance = abs(price - level_price)
+            if distance <= tolerance and distance < best_distance:
+                best_distance = distance
+                best_level = level
+
+        if best_level is None:
+            return None
+
+        return str(FIBONACCI_VALUES[best_level])

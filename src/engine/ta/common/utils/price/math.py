@@ -3,7 +3,32 @@ from typing import Final
 
 from engine.shared.exceptions import ConfigurationError
 
-_JPY_PAIRS: Final[set[str]] = {
+# ── Prefix-based detection handles any broker suffix ──────────────────
+# Examples: XAUUSDm, XAUUSD.raw, XAUUSDsb, USDJPYm, US30.raw, etc.
+
+_METAL_PREFIXES: Final[tuple[str, ...]] = (
+    "XAUUSD",   # Gold
+    "XAGUSD",   # Silver
+    "XPTUSD",   # Platinum
+    "XPDUSD",   # Palladium
+    "XAUCAD",   # Gold vs CAD
+    "XAUEUR",   # Gold vs EUR
+    "XAUGBP",   # Gold vs GBP
+    "XAUAUD",   # Gold vs AUD
+    "XAGEUR",   # Silver vs EUR
+)
+
+_OIL_PREFIXES: Final[tuple[str, ...]] = (
+    "XBRUSD",   # Brent Crude
+    "XTIUSD",   # WTI Crude
+    "USOIL",    # US Oil
+    "UKOIL",    # UK Oil
+    "BRENT",    # Brent
+    "WTI",      # WTI
+    "CL",       # Crude Light (futures-style)
+)
+
+_JPY_PREFIXES: Final[tuple[str, ...]] = (
     "USDJPY",
     "EURJPY",
     "GBPJPY",
@@ -11,9 +36,14 @@ _JPY_PAIRS: Final[set[str]] = {
     "NZDJPY",
     "CADJPY",
     "CHFJPY",
-}
-
-_METAL_PAIRS: Final[set[str]] = {"XAUUSD", "XAGUSD"}
+    "SGDJPY",
+    "ZARJPY",
+    "SEKJPY",
+    "NOKJPY",
+    "HKDJPY",
+    "TRYJPY",
+    "MXNJPY",
+)
 
 # Index instruments use point-based pricing (1 point = 1 unit of price movement).
 # The pip value is set to 1.0 so that calculate_pips() returns the raw point distance.
@@ -44,6 +74,7 @@ _INDEX_PATTERNS: Final[tuple[str, ...]] = (
 _PIP_DECIMALS: Final[dict[str, int]] = {
     "JPY": 2,
     "METAL": 2,
+    "OIL": 2,
     "INDEX": 0,
     "STANDARD": 4,
 }
@@ -51,22 +82,45 @@ _PIP_DECIMALS: Final[dict[str, int]] = {
 _POINT_MULTIPLIERS: Final[dict[str, int]] = {
     "JPY": 100,
     "METAL": 100,
+    "OIL": 100,
     "INDEX": 1,
     "STANDARD": 10000,
 }
 
 
 def _get_pair_type(symbol: str) -> str:
-    symbol_upper = symbol.upper().replace("/", "").replace("_", "")
+    """Detect instrument type from symbol, handling arbitrary broker suffixes.
 
-    if symbol_upper in _METAL_PAIRS:
-        return "METAL"
+    Brokers use many suffix formats: XAUUSDm, XAUUSD.raw, XAUUSDsb,
+    USDJPYm, US30.raw, etc.  We use prefix matching so any suffix works.
+    """
+    # Strip common broker suffix separators first, then uppercase.
+    symbol_upper = symbol.upper().replace("/", "").replace("_", "").split(".")[0]
 
-    if symbol_upper in _JPY_PAIRS or symbol_upper.endswith("JPY"):
+    # Metals — prefix match (XAUUSD, XAUUSDm, XAUUSD.raw all match)
+    for prefix in _METAL_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "METAL"
+
+    # Oil / Energy — prefix match
+    for prefix in _OIL_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "OIL"
+
+    # JPY pairs — prefix match (USDJPY, USDJPYm, USDJPYsb all match)
+    for prefix in _JPY_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "JPY"
+
+    # Also catch any unknown JPY cross via suffix heuristic,
+    # but only if the base (without typical 1-3 char broker suffix) ends with JPY.
+    # e.g. "USDJPYxyz" — strip up to 3 trailing chars and check.
+    if len(symbol_upper) >= 6 and symbol_upper[:6].endswith("JPY"):
+        return "JPY"
+    if len(symbol_upper) >= 7 and symbol_upper[:7].endswith("JPY"):
         return "JPY"
 
-    # Check if the symbol matches any known index pattern.
-    # Supports both exact matches (US30) and broker suffixes (US30.raw, US500_STP).
+    # Indices — prefix match (US30, US30.raw, US500_STP all match)
     for pattern in _INDEX_PATTERNS:
         if symbol_upper == pattern or symbol_upper.startswith(pattern):
             return "INDEX"
@@ -80,6 +134,8 @@ def get_pip_value(symbol: str) -> Decimal:
     if pair_type == "JPY":
         return Decimal("0.01")
     elif pair_type == "METAL":
+        return Decimal("0.01")
+    elif pair_type == "OIL":
         return Decimal("0.01")
     elif pair_type == "INDEX":
         return Decimal("1.0")

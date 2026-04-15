@@ -11,8 +11,10 @@ from engine.ta.models.zone import QuasiModoLevel
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
+from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
 from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
+import datetime
 
 logger = get_logger(__name__)
 
@@ -106,10 +108,18 @@ class ContinuationCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BEARISH
+        )
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sr_flip_level
-        stop_loss = sr_flip_level + (20 * pip_val)
-        take_profit = qml.level - (50 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        stop_loss = sr_flip_level + sl_buffer
+        
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price - (risk * 3.0)
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -128,7 +138,11 @@ class ContinuationCandidateBuilder:
             sr_flip_detected=True,
             sr_flip_price=sr_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=True,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             previous_highs_count=previous_highs.touch_count,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -211,10 +225,20 @@ class ContinuationCandidateBuilder:
             retracement,
         )
 
+        # Universal Rule 1: Validate Marubozu on breakout candle
+        marubozu_valid, marubozu_ts = self._validate_marubozu(
+            ltf_sequence, breakout_candle_index, Direction.BULLISH
+        )
+
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = rs_flip_level
-        stop_loss = rs_flip_level - (20 * pip_val)
-        take_profit = qmh.level + (50 * pip_val)
+        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
+        stop_loss = rs_flip_level - sl_buffer
+        if stop_loss <= 0:
+            stop_loss = entry_price * 0.99
+            
+        risk = abs(entry_price - stop_loss)
+        take_profit = entry_price + (risk * 3.0)
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -233,7 +257,11 @@ class ContinuationCandidateBuilder:
             rs_flip_detected=True,
             rs_flip_price=rs_flip_level,
             fakeout_detected=len(fakeout_tests) > 0,
+            fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
+            fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=True,
+            marubozu_detected=marubozu_valid,
+            marubozu_timestamp=marubozu_ts,
             previous_lows_count=previous_lows.touch_count,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -286,7 +314,38 @@ class ContinuationCandidateBuilder:
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
-            price, retracement
-        )
-        return str(nearest_level) if nearest_level else None
+        pip_val = float(get_pip_value(retracement.symbol))
+        tolerance = self.config.fibonacci_tolerance_pips * pip_val
+
+        best_level = None
+        best_distance = float("inf")
+
+        for level in OTE_LEVELS:
+            level_price = retracement.get_level_price(level)
+            distance = abs(price - level_price)
+            if distance <= tolerance and distance < best_distance:
+                best_distance = distance
+                best_level = level
+
+        if best_level is None:
+            return None
+
+        return str(FIBONACCI_VALUES[best_level])
+
+    def _validate_marubozu(
+        self,
+        sequence: CandleSequence,
+        breakout_candle_index: Optional[int],
+        direction: Direction,
+    ) -> tuple[bool, Optional["datetime.datetime"]]:
+        if breakout_candle_index is None or breakout_candle_index >= len(sequence.candles):
+            return False, None
+
+        candle = sequence.candles[breakout_candle_index]
+
+        if direction == Direction.BEARISH:
+            is_valid = self.marubozu_validator.validate_bearish_marubozu(candle)
+        else:
+            is_valid = self.marubozu_validator.validate_bullish_marubozu(candle)
+
+        return is_valid, candle.timestamp if is_valid else None

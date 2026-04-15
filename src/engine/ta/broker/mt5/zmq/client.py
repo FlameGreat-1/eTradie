@@ -71,7 +71,7 @@ class ZmqClient(BrokerBase):
     def __init__(self, config: MT5Config, auth_token: str = "") -> None:
         super().__init__(broker_id="mt5")
         self.config = config
-        self.auth_token = auth_token or getattr(config, "zmq_auth_token", "")
+        self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         self._ctx: zmq_async.Context | None = None  # type: ignore[type-arg]
@@ -154,17 +154,24 @@ class ZmqClient(BrokerBase):
             
             # Auto-authenticate on first connect (or reconnect) if it's not a PING command
             if not was_initialized and request.get("command") not in ("PING", "HEALTH"):
-                ping_reply = await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                try:
+                    await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                except ProviderResponseError as e:
+                    logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
             
-            reply = await self._send_recv_async(request)
-
-            # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
-            if isinstance(reply, dict) and reply.get("error") and "Not authenticated" in str(reply.get("error")):
-                ping_reply = await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
-                if isinstance(ping_reply, dict) and ping_reply.get("status") == "ok":
-                    reply = await self._send_recv_async(request)
-
-            return reply
+            try:
+                return await self._send_recv_async(request)
+            except ProviderResponseError as e:
+                # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
+                if "Not authenticated" in str(e):
+                    try:
+                        await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                    except ProviderResponseError as ping_e:
+                        raise ping_e from e
+                        
+                    # Retry original request after successful re-auth
+                    return await self._send_recv_async(request)
+                raise
 
     # -- BrokerBase implementation ---------------------------------------------
 

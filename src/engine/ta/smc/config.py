@@ -27,6 +27,8 @@ class SMCConfig(BaseSettings):
 
     turtle_soup_min_sl_pips: float = Field(default=10.0, ge=5.0, le=30.0)
 
+    ob_sl_buffer_pips: float = Field(default=2.0, ge=1.0, le=10.0)
+
     ob_body_percentage_threshold: float = Field(default=50.0, ge=30.0, le=80.0)
 
     fvg_min_gap_pips: float = Field(default=2.0, ge=1.0, le=10.0)

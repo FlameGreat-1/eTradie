@@ -462,15 +462,27 @@ class TwelveDataClient(BrokerBase):
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
-        """Convert internal symbol format to Twelve Data format.
+        """Convert broker-specific symbol to Twelve Data format.
 
-        Internal:  EURUSD  ->  Twelve Data:  EUR/USD
-        Metals:    XAUUSD  ->  XAU/USD
+        MT5 brokers append proprietary suffixes to standard symbols:
+          Exness:   XAUUSDm, EURUSDm   (micro account)
+          Others:   GBPJPYpro, USDCADc  (cent/pro/raw accounts)
+          Dots:     EURUSD.i, XAUUSD.raw
+
+        Twelve Data expects standard format:  XAU/USD, EUR/USD
         """
         raw = symbol.upper().replace("/", "").replace("_", "")
 
-        if len(raw) == 6:
+        # Clean pair - standard 6-char forex/metals symbol
+        if len(raw) == 6 and raw.isalpha():
             return f"{raw[:3]}/{raw[3:]}"
+
+        # Broker-suffixed symbol - the base pair is always the first
+        # 6 alphabetic characters (e.g. XAUUSDm -> XAUUSD, EURUSDpro -> EURUSD)
+        if len(raw) > 6:
+            base = raw[:6]
+            if base.isalpha():
+                return f"{base[:3]}/{base[3:]}"
 
         return raw
 
@@ -542,11 +554,9 @@ class TwelveDataClient(BrokerBase):
             return None
 
         try:
-            raw = await self.cache.get(key)
-            if raw is None:
+            data = await self.cache.get("twelve_data", key)
+            if data is None:
                 return None
-
-            data = json.loads(raw)
             candles = [
                 Candle(
                     symbol=data["symbol"],
@@ -596,9 +606,10 @@ class TwelveDataClient(BrokerBase):
             }
 
             await self.cache.set(
+                "twelve_data",
                 key,
-                json.dumps(data),
-                ttl=self.config.cache_ttl_seconds,
+                data,
+                self.config.cache_ttl_seconds,
             )
 
         except Exception as e:
