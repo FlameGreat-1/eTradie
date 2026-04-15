@@ -1,11 +1,23 @@
-"""Lightweight LTF confirmation service.
+"""Lightweight LTF confirmation service with HTF invalidation.
 
 Designed for the execution watcher's fast-path confirmation pulse.
-Fetches only LTF candle data and runs only the 7 SMC LTF confirmation
-checks. Returns in milliseconds, not seconds.
+Two layers run in sequence, both purely mechanical (no LLM):
 
-This replaces the full TA pipeline re-run that the Gateway previously
-used for confirmation pulses.
+  Layer 1 - HTF Invalidation Check (~50-100ms)
+    Fetches 50 candles on the HTF timeframe where the approved
+    candidate's OB lives. Checks if the specific approved setup
+    has been invalidated since the original analysis:
+      - OB body mitigation (candle body closed through the zone)
+      - Opposing BMS (new structure break against the trade direction)
+      - Stop loss blown (price closed beyond the SL level)
+    If invalidated -> return immediately, do NOT check LTF.
+
+  Layer 2 - LTF Confirmation Check (~50-100ms)
+    Fetches 150 candles on the LTF timeframe. Runs the 7 SMC
+    confirmation checks. If all pass -> confirmed=True.
+
+Total latency: ~100-200ms (two sequential broker fetches + scans).
+This replaces the full TA pipeline re-run (~5-10s).
 """
 
 from __future__ import annotations
@@ -21,9 +33,9 @@ from engine.ta.common.analyzers.candles import CandleAnalyzer
 from engine.ta.common.analyzers.session import SessionAnalyzer
 from engine.ta.common.analyzers.sweeps import SweepAnalyzer
 from engine.ta.common.analyzers.swings import SwingAnalyzer
+from engine.ta.common.timeframe import get_parent_timeframe
 from engine.ta.constants import Direction, Session, Timeframe, TIMEFRAME_MINUTES
 from engine.ta.models.candle import CandleSequence
-from engine.ta.models.zone import OrderBlock
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
 from engine.ta.smc.detectors.choch import CHOCHDetector
@@ -43,6 +55,12 @@ class LTFConfirmationRequest(BaseModel):
     entry_price: float = Field(gt=0)
     trace_id: Optional[str] = None
 
+    # Invalidation layer fields (optional for backward compatibility).
+    # When provided, the service runs HTF invalidation checks before
+    # the LTF confirmation checks.
+    stop_loss: Optional[float] = Field(default=None, gt=0)
+    htf_timeframe: Optional[str] = None  # e.g. "H4", "H1" - derived from LTF if not set
+
 
 class LTFConfirmationResponse(BaseModel):
     """Response from the lightweight LTF confirmation check."""
@@ -54,28 +72,41 @@ class LTFConfirmationResponse(BaseModel):
     duration_ms: float
     error: Optional[str] = None
 
+    # Invalidation layer results.
+    invalidated: bool = False
+    invalidation_reason: Optional[str] = None
+    invalidation_checks: Optional[dict] = None
+
 
 class LTFConfirmationService:
     """Lightweight LTF-only confirmation for execution watchers.
 
-    Fetches only the LTF candle data and runs only the checks needed
-    to determine if LTF confirmation exists at the current moment:
+    Two-layer confirmation pipeline:
 
-    1. Liquidity sweep (SSL/BSL taken and closed back inside)
-    2. CHOCH on LTF (change of character)
-    3. BMS on LTF (break in market structure)
-    4. RTO to OB (current price inside the Order Block zone)
-    5. Session timing (London/NY active)
-    6. Inducement cleared
-    7. FVG present on LTF
+    Layer 1 - HTF Invalidation (runs first, fast-fails):
+      1. OB body mitigation: candle body closed through the exact OB zone
+      2. Opposing BMS: new structure break against the approved direction
+      3. Stop loss blown: price closed beyond the SL level
 
-    All 7 must be True for confirmed=True (instant order fire).
-    Individual results are returned so the watcher knows what's missing.
+    Layer 2 - LTF Confirmation (runs only if Layer 1 passes):
+      1. Liquidity sweep (SSL/BSL taken and closed back inside)
+      2. CHOCH on LTF (change of character)
+      3. BMS on LTF (break in market structure)
+      4. RTO to OB (current price inside the Order Block zone)
+      5. Session timing (London/NY active)
+      6. Inducement cleared
+      7. FVG present on LTF
+
+    All 7 LTF checks must be True for confirmed=True.
+    Any single invalidation check failing returns confirmed=False + invalidated=True.
     """
 
-    # Number of LTF candles to fetch. Enough for structural detection
-    # but small enough to be fast.
+    # Number of LTF candles to fetch for confirmation checks.
     LTF_LOOKBACK = 150
+
+    # Number of HTF candles to fetch for invalidation checks.
+    # Small lookback: we only need recent structure, not deep history.
+    HTF_LOOKBACK = 50
 
     def __init__(
         self,
@@ -100,7 +131,7 @@ class LTFConfirmationService:
         request: LTFConfirmationRequest,
         broker_client: BrokerBase,
     ) -> LTFConfirmationResponse:
-        """Run lightweight LTF confirmation checks."""
+        """Run the two-layer confirmation pipeline."""
         start = datetime.now(UTC)
         symbol = request.symbol
         direction = Direction(request.direction)
@@ -115,14 +146,73 @@ class LTFConfirmationService:
                 "ob_upper": request.ob_upper,
                 "ob_lower": request.ob_lower,
                 "entry_price": request.entry_price,
+                "stop_loss": request.stop_loss,
+                "htf_timeframe": request.htf_timeframe,
                 "trace_id": request.trace_id,
             },
         )
 
         try:
-            # Fetch ONLY the LTF candle data
-            sequence = await self._fetch_ltf_candles(
-                symbol, ltf_tf, broker_client,
+            # ---------------------------------------------------------------
+            # Layer 1: HTF Invalidation Check
+            # ---------------------------------------------------------------
+            # Resolve the HTF timeframe: explicit > derived from LTF parent.
+            htf_tf = self._resolve_htf_timeframe(request.htf_timeframe, ltf_tf)
+
+            if htf_tf is not None:
+                invalidation = await self._run_invalidation_layer(
+                    symbol=symbol,
+                    direction=direction,
+                    htf_tf=htf_tf,
+                    ob_upper=request.ob_upper,
+                    ob_lower=request.ob_lower,
+                    stop_loss=request.stop_loss,
+                    broker_client=broker_client,
+                    trace_id=request.trace_id,
+                )
+
+                if invalidation["invalidated"]:
+                    elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
+                    reason = invalidation["reason"]
+
+                    self._logger.warn(
+                        "ltf_confirmation_setup_invalidated",
+                        extra={
+                            "symbol": symbol,
+                            "direction": request.direction,
+                            "reason": reason,
+                            "invalidation_checks": invalidation["checks"],
+                            "duration_ms": elapsed,
+                            "trace_id": request.trace_id,
+                        },
+                    )
+
+                    return LTFConfirmationResponse(
+                        confirmed=False,
+                        symbol=symbol,
+                        direction=request.direction,
+                        ltf_timeframe=request.ltf_timeframe,
+                        checks={},
+                        duration_ms=elapsed,
+                        invalidated=True,
+                        invalidation_reason=reason,
+                        invalidation_checks=invalidation["checks"],
+                    )
+
+                self._logger.info(
+                    "ltf_confirmation_invalidation_passed",
+                    extra={
+                        "symbol": symbol,
+                        "invalidation_checks": invalidation["checks"],
+                        "trace_id": request.trace_id,
+                    },
+                )
+
+            # ---------------------------------------------------------------
+            # Layer 2: LTF Confirmation Check
+            # ---------------------------------------------------------------
+            sequence = await self._fetch_candles(
+                symbol, ltf_tf, broker_client, self.LTF_LOOKBACK,
             )
             if sequence is None or sequence.count < 10:
                 elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
@@ -136,7 +226,6 @@ class LTFConfirmationService:
                     error="Insufficient LTF candle data",
                 )
 
-            # Run structural detection on LTF only
             checks = self._run_ltf_checks(
                 sequence, direction, request.ob_upper,
                 request.ob_lower, request.entry_price,
@@ -187,32 +276,319 @@ class LTFConfirmationService:
                 error=str(e),
             )
 
-    async def _fetch_ltf_candles(
+    # -------------------------------------------------------------------
+    # Layer 1: HTF Invalidation
+    # -------------------------------------------------------------------
+
+    def _resolve_htf_timeframe(
+        self,
+        explicit_htf: Optional[str],
+        ltf: Timeframe,
+    ) -> Optional[Timeframe]:
+        """Resolve the HTF timeframe for invalidation checks.
+
+        Priority:
+          1. Explicit htf_timeframe from the request (the timeframe
+             the OB was originally detected on).
+          2. Derived: one parent step above the LTF using the
+             timeframe hierarchy (M5 -> M15, M15 -> H1, etc.).
+          3. None if derivation fails (e.g., LTF is already MN1).
+        """
+        if explicit_htf:
+            try:
+                return Timeframe(explicit_htf)
+            except ValueError:
+                self._logger.warn(
+                    "invalid_explicit_htf_timeframe",
+                    extra={"htf_timeframe": explicit_htf},
+                )
+
+        # Derive: go 2 steps up from LTF to get the HTF where the OB lives.
+        # M5 -> M30 (skip M15), M15 -> H1 (skip M30), etc.
+        # If 2 steps fails, try 1 step.
+        parent = get_parent_timeframe(ltf, steps=2)
+        if parent is not None:
+            return parent
+
+        parent = get_parent_timeframe(ltf, steps=1)
+        return parent
+
+    async def _run_invalidation_layer(
         self,
         symbol: str,
-        timeframe: Timeframe,
-        broker: BrokerBase,
-    ) -> Optional[CandleSequence]:
-        """Fetch only the LTF candles needed for confirmation."""
-        end_time = datetime.now(UTC)
-        minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
-        start_time = end_time - timedelta(minutes=minutes * self.LTF_LOOKBACK)
+        direction: Direction,
+        htf_tf: Timeframe,
+        ob_upper: float,
+        ob_lower: float,
+        stop_loss: Optional[float],
+        broker_client: BrokerBase,
+        trace_id: Optional[str],
+    ) -> dict:
+        """Run HTF invalidation checks against the exact approved candidate.
 
-        try:
-            sequence = await broker.fetch_candles(
-                symbol=symbol,
-                timeframe=timeframe,
-                start_time=start_time,
-                end_time=end_time,
-                count=self.LTF_LOOKBACK,
+        Returns:
+            {
+                "invalidated": bool,
+                "reason": str or None,
+                "checks": {
+                    "ob_still_fresh": bool,
+                    "no_opposing_bms": bool,
+                    "sl_not_blown": bool,
+                },
+            }
+        """
+        sequence = await self._fetch_candles(
+            symbol, htf_tf, broker_client, self.HTF_LOOKBACK,
+        )
+
+        if sequence is None or sequence.count < 5:
+            # Cannot validate -> assume still valid (fail-open).
+            # Better to attempt the trade than to block it because
+            # we couldn't fetch HTF candles.
+            self._logger.warn(
+                "htf_invalidation_insufficient_data_failing_open",
+                extra={
+                    "symbol": symbol,
+                    "htf_timeframe": htf_tf,
+                    "trace_id": trace_id,
+                },
             )
-            return sequence
-        except Exception as e:
-            self._logger.error(
-                "ltf_candle_fetch_failed",
-                extra={"symbol": symbol, "timeframe": timeframe, "error": str(e)},
+            return {
+                "invalidated": False,
+                "reason": None,
+                "checks": {
+                    "ob_still_fresh": True,
+                    "no_opposing_bms": True,
+                    "sl_not_blown": True,
+                },
+            }
+
+        # Check 1: OB body mitigation.
+        # Has a candle BODY closed through the exact OB zone?
+        # A wick into the zone is the RTO entry opportunity, NOT invalidation.
+        # True mitigation = candle body overlap with the zone exceeds the
+        # configured threshold (default 50%).
+        ob_fresh = self._check_ob_still_fresh(
+            sequence, direction, ob_upper, ob_lower,
+        )
+
+        # Check 2: Opposing BMS.
+        # Has a new BMS formed in the OPPOSITE direction to the approved trade?
+        # BULLISH trade -> check for BEARISH BMS (bearish breaks swing lows).
+        # BEARISH trade -> check for BULLISH BMS (bullish breaks swing highs).
+        no_opposing_bms = self._check_no_opposing_bms(
+            sequence, direction,
+        )
+
+        # Check 3: Stop loss blown.
+        # Has price already closed beyond the approved candidate's SL?
+        sl_not_blown = self._check_sl_not_blown(
+            sequence, direction, stop_loss,
+        )
+
+        checks = {
+            "ob_still_fresh": ob_fresh,
+            "no_opposing_bms": no_opposing_bms,
+            "sl_not_blown": sl_not_blown,
+        }
+
+        # Determine invalidation reason (first failure wins).
+        if not ob_fresh:
+            return {
+                "invalidated": True,
+                "reason": f"OB zone ({ob_lower:.5f}-{ob_upper:.5f}) has been body-mitigated on {htf_tf}",
+                "checks": checks,
+            }
+
+        if not no_opposing_bms:
+            opposing = "BEARISH" if direction == Direction.BULLISH else "BULLISH"
+            return {
+                "invalidated": True,
+                "reason": f"New {opposing} BMS detected on {htf_tf}, breaking the {direction} structure",
+                "checks": checks,
+            }
+
+        if not sl_not_blown:
+            return {
+                "invalidated": True,
+                "reason": f"Price has already closed beyond stop loss ({stop_loss:.5f}) on {htf_tf}",
+                "checks": checks,
+            }
+
+        return {
+            "invalidated": False,
+            "reason": None,
+            "checks": checks,
+        }
+
+    def _check_ob_still_fresh(
+        self,
+        sequence: CandleSequence,
+        direction: Direction,
+        ob_upper: float,
+        ob_lower: float,
+    ) -> bool:
+        """Check if the exact OB zone is still fresh (not body-mitigated).
+
+        True mitigation means a candle's BODY (not wick) has closed
+        through a significant portion of the zone. The threshold is
+        controlled by SMCConfig.zone_mitigation_body_threshold.
+
+        For BULLISH OB (demand): mitigation = bearish candle body
+        closes down through the zone (sellers absorbed the demand).
+
+        For BEARISH OB (supply): mitigation = bullish candle body
+        closes up through the zone (buyers absorbed the supply).
+
+        Returns True if the OB is still fresh (NOT mitigated).
+        """
+        zone_size = ob_upper - ob_lower
+        if zone_size <= 0:
+            return True  # Invalid zone data, fail-open.
+
+        threshold_pct = self._config.zone_mitigation_body_threshold / 100.0
+
+        for candle in sequence.candles:
+            body_top = max(candle.open, candle.close)
+            body_bottom = min(candle.open, candle.close)
+
+            # Calculate how much of the candle body overlaps with the OB zone.
+            overlap_top = min(body_top, ob_upper)
+            overlap_bottom = max(body_bottom, ob_lower)
+            overlap = max(0.0, overlap_top - overlap_bottom)
+
+            if overlap <= 0:
+                continue
+
+            body_overlap_ratio = overlap / zone_size
+
+            if body_overlap_ratio < threshold_pct:
+                continue
+
+            # Body overlaps significantly. Now check direction:
+            # For BULLISH OB: mitigated by a bearish candle closing
+            # through it (candle.close < candle.open AND body enters zone).
+            if direction == Direction.BULLISH:
+                if candle.close < candle.open and body_bottom <= ob_lower:
+                    # Bearish candle body closed through the bottom of
+                    # the bullish OB -> demand absorbed -> mitigated.
+                    return False
+
+            # For BEARISH OB: mitigated by a bullish candle closing
+            # through it (candle.close > candle.open AND body enters zone).
+            elif direction == Direction.BEARISH:
+                if candle.close > candle.open and body_top >= ob_upper:
+                    # Bullish candle body closed through the top of
+                    # the bearish OB -> supply absorbed -> mitigated.
+                    return False
+
+        return True  # No candle body mitigated the zone.
+
+    def _check_no_opposing_bms(
+        self,
+        sequence: CandleSequence,
+        direction: Direction,
+    ) -> bool:
+        """Check that no opposing BMS has formed on the HTF.
+
+        For a BULLISH approved trade: check for new BEARISH BMS
+        (price broke below a swing low with displacement).
+
+        For a BEARISH approved trade: check for new BULLISH BMS
+        (price broke above a swing high with displacement).
+
+        We only care about RECENT opposing BMS (last ~20 candles)
+        to avoid flagging old structure breaks from before the
+        original analysis.
+
+        Returns True if NO opposing BMS was found (setup still valid).
+        """
+        # Only scan the most recent portion of the sequence.
+        # The original analysis already accounted for older structure.
+        recency_window = min(20, len(sequence.candles))
+        recent_candles = sequence.candles[-recency_window:]
+
+        # Build a sub-sequence for the recent window.
+        # We need to detect swings and BMS only in this window.
+        swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
+        swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
+
+        if direction == Direction.BULLISH:
+            # Check for BEARISH BMS (opposing to our bullish trade).
+            opposing_bms = self._bms_detector.detect_bearish_bms(
+                sequence, swing_lows,
             )
-            return None
+            # Only count BMS events that occurred in the recent window.
+            if recent_candles:
+                recent_start_ts = recent_candles[0].timestamp
+                opposing_bms = [
+                    bms for bms in opposing_bms
+                    if bms.timestamp >= recent_start_ts
+                ]
+        else:
+            # Check for BULLISH BMS (opposing to our bearish trade).
+            opposing_bms = self._bms_detector.detect_bullish_bms(
+                sequence, swing_highs,
+            )
+            if recent_candles:
+                recent_start_ts = recent_candles[0].timestamp
+                opposing_bms = [
+                    bms for bms in opposing_bms
+                    if bms.timestamp >= recent_start_ts
+                ]
+
+        if opposing_bms:
+            latest = max(opposing_bms, key=lambda b: b.timestamp)
+            self._logger.info(
+                "opposing_bms_detected",
+                extra={
+                    "direction": direction,
+                    "opposing_direction": latest.direction,
+                    "broken_level": latest.broken_level,
+                    "displacement_pips": latest.displacement_pips,
+                    "timestamp": latest.timestamp.isoformat(),
+                },
+            )
+            return False
+
+        return True
+
+    def _check_sl_not_blown(
+        self,
+        sequence: CandleSequence,
+        direction: Direction,
+        stop_loss: Optional[float],
+    ) -> bool:
+        """Check that price has not closed beyond the stop loss.
+
+        For BULLISH: SL is below entry. Blown if candle CLOSES below SL.
+        For BEARISH: SL is above entry. Blown if candle CLOSES above SL.
+
+        Uses candle close (not wick) because a wick through SL that
+        closes back inside is a sweep, not a true SL hit.
+
+        Returns True if SL has NOT been blown.
+        """
+        if stop_loss is None or stop_loss <= 0:
+            return True  # No SL provided, skip check.
+
+        # Only check the most recent candles (last 10).
+        # Older candles predate the watcher arming.
+        recent = sequence.candles[-10:] if len(sequence.candles) > 10 else sequence.candles
+
+        for candle in recent:
+            if direction == Direction.BULLISH:
+                if candle.close < stop_loss:
+                    return False
+            elif direction == Direction.BEARISH:
+                if candle.close > stop_loss:
+                    return False
+
+        return True
+
+    # -------------------------------------------------------------------
+    # Layer 2: LTF Confirmation
+    # -------------------------------------------------------------------
 
     def _run_ltf_checks(
         self,
@@ -223,7 +599,6 @@ class LTFConfirmationService:
         entry_price: float,
     ) -> dict:
         """Run all 7 LTF confirmation checks and return individual results."""
-        # Detect structural elements on LTF
         swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
         swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
 
@@ -270,7 +645,7 @@ class LTFConfirmationService:
             session_ok = True
 
         # Check 6: Inducement cleared
-        inducement_ok = True  # Default: no inducement = OK
+        inducement_ok = True
         relevant_inducements = [
             idm for idm in inducements
             if idm.direction == direction
@@ -290,3 +665,40 @@ class LTFConfirmationService:
             "inducement_cleared": inducement_ok,
             "fvg_present": fvg_ok,
         }
+
+    # -------------------------------------------------------------------
+    # Shared: Candle Fetching
+    # -------------------------------------------------------------------
+
+    async def _fetch_candles(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        broker: BrokerBase,
+        lookback: int,
+    ) -> Optional[CandleSequence]:
+        """Fetch candles for a single timeframe."""
+        end_time = datetime.now(UTC)
+        minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
+        start_time = end_time - timedelta(minutes=minutes * lookback)
+
+        try:
+            sequence = await broker.fetch_candles(
+                symbol=symbol,
+                timeframe=timeframe,
+                start_time=start_time,
+                end_time=end_time,
+                count=lookback,
+            )
+            return sequence
+        except Exception as e:
+            self._logger.error(
+                "candle_fetch_failed",
+                extra={
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "lookback": lookback,
+                    "error": str(e),
+                },
+            )
+            return None
