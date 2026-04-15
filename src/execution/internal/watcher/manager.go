@@ -23,6 +23,7 @@ import (
 // the watcher depends on this abstraction, not on Gateway internals.
 type GatewayPort interface {
 	ConfirmSetup(ctx context.Context, symbol, analysisID, traceID string) (*ConfirmResult, error)
+	ConfirmSetupWithParams(ctx context.Context, symbol, analysisID, traceID string, params *ConfirmSetupParams) (*ConfirmResult, error)
 	NotifyExecutionCompleted(ctx context.Context, order *models.Order, brokerOrderID string, fillPrice, slippage float64) error
 }
 
@@ -487,17 +488,9 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 		}
 	}
 
-	var result *ConfirmResult
-	var err error
-	if gwWithParams, ok := w.gateway.(*GatewayGRPCClient); ok && params != nil {
-		result, err = gwWithParams.ConfirmSetupWithParams(
-			ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID, params,
-		)
-	} else {
-		result, err = w.gateway.ConfirmSetup(
-			ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID,
-		)
-	}
+	result, err := w.gateway.ConfirmSetupWithParams(
+		ctx, w.order.Symbol, w.order.AnalysisID, w.order.AnalysisID, params,
+	)
 	if err != nil {
 		w.log.Warn().Err(err).Msg("watcher_confirm_call_failed")
 		return false // Transient error, retry on next tick.
