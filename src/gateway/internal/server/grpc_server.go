@@ -194,6 +194,8 @@ func (s *GRPCServer) ConfirmSetup(ctx context.Context, req *gatewayv1.ConfirmSet
 			OBUpper:      req.GetObUpper(),
 			OBLower:      req.GetObLower(),
 			EntryPrice:   req.GetEntryPrice(),
+			StopLoss:     req.GetStopLoss(),
+			HTFTimeframe: req.GetHtfTimeframe(),
 		}
 	}
 

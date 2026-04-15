@@ -84,6 +84,12 @@ message ConfirmSetupRequest {
   string ltf_timeframe = 6;       // LTF timeframe e.g. "M5", "M15"
   string direction = 7;           // "BULLISH" or "BEARISH"
   double entry_price = 8;         // Candidate entry price
+
+  // HTF invalidation layer fields. When provided, the Python engine
+  // checks if the approved setup has been invalidated (OB mitigated,
+  // opposing BMS, SL blown) before running LTF confirmation.
+  double stop_loss = 9;           // Approved candidate's stop loss level
+  string htf_timeframe = 10;      // HTF timeframe the OB lives on (e.g. "H4")
 }
 
 // ConfirmSetupResponse indicates whether the TA engine confirms
