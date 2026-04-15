@@ -688,7 +688,6 @@ func (o *Orchestrator) runLightweightConfirmation(
 		Reason:          reason,
 	}
 }
-}
 
 func getBoolField(m map[string]interface{}, key string) bool {
 	v, ok := m[key]
