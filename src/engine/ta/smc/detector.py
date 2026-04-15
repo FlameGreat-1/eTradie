@@ -233,7 +233,14 @@ class SMCDetector:
         all_fvgs = ltf_fvgs + htf_fvgs
 
         all_inducements = ltf_inducement_bullish + ltf_inducement_bearish
-        all_sweeps = turtle_soup_long + turtle_soup_short
+
+        # -- Detect ALL liquidity sweeps on LTF (not just turtle soup) --
+        ltf_all_sweeps = self.sweep_analyzer.detect_sweeps_in_sequence(
+            ltf_sequence,
+            ltf_swing_highs,
+            ltf_swing_lows,
+        )
+        all_sweeps = ltf_all_sweeps + turtle_soup_long + turtle_soup_short
 
         # Diagnostic: log all detected structural elements
         self._logger.info(
@@ -420,6 +427,13 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
+                # Filter out truly mitigated OBs (1B)
+                unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                    [ltf_ob], ltf_sequence,
+                )
+                if not unmitigated:
+                    continue
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BULLISH, ltf_bms
@@ -433,6 +447,35 @@ class SMCDetector:
                     ltf_choch,
                     ltf_bms,
                     ltf_ob,
+                    ltf_fvgs,
+                    inducement_events,
+                    retracement,
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+            # Also detect OBs from LTF CHOCH events (1E)
+            for ltf_choch_event in ltf_choch_bullish:
+                choch_ob = self.ob_detector.detect_ob_from_choch(
+                    ltf_sequence, ltf_choch_event,
+                )
+                if not choch_ob:
+                    continue
+                if choch_ob.direction != Direction.BULLISH:
+                    continue
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BULLISH, latest_htf_bms_bullish,
+                )
+
+                candidate = self.continuation_builder.build_bullish_continuation(
+                    htf_sequence,
+                    ltf_sequence,
+                    latest_htf_bms_bullish,
+                    ltf_sweep,
+                    ltf_choch_event,
+                    latest_htf_bms_bullish,
+                    choch_ob,
                     ltf_fvgs,
                     inducement_events,
                     retracement,
@@ -486,6 +529,13 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
+                # Filter out truly mitigated OBs (1B)
+                unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                    [ltf_ob], ltf_sequence,
+                )
+                if not unmitigated:
+                    continue
+
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BEARISH, ltf_bms
@@ -499,6 +549,35 @@ class SMCDetector:
                     ltf_choch,
                     ltf_bms,
                     ltf_ob,
+                    ltf_fvgs,
+                    inducement_events,
+                    retracement,
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+            # Also detect OBs from LTF CHOCH events (1E)
+            for ltf_choch_event in ltf_choch_bearish:
+                choch_ob = self.ob_detector.detect_ob_from_choch(
+                    ltf_sequence, ltf_choch_event,
+                )
+                if not choch_ob:
+                    continue
+                if choch_ob.direction != Direction.BEARISH:
+                    continue
+
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BEARISH, latest_htf_bms_bearish,
+                )
+
+                candidate = self.continuation_builder.build_bearish_continuation(
+                    htf_sequence,
+                    ltf_sequence,
+                    latest_htf_bms_bearish,
+                    ltf_sweep,
+                    ltf_choch_event,
+                    latest_htf_bms_bearish,
+                    choch_ob,
                     ltf_fvgs,
                     inducement_events,
                     retracement,
