@@ -134,7 +134,18 @@ class ContinuationBuilder:
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
-        take_profit = htf_bms.breakout_price
+
+        # TP targets the next liquidity draw (BSL = nearest swing high
+        # above entry).  Price runs from liquidity to liquidity.
+        # Falls back to HTF BMS breakout price only when no structural
+        # target exists.
+        take_profit = self._find_nearest_bsl_target(
+            entry_price,
+            self._get_swing_highs_from_sequence(htf_sequence),
+            pip_val,
+        )
+        if take_profit is None:
+            take_profit = htf_bms.breakout_price
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -261,7 +272,16 @@ class ContinuationBuilder:
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
-        take_profit = htf_bms.breakout_price
+
+        # TP targets the next liquidity draw (SSL = nearest swing low
+        # below entry).  Falls back to HTF BMS breakout price.
+        take_profit = self._find_nearest_ssl_target(
+            entry_price,
+            self._get_swing_lows_from_sequence(htf_sequence),
+            pip_val,
+        )
+        if take_profit is None:
+            take_profit = htf_bms.breakout_price
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -355,6 +375,80 @@ class ContinuationBuilder:
             confluences += 1
 
         return confluences
+
+    def _find_nearest_bsl_target(
+        self,
+        entry_price: float,
+        swing_highs: list,
+        pip_val: float,
+    ) -> Optional[float]:
+        """Find the nearest BSL (swing high) above entry as the TP target."""
+        candidates = [
+            sh.price for sh in swing_highs
+            if sh.price > entry_price
+        ]
+        if candidates:
+            return min(candidates)
+        return None
+
+    def _find_nearest_ssl_target(
+        self,
+        entry_price: float,
+        swing_lows: list,
+        pip_val: float,
+    ) -> Optional[float]:
+        """Find the nearest SSL (swing low) below entry as the TP target."""
+        candidates = [
+            sl.price for sl in swing_lows
+            if sl.price < entry_price
+        ]
+        if candidates:
+            return max(candidates)
+        return None
+
+    @staticmethod
+    def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list:
+        """Extract approximate swing highs from a candle sequence.
+
+        Used as a fallback when explicit swing highs are not passed.
+        Identifies local maxima using a simple 3-bar pivot.
+        """
+        from engine.ta.models.swing import SwingHigh
+        highs = []
+        candles = sequence.candles
+        for i in range(1, len(candles) - 1):
+            if candles[i].high > candles[i - 1].high and candles[i].high > candles[i + 1].high:
+                highs.append(SwingHigh(
+                    symbol=sequence.symbol,
+                    timeframe=sequence.timeframe,
+                    timestamp=candles[i].timestamp,
+                    price=candles[i].high,
+                    index=i,
+                    strength=1,
+                    left_bars=1,
+                    right_bars=1,
+                ))
+        return highs
+
+    @staticmethod
+    def _get_swing_lows_from_sequence(sequence: CandleSequence) -> list:
+        """Extract approximate swing lows from a candle sequence."""
+        from engine.ta.models.swing import SwingLow
+        lows = []
+        candles = sequence.candles
+        for i in range(1, len(candles) - 1):
+            if candles[i].low < candles[i - 1].low and candles[i].low < candles[i + 1].low:
+                lows.append(SwingLow(
+                    symbol=sequence.symbol,
+                    timeframe=sequence.timeframe,
+                    timestamp=candles[i].timestamp,
+                    price=candles[i].low,
+                    index=i,
+                    strength=1,
+                    left_bars=1,
+                    right_bars=1,
+                ))
+        return lows
 
     def _get_fib_level(
         self,

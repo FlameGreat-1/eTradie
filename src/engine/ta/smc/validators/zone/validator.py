@@ -283,15 +283,20 @@ class ZoneValidator:
                     return False
 
             else:
-                # Bearish OB: mitigation = bullish body closes through
-                # the zone from below (price rises through the supply).
-                if body_bottom > ob.upper_bound:
-                    # Body entirely above the zone — zone is broken
-                    return False
+                # Bearish OB (supply zone): sits ABOVE current price.
+                # Mitigation = bullish body closes through the zone
+                # from below (price rises through the supply).
+                # A wick into the zone from below is a retest (RTO).
                 if body_top < ob.lower_bound:
-                    # Body entirely below the zone — no interaction
+                    # Body entirely below the zone - no interaction
+                    continue
+                if body_bottom > ob.upper_bound:
+                    # Body entirely above the zone - no interaction
+                    # (price has moved past the zone without body
+                    # overlap, which is normal before RTO)
                     continue
 
+                # Body overlaps the zone - check if it's true mitigation
                 overlap_top = min(body_top, ob.upper_bound)
                 overlap_bottom = max(body_bottom, ob.lower_bound)
                 overlap = max(0.0, overlap_top - overlap_bottom)

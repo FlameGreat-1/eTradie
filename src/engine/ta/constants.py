@@ -122,11 +122,13 @@ FIBONACCI_VALUES: Final[dict[FibonacciLevel, float]] = {
     FibonacciLevel.LEVEL_100: 1.0,
 }
 
+# OTE (Optimal Trade Entry) pocket: 61.8% - 78.6% Fibonacci retracement.
+# This is the institutional sweet spot where smart money enters.
+# 50% is equilibrium (NOT OTE).  78.6% is the standard level (not 79%).
 OTE_LEVELS: Final[list[FibonacciLevel]] = [
-    FibonacciLevel.LEVEL_50,
     FibonacciLevel.LEVEL_618,
     FibonacciLevel.LEVEL_705,
-    FibonacciLevel.LEVEL_79,
+    FibonacciLevel.LEVEL_786,
 ]
 
 
