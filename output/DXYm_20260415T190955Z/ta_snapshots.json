@@ -1,0 +1,2778 @@
+{
+  "W1": {
+    "symbol": "DXYM",
+    "timeframe": "W1",
+    "timestamp": "2026-04-12T00:00:00+00:00",
+    "candle_count": 30,
+    "trend_direction": "BULLISH",
+    "swing_highs": {
+      "count": 2,
+      "data": [
+        {
+          "price": 100.391,
+          "timestamp": "2025-11-16T00:00:00+00:00",
+          "index": 8,
+          "strength": 7,
+          "timeframe": "W1"
+        },
+        {
+          "price": 99.398,
+          "timestamp": "2026-01-11T00:00:00+00:00",
+          "index": 16,
+          "strength": 3,
+          "timeframe": "W1"
+        }
+      ]
+    },
+    "swing_lows": {
+      "count": 1,
+      "data": [
+        {
+          "price": 95.482,
+          "timestamp": "2026-01-25T00:00:00+00:00",
+          "index": 18,
+          "strength": 7,
+          "timeframe": "W1"
+        }
+      ]
+    },
+    "bms_events": {
+      "count": 1,
+      "data": [
+        {
+          "breakout_price": 100.47,
+          "broken_level": 99.398,
+          "timestamp": "2026-03-15T00:00:00+00:00",
+          "direction": "BULLISH",
+          "displacement_pips": 10720.000000000027,
+          "timeframe": "W1",
+          "confirmed": true
+        }
+      ]
+    },
+    "choch_events": {
+      "count": 1,
+      "data": [
+        {
+          "breakout_price": 100.47,
+          "broken_level": 99.398,
+          "timestamp": "2026-03-22T00:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "W1",
+          "is_minor": true
+        }
+      ]
+    },
+    "sms_events": {
+      "count": 0,
+      "data": []
+    },
+    "order_blocks": {
+      "count": 1,
+      "data": [
+        {
+          "upper_bound": 97.707,
+          "lower_bound": 96.46,
+          "timestamp": "2026-02-08T00:00:00+00:00",
+          "direction": "BULLISH",
+          "displacement_pips": 40100.00000000005,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "W1",
+          "candle_index": 20
+        }
+      ]
+    },
+    "fair_value_gaps": {
+      "count": 0,
+      "data": []
+    },
+    "breaker_blocks": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_sweeps": {
+      "count": 6,
+      "data": [
+        {
+          "swept_level": 99.83,
+          "timestamp": "2025-11-02T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 5180.000000000006,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 6
+        },
+        {
+          "swept_level": 98.118,
+          "timestamp": "2025-12-14T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 2669.999999999959,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 12
+        },
+        {
+          "swept_level": 97.851,
+          "timestamp": "2025-12-21T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 1179.99999999995,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 13
+        },
+        {
+          "swept_level": 99.398,
+          "timestamp": "2026-03-01T00:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 2570.00000000005,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 23
+        },
+        {
+          "swept_level": 98.935,
+          "timestamp": "2026-03-22T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 889.9999999999864,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 26
+        },
+        {
+          "swept_level": 100.2,
+          "timestamp": "2026-03-29T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 4410.000000000025,
+          "closed_back_inside": true,
+          "timeframe": "W1",
+          "candle_index": 27
+        }
+      ]
+    },
+    "inducement_events": {
+      "count": 1,
+      "data": [
+        {
+          "inducement_level": 99.398,
+          "timestamp": "2026-01-11T00:00:00+00:00",
+          "direction": "BEARISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-03-01T00:00:00+00:00",
+          "timeframe": "W1",
+          "is_internal": true,
+          "candle_index": 16
+        }
+      ]
+    },
+    "equal_highs_lows": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_grabs": {
+      "count": 0,
+      "data": []
+    },
+    "qm_levels": {
+      "count": 0,
+      "data": []
+    },
+    "sr_flips": {
+      "count": 0,
+      "data": []
+    },
+    "rs_flips": {
+      "count": 0,
+      "data": []
+    },
+    "mpl_levels": {
+      "count": 0,
+      "data": []
+    },
+    "supply_zones": {
+      "count": 0,
+      "data": []
+    },
+    "demand_zones": {
+      "count": 0,
+      "data": []
+    },
+    "fibonacci_retracements": {
+      "count": 1,
+      "data": [
+        {
+          "swing_high": 99.398,
+          "swing_low": 95.482,
+          "swing_high_timestamp": "2026-01-11T00:00:00+00:00",
+          "swing_low_timestamp": "2026-01-25T00:00:00+00:00",
+          "is_bullish": true,
+          "range_size": 3.915999999999997
+        }
+      ]
+    },
+    "dealing_ranges": {
+      "count": 1,
+      "data": [
+        {
+          "high": 100.641,
+          "low": 95.482,
+          "equilibrium": 98.0615,
+          "start_time": "2025-09-21T00:00:00+00:00",
+          "end_time": "2026-04-12T00:00:00+00:00",
+          "timeframe": "W1",
+          "range_size": 5.159000000000006
+        }
+      ]
+    },
+    "total_structure_events": 2,
+    "total_liquidity_events": 7,
+    "total_zones": 1
+  },
+  "D1": {
+    "symbol": "DXYM",
+    "timeframe": "D1",
+    "timestamp": "2026-04-15T00:00:00+00:00",
+    "candle_count": 52,
+    "trend_direction": "BEARISH",
+    "swing_highs": {
+      "count": 3,
+      "data": [
+        {
+          "price": 98.046,
+          "timestamp": "2026-02-20T00:00:00+00:00",
+          "index": 5,
+          "strength": 3,
+          "timeframe": "D1"
+        },
+        {
+          "price": 100.51,
+          "timestamp": "2026-03-13T00:00:00+00:00",
+          "index": 23,
+          "strength": 8,
+          "timeframe": "D1"
+        },
+        {
+          "price": 100.641,
+          "timestamp": "2026-03-31T00:00:00+00:00",
+          "index": 38,
+          "strength": 10,
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "swing_lows": {
+      "count": 2,
+      "data": [
+        {
+          "price": 98.459,
+          "timestamp": "2026-03-10T00:00:00+00:00",
+          "index": 20,
+          "strength": 8,
+          "timeframe": "D1"
+        },
+        {
+          "price": 98.846,
+          "timestamp": "2026-03-23T00:00:00+00:00",
+          "index": 31,
+          "strength": 7,
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "bms_events": {
+      "count": 2,
+      "data": [
+        {
+          "breakout_price": 98.48,
+          "broken_level": 98.046,
+          "timestamp": "2026-03-03T00:00:00+00:00",
+          "direction": "BULLISH",
+          "displacement_pips": 4339.9999999999745,
+          "timeframe": "D1",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.336,
+          "broken_level": 98.459,
+          "timestamp": "2026-04-14T00:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1230.0000000000466,
+          "timeframe": "D1",
+          "confirmed": true
+        }
+      ]
+    },
+    "choch_events": {
+      "count": 2,
+      "data": [
+        {
+          "breakout_price": 98.48,
+          "broken_level": 98.046,
+          "timestamp": "2026-03-04T00:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "D1",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 98.336,
+          "broken_level": 98.459,
+          "timestamp": "2026-04-15T00:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "D1",
+          "is_minor": false
+        }
+      ]
+    },
+    "sms_events": {
+      "count": 0,
+      "data": []
+    },
+    "order_blocks": {
+      "count": 2,
+      "data": [
+        {
+          "upper_bound": 97.971,
+          "lower_bound": 97.575,
+          "timestamp": "2026-02-25T00:00:00+00:00",
+          "direction": "BULLISH",
+          "displacement_pips": 9050.000000000011,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "D1",
+          "candle_index": 9
+        },
+        {
+          "upper_bound": 100.282,
+          "lower_bound": 100.111,
+          "timestamp": "2026-04-05T00:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 19459.999999999978,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "D1",
+          "candle_index": 42
+        }
+      ]
+    },
+    "fair_value_gaps": {
+      "count": 0,
+      "data": []
+    },
+    "breaker_blocks": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_sweeps": {
+      "count": 8,
+      "data": [
+        {
+          "swept_level": 98.619,
+          "timestamp": "2026-03-10T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 1599.999999999966,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 20
+        },
+        {
+          "swept_level": 99.466,
+          "timestamp": "2026-03-18T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 329.9999999998704,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 27
+        },
+        {
+          "swept_level": 99.662,
+          "timestamp": "2026-03-23T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 4569.999999999936,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 31
+        },
+        {
+          "swept_level": 99.596,
+          "timestamp": "2026-03-25T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 390.0000000000148,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 33
+        },
+        {
+          "swept_level": 100.151,
+          "timestamp": "2026-03-30T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 1089.9999999999466,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 37
+        },
+        {
+          "swept_level": 100.61,
+          "timestamp": "2026-03-31T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 310.0000000000591,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 38
+        },
+        {
+          "swept_level": 98.902,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 3829.9999999999554,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 45
+        },
+        {
+          "swept_level": 98.846,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 3269.999999999982,
+          "closed_back_inside": true,
+          "timeframe": "D1",
+          "candle_index": 45
+        }
+      ]
+    },
+    "inducement_events": {
+      "count": 1,
+      "data": [
+        {
+          "inducement_level": 98.046,
+          "timestamp": "2026-02-20T00:00:00+00:00",
+          "direction": "BEARISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-03-01T00:00:00+00:00",
+          "timeframe": "D1",
+          "is_internal": true,
+          "candle_index": 5
+        }
+      ]
+    },
+    "equal_highs_lows": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_grabs": {
+      "count": 0,
+      "data": []
+    },
+    "qm_levels": {
+      "count": 1,
+      "data": [
+        {
+          "qml_price": 98.046,
+          "timestamp": "2026-02-20T00:00:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 98.046,
+          "hh_price": 100.51,
+          "h_timestamp": "2026-02-20T00:00:00+00:00",
+          "hh_timestamp": "2026-03-13T00:00:00+00:00",
+          "tested": false,
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "sr_flips": {
+      "count": 2,
+      "data": [
+        {
+          "flip_level": 98.459,
+          "breakout_price": 98.336,
+          "timestamp": "2026-04-13T00:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "D1"
+        },
+        {
+          "flip_level": 98.846,
+          "breakout_price": 98.336,
+          "timestamp": "2026-04-13T00:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "rs_flips": {
+      "count": 1,
+      "data": [
+        {
+          "flip_level": 98.046,
+          "breakout_price": 99.52,
+          "timestamp": "2026-03-08T00:00:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "mpl_levels": {
+      "count": 0,
+      "data": []
+    },
+    "supply_zones": {
+      "count": 2,
+      "data": [
+        {
+          "upper_bound": 98.459,
+          "lower_bound": 98.046,
+          "timestamp": "2026-04-13T00:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "D1"
+        },
+        {
+          "upper_bound": 98.846,
+          "lower_bound": 98.046,
+          "timestamp": "2026-04-13T00:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "D1"
+        }
+      ]
+    },
+    "demand_zones": {
+      "count": 0,
+      "data": []
+    },
+    "fibonacci_retracements": {
+      "count": 1,
+      "data": [
+        {
+          "swing_high": 100.641,
+          "swing_low": 98.846,
+          "swing_high_timestamp": "2026-03-31T00:00:00+00:00",
+          "swing_low_timestamp": "2026-03-23T00:00:00+00:00",
+          "is_bullish": false,
+          "range_size": 1.7950000000000017
+        }
+      ]
+    },
+    "dealing_ranges": {
+      "count": 1,
+      "data": [
+        {
+          "high": 100.641,
+          "low": 96.801,
+          "equilibrium": 98.721,
+          "start_time": "2026-02-15T00:00:00+00:00",
+          "end_time": "2026-04-15T00:00:00+00:00",
+          "timeframe": "D1",
+          "range_size": 3.8400000000000034
+        }
+      ]
+    },
+    "total_structure_events": 7,
+    "total_liquidity_events": 20,
+    "total_zones": 4
+  },
+  "H4": {
+    "symbol": "DXYM",
+    "timeframe": "H4",
+    "timestamp": "2026-04-15T16:00:00+00:00",
+    "candle_count": 111,
+    "trend_direction": "BEARISH",
+    "swing_highs": {
+      "count": 5,
+      "data": [
+        {
+          "price": 99.596,
+          "timestamp": "2026-03-24T16:00:00+00:00",
+          "index": 11,
+          "strength": 3,
+          "timeframe": "H4"
+        },
+        {
+          "price": 100.641,
+          "timestamp": "2026-03-31T00:00:00+00:00",
+          "index": 38,
+          "strength": 10,
+          "timeframe": "H4"
+        },
+        {
+          "price": 100.258,
+          "timestamp": "2026-04-02T08:00:00+00:00",
+          "index": 52,
+          "strength": 5,
+          "timeframe": "H4"
+        },
+        {
+          "price": 100.282,
+          "timestamp": "2026-04-05T20:00:00+00:00",
+          "index": 62,
+          "strength": 10,
+          "timeframe": "H4"
+        },
+        {
+          "price": 99.181,
+          "timestamp": "2026-04-12T20:00:00+00:00",
+          "index": 93,
+          "strength": 8,
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "swing_lows": {
+      "count": 6,
+      "data": [
+        {
+          "price": 99.022,
+          "timestamp": "2026-03-24T20:00:00+00:00",
+          "index": 12,
+          "strength": 10,
+          "timeframe": "H4"
+        },
+        {
+          "price": 99.286,
+          "timestamp": "2026-04-01T12:00:00+00:00",
+          "index": 47,
+          "strength": 10,
+          "timeframe": "H4"
+        },
+        {
+          "price": 99.749,
+          "timestamp": "2026-04-06T12:00:00+00:00",
+          "index": 66,
+          "strength": 7,
+          "timeframe": "H4"
+        },
+        {
+          "price": 98.519,
+          "timestamp": "2026-04-08T12:00:00+00:00",
+          "index": 78,
+          "strength": 10,
+          "timeframe": "H4"
+        },
+        {
+          "price": 98.533,
+          "timestamp": "2026-04-10T12:00:00+00:00",
+          "index": 90,
+          "strength": 5,
+          "timeframe": "H4"
+        },
+        {
+          "price": 97.96,
+          "timestamp": "2026-04-14T12:00:00+00:00",
+          "index": 103,
+          "strength": 10,
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "bms_events": {
+      "count": 5,
+      "data": [
+        {
+          "breakout_price": 98.92,
+          "broken_level": 99.022,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1020.0000000000387,
+          "timeframe": "H4",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.92,
+          "broken_level": 99.286,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 3659.9999999999964,
+          "timeframe": "H4",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 99.67,
+          "broken_level": 99.749,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 789.9999999999352,
+          "timeframe": "H4",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.392,
+          "broken_level": 98.519,
+          "timestamp": "2026-04-13T20:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1270.0000000000955,
+          "timeframe": "H4",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.392,
+          "broken_level": 98.533,
+          "timestamp": "2026-04-13T20:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1410.0000000000534,
+          "timeframe": "H4",
+          "confirmed": true
+        }
+      ]
+    },
+    "choch_events": {
+      "count": 3,
+      "data": [
+        {
+          "breakout_price": 99.674,
+          "broken_level": 99.596,
+          "timestamp": "2026-03-26T12:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H4",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 99.67,
+          "broken_level": 99.749,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H4",
+          "is_minor": false
+        },
+        {
+          "breakout_price": 98.392,
+          "broken_level": 98.533,
+          "timestamp": "2026-04-14T00:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H4",
+          "is_minor": true
+        }
+      ]
+    },
+    "sms_events": {
+      "count": 3,
+      "data": [
+        {
+          "failed_level": 98.519,
+          "reversal_price": 98.691,
+          "timestamp": "2026-04-10T12:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H4",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 100.641,
+          "reversal_price": 100.181,
+          "timestamp": "2026-04-02T08:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H4",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 100.282,
+          "reversal_price": 99.092,
+          "timestamp": "2026-04-12T20:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H4",
+          "is_failure_swing": true
+        }
+      ]
+    },
+    "order_blocks": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 10879.999999999938,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        },
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 10879.999999999938,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        },
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 3379.9999999999386,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.877,
+          "timestamp": "2026-04-13T08:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 6330.000000000097,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 96
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.877,
+          "timestamp": "2026-04-13T08:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 6330.000000000097,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 96
+        }
+      ]
+    },
+    "fair_value_gaps": {
+      "count": 0,
+      "data": []
+    },
+    "breaker_blocks": {
+      "count": 4,
+      "data": [
+        {
+          "upper_bound": 99.4,
+          "lower_bound": 99.022,
+          "timestamp": "2026-03-24T20:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-03-24T20:00:00+00:00",
+          "broken_timestamp": "2026-04-07T20:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 12
+        },
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-06T08:00:00+00:00",
+          "broken_timestamp": "2026-04-07T00:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        },
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-06T08:00:00+00:00",
+          "broken_timestamp": "2026-04-07T00:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        },
+        {
+          "upper_bound": 100.008,
+          "lower_bound": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-06T08:00:00+00:00",
+          "broken_timestamp": "2026-04-07T00:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H4",
+          "candle_index": 65
+        }
+      ]
+    },
+    "liquidity_sweeps": {
+      "count": 8,
+      "data": [
+        {
+          "swept_level": 99.635,
+          "timestamp": "2026-03-26T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 349.9999999999659,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 19
+        },
+        {
+          "swept_level": 100.61,
+          "timestamp": "2026-03-31T00:00:00+00:00",
+          "liquidity_type": "PDH_SWEEP",
+          "sweep_pips": 310.0000000000591,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 38
+        },
+        {
+          "swept_level": 100.042,
+          "timestamp": "2026-03-31T12:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 769.9999999999818,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 41
+        },
+        {
+          "swept_level": 99.72,
+          "timestamp": "2026-04-01T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 409.99999999996817,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 44
+        },
+        {
+          "swept_level": 100.258,
+          "timestamp": "2026-04-05T20:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 240.0000000000091,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 62
+        },
+        {
+          "swept_level": 100.111,
+          "timestamp": "2026-04-06T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 190.00000000005457,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 63
+        },
+        {
+          "swept_level": 98.902,
+          "timestamp": "2026-04-08T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 720.0000000000273,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 75
+        },
+        {
+          "swept_level": 98.619,
+          "timestamp": "2026-04-10T12:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 859.9999999999852,
+          "closed_back_inside": true,
+          "timeframe": "H4",
+          "candle_index": 90
+        }
+      ]
+    },
+    "inducement_events": {
+      "count": 1,
+      "data": [
+        {
+          "inducement_level": 99.596,
+          "timestamp": "2026-03-24T16:00:00+00:00",
+          "direction": "BEARISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-03-25T16:00:00+00:00",
+          "timeframe": "H4",
+          "is_internal": true,
+          "candle_index": 11
+        }
+      ]
+    },
+    "equal_highs_lows": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_grabs": {
+      "count": 0,
+      "data": []
+    },
+    "qm_levels": {
+      "count": 1,
+      "data": [
+        {
+          "qml_price": 99.596,
+          "timestamp": "2026-03-24T16:00:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 99.596,
+          "hh_price": 100.641,
+          "h_timestamp": "2026-03-24T16:00:00+00:00",
+          "hh_timestamp": "2026-03-31T00:00:00+00:00",
+          "tested": false,
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "sr_flips": {
+      "count": 5,
+      "data": [
+        {
+          "flip_level": 99.022,
+          "breakout_price": 98.92,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H4"
+        },
+        {
+          "flip_level": 99.286,
+          "breakout_price": 98.92,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H4"
+        },
+        {
+          "flip_level": 99.749,
+          "breakout_price": 98.92,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H4"
+        },
+        {
+          "flip_level": 98.519,
+          "breakout_price": 98.392,
+          "timestamp": "2026-04-13T16:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H4"
+        },
+        {
+          "flip_level": 98.533,
+          "breakout_price": 98.392,
+          "timestamp": "2026-04-13T16:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "rs_flips": {
+      "count": 1,
+      "data": [
+        {
+          "flip_level": 99.596,
+          "breakout_price": 99.986,
+          "timestamp": "2026-03-26T16:00:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "mpl_levels": {
+      "count": 0,
+      "data": []
+    },
+    "supply_zones": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 99.596,
+          "lower_bound": 99.022,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H4"
+        },
+        {
+          "upper_bound": 99.596,
+          "lower_bound": 99.286,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H4"
+        },
+        {
+          "upper_bound": 99.749,
+          "lower_bound": 99.596,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H4"
+        },
+        {
+          "upper_bound": 99.596,
+          "lower_bound": 98.519,
+          "timestamp": "2026-04-13T16:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H4"
+        },
+        {
+          "upper_bound": 99.596,
+          "lower_bound": 98.533,
+          "timestamp": "2026-04-13T16:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H4"
+        }
+      ]
+    },
+    "demand_zones": {
+      "count": 0,
+      "data": []
+    },
+    "fibonacci_retracements": {
+      "count": 1,
+      "data": [
+        {
+          "swing_high": 99.181,
+          "swing_low": 97.96,
+          "swing_high_timestamp": "2026-04-12T20:00:00+00:00",
+          "swing_low_timestamp": "2026-04-14T12:00:00+00:00",
+          "is_bullish": true,
+          "range_size": 1.2210000000000036
+        }
+      ]
+    },
+    "dealing_ranges": {
+      "count": 3,
+      "data": [
+        {
+          "high": 100.641,
+          "low": 97.994,
+          "equilibrium": 99.3175,
+          "start_time": "2026-03-23T00:00:00+00:00",
+          "end_time": "2026-04-15T08:00:00+00:00",
+          "timeframe": "H4",
+          "range_size": 2.6470000000000056
+        },
+        {
+          "high": 100.61,
+          "low": 97.96,
+          "equilibrium": 99.285,
+          "start_time": "2026-03-23T08:00:00+00:00",
+          "end_time": "2026-04-15T12:00:00+00:00",
+          "timeframe": "H4",
+          "range_size": 2.6500000000000057
+        },
+        {
+          "high": 100.61,
+          "low": 97.96,
+          "equilibrium": 99.285,
+          "start_time": "2026-03-22T20:00:00+00:00",
+          "end_time": "2026-04-15T16:00:00+00:00",
+          "timeframe": "H4",
+          "range_size": 2.6500000000000057
+        }
+      ]
+    },
+    "total_structure_events": 18,
+    "total_liquidity_events": 12,
+    "total_zones": 15
+  },
+  "H1": {
+    "symbol": "DXYM",
+    "timeframe": "H1",
+    "timestamp": "2026-04-15T19:00:00+00:00",
+    "candle_count": 204,
+    "trend_direction": "BULLISH",
+    "swing_highs": {
+      "count": 12,
+      "data": [
+        {
+          "price": 100.065,
+          "timestamp": "2026-04-06T17:00:00+00:00",
+          "index": 33,
+          "strength": 5,
+          "timeframe": "H1"
+        },
+        {
+          "price": 100.154,
+          "timestamp": "2026-04-07T02:00:00+00:00",
+          "index": 42,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.177,
+          "timestamp": "2026-04-08T19:00:00+00:00",
+          "index": 83,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.151,
+          "timestamp": "2026-04-09T01:00:00+00:00",
+          "index": 89,
+          "strength": 9,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.927,
+          "timestamp": "2026-04-10T00:00:00+00:00",
+          "index": 112,
+          "strength": 3,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.002,
+          "timestamp": "2026-04-10T08:00:00+00:00",
+          "index": 120,
+          "strength": 7,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.181,
+          "timestamp": "2026-04-12T23:00:00+00:00",
+          "index": 135,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.032,
+          "timestamp": "2026-04-13T12:00:00+00:00",
+          "index": 148,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.408,
+          "timestamp": "2026-04-14T02:00:00+00:00",
+          "index": 162,
+          "strength": 9,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.147,
+          "timestamp": "2026-04-14T16:00:00+00:00",
+          "index": 176,
+          "strength": 5,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.224,
+          "timestamp": "2026-04-15T02:00:00+00:00",
+          "index": 186,
+          "strength": 7,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.283,
+          "timestamp": "2026-04-15T11:00:00+00:00",
+          "index": 195,
+          "strength": 8,
+          "timeframe": "H1"
+        }
+      ]
+    },
+    "swing_lows": {
+      "count": 11,
+      "data": [
+        {
+          "price": 100.08,
+          "timestamp": "2026-04-03T20:00:00+00:00",
+          "index": 12,
+          "strength": 3,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.785,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "index": 24,
+          "strength": 7,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.749,
+          "timestamp": "2026-04-06T14:00:00+00:00",
+          "index": 30,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 99.759,
+          "timestamp": "2026-04-07T08:00:00+00:00",
+          "index": 48,
+          "strength": 7,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.678,
+          "timestamp": "2026-04-08T05:00:00+00:00",
+          "index": 69,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.519,
+          "timestamp": "2026-04-08T13:00:00+00:00",
+          "index": 77,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.619,
+          "timestamp": "2026-04-09T17:00:00+00:00",
+          "index": 105,
+          "strength": 9,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.533,
+          "timestamp": "2026-04-10T14:00:00+00:00",
+          "index": 126,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 97.96,
+          "timestamp": "2026-04-14T14:00:00+00:00",
+          "index": 174,
+          "strength": 10,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.045,
+          "timestamp": "2026-04-14T23:00:00+00:00",
+          "index": 183,
+          "strength": 7,
+          "timeframe": "H1"
+        },
+        {
+          "price": 98.073,
+          "timestamp": "2026-04-15T08:00:00+00:00",
+          "index": 192,
+          "strength": 3,
+          "timeframe": "H1"
+        }
+      ]
+    },
+    "bms_events": {
+      "count": 5,
+      "data": [
+        {
+          "breakout_price": 99.67,
+          "broken_level": 99.749,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 789.9999999999352,
+          "timeframe": "H1",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 99.67,
+          "broken_level": 99.759,
+          "timestamp": "2026-04-07T20:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 889.9999999999864,
+          "timeframe": "H1",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.362,
+          "broken_level": 98.519,
+          "timestamp": "2026-04-13T19:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1570.0000000001069,
+          "timeframe": "H1",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.557,
+          "broken_level": 98.619,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 619.9999999999761,
+          "timeframe": "H1",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.362,
+          "broken_level": 98.533,
+          "timestamp": "2026-04-13T19:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1710.0000000000648,
+          "timeframe": "H1",
+          "confirmed": true
+        }
+      ]
+    },
+    "choch_events": {
+      "count": 5,
+      "data": [
+        {
+          "breakout_price": 98.941,
+          "broken_level": 98.927,
+          "timestamp": "2026-04-10T08:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 99.033,
+          "broken_level": 99.002,
+          "timestamp": "2026-04-12T23:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_minor": false
+        },
+        {
+          "breakout_price": 98.194,
+          "broken_level": 98.147,
+          "timestamp": "2026-04-15T04:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 100.062,
+          "broken_level": 100.08,
+          "timestamp": "2026-04-06T08:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H1",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 99.67,
+          "broken_level": 99.759,
+          "timestamp": "2026-04-07T21:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H1",
+          "is_minor": false
+        }
+      ]
+    },
+    "sms_events": {
+      "count": 5,
+      "data": [
+        {
+          "failed_level": 99.749,
+          "reversal_price": 99.774,
+          "timestamp": "2026-04-07T08:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 98.519,
+          "reversal_price": 98.682,
+          "timestamp": "2026-04-09T17:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 97.96,
+          "reversal_price": 98.07,
+          "timestamp": "2026-04-14T23:00:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "H1",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 100.154,
+          "reversal_price": 98.982,
+          "timestamp": "2026-04-08T19:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H1",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 99.181,
+          "reversal_price": 98.9,
+          "timestamp": "2026-04-13T12:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "H1",
+          "is_failure_swing": true
+        }
+      ]
+    },
+    "order_blocks": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 100.034,
+          "lower_bound": 99.87,
+          "timestamp": "2026-04-07T10:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 3640.000000000043,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 50
+        },
+        {
+          "upper_bound": 100.034,
+          "lower_bound": 99.87,
+          "timestamp": "2026-04-07T10:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 3640.000000000043,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 50
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.877,
+          "timestamp": "2026-04-13T11:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 6630.000000000109,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 147
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.877,
+          "timestamp": "2026-04-13T11:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 4680.0000000000355,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 147
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.877,
+          "timestamp": "2026-04-13T11:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 6630.000000000109,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 147
+        }
+      ]
+    },
+    "fair_value_gaps": {
+      "count": 0,
+      "data": []
+    },
+    "breaker_blocks": {
+      "count": 4,
+      "data": [
+        {
+          "upper_bound": 100.007,
+          "lower_bound": 99.969,
+          "timestamp": "2026-04-06T20:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-06T20:00:00+00:00",
+          "broken_timestamp": "2026-04-06T21:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 36
+        },
+        {
+          "upper_bound": 98.89,
+          "lower_bound": 98.85,
+          "timestamp": "2026-04-10T03:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-10T03:00:00+00:00",
+          "broken_timestamp": "2026-04-10T09:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 115
+        },
+        {
+          "upper_bound": 98.767,
+          "lower_bound": 98.718,
+          "timestamp": "2026-04-10T11:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-10T11:00:00+00:00",
+          "broken_timestamp": "2026-04-10T12:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 123
+        },
+        {
+          "upper_bound": 98.129,
+          "lower_bound": 98.079,
+          "timestamp": "2026-04-14T20:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-14T20:00:00+00:00",
+          "broken_timestamp": "2026-04-14T23:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "H1",
+          "candle_index": 180
+        }
+      ]
+    },
+    "liquidity_sweeps": {
+      "count": 8,
+      "data": [
+        {
+          "swept_level": 98.619,
+          "timestamp": "2026-04-10T13:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 690.0000000000261,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 125
+        },
+        {
+          "swept_level": 99.151,
+          "timestamp": "2026-04-12T22:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 80.00000000009777,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 134
+        },
+        {
+          "swept_level": 99.177,
+          "timestamp": "2026-04-12T23:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 39.99999999990678,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 135
+        },
+        {
+          "swept_level": 98.966,
+          "timestamp": "2026-04-13T06:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 219.9999999999136,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 142
+        },
+        {
+          "swept_level": 98.533,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 109.9999999999568,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 153
+        },
+        {
+          "swept_level": 98.224,
+          "timestamp": "2026-04-15T09:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 120.00000000000455,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 193
+        },
+        {
+          "swept_level": 98.073,
+          "timestamp": "2026-04-15T14:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 259.9999999999625,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 198
+        },
+        {
+          "swept_level": 98.045,
+          "timestamp": "2026-04-15T15:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 469.99999999997044,
+          "closed_back_inside": true,
+          "timeframe": "H1",
+          "candle_index": 199
+        }
+      ]
+    },
+    "inducement_events": {
+      "count": 3,
+      "data": [
+        {
+          "inducement_level": 100.08,
+          "timestamp": "2026-04-03T20:00:00+00:00",
+          "direction": "BULLISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-04-06T05:00:00+00:00",
+          "timeframe": "H1",
+          "is_internal": true,
+          "candle_index": 12
+        },
+        {
+          "inducement_level": 98.073,
+          "timestamp": "2026-04-15T08:00:00+00:00",
+          "direction": "BULLISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-04-15T14:00:00+00:00",
+          "timeframe": "H1",
+          "is_internal": true,
+          "candle_index": 192
+        },
+        {
+          "inducement_level": 98.927,
+          "timestamp": "2026-04-10T00:00:00+00:00",
+          "direction": "BEARISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-04-10T06:00:00+00:00",
+          "timeframe": "H1",
+          "is_internal": true,
+          "candle_index": 112
+        }
+      ]
+    },
+    "equal_highs_lows": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_grabs": {
+      "count": 0,
+      "data": []
+    },
+    "qm_levels": {
+      "count": 2,
+      "data": [
+        {
+          "qml_price": 99.002,
+          "timestamp": "2026-04-10T08:00:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 99.002,
+          "hh_price": 99.181,
+          "h_timestamp": "2026-04-10T08:00:00+00:00",
+          "hh_timestamp": "2026-04-12T23:00:00+00:00",
+          "tested": false,
+          "timeframe": "H1"
+        },
+        {
+          "qml_price": 98.619,
+          "timestamp": "2026-04-09T17:00:00+00:00",
+          "direction": "BULLISH",
+          "h_price": 99.002,
+          "hh_price": 99.092,
+          "h_timestamp": "2026-04-10T08:00:00+00:00",
+          "hh_timestamp": "2026-04-12T23:00:00+00:00",
+          "tested": false,
+          "timeframe": "H1"
+        }
+      ]
+    },
+    "sr_flips": {
+      "count": 5,
+      "data": [
+        {
+          "flip_level": 99.759,
+          "breakout_price": 99.103,
+          "timestamp": "2026-04-07T22:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H1"
+        },
+        {
+          "flip_level": 98.678,
+          "breakout_price": 98.362,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H1"
+        },
+        {
+          "flip_level": 98.519,
+          "breakout_price": 98.362,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H1"
+        },
+        {
+          "flip_level": 98.619,
+          "breakout_price": 98.362,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H1"
+        },
+        {
+          "flip_level": 98.533,
+          "breakout_price": 98.362,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "H1"
+        }
+      ]
+    },
+    "rs_flips": {
+      "count": 0,
+      "data": []
+    },
+    "mpl_levels": {
+      "count": 0,
+      "data": []
+    },
+    "supply_zones": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 99.759,
+          "lower_bound": 99.002,
+          "timestamp": "2026-04-07T22:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H1"
+        },
+        {
+          "upper_bound": 99.002,
+          "lower_bound": 98.678,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H1"
+        },
+        {
+          "upper_bound": 99.002,
+          "lower_bound": 98.519,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H1"
+        },
+        {
+          "upper_bound": 99.002,
+          "lower_bound": 98.619,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H1"
+        },
+        {
+          "upper_bound": 99.002,
+          "lower_bound": 98.533,
+          "timestamp": "2026-04-13T18:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "H1"
+        }
+      ]
+    },
+    "demand_zones": {
+      "count": 0,
+      "data": []
+    },
+    "fibonacci_retracements": {
+      "count": 1,
+      "data": [
+        {
+          "swing_high": 98.283,
+          "swing_low": 98.073,
+          "swing_high_timestamp": "2026-04-15T11:00:00+00:00",
+          "swing_low_timestamp": "2026-04-15T08:00:00+00:00",
+          "is_bullish": false,
+          "range_size": 0.21000000000000796
+        }
+      ]
+    },
+    "dealing_ranges": {
+      "count": 3,
+      "data": [
+        {
+          "high": 100.268,
+          "low": 98.063,
+          "equilibrium": 99.16550000000001,
+          "start_time": "2026-04-03T08:00:00+00:00",
+          "end_time": "2026-04-15T08:00:00+00:00",
+          "timeframe": "H1",
+          "range_size": 2.2049999999999983
+        },
+        {
+          "high": 100.176,
+          "low": 97.96,
+          "equilibrium": 99.068,
+          "start_time": "2026-04-03T08:00:00+00:00",
+          "end_time": "2026-04-15T15:00:00+00:00",
+          "timeframe": "H1",
+          "range_size": 2.216000000000008
+        },
+        {
+          "high": 100.211,
+          "low": 97.96,
+          "equilibrium": 99.0855,
+          "start_time": "2026-04-03T12:00:00+00:00",
+          "end_time": "2026-04-15T19:00:00+00:00",
+          "timeframe": "H1",
+          "range_size": 2.2510000000000048
+        }
+      ]
+    },
+    "total_structure_events": 29,
+    "total_liquidity_events": 17,
+    "total_zones": 22
+  },
+  "M30": {
+    "symbol": "DXYM",
+    "timeframe": "M30",
+    "timestamp": "2026-04-15T19:00:00+00:00",
+    "candle_count": 380,
+    "trend_direction": "BULLISH",
+    "swing_highs": {
+      "count": 12,
+      "data": [
+        {
+          "price": 98.927,
+          "timestamp": "2026-04-10T00:30:00+00:00",
+          "index": 198,
+          "strength": 7,
+          "timeframe": "M30"
+        },
+        {
+          "price": 99.002,
+          "timestamp": "2026-04-10T08:00:00+00:00",
+          "index": 213,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.771,
+          "timestamp": "2026-04-10T16:30:00+00:00",
+          "index": 230,
+          "strength": 5,
+          "timeframe": "M30"
+        },
+        {
+          "price": 99.181,
+          "timestamp": "2026-04-12T23:00:00+00:00",
+          "index": 243,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 99.058,
+          "timestamp": "2026-04-13T06:30:00+00:00",
+          "index": 258,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 99.032,
+          "timestamp": "2026-04-13T12:00:00+00:00",
+          "index": 269,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.408,
+          "timestamp": "2026-04-14T02:30:00+00:00",
+          "index": 298,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.388,
+          "timestamp": "2026-04-14T06:00:00+00:00",
+          "index": 305,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.147,
+          "timestamp": "2026-04-14T16:00:00+00:00",
+          "index": 325,
+          "strength": 8,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.138,
+          "timestamp": "2026-04-14T19:30:00+00:00",
+          "index": 332,
+          "strength": 5,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.224,
+          "timestamp": "2026-04-15T02:30:00+00:00",
+          "index": 346,
+          "strength": 9,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.283,
+          "timestamp": "2026-04-15T11:30:00+00:00",
+          "index": 364,
+          "strength": 10,
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "swing_lows": {
+      "count": 12,
+      "data": [
+        {
+          "price": 98.984,
+          "timestamp": "2026-04-09T04:30:00+00:00",
+          "index": 158,
+          "strength": 7,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.619,
+          "timestamp": "2026-04-09T17:30:00+00:00",
+          "index": 184,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.533,
+          "timestamp": "2026-04-10T14:00:00+00:00",
+          "index": 225,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.611,
+          "timestamp": "2026-04-10T18:30:00+00:00",
+          "index": 234,
+          "strength": 9,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.989,
+          "timestamp": "2026-04-13T01:00:00+00:00",
+          "index": 247,
+          "strength": 5,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.889,
+          "timestamp": "2026-04-13T07:30:00+00:00",
+          "index": 260,
+          "strength": 7,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.354,
+          "timestamp": "2026-04-13T18:30:00+00:00",
+          "index": 282,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.106,
+          "timestamp": "2026-04-14T07:00:00+00:00",
+          "index": 307,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 97.96,
+          "timestamp": "2026-04-14T14:30:00+00:00",
+          "index": 322,
+          "strength": 10,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.045,
+          "timestamp": "2026-04-14T23:30:00+00:00",
+          "index": 340,
+          "strength": 9,
+          "timeframe": "M30"
+        },
+        {
+          "price": 98.073,
+          "timestamp": "2026-04-15T08:00:00+00:00",
+          "index": 357,
+          "strength": 7,
+          "timeframe": "M30"
+        },
+        {
+          "price": 97.998,
+          "timestamp": "2026-04-15T15:00:00+00:00",
+          "index": 371,
+          "strength": 10,
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "bms_events": {
+      "count": 5,
+      "data": [
+        {
+          "breakout_price": 98.532,
+          "broken_level": 98.611,
+          "timestamp": "2026-04-13T17:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 790.0000000000773,
+          "timeframe": "M30",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.917,
+          "broken_level": 98.989,
+          "timestamp": "2026-04-13T07:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 720.0000000000273,
+          "timeframe": "M30",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.88,
+          "broken_level": 98.889,
+          "timestamp": "2026-04-13T13:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 90.00000000000341,
+          "timeframe": "M30",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.349,
+          "broken_level": 98.354,
+          "timestamp": "2026-04-13T23:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 49.999999999954525,
+          "timeframe": "M30",
+          "confirmed": true
+        },
+        {
+          "breakout_price": 98.08,
+          "broken_level": 98.106,
+          "timestamp": "2026-04-14T11:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 259.9999999999625,
+          "timeframe": "M30",
+          "confirmed": true
+        }
+      ]
+    },
+    "choch_events": {
+      "count": 5,
+      "data": [
+        {
+          "breakout_price": 99.882,
+          "broken_level": 99.94,
+          "timestamp": "2026-04-07T08:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_minor": false
+        },
+        {
+          "breakout_price": 99.764,
+          "broken_level": 99.781,
+          "timestamp": "2026-04-07T19:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 98.952,
+          "broken_level": 98.959,
+          "timestamp": "2026-04-09T11:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_minor": false
+        },
+        {
+          "breakout_price": 98.917,
+          "broken_level": 98.989,
+          "timestamp": "2026-04-13T07:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_minor": true
+        },
+        {
+          "breakout_price": 98.88,
+          "broken_level": 98.889,
+          "timestamp": "2026-04-13T13:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_minor": false
+        }
+      ]
+    },
+    "sms_events": {
+      "count": 5,
+      "data": [
+        {
+          "failed_level": 97.96,
+          "reversal_price": 98.07,
+          "timestamp": "2026-04-14T23:30:00+00:00",
+          "direction": "BULLISH",
+          "timeframe": "M30",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 100.154,
+          "reversal_price": 98.874,
+          "timestamp": "2026-04-08T08:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 99.177,
+          "reversal_price": 99.136,
+          "timestamp": "2026-04-09T01:00:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 99.002,
+          "reversal_price": 98.717,
+          "timestamp": "2026-04-10T16:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_failure_swing": true
+        },
+        {
+          "failed_level": 99.181,
+          "reversal_price": 98.999,
+          "timestamp": "2026-04-13T06:30:00+00:00",
+          "direction": "BEARISH",
+          "timeframe": "M30",
+          "is_failure_swing": true
+        }
+      ]
+    },
+    "order_blocks": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 98.797,
+          "lower_bound": 98.73,
+          "timestamp": "2026-04-13T15:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 2650.0000000000055,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 275
+        },
+        {
+          "upper_bound": 99.032,
+          "lower_bound": 99.003,
+          "timestamp": "2026-04-13T03:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1149.9999999999488,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 251
+        },
+        {
+          "upper_bound": 99.025,
+          "lower_bound": 98.886,
+          "timestamp": "2026-04-13T11:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 1450.0000000001023,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 268
+        },
+        {
+          "upper_bound": 98.406,
+          "lower_bound": 98.368,
+          "timestamp": "2026-04-13T21:30:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 570.0000000000216,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 288
+        },
+        {
+          "upper_bound": 98.362,
+          "lower_bound": 98.29,
+          "timestamp": "2026-04-14T05:00:00+00:00",
+          "direction": "BEARISH",
+          "displacement_pips": 2819.9999999999645,
+          "is_breaker": false,
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 303
+        }
+      ]
+    },
+    "fair_value_gaps": {
+      "count": 0,
+      "data": []
+    },
+    "breaker_blocks": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 98.105,
+          "lower_bound": 98.08,
+          "timestamp": "2026-04-14T23:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-14T23:00:00+00:00",
+          "broken_timestamp": "2026-04-14T23:30:00+00:00",
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 339
+        },
+        {
+          "upper_bound": 98.166,
+          "lower_bound": 98.073,
+          "timestamp": "2026-04-15T08:00:00+00:00",
+          "direction": "BEARISH",
+          "original_ob_timestamp": "2026-04-15T08:00:00+00:00",
+          "broken_timestamp": "2026-04-15T14:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 357
+        },
+        {
+          "upper_bound": 100.118,
+          "lower_bound": 100.092,
+          "timestamp": "2026-04-06T05:30:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-06T05:30:00+00:00",
+          "broken_timestamp": "2026-04-06T06:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 16
+        },
+        {
+          "upper_bound": 98.959,
+          "lower_bound": 98.868,
+          "timestamp": "2026-04-08T01:30:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-08T01:30:00+00:00",
+          "broken_timestamp": "2026-04-08T03:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 104
+        },
+        {
+          "upper_bound": 99.036,
+          "lower_bound": 98.982,
+          "timestamp": "2026-04-09T10:30:00+00:00",
+          "direction": "BULLISH",
+          "original_ob_timestamp": "2026-04-09T10:30:00+00:00",
+          "broken_timestamp": "2026-04-12T22:00:00+00:00",
+          "mitigated": false,
+          "timeframe": "M30",
+          "candle_index": 170
+        }
+      ]
+    },
+    "liquidity_sweeps": {
+      "count": 8,
+      "data": [
+        {
+          "swept_level": 99.177,
+          "timestamp": "2026-04-12T23:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 39.99999999990678,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 243
+        },
+        {
+          "swept_level": 98.966,
+          "timestamp": "2026-04-13T06:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 219.9999999999136,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 257
+        },
+        {
+          "swept_level": 98.989,
+          "timestamp": "2026-04-13T06:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 450.00000000001705,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 257
+        },
+        {
+          "swept_level": 98.889,
+          "timestamp": "2026-04-13T11:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 120.00000000000455,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 267
+        },
+        {
+          "swept_level": 98.611,
+          "timestamp": "2026-04-13T16:30:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 300.00000000001137,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 278
+        },
+        {
+          "swept_level": 98.334,
+          "timestamp": "2026-04-14T00:00:00+00:00",
+          "liquidity_type": "PDL_SWEEP",
+          "sweep_pips": 140.00000000010004,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 293
+        },
+        {
+          "swept_level": 98.106,
+          "timestamp": "2026-04-14T10:00:00+00:00",
+          "liquidity_type": "SSL",
+          "sweep_pips": 330.0000000000125,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 313
+        },
+        {
+          "swept_level": 98.224,
+          "timestamp": "2026-04-15T09:00:00+00:00",
+          "liquidity_type": "BSL",
+          "sweep_pips": 120.00000000000455,
+          "closed_back_inside": true,
+          "timeframe": "M30",
+          "candle_index": 359
+        }
+      ]
+    },
+    "inducement_events": {
+      "count": 1,
+      "data": [
+        {
+          "inducement_level": 100.008,
+          "timestamp": "2026-04-06T10:30:00+00:00",
+          "direction": "BEARISH",
+          "cleared": true,
+          "cleared_timestamp": "2026-04-06T15:00:00+00:00",
+          "timeframe": "M30",
+          "is_internal": true,
+          "candle_index": 26
+        }
+      ]
+    },
+    "equal_highs_lows": {
+      "count": 0,
+      "data": []
+    },
+    "liquidity_grabs": {
+      "count": 0,
+      "data": []
+    },
+    "qm_levels": {
+      "count": 5,
+      "data": [
+        {
+          "qml_price": 100.065,
+          "timestamp": "2026-04-06T17:00:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 100.065,
+          "hh_price": 100.154,
+          "h_timestamp": "2026-04-06T17:00:00+00:00",
+          "hh_timestamp": "2026-04-07T02:00:00+00:00",
+          "tested": false,
+          "timeframe": "M30"
+        },
+        {
+          "qml_price": 98.971,
+          "timestamp": "2026-04-08T08:30:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 98.971,
+          "hh_price": 99.177,
+          "h_timestamp": "2026-04-08T08:30:00+00:00",
+          "hh_timestamp": "2026-04-08T19:00:00+00:00",
+          "tested": false,
+          "timeframe": "M30"
+        },
+        {
+          "qml_price": 98.771,
+          "timestamp": "2026-04-10T16:30:00+00:00",
+          "direction": "BEARISH",
+          "h_price": 98.771,
+          "hh_price": 99.181,
+          "h_timestamp": "2026-04-10T16:30:00+00:00",
+          "hh_timestamp": "2026-04-12T23:00:00+00:00",
+          "tested": false,
+          "timeframe": "M30"
+        },
+        {
+          "qml_price": 98.678,
+          "timestamp": "2026-04-08T05:30:00+00:00",
+          "direction": "BULLISH",
+          "h_price": 98.971,
+          "hh_price": 99.127,
+          "h_timestamp": "2026-04-08T08:30:00+00:00",
+          "hh_timestamp": "2026-04-08T18:30:00+00:00",
+          "tested": false,
+          "timeframe": "M30"
+        },
+        {
+          "qml_price": 98.619,
+          "timestamp": "2026-04-09T17:30:00+00:00",
+          "direction": "BULLISH",
+          "h_price": 99.002,
+          "hh_price": 99.139,
+          "h_timestamp": "2026-04-10T08:00:00+00:00",
+          "hh_timestamp": "2026-04-12T22:00:00+00:00",
+          "tested": false,
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "sr_flips": {
+      "count": 5,
+      "data": [
+        {
+          "flip_level": 98.533,
+          "breakout_price": 98.532,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.611,
+          "breakout_price": 98.532,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.989,
+          "breakout_price": 98.917,
+          "timestamp": "2026-04-13T07:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.889,
+          "breakout_price": 98.532,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.354,
+          "breakout_price": 98.247,
+          "timestamp": "2026-04-14T06:30:00+00:00",
+          "previous_role": "SUPPORT",
+          "new_role": "RESISTANCE",
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "rs_flips": {
+      "count": 5,
+      "data": [
+        {
+          "flip_level": 98.927,
+          "breakout_price": 98.987,
+          "timestamp": "2026-04-10T07:30:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 99.002,
+          "breakout_price": 99.033,
+          "timestamp": "2026-04-12T21:30:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.771,
+          "breakout_price": 99.033,
+          "timestamp": "2026-04-12T21:30:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.147,
+          "breakout_price": 98.192,
+          "timestamp": "2026-04-15T02:00:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "M30"
+        },
+        {
+          "flip_level": 98.138,
+          "breakout_price": 98.192,
+          "timestamp": "2026-04-15T02:00:00+00:00",
+          "previous_role": "RESISTANCE",
+          "new_role": "SUPPORT",
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "mpl_levels": {
+      "count": 0,
+      "data": []
+    },
+    "supply_zones": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 98.771,
+          "lower_bound": 98.533,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.771,
+          "lower_bound": 98.611,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.989,
+          "lower_bound": 98.771,
+          "timestamp": "2026-04-13T07:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.889,
+          "lower_bound": 98.771,
+          "timestamp": "2026-04-13T17:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.771,
+          "lower_bound": 98.354,
+          "timestamp": "2026-04-14T06:30:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "demand_zones": {
+      "count": 5,
+      "data": [
+        {
+          "upper_bound": 98.927,
+          "lower_bound": 98.619,
+          "timestamp": "2026-04-10T07:30:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 99.002,
+          "lower_bound": 98.619,
+          "timestamp": "2026-04-12T21:30:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.771,
+          "lower_bound": 98.619,
+          "timestamp": "2026-04-12T21:30:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.619,
+          "lower_bound": 98.147,
+          "timestamp": "2026-04-15T02:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        },
+        {
+          "upper_bound": 98.619,
+          "lower_bound": 98.138,
+          "timestamp": "2026-04-15T02:00:00+00:00",
+          "strength": 1,
+          "tested": false,
+          "test_count": 0,
+          "broken": false,
+          "timeframe": "M30"
+        }
+      ]
+    },
+    "fibonacci_retracements": {
+      "count": 1,
+      "data": [
+        {
+          "swing_high": 98.283,
+          "swing_low": 97.998,
+          "swing_high_timestamp": "2026-04-15T11:30:00+00:00",
+          "swing_low_timestamp": "2026-04-15T15:00:00+00:00",
+          "is_bullish": true,
+          "range_size": 0.2849999999999966
+        }
+      ]
+    },
+    "dealing_ranges": {
+      "count": 3,
+      "data": [
+        {
+          "high": 100.268,
+          "low": 98.063,
+          "equilibrium": 99.16550000000001,
+          "start_time": "2026-04-06T00:00:00+00:00",
+          "end_time": "2026-04-15T08:30:00+00:00",
+          "timeframe": "M30",
+          "range_size": 2.2049999999999983
+        },
+        {
+          "high": 100.127,
+          "low": 97.96,
+          "equilibrium": 99.0435,
+          "start_time": "2026-04-06T07:00:00+00:00",
+          "end_time": "2026-04-15T15:30:00+00:00",
+          "timeframe": "M30",
+          "range_size": 2.1670000000000016
+        },
+        {
+          "high": 100.065,
+          "low": 97.96,
+          "equilibrium": 99.01249999999999,
+          "start_time": "2026-04-06T12:00:00+00:00",
+          "end_time": "2026-04-15T19:00:00+00:00",
+          "timeframe": "M30",
+          "range_size": 2.105000000000004
+        }
+      ]
+    },
+    "total_structure_events": 72,
+    "total_liquidity_events": 20,
+    "total_zones": 125
+  }
+}

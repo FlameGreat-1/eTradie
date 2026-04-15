@@ -1,0 +1,179 @@
+{
+  "central_bank": {
+    "id": "3fb627fb-1673-4ebf-a93e-c67358c85327",
+    "created_at": "2026-04-15T19:08:16.741629Z",
+    "rate_decisions": [],
+    "speeches": [],
+    "meeting_minutes": [],
+    "forward_guidance": [],
+    "policy_actions": [],
+    "banks_reporting": [
+      "FED"
+    ],
+    "collected_at": "2026-04-15T19:08:16.741543Z"
+  },
+  "cot": null,
+  "economic": {
+    "id": "a9d17584-4696-4139-bc0f-4d1003049def",
+    "created_at": "2026-04-15T19:08:09.388669Z",
+    "releases": [
+      {
+        "id": "8f0e0d1a-94c4-4df1-adad-58a2213226dd",
+        "created_at": "2026-04-15T19:08:09.296740Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Consumer Price Index (US)",
+        "actual": 330.293,
+        "forecast": null,
+        "previous": 327.46,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "HEADLINE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ],
+    "collected_at": "2026-04-15T19:08:09.388597Z"
+  },
+  "news": {
+    "id": "ebf8094f-0605-489a-a535-d9c8ed41918c",
+    "created_at": "2026-04-15T19:08:44.475935Z",
+    "items": [],
+    "sources": [],
+    "collected_at": "2026-04-15T19:08:44.475835Z"
+  },
+  "calendar": {
+    "id": "071d96d9-c8c4-44fd-8967-2bf3091911d8",
+    "created_at": "2026-04-15T19:08:13.392943Z",
+    "events": [],
+    "sources": [
+      "investing_rss_calendar"
+    ],
+    "collected_at": "2026-04-15T19:08:13.392874Z"
+  },
+  "dxy": {
+    "id": "cde1ac3f-a1ec-4dca-b98e-6f6a5f0127c2",
+    "created_at": "2026-04-15T19:08:13.954973Z",
+    "snapshots": [
+      {
+        "id": "f061efb0-caef-4e4f-a2a1-e6ced1885ef7",
+        "created_at": "2026-04-15T19:08:13.954758Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T19:08:13.954687Z",
+        "source": "twelve_data"
+      }
+    ],
+    "latest": {
+      "id": "f061efb0-caef-4e4f-a2a1-e6ced1885ef7",
+      "created_at": "2026-04-15T19:08:13.954758Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T19:08:13.954687Z",
+      "source": "twelve_data"
+    },
+    "sources": [
+      "twelve_data"
+    ],
+    "collected_at": "2026-04-15T19:08:13.954929Z"
+  },
+  "intermarket": {
+    "id": "4f028f60-05b2-48b7-936f-383f263ee523",
+    "created_at": "2026-04-15T19:08:14.046517Z",
+    "snapshots": [
+      {
+        "id": "c70c08e1-e88a-4919-bec3-dd6eb860c461",
+        "created_at": "2026-04-15T19:08:14.027095Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T19:08:14.026856Z",
+        "source": "twelve_data+commodity_proxy"
+      }
+    ],
+    "latest": {
+      "id": "c70c08e1-e88a-4919-bec3-dd6eb860c461",
+      "created_at": "2026-04-15T19:08:14.027095Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T19:08:14.026856Z",
+      "source": "twelve_data+commodity_proxy"
+    },
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ],
+    "collected_at": "2026-04-15T19:08:14.046458Z"
+  },
+  "sentiment": {
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ],
+    "risk_environment": "NEUTRAL",
+    "risk_assessment": {
+      "id": "69722a78-23a1-4283-8d1d-0678fee25b8d",
+      "created_at": "2026-04-15T19:06:48.602101Z",
+      "environment": "NEUTRAL",
+      "vix_level": null,
+      "yield_curve_inverted": false,
+      "safe_haven_demand_elevated": false,
+      "commodity_currencies_weak": false,
+      "stagflation_detected": false,
+      "reasoning": [],
+      "assessed_at": "2026-04-15T19:06:48.602135Z"
+    },
+    "collected_at": "2026-04-15T19:06:48.599789+00:00"
+  }
+}

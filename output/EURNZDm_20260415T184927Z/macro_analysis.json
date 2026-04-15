@@ -1,0 +1,294 @@
+{
+  "central_bank": {
+    "id": "56ca4588-cf97-4888-b9d1-ccea5e32961f",
+    "created_at": "2026-04-15T18:48:17.702477Z",
+    "rate_decisions": [],
+    "speeches": [],
+    "meeting_minutes": [],
+    "forward_guidance": [],
+    "policy_actions": [],
+    "banks_reporting": [
+      "FED",
+      "ECB"
+    ],
+    "collected_at": "2026-04-15T18:48:17.702424Z"
+  },
+  "cot": null,
+  "economic": {
+    "id": "bcae54b8-9d1b-4a90-b859-8551a503bb6e",
+    "created_at": "2026-04-15T18:48:15.785742Z",
+    "releases": [
+      {
+        "id": "16307324-657a-4f2e-8f6b-1d70b24c445f",
+        "created_at": "2026-04-15T18:48:11.702601Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core CPI ex Food & Energy (US)",
+        "actual": 334.165,
+        "forecast": null,
+        "previous": 333.512,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "c5dfd10f-57e0-49f2-b21d-e5390e75a646",
+        "created_at": "2026-04-15T18:48:12.294891Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "actual": 128.859,
+        "forecast": null,
+        "previous": 128.388,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "b9df8321-6681-443a-806a-c9a55826b4ba",
+        "created_at": "2026-04-15T18:48:12.652107Z",
+        "currency": "USD",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "actual": 31422.526,
+        "forecast": null,
+        "previous": 31098.027,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "a69c062e-245a-41ba-9a2b-7b503ee4f129",
+        "created_at": "2026-04-15T18:48:12.959944Z",
+        "currency": "USD",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "actual": 4.3,
+        "forecast": null,
+        "previous": 4.4,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "01d3f5de-ade5-4b28-8437-758c9dc3c5a4",
+        "created_at": "2026-04-15T18:48:13.260493Z",
+        "currency": "USD",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "actual": 158637.0,
+        "forecast": null,
+        "previous": 158459.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "85849d49-8c59-4a41-9d12-4ff1b1fbe58b",
+        "created_at": "2026-04-15T18:48:13.591720Z",
+        "currency": "USD",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "actual": 638224.0,
+        "forecast": null,
+        "previous": 634233.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "3480dffd-3c22-454f-981c-93d7820307cc",
+        "created_at": "2026-04-15T18:48:13.896383Z",
+        "currency": "USD",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "actual": 154.006,
+        "forecast": null,
+        "previous": 153.221,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": "HEADLINE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "f3fa834a-0b0a-421b-a48d-809537f5e39b",
+        "created_at": "2026-04-15T18:48:14.182868Z",
+        "currency": "USD",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "actual": 102.551,
+        "forecast": null,
+        "previous": 102.3963,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ],
+    "collected_at": "2026-04-15T18:48:15.785665Z"
+  },
+  "news": {
+    "id": "f39d8aec-cb55-487a-9834-759d6a0d830d",
+    "created_at": "2026-04-15T18:48:14.620671Z",
+    "items": [],
+    "sources": [
+      "bloomberg_rss"
+    ],
+    "collected_at": "2026-04-15T18:48:14.620607Z"
+  },
+  "calendar": {
+    "id": "91b482e4-bc19-4e90-b64b-c7310ae64196",
+    "created_at": "2026-04-15T18:48:11.173094Z",
+    "events": [],
+    "sources": [
+      "investing_rss_calendar"
+    ],
+    "collected_at": "2026-04-15T18:48:11.172215Z"
+  },
+  "dxy": {
+    "id": "64b4cc30-8ed6-4ea1-a04f-8b2e899dc0f0",
+    "created_at": "2026-04-15T18:48:11.247477Z",
+    "snapshots": [
+      {
+        "id": "3a09899e-491c-40c1-bfaa-fd4b91b290bb",
+        "created_at": "2026-04-15T18:48:11.247252Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T18:48:11.247151Z",
+        "source": "twelve_data"
+      }
+    ],
+    "latest": {
+      "id": "3a09899e-491c-40c1-bfaa-fd4b91b290bb",
+      "created_at": "2026-04-15T18:48:11.247252Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T18:48:11.247151Z",
+      "source": "twelve_data"
+    },
+    "sources": [
+      "twelve_data"
+    ],
+    "collected_at": "2026-04-15T18:48:11.247415Z"
+  },
+  "intermarket": {
+    "id": "49eb7059-884c-4c79-b0fe-a6492ceb9e64",
+    "created_at": "2026-04-15T18:48:11.411600Z",
+    "snapshots": [
+      {
+        "id": "6c74ac98-6f54-435c-bbdd-e52e13c2673e",
+        "created_at": "2026-04-15T18:48:11.398836Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T18:48:11.398213Z",
+        "source": "twelve_data+commodity_proxy"
+      }
+    ],
+    "latest": {
+      "id": "6c74ac98-6f54-435c-bbdd-e52e13c2673e",
+      "created_at": "2026-04-15T18:48:11.398836Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T18:48:11.398213Z",
+      "source": "twelve_data+commodity_proxy"
+    },
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ],
+    "collected_at": "2026-04-15T18:48:11.411555Z"
+  },
+  "sentiment": {
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ],
+    "risk_environment": "NEUTRAL",
+    "risk_assessment": {
+      "id": "39ad00cb-6c36-4b29-8cca-98318aecc6bd",
+      "created_at": "2026-04-15T18:48:06.868959Z",
+      "environment": "NEUTRAL",
+      "vix_level": null,
+      "yield_curve_inverted": false,
+      "safe_haven_demand_elevated": false,
+      "commodity_currencies_weak": false,
+      "stagflation_detected": false,
+      "reasoning": [],
+      "assessed_at": "2026-04-15T18:48:06.868980Z"
+    },
+    "collected_at": "2026-04-15T18:48:06.866989+00:00"
+  }
+}

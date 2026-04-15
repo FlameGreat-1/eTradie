@@ -1,0 +1,351 @@
+{
+  "central_bank": {
+    "id": "109df456-2cb3-460f-a3ef-ebc70ff2541e",
+    "created_at": "2026-04-15T18:57:35.386592Z",
+    "rate_decisions": [],
+    "speeches": [],
+    "meeting_minutes": [],
+    "forward_guidance": [],
+    "policy_actions": [],
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA"
+    ],
+    "collected_at": "2026-04-15T18:57:35.386505Z"
+  },
+  "cot": null,
+  "economic": {
+    "id": "329d0a56-b2b2-40f0-9da9-adb00c05be9b",
+    "created_at": "2026-04-15T18:57:33.354587Z",
+    "releases": [
+      {
+        "id": "cc3e798e-de15-4a82-b049-aef4eb580426",
+        "created_at": "2026-04-15T18:57:22.465968Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core CPI ex Food & Energy (US)",
+        "actual": 334.165,
+        "forecast": null,
+        "previous": 333.512,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "699b1697-1d83-4a53-bc93-dc3b9aef3734",
+        "created_at": "2026-04-15T18:57:26.140605Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "actual": 128.859,
+        "forecast": null,
+        "previous": 128.388,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "621b4f96-d171-4eb5-a464-fc23adf38604",
+        "created_at": "2026-04-15T18:57:26.651539Z",
+        "currency": "USD",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "actual": 31422.526,
+        "forecast": null,
+        "previous": 31098.027,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "f2fe8a39-0e48-48fb-88d3-77861da7816f",
+        "created_at": "2026-04-15T18:57:26.950599Z",
+        "currency": "USD",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "actual": 4.3,
+        "forecast": null,
+        "previous": 4.4,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "569da36f-d4fa-4993-9540-9be304a07ef3",
+        "created_at": "2026-04-15T18:57:27.198412Z",
+        "currency": "USD",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "actual": 158637.0,
+        "forecast": null,
+        "previous": 158459.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "a0503b86-b60b-4404-ab8f-174b78b700fb",
+        "created_at": "2026-04-15T18:57:27.501959Z",
+        "currency": "USD",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "actual": 638224.0,
+        "forecast": null,
+        "previous": 634233.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "0d262415-6114-4cc2-ab87-6fd6ccd42706",
+        "created_at": "2026-04-15T18:57:27.861500Z",
+        "currency": "USD",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "actual": 154.006,
+        "forecast": null,
+        "previous": 153.221,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": "HEADLINE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "36d00653-cf53-47a0-984b-e39f49ffe8da",
+        "created_at": "2026-04-15T18:57:28.681365Z",
+        "currency": "USD",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "actual": 102.551,
+        "forecast": null,
+        "previous": 102.3963,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ],
+    "collected_at": "2026-04-15T18:57:33.354523Z"
+  },
+  "news": {
+    "id": "fb683273-c26e-4580-ac3c-00cedb7c4f55",
+    "created_at": "2026-04-15T18:57:29.299839Z",
+    "items": [
+      {
+        "id": "2c3fde0f-122e-4ba4-9a21-e9dbf08cb021",
+        "created_at": "2026-04-15T18:57:29.246056Z",
+        "headline": "Wall Street Goes Bottom Fishing in Beaten-Down Software Stocks",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-15/wall-street-goes-bottom-fishing-in-beaten-down-software-stocks",
+        "summary": "Wall Street has gotten repeatedly burned calling a bottom in software stocks, which have been hit hard by fears that artificial intelligence will make the companies obsolete. But this week\u2019s bounce is bringing some bottom-fishing investors back to the group on hopes that the worst may finally be over.",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-15T09:26:57Z",
+        "dedupe_hash": "90fa1ceb23562bcd22e296117cdd2ac2b2610f182b907aa2427cada76ef87e54"
+      },
+      {
+        "id": "57fcd703-93d4-409c-800c-b5b6c18e4ec4",
+        "created_at": "2026-04-15T18:57:29.246199Z",
+        "headline": "BofA Sees 60% Jump in Commodities Trading Fueled by Oil and Gold",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-15/bofa-sees-60-jump-in-commodities-trading-fueled-by-oil-and-gold",
+        "summary": "Bank of America Corp.\u2019s commodities-trading revenue surged 60% in the first quarter, riding the wild market swings that pushed markets businesses at the biggest US banks to record highs.",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-15T18:46:49Z",
+        "dedupe_hash": "534defdab9295745a95bd22f46a10e56e7b7cc9e43f72500b5ffc7413c3def00"
+      },
+      {
+        "id": "37f6edc8-9c3a-4f1e-8ff6-4c07daad60f7",
+        "created_at": "2026-04-15T18:57:29.246276Z",
+        "headline": "Trump Crypto Firm Draws Scrutiny With Plan to Delay Investor Trading",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-15/trump-linked-crypto-project-s-clash-with-early-investors-deepens",
+        "summary": "World Liberty Financial Inc., the crypto project co-founded by President Donald Trump, is facing a fresh round of criticism after proposing that some tokens owned by some early investors remain unavailable for trading indefinitely &mdash; or at least until Trump leaves office.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-15T18:25:11Z",
+        "dedupe_hash": "e33396528da1b01d1296045f3e81f33b4c5205cdb5efb8fe52c3c8cac4d0167b"
+      },
+      {
+        "id": "84ea4dda-8b6d-45db-a66d-974348906398",
+        "created_at": "2026-04-15T18:57:29.246340Z",
+        "headline": "LA Ports\u2019 March Imports Hold Steady Amid Tariff, War Turmoil",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-15/la-ports-march-imports-hold-steady-amid-tariff-war-turmoil",
+        "summary": "The stream of imported goods through Southern California\u2019s twin ports fell about 1% last month compared to the year before, as the Iran war adds pressure and uncertainty to the global supply chain.",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-15T17:05:48Z",
+        "dedupe_hash": "e8bf974394749a61db2ba89b684ece93c5a2310f63133c34cc2afb2a9f1f2ad4"
+      }
+    ],
+    "sources": [
+      "bloomberg_rss"
+    ],
+    "collected_at": "2026-04-15T18:57:29.299735Z"
+  },
+  "calendar": {
+    "id": "5f378e6d-61dd-4626-8e69-0ea33c0cfef5",
+    "created_at": "2026-04-15T18:57:22.039469Z",
+    "events": [],
+    "sources": [
+      "investing_rss_calendar"
+    ],
+    "collected_at": "2026-04-15T18:57:22.039418Z"
+  },
+  "dxy": {
+    "id": "8ae8b388-0066-485a-9823-b8d41d0cb7e9",
+    "created_at": "2026-04-15T18:57:22.068130Z",
+    "snapshots": [
+      {
+        "id": "700320fa-ca95-4384-b5e3-e43e83e86f97",
+        "created_at": "2026-04-15T18:57:22.067838Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T18:57:22.067728Z",
+        "source": "twelve_data"
+      }
+    ],
+    "latest": {
+      "id": "700320fa-ca95-4384-b5e3-e43e83e86f97",
+      "created_at": "2026-04-15T18:57:22.067838Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T18:57:22.067728Z",
+      "source": "twelve_data"
+    },
+    "sources": [
+      "twelve_data"
+    ],
+    "collected_at": "2026-04-15T18:57:22.068051Z"
+  },
+  "intermarket": {
+    "id": "71512b86-7eca-4859-aadc-458cc1340d28",
+    "created_at": "2026-04-15T18:57:22.139334Z",
+    "snapshots": [
+      {
+        "id": "ff231445-d929-487a-b03c-5378a436bbea",
+        "created_at": "2026-04-15T18:57:22.105058Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-15T18:57:22.104846Z",
+        "source": "twelve_data+commodity_proxy"
+      }
+    ],
+    "latest": {
+      "id": "ff231445-d929-487a-b03c-5378a436bbea",
+      "created_at": "2026-04-15T18:57:22.105058Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-15T18:57:22.104846Z",
+      "source": "twelve_data+commodity_proxy"
+    },
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ],
+    "collected_at": "2026-04-15T18:57:22.139295Z"
+  },
+  "sentiment": {
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ],
+    "risk_environment": "NEUTRAL",
+    "risk_assessment": {
+      "id": "89bd40cd-19ac-4a1e-bf91-0e5a064a1a3d",
+      "created_at": "2026-04-15T18:57:19.467282Z",
+      "environment": "NEUTRAL",
+      "vix_level": null,
+      "yield_curve_inverted": false,
+      "safe_haven_demand_elevated": false,
+      "commodity_currencies_weak": false,
+      "stagflation_detected": false,
+      "reasoning": [],
+      "assessed_at": "2026-04-15T18:57:19.467303Z"
+    },
+    "collected_at": "2026-04-15T18:57:19.465899+00:00"
+  }
+}
