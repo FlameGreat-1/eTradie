@@ -73,6 +73,17 @@ message ConfirmSetupRequest {
   string symbol = 1;              // e.g. "EURUSD"
   string analysis_id = 2;         // Links to the original TA candidate
   string trace_id = 3;
+
+  // Optional: structural parameters for lightweight LTF confirmation.
+  // When provided (non-zero), the Gateway calls the fast-path
+  // /internal/ta/confirm_ltf endpoint (~100ms) instead of re-running
+  // the full TA pipeline (~5s). The Execution watcher populates these
+  // from the Order's candidate parameters.
+  double ob_upper = 4;            // Order Block upper bound
+  double ob_lower = 5;            // Order Block lower bound
+  string ltf_timeframe = 6;       // LTF timeframe e.g. "M5", "M15"
+  string direction = 7;           // "BULLISH" or "BEARISH"
+  double entry_price = 8;         // Candidate entry price
 }
 
 // ConfirmSetupResponse indicates whether the TA engine confirms
