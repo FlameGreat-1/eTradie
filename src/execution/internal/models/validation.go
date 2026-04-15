@@ -43,6 +43,7 @@ type TradeRequest struct {
 	OBUpper      float64
 	OBLower      float64
 	LTFTimeframe string
+	HTFTimeframe string
 
 	// Auth context: authenticated user who owns this trade request.
 	// Set by the gRPC server after JWT extraction. Used by the

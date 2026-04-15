@@ -485,6 +485,8 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 			LTFTimeframe: w.order.LTFTimeframe,
 			Direction:    dir,
 			EntryPrice:   w.order.EntryPrice,
+			StopLoss:     w.order.StopLoss,
+			HTFTimeframe: w.order.HTFTimeframe,
 		}
 	}
 

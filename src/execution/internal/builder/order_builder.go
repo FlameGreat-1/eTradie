@@ -75,6 +75,7 @@ func BuildWithMode(
 		order.OBUpper = req.OBUpper
 		order.OBLower = req.OBLower
 		order.LTFTimeframe = req.LTFTimeframe
+		order.HTFTimeframe = req.HTFTimeframe
 	}
 
 	return order

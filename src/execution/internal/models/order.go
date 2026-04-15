@@ -62,6 +62,7 @@ type Order struct {
 	OBUpper      float64
 	OBLower      float64
 	LTFTimeframe string
+	HTFTimeframe string // The HTF timeframe the OB was detected on (e.g. "H4")
 
 	// TimeoutOverride, when > 0, overrides the style-specific watcher
 	// timeout. Used when restoring watchers after a service restart:

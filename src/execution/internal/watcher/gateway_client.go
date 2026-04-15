@@ -45,13 +45,17 @@ func NewGatewayGRPCClient(addr string) (*GatewayGRPCClient, error) {
 }
 
 // ConfirmSetupParams holds optional structural parameters for the
-// lightweight LTF confirmation path.
+// lightweight LTF confirmation path, including HTF invalidation fields.
 type ConfirmSetupParams struct {
 	OBUpper      float64
 	OBLower      float64
 	LTFTimeframe string
 	Direction    string
 	EntryPrice   float64
+
+	// HTF invalidation layer fields.
+	StopLoss     float64 // The approved candidate's stop loss level
+	HTFTimeframe string  // The HTF timeframe the OB was detected on (e.g. "H4")
 }
 
 // ConfirmSetup calls the Gateway's ConfirmSetup RPC.
@@ -83,6 +87,8 @@ func (g *GatewayGRPCClient) ConfirmSetupWithParams(ctx context.Context, symbol, 
 		req.LtfTimeframe = params.LTFTimeframe
 		req.Direction = params.Direction
 		req.EntryPrice = params.EntryPrice
+		req.StopLoss = params.StopLoss
+		req.HtfTimeframe = params.HTFTimeframe
 	}
 
 	resp, err := g.client.ConfirmSetup(callCtx, req)
