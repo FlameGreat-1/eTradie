@@ -44,6 +44,10 @@ class ReversalBuilder:
     - Turtle Soup sweep also creates BMS
     - Price retraces to OB
     - Both setups confirm simultaneously
+
+    LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated when
+    available and stored as metadata.  Their absence does NOT block
+    candidate creation.
     """
 
     def __init__(
@@ -65,7 +69,7 @@ class ReversalBuilder:
         ltf_sequence: CandleSequence,
         htf_sms: ShiftInMarketStructure,
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: ChangeOfCharacter,
+        ltf_choch: Optional[ChangeOfCharacter],
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
@@ -94,19 +98,23 @@ class ReversalBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-            None,
-            ltf_choch,
-            ltf_bms,
-            ltf_ob,
-            inducement_events,
-            ltf_sequence,
-            current_price,
-        )
+        # LTF confirmation is evaluated when available
+        ltf_confirmed = False
+        if ltf_choch:
+            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+                None,  # No sweep required for reversal
+                ltf_choch,
+                ltf_bms,
+                ltf_ob,
+                inducement_events,
+                ltf_sequence,
+                current_price,
+            )
 
         confluences = self._count_sms_confluences(
             htf_sms,
             ltf_bms,
+            ltf_choch,
             ltf_ob,
             ltf_fvgs,
             retracement,
@@ -114,6 +122,16 @@ class ReversalBuilder:
         )
 
         if confluences < self.config.min_confluences:
+            self._logger.info(
+                "bullish_sms_reversal_insufficient_confluences",
+                extra={
+                    "symbol": ltf_sequence.symbol,
+                    "confluences": confluences,
+                    "required": self.config.min_confluences,
+                    "has_choch": ltf_choch is not None,
+                    "has_retracement": retracement is not None,
+                },
+            )
             return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
@@ -140,9 +158,9 @@ class ReversalBuilder:
             bms_detected=True,
             bms_price=ltf_bms.breakout_price,
             bms_timestamp=ltf_bms.timestamp,
-            choch_detected=True,
-            choch_price=ltf_choch.breakout_price,
-            choch_timestamp=ltf_choch.timestamp,
+            choch_detected=ltf_choch is not None,
+            choch_price=ltf_choch.breakout_price if ltf_choch else None,
+            choch_timestamp=ltf_choch.timestamp if ltf_choch else None,
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
@@ -165,6 +183,7 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "confluences": confluences,
+                "ltf_confirmed": ltf_confirmed,
             },
         )
 
@@ -176,7 +195,7 @@ class ReversalBuilder:
         ltf_sequence: CandleSequence,
         htf_sms: ShiftInMarketStructure,
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: ChangeOfCharacter,
+        ltf_choch: Optional[ChangeOfCharacter],
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
@@ -205,19 +224,22 @@ class ReversalBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-            None,
-            ltf_choch,
-            ltf_bms,
-            ltf_ob,
-            inducement_events,
-            ltf_sequence,
-            current_price,
-        )
+        ltf_confirmed = False
+        if ltf_choch:
+            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+                None,
+                ltf_choch,
+                ltf_bms,
+                ltf_ob,
+                inducement_events,
+                ltf_sequence,
+                current_price,
+            )
 
         confluences = self._count_sms_confluences(
             htf_sms,
             ltf_bms,
+            ltf_choch,
             ltf_ob,
             ltf_fvgs,
             retracement,
@@ -225,6 +247,16 @@ class ReversalBuilder:
         )
 
         if confluences < self.config.min_confluences:
+            self._logger.info(
+                "bearish_sms_reversal_insufficient_confluences",
+                extra={
+                    "symbol": ltf_sequence.symbol,
+                    "confluences": confluences,
+                    "required": self.config.min_confluences,
+                    "has_choch": ltf_choch is not None,
+                    "has_retracement": retracement is not None,
+                },
+            )
             return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
@@ -251,9 +283,9 @@ class ReversalBuilder:
             bms_detected=True,
             bms_price=ltf_bms.breakout_price,
             bms_timestamp=ltf_bms.timestamp,
-            choch_detected=True,
-            choch_price=ltf_choch.breakout_price,
-            choch_timestamp=ltf_choch.timestamp,
+            choch_detected=ltf_choch is not None,
+            choch_price=ltf_choch.breakout_price if ltf_choch else None,
+            choch_timestamp=ltf_choch.timestamp if ltf_choch else None,
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
@@ -276,6 +308,7 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "confluences": confluences,
+                "ltf_confirmed": ltf_confirmed,
             },
         )
 
@@ -389,25 +422,37 @@ class ReversalBuilder:
         self,
         sms: ShiftInMarketStructure,
         bms: BreakInMarketStructure,
+        choch: Optional[ChangeOfCharacter],
         ob: OrderBlock,
         fvgs: list[FairValueGap],
         retracement: Optional[FibonacciRetracement],
         inducement_events: list[InducementEvent],
     ) -> int:
+        """Count all confluences for a reversal candidate."""
         confluences = 0
 
+        # 1. HTF SMS (failure swing) detected
         confluences += 1
 
+        # 2. BMS confirmed
         confluences += 1
 
+        # 3. LTF CHOCH (may not be present yet)
+        if choch is not None:
+            confluences += 1
+
+        # 4. FVG alignment with OB
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        if retracement and self.zone_validator.validate_ob_at_premium_discount(
-            ob, retracement
-        ):
-            confluences += 1
+        # 5. Fibonacci / OTE confluence (0-3 points)
+        fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
+        if fib_score >= 3:
+            confluences += 2  # OTE pocket = strong confluence
+        elif fib_score >= 2:
+            confluences += 1  # Correct premium/discount zone
 
+        # 6. Inducement cleared
         if any(idm.cleared for idm in inducement_events):
             confluences += 1
 
@@ -418,15 +463,8 @@ class ReversalBuilder:
         entry_price: float,
         swing_highs: list[SwingHigh],
         pip_val: float,
-    ) -> float:
-        """Find the nearest BSL (swing high) above entry as the TP target.
-
-        Per SMC rules: price runs from liquidity to liquidity.
-        TP must always target the next draw on liquidity — the nearest
-        opposing swing high (BSL) above the entry for bullish trades.
-        If no structural target is found, returns None so the LLM
-        can determine the TP independently.
-        """
+    ) -> Optional[float]:
+        """Find the nearest BSL (swing high) above entry as the TP target."""
         candidates = [
             sh.price for sh in swing_highs
             if sh.price > entry_price
@@ -440,15 +478,8 @@ class ReversalBuilder:
         entry_price: float,
         swing_lows: list[SwingLow],
         pip_val: float,
-    ) -> float:
-        """Find the nearest SSL (swing low) below entry as the TP target.
-
-        Per SMC rules: price runs from liquidity to liquidity.
-        TP must always target the next draw on liquidity — the nearest
-        opposing swing low (SSL) below the entry for bearish trades.
-        If no structural target is found, returns None so the LLM
-        can determine the TP independently.
-        """
+    ) -> Optional[float]:
+        """Find the nearest SSL (swing low) below entry as the TP target."""
         candidates = [
             sl.price for sl in swing_lows
             if sl.price < entry_price
@@ -462,9 +493,7 @@ class ReversalBuilder:
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
-        but only if within the configured tolerance. Returns None if no OTE
-        level is close enough — never returns 0.0 or 1.0."""
+        """Return the OTE fib level closest to price within tolerance."""
         pip_val = float(get_pip_value(retracement.symbol))
         tolerance = self.config.fibonacci_tolerance_pips * pip_val
 
