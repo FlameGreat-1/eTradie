@@ -34,6 +34,9 @@ from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
 
 logger = get_logger(__name__)
 
+# Maximum candle-index distance for sweep-to-BMS association.
+_SWEEP_MAX_CANDLE_DISTANCE = 10
+
 
 class SMCDetector:
     """
@@ -43,9 +46,20 @@ class SMCDetector:
     1. Runs all SMC detectors (BMS, CHOCH, SMS, inducement, turtle soup, AMD)
     2. Extracts zones (OB, FVG, breaker blocks)
     3. Validates zones against 7 OB rules
-    4. Validates LTF confirmations (6 requirements)
+    4. Validates LTF confirmations (6 requirements) when available
     5. Builds candidates using continuation/reversal/AMD builders
     6. Outputs SMCCandidate models for processor
+
+    Key design principle: the HTF pattern (BMS/SMS + OB + FVG + IDM) IS
+    the candidate.  LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated
+    when available and stored as metadata on the candidate.  Their absence
+    does NOT block candidate creation because:
+
+    - Price may not have returned to the OB yet (RTO pending).
+    - The execution engine monitors 24/7 and waits for the RTO + LTF
+      confirmation before entering.
+    - Blocking candidates here means the execution engine never even
+      knows about the setup.
 
     Enforces all 12 Universal Rules:
     - Liquidity must be taken first
@@ -130,9 +144,9 @@ class SMCDetector:
 
         Top-down execution (Universal Rule 11):
         1. HTF: Identify structure (BMS, SMS, swings)
-        2. LTF: Refine entry (CHOCH, OB, FVG, sweeps)
-        3. Validate all rules
-        4. Build candidates
+        2. LTF: Refine entry (CHOCH, OB, FVG, sweeps) when available
+        3. Validate zone rules
+        4. Build candidates with LTF confirmation as metadata
         """
         if not self.config.enabled:
             return []
@@ -146,6 +160,7 @@ class SMCDetector:
             },
         )
 
+        # -- HTF structural detection --
         htf_swing_highs = self.swing_analyzer.detect_swing_highs(htf_sequence)
         htf_swing_lows = self.swing_analyzer.detect_swing_lows(htf_sequence)
 
@@ -163,6 +178,7 @@ class SMCDetector:
             htf_sequence, htf_swing_highs
         )
 
+        # -- LTF structural detection --
         ltf_swing_highs = self.swing_analyzer.detect_swing_highs(ltf_sequence)
         ltf_swing_lows = self.swing_analyzer.detect_swing_lows(ltf_sequence)
 
@@ -212,6 +228,41 @@ class SMCDetector:
             htf_swing_lows,
         )
 
+        # -- Also detect FVGs on HTF for cross-timeframe FVG association --
+        htf_fvgs = self.fvg_detector.detect_fvgs(htf_sequence)
+        all_fvgs = ltf_fvgs + htf_fvgs
+
+        all_inducements = ltf_inducement_bullish + ltf_inducement_bearish
+        all_sweeps = turtle_soup_long + turtle_soup_short
+
+        # Diagnostic: log all detected structural elements
+        self._logger.info(
+            "smc_structural_detection_summary",
+            extra={
+                "symbol": htf_sequence.symbol,
+                "htf_timeframe": str(htf_sequence.timeframe),
+                "ltf_timeframe": str(ltf_sequence.timeframe),
+                "htf_swing_highs": len(htf_swing_highs),
+                "htf_swing_lows": len(htf_swing_lows),
+                "htf_bms_bullish": len(htf_bms_bullish),
+                "htf_bms_bearish": len(htf_bms_bearish),
+                "htf_sms_bullish": len(htf_sms_bullish),
+                "htf_sms_bearish": len(htf_sms_bearish),
+                "ltf_swing_highs": len(ltf_swing_highs),
+                "ltf_swing_lows": len(ltf_swing_lows),
+                "ltf_bms_bullish": len(ltf_bms_bullish),
+                "ltf_bms_bearish": len(ltf_bms_bearish),
+                "ltf_choch_bullish": len(ltf_choch_bullish),
+                "ltf_choch_bearish": len(ltf_choch_bearish),
+                "ltf_fvgs": len(ltf_fvgs),
+                "htf_fvgs": len(htf_fvgs),
+                "inducements": len(all_inducements),
+                "sweeps": len(all_sweeps),
+                "has_retracement": retracement is not None,
+                "has_amd_context": amd_context is not None,
+            },
+        )
+
         candidates = []
 
         # Build Continuation Candidates (Pattern 2/7: SH + BMS + RTO)
@@ -226,9 +277,9 @@ class SMCDetector:
                     ltf_bms_bearish,
                     ltf_choch_bullish,
                     ltf_choch_bearish,
-                    ltf_fvgs,
-                    ltf_inducement_bullish + ltf_inducement_bearish,
-                    turtle_soup_long + turtle_soup_short,
+                    all_fvgs,
+                    all_inducements,
+                    all_sweeps,
                     retracement,
                 )
             )
@@ -245,8 +296,8 @@ class SMCDetector:
                     ltf_bms_bearish,
                     ltf_choch_bullish,
                     ltf_choch_bearish,
-                    ltf_fvgs,
-                    ltf_inducement_bullish + ltf_inducement_bearish,
+                    all_fvgs,
+                    all_inducements,
                     retracement,
                     ltf_swing_highs,
                     ltf_swing_lows,
@@ -276,9 +327,9 @@ class SMCDetector:
                     ltf_bms_bearish,
                     ltf_choch_bullish,
                     ltf_choch_bearish,
-                    ltf_fvgs,
-                    ltf_inducement_bullish + ltf_inducement_bearish,
-                    turtle_soup_long + turtle_soup_short,
+                    all_fvgs,
+                    all_inducements,
+                    all_sweeps,
                     retracement,
                     ltf_swing_highs,
                     ltf_swing_lows,
@@ -292,14 +343,22 @@ class SMCDetector:
                 "total_candidates": len(candidates),
                 "htf_bms_bullish": len(htf_bms_bullish),
                 "htf_bms_bearish": len(htf_bms_bearish),
+                "htf_sms_bullish": len(htf_sms_bullish),
+                "htf_sms_bearish": len(htf_sms_bearish),
                 "ltf_bms_bullish": len(ltf_bms_bullish),
                 "ltf_bms_bearish": len(ltf_bms_bearish),
+                "ltf_choch_bullish": len(ltf_choch_bullish),
+                "ltf_choch_bearish": len(ltf_choch_bearish),
                 "turtle_soup_long": len(turtle_soup_long),
                 "turtle_soup_short": len(turtle_soup_short),
             },
         )
 
         return candidates
+
+    # ------------------------------------------------------------------
+    # Continuation candidates (Pattern 2/7: SH + BMS + RTO)
+    # ------------------------------------------------------------------
 
     def _build_continuation_candidates(
         self,
@@ -316,19 +375,52 @@ class SMCDetector:
         sweeps: list,
         retracement: Optional[FibonacciRetracement],
     ) -> list[SMCCandidate]:
+        """Build continuation candidates.
+
+        The HTF BMS is the primary structural requirement.  LTF BMS and
+        CHOCH are evaluated when available and stored as metadata.  Their
+        absence does NOT block candidate creation because price may not
+        have returned to the OB yet.
+        """
         candidates = []
 
+        # -- Bullish continuation --
         latest_htf_bms_bullish = self.bms_detector.get_latest_bms(htf_bms_bullish)
-        if latest_htf_bms_bullish and ltf_bms_bullish and ltf_choch_bullish:
+        if latest_htf_bms_bullish:
+            # Detect OBs from HTF BMS events (the displacement leg)
+            for htf_bms in htf_bms_bullish:
+                htf_ob = self.ob_detector.detect_bullish_ob(htf_sequence, htf_bms)
+                if htf_ob:
+                    # LTF confirmations are optional at detection time
+                    ltf_choch = self.choch_detector.get_latest_choch(
+                        ltf_choch_bullish
+                    )
+                    ltf_sweep = self._find_relevant_sweep(
+                        sweeps, Direction.BULLISH, htf_bms
+                    )
+
+                    candidate = self.continuation_builder.build_bullish_continuation(
+                        htf_sequence,
+                        ltf_sequence,
+                        latest_htf_bms_bullish,
+                        ltf_sweep,
+                        ltf_choch,
+                        htf_bms,
+                        htf_ob,
+                        ltf_fvgs,
+                        inducement_events,
+                        retracement,
+                    )
+                    if candidate:
+                        candidates.append(candidate)
+
+            # Also check LTF OBs when LTF BMS exists (higher refinement)
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
-                if not ltf_choch:
-                    continue
-
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BULLISH, ltf_bms
                 )
@@ -345,21 +437,56 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-
                 if candidate:
                     candidates.append(candidate)
 
+            self._logger.info(
+                "smc_continuation_bullish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_bms_count": len(htf_bms_bullish),
+                    "ltf_bms_count": len(ltf_bms_bullish),
+                    "ltf_choch_count": len(ltf_choch_bullish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BULLISH]
+                    ),
+                },
+            )
+
+        # -- Bearish continuation --
         latest_htf_bms_bearish = self.bms_detector.get_latest_bms(htf_bms_bearish)
-        if latest_htf_bms_bearish and ltf_bms_bearish and ltf_choch_bearish:
+        if latest_htf_bms_bearish:
+            for htf_bms in htf_bms_bearish:
+                htf_ob = self.ob_detector.detect_bearish_ob(htf_sequence, htf_bms)
+                if htf_ob:
+                    ltf_choch = self.choch_detector.get_latest_choch(
+                        ltf_choch_bearish
+                    )
+                    ltf_sweep = self._find_relevant_sweep(
+                        sweeps, Direction.BEARISH, htf_bms
+                    )
+
+                    candidate = self.continuation_builder.build_bearish_continuation(
+                        htf_sequence,
+                        ltf_sequence,
+                        latest_htf_bms_bearish,
+                        ltf_sweep,
+                        ltf_choch,
+                        htf_bms,
+                        htf_ob,
+                        ltf_fvgs,
+                        inducement_events,
+                        retracement,
+                    )
+                    if candidate:
+                        candidates.append(candidate)
+
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
-                if not ltf_choch:
-                    continue
-
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BEARISH, ltf_bms
                 )
@@ -376,11 +503,27 @@ class SMCDetector:
                     inducement_events,
                     retracement,
                 )
-
                 if candidate:
                     candidates.append(candidate)
 
+            self._logger.info(
+                "smc_continuation_bearish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_bms_count": len(htf_bms_bearish),
+                    "ltf_bms_count": len(ltf_bms_bearish),
+                    "ltf_choch_count": len(ltf_choch_bearish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BEARISH]
+                    ),
+                },
+            )
+
         return candidates
+
+    # ------------------------------------------------------------------
+    # Reversal candidates (Pattern 3/8: SMS + BMS + RTO)
+    # ------------------------------------------------------------------
 
     def _build_reversal_candidates(
         self,
@@ -398,18 +541,24 @@ class SMCDetector:
         ltf_swing_highs: list = None,
         ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
+        """Build reversal candidates.
+
+        The HTF SMS (failure swing) is the primary structural requirement.
+        LTF BMS and CHOCH are evaluated when available.  Their absence
+        does NOT block candidate creation.
+        """
         candidates = []
 
+        # -- Bullish reversal --
         latest_htf_sms_bullish = self.sms_detector.get_latest_sms(htf_sms_bullish)
-        if latest_htf_sms_bullish and ltf_bms_bullish and ltf_choch_bullish:
+        if latest_htf_sms_bullish:
+            # Try LTF-refined OBs first (higher precision)
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
-                if not ltf_choch:
-                    continue
 
                 candidate = self.reversal_builder.build_bullish_sms_reversal(
                     htf_sequence,
@@ -423,20 +572,63 @@ class SMCDetector:
                     retracement,
                     swing_highs=ltf_swing_highs,
                 )
-
                 if candidate:
                     candidates.append(candidate)
 
+            # If no LTF BMS yet, build from HTF structure alone
+            if not ltf_bms_bullish:
+                for htf_sms in htf_sms_bullish:
+                    # Use the SMS reversal candle to find an OB on HTF
+                    htf_bms_from_sms = self.bms_detector.detect_bullish_bms(
+                        htf_sequence, self.swing_analyzer.detect_swing_highs(htf_sequence)
+                    )
+                    latest_htf_bms = self.bms_detector.get_latest_bms(htf_bms_from_sms)
+                    if not latest_htf_bms:
+                        continue
+
+                    htf_ob = self.ob_detector.detect_bullish_ob(
+                        htf_sequence, latest_htf_bms
+                    )
+                    if not htf_ob:
+                        continue
+
+                    candidate = self.reversal_builder.build_bullish_sms_reversal(
+                        htf_sequence,
+                        ltf_sequence,
+                        latest_htf_sms_bullish,
+                        latest_htf_bms,
+                        None,  # No LTF CHOCH yet
+                        htf_ob,
+                        ltf_fvgs,
+                        inducement_events,
+                        retracement,
+                        swing_highs=ltf_swing_highs,
+                    )
+                    if candidate:
+                        candidates.append(candidate)
+
+            self._logger.info(
+                "smc_reversal_bullish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_sms_count": len(htf_sms_bullish),
+                    "ltf_bms_count": len(ltf_bms_bullish),
+                    "ltf_choch_count": len(ltf_choch_bullish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BULLISH]
+                    ),
+                },
+            )
+
+        # -- Bearish reversal --
         latest_htf_sms_bearish = self.sms_detector.get_latest_sms(htf_sms_bearish)
-        if latest_htf_sms_bearish and ltf_bms_bearish and ltf_choch_bearish:
+        if latest_htf_sms_bearish:
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
-                if not ltf_choch:
-                    continue
 
                 candidate = self.reversal_builder.build_bearish_sms_reversal(
                     htf_sequence,
@@ -450,11 +642,57 @@ class SMCDetector:
                     retracement,
                     swing_lows=ltf_swing_lows,
                 )
-
                 if candidate:
                     candidates.append(candidate)
 
+            if not ltf_bms_bearish:
+                for htf_sms in htf_sms_bearish:
+                    htf_bms_from_sms = self.bms_detector.detect_bearish_bms(
+                        htf_sequence, self.swing_analyzer.detect_swing_lows(htf_sequence)
+                    )
+                    latest_htf_bms = self.bms_detector.get_latest_bms(htf_bms_from_sms)
+                    if not latest_htf_bms:
+                        continue
+
+                    htf_ob = self.ob_detector.detect_bearish_ob(
+                        htf_sequence, latest_htf_bms
+                    )
+                    if not htf_ob:
+                        continue
+
+                    candidate = self.reversal_builder.build_bearish_sms_reversal(
+                        htf_sequence,
+                        ltf_sequence,
+                        latest_htf_sms_bearish,
+                        latest_htf_bms,
+                        None,  # No LTF CHOCH yet
+                        htf_ob,
+                        ltf_fvgs,
+                        inducement_events,
+                        retracement,
+                        swing_lows=ltf_swing_lows,
+                    )
+                    if candidate:
+                        candidates.append(candidate)
+
+            self._logger.info(
+                "smc_reversal_bearish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_sms_count": len(htf_sms_bearish),
+                    "ltf_bms_count": len(ltf_bms_bearish),
+                    "ltf_choch_count": len(ltf_choch_bearish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BEARISH]
+                    ),
+                },
+            )
+
         return candidates
+
+    # ------------------------------------------------------------------
+    # Turtle Soup candidates (Pattern 1/6)
+    # ------------------------------------------------------------------
 
     def _build_turtle_soup_candidates(
         self,
@@ -486,6 +724,10 @@ class SMCDetector:
 
         return candidates
 
+    # ------------------------------------------------------------------
+    # AMD candidates (Pattern 4/9)
+    # ------------------------------------------------------------------
+
     def _build_amd_candidates(
         self,
         htf_sequence: CandleSequence,
@@ -511,9 +753,6 @@ class SMCDetector:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
-                if not ltf_choch:
-                    continue
-
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BULLISH, ltf_bms
                 )
@@ -542,9 +781,6 @@ class SMCDetector:
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
-                if not ltf_choch:
-                    continue
-
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BEARISH, ltf_bms
                 )
@@ -567,6 +803,10 @@ class SMCDetector:
                     candidates.append(candidate)
 
         return candidates
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _create_fibonacci_retracement(
         self,
@@ -596,19 +836,39 @@ class SMCDetector:
         direction: Direction,
         bms: BreakInMarketStructure,
     ) -> Optional[LiquiditySweep]:
-        for sweep in sweeps:
-            if abs(sweep.timestamp.timestamp() - bms.timestamp.timestamp()) < 3600:
-                if direction == Direction.BULLISH and sweep.liquidity_type.value in [
-                    "SSL",
-                    "EQUAL_LOWS",
-                    "PDL_SWEEP"
-                ]:
-                    return sweep
-                elif direction == Direction.BEARISH and sweep.liquidity_type.value in [
-                    "BSL",
-                    "EQUAL_HIGHS",
-                    "PDH_SWEEP"
-                ]:
-                    return sweep
+        """Find a liquidity sweep structurally related to a BMS event.
 
-        return None
+        Uses candle-index proximity instead of clock time so the
+        association works correctly across all timeframes.  A sweep
+        that occurs within ``_SWEEP_MAX_CANDLE_DISTANCE`` candles of
+        the BMS is considered structurally related.
+
+        Sweeps are conditional events — they don't happen 100% of the
+        time.  Returning None is perfectly valid and the builders
+        handle it gracefully.
+        """
+        best_sweep: Optional[LiquiditySweep] = None
+        best_distance = _SWEEP_MAX_CANDLE_DISTANCE + 1
+
+        for sweep in sweeps:
+            if sweep is None:
+                continue
+
+            distance = abs(sweep.candle_index - bms.candle_index)
+            if distance > _SWEEP_MAX_CANDLE_DISTANCE:
+                continue
+
+            if direction == Direction.BULLISH and sweep.liquidity_type.value in (
+                "SSL", "EQUAL_LOWS", "PDL_SWEEP",
+            ):
+                if distance < best_distance:
+                    best_distance = distance
+                    best_sweep = sweep
+            elif direction == Direction.BEARISH and sweep.liquidity_type.value in (
+                "BSL", "EQUAL_HIGHS", "PDH_SWEEP",
+            ):
+                if distance < best_distance:
+                    best_distance = distance
+                    best_sweep = sweep
+
+        return best_sweep
