@@ -482,6 +482,12 @@ type LTFConfirmParams struct {
 	OBUpper      float64
 	OBLower      float64
 	EntryPrice   float64
+
+	// Invalidation layer fields. When provided, the Python engine runs
+	// HTF invalidation checks (OB mitigation, opposing BMS, SL blown)
+	// against the exact approved candidate before LTF confirmation.
+	StopLoss     float64 // The approved candidate's stop loss level
+	HTFTimeframe string  // The HTF timeframe the OB was detected on (e.g. "H4")
 }
 
 // RunConfirmationPulse performs a lightweight LTF-only confirmation
@@ -646,6 +652,14 @@ func (o *Orchestrator) runLightweightConfirmation(
 		"trace_id":      traceID,
 	}
 
+	// Attach invalidation layer fields when available.
+	if params.StopLoss > 0 {
+		reqBody["stop_loss"] = params.StopLoss
+	}
+	if params.HTFTimeframe != "" {
+		reqBody["htf_timeframe"] = params.HTFTimeframe
+	}
+
 	resp, err := o.engineHTTP.PostJSON(ctx, "/internal/ta/confirm_ltf", reqBody)
 	if err != nil {
 		log.Warn().
@@ -676,6 +690,24 @@ func (o *Orchestrator) runLightweightConfirmation(
 		Float64("engine_duration_ms", durationMs).
 		Interface("checks", checks).
 		Msg("lightweight_ltf_confirmation_result")
+
+	// Check if the setup was invalidated by the HTF layer.
+	invalidated := getBoolField(resp, "invalidated")
+	if invalidated {
+		invReason, _ := resp["invalidation_reason"].(string)
+		if invReason == "" {
+			invReason = "Setup invalidated on HTF"
+		}
+		log.Warn().
+			Str("symbol", params.Symbol).
+			Str("invalidation_reason", invReason).
+			Msg("lightweight_confirmation_setup_invalidated")
+		return &ConfirmationResult{
+			Confirmed:       false,
+			LTFConfirmation: false,
+			Reason:          invReason,
+		}
+	}
 
 	reason := "LTF confirmation not yet met"
 	if confirmed {
