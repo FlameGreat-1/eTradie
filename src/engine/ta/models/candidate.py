@@ -96,6 +96,17 @@ class SMCCandidate(FrozenModel):
     
     htf_timeframe: Timeframe
     ltf_timeframe: Timeframe
+
+    @computed_field
+    @property
+    def candidate_id(self) -> str:
+        """Deterministic fingerprint for candidate matching.
+
+        Stable across re-analyses of the same setup. Used by the
+        Gateway's RunConfirmationPulse to find the matching candidate
+        when the Execution watcher requests LTF confirmation.
+        """
+        return f"{self.symbol}_{self.pattern}_{self.direction}_{round(self.entry_price, 4)}"
     
     bms_detected: bool = Field(default=False)
     bms_price: Optional[float] = Field(default=None, gt=0)
@@ -207,6 +218,12 @@ class SnDCandidate(FrozenModel):
     
     htf_timeframe: Timeframe
     ltf_timeframe: Timeframe
+
+    @computed_field
+    @property
+    def candidate_id(self) -> str:
+        """Deterministic fingerprint for candidate matching."""
+        return f"{self.symbol}_{self.pattern}_{self.direction}_{round(self.entry_price, 4)}"
     
     qml_detected: bool = Field(default=False)
     qml_price: Optional[float] = Field(default=None, gt=0)

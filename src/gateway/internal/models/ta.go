@@ -45,3 +45,21 @@ func (r *TAResult) SuccessfulSymbols() []string {
 	}
 	return out
 }
+
+// TotalSMCCandidates returns the total number of SMC candidates across all symbols.
+func (r *TAResult) TotalSMCCandidates() int {
+	total := 0
+	for i := range r.SymbolResults {
+		total += len(r.SymbolResults[i].SMCCandidates)
+	}
+	return total
+}
+
+// TotalSnDCandidates returns the total number of SnD candidates across all symbols.
+func (r *TAResult) TotalSnDCandidates() int {
+	total := 0
+	for i := range r.SymbolResults {
+		total += len(r.SymbolResults[i].SnDCandidates)
+	}
+	return total
+}

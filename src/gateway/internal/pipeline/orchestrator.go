@@ -514,7 +514,9 @@ func (o *Orchestrator) RunConfirmationPulse(
 		}
 	}
 
-	// Search for the matching analysis_id across all candidates.
+	// Search for the matching candidate across all results.
+	// Primary match: candidate_id (deterministic fingerprint).
+	// Fallback match: analysis_id field (for backward compatibility).
 	for i := range taResult.SymbolResults {
 		sr := &taResult.SymbolResults[i]
 		if sr.Status != "success" || !strings.EqualFold(sr.Symbol, symbol) {
@@ -523,11 +525,7 @@ func (o *Orchestrator) RunConfirmationPulse(
 
 		// Search SMC candidates.
 		for _, cand := range sr.SMCCandidates {
-			candID, _ := cand["analysis_id"].(string)
-			if candID == "" {
-				candID, _ = cand["id"].(string)
-			}
-			if candID == analysisID {
+			if matchesCandidate(cand, analysisID) {
 				ltfConfirmed := getBoolField(cand, "ltf_confirmation")
 				elapsed := time.Since(start).Milliseconds()
 				pulseLog.Info().
@@ -536,6 +534,7 @@ func (o *Orchestrator) RunConfirmationPulse(
 					Bool("ltf_confirmed", ltfConfirmed).
 					Int64("duration_ms", elapsed).
 					Str("framework", "SMC").
+					Str("matched_by", matchedBy(cand, analysisID)).
 					Msg("confirmation_pulse_candidate_found")
 				return &ConfirmationResult{
 					Confirmed:       ltfConfirmed,
@@ -547,11 +546,7 @@ func (o *Orchestrator) RunConfirmationPulse(
 
 		// Search SnD candidates.
 		for _, cand := range sr.SnDCandidates {
-			candID, _ := cand["analysis_id"].(string)
-			if candID == "" {
-				candID, _ = cand["id"].(string)
-			}
-			if candID == analysisID {
+			if matchesCandidate(cand, analysisID) {
 				ltfConfirmed := getBoolField(cand, "ltf_confirmation")
 				elapsed := time.Since(start).Milliseconds()
 				pulseLog.Info().
@@ -560,6 +555,7 @@ func (o *Orchestrator) RunConfirmationPulse(
 					Bool("ltf_confirmed", ltfConfirmed).
 					Int64("duration_ms", elapsed).
 					Str("framework", "SnD").
+					Str("matched_by", matchedBy(cand, analysisID)).
 					Msg("confirmation_pulse_candidate_found")
 				return &ConfirmationResult{
 					Confirmed:       ltfConfirmed,
@@ -573,6 +569,8 @@ func (o *Orchestrator) RunConfirmationPulse(
 	pulseLog.Warn().
 		Str("symbol", symbol).
 		Str("analysis_id", analysisID).
+		Int("smc_candidates_total", taResult.TotalSMCCandidates()).
+		Int("snd_candidates_total", taResult.TotalSnDCandidates()).
 		Msg("confirmation_pulse_candidate_not_found")
 
 	return &ConfirmationResult{
@@ -586,17 +584,6 @@ func getBoolField(m map[string]interface{}, key string) bool {
 	if !ok || v == nil {
 		return false
 	}
-
-	// Handle nested dict (e.g. TA Engine output format: {"confirmed": true})
-	if dict, isDict := v.(map[string]interface{}); isDict {
-		if confirmedField, exists := dict["confirmed"]; exists {
-			if b, isBool := confirmedField.(bool); isBool {
-				return b
-			}
-		}
-		return false
-	}
-
 	b, ok := v.(bool)
 	if ok {
 		return b
@@ -606,6 +593,36 @@ func getBoolField(m map[string]interface{}, key string) bool {
 		return f != 0
 	}
 	return false
+}
+
+// matchesCandidate checks if a candidate map matches the given analysisID.
+// Tries candidate_id first (deterministic fingerprint from TA engine),
+// then falls back to analysis_id or id fields for backward compatibility.
+func matchesCandidate(cand map[string]interface{}, analysisID string) bool {
+	// Primary: candidate_id (deterministic fingerprint)
+	if candID, _ := cand["candidate_id"].(string); candID != "" && candID == analysisID {
+		return true
+	}
+	// Fallback: analysis_id
+	if candID, _ := cand["analysis_id"].(string); candID != "" && candID == analysisID {
+		return true
+	}
+	// Fallback: id
+	if candID, _ := cand["id"].(string); candID != "" && candID == analysisID {
+		return true
+	}
+	return false
+}
+
+// matchedBy returns which field was used for matching (for logging).
+func matchedBy(cand map[string]interface{}, analysisID string) string {
+	if candID, _ := cand["candidate_id"].(string); candID == analysisID {
+		return "candidate_id"
+	}
+	if candID, _ := cand["analysis_id"].(string); candID == analysisID {
+		return "analysis_id"
+	}
+	return "id"
 }
 
 func condReason(cond bool, ifTrue, ifFalse string) string {
