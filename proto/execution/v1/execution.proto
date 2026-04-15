@@ -64,6 +64,7 @@ message ExecuteTradeRequest {
   double ob_upper = 24;           // Order Block upper bound
   double ob_lower = 25;           // Order Block lower bound
   string ltf_timeframe = 26;      // LTF timeframe e.g. "M5", "M15"
+  string htf_timeframe = 27;      // HTF timeframe the OB was detected on e.g. "H4"
 }
 
 message ExecuteTradeResponse {

@@ -163,6 +163,7 @@ func buildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeReq
 		ObUpper:         d.OBUpper,
 		ObLower:         d.OBLower,
 		LtfTimeframe:    d.LTFTimeframe,
+		HtfTimeframe:    d.HTFTimeframe,
 	}
 
 	// Safely dereference pointer fields.

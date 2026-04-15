@@ -588,6 +588,7 @@ func parseRequest(req *executionv1.ExecuteTradeRequest) *models.TradeRequest {
 		OBUpper:         req.GetObUpper(),
 		OBLower:         req.GetObLower(),
 		LTFTimeframe:    req.GetLtfTimeframe(),
+		HTFTimeframe:    req.GetHtfTimeframe(),
 	}
 }
 

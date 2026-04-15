@@ -79,4 +79,5 @@ type ProcessorOutput struct {
 	OBUpper      float64 `json:"ob_upper,omitempty"`
 	OBLower      float64 `json:"ob_lower,omitempty"`
 	LTFTimeframe string  `json:"ltf_timeframe,omitempty"`
+	HTFTimeframe string  `json:"htf_timeframe,omitempty"`
 }
