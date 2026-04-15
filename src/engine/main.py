@@ -265,6 +265,16 @@ class ProcessorConfigUpdateRequest(BaseModel):
 # -- Request schemas for internal gateway endpoints --------------------------
 
 
+class InternalLTFConfirmRequest(BaseModel):
+    symbol: str
+    direction: str  # "BULLISH" or "BEARISH"
+    ltf_timeframe: str  # e.g. "M5", "M15"
+    ob_upper: float
+    ob_lower: float
+    entry_price: float
+    trace_id: Optional[str] = None
+
+
 class InternalTARequest(BaseModel):
     symbols: list[str]
     trace_id: Optional[str] = None
@@ -375,6 +385,69 @@ def create_app() -> FastAPI:
         }
 
     # -- Internal endpoints for Go gateway -----------------------------------
+
+    @app.post("/internal/ta/confirm_ltf")
+    async def internal_ta_confirm_ltf(
+        request: Request,
+        body: InternalLTFConfirmRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
+        """Lightweight LTF-only confirmation check.
+
+        Called by the Go gateway's RunConfirmationPulse when the
+        execution watcher detects price in the entry zone. Fetches
+        only LTF candle data and runs only the 7 LTF confirmation
+        checks. Returns in milliseconds, not seconds.
+
+        This is the fast-path alternative to re-running the full
+        /internal/ta/analyze pipeline.
+        """
+        container: Container = request.app.state.container
+        user_broker = await _resolve_user_broker(container, user.user_id)
+
+        # Lazy-build the LTF confirmation service
+        if not hasattr(container, "ltf_confirmation_service"):
+            from engine.ta.common.services.ltf_confirmation.service import (
+                LTFConfirmationService,
+            )
+            from engine.ta.smc.config import SMCConfig
+
+            smc_config = SMCConfig()
+            # Reuse analyzers from the TA orchestrator if available
+            if hasattr(container, "ta_orchestrator"):
+                orch = container.ta_orchestrator
+                container.ltf_confirmation_service = LTFConfirmationService(
+                    smc_config=smc_config,
+                    swing_analyzer=orch.snapshot_builder.swing_analyzer,
+                    session_analyzer=orch.snapshot_builder.session_analyzer,
+                    sweep_analyzer=orch.snapshot_builder.sweep_analyzer,
+                    candle_analyzer=orch.smc_detector.candle_analyzer,
+                )
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="TA orchestrator not initialized",
+                )
+
+        from engine.ta.common.services.ltf_confirmation.service import (
+            LTFConfirmationRequest,
+        )
+
+        ltf_request = LTFConfirmationRequest(
+            symbol=body.symbol,
+            direction=body.direction,
+            ltf_timeframe=body.ltf_timeframe,
+            ob_upper=body.ob_upper,
+            ob_lower=body.ob_lower,
+            entry_price=body.entry_price,
+            trace_id=body.trace_id,
+        )
+
+        result = await container.ltf_confirmation_service.confirm(
+            ltf_request, user_broker,
+        )
+
+        return result.model_dump(mode="json")
 
     @app.post("/internal/ta/analyze")
     async def internal_ta_analyze(
