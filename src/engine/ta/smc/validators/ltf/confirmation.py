@@ -16,7 +16,7 @@ class LTFConfirmationValidator:
     """
     Validates LTF confirmation requirements for SMC candidate eligibility.
 
-    6 LTF Confirmations (all required):
+    6 LTF Confirmations (all required for full confirmation):
     1. Liquidity has been taken (sweep completed, closed back inside)
     2. CHOCH on LTF (earliest signal of order flow shift)
     3. BMS confirmed on LTF (reversal direction confirmed)
@@ -24,7 +24,12 @@ class LTFConfirmationValidator:
     5. Session timing (London 09:00-11:00 or NY 14:00-16:00 UTC+2)
     6. Inducement cleared (internal highs/lows swept before entry)
 
-    No entry without all 6 confirmations.
+    IMPORTANT: LTF confirmation is for EXECUTION timing, not detection.
+    A candidate is built regardless of LTF confirmation status.  When
+    all 6 confirmations are present, ltf_confirmation=True and the
+    execution engine can enter immediately.  When some are missing
+    (e.g. price hasn't returned to the OB yet), ltf_confirmation=False
+    and the execution engine monitors 24/7 until they are satisfied.
     """
 
     def __init__(
@@ -52,8 +57,12 @@ class LTFConfirmationValidator:
         sweep: Optional[LiquiditySweep],
     ) -> bool:
         """Confirmation 2: CHOCH on LTF."""
-        if not choch or not sweep:
+        if not choch:
             return False
+
+        # If no sweep, we can still validate CHOCH exists
+        if not sweep:
+            return True
 
         # Compare candle_index instead of timestamp, because multi-candle confirmations
         # could delay the official timestamp of the CHOCH past the sweep.
@@ -65,7 +74,11 @@ class LTFConfirmationValidator:
         choch: Optional[ChangeOfCharacter],
     ) -> bool:
         """Confirmation 3: BMS confirmed on LTF."""
-        if not bms or not choch:
+        if not bms:
+            return False
+
+        # If no CHOCH yet, BMS alone is not sufficient for full confirmation
+        if not choch:
             return False
 
         # Compare candle_index to decouple the actual breakout moment from the
@@ -139,29 +152,50 @@ class LTFConfirmationValidator:
         sequence: CandleSequence,
         current_price: float,
     ) -> bool:
-        """Validate all 6 LTF confirmations."""
-        if not self.validate_liquidity_taken(sweep):
-            self._logger.debug("ltf_validation_failed_liquidity_not_taken")
-            return False
+        """Validate all 6 LTF confirmations.
 
-        if not self.validate_choch_present(choch, sweep):
-            self._logger.debug("ltf_validation_failed_no_choch")
-            return False
+        Returns True only when ALL 6 confirmations are satisfied.
+        Returns False (not an error) when any confirmation is missing,
+        which simply means the execution engine should wait.
+        """
+        liquidity_ok = self.validate_liquidity_taken(sweep)
+        choch_ok = self.validate_choch_present(choch, sweep)
+        bms_ok = self.validate_bms_confirmed(bms, choch)
+        rto_ok = self.validate_rto_to_ob(ob, bms, current_price)
+        session_ok = self.validate_session_timing(sequence)
+        inducement_ok = self.validate_inducement_cleared(inducement_events, ob)
 
-        if not self.validate_bms_confirmed(bms, choch):
-            self._logger.debug("ltf_validation_failed_bms_not_confirmed")
-            return False
+        all_confirmed = (
+            liquidity_ok
+            and choch_ok
+            and bms_ok
+            and rto_ok
+            and session_ok
+            and inducement_ok
+        )
 
-        if not self.validate_rto_to_ob(ob, bms, current_price):
-            self._logger.debug("ltf_validation_failed_no_rto")
-            return False
+        # Diagnostic logging at INFO level
+        self._logger.info(
+            "ltf_confirmation_result",
+            extra={
+                "symbol": sequence.symbol if hasattr(sequence, "symbol") else "unknown",
+                "timeframe": str(
+                    sequence.timeframe
+                    if hasattr(sequence, "timeframe")
+                    else "unknown"
+                ),
+                "liquidity_taken": liquidity_ok,
+                "choch_present": choch_ok,
+                "bms_confirmed": bms_ok,
+                "rto_to_ob": rto_ok,
+                "session_timing": session_ok,
+                "inducement_cleared": inducement_ok,
+                "all_confirmed": all_confirmed,
+                "has_sweep": sweep is not None,
+                "has_choch": choch is not None,
+                "has_bms": bms is not None,
+                "has_ob": ob is not None,
+            },
+        )
 
-        if not self.validate_session_timing(sequence):
-            self._logger.debug("ltf_validation_failed_session_timing")
-            return False
-
-        if not self.validate_inducement_cleared(inducement_events, ob):
-            self._logger.debug("ltf_validation_failed_inducement_not_cleared")
-            return False
-
-        return True
+        return all_confirmed

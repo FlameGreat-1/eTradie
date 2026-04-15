@@ -909,13 +909,21 @@ class TAOrchestrator:
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
     ) -> list[SMCCandidate]:
-        """Run SMC pattern detection for one HTF/LTF pair."""
-        self._logger.debug(
-            "smc_detection_started",
+        """Run SMC pattern detection for one HTF/LTF pair.
+
+        Exceptions are logged with full traceback and re-raised so the
+        caller (analyze()) can capture them in its error result.  Silent
+        swallowing of exceptions is not acceptable in a system that
+        handles people's money.
+        """
+        self._logger.info(
+            "smc_detection_pair_started",
             extra={
                 "symbol": htf_sequence.symbol,
                 "htf_timeframe": htf_sequence.timeframe.value,
                 "ltf_timeframe": ltf_sequence.timeframe.value,
+                "htf_candle_count": htf_sequence.count,
+                "ltf_candle_count": ltf_sequence.count,
             },
         )
         try:
@@ -923,41 +931,50 @@ class TAOrchestrator:
                 htf_sequence,
                 ltf_sequence,
             )
-            self._logger.debug(
-                "smc_detection_completed",
+            self._logger.info(
+                "smc_detection_pair_completed",
                 extra={
                     "symbol": htf_sequence.symbol,
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "candidates_count": len(candidates),
+                    "candidate_patterns": [
+                        c.pattern.value for c in candidates
+                    ] if candidates else [],
                 },
             )
             return candidates
         except Exception as e:
             self._logger.error(
-                "smc_detection_failed",
+                "smc_detection_pair_failed",
                 extra={
                     "symbol": htf_sequence.symbol,
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "error": str(e),
+                    "error_type": type(e).__name__,
                 },
                 exc_info=True,
             )
-            return []
+            raise
 
     def _run_snd_detection(
         self,
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
     ) -> list[SnDCandidate]:
-        """Run SnD pattern detection for one HTF/LTF pair."""
-        self._logger.debug(
-            "snd_detection_started",
+        """Run SnD pattern detection for one HTF/LTF pair.
+
+        Exceptions are logged with full traceback and re-raised.
+        """
+        self._logger.info(
+            "snd_detection_pair_started",
             extra={
                 "symbol": htf_sequence.symbol,
                 "htf_timeframe": htf_sequence.timeframe.value,
                 "ltf_timeframe": ltf_sequence.timeframe.value,
+                "htf_candle_count": htf_sequence.count,
+                "ltf_candle_count": ltf_sequence.count,
             },
         )
         try:
@@ -965,28 +982,32 @@ class TAOrchestrator:
                 htf_sequence,
                 ltf_sequence,
             )
-            self._logger.debug(
-                "snd_detection_completed",
+            self._logger.info(
+                "snd_detection_pair_completed",
                 extra={
                     "symbol": htf_sequence.symbol,
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "candidates_count": len(candidates),
+                    "candidate_patterns": [
+                        c.pattern.value for c in candidates
+                    ] if candidates else [],
                 },
             )
             return candidates
         except Exception as e:
             self._logger.error(
-                "snd_detection_failed",
+                "snd_detection_pair_failed",
                 extra={
                     "symbol": htf_sequence.symbol,
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "error": str(e),
+                    "error_type": type(e).__name__,
                 },
                 exc_info=True,
             )
-            return []
+            raise
 
     # ── Overall trend ────────────────────────────────────────────────
 
