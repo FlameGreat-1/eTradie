@@ -175,7 +175,7 @@ class LTFConfirmationService:
                     elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
                     reason = invalidation["reason"]
 
-                    self._logger.warn(
+                    self._logger.warning(
                         "ltf_confirmation_setup_invalidated",
                         extra={
                             "symbol": symbol,
@@ -298,7 +298,7 @@ class LTFConfirmationService:
             try:
                 return Timeframe(explicit_htf)
             except ValueError:
-                self._logger.warn(
+                self._logger.warning(
                     "invalid_explicit_htf_timeframe",
                     extra={"htf_timeframe": explicit_htf},
                 )
@@ -345,7 +345,7 @@ class LTFConfirmationService:
             # Cannot validate -> assume still valid (fail-open).
             # Better to attempt the trade than to block it because
             # we couldn't fetch HTF candles.
-            self._logger.warn(
+            self._logger.warning(
                 "htf_invalidation_insufficient_data_failing_open",
                 extra={
                     "symbol": symbol,
