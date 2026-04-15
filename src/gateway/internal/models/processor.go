@@ -71,4 +71,12 @@ type ProcessorOutput struct {
 	ExecutionMode string `json:"execution_mode,omitempty"` // "LIMIT" or "INSTANT"
 	LTFConfirmed  bool   `json:"ltf_confirmed"`
 	SetupType     string `json:"setup_type,omitempty"`
+
+	// Candidate structural parameters for lightweight LTF confirmation.
+	// Carried from the TA candidate through the Processor so the Execution
+	// watcher can call the fast-path /internal/ta/confirm_ltf endpoint
+	// (~100ms) instead of re-running the full TA pipeline (~5s).
+	OBUpper      float64 `json:"ob_upper,omitempty"`
+	OBLower      float64 `json:"ob_lower,omitempty"`
+	LTFTimeframe string  `json:"ltf_timeframe,omitempty"`
 }
