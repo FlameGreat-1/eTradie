@@ -98,18 +98,17 @@ class ReversalBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        # LTF confirmation is evaluated when available
-        ltf_confirmed = False
-        if ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                None,  # No sweep required for reversal
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        # LTF confirmation is ALWAYS evaluated at every analysis.
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            None,  # No sweep required for reversal
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_sms_confluences(
             htf_sms,
@@ -224,17 +223,16 @@ class ReversalBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = False
-        if ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                None,
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            None,
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_sms_confluences(
             htf_sms,

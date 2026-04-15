@@ -6,7 +6,7 @@ from engine.ta.constants import Session, Direction
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.liquidity_event import LiquiditySweep, InducementEvent
 from engine.ta.models.structure_event import ChangeOfCharacter, BreakInMarketStructure
-from engine.ta.models.zone import OrderBlock
+from engine.ta.models.zone import OrderBlock, FairValueGap
 from engine.ta.smc.config import SMCConfig
 
 logger = get_logger(__name__)
@@ -16,20 +16,25 @@ class LTFConfirmationValidator:
     """
     Validates LTF confirmation requirements for SMC candidate eligibility.
 
-    6 LTF Confirmations (all required for full confirmation):
+    7 LTF Confirmations (all required for full confirmation):
     1. Liquidity has been taken (sweep completed, closed back inside)
     2. CHOCH on LTF (earliest signal of order flow shift)
     3. BMS confirmed on LTF (reversal direction confirmed)
     4. Price returns to LTF Order Block (RTO - entry point)
     5. Session timing (London 09:00-11:00 or NY 14:00-16:00 UTC+2)
     6. Inducement cleared (internal highs/lows swept before entry)
+    7. FVG present on LTF (imbalance left by displacement leg)
 
     IMPORTANT: LTF confirmation is for EXECUTION timing, not detection.
     A candidate is built regardless of LTF confirmation status.  When
-    all 6 confirmations are present, ltf_confirmation=True and the
-    execution engine can enter immediately.  When some are missing
+    all 7 confirmations are present, ltf_confirmation=True and the
+    execution engine fires an instant order.  When some are missing
     (e.g. price hasn't returned to the OB yet), ltf_confirmation=False
     and the execution engine monitors 24/7 until they are satisfied.
+
+    This validator MUST be called at every analysis regardless of which
+    elements are present.  It handles None inputs gracefully and
+    evaluates each confirmation independently.
     """
 
     def __init__(
@@ -142,6 +147,25 @@ class LTFConfirmationValidator:
 
         return all_cleared
 
+    def validate_ltf_fvg_present(
+        self,
+        ltf_fvgs: list[FairValueGap],
+        ob: Optional[OrderBlock],
+    ) -> bool:
+        """Confirmation 7: FVG present on LTF aligned with OB direction.
+
+        The displacement leg that creates the OB almost always leaves
+        an FVG (imbalance) behind.  Its presence on the LTF confirms
+        that the move was impulsive and institutional.
+        """
+        if not ob:
+            return False
+
+        if not ltf_fvgs:
+            return False
+
+        return any(fvg.direction == ob.direction for fvg in ltf_fvgs)
+
     def validate_all_ltf_confirmations(
         self,
         sweep: Optional[LiquiditySweep],
@@ -151,12 +175,16 @@ class LTFConfirmationValidator:
         inducement_events: list[InducementEvent],
         sequence: CandleSequence,
         current_price: float,
+        ltf_fvgs: Optional[list[FairValueGap]] = None,
     ) -> bool:
-        """Validate all 6 LTF confirmations.
+        """Validate all 7 LTF confirmations.
 
-        Returns True only when ALL 6 confirmations are satisfied.
+        Returns True only when ALL 7 confirmations are satisfied.
         Returns False (not an error) when any confirmation is missing,
-        which simply means the execution engine should wait.
+        which simply means the execution engine should wait/monitor.
+
+        This method MUST be called at every analysis regardless of
+        which elements are present.  It handles None inputs gracefully.
         """
         liquidity_ok = self.validate_liquidity_taken(sweep)
         choch_ok = self.validate_choch_present(choch, sweep)
@@ -164,6 +192,7 @@ class LTFConfirmationValidator:
         rto_ok = self.validate_rto_to_ob(ob, bms, current_price)
         session_ok = self.validate_session_timing(sequence)
         inducement_ok = self.validate_inducement_cleared(inducement_events, ob)
+        fvg_ok = self.validate_ltf_fvg_present(ltf_fvgs or [], ob)
 
         all_confirmed = (
             liquidity_ok
@@ -172,6 +201,7 @@ class LTFConfirmationValidator:
             and rto_ok
             and session_ok
             and inducement_ok
+            and fvg_ok
         )
 
         # Diagnostic logging at INFO level
@@ -190,11 +220,13 @@ class LTFConfirmationValidator:
                 "rto_to_ob": rto_ok,
                 "session_timing": session_ok,
                 "inducement_cleared": inducement_ok,
+                "fvg_present": fvg_ok,
                 "all_confirmed": all_confirmed,
                 "has_sweep": sweep is not None,
                 "has_choch": choch is not None,
                 "has_bms": bms is not None,
                 "has_ob": ob is not None,
+                "ltf_fvg_count": len(ltf_fvgs) if ltf_fvgs else 0,
             },
         )
 

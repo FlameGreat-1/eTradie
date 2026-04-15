@@ -96,17 +96,16 @@ class AMDCandidateBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = False
-        if ltf_sweep and ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                ltf_sweep,
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            ltf_sweep,
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_amd_confluences(
             amd_context,
@@ -252,17 +251,16 @@ class AMDCandidateBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = False
-        if ltf_sweep and ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                ltf_sweep,
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            ltf_sweep,
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_amd_confluences(
             amd_context,

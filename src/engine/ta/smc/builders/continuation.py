@@ -89,20 +89,21 @@ class ContinuationBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        # LTF confirmation is evaluated when available but does NOT
-        # block candidate creation.  The execution engine waits for
-        # RTO + LTF confirmation before entering.
-        ltf_confirmed = False
-        if ltf_sweep and ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                ltf_sweep,
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        # LTF confirmation is ALWAYS evaluated at every analysis.
+        # When all confirmations are satisfied, ltf_confirmation=True
+        # and the execution engine fires an instant order.
+        # When some are missing, ltf_confirmation=False and the
+        # execution engine monitors until they are satisfied.
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            ltf_sweep,
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_confluences(
             htf_bms,
@@ -220,17 +221,16 @@ class ContinuationBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = False
-        if ltf_sweep and ltf_choch:
-            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-                ltf_sweep,
-                ltf_choch,
-                ltf_bms,
-                ltf_ob,
-                inducement_events,
-                ltf_sequence,
-                current_price,
-            )
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            ltf_sweep,
+            ltf_choch,
+            ltf_bms,
+            ltf_ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
 
         confluences = self._count_confluences(
             htf_bms,
