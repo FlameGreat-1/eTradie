@@ -596,10 +596,9 @@ func getBoolField(m map[string]interface{}, key string) bool {
 }
 
 // matchesCandidate checks if a candidate map matches the given analysisID.
-// Tries candidate_id first (deterministic fingerprint from TA engine),
-// then falls back to analysis_id or id fields for backward compatibility.
+// Priority: candidate_id > analysis_id > id > structural fingerprint.
 func matchesCandidate(cand map[string]interface{}, analysisID string) bool {
-	// Primary: candidate_id (deterministic fingerprint)
+	// Primary: candidate_id (deterministic fingerprint from TA engine)
 	if candID, _ := cand["candidate_id"].(string); candID != "" && candID == analysisID {
 		return true
 	}
@@ -611,7 +610,30 @@ func matchesCandidate(cand map[string]interface{}, analysisID string) bool {
 	if candID, _ := cand["id"].(string); candID != "" && candID == analysisID {
 		return true
 	}
+	// Structural fingerprint match: the analysisID may be a candidate_id
+	// format (SYMBOL_PATTERN_DIRECTION_PRICE). Reconstruct from candidate
+	// fields and compare.
+	fingerprint := buildCandidateFingerprint(cand)
+	if fingerprint != "" && fingerprint == analysisID {
+		return true
+	}
 	return false
+}
+
+// buildCandidateFingerprint reconstructs the deterministic fingerprint
+// from a candidate's structural fields. Matches the Python candidate_id
+// format: SYMBOL_PATTERN_DIRECTION_ENTRYPRICE(4dp)
+func buildCandidateFingerprint(cand map[string]interface{}) string {
+	symbol, _ := cand["symbol"].(string)
+	pattern, _ := cand["pattern"].(string)
+	direction, _ := cand["direction"].(string)
+	entryPrice, _ := cand["entry_price"].(float64)
+
+	if symbol == "" || pattern == "" || direction == "" || entryPrice == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s_%s_%s_%.4f", symbol, pattern, direction, entryPrice)
 }
 
 // matchedBy returns which field was used for matching (for logging).
@@ -622,7 +644,13 @@ func matchedBy(cand map[string]interface{}, analysisID string) string {
 	if candID, _ := cand["analysis_id"].(string); candID == analysisID {
 		return "analysis_id"
 	}
-	return "id"
+	if candID, _ := cand["id"].(string); candID == analysisID {
+		return "id"
+	}
+	if fp := buildCandidateFingerprint(cand); fp == analysisID {
+		return "structural_fingerprint"
+	}
+	return "unknown"
 }
 
 func condReason(cond bool, ifTrue, ifFalse string) string {
