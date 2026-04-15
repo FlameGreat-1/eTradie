@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "symbol": "GBPJPYm",
+  "symbol": "US30_x10m",
   "htf_timeframes": [
     "W1",
     "D1",
@@ -13,8 +13,8 @@
     "M5",
     "M1"
   ],
-  "smc_candidates_count": 0,
-  "snd_candidates_count": 92,
+  "smc_candidates_count": 233,
+  "snd_candidates_count": 241,
   "alignment": {
     "W1_D1": {
       "htf_timeframe": "W1",
@@ -22,18 +22,34 @@
       "trends_aligned": false,
       "htf_ltf_aligned": false,
       "htf_trend": "NEUTRAL",
-      "ltf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
         "trends_aligned": false,
         "zones_nested": false,
         "htf_trend": "NEUTRAL",
-        "ltf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "W1",
         "ltf_timeframe": "D1"
       }
     },
-    "D1_H1": {
+    "D1_H4": {
       "htf_timeframe": "D1",
+      "ltf_timeframe": "H4",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BULLISH",
+      "alignment_metadata": {
+        "trends_aligned": false,
+        "zones_nested": false,
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BULLISH",
+        "htf_timeframe": "D1",
+        "ltf_timeframe": "H4"
+      }
+    },
+    "H4_H1": {
+      "htf_timeframe": "H4",
       "ltf_timeframe": "H1",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
@@ -44,22 +60,22 @@
         "zones_nested": false,
         "htf_trend": "BULLISH",
         "ltf_trend": "BULLISH",
-        "htf_timeframe": "D1",
+        "htf_timeframe": "H4",
         "ltf_timeframe": "H1"
       }
     },
     "H1_M30": {
       "htf_timeframe": "H1",
       "ltf_timeframe": "M30",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
       "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
-        "trends_aligned": true,
-        "zones_nested": false,
+        "trends_aligned": false,
+        "zones_nested": true,
         "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "H1",
         "ltf_timeframe": "M30"
       }
@@ -69,13 +85,13 @@
       "ltf_timeframe": "M15",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
         "trends_aligned": true,
-        "zones_nested": false,
-        "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "zones_nested": true,
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "M30",
         "ltf_timeframe": "M15"
       }
@@ -83,20 +99,36 @@
     "M15_M5": {
       "htf_timeframe": "M15",
       "ltf_timeframe": "M5",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BULLISH",
+      "alignment_metadata": {
+        "trends_aligned": false,
+        "zones_nested": true,
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BULLISH",
+        "htf_timeframe": "M15",
+        "ltf_timeframe": "M5"
+      }
+    },
+    "M5_M1": {
+      "htf_timeframe": "M5",
+      "ltf_timeframe": "M1",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
       "htf_trend": "BULLISH",
       "ltf_trend": "BULLISH",
       "alignment_metadata": {
         "trends_aligned": true,
-        "zones_nested": false,
+        "zones_nested": true,
         "htf_trend": "BULLISH",
         "ltf_trend": "BULLISH",
-        "htf_timeframe": "M15",
-        "ltf_timeframe": "M5"
+        "htf_timeframe": "M5",
+        "ltf_timeframe": "M1"
       }
     }
   },
-  "overall_trend": "BULLISH",
+  "overall_trend": "BEARISH",
   "error": null
 }

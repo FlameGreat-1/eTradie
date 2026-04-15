@@ -125,21 +125,49 @@ class SwingAnalyzer:
         index: int,
         is_high: bool,
     ) -> int:
+        """Calculate swing strength based on an unbroken streak of dominance.
+
+        Instead of a fixed window, this measures how far away the nearest
+        candle is that exceeds the swing point in BOTH directions. 
+
+        - Internal swings hit higher/lower candles very quickly (e.g., bounded 
+          by the parent swing point in a pullback).
+        - Major structural pivots remain dominant for long stretches (40+ candles).
+        """
         current = candles[index]
-        strength = 1
 
-        lookback = min(20, index)
+        left_count = 0
+        for i in range(index - 1, -1, -1):
+            if is_high and candles[i].high <= current.high:
+                left_count += 1
+            elif not is_high and candles[i].low >= current.low:
+                left_count += 1
+            else:
+                break
 
-        if is_high:
-            for i in range(index - lookback, index):
-                if candles[i].high < current.high:
-                    strength += 1
+        right_count = 0
+        for i in range(index + 1, len(candles)):
+            if is_high and candles[i].high <= current.high:
+                right_count += 1
+            elif not is_high and candles[i].low >= current.low:
+                right_count += 1
+            else:
+                break
+
+        total_dominated = left_count + right_count
+
+        if total_dominated < 14:
+            return 3  # Extremely minor
+        elif total_dominated < 20:
+            return 5  # Minor internal
+        elif total_dominated < 30:
+            return 7  # Intermediate
+        elif total_dominated < 40:
+            return 8  # Standard structural (CHOCH max cutoff)
+        elif total_dominated < 50:
+            return 9  # Strong structural
         else:
-            for i in range(index - lookback, index):
-                if candles[i].low > current.low:
-                    strength += 1
-
-        return min(strength, 10)
+            return 10 # Major macro structural pivot
 
     def _check_equal_high(
         self,

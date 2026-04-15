@@ -52,8 +52,16 @@ type ExecuteTradeRequest struct {
 	// LTF confirmation status from the TA candidate. When true AND mode
 	// is INSTANT, Execution fires the market order immediately (pre-
 	// confirmed fast path) without spawning a price watcher.
-	LtfConfirmed  bool   `protobuf:"varint,22,opt,name=ltf_confirmed,json=ltfConfirmed,proto3" json:"ltf_confirmed,omitempty"`
-	SetupType     string `protobuf:"bytes,23,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"` // Passes the structural TA setup type (e.g., OB, FVG)
+	LtfConfirmed bool   `protobuf:"varint,22,opt,name=ltf_confirmed,json=ltfConfirmed,proto3" json:"ltf_confirmed,omitempty"`
+	SetupType    string `protobuf:"bytes,23,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"` // Passes the structural TA setup type (e.g., OB, FVG)
+	// Candidate structural parameters for lightweight LTF confirmation.
+	// Carried from the TA candidate through ProcessorOutput so the
+	// Execution watcher can call the fast-path /internal/ta/confirm_ltf
+	// endpoint (~100ms) instead of re-running the full TA pipeline (~5s).
+	ObUpper       float64 `protobuf:"fixed64,24,opt,name=ob_upper,json=obUpper,proto3" json:"ob_upper,omitempty"`              // Order Block upper bound
+	ObLower       float64 `protobuf:"fixed64,25,opt,name=ob_lower,json=obLower,proto3" json:"ob_lower,omitempty"`              // Order Block lower bound
+	LtfTimeframe  string  `protobuf:"bytes,26,opt,name=ltf_timeframe,json=ltfTimeframe,proto3" json:"ltf_timeframe,omitempty"` // LTF timeframe e.g. "M5", "M15"
+	HtfTimeframe  string  `protobuf:"bytes,27,opt,name=htf_timeframe,json=htfTimeframe,proto3" json:"htf_timeframe,omitempty"` // HTF timeframe the OB was detected on e.g. "H4"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -245,6 +253,34 @@ func (x *ExecuteTradeRequest) GetLtfConfirmed() bool {
 func (x *ExecuteTradeRequest) GetSetupType() string {
 	if x != nil {
 		return x.SetupType
+	}
+	return ""
+}
+
+func (x *ExecuteTradeRequest) GetObUpper() float64 {
+	if x != nil {
+		return x.ObUpper
+	}
+	return 0
+}
+
+func (x *ExecuteTradeRequest) GetObLower() float64 {
+	if x != nil {
+		return x.ObLower
+	}
+	return 0
+}
+
+func (x *ExecuteTradeRequest) GetLtfTimeframe() string {
+	if x != nil {
+		return x.LtfTimeframe
+	}
+	return ""
+}
+
+func (x *ExecuteTradeRequest) GetHtfTimeframe() string {
+	if x != nil {
+		return x.HtfTimeframe
 	}
 	return ""
 }
@@ -907,7 +943,7 @@ var File_execution_v1_execution_proto protoreflect.FileDescriptor
 
 const file_execution_v1_execution_proto_rawDesc = "" +
 	"\n" +
-	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"\xe3\x05\n" +
+	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"\xe3\x06\n" +
 	"\x13ExecuteTradeRequest\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1c\n" +
 	"\tdirection\x18\x02 \x01(\tR\tdirection\x12$\n" +
@@ -936,7 +972,11 @@ const file_execution_v1_execution_proto_rawDesc = "" +
 	"\x0eexecution_mode\x18\x15 \x01(\tR\rexecutionMode\x12#\n" +
 	"\rltf_confirmed\x18\x16 \x01(\bR\fltfConfirmed\x12\x1d\n" +
 	"\n" +
-	"setup_type\x18\x17 \x01(\tR\tsetupType\"\xe9\x03\n" +
+	"setup_type\x18\x17 \x01(\tR\tsetupType\x12\x19\n" +
+	"\bob_upper\x18\x18 \x01(\x01R\aobUpper\x12\x19\n" +
+	"\bob_lower\x18\x19 \x01(\x01R\aobLower\x12#\n" +
+	"\rltf_timeframe\x18\x1a \x01(\tR\fltfTimeframe\x12#\n" +
+	"\rhtf_timeframe\x18\x1b \x01(\tR\fhtfTimeframe\"\xe9\x03\n" +
 	"\x14ExecuteTradeResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x19\n" +

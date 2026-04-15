@@ -246,10 +246,25 @@ func (x *RunCycleResponse) GetOutputs() []*CycleOutput {
 // ConfirmSetupRequest is sent by the Execution watcher when live
 // price enters the POI zone for an instant-mode candidate.
 type ConfirmSetupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`                           // e.g. "EURUSD"
-	AnalysisId    string                 `protobuf:"bytes,2,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"` // Links to the original TA candidate
-	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Symbol     string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`                           // e.g. "EURUSD"
+	AnalysisId string                 `protobuf:"bytes,2,opt,name=analysis_id,json=analysisId,proto3" json:"analysis_id,omitempty"` // Links to the original TA candidate
+	TraceId    string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	// Optional: structural parameters for lightweight LTF confirmation.
+	// When provided (non-zero), the Gateway calls the fast-path
+	// /internal/ta/confirm_ltf endpoint (~100ms) instead of re-running
+	// the full TA pipeline (~5s). The Execution watcher populates these
+	// from the Order's candidate parameters.
+	ObUpper      float64 `protobuf:"fixed64,4,opt,name=ob_upper,json=obUpper,proto3" json:"ob_upper,omitempty"`              // Order Block upper bound
+	ObLower      float64 `protobuf:"fixed64,5,opt,name=ob_lower,json=obLower,proto3" json:"ob_lower,omitempty"`              // Order Block lower bound
+	LtfTimeframe string  `protobuf:"bytes,6,opt,name=ltf_timeframe,json=ltfTimeframe,proto3" json:"ltf_timeframe,omitempty"` // LTF timeframe e.g. "M5", "M15"
+	Direction    string  `protobuf:"bytes,7,opt,name=direction,proto3" json:"direction,omitempty"`                           // "BULLISH" or "BEARISH"
+	EntryPrice   float64 `protobuf:"fixed64,8,opt,name=entry_price,json=entryPrice,proto3" json:"entry_price,omitempty"`     // Candidate entry price
+	// HTF invalidation layer fields. When provided, the Python engine
+	// checks if the approved setup has been invalidated (OB mitigated,
+	// opposing BMS, SL blown) before running LTF confirmation.
+	StopLoss      float64 `protobuf:"fixed64,9,opt,name=stop_loss,json=stopLoss,proto3" json:"stop_loss,omitempty"`            // Approved candidate's stop loss level
+	HtfTimeframe  string  `protobuf:"bytes,10,opt,name=htf_timeframe,json=htfTimeframe,proto3" json:"htf_timeframe,omitempty"` // HTF timeframe the OB lives on (e.g. "H4")
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -301,6 +316,55 @@ func (x *ConfirmSetupRequest) GetAnalysisId() string {
 func (x *ConfirmSetupRequest) GetTraceId() string {
 	if x != nil {
 		return x.TraceId
+	}
+	return ""
+}
+
+func (x *ConfirmSetupRequest) GetObUpper() float64 {
+	if x != nil {
+		return x.ObUpper
+	}
+	return 0
+}
+
+func (x *ConfirmSetupRequest) GetObLower() float64 {
+	if x != nil {
+		return x.ObLower
+	}
+	return 0
+}
+
+func (x *ConfirmSetupRequest) GetLtfTimeframe() string {
+	if x != nil {
+		return x.LtfTimeframe
+	}
+	return ""
+}
+
+func (x *ConfirmSetupRequest) GetDirection() string {
+	if x != nil {
+		return x.Direction
+	}
+	return ""
+}
+
+func (x *ConfirmSetupRequest) GetEntryPrice() float64 {
+	if x != nil {
+		return x.EntryPrice
+	}
+	return 0
+}
+
+func (x *ConfirmSetupRequest) GetStopLoss() float64 {
+	if x != nil {
+		return x.StopLoss
+	}
+	return 0
+}
+
+func (x *ConfirmSetupRequest) GetHtfTimeframe() string {
+	if x != nil {
+		return x.HtfTimeframe
 	}
 	return ""
 }
@@ -1322,12 +1386,21 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	" \x01(\fR\x0fguardResultJson\x122\n" +
 	"\x15execution_result_json\x18\v \x01(\fR\x13executionResultJson\"E\n" +
 	"\x10RunCycleResponse\x121\n" +
-	"\aoutputs\x18\x01 \x03(\v2\x17.gateway.v1.CycleOutputR\aoutputs\"i\n" +
+	"\aoutputs\x18\x01 \x03(\v2\x17.gateway.v1.CycleOutputR\aoutputs\"\xc5\x02\n" +
 	"\x13ConfirmSetupRequest\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1f\n" +
 	"\vanalysis_id\x18\x02 \x01(\tR\n" +
 	"analysisId\x12\x19\n" +
-	"\btrace_id\x18\x03 \x01(\tR\atraceId\"\x92\x01\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\x12\x19\n" +
+	"\bob_upper\x18\x04 \x01(\x01R\aobUpper\x12\x19\n" +
+	"\bob_lower\x18\x05 \x01(\x01R\aobLower\x12#\n" +
+	"\rltf_timeframe\x18\x06 \x01(\tR\fltfTimeframe\x12\x1c\n" +
+	"\tdirection\x18\a \x01(\tR\tdirection\x12\x1f\n" +
+	"\ventry_price\x18\b \x01(\x01R\n" +
+	"entryPrice\x12\x1b\n" +
+	"\tstop_loss\x18\t \x01(\x01R\bstopLoss\x12#\n" +
+	"\rhtf_timeframe\x18\n" +
+	" \x01(\tR\fhtfTimeframe\"\x92\x01\n" +
 	"\x14ConfirmSetupResponse\x12\x1c\n" +
 	"\tconfirmed\x18\x01 \x01(\bR\tconfirmed\x12)\n" +
 	"\x10ltf_confirmation\x18\x02 \x01(\bR\x0fltfConfirmation\x12\x16\n" +
