@@ -33,7 +33,8 @@ class AMDCandidateBuilder:
     - SH + BMS + RTO
     - SMS + BMS + RTO
 
-    This is Pattern 2 in the ranking (AMD + SH + BMS + RTO = highest confluence after combined Turtle Soup).
+    LTF confirmations (CHOCH) are evaluated when available and stored
+    as metadata.  Their absence does NOT block candidate creation.
     """
 
     def __init__(
@@ -56,7 +57,7 @@ class AMDCandidateBuilder:
         amd_context: AMDContext,
         ltf_sweep: Optional[LiquiditySweep],
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: ChangeOfCharacter,
+        ltf_choch: Optional[ChangeOfCharacter],
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
@@ -95,20 +96,23 @@ class AMDCandidateBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-            ltf_sweep,
-            ltf_choch,
-            ltf_bms,
-            ltf_ob,
-            inducement_events,
-            ltf_sequence,
-            current_price,
-        )
+        ltf_confirmed = False
+        if ltf_sweep and ltf_choch:
+            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+                ltf_sweep,
+                ltf_choch,
+                ltf_bms,
+                ltf_ob,
+                inducement_events,
+                ltf_sequence,
+                current_price,
+            )
 
         confluences = self._count_amd_confluences(
             amd_context,
             ltf_sweep,
             ltf_bms,
+            ltf_choch,
             ltf_ob,
             ltf_fvgs,
             retracement,
@@ -116,6 +120,16 @@ class AMDCandidateBuilder:
         )
 
         if confluences < self.config.min_confluences:
+            self._logger.info(
+                "bullish_amd_insufficient_confluences",
+                extra={
+                    "symbol": ltf_sequence.symbol,
+                    "confluences": confluences,
+                    "required": self.config.min_confluences,
+                    "has_sweep": ltf_sweep is not None,
+                    "has_choch": ltf_choch is not None,
+                },
+            )
             return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
@@ -123,7 +137,6 @@ class AMDCandidateBuilder:
         stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
 
         if amd_context.asian_range:
-            # Use Asian range high as baseline, but prefer structural BSL
             take_profit = self._find_nearest_bsl_target(
                 entry_price, swing_highs or [], pip_val,
             )
@@ -148,9 +161,9 @@ class AMDCandidateBuilder:
             bms_detected=True,
             bms_price=ltf_bms.breakout_price,
             bms_timestamp=ltf_bms.timestamp,
-            choch_detected=True,
-            choch_price=ltf_choch.breakout_price,
-            choch_timestamp=ltf_choch.timestamp,
+            choch_detected=ltf_choch is not None,
+            choch_price=ltf_choch.breakout_price if ltf_choch else None,
+            choch_timestamp=ltf_choch.timestamp if ltf_choch else None,
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
@@ -187,6 +200,7 @@ class AMDCandidateBuilder:
                 "entry_price": entry_price,
                 "confluences": confluences,
                 "amd_phase": amd_context.phase,
+                "ltf_confirmed": ltf_confirmed,
             },
         )
 
@@ -199,7 +213,7 @@ class AMDCandidateBuilder:
         amd_context: AMDContext,
         ltf_sweep: Optional[LiquiditySweep],
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: ChangeOfCharacter,
+        ltf_choch: Optional[ChangeOfCharacter],
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
@@ -238,20 +252,23 @@ class AMDCandidateBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
-            ltf_sweep,
-            ltf_choch,
-            ltf_bms,
-            ltf_ob,
-            inducement_events,
-            ltf_sequence,
-            current_price,
-        )
+        ltf_confirmed = False
+        if ltf_sweep and ltf_choch:
+            ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+                ltf_sweep,
+                ltf_choch,
+                ltf_bms,
+                ltf_ob,
+                inducement_events,
+                ltf_sequence,
+                current_price,
+            )
 
         confluences = self._count_amd_confluences(
             amd_context,
             ltf_sweep,
             ltf_bms,
+            ltf_choch,
             ltf_ob,
             ltf_fvgs,
             retracement,
@@ -259,6 +276,16 @@ class AMDCandidateBuilder:
         )
 
         if confluences < self.config.min_confluences:
+            self._logger.info(
+                "bearish_amd_insufficient_confluences",
+                extra={
+                    "symbol": ltf_sequence.symbol,
+                    "confluences": confluences,
+                    "required": self.config.min_confluences,
+                    "has_sweep": ltf_sweep is not None,
+                    "has_choch": ltf_choch is not None,
+                },
+            )
             return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
@@ -266,7 +293,6 @@ class AMDCandidateBuilder:
         stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
 
         if amd_context.asian_range:
-            # Use Asian range low as baseline, but prefer structural SSL
             take_profit = self._find_nearest_ssl_target(
                 entry_price, swing_lows or [], pip_val,
             )
@@ -291,9 +317,9 @@ class AMDCandidateBuilder:
             bms_detected=True,
             bms_price=ltf_bms.breakout_price,
             bms_timestamp=ltf_bms.timestamp,
-            choch_detected=True,
-            choch_price=ltf_choch.breakout_price,
-            choch_timestamp=ltf_choch.timestamp,
+            choch_detected=ltf_choch is not None,
+            choch_price=ltf_choch.breakout_price if ltf_choch else None,
+            choch_timestamp=ltf_choch.timestamp if ltf_choch else None,
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
@@ -330,6 +356,7 @@ class AMDCandidateBuilder:
                 "entry_price": entry_price,
                 "confluences": confluences,
                 "amd_phase": amd_context.phase,
+                "ltf_confirmed": ltf_confirmed,
             },
         )
 
@@ -340,28 +367,41 @@ class AMDCandidateBuilder:
         amd_context: AMDContext,
         sweep: Optional[LiquiditySweep],
         bms: BreakInMarketStructure,
+        choch: Optional[ChangeOfCharacter],
         ob: OrderBlock,
         fvgs: list[FairValueGap],
         retracement: Optional[FibonacciRetracement],
         inducement_events: list[InducementEvent],
     ) -> int:
+        """Count all confluences for an AMD candidate."""
         confluences = 0
 
+        # 1. AMD context (accumulation + manipulation confirmed)
         confluences += 1
 
+        # 2. BMS confirmed in distribution direction
         confluences += 1
 
+        # 3. LTF CHOCH (may not be present yet)
+        if choch is not None:
+            confluences += 1
+
+        # 4. Liquidity sweep
         if sweep and sweep.closed_back_inside:
             confluences += 1
 
+        # 5. FVG alignment with OB
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        if retracement and self.zone_validator.validate_ob_at_premium_discount(
-            ob, retracement
-        ):
-            confluences += 1
+        # 6. Fibonacci / OTE confluence (0-3 points)
+        fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
+        if fib_score >= 3:
+            confluences += 2  # OTE pocket = strong confluence
+        elif fib_score >= 2:
+            confluences += 1  # Correct premium/discount zone
 
+        # 7. Inducement cleared
         if any(idm.cleared for idm in inducement_events):
             confluences += 1
 
@@ -372,7 +412,7 @@ class AMDCandidateBuilder:
         entry_price: float,
         swing_highs: list[SwingHigh],
         pip_val: float,
-    ) -> float:
+    ) -> Optional[float]:
         """Find the nearest BSL (swing high) above entry as the TP target."""
         candidates = [
             sh.price for sh in swing_highs
@@ -387,7 +427,7 @@ class AMDCandidateBuilder:
         entry_price: float,
         swing_lows: list[SwingLow],
         pip_val: float,
-    ) -> float:
+    ) -> Optional[float]:
         """Find the nearest SSL (swing low) below entry as the TP target."""
         candidates = [
             sl.price for sl in swing_lows
@@ -402,9 +442,7 @@ class AMDCandidateBuilder:
         price: float,
         retracement: FibonacciRetracement,
     ) -> Optional[str]:
-        """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
-        but only if within the configured tolerance. Returns None if no OTE
-        level is close enough — never returns 0.0 or 1.0."""
+        """Return the OTE fib level closest to price within tolerance."""
         pip_val = float(get_pip_value(retracement.symbol))
         tolerance = self.config.fibonacci_tolerance_pips * pip_val
 
