@@ -38,7 +38,7 @@ class CandidateRepository:
         repeated analysis runs.
         """
         # Check for existing duplicate
-        existing = await self.session.execute(
+        result = await self.session.execute(
             select(CandidateSchema).where(
                 and_(
                     CandidateSchema.user_id == user_id,
@@ -50,7 +50,8 @@ class CandidateRepository:
                 )
             )
         )
-        if existing.scalar_one_or_none() is not None:
+        existing = result.scalar_one_or_none()
+        if existing is not None:
             self._logger.debug(
                 "smc_candidate_duplicate_skipped",
                 extra={
@@ -59,7 +60,7 @@ class CandidateRepository:
                     "entry_price": candidate.entry_price,
                 },
             )
-            return existing.scalar_one_or_none()
+            return existing
         schema = CandidateSchema(
             user_id=user_id,
             symbol=candidate.symbol,
@@ -128,7 +129,7 @@ class CandidateRepository:
         Deduplicates by (user_id, symbol, pattern, direction, entry_price
         rounded to 4 decimals).
         """
-        existing = await self.session.execute(
+        result = await self.session.execute(
             select(CandidateSchema).where(
                 and_(
                     CandidateSchema.user_id == user_id,
@@ -140,7 +141,8 @@ class CandidateRepository:
                 )
             )
         )
-        if existing.scalar_one_or_none() is not None:
+        existing = result.scalar_one_or_none()
+        if existing is not None:
             self._logger.debug(
                 "snd_candidate_duplicate_skipped",
                 extra={
@@ -149,7 +151,7 @@ class CandidateRepository:
                     "entry_price": candidate.entry_price,
                 },
             )
-            return existing.scalar_one_or_none()
+            return existing
         schema = CandidateSchema(
             user_id=user_id,
             symbol=candidate.symbol,
