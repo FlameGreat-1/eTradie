@@ -138,12 +138,11 @@ BUY PATTERNS:
 - CHOCH_BMS_RTO_BULLISH: HTF CHoCH confirms bullish trend shift → LTF BMS confirms → RTO to Bullish OB → BUY. Same earliest-reversal logic.
 
 PATTERN RANKING (Highest to Lowest Confluence):
-1. Turtle Soup + SH + BMS + RTO (Combined) — both setups confirming simultaneously
-2. AMD + SH + BMS + RTO — session context + liquidity + structure all aligned
-3. SH + BMS + RTO — core flagship setup
-4. SMS + BMS + RTO — reversal confirmation setup
-5. CHOCH + BMS + RTO — earliest reversal signal, HTF CHoCH as origin
-6. Turtle Soup standalone — minimum baseline, REQUIRES session confluence to be valid
+1. AMD + SH + BMS + RTO — session context + liquidity + structure all aligned
+2. SH + BMS + RTO — core flagship setup
+3. SMS + BMS + RTO — reversal confirmation setup
+4. CHOCH + BMS + RTO — earliest reversal signal, HTF CHoCH as origin
+5. Turtle Soup standalone — minimum baseline, REQUIRES session confluence to be valid
 
 CRITICAL: A standalone TURTLE_SOUP with all other candidate fields (bms_detected, choch_detected, sms_detected, order_block, fvg) showing null/false is a LOW confluence signal. It should NEVER receive an A+ or A grade by itself. It needs ADDITIONAL confluence from the snapshots (matching OB, FVG, session timing) to qualify for even a B grade.
 
