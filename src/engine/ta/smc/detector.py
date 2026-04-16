@@ -8,12 +8,12 @@ from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
 from engine.ta.common.analyzers.sweeps import SweepAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.constants import Direction, Timeframe
+from engine.ta.constants import Direction, Timeframe, CandidatePattern
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import LiquiditySweep
-from engine.ta.models.structure_event import BreakInMarketStructure
+from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
@@ -178,6 +178,14 @@ class SMCDetector:
             htf_sequence, htf_swing_highs
         )
 
+        # -- HTF CHoCH detection (earliest reversal signal) --
+        htf_choch_bullish = self.choch_detector.detect_bullish_choch(
+            htf_sequence, htf_swing_highs
+        )
+        htf_choch_bearish = self.choch_detector.detect_bearish_choch(
+            htf_sequence, htf_swing_lows
+        )
+
         # -- LTF structural detection --
         ltf_swing_highs = self.swing_analyzer.detect_swing_highs(ltf_sequence)
         ltf_swing_lows = self.swing_analyzer.detect_swing_lows(ltf_sequence)
@@ -311,6 +319,27 @@ class SMCDetector:
                 )
             )
 
+        # Build CHoCH Reversal Candidates (HTF CHoCH as origin)
+        if self.config.enable_choch_reversal:
+            candidates.extend(
+                self._build_choch_reversal_candidates(
+                    htf_sequence,
+                    ltf_sequence,
+                    htf_choch_bullish,
+                    htf_choch_bearish,
+                    ltf_bms_bullish,
+                    ltf_bms_bearish,
+                    ltf_choch_bullish,
+                    ltf_choch_bearish,
+                    all_fvgs,
+                    all_inducements,
+                    all_sweeps,
+                    retracement,
+                    ltf_swing_highs,
+                    ltf_swing_lows,
+                )
+            )
+
         # Build Turtle Soup Candidates (Pattern 1/6)
         if self.config.enable_turtle_soup:
             candidates.extend(
@@ -352,6 +381,8 @@ class SMCDetector:
                 "htf_bms_bearish": len(htf_bms_bearish),
                 "htf_sms_bullish": len(htf_sms_bullish),
                 "htf_sms_bearish": len(htf_sms_bearish),
+                "htf_choch_bullish": len(htf_choch_bullish),
+                "htf_choch_bearish": len(htf_choch_bearish),
                 "ltf_bms_bullish": len(ltf_bms_bullish),
                 "ltf_bms_bearish": len(ltf_bms_bearish),
                 "ltf_choch_bullish": len(ltf_choch_bullish),
@@ -362,6 +393,435 @@ class SMCDetector:
         )
 
         return candidates
+
+    # ------------------------------------------------------------------
+    # CHoCH Reversal candidates (HTF CHoCH as structural origin)
+    # ------------------------------------------------------------------
+
+    def _build_choch_reversal_candidates(
+        self,
+        htf_sequence: CandleSequence,
+        ltf_sequence: CandleSequence,
+        htf_choch_bullish: list,
+        htf_choch_bearish: list,
+        ltf_bms_bullish: list,
+        ltf_bms_bearish: list,
+        ltf_choch_bullish: list,
+        ltf_choch_bearish: list,
+        ltf_fvgs: list,
+        inducement_events: list,
+        sweeps: list,
+        retracement: Optional[FibonacciRetracement],
+        ltf_swing_highs: list = None,
+        ltf_swing_lows: list = None,
+    ) -> list[SMCCandidate]:
+        """Build reversal candidates from HTF CHoCH events.
+
+        CHoCH is the earliest signal of a trend reversal.  Previously,
+        only HTF SMS (failure swing) could spawn reversal candidates.
+        This method recognizes HTF CHoCH as a valid structural origin.
+
+        Example: D1 prints a bullish CHoCH after a W1 bearish trend.
+        The system detects the CHoCH, finds LTF BMS events in the
+        bullish direction, locates unmitigated OBs, and builds
+        CHOCH_BMS_RTO candidates for the LLM to evaluate.
+        """
+        candidates = []
+
+        # -- Bullish CHoCH reversal --
+        latest_htf_choch_bullish = self.choch_detector.get_latest_choch(
+            htf_choch_bullish
+        )
+        if latest_htf_choch_bullish:
+            # Try LTF-refined OBs first (higher precision)
+            for ltf_bms in ltf_bms_bullish:
+                ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
+                if not ltf_ob:
+                    continue
+
+                # Filter out truly mitigated OBs
+                unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                    [ltf_ob], ltf_sequence,
+                )
+                if not unmitigated:
+                    continue
+
+                ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BULLISH, ltf_bms
+                )
+
+                # Build using the CHoCH-origin pattern
+                candidate = self._build_choch_candidate(
+                    htf_sequence=htf_sequence,
+                    ltf_sequence=ltf_sequence,
+                    htf_choch=latest_htf_choch_bullish,
+                    ltf_bms=ltf_bms,
+                    ltf_choch=ltf_choch,
+                    ltf_sweep=ltf_sweep,
+                    ob=ltf_ob,
+                    ltf_fvgs=ltf_fvgs,
+                    inducement_events=inducement_events,
+                    retracement=retracement,
+                    direction=Direction.BULLISH,
+                    swing_highs=ltf_swing_highs,
+                    swing_lows=ltf_swing_lows,
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+            # If no LTF BMS yet, build from HTF structure alone
+            if not ltf_bms_bullish:
+                htf_bms_from_choch = self.bms_detector.detect_bullish_bms(
+                    htf_sequence,
+                    self.swing_analyzer.detect_swing_highs(htf_sequence),
+                )
+                latest_htf_bms = self.bms_detector.get_latest_bms(
+                    htf_bms_from_choch
+                )
+                if latest_htf_bms:
+                    htf_ob = self.ob_detector.detect_bullish_ob(
+                        htf_sequence, latest_htf_bms
+                    )
+                    if htf_ob:
+                        unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                            [htf_ob], htf_sequence,
+                        )
+                        if unmitigated:
+                            candidate = self._build_choch_candidate(
+                                htf_sequence=htf_sequence,
+                                ltf_sequence=ltf_sequence,
+                                htf_choch=latest_htf_choch_bullish,
+                                ltf_bms=latest_htf_bms,
+                                ltf_choch=None,
+                                ltf_sweep=None,
+                                ob=htf_ob,
+                                ltf_fvgs=ltf_fvgs,
+                                inducement_events=inducement_events,
+                                retracement=retracement,
+                                direction=Direction.BULLISH,
+                                swing_highs=ltf_swing_highs,
+                                swing_lows=ltf_swing_lows,
+                            )
+                            if candidate:
+                                candidates.append(candidate)
+
+            self._logger.info(
+                "smc_choch_reversal_bullish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_choch_count": len(htf_choch_bullish),
+                    "ltf_bms_count": len(ltf_bms_bullish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BULLISH]
+                    ),
+                },
+            )
+
+        # -- Bearish CHoCH reversal --
+        latest_htf_choch_bearish = self.choch_detector.get_latest_choch(
+            htf_choch_bearish
+        )
+        if latest_htf_choch_bearish:
+            for ltf_bms in ltf_bms_bearish:
+                ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
+                if not ltf_ob:
+                    continue
+
+                unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                    [ltf_ob], ltf_sequence,
+                )
+                if not unmitigated:
+                    continue
+
+                ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
+                ltf_sweep = self._find_relevant_sweep(
+                    sweeps, Direction.BEARISH, ltf_bms
+                )
+
+                candidate = self._build_choch_candidate(
+                    htf_sequence=htf_sequence,
+                    ltf_sequence=ltf_sequence,
+                    htf_choch=latest_htf_choch_bearish,
+                    ltf_bms=ltf_bms,
+                    ltf_choch=ltf_choch,
+                    ltf_sweep=ltf_sweep,
+                    ob=ltf_ob,
+                    ltf_fvgs=ltf_fvgs,
+                    inducement_events=inducement_events,
+                    retracement=retracement,
+                    direction=Direction.BEARISH,
+                    swing_highs=ltf_swing_highs,
+                    swing_lows=ltf_swing_lows,
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+            if not ltf_bms_bearish:
+                htf_bms_from_choch = self.bms_detector.detect_bearish_bms(
+                    htf_sequence,
+                    self.swing_analyzer.detect_swing_lows(htf_sequence),
+                )
+                latest_htf_bms = self.bms_detector.get_latest_bms(
+                    htf_bms_from_choch
+                )
+                if latest_htf_bms:
+                    htf_ob = self.ob_detector.detect_bearish_ob(
+                        htf_sequence, latest_htf_bms
+                    )
+                    if htf_ob:
+                        unmitigated = self.mitigation_detector.get_unmitigated_obs(
+                            [htf_ob], htf_sequence,
+                        )
+                        if unmitigated:
+                            candidate = self._build_choch_candidate(
+                                htf_sequence=htf_sequence,
+                                ltf_sequence=ltf_sequence,
+                                htf_choch=latest_htf_choch_bearish,
+                                ltf_bms=latest_htf_bms,
+                                ltf_choch=None,
+                                ltf_sweep=None,
+                                ob=htf_ob,
+                                ltf_fvgs=ltf_fvgs,
+                                inducement_events=inducement_events,
+                                retracement=retracement,
+                                direction=Direction.BEARISH,
+                                swing_highs=ltf_swing_highs,
+                                swing_lows=ltf_swing_lows,
+                            )
+                            if candidate:
+                                candidates.append(candidate)
+
+            self._logger.info(
+                "smc_choch_reversal_bearish_summary",
+                extra={
+                    "symbol": htf_sequence.symbol,
+                    "htf_choch_count": len(htf_choch_bearish),
+                    "ltf_bms_count": len(ltf_bms_bearish),
+                    "candidates_built": len(
+                        [c for c in candidates if c.direction == Direction.BEARISH]
+                    ),
+                },
+            )
+
+        return candidates
+
+    def _build_choch_candidate(
+        self,
+        htf_sequence: CandleSequence,
+        ltf_sequence: CandleSequence,
+        htf_choch: ChangeOfCharacter,
+        ltf_bms: BreakInMarketStructure,
+        ltf_choch: Optional[ChangeOfCharacter],
+        ltf_sweep: Optional[LiquiditySweep],
+        ob: "OrderBlock",
+        ltf_fvgs: list,
+        inducement_events: list,
+        retracement: Optional[FibonacciRetracement],
+        direction: Direction,
+        swing_highs: list = None,
+        swing_lows: list = None,
+    ) -> Optional[SMCCandidate]:
+        """Build a single CHOCH_BMS_RTO candidate.
+
+        Validates zone rules (unmitigated, has FVG, has liquidity),
+        evaluates LTF confirmation, counts confluences, and constructs
+        the SMCCandidate with the CHOCH_BMS_RTO pattern.
+        """
+        from engine.ta.common.utils.price.math import get_pip_value
+        from engine.ta.models.zone import OrderBlock as OBType
+
+        if not self.zone_validator.validate_all_ob_rules(
+            ob,
+            ltf_fvgs,
+            [ltf_sweep] if ltf_sweep else [],
+            inducement_events,
+            retracement,
+            ltf_sequence,
+            [],
+        ):
+            return None
+
+        current_price = ltf_sequence.candles[-1].close
+
+        ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
+            ltf_sweep,
+            ltf_choch,
+            ltf_bms,
+            ob,
+            inducement_events,
+            ltf_sequence,
+            current_price,
+            ltf_fvgs=ltf_fvgs,
+        )
+
+        # Confluence scoring (informational metadata for the LLM)
+        confluences = self._count_choch_confluences(
+            htf_choch=htf_choch,
+            ltf_bms=ltf_bms,
+            ltf_choch=ltf_choch,
+            ltf_sweep=ltf_sweep,
+            ob=ob,
+            fvgs=ltf_fvgs,
+            retracement=retracement,
+            inducement_events=inducement_events,
+        )
+
+        pip_val = float(get_pip_value(ltf_sequence.symbol))
+        entry_price = ob.midpoint
+
+        if direction == Direction.BULLISH:
+            stop_loss = ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
+            pattern = CandidatePattern.CHOCH_BMS_RTO_BULLISH
+            take_profit = self._find_bsl_target(entry_price, swing_highs or [])
+        else:
+            stop_loss = ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
+            pattern = CandidatePattern.CHOCH_BMS_RTO_BEARISH
+            take_profit = self._find_ssl_target(entry_price, swing_lows or [])
+
+        if take_profit is None:
+            take_profit = htf_choch.breakout_price
+
+        candidate = SMCCandidate(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            pattern=pattern,
+            direction=direction,
+            timestamp=ltf_sequence.candles[-1].timestamp,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            htf_timeframe=htf_sequence.timeframe,
+            ltf_timeframe=ltf_sequence.timeframe,
+            bms_detected=True,
+            bms_price=ltf_bms.breakout_price,
+            bms_timestamp=ltf_bms.timestamp,
+            choch_detected=True,
+            choch_price=htf_choch.breakout_price,
+            choch_timestamp=htf_choch.timestamp,
+            order_block_upper=ob.upper_bound,
+            order_block_lower=ob.lower_bound,
+            order_block_timestamp=ob.timestamp,
+            liquidity_swept=ltf_sweep is not None,
+            swept_level=ltf_sweep.swept_level if ltf_sweep else None,
+            sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
+            inducement_cleared=len(
+                [idm for idm in inducement_events if idm.cleared]
+            ) > 0,
+            ltf_confirmation=ltf_confirmed,
+            ltf_confirmation_timestamp=(
+                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
+            ),
+            displacement_pips=ltf_bms.displacement_pips,
+            fib_level=None,
+            metadata={
+                "confluences": confluences,
+                "pattern_type": "choch_reversal",
+                "htf_choch_direction": str(htf_choch.direction),
+                "htf_choch_is_minor": htf_choch.is_minor,
+            },
+        )
+
+        self._logger.info(
+            "choch_reversal_candidate_built",
+            extra={
+                "symbol": candidate.symbol,
+                "direction": str(direction),
+                "entry_price": entry_price,
+                "confluences": confluences,
+                "ltf_confirmed": ltf_confirmed,
+                "htf_choch_price": htf_choch.breakout_price,
+            },
+        )
+
+        return candidate
+
+    def _count_choch_confluences(
+        self,
+        htf_choch: ChangeOfCharacter,
+        ltf_bms: BreakInMarketStructure,
+        ltf_choch: Optional[ChangeOfCharacter],
+        ltf_sweep: Optional[LiquiditySweep],
+        ob: "OrderBlock",
+        fvgs: list,
+        retracement: Optional[FibonacciRetracement],
+        inducement_events: list,
+    ) -> int:
+        """Count confluences for a CHoCH reversal candidate.
+
+        Informational metadata for the LLM, never used as a gate.
+        """
+        from engine.ta.common.utils.price.math import get_pip_value
+
+        confluences = 0
+
+        # 1. HTF CHoCH detected (the origin event)
+        confluences += 1
+
+        # 2. HTF CHoCH is major (not minor) = stronger signal
+        if not htf_choch.is_minor:
+            confluences += 1
+
+        # 3. LTF BMS alignment
+        confluences += 1
+
+        # 4. LTF BMS is confirmed
+        if ltf_bms.confirmed:
+            confluences += 1
+
+        # 5. LTF CHOCH present
+        if ltf_choch is not None:
+            confluences += 1
+
+        # 6. Liquidity sweep with close-back-inside
+        if ltf_sweep and ltf_sweep.closed_back_inside:
+            confluences += 1
+
+        # 7. FVG alignment with OB direction
+        if any(fvg.direction == ob.direction for fvg in fvgs):
+            confluences += 1
+
+        # 8. Fibonacci / OTE confluence
+        fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
+        if fib_score >= 3:
+            confluences += 2
+        elif fib_score >= 2:
+            confluences += 1
+
+        # 9. Inducement cleared
+        if any(idm.cleared for idm in inducement_events):
+            confluences += 1
+
+        # 10. OB displacement strength
+        if ob.displacement_pips > 0:
+            pip_val = float(get_pip_value(ob.symbol))
+            displacement_in_pips = ob.displacement_pips / pip_val
+            if displacement_in_pips >= self.config.bms_strong_displacement_pips:
+                confluences += 1
+
+        # 11. OB is a breaker block
+        if ob.is_breaker:
+            confluences += 1
+
+        return confluences
+
+    @staticmethod
+    def _find_bsl_target(
+        entry_price: float,
+        swing_highs: list,
+    ) -> Optional[float]:
+        """Find the nearest BSL (swing high) above entry."""
+        candidates = [sh.price for sh in swing_highs if sh.price > entry_price]
+        return min(candidates) if candidates else None
+
+    @staticmethod
+    def _find_ssl_target(
+        entry_price: float,
+        swing_lows: list,
+    ) -> Optional[float]:
+        """Find the nearest SSL (swing low) below entry."""
+        candidates = [sl.price for sl in swing_lows if sl.price < entry_price]
+        return max(candidates) if candidates else None
 
     # ------------------------------------------------------------------
     # Continuation candidates (Pattern 2/7: SH + BMS + RTO)
