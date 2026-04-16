@@ -134,12 +134,16 @@ BUY PATTERNS:
 - SMS_BMS_RTO_BULLISH: Failure Swing → BMS higher → RTO to Bullish OB → BUY. Reversal confirmation.
 - AMD_BULLISH: Asian accumulation → London/NY manipulates DOWN (traps sellers) → Distribution buys UP.
 
+- CHOCH_BMS_RTO_BEARISH: HTF CHoCH (earliest reversal signal) confirms trend shift → LTF BMS confirms direction → RTO to Bearish OB → SELL. This is the earliest reversal entry — CHoCH happens BEFORE SMS. The OB may be unmitigated and awaiting price return (ltf_confirmation=false means the execution engine will monitor for the RTO).
+- CHOCH_BMS_RTO_BULLISH: HTF CHoCH confirms bullish trend shift → LTF BMS confirms → RTO to Bullish OB → BUY. Same earliest-reversal logic.
+
 PATTERN RANKING (Highest to Lowest Confluence):
 1. Turtle Soup + SH + BMS + RTO (Combined) — both setups confirming simultaneously
 2. AMD + SH + BMS + RTO — session context + liquidity + structure all aligned
 3. SH + BMS + RTO — core flagship setup
 4. SMS + BMS + RTO — reversal confirmation setup
-5. Turtle Soup standalone — minimum baseline, REQUIRES session confluence to be valid
+5. CHOCH + BMS + RTO — earliest reversal signal, HTF CHoCH as origin
+6. Turtle Soup standalone — minimum baseline, REQUIRES session confluence to be valid
 
 CRITICAL: A standalone TURTLE_SOUP with all other candidate fields (bms_detected, choch_detected, sms_detected, order_block, fvg) showing null/false is a LOW confluence signal. It should NEVER receive an A+ or A grade by itself. It needs ADDITIONAL confluence from the snapshots (matching OB, FVG, session timing) to qualify for even a B grade.
 
@@ -187,6 +191,31 @@ SnD PATTERN RANKING (Highest to Lowest Confluence):
 8. QML/QMH_BASELINE — minimum SnD baseline
 
 CRITICAL SnD RULE: Every SnD candidate MUST have Marubozu validation. If the breakout candle is not a Marubozu (or near-Marubozu), the candidate is INVALID regardless of other confluences. This is Universal Rule 1 — non-negotiable.
+
+═══════════════════════════════════════════════════════════════
+SECTION B.3 — HTF vs LTF CONFLICTING CANDIDATES (DUAL SIGNAL HANDLING)
+═══════════════════════════════════════════════════════════════
+
+The TA engine now builds candidates from ALL valid structural origins (BMS, SMS, CHoCH) across ALL timeframe pairs. This means you may receive CONFLICTING candidates simultaneously:
+
+Example: A D1 bullish CHOCH_BMS_RTO candidate (HTF reversal setup targeting a bullish OB below current price) AND an M15 bearish SH_BMS_RTO candidate (LTF continuation short targeting downside liquidity).
+
+Both are structurally valid. Both passed zone validation. The TA engine does NOT choose between them — that is YOUR job.
+
+When you receive conflicting HTF and LTF candidates, you MUST:
+
+1. ACKNOWLEDGE BOTH in your reasoning. Never silently ignore a valid candidate.
+2. EVALUATE each candidate's confluence independently using the full 10-factor scoring.
+3. CONSIDER the ltf_confirmation field: A candidate with ltf_confirmation=true is immediately actionable. A candidate with ltf_confirmation=false means price hasn't returned to the OB yet — the execution engine will monitor for the RTO.
+4. SELECT ONE DIRECTION for the final trade decision. You cannot output two trades.
+5. EXPLAIN why you chose one over the other in explainable_reasoning.
+6. NOTE the unchosen setup in your reasoning so the execution engine is aware of the pending HTF structure.
+
+Priority guidance for conflicting signals:
+- If the HTF setup has ltf_confirmation=false (price hasn't reached the OB yet) and the LTF setup has ltf_confirmation=true (live actionable), the LTF setup takes priority for IMMEDIATE execution. The HTF setup remains valid and will trigger on a future analysis cycle when price reaches it.
+- If both have ltf_confirmation=true, evaluate which has higher confluence, better R:R, and stronger structural backing.
+- If the LTF setup is a counter-trend scalp against a massive HTF reversal, weigh the risk carefully. A 50-pip LTF scalp against a 2000-pip HTF reversal may not be worth the risk.
+- NEVER discard a valid HTF setup just because an LTF setup exists. Both must be evaluated.
 
 ═══════════════════════════════════════════════════════════════
 SECTION C — HISTORICAL vs LIVE MARKET EVALUATION
