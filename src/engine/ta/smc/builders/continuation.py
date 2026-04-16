@@ -28,13 +28,16 @@ class ContinuationBuilder:
     - Entry at OB with SL beyond OB
     - Target: next liquidity draw (SSL/BSL)
 
-    Requirements:
+    Structural validity gates (hard requirements):
     - HTF BMS alignment (Universal Rule 2)
-    - Liquidity taken first (Universal Rule 1) - when available
-    - Retracement to OB (Universal Rule 3) - checked at execution time
-    - OTE adds confluence (Universal Rule 6) - scored, not gated
-    - Session timing (Universal Rule 7) - checked at execution time
-    - Minimum 3 confluences (Universal Rule 5)
+    - Direction alignment (HTF BMS, LTF BMS, OB must agree)
+    - OB passes all zone rules (unmitigated, has FVG, has liquidity)
+
+    Confluence scoring (informational metadata for the LLM):
+    - The confluence count is stored on the candidate so the LLM can
+      see how many structural factors are present.  It is NEVER used
+      to reject a candidate.  The LLM performs its own scoring with
+      full macro/Wyckoff/cross-TF context.
 
     LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated when
     available and stored as metadata.  Their absence does NOT block
@@ -67,6 +70,7 @@ class ContinuationBuilder:
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
     ) -> Optional[SMCCandidate]:
+        # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BULLISH:
             return None
 
@@ -87,13 +91,9 @@ class ContinuationBuilder:
         ):
             return None
 
+        # --- LTF confirmation (execution timing, not detection gate) ---
         current_price = ltf_sequence.candles[-1].close
 
-        # LTF confirmation is ALWAYS evaluated at every analysis.
-        # When all confirmations are satisfied, ltf_confirmation=True
-        # and the execution engine fires an instant order.
-        # When some are missing, ltf_confirmation=False and the
-        # execution engine monitors until they are satisfied.
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             ltf_sweep,
             ltf_choch,
@@ -105,8 +105,10 @@ class ContinuationBuilder:
             ltf_fvgs=ltf_fvgs,
         )
 
+        # --- Confluence scoring (informational metadata for the LLM) ---
         confluences = self._count_confluences(
             htf_bms,
+            ltf_bms,
             ltf_sweep,
             ltf_choch,
             ltf_ob,
@@ -115,30 +117,11 @@ class ContinuationBuilder:
             inducement_events,
         )
 
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bullish_continuation_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "ob_upper": ltf_ob.upper_bound,
-                    "ob_lower": ltf_ob.lower_bound,
-                    "has_sweep": ltf_sweep is not None,
-                    "has_choch": ltf_choch is not None,
-                    "has_retracement": retracement is not None,
-                },
-            )
-            return None
-
+        # --- Build the candidate ---
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
 
-        # TP targets the next liquidity draw (BSL = nearest swing high
-        # above entry).  Price runs from liquidity to liquidity.
-        # Falls back to HTF BMS breakout price only when no structural
-        # target exists.
         take_profit = self._find_nearest_bsl_target(
             entry_price,
             self._get_swing_highs_from_sequence(htf_sequence),
@@ -210,6 +193,7 @@ class ContinuationBuilder:
         inducement_events: list[InducementEvent],
         retracement: Optional[FibonacciRetracement],
     ) -> Optional[SMCCandidate]:
+        # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BEARISH:
             return None
 
@@ -230,6 +214,7 @@ class ContinuationBuilder:
         ):
             return None
 
+        # --- LTF confirmation (execution timing, not detection gate) ---
         current_price = ltf_sequence.candles[-1].close
 
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
@@ -243,8 +228,10 @@ class ContinuationBuilder:
             ltf_fvgs=ltf_fvgs,
         )
 
+        # --- Confluence scoring (informational metadata for the LLM) ---
         confluences = self._count_confluences(
             htf_bms,
+            ltf_bms,
             ltf_sweep,
             ltf_choch,
             ltf_ob,
@@ -253,28 +240,11 @@ class ContinuationBuilder:
             inducement_events,
         )
 
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bearish_continuation_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "ob_upper": ltf_ob.upper_bound,
-                    "ob_lower": ltf_ob.lower_bound,
-                    "has_sweep": ltf_sweep is not None,
-                    "has_choch": ltf_choch is not None,
-                    "has_retracement": retracement is not None,
-                },
-            )
-            return None
-
+        # --- Build the candidate ---
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
 
-        # TP targets the next liquidity draw (SSL = nearest swing low
-        # below entry).  Falls back to HTF BMS breakout price.
         take_profit = self._find_nearest_ssl_target(
             entry_price,
             self._get_swing_lows_from_sequence(htf_sequence),
@@ -334,6 +304,7 @@ class ContinuationBuilder:
     def _count_confluences(
         self,
         htf_bms: BreakInMarketStructure,
+        ltf_bms: BreakInMarketStructure,
         sweep: Optional[LiquiditySweep],
         choch: Optional[ChangeOfCharacter],
         ob: OrderBlock,
@@ -343,35 +314,55 @@ class ContinuationBuilder:
     ) -> int:
         """Count all confluences for a continuation candidate.
 
-        Each confluence is an independent piece of evidence that the
-        setup is valid.  The minimum is 3 (Universal Rule 5).
+        This is informational metadata for the LLM.  It is NEVER used
+        to gate or reject a candidate.  Every structural element the
+        system detects is counted so the LLM has maximum visibility.
         """
         confluences = 0
 
         # 1. HTF BMS alignment (always present for continuation)
         confluences += 1
 
-        # 2. Liquidity sweep (conditional - doesn't happen 100%)
+        # 2. HTF BMS is confirmed (multi-candle confirmation passed)
+        if htf_bms.confirmed:
+            confluences += 1
+
+        # 3. LTF BMS alignment (structural confirmation on entry TF)
+        if ltf_bms.confirmed:
+            confluences += 1
+
+        # 4. Liquidity sweep with close-back-inside
         if sweep and sweep.closed_back_inside:
             confluences += 1
 
-        # 3. LTF CHOCH (may not be present yet if RTO hasn't happened)
+        # 5. LTF CHOCH (earliest signal of order flow shift)
         if choch is not None:
             confluences += 1
 
-        # 4. FVG alignment with OB
+        # 6. FVG alignment with OB direction
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 5. Fibonacci / OTE confluence (0-3 points)
+        # 7. Fibonacci / OTE confluence (0-2 points)
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2  # OTE pocket = strong confluence
         elif fib_score >= 2:
             confluences += 1  # Correct premium/discount zone
 
-        # 6. Inducement cleared
+        # 8. Inducement cleared
         if any(idm.cleared for idm in inducement_events):
+            confluences += 1
+
+        # 9. OB displacement strength (strong displacement = institutional)
+        if ob.displacement_pips > 0:
+            pip_val = float(get_pip_value(ob.symbol))
+            displacement_in_pips = ob.displacement_pips / pip_val
+            if displacement_in_pips >= self.config.bms_strong_displacement_pips:
+                confluences += 1
+
+        # 10. OB is a breaker block (failed OB flipped = stronger zone)
+        if ob.is_breaker:
             confluences += 1
 
         return confluences
