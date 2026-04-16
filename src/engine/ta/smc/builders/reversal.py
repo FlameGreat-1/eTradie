@@ -426,32 +426,52 @@ class ReversalBuilder:
         retracement: Optional[FibonacciRetracement],
         inducement_events: list[InducementEvent],
     ) -> int:
-        """Count all confluences for a reversal candidate."""
+        """Count all confluences for a reversal candidate.
+
+        This is informational metadata for the LLM.  It is NEVER used
+        to gate or reject a candidate.  Every structural element the
+        system detects is counted so the LLM has maximum visibility.
+        """
         confluences = 0
 
         # 1. HTF SMS (failure swing) detected
         confluences += 1
 
-        # 2. BMS confirmed
+        # 2. BMS detected
         confluences += 1
 
-        # 3. LTF CHOCH (may not be present yet)
+        # 3. BMS is confirmed (multi-candle confirmation passed)
+        if bms.confirmed:
+            confluences += 1
+
+        # 4. LTF CHOCH (earliest signal of order flow shift)
         if choch is not None:
             confluences += 1
 
-        # 4. FVG alignment with OB
+        # 5. FVG alignment with OB direction
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 5. Fibonacci / OTE confluence (0-3 points)
+        # 6. Fibonacci / OTE confluence (0-2 points)
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2  # OTE pocket = strong confluence
         elif fib_score >= 2:
             confluences += 1  # Correct premium/discount zone
 
-        # 6. Inducement cleared
+        # 7. Inducement cleared
         if any(idm.cleared for idm in inducement_events):
+            confluences += 1
+
+        # 8. OB displacement strength (strong displacement = institutional)
+        if ob.displacement_pips > 0:
+            pip_val = float(get_pip_value(ob.symbol))
+            displacement_in_pips = ob.displacement_pips / pip_val
+            if displacement_in_pips >= self.config.bms_strong_displacement_pips:
+                confluences += 1
+
+        # 9. OB is a breaker block (failed OB flipped = stronger zone)
+        if ob.is_breaker:
             confluences += 1
 
         return confluences
