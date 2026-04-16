@@ -120,19 +120,6 @@ class ReversalBuilder:
             inducement_events,
         )
 
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bullish_sms_reversal_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "has_choch": ltf_choch is not None,
-                    "has_retracement": retracement is not None,
-                },
-            )
-            return None
-
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
@@ -243,19 +230,6 @@ class ReversalBuilder:
             retracement,
             inducement_events,
         )
-
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bearish_sms_reversal_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "has_choch": ltf_choch is not None,
-                    "has_retracement": retracement is not None,
-                },
-            )
-            return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
