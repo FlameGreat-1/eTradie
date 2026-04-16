@@ -1,4 +1,4 @@
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,7 +41,13 @@ class SMCConfig(BaseSettings):
 
     require_htf_bms_alignment: bool = Field(default=True)
 
-    min_confluences: int = Field(default=3, ge=2, le=10)
+    # --- Confluence scoring (informational, NOT a gate) ---
+    # The confluence count is stored as metadata on every candidate so
+    # the LLM can see how many structural factors are present.  It is
+    # NEVER used to reject a candidate.  The LLM performs its own
+    # confluence scoring with full macro/Wyckoff/cross-TF context that
+    # no Python counter can replicate.
+    min_confluences: int = Field(default=3, ge=0, le=10)
 
     enable_turtle_soup: bool = Field(default=True)
 
@@ -52,6 +58,13 @@ class SMCConfig(BaseSettings):
     enable_amd: bool = Field(default=True)
 
     enable_combined_patterns: bool = Field(default=True)
+
+    # --- CHoCH reversal candidates ---
+    # When True, the detector builds reversal candidates from HTF CHoCH
+    # events (e.g. D1 bullish CHoCH after a W1 bearish trend).  CHoCH
+    # is the earliest signal of a trend reversal and is a valid
+    # structural origin for candidate building.
+    enable_choch_reversal: bool = Field(default=True)
 
     # --- Fibonacci / OTE confluence settings ---
     # OTE alignment is a confluence booster, not a hard gate.
@@ -80,10 +93,3 @@ class SMCConfig(BaseSettings):
     zone_mitigation_body_threshold: float = Field(
         default=50.0, ge=0.0, le=100.0,
     )
-
-    @field_validator("min_confluences")
-    @classmethod
-    def validate_min_confluences(cls, v: int) -> int:
-        if v < 3:
-            raise ValueError("SMC requires minimum 3 confluences (Universal Rule 5)")
-        return v
