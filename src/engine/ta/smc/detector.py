@@ -50,8 +50,8 @@ class SMCDetector:
     5. Builds candidates using continuation/reversal/AMD builders
     6. Outputs SMCCandidate models for processor
 
-    Key design principle: the HTF pattern (BMS/SMS + OB + FVG + IDM) IS
-    the candidate.  LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated
+    Key design principle: the HTF pattern (BMS/SMS/CHoCH + OB + FVG + IDM)
+    IS the candidate.  LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated
     when available and stored as metadata on the candidate.  Their absence
     does NOT block candidate creation because:
 
@@ -61,19 +61,15 @@ class SMCDetector:
     - Blocking candidates here means the execution engine never even
       knows about the setup.
 
-    Enforces all 12 Universal Rules:
-    - Liquidity must be taken first
-    - Always trade in direction of HTF BMS
-    - After BMS always wait for retracement
-    - Order Block definition is strict
-    - Minimum 3 confluences required
-    - OTE adds critical confluence
-    - Session timing is confluence
-    - AMD context must be known
-    - Equal highs/lows are prime liquidity targets
-    - High impact news is a liquidity tool
-    - Top-down timeframe execution (mandatory)
-    - Turtle Soup minimum SL
+    Valid HTF structural origins for candidate building:
+    - HTF BMS (continuation pattern: SH + BMS + RTO)
+    - HTF SMS / Failure Swing (reversal pattern: SMS + BMS + RTO)
+    - HTF CHoCH (earliest reversal signal: CHOCH + BMS + RTO)
+
+    Confluence scoring is informational metadata for the LLM, not a gate.
+    The LLM performs its own scoring with full macro/Wyckoff/cross-TF
+    context.  Structural validity (unmitigated OB + zone rules + direction
+    alignment) is the real gatekeeper.
     """
 
     def __init__(
