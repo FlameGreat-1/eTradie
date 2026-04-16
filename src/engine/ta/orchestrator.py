@@ -46,7 +46,6 @@ from engine.ta.smc.detectors.inducement import InducementDetector
 from engine.ta.smc.detectors.sms import SMSDetector
 from engine.ta.smc.zones.breaker import BreakerDetector
 from engine.ta.smc.zones.fvg import FVGDetector
-from engine.ta.smc.zones.mitigation import MitigationDetector
 from engine.ta.smc.zones.order_block import OrderBlockDetector
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
@@ -127,7 +126,7 @@ class TAOrchestrator:
         self._fvg_detector = smc_detector.fvg_detector
         self._ob_detector = smc_detector.ob_detector
         self._breaker_detector = smc_detector.breaker_detector
-        self._mitigation_detector = smc_detector.mitigation_detector
+        self._zone_validator = smc_detector.zone_validator
 
         # SnD primitive detectors — pull from the SnD detector.
         self._qm_detector = snd_detector.qm_detector
@@ -669,24 +668,26 @@ class TAOrchestrator:
                 if ob is not None:
                     order_blocks.append(ob)
 
-            # ── OB mitigation check ──────────────────────────────────
-            # Mark OBs that have been traded through as mitigated.
-            # The OB is created with mitigated=False by default.  If
-            # subsequent candles close through the zone, the OB's
-            # institutional intent has been consumed and it should
-            # not be presented as a fresh, tradeable zone.
+            # ── OB mitigation check (body-threshold) ──────────────────
+            # Mark OBs as mitigated using body-threshold analysis.
+            # A wick retest (RTO) is the entry opportunity, NOT
+            # mitigation.  Only when a candle body closes decisively
+            # through the zone (>= configured threshold, default 50%)
+            # is the OB considered consumed.
+            #
+            # Uses ZoneValidator.validate_zone_freshness() - the single
+            # source of truth for mitigation across the entire system.
             #
             # OrderBlock extends FrozenModel so we use model_copy()
             # to produce an updated instance.
             for idx, ob in enumerate(order_blocks):
-                mitigated, mitigated_at = self._mitigation_detector.check_ob_mitigation(
+                is_fresh = self._zone_validator.validate_zone_freshness(
                     ob, sequence,
                 )
-                if mitigated:
+                if not is_fresh:
                     order_blocks[idx] = ob.model_copy(
                         update={
                             "mitigated": True,
-                            "mitigation_timestamp": mitigated_at,
                         },
                     )
 
