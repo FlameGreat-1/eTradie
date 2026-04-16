@@ -107,6 +107,9 @@ class AMDCandidateBuilder:
             ltf_fvgs=ltf_fvgs,
         )
 
+        # Confluence scoring is informational metadata for the LLM,
+        # not a gate.  The LLM performs its own scoring with full
+        # macro/Wyckoff/cross-TF context.
         confluences = self._count_amd_confluences(
             amd_context,
             ltf_sweep,
@@ -117,19 +120,6 @@ class AMDCandidateBuilder:
             retracement,
             inducement_events,
         )
-
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bullish_amd_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "has_sweep": ltf_sweep is not None,
-                    "has_choch": ltf_choch is not None,
-                },
-            )
-            return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
@@ -262,6 +252,9 @@ class AMDCandidateBuilder:
             ltf_fvgs=ltf_fvgs,
         )
 
+        # Confluence scoring is informational metadata for the LLM,
+        # not a gate.  The LLM performs its own scoring with full
+        # macro/Wyckoff/cross-TF context.
         confluences = self._count_amd_confluences(
             amd_context,
             ltf_sweep,
@@ -272,19 +265,6 @@ class AMDCandidateBuilder:
             retracement,
             inducement_events,
         )
-
-        if confluences < self.config.min_confluences:
-            self._logger.info(
-                "bearish_amd_insufficient_confluences",
-                extra={
-                    "symbol": ltf_sequence.symbol,
-                    "confluences": confluences,
-                    "required": self.config.min_confluences,
-                    "has_sweep": ltf_sweep is not None,
-                    "has_choch": ltf_choch is not None,
-                },
-            )
-            return None
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint

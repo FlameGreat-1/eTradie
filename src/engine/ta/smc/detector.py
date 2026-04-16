@@ -435,12 +435,9 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                # Filter out truly mitigated OBs
-                unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                    [ltf_ob], ltf_sequence,
-                )
-                if not unmitigated:
-                    continue
+                # Zone freshness is validated inside _build_choch_candidate
+                # via validate_all_ob_rules() which uses body-threshold
+                # analysis to distinguish retests from true mitigation.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 ltf_sweep = self._find_relevant_sweep(
@@ -524,11 +521,9 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                    [ltf_ob], ltf_sequence,
-                )
-                if not unmitigated:
-                    continue
+                # Zone freshness is validated inside _build_choch_candidate
+                # via validate_all_ob_rules() which uses body-threshold
+                # analysis to distinguish retests from true mitigation.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 ltf_sweep = self._find_relevant_sweep(
@@ -883,12 +878,8 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                # Filter out truly mitigated OBs (1B)
-                unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                    [ltf_ob], ltf_sequence,
-                )
-                if not unmitigated:
-                    continue
+                # Zone freshness validated inside the builder via
+                # validate_all_ob_rules() body-threshold analysis.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 ltf_sweep = self._find_relevant_sweep(
@@ -985,12 +976,8 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                # Filter out truly mitigated OBs (1B)
-                unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                    [ltf_ob], ltf_sequence,
-                )
-                if not unmitigated:
-                    continue
+                # Zone freshness validated inside the builder via
+                # validate_all_ob_rules() body-threshold analysis.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 ltf_sweep = self._find_relevant_sweep(
