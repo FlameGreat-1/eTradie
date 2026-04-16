@@ -25,7 +25,6 @@ from engine.ta.smc.detectors.amd import AMDDetector, AMDContext
 from engine.ta.smc.zones.fvg import FVGDetector
 from engine.ta.smc.zones.order_block import OrderBlockDetector
 from engine.ta.smc.zones.breaker import BreakerDetector
-from engine.ta.smc.zones.mitigation import MitigationDetector
 from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator
 from engine.ta.smc.builders.continuation import ContinuationBuilder
@@ -104,7 +103,6 @@ class SMCDetector:
         self.fvg_detector = FVGDetector(config, candle_analyzer)
         self.ob_detector = OrderBlockDetector(config)
         self.breaker_detector = BreakerDetector(config)
-        self.mitigation_detector = MitigationDetector(config)
 
         self.zone_validator = ZoneValidator(config, fibonacci_analyzer)
         self.ltf_validator = LTFConfirmationValidator(config, session_analyzer)
@@ -1224,21 +1222,43 @@ class SMCDetector:
         ltf_swing_highs: list = None,
         ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
+        """Build Turtle Soup candidates, limited to the most recent per direction.
+
+        Turtle Soup is an immediate-entry pattern.  Only the latest sweep
+        per direction is actionable.  Historical sweeps from days/weeks ago
+        are structural context (already captured in ta_snapshots.json) but
+        are NOT current trade opportunities.
+
+        This prevents the bloat of 100+ stale Turtle Soup candidates per
+        timeframe being sent to the LLM.
+        """
         candidates = []
 
-        for sweep in turtle_soup_long:
+        # Only build from the most recent sweep per direction
+        latest_long = (
+            max(turtle_soup_long, key=lambda s: s.timestamp)
+            if turtle_soup_long
+            else None
+        )
+        latest_short = (
+            max(turtle_soup_short, key=lambda s: s.timestamp)
+            if turtle_soup_short
+            else None
+        )
+
+        if latest_long:
             candidate = self.reversal_builder.build_turtle_soup_long(
                 ltf_sequence,
-                sweep,
+                latest_long,
                 swing_highs=ltf_swing_highs,
             )
             if candidate:
                 candidates.append(candidate)
 
-        for sweep in turtle_soup_short:
+        if latest_short:
             candidate = self.reversal_builder.build_turtle_soup_short(
                 ltf_sequence,
-                sweep,
+                latest_short,
                 swing_lows=ltf_swing_lows,
             )
             if candidate:
