@@ -231,7 +231,7 @@ class ZoneValidator:
         ob: OrderBlock,
         sequence: CandleSequence,
     ) -> bool:
-        """Validate zone is unmitigated (fresh).
+        """Validate zone is unmitigated (fresh) using body-threshold analysis.
 
         Distinguishes between:
         - **Retest / RTO**: price wicks into the zone but the candle
@@ -240,13 +240,15 @@ class ZoneValidator:
           through the zone (configurable threshold, default 50% of
           body inside the zone).  The zone is consumed.
 
-        The old implementation treated any wick touch as mitigation,
-        which rejected virtually every OB because price almost always
-        retests a zone before continuing.
+        NOTE: We intentionally do NOT short-circuit on ``ob.mitigated``.
+        The ``ob.mitigated`` flag is set by ``MitigationDetector`` using
+        a wick-touch definition (any wick into zone = mitigated).  That
+        flag is correct for snapshot/informational purposes so the LLM
+        knows what price has touched.  But for candidate building, we
+        must distinguish retests from true mitigation using body-close
+        analysis.  A wick retest (RTO) is the entry opportunity, not
+        zone invalidation.
         """
-        if ob.mitigated:
-            return False
-
         if ob.candle_index >= len(sequence.candles) - 1:
             return True
 

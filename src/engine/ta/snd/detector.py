@@ -365,11 +365,18 @@ class SnDDetector:
                         if candidate:
                             candidates.append(candidate)
 
+        # Select the best candidate per direction per timeframe.
+        # The LLM needs the highest-quality setup, not dozens of
+        # near-duplicates at slightly different QM price levels
+        # with the same fakeout/flip data.
+        filtered = self._select_best_per_direction(candidates)
+
         self._logger.info(
             "snd_detection_completed",
             extra={
                 "symbol": htf_sequence.symbol,
-                "total_candidates": len(candidates),
+                "total_candidates_raw": len(candidates),
+                "total_candidates_filtered": len(filtered),
                 "htf_qml_count": len(htf_qml_levels),
                 "htf_qmh_count": len(htf_qmh_levels),
                 "ltf_sr_flips": len(ltf_sr_flips),
@@ -377,7 +384,41 @@ class SnDDetector:
             },
         )
 
-        return candidates
+        return filtered
+
+    @staticmethod
+    def _select_best_per_direction(
+        candidates: list[SnDCandidate],
+    ) -> list[SnDCandidate]:
+        """Keep only the highest-confluence candidate per direction per timeframe.
+
+        Groups candidates by (timeframe, direction) and selects the one
+        with the highest confluence count.  On ties, the most recent
+        candidate (by timestamp) wins.
+
+        This reduces e.g. 68 near-duplicate QML/QMH candidates down to
+        at most 2 per timeframe pair (1 bullish, 1 bearish).
+        """
+        best: dict[tuple[str, str], SnDCandidate] = {}
+
+        for candidate in candidates:
+            key = (str(candidate.timeframe), str(candidate.direction))
+            confluences = candidate.metadata.get("confluences", 0) if candidate.metadata else 0
+
+            existing = best.get(key)
+            if existing is None:
+                best[key] = candidate
+                continue
+
+            existing_confluences = existing.metadata.get("confluences", 0) if existing.metadata else 0
+
+            # Higher confluence wins; on tie, more recent wins
+            if confluences > existing_confluences:
+                best[key] = candidate
+            elif confluences == existing_confluences and candidate.timestamp > existing.timestamp:
+                best[key] = candidate
+
+        return list(best.values())
 
     def _create_fibonacci_retracement(
         self,

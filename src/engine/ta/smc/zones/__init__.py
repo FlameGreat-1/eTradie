@@ -11,16 +11,18 @@ Implements the 7 Rules of a Tradeable Order Block:
 7. Select HTF OBs and refine to LTF for higher probability
 
 All zones are validated against these rules before being marked as tradeable.
+
+Mitigation is handled by ZoneValidator.validate_zone_freshness() which
+uses body-threshold analysis to distinguish retests (RTO = entry opportunity)
+from true mitigation (body closes through zone).
 """
 
 from engine.ta.smc.zones.order_block import OrderBlockDetector
 from engine.ta.smc.zones.fvg import FVGDetector
 from engine.ta.smc.zones.breaker import BreakerDetector
-from engine.ta.smc.zones.mitigation import MitigationDetector
 
 __all__ = [
     "OrderBlockDetector",
     "FVGDetector",
     "BreakerDetector",
-    "MitigationDetector",
 ]
