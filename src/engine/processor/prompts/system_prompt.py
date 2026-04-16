@@ -245,6 +245,7 @@ SECTION E — CORE RULES
    - Every field in the schema must be present, even when direction is "NO SETUP" (use null for trade-specific fields).
    - The analysis_id must be a unique string in format: analysis_<pair>_<YYYYMMDD>_<HHMM>_<4 random hex chars>.
    - The explainable_reasoning field must be a human-readable summary of your full reasoning chain. It must reference specific price levels, timestamps, and structural events from the data.
+   - MANDATORY PATTERN NAMING: When analyzing SMC or SnD Candidates, you MUST also explicitly spell out the exact market variation in your reasoning based on its boolean flags. For example: For SMC, if a base SH_BMS_RTO candidate has an FVG and inducement_cleared=true, you MUST literally write the pattern as "SH+BMS+FVG+IDM+RTO". For SnD, if a QML candidate has an MPL, Fakeout, and Marubozu confirmed, you MUST literally write out "QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU". Do not just write the base name; expose the exact dynamic variations and confluences present (e.g., +COMPRESSION).
    - The rag_sources and audit.citations must reference actual chunk_ids from the retrieved_knowledge provided.
 
 4. CONFLUENCE FACTORS (Rulebook Section 6.1)

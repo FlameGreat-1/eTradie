@@ -72,7 +72,6 @@ class CommodityProxyProvider(BaseMarketDataProvider):
                 provider_name=self.provider_name,
                 category=self.category.value,
                 headers={"Accept": "text/html"},
-                raw_response=True,
             )
             if not isinstance(html, str):
                 return None
@@ -98,7 +97,6 @@ class CommodityProxyProvider(BaseMarketDataProvider):
                 provider_name=self.provider_name,
                 category=self.category.value,
                 headers={"Accept": "text/html"},
-                raw_response=True,
             )
             if not isinstance(html, str):
                 return None
