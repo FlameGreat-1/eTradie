@@ -217,3 +217,110 @@ We will lower the threshold from 3 to 1 or eliminate the blocker entirely if bas
 [MODIFY] src/engine/ta/smc/detector.py
 We will add a new block _build_choch_reversal_candidates natively into the detector.
 Right now, the engine only accepts an HTF SMS (Failure Swing) or an HTF BMS to spawn a candidate. We will implement logic so that if the HTF prints a CHoCH (exactly what the D1 did on April 9th), the orchestrator will correctly bundle that HTF CHoCH + LTF BMS + FVG + OB into a Candidate and hand it to the LLM.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+THIS IS EXACTLY THE CHNANGES I APPLIED:
+
+
+
+All files are verified and consistent. Here is the complete summary of everything that was implemented:
+
+---
+
+#### Implementation Summary (6 commits to `main`)
+
+**1. `src/engine/ta/smc/config.py`**
+- Removed the `field_validator` that hard-rejected `min_confluences < 3`
+- Lowered `ge` constraint from `2` to `0` so the field is purely informational
+- Added `enable_choch_reversal: bool = Field(default=True)` config flag
+- Removed the `field_validator` import (no longer needed)
+
+**2. `src/engine/ta/smc/builders/continuation.py`**
+- **Removed** the `if confluences < self.config.min_confluences: return None` gate from both `build_bullish_continuation()` and `build_bearish_continuation()`
+- **Expanded** `_count_confluences()` from 6 factors to 10: added HTF BMS confirmed flag, LTF BMS confirmed flag, OB displacement strength, OB is breaker block
+- Updated method signature to accept `ltf_bms` as a separate parameter for proper scoring
+
+**3. `src/engine/ta/smc/builders/reversal.py`**
+- **Removed** the `if confluences < self.config.min_confluences: return None` gate from both `build_bullish_sms_reversal()` and `build_bearish_sms_reversal()`
+- **Expanded** `_count_sms_confluences()` from 6 factors to 9: added BMS confirmed flag, OB displacement strength, OB is breaker block
+
+**4. `src/engine/ta/constants.py`**
+- Added `CHOCH_BMS_RTO_BULLISH` and `CHOCH_BMS_RTO_BEARISH` to `CandidatePattern` enum
+
+**5. `src/engine/ta/smc/detector.py`** (the main orchestrator)
+- Added HTF CHoCH detection (`htf_choch_bullish`, `htf_choch_bearish`) in `detect_patterns()`
+- Added `_build_choch_reversal_candidates()` method that builds candidates from HTF CHoCH events with LTF BMS + unmitigated OB, falling back to HTF OBs when no LTF BMS exists
+- Added `_build_choch_candidate()` helper that validates zone rules, evaluates LTF confirmation, counts confluences, and constructs the `SMCCandidate`
+- Added `_count_choch_confluences()` with 11 factors including HTF CHoCH major/minor distinction
+- Added `_find_bsl_target()` and `_find_ssl_target()` static helpers
+- Wired everything into the candidate pipeline controlled by `enable_choch_reversal` config flag
+- Updated logging to include HTF CHoCH counts
+- Updated class docstring to reflect the new architecture
+- Added `ChangeOfCharacter` and `CandidatePattern` imports
+
+**What was NOT touched** (correctly preserved):
+- `ZoneValidator` (structural validity gates remain intact)
+- `LTFConfirmationValidator` (7 confirmation checks remain intact)
+- `MitigationDetector` (mitigation logic remains the real filter)
+- `SMCCandidate` model (already had all needed fields)
+- SnD builders (already working correctly without gates)
+- Turtle Soup and AMD builders (no changes needed)
+
+
+
+Good. Now I can confirm: **the processor pipeline does NOT hardcode pattern names anywhere in its parsing, mapping, or validation logic.** The `CandidatePattern` enum is only used by the TA engine's Python builders to construct the candidate objects. Once serialized to JSON, the processor treats `pattern` as a plain string.
+
+Now for your **second critical point about the CandidatePattern enum**:
+
+You are correct. Looking at the codebase, the `CandidatePattern` enum already has **30+ entries** and the system prompt already describes all of them to the LLM. The patterns ARE hardcoded in the enum because:
+
+1. The **SMC builders** (`continuation.py`, `reversal.py`, `amd/candidates.py`) each construct `SMCCandidate` objects with a specific `CandidatePattern` value. The builder knows which structural origin it used (BMS, SMS, CHoCH, Turtle Soup, AMD) and assigns the corresponding pattern.
+
+2. The **SnD builders** (`qm.py`, `continuation.py`, `fakeout.py`) do the same for SnD patterns.
+
+3. The `CandidatePattern` is a `StrEnum`, so when serialized to JSON it becomes a plain string like `"CHOCH_BMS_RTO_BULLISH"`. The LLM reads this string and the system prompt tells it what each pattern means.
+
+**The dynamic pattern naming you're thinking of** (like `"SH+CHoCH+BMS+FVG+OB"`) is actually what the **LLM does in its reasoning text**. Look at the BTCUSD output:
+
+> *"This setup, a CHoCH+BMS+RTO, aligns with the HTF bearish narrative..."*
+
+The system prompt explicitly instructs this in Section E, Rule 3:
+> *"MANDATORY PATTERN NAMING: you MUST literally write the pattern as 'SH+BMS+FVG+IDM+RTO'"*
+
+So the architecture is:
+- **TA engine**: assigns a base pattern type from the enum (e.g. `CHOCH_BMS_RTO_BULLISH`)
+- **LLM**: reads the candidate's boolean flags (`bms_detected`, `choch_detected`, `liquidity_swept`, `inducement_cleared`, `fvg_upper`, etc.) and dynamically constructs the full variation string in its reasoning (e.g. `"CHoCH+BMS+FVG+IDM+RTO"`)
+
+This is the correct separation of concerns. The enum defines the **structural origin type** (which builder created it). The LLM synthesizes the **full dynamic variation** from all the boolean flags on the candidate. We don't need 50+ enum values because the LLM handles the combinatorial explosion.
+
+The two new enum values I added (`CHOCH_BMS_RTO_BULLISH/BEARISH`) are the **minimum necessary** to tell the LLM "this candidate was built from an HTF CHoCH origin" vs "this was built from an HTF BMS origin" vs "this was built from an HTF SMS origin". The LLM then reads all the other fields and builds the full dynamic string.
+
+All changes are now complete and committed. Here's the final tally:
+
+- **`config.py`**: Confluence gate removed, CHoCH flag added
+- **`continuation.py`**: Gate removed, scoring expanded to 10 factors
+- **`reversal.py`**: Gate removed, scoring expanded to 9 factors
+- **`constants.py`**: 2 new pattern enum values
+- **`detector.py`**: HTF CHoCH detection + full CHoCH reversal builder
+- **`signal_extractors.py`**: CHoCH family detection
+- **`system_prompt.py`**: CHoCH pattern definitions + dual-signal handling guidance (Section B.3)

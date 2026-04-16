@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "symbol": "US30_x10m",
+  "symbol": "BTCUSDm",
   "htf_timeframes": [
     "W1",
     "D1",
@@ -13,8 +13,8 @@
     "M5",
     "M1"
   ],
-  "smc_candidates_count": 4,
-  "snd_candidates_count": 248,
+  "smc_candidates_count": 302,
+  "snd_candidates_count": 68,
   "alignment": {
     "W1_D1": {
       "htf_timeframe": "W1",
@@ -83,15 +83,15 @@
     "M30_M15": {
       "htf_timeframe": "M30",
       "ltf_timeframe": "M15",
-      "trends_aligned": false,
-      "htf_ltf_aligned": false,
+      "trends_aligned": true,
+      "htf_ltf_aligned": true,
       "htf_trend": "BEARISH",
-      "ltf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
-        "trends_aligned": false,
+        "trends_aligned": true,
         "zones_nested": true,
         "htf_trend": "BEARISH",
-        "ltf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "M30",
         "ltf_timeframe": "M15"
       }
@@ -101,13 +101,13 @@
       "ltf_timeframe": "M5",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
         "trends_aligned": true,
         "zones_nested": true,
-        "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "M15",
         "ltf_timeframe": "M5"
       }
@@ -115,14 +115,14 @@
     "M5_M1": {
       "htf_timeframe": "M5",
       "ltf_timeframe": "M1",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
       "ltf_trend": "BULLISH",
       "alignment_metadata": {
-        "trends_aligned": true,
+        "trends_aligned": false,
         "zones_nested": true,
-        "htf_trend": "BULLISH",
+        "htf_trend": "BEARISH",
         "ltf_trend": "BULLISH",
         "htf_timeframe": "M5",
         "ltf_timeframe": "M1"
