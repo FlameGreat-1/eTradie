@@ -38,10 +38,7 @@ class ContinuationBuilder:
     - The leg used for OTE/fib-context scoring is built per-candidate
       from the candidate's own sweep and BMS endpoints via
       ``smc.builders.fib_leg.select_leg_for_sh_bms_rto``.  It is
-      direction-matched to the candidate.  The ``retracement``
-      argument on the public methods is a deprecated passthrough
-      retained only so the detector can continue to call the builder
-      without change during the staged rollout; it is NOT consumed.
+      direction-matched to the candidate.
     - No fallback: when the sweep is absent the per-candidate leg is
       None and the candidate is emitted with fib_level=None and no
       fib_context in metadata.  We never use a global HTF leg.
@@ -81,18 +78,14 @@ class ContinuationBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
     ) -> Optional[SMCCandidate]:
         """Build a SH_BMS_RTO_BULLISH candidate.
 
-        The ``retracement`` argument is a deprecated passthrough that
-        is intentionally ignored.  The true Fibonacci leg for this
-        candidate is built in-method from ``ltf_sweep`` and
-        ``ltf_bms`` via ``select_leg_for_sh_bms_rto`` and used for
-        every fib-related computation below.
+        The Fibonacci leg for this candidate is built in-method from
+        ``ltf_sweep`` and ``ltf_bms`` via
+        ``select_leg_for_sh_bms_rto`` and used for every fib-related
+        computation below.
         """
-        del retracement  # intentionally unused; see docstring
-
         # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BULLISH:
             return None
@@ -240,18 +233,14 @@ class ContinuationBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
     ) -> Optional[SMCCandidate]:
         """Build a SH_BMS_RTO_BEARISH candidate.
 
-        The ``retracement`` argument is a deprecated passthrough that
-        is intentionally ignored.  The true Fibonacci leg for this
-        candidate is built in-method from ``ltf_sweep`` and
-        ``ltf_bms`` via ``select_leg_for_sh_bms_rto`` and used for
-        every fib-related computation below.
+        The Fibonacci leg for this candidate is built in-method from
+        ``ltf_sweep`` and ``ltf_bms`` via
+        ``select_leg_for_sh_bms_rto`` and used for every fib-related
+        computation below.
         """
-        del retracement  # intentionally unused; see docstring
-
         # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BEARISH:
             return None
