@@ -181,16 +181,11 @@ class AMDCandidateBuilder:
             fib_level=self._fib_level_str(entry_price, retracement),
             session_context="AMD_DISTRIBUTION",
             metadata=self._build_metadata(
-                {
-                    "confluences": confluences,
-                    "pattern_type": "amd",
-                    "amd_phase": amd_context.phase,
-                    "manipulation_direction": (
-                        str(amd_context.manipulation_direction)
-                        if amd_context.manipulation_direction
-                        else None
-                    ),
-                },
+                # pattern_type / amd_phase / manipulation_direction are
+                # all derivable from the AMD_BULLISH pattern itself and
+                # the session_context="AMD_DISTRIBUTION" flag already set
+                # above, so we do not duplicate them here.
+                {"confluences": confluences},
                 entry_price,
                 retracement,
                 sweep=ltf_sweep,
@@ -342,16 +337,11 @@ class AMDCandidateBuilder:
             fib_level=self._fib_level_str(entry_price, retracement),
             session_context="AMD_DISTRIBUTION",
             metadata=self._build_metadata(
-                {
-                    "confluences": confluences,
-                    "pattern_type": "amd",
-                    "amd_phase": amd_context.phase,
-                    "manipulation_direction": (
-                        str(amd_context.manipulation_direction)
-                        if amd_context.manipulation_direction
-                        else None
-                    ),
-                },
+                # pattern_type / amd_phase / manipulation_direction are
+                # all derivable from the AMD_BEARISH pattern itself and
+                # the session_context="AMD_DISTRIBUTION" flag already set
+                # above, so we do not duplicate them here.
+                {"confluences": confluences},
                 entry_price,
                 retracement,
                 sweep=ltf_sweep,

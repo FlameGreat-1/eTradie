@@ -341,34 +341,19 @@ class ZoneValidator:
             and sweep.sweep_pips >= self.config.turtle_soup_min_pips
         )
 
-        side_relative_to_ob: Optional[str] = None
-        if ob is not None:
-            if sweep.swept_level > ob.upper_bound:
-                side_relative_to_ob = "above"
-            elif sweep.swept_level < ob.lower_bound:
-                side_relative_to_ob = "below"
-            else:
-                side_relative_to_ob = "inside"
-
-        context: dict = {
+        # Only non-derivable, non-duplicate signal is surfaced to the LLM.
+        # The top-level SMCCandidate already carries swept_level,
+        # sweep_timestamp and order-block bounds; raw OHLC of the sweep
+        # candle is not useful once closed_back_inside and sweep_pips are
+        # both present.  ``side_relative_to_ob`` is trivially derivable
+        # from order_block_upper / order_block_lower and swept_level.
+        return {
             "liquidity_type": sweep.liquidity_type.value,
-            "swept_level": sweep.swept_level,
-            "swept_level_timestamp": sweep.swept_level_timestamp.isoformat(),
-            "sweep_timestamp": sweep.timestamp.isoformat(),
-            "sweep_high": sweep.sweep_high,
-            "sweep_low": sweep.sweep_low,
-            "close_price": sweep.close_price,
             "sweep_pips": round(sweep.sweep_pips, 2),
             "closed_back_inside": sweep.closed_back_inside,
             "is_major_sweep": sweep.is_major_sweep,
             "is_turtle_soup": is_turtle_soup,
-            "candle_index": sweep.candle_index,
         }
-
-        if side_relative_to_ob is not None:
-            context["side_relative_to_ob"] = side_relative_to_ob
-
-        return context
 
     # ------------------------------------------------------------------
     # Fibonacci context builder (exact percentage + level + zone)
@@ -445,29 +430,23 @@ class ZoneValidator:
             FIBONACCI_VALUES.items(),
             key=lambda kv: abs(percentage - kv[1]),
         )
-        nearest_level_enum: FibonacciLevel = nearest_level[0]
         nearest_level_value: float = nearest_level[1]
-        nearest_level_price = retracement.get_level_price(nearest_level_enum)
 
         percentage_rounded = round(percentage, 4)
-        percentage_str = f"{percentage_rounded:.3f}"
 
+        # Only non-derivable interpretation signal is surfaced to the LLM.
+        # The top-level SMCCandidate already carries fib_level as a 3-dp
+        # string (duplicating percentage_str), and ta_snapshots.json
+        # already carries the structural swings and their timestamps per
+        # timeframe; retracement_direction is derivable from the swing
+        # timestamps or from the candidate's own direction.  The price of
+        # the nearest fib level is a trivial multiplication that the LLM
+        # can perform when needed.
         return {
             "percentage": percentage_rounded,
-            "percentage_str": percentage_str,
             "zone": zone.value,
             "is_in_ote": is_in_ote,
             "nearest_level_name": str(nearest_level_value),
-            "nearest_level_price": round(nearest_level_price, 5),
-            "swing_high": retracement.swing_high,
-            "swing_low": retracement.swing_low,
-            "swing_high_timestamp": retracement.swing_high_timestamp.isoformat(),
-            "swing_low_timestamp": retracement.swing_low_timestamp.isoformat(),
-            "retracement_direction": (
-                Direction.BULLISH.value
-                if retracement.is_bullish
-                else Direction.BEARISH.value
-            ),
         }
 
     # ------------------------------------------------------------------

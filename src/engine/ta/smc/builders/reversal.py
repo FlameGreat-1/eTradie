@@ -171,7 +171,7 @@ class ReversalBuilder:
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._fib_level_str(entry_price, retracement),
             metadata=self._build_metadata(
-                {"confluences": confluences, "pattern_type": "reversal"},
+                {"confluences": confluences},
                 entry_price,
                 retracement,
             ),
@@ -296,7 +296,7 @@ class ReversalBuilder:
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._fib_level_str(entry_price, retracement),
             metadata=self._build_metadata(
-                {"confluences": confluences, "pattern_type": "reversal"},
+                {"confluences": confluences},
                 entry_price,
                 retracement,
             ),
@@ -336,7 +336,8 @@ class ReversalBuilder:
             entry_price, swing_highs or [], pip_val,
         )
 
-        turtle_metadata: dict = {"pattern_type": "turtle_soup"}
+        # pattern_type is redundant with the TURTLE_SOUP_LONG pattern enum.
+        turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
@@ -393,7 +394,8 @@ class ReversalBuilder:
             entry_price, swing_lows or [], pip_val,
         )
 
-        turtle_metadata: dict = {"pattern_type": "turtle_soup"}
+        # pattern_type is redundant with the TURTLE_SOUP_SHORT pattern enum.
+        turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context

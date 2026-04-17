@@ -707,10 +707,11 @@ class SMCDetector:
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._fib_level_str_for_candidate(entry_price, retracement),
             metadata=self._build_choch_metadata(
+                # pattern_type is redundant with CHOCH_BMS_RTO_* pattern;
+                # htf_choch_direction duplicates the candidate's own
+                # direction.  Only non-derivable signal is kept here.
                 {
                     "confluences": confluences,
-                    "pattern_type": "choch_reversal",
-                    "htf_choch_direction": str(htf_choch.direction),
                     "htf_choch_is_minor": htf_choch.is_minor,
                 },
                 entry_price,
