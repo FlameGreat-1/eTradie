@@ -45,6 +45,33 @@ _JPY_PREFIXES: Final[tuple[str, ...]] = (
     "MXNJPY",
 )
 
+# Crypto instruments use point-based pricing (1 point = $1 move).
+# Like indices, the pip value is set to 1.0 so calculate_pips() returns
+# the raw point distance, which is how discretionary SMC traders reason
+# about BTC/ETH moves.  Using the FX default (0.0001) inflates every
+# pip-denominated metric by 10,000x for crypto and produces meaningless
+# million-scale values in candidate output.
+_CRYPTO_PREFIXES: Final[tuple[str, ...]] = (
+    "BTCUSD",
+    "ETHUSD",
+    "LTCUSD",
+    "XRPUSD",
+    "BCHUSD",
+    "ADAUSD",
+    "DOGEUSD",
+    "SOLUSD",
+    "DOTUSD",
+    "LINKUSD",
+    "AVAXUSD",
+    "MATICUSD",
+    "BNBUSD",
+    "TRXUSD",
+    "XLMUSD",
+    "ATOMUSD",
+    "UNIUSD",
+    "AAVEUSD",
+)
+
 # Index instruments use point-based pricing (1 point = 1 unit of price movement).
 # The pip value is set to 1.0 so that calculate_pips() returns the raw point distance.
 _INDEX_PATTERNS: Final[tuple[str, ...]] = (
@@ -76,6 +103,7 @@ _PIP_DECIMALS: Final[dict[str, int]] = {
     "METAL": 2,
     "OIL": 2,
     "INDEX": 0,
+    "CRYPTO": 0,
     "STANDARD": 4,
 }
 
@@ -84,6 +112,7 @@ _POINT_MULTIPLIERS: Final[dict[str, int]] = {
     "METAL": 100,
     "OIL": 100,
     "INDEX": 1,
+    "CRYPTO": 1,
     "STANDARD": 10000,
 }
 
@@ -125,6 +154,11 @@ def _get_pair_type(symbol: str) -> str:
         if symbol_upper == pattern or symbol_upper.startswith(pattern):
             return "INDEX"
 
+    # Crypto — prefix match (BTCUSD, BTCUSDm, BTCUSD.raw, ETHUSDT all match)
+    for prefix in _CRYPTO_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "CRYPTO"
+
     return "STANDARD"
 
 
@@ -138,6 +172,8 @@ def get_pip_value(symbol: str) -> Decimal:
     elif pair_type == "OIL":
         return Decimal("0.01")
     elif pair_type == "INDEX":
+        return Decimal("1.0")
+    elif pair_type == "CRYPTO":
         return Decimal("1.0")
     else:
         return Decimal("0.0001")

@@ -415,6 +415,15 @@ class ZoneValidator:
         if range_size <= 0:
             return None
 
+        # A retracement percentage is only physically meaningful when the
+        # entry price lies within the swing leg.  Outside of it, the
+        # candidate is on a different structural leg and the fib context
+        # would be misleading (negative values or values > 1.0).  Return
+        # None so the candidate omits fib_context entirely rather than
+        # feeding the LLM nonsense.
+        if price < retracement.swing_low or price > retracement.swing_high:
+            return None
+
         if retracement.is_bullish:
             # Buys: 0% at the swing low, 100% at the swing high.
             # A retracement at the OB entry measures how far price has
