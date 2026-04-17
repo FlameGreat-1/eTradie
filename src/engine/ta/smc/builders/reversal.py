@@ -326,6 +326,11 @@ class ReversalBuilder:
             entry_price, swing_highs or [], pip_val,
         )
 
+        turtle_metadata: dict = {"pattern_type": "turtle_soup"}
+        sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
+        if sweep_context is not None:
+            turtle_metadata["sweep_context"] = sweep_context
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -342,7 +347,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
-            metadata={"sweep_pips": sweep.sweep_pips, "pattern_type": "turtle_soup"},
+            metadata=turtle_metadata,
         )
 
         self._logger.info(
@@ -378,6 +383,11 @@ class ReversalBuilder:
             entry_price, swing_lows or [], pip_val,
         )
 
+        turtle_metadata: dict = {"pattern_type": "turtle_soup"}
+        sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
+        if sweep_context is not None:
+            turtle_metadata["sweep_context"] = sweep_context
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -394,7 +404,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
-            metadata={"sweep_pips": sweep.sweep_pips, "pattern_type": "turtle_soup"},
+            metadata=turtle_metadata,
         )
 
         self._logger.info(
@@ -516,10 +526,18 @@ class ReversalBuilder:
         base: dict,
         price: float,
         retracement: Optional[FibonacciRetracement],
+        sweep: Optional[LiquiditySweep] = None,
+        ob: Optional[OrderBlock] = None,
     ) -> dict:
-        """Attach fib_context to the metadata dict when available."""
+        """Attach fib_context and sweep_context to the metadata dict."""
         metadata = dict(base)
-        context = self.zone_validator.build_fib_context(price, retracement)
-        if context is not None:
-            metadata["fib_context"] = context
+
+        fib_context = self.zone_validator.build_fib_context(price, retracement)
+        if fib_context is not None:
+            metadata["fib_context"] = fib_context
+
+        sweep_context = self.zone_validator.build_sweep_context(sweep, ob)
+        if sweep_context is not None:
+            metadata["sweep_context"] = sweep_context
+
         return metadata

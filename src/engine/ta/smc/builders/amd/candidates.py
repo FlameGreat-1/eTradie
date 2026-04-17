@@ -188,6 +188,8 @@ class AMDCandidateBuilder:
                 },
                 entry_price,
                 retracement,
+                sweep=ltf_sweep,
+                ob=ltf_ob,
             ),
         )
 
@@ -342,6 +344,8 @@ class AMDCandidateBuilder:
                 },
                 entry_price,
                 retracement,
+                sweep=ltf_sweep,
+                ob=ltf_ob,
             ),
         )
 
@@ -451,10 +455,18 @@ class AMDCandidateBuilder:
         base: dict,
         price: float,
         retracement: Optional[FibonacciRetracement],
+        sweep: Optional[LiquiditySweep] = None,
+        ob: Optional[OrderBlock] = None,
     ) -> dict:
-        """Attach fib_context to the metadata dict when available."""
+        """Attach fib_context and sweep_context to the metadata dict."""
         metadata = dict(base)
-        context = self.zone_validator.build_fib_context(price, retracement)
-        if context is not None:
-            metadata["fib_context"] = context
+
+        fib_context = self.zone_validator.build_fib_context(price, retracement)
+        if fib_context is not None:
+            metadata["fib_context"] = fib_context
+
+        sweep_context = self.zone_validator.build_sweep_context(sweep, ob)
+        if sweep_context is not None:
+            metadata["sweep_context"] = sweep_context
+
         return metadata

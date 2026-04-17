@@ -234,6 +234,82 @@ class ZoneValidator:
         return True
 
     # ------------------------------------------------------------------
+    # Sweep context builder (full liquidity-sweep details for LLM)
+    # ------------------------------------------------------------------
+
+    def build_sweep_context(
+        self,
+        sweep: Optional[LiquiditySweep],
+        ob: Optional[OrderBlock] = None,
+    ) -> Optional[dict]:
+        """Build precise liquidity-sweep context for a candidate.
+
+        A bare ``swept_level`` float is insufficient to reason about a
+        sweep: per SMC-LIQ-003 the *type* of liquidity, the *magnitude*
+        of the wick, and whether price *closed back inside the range*
+        are what qualify a sweep as tradeable.  This helper surfaces
+        all of those facts in a single structured dict.
+
+        Parameters
+        ----------
+        sweep:
+            The ``LiquiditySweep`` selected by
+            ``SMCDetector._find_relevant_sweep`` for this candidate, or
+            ``None`` if no sweep was associated.
+        ob:
+            Optional OrderBlock whose bounds are used to compute
+            ``side_relative_to_ob`` (``"above"`` / ``"below"`` /
+            ``"inside"``) — a geometric sanity flag that tells the LLM
+            whether the swept level is above the OB (typical for a
+            bearish setup where BSL above the OB was taken) or below
+            it (typical for a bullish setup where SSL below the OB
+            was taken).
+
+        Returns
+        -------
+        dict | None
+            Structured sweep context ready for
+            ``SMCCandidate.metadata["sweep_context"]``, or ``None``
+            when no sweep is present.
+        """
+        if sweep is None:
+            return None
+
+        is_turtle_soup = bool(
+            sweep.closed_back_inside
+            and sweep.sweep_pips >= self.config.turtle_soup_min_pips
+        )
+
+        side_relative_to_ob: Optional[str] = None
+        if ob is not None:
+            if sweep.swept_level > ob.upper_bound:
+                side_relative_to_ob = "above"
+            elif sweep.swept_level < ob.lower_bound:
+                side_relative_to_ob = "below"
+            else:
+                side_relative_to_ob = "inside"
+
+        context: dict = {
+            "liquidity_type": sweep.liquidity_type.value,
+            "swept_level": sweep.swept_level,
+            "swept_level_timestamp": sweep.swept_level_timestamp.isoformat(),
+            "sweep_timestamp": sweep.timestamp.isoformat(),
+            "sweep_high": sweep.sweep_high,
+            "sweep_low": sweep.sweep_low,
+            "close_price": sweep.close_price,
+            "sweep_pips": round(sweep.sweep_pips, 2),
+            "closed_back_inside": sweep.closed_back_inside,
+            "is_major_sweep": sweep.is_major_sweep,
+            "is_turtle_soup": is_turtle_soup,
+            "candle_index": sweep.candle_index,
+        }
+
+        if side_relative_to_ob is not None:
+            context["side_relative_to_ob"] = side_relative_to_ob
+
+        return context
+
+    # ------------------------------------------------------------------
     # Fibonacci context builder (exact percentage + level + zone)
     # ------------------------------------------------------------------
 
