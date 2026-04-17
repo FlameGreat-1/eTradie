@@ -40,10 +40,6 @@ class AMDCandidateBuilder:
           Bullish: asian_range.low  -> ltf_bms.breakout_price
           Bearish: ltf_bms.breakout_price -> asian_range.high
     - Built via ``smc.builders.fib_leg.select_leg_for_amd``.
-    - The ``retracement`` argument on the public methods is a
-      deprecated passthrough retained only so SMCDetector can keep
-      calling the builder during the staged rollout.  It is NOT
-      consumed.
     - No fallback: when ``amd_context.asian_range`` is None the
       per-candidate leg is None and the candidate is emitted with
       fib_level=None and no fib_context in metadata.  We never use a
@@ -77,18 +73,14 @@ class AMDCandidateBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
         """Build an AMD_BULLISH candidate.
 
-        ``retracement`` is a deprecated passthrough and is ignored.
-        The true Fibonacci leg is built inline from
+        The Fibonacci leg is built inline from
         ``amd_context.asian_range.low`` and ``ltf_bms.breakout_price``
         via ``select_leg_for_amd``.
         """
-        del retracement  # intentionally unused; see docstring
-
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
                 "amd_not_in_distribution_phase",
@@ -256,18 +248,14 @@ class AMDCandidateBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
         """Build an AMD_BEARISH candidate.
 
-        ``retracement`` is a deprecated passthrough and is ignored.
-        The true Fibonacci leg is built inline from
+        The Fibonacci leg is built inline from
         ``amd_context.asian_range.high`` and ``ltf_bms.breakout_price``
         via ``select_leg_for_amd``.
         """
-        del retracement  # intentionally unused; see docstring
-
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
                 "amd_not_in_distribution_phase",
