@@ -338,23 +338,26 @@ class ZoneValidator:
         if sweep is None:
             return None
 
-        is_turtle_soup = bool(
-            sweep.closed_back_inside
-            and sweep.sweep_pips >= self.config.turtle_soup_min_pips
-        )
-
         # Only non-derivable, non-duplicate signal is surfaced to the LLM.
         # The top-level SMCCandidate already carries swept_level,
         # sweep_timestamp and order-block bounds; raw OHLC of the sweep
         # candle is not useful once closed_back_inside and sweep_pips are
         # both present.  ``side_relative_to_ob`` is trivially derivable
         # from order_block_upper / order_block_lower and swept_level.
+        #
+        # A previous revision emitted ``is_turtle_soup`` /
+        # ``sweep_matches_turtle_soup_shape`` here, computed as
+        # ``closed_back_inside AND sweep_pips >= turtle_soup_min_pips``.
+        # That boolean is a pure AND of two sibling fields already in
+        # this same dict plus a documented SMC threshold; it added
+        # surface area without information and was removed.  The
+        # top-level ``pattern`` column is the sole source of truth for
+        # candidate identity (TURTLE_SOUP_* vs SH_BMS_RTO_* etc.).
         return {
             "liquidity_type": sweep.liquidity_type.value,
             "sweep_pips": round(sweep.sweep_pips, 2),
             "closed_back_inside": sweep.closed_back_inside,
             "is_major_sweep": sweep.is_major_sweep,
-            "is_turtle_soup": is_turtle_soup,
         }
 
     # ------------------------------------------------------------------
