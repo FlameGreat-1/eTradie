@@ -69,12 +69,15 @@ class FibonacciAnalyzer:
         level_618 = retracement.get_level_price(FibonacciLevel.LEVEL_618)
         level_786 = retracement.get_level_price(FibonacciLevel.LEVEL_786)
 
-        if retracement.is_bullish:
-            upper = level_786
-            lower = level_618
-        else:
-            upper = level_618
-            lower = level_786
+        # Order bounds by numeric value rather than by named-level
+        # assumption.  Under the SMC-correct retracement formula, the
+        # 0.618 level sits ABOVE 0.786 in absolute price on a bullish
+        # retracement (price has retraced less), and the reverse on
+        # bearish.  Using min/max keeps this function correct
+        # regardless of which named level is numerically larger on
+        # any given direction.
+        upper = max(level_618, level_786)
+        lower = min(level_618, level_786)
 
         equilibrium = (upper + lower) / 2.0
 
