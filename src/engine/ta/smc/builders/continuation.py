@@ -145,7 +145,13 @@ class ContinuationBuilder:
         # --- Build the candidate ---
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
-        stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BULLISH,
+            protective_level=(
+                ltf_sweep.sweep_low if ltf_sweep is not None else None
+            ),
+        )
 
         take_profit = self._find_nearest_bsl_target(
             entry_price,
@@ -301,7 +307,13 @@ class ContinuationBuilder:
         # --- Build the candidate ---
         entry_price = ltf_ob.midpoint
         pip_val = float(get_pip_value(ltf_sequence.symbol))
-        stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BEARISH,
+            protective_level=(
+                ltf_sweep.sweep_high if ltf_sweep is not None else None
+            ),
+        )
 
         take_profit = self._find_nearest_ssl_target(
             entry_price,
@@ -504,6 +516,41 @@ class ContinuationBuilder:
         if candidates:
             return max(candidates)
         return None
+
+    def _compute_structural_stop_loss(
+        self,
+        ob: OrderBlock,
+        direction: Direction,
+        protective_level: Optional[float],
+    ) -> float:
+        """Compute SL at the pattern's structural invalidation level.
+
+        Buffer is a percentage of the OB's own range (Option A policy;
+        see ``config.ob_sl_buffer_range_pct``).  The SL is clamped so
+        it is never tighter than the OB edge -- if ``protective_level``
+        sits inside the OB (rare but possible), the SL falls back to
+        the OB edge plus buffer.  When ``protective_level`` is None
+        (e.g. SH_BMS_RTO emitted without an associated sweep), the SL
+        uses the OB edge directly with the same buffer (permissive
+        fallback; keeps the candidate in the pipeline).
+        """
+        ob_range = ob.upper_bound - ob.lower_bound
+        buffer = ob_range * self.config.ob_sl_buffer_range_pct
+
+        if direction == Direction.BULLISH:
+            ob_edge_sl = ob.lower_bound - buffer
+            if protective_level is None:
+                return ob_edge_sl
+            structural_sl = protective_level - buffer
+            # Clamp: never tighter than OB edge.
+            return min(structural_sl, ob_edge_sl)
+
+        ob_edge_sl = ob.upper_bound + buffer
+        if protective_level is None:
+            return ob_edge_sl
+        structural_sl = protective_level + buffer
+        # Clamp: never tighter than OB edge.
+        return max(structural_sl, ob_edge_sl)
 
     @staticmethod
     def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list:

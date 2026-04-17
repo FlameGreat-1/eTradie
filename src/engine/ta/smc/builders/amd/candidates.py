@@ -153,7 +153,11 @@ class AMDCandidateBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BULLISH,
+            protective_level=asian_range.low if asian_range else None,
+        )
 
         if asian_range:
             take_profit = self._find_nearest_bsl_target(
@@ -329,7 +333,11 @@ class AMDCandidateBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BEARISH,
+            protective_level=asian_range.high if asian_range else None,
+        )
 
         if asian_range:
             take_profit = self._find_nearest_ssl_target(
@@ -464,6 +472,35 @@ class AMDCandidateBuilder:
             confluences += 1
 
         return confluences
+
+    def _compute_structural_stop_loss(
+        self,
+        ob: OrderBlock,
+        direction: Direction,
+        protective_level: Optional[float],
+    ) -> float:
+        """Compute SL at the pattern's structural invalidation level.
+
+        See ContinuationBuilder._compute_structural_stop_loss for the
+        full contract.  For AMD the protective level is the Asian
+        range extreme on the manipulation side (low for bullish,
+        high for bearish).
+        """
+        ob_range = ob.upper_bound - ob.lower_bound
+        buffer = ob_range * self.config.ob_sl_buffer_range_pct
+
+        if direction == Direction.BULLISH:
+            ob_edge_sl = ob.lower_bound - buffer
+            if protective_level is None:
+                return ob_edge_sl
+            structural_sl = protective_level - buffer
+            return min(structural_sl, ob_edge_sl)
+
+        ob_edge_sl = ob.upper_bound + buffer
+        if protective_level is None:
+            return ob_edge_sl
+        structural_sl = protective_level + buffer
+        return max(structural_sl, ob_edge_sl)
 
     def _find_nearest_bsl_target(
         self,

@@ -649,8 +649,17 @@ class SMCDetector:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ob.midpoint
 
+        # Structural SL: CHoCH broken level is the invalidation price.
+        # Buffer is a fraction of OB range (Option A, see
+        # config.ob_sl_buffer_range_pct).  Clamped so it never sits
+        # tighter than the OB edge plus the same buffer.
+        ob_range = ob.upper_bound - ob.lower_bound
+        sl_buffer = ob_range * self.config.ob_sl_buffer_range_pct
+
         if direction == Direction.BULLISH:
-            stop_loss = ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
+            ob_edge_sl = ob.lower_bound - sl_buffer
+            structural_sl = htf_choch.broken_level - sl_buffer
+            stop_loss = min(structural_sl, ob_edge_sl)
             pattern = CandidatePattern.CHOCH_BMS_RTO_BULLISH
             take_profit = self._find_bsl_target(
                 entry_price,
@@ -659,7 +668,9 @@ class SMCDetector:
                 * self.config.min_take_profit_rr,
             )
         else:
-            stop_loss = ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
+            ob_edge_sl = ob.upper_bound + sl_buffer
+            structural_sl = htf_choch.broken_level + sl_buffer
+            stop_loss = max(structural_sl, ob_edge_sl)
             pattern = CandidatePattern.CHOCH_BMS_RTO_BEARISH
             take_profit = self._find_ssl_target(
                 entry_price,

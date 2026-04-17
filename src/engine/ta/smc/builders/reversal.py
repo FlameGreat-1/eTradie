@@ -149,7 +149,11 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BULLISH,
+            protective_level=htf_sms.failed_level,
+        )
         take_profit = self._find_nearest_bsl_target(
             entry_price, swing_highs or [], pip_val,
             stop_loss=stop_loss,
@@ -288,7 +292,11 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ltf_ob.midpoint
-        stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
+        stop_loss = self._compute_structural_stop_loss(
+            ob=ltf_ob,
+            direction=Direction.BEARISH,
+            protective_level=htf_sms.failed_level,
+        )
         take_profit = self._find_nearest_ssl_target(
             entry_price, swing_lows or [], pip_val,
             stop_loss=stop_loss,
@@ -557,6 +565,35 @@ class ReversalBuilder:
             confluences += 1
 
         return confluences
+
+    def _compute_structural_stop_loss(
+        self,
+        ob: OrderBlock,
+        direction: Direction,
+        protective_level: Optional[float],
+    ) -> float:
+        """Compute SL at the pattern's structural invalidation level.
+
+        See ContinuationBuilder._compute_structural_stop_loss for the
+        full contract.  Buffer is ``ob_range * ob_sl_buffer_range_pct``.
+        SL is clamped so it is never tighter than the OB edge plus
+        the same buffer.
+        """
+        ob_range = ob.upper_bound - ob.lower_bound
+        buffer = ob_range * self.config.ob_sl_buffer_range_pct
+
+        if direction == Direction.BULLISH:
+            ob_edge_sl = ob.lower_bound - buffer
+            if protective_level is None:
+                return ob_edge_sl
+            structural_sl = protective_level - buffer
+            return min(structural_sl, ob_edge_sl)
+
+        ob_edge_sl = ob.upper_bound + buffer
+        if protective_level is None:
+            return ob_edge_sl
+        structural_sl = protective_level + buffer
+        return max(structural_sl, ob_edge_sl)
 
     def _find_nearest_bsl_target(
         self,
