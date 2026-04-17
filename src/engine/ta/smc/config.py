@@ -85,14 +85,15 @@ class SMCConfig(BaseSettings):
     sweep_max_candle_distance: int = Field(default=10, ge=3, le=30)
 
     # --- Zone freshness / mitigation settings ---
-    # Minimum percentage of the candle body that must close through the
-    # OB zone for it to count as true mitigation.  A wick into the zone
-    # (RTO) is the entry opportunity, not invalidation.
-    # 0.0 = any body overlap counts as mitigation (old behaviour).
-    # 50.0 = at least 50% of the body must be inside the zone.
-    zone_mitigation_body_threshold: float = Field(
-        default=50.0, ge=0.0, le=100.0,
-    )
+    #
+    # The mitigation rule is enforced directly in
+    # ZoneValidator.validate_zone_freshness as a close-beyond-extreme
+    # test per SMC-MS-004 / SMC-OB-004 / SMC-MIT-001 / SMC-INV-005.
+    # There is no body-percentage knob here: the authoritative SMC
+    # framework defines mitigation in binary close-beyond terms, and
+    # introducing a tunable body threshold would silently change the
+    # gate on live capital.  If the rule ever needs to change, it is
+    # a framework-level decision, not a config toggle.
 
     # --- Inducement (IDM) clearance settings ---
     # Per SMC-LIQ-004 and SMC-MS-003/004: an inducement is only
