@@ -158,12 +158,14 @@ class AMDCandidateBuilder:
         if asian_range:
             take_profit = self._find_nearest_bsl_target(
                 entry_price, swing_highs or [], pip_val,
+                stop_loss=stop_loss,
             )
             if take_profit is None:
                 take_profit = asian_range.high
         else:
             take_profit = self._find_nearest_bsl_target(
                 entry_price, swing_highs or [], pip_val,
+                stop_loss=stop_loss,
             )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -332,12 +334,14 @@ class AMDCandidateBuilder:
         if asian_range:
             take_profit = self._find_nearest_ssl_target(
                 entry_price, swing_lows or [], pip_val,
+                stop_loss=stop_loss,
             )
             if take_profit is None:
                 take_profit = asian_range.low
         else:
             take_profit = self._find_nearest_ssl_target(
                 entry_price, swing_lows or [], pip_val,
+                stop_loss=stop_loss,
             )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -466,11 +470,24 @@ class AMDCandidateBuilder:
         entry_price: float,
         swing_highs: list[SwingHigh],
         pip_val: float,
+        stop_loss: Optional[float] = None,
     ) -> Optional[float]:
-        """Find the nearest BSL (swing high) above entry as the TP target."""
+        """Find the nearest BSL (swing high) above entry as the TP target.
+
+        Only swings whose distance from ``entry_price`` is at least
+        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
+        considered.  When ``stop_loss`` is not supplied the floor is
+        skipped.
+        """
+        min_reward = 0.0
+        if stop_loss is not None:
+            sl_distance = abs(entry_price - stop_loss)
+            min_reward = sl_distance * self.config.min_take_profit_rr
+
         candidates = [
             sh.price for sh in swing_highs
             if sh.price > entry_price
+            and (sh.price - entry_price) >= min_reward
         ]
         if candidates:
             return min(candidates)
@@ -481,11 +498,24 @@ class AMDCandidateBuilder:
         entry_price: float,
         swing_lows: list[SwingLow],
         pip_val: float,
+        stop_loss: Optional[float] = None,
     ) -> Optional[float]:
-        """Find the nearest SSL (swing low) below entry as the TP target."""
+        """Find the nearest SSL (swing low) below entry as the TP target.
+
+        Only swings whose distance from ``entry_price`` is at least
+        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
+        considered.  When ``stop_loss`` is not supplied the floor is
+        skipped.
+        """
+        min_reward = 0.0
+        if stop_loss is not None:
+            sl_distance = abs(entry_price - stop_loss)
+            min_reward = sl_distance * self.config.min_take_profit_rr
+
         candidates = [
             sl.price for sl in swing_lows
             if sl.price < entry_price
+            and (entry_price - sl.price) >= min_reward
         ]
         if candidates:
             return max(candidates)
