@@ -105,8 +105,45 @@ class SMCCandidate(FrozenModel):
         Stable across re-analyses of the same setup. Used by the
         Gateway's RunConfirmationPulse to find the matching candidate
         when the Execution watcher requests LTF confirmation.
+
+        The ID has two parts joined by ``_``:
+
+        1. A human-readable prefix
+           ``{symbol}_{pattern}_{direction}_{round(entry_price, 4)}``
+           preserved verbatim from the original contract so any
+           prefix-matching consumer continues to work.
+
+        2. An 8-char SHA-256 fingerprint of the candidate's
+           originating source-event timestamps (bms, sweep, choch,
+           sms, order_block).  This disambiguates candidates that
+           share an OB midpoint but were built from different
+           structural source triples -- a situation visible in
+           diagnostic_results.json where multiple BMS events pair
+           with the same OB.
+
+        Same inputs -> same ID across runs.  Different source
+        triples -> different IDs.
         """
-        return f"{self.symbol}_{self.pattern}_{self.direction}_{round(self.entry_price, 4)}"
+        import hashlib
+
+        def _ts(value) -> str:
+            return value.isoformat() if value is not None else "-"
+
+        source_signature = "|".join([
+            _ts(self.bms_timestamp),
+            _ts(self.sweep_timestamp),
+            _ts(self.choch_timestamp),
+            _ts(self.sms_timestamp),
+            _ts(self.order_block_timestamp),
+        ])
+        fingerprint = hashlib.sha256(
+            source_signature.encode("utf-8")
+        ).hexdigest()[:8]
+
+        return (
+            f"{self.symbol}_{self.pattern}_{self.direction}_"
+            f"{round(self.entry_price, 4)}_{fingerprint}"
+        )
     
     bms_detected: bool = Field(default=False)
     bms_price: Optional[float] = Field(default=None, gt=0)
