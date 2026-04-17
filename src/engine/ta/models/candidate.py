@@ -175,7 +175,22 @@ class SMCCandidate(FrozenModel):
     ltf_confirmation: bool = Field(default=False)
     ltf_confirmation_timestamp: Optional[datetime] = None
     
-    displacement_pips: Optional[float] = Field(default=None, ge=0)
+    displacement_pips: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Displacement (in pips) of the BMS event that this candidate "
+            "was built on, i.e. the BMS identified by ``bms_timestamp`` "
+            "and ``bms_price`` on this same record.  It is NOT a property "
+            "of the candidate itself.  When multiple candidates share the "
+            "same ``bms_timestamp`` (e.g. different OBs pairing with the "
+            "same run-terminal HTF BMS), they will report identical "
+            "``displacement_pips`` by construction -- that is correct, "
+            "not a duplication bug.  Consumers that need a candidate-"
+            "scoped displacement metric should combine this field with "
+            "``bms_timestamp`` to attribute it unambiguously."
+        ),
+    )
     
     fib_level: Optional[str] = None
     
