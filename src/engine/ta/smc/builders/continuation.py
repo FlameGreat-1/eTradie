@@ -10,6 +10,7 @@ from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import LiquiditySweep, InducementEvent
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
 from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.smc.builders.fib_leg import select_leg_for_sh_bms_rto
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator
@@ -32,6 +33,18 @@ class ContinuationBuilder:
     - HTF BMS alignment (Universal Rule 2)
     - Direction alignment (HTF BMS, LTF BMS, OB must agree)
     - OB passes all zone rules (unmitigated, has FVG, has liquidity)
+
+    Fibonacci leg (SMC-MIT-003 / Universal Rule 6):
+    - The leg used for OTE/fib-context scoring is built per-candidate
+      from the candidate's own sweep and BMS endpoints via
+      ``smc.builders.fib_leg.select_leg_for_sh_bms_rto``.  It is
+      direction-matched to the candidate.  The ``retracement``
+      argument on the public methods is a deprecated passthrough
+      retained only so the detector can continue to call the builder
+      without change during the staged rollout; it is NOT consumed.
+    - No fallback: when the sweep is absent the per-candidate leg is
+      None and the candidate is emitted with fib_level=None and no
+      fib_context in metadata.  We never use a global HTF leg.
 
     Confluence scoring (informational metadata for the LLM):
     - The confluence count is stored on the candidate so the LLM can
@@ -68,8 +81,18 @@ class ContinuationBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
     ) -> Optional[SMCCandidate]:
+        """Build a SH_BMS_RTO_BULLISH candidate.
+
+        The ``retracement`` argument is a deprecated passthrough that
+        is intentionally ignored.  The true Fibonacci leg for this
+        candidate is built in-method from ``ltf_sweep`` and
+        ``ltf_bms`` via ``select_leg_for_sh_bms_rto`` and used for
+        every fib-related computation below.
+        """
+        del retracement  # intentionally unused; see docstring
+
         # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BULLISH:
             return None
@@ -80,12 +103,21 @@ class ContinuationBuilder:
         if ltf_ob.direction != Direction.BULLISH:
             return None
 
+        # --- Per-candidate Fibonacci leg (SMC-MIT-003) ---
+        candidate_retracement = select_leg_for_sh_bms_rto(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            htf_bms=ltf_bms,
+            sweep=ltf_sweep,
+            is_bullish=True,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [ltf_sweep] if ltf_sweep else [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -113,7 +145,7 @@ class ContinuationBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -172,11 +204,11 @@ class ContinuationBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
                 sweep=ltf_sweep,
                 ob=ltf_ob,
             ),
@@ -191,6 +223,7 @@ class ContinuationBuilder:
                 "take_profit": take_profit,
                 "confluences": confluences,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -207,8 +240,18 @@ class ContinuationBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
     ) -> Optional[SMCCandidate]:
+        """Build a SH_BMS_RTO_BEARISH candidate.
+
+        The ``retracement`` argument is a deprecated passthrough that
+        is intentionally ignored.  The true Fibonacci leg for this
+        candidate is built in-method from ``ltf_sweep`` and
+        ``ltf_bms`` via ``select_leg_for_sh_bms_rto`` and used for
+        every fib-related computation below.
+        """
+        del retracement  # intentionally unused; see docstring
+
         # --- Hard structural gates (objective, binary) ---
         if htf_bms.direction != Direction.BEARISH:
             return None
@@ -219,12 +262,21 @@ class ContinuationBuilder:
         if ltf_ob.direction != Direction.BEARISH:
             return None
 
+        # --- Per-candidate Fibonacci leg (SMC-MIT-003) ---
+        candidate_retracement = select_leg_for_sh_bms_rto(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            htf_bms=ltf_bms,
+            sweep=ltf_sweep,
+            is_bullish=False,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [ltf_sweep] if ltf_sweep else [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -252,7 +304,7 @@ class ContinuationBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -311,11 +363,11 @@ class ContinuationBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
                 sweep=ltf_sweep,
                 ob=ltf_ob,
             ),
@@ -328,6 +380,7 @@ class ContinuationBuilder:
                 "entry_price": entry_price,
                 "confluences": confluences,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -349,6 +402,10 @@ class ContinuationBuilder:
         This is informational metadata for the LLM.  It is NEVER used
         to gate or reject a candidate.  Every structural element the
         system detects is counted so the LLM has maximum visibility.
+
+        The ``retracement`` passed here is the per-candidate leg
+        (see class docstring); Fibonacci confluence is therefore
+        scored against the candidate's own impulse.
         """
         confluences = 0
 
@@ -375,7 +432,7 @@ class ContinuationBuilder:
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 7. Fibonacci / OTE confluence (0-2 points)
+        # 7. Fibonacci / OTE confluence (0-2 points), per-candidate leg
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2  # OTE pocket = strong confluence
@@ -483,7 +540,8 @@ class ContinuationBuilder:
         Formatted to 3 decimals (e.g. ``"0.637"``) to stay within the
         existing ``SMCCandidate.fib_level: Optional[str]`` contract.
         Returns ``None`` when no retracement is available or the price
-        falls outside the swing leg.
+        falls outside the swing leg.  ``retracement`` here is the
+        per-candidate leg built in the build_* method.
         """
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
@@ -504,9 +562,13 @@ class ContinuationBuilder:
         corresponding inputs are available:
 
         - ``fib_context`` — structured Fibonacci context from
-          ``ZoneValidator.build_fib_context`` (see SMC-MIT-003).
+          ``ZoneValidator.build_fib_context`` (see SMC-MIT-003),
+          measured against the **per-candidate** leg.
         - ``sweep_context`` — structured liquidity-sweep context from
           ``ZoneValidator.build_sweep_context`` (see SMC-LIQ-003).
+
+        When the per-candidate leg is None (e.g. missing sweep),
+        ``fib_context`` is simply omitted — no fabricated value.
         """
         metadata = dict(base)
 
