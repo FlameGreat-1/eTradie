@@ -15,6 +15,11 @@ from engine.ta.models.structure_event import (
     ShiftInMarketStructure,
 )
 from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.smc.builders.fib_leg import (
+    select_leg_for_sms_bms_rto,
+    select_leg_for_turtle_soup_long,
+    select_leg_for_turtle_soup_short,
+)
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator
@@ -45,6 +50,23 @@ class ReversalBuilder:
     - Price retraces to OB
     - Both setups confirm simultaneously
 
+    Fibonacci leg (SMC-MIT-003 / Universal Rule 6):
+    - Every build_* method constructs its own per-candidate leg from
+      the candidate's structural endpoints, direction-matched:
+        SMS reversal  -> select_leg_for_sms_bms_rto
+                         (htf_sms.failed_level <-> ltf_bms.breakout_price)
+        Turtle soup L -> select_leg_for_turtle_soup_long
+                         (sweep.swept_level -> nearest swing high above)
+        Turtle soup S -> select_leg_for_turtle_soup_short
+                         (nearest swing low below -> sweep.swept_level)
+    - The ``retracement`` argument on the public methods is a
+      deprecated passthrough retained only so SMCDetector can keep
+      calling the builder during the staged rollout.  It is NOT
+      consumed.
+    - No fallback: when endpoints are missing the per-candidate leg
+      is None and the candidate is emitted with fib_level=None and
+      no fib_context in metadata.  We never use a global HTF leg.
+
     LTF confirmations (CHOCH, LTF BMS, RTO) are evaluated when
     available and stored as metadata.  Their absence does NOT block
     candidate creation.
@@ -73,9 +95,18 @@ class ReversalBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build an SMS_BMS_RTO_BULLISH candidate.
+
+        ``retracement`` is a deprecated passthrough and is ignored.
+        The true Fibonacci leg for this candidate is built inline
+        from ``htf_sms`` + ``ltf_bms`` via
+        ``select_leg_for_sms_bms_rto``.
+        """
+        del retracement  # intentionally unused; see docstring
+
         if htf_sms.direction != Direction.BULLISH:
             return None
 
@@ -85,12 +116,20 @@ class ReversalBuilder:
         if ltf_ob.direction != Direction.BULLISH:
             return None
 
+        candidate_retracement = select_leg_for_sms_bms_rto(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            htf_sms=htf_sms,
+            ltf_bms=ltf_bms,
+            is_bullish=True,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -98,7 +137,6 @@ class ReversalBuilder:
 
         current_price = ltf_sequence.candles[-1].close
 
-        # LTF confirmation is ALWAYS evaluated at every analysis.
         ltf_confirmed = self.ltf_validator.validate_all_ltf_confirmations(
             None,  # No sweep required for reversal
             ltf_choch,
@@ -116,7 +154,7 @@ class ReversalBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -169,11 +207,11 @@ class ReversalBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
             ),
         )
 
@@ -184,6 +222,7 @@ class ReversalBuilder:
                 "entry_price": entry_price,
                 "confluences": confluences,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -199,9 +238,18 @@ class ReversalBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build an SMS_BMS_RTO_BEARISH candidate.
+
+        ``retracement`` is a deprecated passthrough and is ignored.
+        The true Fibonacci leg for this candidate is built inline
+        from ``htf_sms`` + ``ltf_bms`` via
+        ``select_leg_for_sms_bms_rto``.
+        """
+        del retracement  # intentionally unused; see docstring
+
         if htf_sms.direction != Direction.BEARISH:
             return None
 
@@ -211,12 +259,20 @@ class ReversalBuilder:
         if ltf_ob.direction != Direction.BEARISH:
             return None
 
+        candidate_retracement = select_leg_for_sms_bms_rto(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            htf_sms=htf_sms,
+            ltf_bms=ltf_bms,
+            is_bullish=False,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -241,7 +297,7 @@ class ReversalBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -294,11 +350,11 @@ class ReversalBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
             ),
         )
 
@@ -309,6 +365,7 @@ class ReversalBuilder:
                 "entry_price": entry_price,
                 "confluences": confluences,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -320,6 +377,14 @@ class ReversalBuilder:
         sweep: LiquiditySweep,
         swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build a TURTLE_SOUP_LONG candidate.
+
+        Per-candidate fib leg is drawn from the swept SSL level up to
+        the nearest opposing swing high (via
+        ``select_leg_for_turtle_soup_long``).  When no such swing
+        high is available, ``fib_context`` is omitted from metadata
+        — no fabricated leg.
+        """
         if not sweep.closed_back_inside:
             return None
 
@@ -336,11 +401,22 @@ class ReversalBuilder:
             entry_price, swing_highs or [], pip_val,
         )
 
-        # pattern_type is redundant with the TURTLE_SOUP_LONG pattern enum.
+        candidate_retracement = select_leg_for_turtle_soup_long(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            sweep=sweep,
+            swing_highs=swing_highs or [],
+        )
+
         turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
+        fib_context = self.zone_validator.build_fib_context(
+            entry_price, candidate_retracement,
+        )
+        if fib_context is not None:
+            turtle_metadata["fib_context"] = fib_context
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -358,6 +434,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=turtle_metadata,
         )
 
@@ -367,6 +444,7 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "sweep_pips": sweep.sweep_pips,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -378,6 +456,13 @@ class ReversalBuilder:
         sweep: LiquiditySweep,
         swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build a TURTLE_SOUP_SHORT candidate.
+
+        Per-candidate fib leg is drawn from the nearest opposing
+        swing low up to the swept BSL level (via
+        ``select_leg_for_turtle_soup_short``).  When no such swing
+        low is available, ``fib_context`` is omitted from metadata.
+        """
         if not sweep.closed_back_inside:
             return None
 
@@ -394,11 +479,22 @@ class ReversalBuilder:
             entry_price, swing_lows or [], pip_val,
         )
 
-        # pattern_type is redundant with the TURTLE_SOUP_SHORT pattern enum.
+        candidate_retracement = select_leg_for_turtle_soup_short(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            sweep=sweep,
+            swing_lows=swing_lows or [],
+        )
+
         turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
+        fib_context = self.zone_validator.build_fib_context(
+            entry_price, candidate_retracement,
+        )
+        if fib_context is not None:
+            turtle_metadata["fib_context"] = fib_context
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -416,6 +512,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=turtle_metadata,
         )
 
@@ -425,6 +522,7 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "sweep_pips": sweep.sweep_pips,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -442,9 +540,9 @@ class ReversalBuilder:
     ) -> int:
         """Count all confluences for a reversal candidate.
 
-        This is informational metadata for the LLM.  It is NEVER used
-        to gate or reject a candidate.  Every structural element the
-        system detects is counted so the LLM has maximum visibility.
+        Informational metadata for the LLM.  It is NEVER used to
+        gate or reject a candidate.  ``retracement`` here is the
+        per-candidate leg built in the corresponding build_* method.
         """
         confluences = 0
 
@@ -466,7 +564,7 @@ class ReversalBuilder:
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 6. Fibonacci / OTE confluence (0-2 points)
+        # 6. Fibonacci / OTE confluence (0-2 points), per-candidate leg
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2  # OTE pocket = strong confluence
@@ -527,7 +625,9 @@ class ReversalBuilder:
     ) -> Optional[str]:
         """Return the exact retracement percentage the entry price falls on,
         formatted to 3 decimals.  Returns None when no retracement is
-        available or the price falls outside the swing leg."""
+        available or the price falls outside the swing leg.  ``retracement``
+        is the per-candidate leg built inline in the build_* methods.
+        """
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
             return None
@@ -541,7 +641,21 @@ class ReversalBuilder:
         sweep: Optional[LiquiditySweep] = None,
         ob: Optional[OrderBlock] = None,
     ) -> dict:
-        """Attach fib_context and sweep_context to the metadata dict."""
+        """Attach fib_context and sweep_context to the metadata dict.
+
+        The returned dict always contains ``base`` plus, when the
+        corresponding inputs are available:
+
+        - ``fib_context`` — structured Fibonacci context from
+          ``ZoneValidator.build_fib_context`` (see SMC-MIT-003),
+          measured against the **per-candidate** leg.
+        - ``sweep_context`` — structured liquidity-sweep context from
+          ``ZoneValidator.build_sweep_context`` (see SMC-LIQ-003).
+
+        When the per-candidate leg is None (e.g. missing SMS or BMS
+        endpoint), ``fib_context`` is simply omitted — no fabricated
+        value.
+        """
         metadata = dict(base)
 
         fib_context = self.zone_validator.build_fib_context(price, retracement)
