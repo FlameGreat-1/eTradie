@@ -29,6 +29,30 @@ class SMCConfig(BaseSettings):
 
     ob_sl_buffer_pips: float = Field(default=2.0, ge=1.0, le=10.0)
 
+    # --- Structural stop-loss buffer (fraction of OB range) ---
+    # The SMC builders anchor stop-loss at the pattern's structural
+    # invalidation level (swept wick / SMS failure / CHoCH break /
+    # Asian-range extreme), then step beyond it by a buffer expressed
+    # as a percentage of the OB's own range:
+    #
+    #   buffer = (ob.upper_bound - ob.lower_bound) * ob_sl_buffer_range_pct
+    #
+    # This scales the buffer with the OB that sponsored the setup, so
+    # the same K=0.10 produces the correct buffer on FX, metals,
+    # indices, and crypto without per-asset tuning.  A wider OB gets
+    # a wider buffer (more retest-wick tolerance); a tight OB gets a
+    # tight buffer (closer invalidation).
+    #
+    # Bounded 0.05-0.30: 0.05 is the tightest defensible buffer before
+    # a single wick can kill an otherwise-valid setup; 0.30 is the
+    # widest before the SL is effectively sitting at the OB midpoint,
+    # which would undermine R:R math.
+    #
+    # This is deliberately a pure structural percentage (no ATR, no
+    # moving average, no indicator overlay).  The OB itself is the
+    # structure; its own range is the correct unit of noise.
+    ob_sl_buffer_range_pct: float = Field(default=0.10, ge=0.05, le=0.30)
+
     ob_body_percentage_threshold: float = Field(default=50.0, ge=30.0, le=80.0)
 
     fvg_min_gap_pips: float = Field(default=2.0, ge=1.0, le=10.0)
