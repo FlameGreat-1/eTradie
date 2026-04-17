@@ -17,8 +17,6 @@ from engine.ta.models.structure_event import (
 from engine.ta.models.zone import OrderBlock, FairValueGap
 from engine.ta.smc.builders.fib_leg import (
     select_leg_for_sms_bms_rto,
-    select_leg_for_turtle_soup_long,
-    select_leg_for_turtle_soup_short,
 )
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.validators.zone.validator import ZoneValidator
@@ -390,22 +388,14 @@ class ReversalBuilder:
             stop_loss=stop_loss,
         )
 
-        candidate_retracement = select_leg_for_turtle_soup_long(
-            symbol=ltf_sequence.symbol,
-            timeframe=ltf_sequence.timeframe,
-            sweep=sweep,
-            swing_highs=swing_highs or [],
-        )
-
+        # Turtle Soup fib context is trivial by construction
+        # (entry_price == sweep.swept_level == leg anchor => 1.0).
+        # See commit message for rationale; we deliberately emit no
+        # fib_context and no fib_level on this pattern.
         turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
-        fib_context = self.zone_validator.build_fib_context(
-            entry_price, candidate_retracement,
-        )
-        if fib_context is not None:
-            turtle_metadata["fib_context"] = fib_context
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -423,7 +413,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
-            fib_level=self._fib_level_str(entry_price, candidate_retracement),
+            fib_level=None,
             metadata=turtle_metadata,
         )
 
@@ -433,7 +423,6 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "sweep_pips": sweep.sweep_pips,
-                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -469,22 +458,14 @@ class ReversalBuilder:
             stop_loss=stop_loss,
         )
 
-        candidate_retracement = select_leg_for_turtle_soup_short(
-            symbol=ltf_sequence.symbol,
-            timeframe=ltf_sequence.timeframe,
-            sweep=sweep,
-            swing_lows=swing_lows or [],
-        )
-
+        # Turtle Soup fib context is trivial by construction
+        # (entry_price == sweep.swept_level == leg anchor => 1.0).
+        # See commit message for rationale; we deliberately emit no
+        # fib_context and no fib_level on this pattern.
         turtle_metadata: dict = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
-        fib_context = self.zone_validator.build_fib_context(
-            entry_price, candidate_retracement,
-        )
-        if fib_context is not None:
-            turtle_metadata["fib_context"] = fib_context
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -502,7 +483,7 @@ class ReversalBuilder:
             sweep_timestamp=sweep.timestamp,
             ltf_confirmation=True,
             ltf_confirmation_timestamp=sweep.timestamp,
-            fib_level=self._fib_level_str(entry_price, candidate_retracement),
+            fib_level=None,
             metadata=turtle_metadata,
         )
 
@@ -512,7 +493,6 @@ class ReversalBuilder:
                 "symbol": candidate.symbol,
                 "entry_price": entry_price,
                 "sweep_pips": sweep.sweep_pips,
-                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
