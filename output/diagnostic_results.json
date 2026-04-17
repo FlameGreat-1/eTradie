@@ -41,8 +41,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 307.51,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_65751.05_644ea0cb",
@@ -91,8 +90,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 991.71,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_67307.0_6bba777e",
@@ -141,8 +139,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 991.71,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_67307.0_01501aff",
@@ -191,8 +188,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 97.6,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_2b1a68a9",
@@ -241,8 +237,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 1573.14,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_a6edb718",
@@ -297,8 +292,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_74853.345_9e0c708d",
@@ -353,8 +347,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_74853.345_97265e98",
@@ -403,8 +396,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 991.71,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_65834.73_dbc1685d",
@@ -453,8 +445,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 991.71,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_99a89b37",
@@ -503,8 +494,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 991.71,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_74853.345_26cbf665",
@@ -750,8 +740,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 97.6,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_66883.755_c2aee2d2",
@@ -801,8 +790,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 1573.14,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_66883.755_4453f5b2",
@@ -852,8 +840,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_74853.345_c46639ba",
@@ -903,8 +890,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_74853.345_461e4008",
@@ -952,8 +938,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_LONG_BULLISH_73534.37_0bf1bfda",
@@ -1001,8 +986,7 @@
         "liquidity_type": "BSL",
         "sweep_pips": 279.99,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_SHORT_BEARISH_76111.67_125fa76a",
@@ -1051,8 +1035,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 97.6,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_66883.755_2b1a68a9",
@@ -1101,8 +1084,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 1573.14,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_66883.755_a6edb718",
@@ -1157,8 +1139,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_74853.345_9e0c708d",
@@ -1213,8 +1194,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 232.27,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_74853.345_97265e98",
@@ -1226,7 +1206,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66538.11,
     "stop_loss": 66200.37000000001,
     "take_profit": 66963.54,
@@ -1263,8 +1243,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 5.83,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66538.11_a1a39a9d",
@@ -1276,7 +1255,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66883.755,
     "stop_loss": 66528.645,
     "take_profit": 67261.24,
@@ -1294,9 +1273,9 @@
     "order_block_upper": 67179.68,
     "order_block_lower": 66587.83,
     "order_block_timestamp": "2026-04-05T04:00:00Z",
-    "fvg_upper": 71539.23,
-    "fvg_lower": 71478.28,
-    "fvg_timestamp": "2026-04-08T04:00:00Z",
+    "fvg_upper": 67144.04,
+    "fvg_lower": 67141.8,
+    "fvg_timestamp": "2026-04-05T12:00:00Z",
     "liquidity_swept": true,
     "swept_level": 70682.03,
     "sweep_timestamp": "2026-04-09T00:00:00Z",
@@ -1313,8 +1292,7 @@
         "liquidity_type": "PDL_SWEEP",
         "sweep_pips": 39.76,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_95c32451",
@@ -1326,7 +1304,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66883.755,
     "stop_loss": 66528.645,
     "take_profit": 67261.24,
@@ -1344,12 +1322,12 @@
     "order_block_upper": 67179.68,
     "order_block_lower": 66587.83,
     "order_block_timestamp": "2026-04-05T04:00:00Z",
-    "fvg_upper": 71539.23,
-    "fvg_lower": 71478.28,
-    "fvg_timestamp": "2026-04-08T04:00:00Z",
-    "liquidity_swept": false,
-    "swept_level": null,
-    "sweep_timestamp": null,
+    "fvg_upper": 67144.04,
+    "fvg_lower": 67141.8,
+    "fvg_timestamp": "2026-04-05T12:00:00Z",
+    "liquidity_swept": true,
+    "swept_level": 70682.03,
+    "sweep_timestamp": "2026-04-09T00:00:00Z",
     "inducement_cleared": false,
     "inducement_level": null,
     "ltf_confirmation": false,
@@ -1358,9 +1336,15 @@
     "fib_level": null,
     "session_context": null,
     "metadata": {
-      "confluences": 7
+      "confluences": 8,
+      "sweep_context": {
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 39.76,
+        "closed_back_inside": true,
+        "is_major_sweep": true
+      }
     },
-    "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_0b7b7f22",
+    "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_66883.755_7bbef7ef",
     "is_bullish": true,
     "is_bearish": false
   },
@@ -1369,7 +1353,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 69129.01999999999,
     "stop_loss": 68090.432,
     "take_profit": 70272.2,
@@ -1406,8 +1390,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 230.54,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_69129.02_2450f704",
@@ -1419,7 +1402,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 71074.82999999999,
     "stop_loss": 70527.546,
     "take_profit": 71819.78,
@@ -1456,8 +1439,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 158.88,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_71074.83_8bb966a0",
@@ -1469,7 +1451,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66819.125,
     "stop_loss": 66626.195,
     "take_profit": 67074.23,
@@ -1512,7 +1494,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69149.7,
@@ -1549,8 +1531,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_54703112",
@@ -1562,7 +1543,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69149.7,
@@ -1599,8 +1580,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_54703112",
@@ -1612,7 +1592,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69149.7,
@@ -1649,8 +1629,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_e690664f",
@@ -1662,7 +1641,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70990.65,
     "stop_loss": 70432.072,
     "take_profit": 71819.78,
@@ -1705,8 +1684,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 176.42,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70990.65_e0b0aaa9",
@@ -1718,7 +1696,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72100.195,
     "stop_loss": 71600.557,
     "take_profit": 72762.61,
@@ -1755,8 +1733,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 306.74,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_72100.195_f46b435b",
@@ -1768,7 +1745,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75502.66,
     "stop_loss": 75017.536,
     "take_profit": 76111.67,
@@ -1811,7 +1788,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74531.06899999999,
     "take_profit": 74933.9,
@@ -1854,7 +1831,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74531.06899999999,
     "take_profit": 74933.9,
@@ -1897,7 +1874,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 67525.18,
     "stop_loss": 67354.68400000001,
     "take_profit": 67833.09,
@@ -1934,8 +1911,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_67525.18_0c61889e",
@@ -1947,7 +1923,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69149.7,
@@ -1984,8 +1960,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_11410bd8",
@@ -1997,7 +1972,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69149.7,
@@ -2034,8 +2009,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_8ba19c82",
@@ -2047,7 +2021,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70990.65,
     "stop_loss": 70549.422,
     "take_profit": 71484.75,
@@ -2084,8 +2058,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70990.65_7b4842c1",
@@ -2097,7 +2070,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70772.435,
     "stop_loss": 70666.781,
     "take_profit": 71390.2,
@@ -2134,8 +2107,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70772.435_c39299d5",
@@ -2147,7 +2119,7 @@
     "timeframe": "H1",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73955.205,
     "stop_loss": 72472.769,
     "take_profit": 75463.56,
@@ -2190,8 +2162,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 89.09,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_73955.205_e6aae916",
@@ -2203,7 +2174,7 @@
     "timeframe": "H1",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66819.125,
     "stop_loss": 65650.745,
     "take_profit": 69259.03,
@@ -2252,7 +2223,7 @@
     "timeframe": "H1",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 65639.112,
     "take_profit": 71484.75,
@@ -2301,7 +2272,7 @@
     "timeframe": "H1",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 65639.112,
     "take_profit": 71484.75,
@@ -2350,7 +2321,7 @@
     "timeframe": "H1",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 65639.112,
     "take_profit": 71484.75,
@@ -2397,58 +2368,9 @@
   {
     "symbol": "BTCUSDM",
     "timeframe": "H1",
-    "pattern": "SMS_BMS_RTO_BULLISH",
-    "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
-    "entry_price": 70990.65,
-    "stop_loss": 65609.362,
-    "take_profit": null,
-    "htf_timeframe": "H4",
-    "ltf_timeframe": "H1",
-    "bms_detected": true,
-    "bms_price": 72146.95,
-    "bms_timestamp": "2026-04-09T16:00:00Z",
-    "choch_detected": true,
-    "choch_price": 75040.46,
-    "choch_timestamp": "2026-04-15T21:00:00Z",
-    "sms_detected": true,
-    "sms_price": 65682.9,
-    "sms_timestamp": "2026-04-05T04:00:00Z",
-    "order_block_upper": 71358.34,
-    "order_block_lower": 70622.96,
-    "order_block_timestamp": "2026-04-09T13:00:00Z",
-    "fvg_upper": 71723.77,
-    "fvg_lower": 71267.27,
-    "fvg_timestamp": "2026-04-09T15:00:00Z",
-    "liquidity_swept": false,
-    "swept_level": null,
-    "sweep_timestamp": null,
-    "inducement_cleared": false,
-    "inducement_level": null,
-    "ltf_confirmation": false,
-    "ltf_confirmation_timestamp": null,
-    "displacement_pips": 561.31,
-    "fib_level": "0.179",
-    "session_context": null,
-    "metadata": {
-      "confluences": 7,
-      "fib_context": {
-        "percentage": 0.1789,
-        "zone": "PREMIUM",
-        "is_in_ote": false,
-        "nearest_level_name": "0.236"
-      }
-    },
-    "candidate_id": "BTCUSDM_SMS_BMS_RTO_BULLISH_BULLISH_70990.65_2734e478",
-    "is_bullish": true,
-    "is_bearish": false
-  },
-  {
-    "symbol": "BTCUSDM",
-    "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66819.125,
     "stop_loss": 66626.195,
     "take_profit": 67833.09,
@@ -2492,7 +2414,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -2530,8 +2452,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_68549.67_c8d1e93b",
@@ -2543,7 +2464,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -2581,8 +2502,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_68549.67_c8d1e93b",
@@ -2594,7 +2514,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -2632,8 +2552,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_68549.67_3d63e28c",
@@ -2645,7 +2564,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70990.65,
     "stop_loss": 70549.422,
     "take_profit": 71484.75,
@@ -2683,8 +2602,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 176.42,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_70990.65_a5d2752a",
@@ -2696,7 +2614,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72100.195,
     "stop_loss": 71600.557,
     "take_profit": 72762.61,
@@ -2734,8 +2652,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 306.74,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_72100.195_490879a4",
@@ -2747,7 +2664,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75502.66,
     "stop_loss": 75017.536,
     "take_profit": 76111.67,
@@ -2797,7 +2714,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74531.06899999999,
     "take_profit": 74933.9,
@@ -2841,7 +2758,7 @@
     "timeframe": "H1",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74531.06899999999,
     "take_profit": 74933.9,
@@ -2921,8 +2838,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 419.78,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_LONG_BULLISH_73840.2_85197dce",
@@ -2970,8 +2886,7 @@
         "liquidity_type": "BSL",
         "sweep_pips": 443.37,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_SHORT_BEARISH_75463.56_7d2e5652",
@@ -2983,7 +2898,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66819.125,
     "stop_loss": 66626.195,
     "take_profit": 67833.09,
@@ -3026,7 +2941,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -3063,8 +2978,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_68549.67_54703112",
@@ -3076,7 +2990,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -3113,8 +3027,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_68549.67_54703112",
@@ -3126,7 +3039,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 69259.03,
@@ -3163,8 +3076,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 128.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_68549.67_e690664f",
@@ -3176,7 +3088,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70990.65,
     "stop_loss": 70549.422,
     "take_profit": 71484.75,
@@ -3213,8 +3125,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 176.42,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_70990.65_e0b0aaa9",
@@ -3226,7 +3137,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72100.195,
     "stop_loss": 71600.557,
     "take_profit": 72762.61,
@@ -3263,8 +3174,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 306.74,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_72100.195_f46b435b",
@@ -3276,7 +3186,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75502.66,
     "stop_loss": 74446.256,
     "take_profit": null,
@@ -3325,7 +3235,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74500.449,
     "take_profit": 74933.9,
@@ -3374,7 +3284,7 @@
     "timeframe": "H1",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:00:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74500.449,
     "take_profit": 74933.9,
@@ -3423,7 +3333,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 66819.125,
     "stop_loss": 66626.195,
     "take_profit": 67141.8,
@@ -3466,7 +3376,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 68986.51,
@@ -3503,8 +3413,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 112.06,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_52ec0767",
@@ -3516,7 +3425,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 68986.51,
@@ -3553,8 +3462,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 112.06,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_52ec0767",
@@ -3566,7 +3474,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 68549.67,
     "stop_loss": 68286.942,
     "take_profit": 68986.51,
@@ -3603,8 +3511,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 112.06,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_68549.67_989de788",
@@ -3616,7 +3523,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70990.65,
     "stop_loss": 70549.422,
     "take_profit": 71484.75,
@@ -3659,8 +3566,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 64.55,
         "closed_back_inside": true,
-        "is_major_sweep": true,
-        "is_turtle_soup": true
+        "is_major_sweep": true
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70990.65_41cdec58",
@@ -3672,7 +3578,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71248.34,
@@ -3709,8 +3615,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70894.695_aa670926",
@@ -3722,7 +3627,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71248.34,
@@ -3759,8 +3664,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70894.695_aa670926",
@@ -3772,7 +3676,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71248.34,
@@ -3809,8 +3713,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70894.695_aa670926",
@@ -3822,7 +3725,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73248.055,
     "stop_loss": 72289.663,
     "take_profit": 74220.71,
@@ -3865,8 +3768,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 361.8,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_73248.055_35b1b2e5",
@@ -3878,7 +3780,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75544.295,
     "stop_loss": 75109.133,
     "take_profit": 76111.67,
@@ -3921,7 +3823,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70683.93,
     "stop_loss": 70469.946,
     "take_profit": 70926.55,
@@ -3958,8 +3860,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 250.01,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70683.93_09fc9c3a",
@@ -3971,7 +3872,7 @@
     "timeframe": "M30",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70971.48000000001,
     "stop_loss": 70728.878,
     "take_profit": 71248.34,
@@ -4008,8 +3909,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 250.01,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70971.48_b0a50f39",
@@ -4021,7 +3921,7 @@
     "timeframe": "M30",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75544.295,
     "stop_loss": 73229.573,
     "take_profit": 78403.19,
@@ -4070,7 +3970,7 @@
     "timeframe": "M30",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4108,8 +4008,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_70894.695_42509c7a",
@@ -4121,7 +4020,7 @@
     "timeframe": "M30",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4159,8 +4058,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_70894.695_42509c7a",
@@ -4172,7 +4070,7 @@
     "timeframe": "M30",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4210,8 +4108,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_70894.695_42509c7a",
@@ -4223,7 +4120,7 @@
     "timeframe": "M30",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73248.055,
     "stop_loss": 73019.893,
     "take_profit": 73485.81,
@@ -4261,8 +4158,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 361.8,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_73248.055_15e16a83",
@@ -4274,7 +4170,7 @@
     "timeframe": "M30",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75544.295,
     "stop_loss": 74467.743,
     "take_profit": 78403.19,
@@ -4354,8 +4250,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 81.06,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_LONG_BULLISH_74444.24_6a3304c4",
@@ -4403,8 +4298,7 @@
         "liquidity_type": "BSL",
         "sweep_pips": 76.07,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_SHORT_BEARISH_75306.84_2e8de563",
@@ -4416,7 +4310,7 @@
     "timeframe": "M30",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4453,8 +4347,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_70894.695_aa670926",
@@ -4466,7 +4359,7 @@
     "timeframe": "M30",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4503,8 +4396,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_70894.695_aa670926",
@@ -4516,7 +4408,7 @@
     "timeframe": "M30",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70894.695,
     "stop_loss": 70568.61300000001,
     "take_profit": 71292.56,
@@ -4553,8 +4445,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 274.9,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_70894.695_aa670926",
@@ -4566,7 +4457,7 @@
     "timeframe": "M30",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73248.055,
     "stop_loss": 73019.893,
     "take_profit": 73485.81,
@@ -4603,8 +4494,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 361.8,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_73248.055_35b1b2e5",
@@ -4616,7 +4506,7 @@
     "timeframe": "M30",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:30:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75544.295,
     "stop_loss": 74454.583,
     "take_profit": 78403.19,
@@ -4665,7 +4555,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73183.445,
     "take_profit": 73485.81,
@@ -4708,8 +4598,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_73266.765_d1324cae",
@@ -4721,7 +4610,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73183.445,
     "take_profit": 73485.81,
@@ -4764,8 +4653,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_73266.765_da774986",
@@ -4777,7 +4665,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70776.785,
     "stop_loss": 70705.31899999999,
     "take_profit": 70860.48,
@@ -4814,8 +4702,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 124.89,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70776.785_df97464f",
@@ -4827,7 +4714,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72484.12,
@@ -4870,8 +4757,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_72396.65_f9233126",
@@ -4883,7 +4769,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72484.12,
@@ -4926,8 +4812,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_72396.65_f9233126",
@@ -4939,7 +4824,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73183.445,
     "take_profit": 73485.81,
@@ -4982,8 +4867,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_73266.765_da774986",
@@ -4995,7 +4879,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74816.86600000001,
     "take_profit": 75200.08,
@@ -5038,8 +4922,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_75002.8_89bd5174",
@@ -5051,7 +4934,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74816.86600000001,
     "take_profit": 75200.08,
@@ -5094,8 +4977,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_75002.8_89bd5174",
@@ -5107,7 +4989,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74816.86600000001,
     "take_profit": 75200.08,
@@ -5150,8 +5032,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_75002.8_89bd5174",
@@ -5163,7 +5044,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74816.86600000001,
     "take_profit": 75200.08,
@@ -5206,8 +5087,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_75002.8_437bb54a",
@@ -5219,7 +5099,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74531.06899999999,
     "take_profit": 74853.59,
@@ -5256,8 +5136,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_74691.035_401cbf38",
@@ -5269,7 +5148,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 71632.315,
     "stop_loss": 71435.329,
     "take_profit": 71882.45,
@@ -5306,8 +5185,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 78.45,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_71632.315_544187c4",
@@ -5319,7 +5197,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70832.91500000001,
     "stop_loss": 70737.689,
     "take_profit": 70986.14,
@@ -5356,8 +5234,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 78.45,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_70832.915_f28da50d",
@@ -5369,7 +5246,7 @@
     "timeframe": "M15",
     "pattern": "SH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74690.44,
     "stop_loss": 74509.048,
     "take_profit": 74879.72,
@@ -5412,8 +5289,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 78.45,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_SH_BMS_RTO_BULLISH_BULLISH_74690.44_c0f64304",
@@ -5425,7 +5301,7 @@
     "timeframe": "M15",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 73292.22600000001,
     "take_profit": 78122.38,
@@ -5474,7 +5350,7 @@
     "timeframe": "M15",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 73292.22600000001,
     "take_profit": 78122.38,
@@ -5523,7 +5399,7 @@
     "timeframe": "M15",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 73292.22600000001,
     "take_profit": 78122.38,
@@ -5572,7 +5448,7 @@
     "timeframe": "M15",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 73292.22600000001,
     "take_profit": 78122.38,
@@ -5621,7 +5497,7 @@
     "timeframe": "M15",
     "pattern": "SMS_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 73275.43900000001,
     "take_profit": 76111.67,
@@ -5670,7 +5546,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -5708,8 +5584,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_73266.765_1e6205a4",
@@ -5721,7 +5596,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -5759,8 +5634,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_73266.765_e7327be9",
@@ -5772,7 +5646,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70776.785,
     "stop_loss": 70705.31899999999,
     "take_profit": 70926.55,
@@ -5810,8 +5684,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 124.89,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_70776.785_f6c549bf",
@@ -5823,7 +5696,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72498.0,
@@ -5861,8 +5734,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_72396.65_12db3f17",
@@ -5874,7 +5746,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72498.0,
@@ -5912,8 +5784,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_72396.65_12db3f17",
@@ -5925,7 +5796,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -5963,8 +5834,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_73266.765_e7327be9",
@@ -5976,7 +5846,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74530.39600000001,
     "take_profit": 75557.94,
@@ -6014,8 +5884,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_75002.8_64248fe4",
@@ -6027,7 +5896,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74530.39600000001,
     "take_profit": 75557.94,
@@ -6065,8 +5934,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_75002.8_64248fe4",
@@ -6078,7 +5946,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74530.39600000001,
     "take_profit": 75557.94,
@@ -6116,8 +5984,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_75002.8_64248fe4",
@@ -6129,7 +5996,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74530.39600000001,
     "take_profit": 75557.94,
@@ -6167,8 +6034,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_75002.8_2f59c6c0",
@@ -6180,7 +6046,7 @@
     "timeframe": "M15",
     "pattern": "CHOCH_BMS_RTO_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74513.609,
     "take_profit": 74870.65,
@@ -6224,8 +6090,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_CHOCH_BMS_RTO_BULLISH_BULLISH_74691.035_19a6a24b",
@@ -6273,8 +6138,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_LONG_BULLISH_74839.03_5e208e3e",
@@ -6322,8 +6186,7 @@
         "liquidity_type": "BSL",
         "sweep_pips": 29.38,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_TURTLE_SOUP_SHORT_BEARISH_78122.38_7d002770",
@@ -6335,7 +6198,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -6372,8 +6235,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_73266.765_d1324cae",
@@ -6385,7 +6247,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -6422,8 +6284,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_73266.765_da774986",
@@ -6435,7 +6296,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 70776.785,
     "stop_loss": 70705.31899999999,
     "take_profit": 70926.55,
@@ -6472,8 +6333,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 124.89,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_70776.785_df97464f",
@@ -6485,7 +6345,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72498.0,
@@ -6522,8 +6382,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_72396.65_f9233126",
@@ -6535,7 +6394,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 72396.65,
     "stop_loss": 72313.898,
     "take_profit": 72498.0,
@@ -6572,8 +6431,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 13.44,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_72396.65_f9233126",
@@ -6585,7 +6443,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 73266.765,
     "stop_loss": 73193.77500000001,
     "take_profit": 73485.81,
@@ -6622,8 +6480,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 27.17,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_73266.765_da774986",
@@ -6635,7 +6492,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74517.236,
     "take_profit": 75557.94,
@@ -6678,8 +6535,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_75002.8_89bd5174",
@@ -6691,7 +6547,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74517.236,
     "take_profit": 75557.94,
@@ -6734,8 +6590,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_75002.8_89bd5174",
@@ -6747,7 +6602,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74517.236,
     "take_profit": 75557.94,
@@ -6790,8 +6645,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_75002.8_89bd5174",
@@ -6803,7 +6657,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 75002.79999999999,
     "stop_loss": 74517.236,
     "take_profit": 75557.94,
@@ -6846,8 +6700,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_75002.8_437bb54a",
@@ -6859,7 +6712,7 @@
     "timeframe": "M15",
     "pattern": "AMD_BULLISH",
     "direction": "BULLISH",
-    "timestamp": "2026-04-17T18:45:00Z",
+    "timestamp": "2026-04-17T19:00:00Z",
     "entry_price": 74691.035,
     "stop_loss": 74500.449,
     "take_profit": 74890.83,
@@ -6902,8 +6755,7 @@
         "liquidity_type": "SSL",
         "sweep_pips": 12.29,
         "closed_back_inside": true,
-        "is_major_sweep": false,
-        "is_turtle_soup": true
+        "is_major_sweep": false
       }
     },
     "candidate_id": "BTCUSDM_AMD_BULLISH_BULLISH_74691.035_401cbf38",
