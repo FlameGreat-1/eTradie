@@ -120,11 +120,14 @@ class SMCConfig(BaseSettings):
     # proximity, with the window derived from TIMEFRAME_MINUTES of the
     # HTF so the same value works across H1/H4/D1/W1 without retuning.
     #
-    # Default 50 HTF candles: D1 ~= 10 weeks, H4 ~= 8 days, H1 ~= 2
-    # days -- wider than any legitimate SMS->RTO window on these
-    # timeframes, tight enough to reject the stale pairings seen in
-    # diagnostic_results.json.  Bounded 10..200 for safety.
-    sms_max_ob_candle_distance: int = Field(default=50, ge=10, le=200)
+    # Default 20 HTF candles: D1 ~= 4 trading weeks, H4 ~= 3.3 days,
+    # H1 ~= 20 hours, W1 ~= 5 months.  Empirically tuned against
+    # diagnostic_results.json: the previous default of 50 still let
+    # 2-4 day stale pairings through on the H4->H1 pair.  An SMS
+    # event that fired more than 20 HTF candles before the RTO OB
+    # belongs to a different impulse cycle by SMC definition.  The
+    # bounded 10..200 range preserves operator tuning flexibility.
+    sms_max_ob_candle_distance: int = Field(default=20, ge=10, le=200)
 
     # --- Take-profit R:R floor ---
     # Minimum reward-to-risk multiple a candidate swing must satisfy
