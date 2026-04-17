@@ -310,7 +310,7 @@ def test_fvg(
     fvg_detector: FVGDetector,
     sequences: dict[Timeframe, CandleSequence],
 ) -> dict:
-    header("TEST 5: FVG (Fair Value Gap) DETECTION  ← PRIMARY SUSPECT")
+    header("TEST 5: FVG (Fair Value Gap) DETECTION")
     results = {}
 
     for tf, seq in sequences.items():
@@ -423,7 +423,7 @@ def test_zone_freshness(
     sequences: dict[Timeframe, CandleSequence],
     ob_data: dict,
 ) -> dict:
-    header("TEST 7: ZONE FRESHNESS (MITIGATION)  ← PRIMARY SUSPECT")
+    header("TEST 7: ZONE FRESHNESS (MITIGATION)")
     results = {}
 
     for tf, obs in ob_data.items():
@@ -457,7 +457,7 @@ def test_zone_freshness(
             if mitigated_count > 0:
                 status = "❌" if fresh_count == 0 else "⚠️ "
                 print(f"    {status}  Mitigated: {mitigated_count}"
-                      f"  (threshold: {zone_validator.config.zone_mitigation_body_threshold}%)")
+                      f"  (rule: candle close beyond OB extreme — SMC-OB-004)")
 
             info(f"Ratio: {fresh_count}/{len(obs)} fresh")
 
@@ -487,7 +487,7 @@ def test_fvg_ob_pairing(
     ob_data: dict,
     fvg_data: dict,
 ) -> None:
-    header("TEST 8: FVG ↔ OB PAIRING  ← PRIMARY SUSPECT")
+    header("TEST 8: FVG ↔ OB PAIRING")
 
     for tf in ob_data:
         obs = ob_data.get(tf, [])
@@ -548,6 +548,20 @@ def test_full_zone_validation(
 ) -> None:
     header("TEST 9: FULL ZONE VALIDATION (validate_all_ob_rules)")
 
+    # Per SMC-MIT-003 the Fibonacci leg is now per-candidate, built
+    # inside each builder from that candidate's own sweep / BMS /
+    # SMS / CHoCH / Asian-range endpoints (see smc.builders.fib_leg).
+    # There is deliberately no run-wide HTF leg.  This test therefore
+    # exercises the non-Fib zone rules (FVG association, liquidity,
+    # freshness) with retracement=None — which validate_all_ob_rules
+    # handles cleanly (validate_ob_at_premium_discount is a no-op and
+    # score_ob_fib_confluence returns 0).  The full per-candidate Fib
+    # pipeline is exercised end-to-end by TEST 10.
+    info(
+        "TEST 9 evaluates FVG/liquidity/freshness gates only. "
+        "OTE / Fibonacci confluence is exercised per-candidate in TEST 10."
+    )
+
     for tf in ob_data:
         obs = ob_data.get(tf, [])
         if not obs:
@@ -566,16 +580,8 @@ def test_full_zone_validation(
         inducements_bear = inducement_detector.detect_bearish_inducement(seq, highs)
         inducements = inducements_bull + inducements_bear
 
-        # Fibonacci
+        # No global Fibonacci retracement by design; see note above.
         retracement = None
-        if highs and lows:
-            latest_high = swing_analyzer.get_latest_swing_high(highs)
-            latest_low  = swing_analyzer.get_latest_swing_low(lows)
-            if latest_high and latest_low:
-                is_bullish = latest_low.timestamp > latest_high.timestamp
-                retracement = fibonacci_analyzer.create_retracement(
-                    latest_high, latest_low, is_bullish,
-                )
 
         idm_cleared = [idm for idm in inducements if idm.cleared]
         idm_uncleared = [idm for idm in inducements if not idm.cleared]
@@ -790,9 +796,10 @@ async def main():
     bullet(f"fvg_min_gap_pips:      {config.fvg_min_gap_pips}")
     bullet(f"fvg_max_candle_distance: {config.fvg_max_candle_distance}")
     bullet(f"require_fvg_with_ob:   {config.require_fvg_with_ob}")
-    bullet(f"zone_mitigation_body_threshold: {config.zone_mitigation_body_threshold}%")
     bullet(f"min_displacement_pips: {config.min_displacement_pips}")
     bullet(f"inducement_min_break_pips: {config.inducement_min_break_pips}")
+    bullet(f"fibonacci_tolerance_pips: {config.fibonacci_tolerance_pips}")
+    bullet(f"sweep_max_candle_distance: {config.sweep_max_candle_distance}")
 
     # Create all common analyzers
     from engine.ta.common.analyzers.session import SessionAnalyzer
@@ -890,9 +897,9 @@ async def main():
              "3-candle gaps. This is the ROOT CAUSE of has_fvg=False.")
     elif total_fresh == 0:
         fail("VERDICT: ZONE FRESHNESS IS TOO AGGRESSIVE!")
-        fail("Every single OB is flagged as mitigated. The "
-             f"body threshold ({config.zone_mitigation_body_threshold}%) "
-             "may be too low, or the mitigation logic has a bug.")
+        fail("Every single OB is flagged as mitigated under the "
+             "close-beyond-extreme rule (SMC-OB-004). Review the "
+             "candles-after-OB stream or the OB detector output.")
     elif total_fvgs > 0 and total_fresh > 0:
         ok("Individual components look healthy!")
         info("If non-turtle candidates are still 0, the issue is in "
@@ -929,7 +936,13 @@ async def main():
                 "inducement_min_break_pips threshold is applied."
             )
 
-        # Fix 2: fib_level should be populated whenever a retracement exists
+        # Per SMC-MIT-003 each candidate now carries a per-candidate
+        # Fibonacci leg built inside its own builder from that
+        # candidate's structural endpoints (sweep, BMS, SMS, CHoCH,
+        # Asian range).  fib_level/fib_context are intentionally None
+        # when the setup lacks those endpoints (e.g. a continuation
+        # candidate with no associated sweep) — no fallback leg is
+        # ever fabricated.
         fib_level_count = sum(1 for c in candidates if c.fib_level is not None)
         fib_context_count = sum(
             1 for c in candidates
@@ -948,9 +961,38 @@ async def main():
         )
         if fib_level_count == 0:
             warn(
-                "fib_level is null on every candidate. Verify that a "
-                "FibonacciRetracement is being constructed in detect_patterns."
+                "fib_level is null on every candidate. That is expected "
+                "only if every emitted candidate lacks its setup-specific "
+                "Fib endpoints (no sweep on continuations, no Asian range "
+                "on AMD, no opposing swing on turtle soup, etc.). If you "
+                "see this on a run with obviously valid setups, check the "
+                "has_per_candidate_fib_leg field in the per-builder logs."
             )
+
+        # Direction-mismatched OTE readings were the core bug fixed by
+        # the per-candidate leg work.  A healthy run should show zero
+        # candidates whose fib_context.is_in_ote conflicts with the
+        # candidate's own direction zone.
+        direction_mismatches = 0
+        for c in candidates:
+            if not isinstance(c.metadata, dict):
+                continue
+            ctx = c.metadata.get("fib_context")
+            if not ctx or not ctx.get("is_in_ote"):
+                continue
+            zone = ctx.get("zone")
+            if c.is_bullish and zone == "PREMIUM":
+                direction_mismatches += 1
+            elif c.is_bearish and zone == "DISCOUNT":
+                direction_mismatches += 1
+        if direction_mismatches > 0:
+            warn(
+                f"{direction_mismatches} candidate(s) report is_in_ote=True "
+                "against a zone that disagrees with the candidate direction. "
+                "This should be zero after the per-candidate Fib refactor."
+            )
+        else:
+            ok("No direction-mismatched OTE readings detected.")
 
         # Fix 3: sweep_context should exist on candidates whose selected
         # LiquiditySweep was non-null. We expect this on most SH_BMS_RTO
