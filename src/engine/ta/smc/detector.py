@@ -679,8 +679,10 @@ class SMCDetector:
                 * self.config.min_take_profit_rr,
             )
 
-        if take_profit is None:
-            take_profit = htf_choch.breakout_price
+        # take_profit is Optional[float] on SMCCandidate by design.  When
+        # no swing clears the 1:1 R:R floor we emit None rather than
+        # substituting htf_choch.breakout_price; see the continuation
+        # and AMD builders for the full rationale (no invented TPs).
 
         relevant_idm = self.zone_validator.select_relevant_inducement(
             ob,
