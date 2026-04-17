@@ -129,7 +129,12 @@ class ReversalBuilder:
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 
-        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+        relevant_idm = self.zone_validator.select_relevant_inducement(
+            ltf_ob,
+            Direction.BULLISH,
+            inducement_events,
+            bms_breakout_price=ltf_bms.breakout_price,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -157,8 +162,8 @@ class ReversalBuilder:
             fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
             fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
             fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
-            inducement_cleared=len(cleared_idms) > 0,
-            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
+            inducement_cleared=relevant_idm is not None,
+            inducement_level=relevant_idm.inducement_level if relevant_idm else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
@@ -249,7 +254,12 @@ class ReversalBuilder:
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 
-        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+        relevant_idm = self.zone_validator.select_relevant_inducement(
+            ltf_ob,
+            Direction.BEARISH,
+            inducement_events,
+            bms_breakout_price=ltf_bms.breakout_price,
+        )
 
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
@@ -277,8 +287,8 @@ class ReversalBuilder:
             fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
             fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
             fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
-            inducement_cleared=len(cleared_idms) > 0,
-            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
+            inducement_cleared=relevant_idm is not None,
+            inducement_level=relevant_idm.inducement_level if relevant_idm else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None

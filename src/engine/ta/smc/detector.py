@@ -668,6 +668,13 @@ class SMCDetector:
         if take_profit is None:
             take_profit = htf_choch.breakout_price
 
+        relevant_idm = self.zone_validator.select_relevant_inducement(
+            ob,
+            direction,
+            inducement_events,
+            bms_breakout_price=ltf_bms.breakout_price,
+        )
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -691,9 +698,8 @@ class SMCDetector:
             liquidity_swept=ltf_sweep is not None,
             swept_level=ltf_sweep.swept_level if ltf_sweep else None,
             sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
-            inducement_cleared=len(
-                [idm for idm in inducement_events if idm.cleared]
-            ) > 0,
+            inducement_cleared=relevant_idm is not None,
+            inducement_level=relevant_idm.inducement_level if relevant_idm else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None

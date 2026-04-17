@@ -234,6 +234,67 @@ class ZoneValidator:
         return True
 
     # ------------------------------------------------------------------
+    # Inducement selection (direction + geometric relevance to the OB)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def select_relevant_inducement(
+        ob: OrderBlock,
+        direction: Direction,
+        inducement_events: list[InducementEvent],
+        bms_breakout_price: Optional[float] = None,
+    ) -> Optional[InducementEvent]:
+        """Return the single IDM that is geometrically relevant to ``ob``.
+
+        Per SMC-LIQ-004, the IDM a setup must clear is the internal
+        liquidity resting on the path between the OB and the
+        displacement/BMS that validated the setup:
+
+        - Bullish setups: an SSL (bullish-direction IDM) whose level
+          sits above the OB and below the BMS breakout.  Price must
+          have swept this SSL before rallying to break structure.
+        - Bearish setups: a BSL (bearish-direction IDM) whose level
+          sits below the OB and above the BMS breakout.
+
+        Only inducements that were actually ``cleared`` are considered.
+        Among qualifying candidates the most recently cleared one
+        (by ``cleared_timestamp``) is returned.
+
+        Returns ``None`` when no direction-aligned, geometrically
+        relevant, cleared IDM exists.
+        """
+        candidates: list[InducementEvent] = []
+
+        for idm in inducement_events:
+            if not idm.cleared:
+                continue
+            if idm.direction != direction:
+                continue
+
+            level = idm.inducement_level
+
+            if direction == Direction.BULLISH:
+                if level < ob.lower_bound:
+                    continue
+                if bms_breakout_price is not None and level > bms_breakout_price:
+                    continue
+            else:
+                if level > ob.upper_bound:
+                    continue
+                if bms_breakout_price is not None and level < bms_breakout_price:
+                    continue
+
+            candidates.append(idm)
+
+        if not candidates:
+            return None
+
+        def _cleared_ts(idm: InducementEvent):
+            return idm.cleared_timestamp or idm.inducement_timestamp
+
+        return max(candidates, key=_cleared_ts)
+
+    # ------------------------------------------------------------------
     # Sweep context builder (full liquidity-sweep details for LLM)
     # ------------------------------------------------------------------
 
