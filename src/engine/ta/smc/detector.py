@@ -14,7 +14,7 @@ from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import LiquiditySweep
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
-from engine.ta.models.swing import SwingHigh, SwingLow
+from engine.ta.smc.builders.fib_leg import select_leg_for_choch_bms_rto
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
 from engine.ta.smc.detectors.choch import CHOCHDetector
@@ -69,6 +69,14 @@ class SMCDetector:
     The LLM performs its own scoring with full macro/Wyckoff/cross-TF
     context.  Structural validity (unmitigated OB + zone rules + direction
     alignment) is the real gatekeeper.
+
+    Fibonacci leg ownership (SMC-MIT-003):
+    The SMCDetector does NOT construct or hold a Fibonacci retracement.
+    Per-candidate legs are built inside the builders
+    (ContinuationBuilder, ReversalBuilder, AMDCandidateBuilder) and
+    inside this file's _build_choch_candidate, each time from the
+    candidate's own structural endpoints.  There is deliberately no
+    global/shared HTF leg anywhere in this class.
     """
 
     def __init__(
@@ -225,11 +233,6 @@ class SMCDetector:
         if self.config.enable_amd:
             amd_context = self.amd_detector.detect_amd_context(ltf_sequence)
 
-        retracement = self._create_fibonacci_retracement(
-            htf_swing_highs,
-            htf_swing_lows,
-        )
-
         # -- Also detect FVGs on HTF for cross-timeframe FVG association --
         htf_fvgs = self.fvg_detector.detect_fvgs(htf_sequence)
         all_fvgs = ltf_fvgs + htf_fvgs
@@ -244,7 +247,9 @@ class SMCDetector:
         )
         all_sweeps = ltf_all_sweeps + turtle_soup_long + turtle_soup_short
 
-        # Diagnostic: log all detected structural elements
+        # Diagnostic: log all detected structural elements.  The
+        # per-candidate fib leg is constructed inside the builders;
+        # there is deliberately no run-level retracement.
         self._logger.info(
             "smc_structural_detection_summary",
             extra={
@@ -267,7 +272,7 @@ class SMCDetector:
                 "htf_fvgs": len(htf_fvgs),
                 "inducements": len(all_inducements),
                 "sweeps": len(all_sweeps),
-                "has_retracement": retracement is not None,
+                "per_candidate_fib_leg": True,
                 "has_amd_context": amd_context is not None,
             },
         )
@@ -289,7 +294,6 @@ class SMCDetector:
                     all_fvgs,
                     all_inducements,
                     all_sweeps,
-                    retracement,
                 )
             )
 
@@ -307,7 +311,6 @@ class SMCDetector:
                     ltf_choch_bearish,
                     all_fvgs,
                     all_inducements,
-                    retracement,
                     ltf_swing_highs,
                     ltf_swing_lows,
                 )
@@ -328,7 +331,6 @@ class SMCDetector:
                     all_fvgs,
                     all_inducements,
                     all_sweeps,
-                    retracement,
                     ltf_swing_highs,
                     ltf_swing_lows,
                 )
@@ -360,7 +362,6 @@ class SMCDetector:
                     all_fvgs,
                     all_inducements,
                     all_sweeps,
-                    retracement,
                     ltf_swing_highs,
                     ltf_swing_lows,
                 )
@@ -405,7 +406,6 @@ class SMCDetector:
         ltf_fvgs: list,
         inducement_events: list,
         sweeps: list,
-        retracement: Optional[FibonacciRetracement],
         ltf_swing_highs: list = None,
         ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
@@ -433,10 +433,6 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                # Zone freshness is validated inside _build_choch_candidate
-                # via validate_all_ob_rules() which uses body-threshold
-                # analysis to distinguish retests from true mitigation.
-
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BULLISH, ltf_bms
@@ -453,7 +449,6 @@ class SMCDetector:
                     ob=ltf_ob,
                     ltf_fvgs=ltf_fvgs,
                     inducement_events=inducement_events,
-                    retracement=retracement,
                     direction=Direction.BULLISH,
                     swing_highs=ltf_swing_highs,
                     swing_lows=ltf_swing_lows,
@@ -487,7 +482,6 @@ class SMCDetector:
                             ob=htf_ob,
                             ltf_fvgs=ltf_fvgs,
                             inducement_events=inducement_events,
-                            retracement=retracement,
                             direction=Direction.BULLISH,
                             swing_highs=ltf_swing_highs,
                             swing_lows=ltf_swing_lows,
@@ -517,10 +511,6 @@ class SMCDetector:
                 if not ltf_ob:
                     continue
 
-                # Zone freshness is validated inside _build_choch_candidate
-                # via validate_all_ob_rules() which uses body-threshold
-                # analysis to distinguish retests from true mitigation.
-
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 ltf_sweep = self._find_relevant_sweep(
                     sweeps, Direction.BEARISH, ltf_bms
@@ -536,7 +526,6 @@ class SMCDetector:
                     ob=ltf_ob,
                     ltf_fvgs=ltf_fvgs,
                     inducement_events=inducement_events,
-                    retracement=retracement,
                     direction=Direction.BEARISH,
                     swing_highs=ltf_swing_highs,
                     swing_lows=ltf_swing_lows,
@@ -545,8 +534,6 @@ class SMCDetector:
                     candidates.append(candidate)
 
             # If no LTF BMS yet, build from HTF structure alone.
-            # Freshness/mitigation is enforced inside _build_choch_candidate
-            # via ZoneValidator.validate_all_ob_rules (SMC-OB-004).
             if not ltf_bms_bearish:
                 htf_bms_from_choch = self.bms_detector.detect_bearish_bms(
                     htf_sequence,
@@ -570,7 +557,6 @@ class SMCDetector:
                             ob=htf_ob,
                             ltf_fvgs=ltf_fvgs,
                             inducement_events=inducement_events,
-                            retracement=retracement,
                             direction=Direction.BEARISH,
                             swing_highs=ltf_swing_highs,
                             swing_lows=ltf_swing_lows,
@@ -603,26 +589,33 @@ class SMCDetector:
         ob: "OrderBlock",
         ltf_fvgs: list,
         inducement_events: list,
-        retracement: Optional[FibonacciRetracement],
         direction: Direction,
         swing_highs: list = None,
         swing_lows: list = None,
     ) -> Optional[SMCCandidate]:
         """Build a single CHOCH_BMS_RTO candidate.
 
-        Validates zone rules (unmitigated, has FVG, has liquidity),
-        evaluates LTF confirmation, counts confluences, and constructs
-        the SMCCandidate with the CHOCH_BMS_RTO pattern.
+        Constructs the per-candidate Fibonacci leg in-method from the
+        HTF CHoCH endpoints (broken_level <-> breakout_price,
+        direction-matched).  See smc.builders.fib_leg.
+        select_leg_for_choch_bms_rto and SMC-MIT-003.
         """
         from engine.ta.common.utils.price.math import get_pip_value
-        from engine.ta.models.zone import OrderBlock as OBType
+
+        # Per-candidate Fibonacci leg (SMC-MIT-003).
+        candidate_retracement = select_leg_for_choch_bms_rto(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            htf_choch=htf_choch,
+            is_bullish=(direction == Direction.BULLISH),
+        )
 
         if not self.zone_validator.validate_all_ob_rules(
             ob,
             ltf_fvgs,
             [ltf_sweep] if ltf_sweep else [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -649,7 +642,7 @@ class SMCDetector:
             ltf_sweep=ltf_sweep,
             ob=ob,
             fvgs=ltf_fvgs,
-            retracement=retracement,
+            retracement=candidate_retracement,
             inducement_events=inducement_events,
         )
 
@@ -705,7 +698,9 @@ class SMCDetector:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str_for_candidate(entry_price, retracement),
+            fib_level=self._fib_level_str_for_candidate(
+                entry_price, candidate_retracement,
+            ),
             metadata=self._build_choch_metadata(
                 # pattern_type is redundant with CHOCH_BMS_RTO_* pattern;
                 # htf_choch_direction duplicates the candidate's own
@@ -715,7 +710,7 @@ class SMCDetector:
                     "htf_choch_is_minor": htf_choch.is_minor,
                 },
                 entry_price,
-                retracement,
+                candidate_retracement,
                 sweep=ltf_sweep,
                 ob=ob,
             ),
@@ -730,6 +725,7 @@ class SMCDetector:
                 "confluences": confluences,
                 "ltf_confirmed": ltf_confirmed,
                 "htf_choch_price": htf_choch.breakout_price,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -749,6 +745,9 @@ class SMCDetector:
         """Count confluences for a CHoCH reversal candidate.
 
         Informational metadata for the LLM, never used as a gate.
+        ``retracement`` is the per-candidate CHoCH leg built in
+        ``_build_choch_candidate``; OTE confluence is therefore
+        scored against this candidate's own impulse.
         """
         from engine.ta.common.utils.price.math import get_pip_value
 
@@ -780,7 +779,7 @@ class SMCDetector:
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 8. Fibonacci / OTE confluence
+        # 8. Fibonacci / OTE confluence, per-candidate leg
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2
@@ -873,7 +872,6 @@ class SMCDetector:
         ltf_fvgs: list,
         inducement_events: list,
         sweeps: list,
-        retracement: Optional[FibonacciRetracement],
     ) -> list[SMCCandidate]:
         """Build continuation candidates.
 
@@ -881,6 +879,10 @@ class SMCDetector:
         CHOCH are evaluated when available and stored as metadata.  Their
         absence does NOT block candidate creation because price may not
         have returned to the OB yet.
+
+        The per-candidate Fibonacci leg is built inside the
+        ContinuationBuilder; this method does not construct or pass
+        any global retracement.
         """
         candidates = []
 
@@ -909,7 +911,6 @@ class SMCDetector:
                         htf_ob,
                         ltf_fvgs,
                         inducement_events,
-                        retracement,
                     )
                     if candidate:
                         candidates.append(candidate)
@@ -919,9 +920,6 @@ class SMCDetector:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-
-                # Zone freshness validated inside the builder via
-                # validate_all_ob_rules() body-threshold analysis.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
                 ltf_sweep = self._find_relevant_sweep(
@@ -938,7 +936,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                 )
                 if candidate:
                     candidates.append(candidate)
@@ -967,7 +964,6 @@ class SMCDetector:
                     choch_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                 )
                 if candidate:
                     candidates.append(candidate)
@@ -1008,7 +1004,6 @@ class SMCDetector:
                         htf_ob,
                         ltf_fvgs,
                         inducement_events,
-                        retracement,
                     )
                     if candidate:
                         candidates.append(candidate)
@@ -1017,9 +1012,6 @@ class SMCDetector:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
                     continue
-
-                # Zone freshness validated inside the builder via
-                # validate_all_ob_rules() body-threshold analysis.
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
                 ltf_sweep = self._find_relevant_sweep(
@@ -1036,7 +1028,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                 )
                 if candidate:
                     candidates.append(candidate)
@@ -1065,7 +1056,6 @@ class SMCDetector:
                     choch_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                 )
                 if candidate:
                     candidates.append(candidate)
@@ -1101,7 +1091,6 @@ class SMCDetector:
         ltf_choch_bearish: list,
         ltf_fvgs: list,
         inducement_events: list,
-        retracement: Optional[FibonacciRetracement],
         ltf_swing_highs: list = None,
         ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
@@ -1110,6 +1099,10 @@ class SMCDetector:
         The HTF SMS (failure swing) is the primary structural requirement.
         LTF BMS and CHOCH are evaluated when available.  Their absence
         does NOT block candidate creation.
+
+        The per-candidate Fibonacci leg is built inside the
+        ReversalBuilder; this method does not construct or pass any
+        global retracement.
         """
         candidates = []
 
@@ -1133,7 +1126,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                     swing_highs=ltf_swing_highs,
                 )
                 if candidate:
@@ -1165,7 +1157,6 @@ class SMCDetector:
                         htf_ob,
                         ltf_fvgs,
                         inducement_events,
-                        retracement,
                         swing_highs=ltf_swing_highs,
                     )
                     if candidate:
@@ -1203,7 +1194,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                     swing_lows=ltf_swing_lows,
                 )
                 if candidate:
@@ -1233,7 +1223,6 @@ class SMCDetector:
                         htf_ob,
                         ltf_fvgs,
                         inducement_events,
-                        retracement,
                         swing_lows=ltf_swing_lows,
                     )
                     if candidate:
@@ -1275,6 +1264,10 @@ class SMCDetector:
 
         This prevents the bloat of 100+ stale Turtle Soup candidates per
         timeframe being sent to the LLM.
+
+        The per-candidate Fibonacci leg is built inside
+        ReversalBuilder.build_turtle_soup_* from the sweep and the
+        supplied swing lists.
         """
         candidates = []
 
@@ -1326,10 +1319,16 @@ class SMCDetector:
         ltf_fvgs: list,
         inducement_events: list,
         sweeps: list,
-        retracement: Optional[FibonacciRetracement],
         ltf_swing_highs: list = None,
         ltf_swing_lows: list = None,
     ) -> list[SMCCandidate]:
+        """Build AMD candidates.
+
+        The per-candidate Fibonacci leg is built inside
+        AMDCandidateBuilder from the Asian range and the confirming
+        LTF BMS; this method does not construct or pass any global
+        retracement.
+        """
         candidates = []
 
         if amd_context.distribution_direction == Direction.BULLISH:
@@ -1353,7 +1352,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                     swing_highs=ltf_swing_highs,
                 )
 
@@ -1381,7 +1379,6 @@ class SMCDetector:
                     ltf_ob,
                     ltf_fvgs,
                     inducement_events,
-                    retracement,
                     swing_lows=ltf_swing_lows,
                 )
 
@@ -1393,28 +1390,6 @@ class SMCDetector:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _create_fibonacci_retracement(
-        self,
-        swing_highs: list[SwingHigh],
-        swing_lows: list[SwingLow],
-    ) -> Optional[FibonacciRetracement]:
-        if not swing_highs or not swing_lows:
-            return None
-
-        latest_high = self.swing_analyzer.get_latest_swing_high(swing_highs)
-        latest_low = self.swing_analyzer.get_latest_swing_low(swing_lows)
-
-        if not latest_high or not latest_low:
-            return None
-
-        is_bullish = latest_low.timestamp > latest_high.timestamp
-
-        return self.fibonacci_analyzer.create_retracement(
-            latest_high,
-            latest_low,
-            is_bullish,
-        )
 
     def _find_relevant_sweep(
         self,
