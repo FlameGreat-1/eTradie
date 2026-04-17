@@ -153,14 +153,19 @@ class ContinuationBuilder:
             ),
         )
 
+        # take_profit is Optional[float] on SMCCandidate by design.  When
+        # no swing clears the 1:1 R:R floor we emit None rather than
+        # substituting htf_bms.breakout_price, which has no directional
+        # guarantee relative to the current entry and produced inverted
+        # TPs (bullish candidate, TP below entry) visible in
+        # diagnostic_results.json.  Downstream systems (LLM, execution)
+        # handle a null TP explicitly; we never fabricate one.
         take_profit = self._find_nearest_bsl_target(
             entry_price,
             self._get_swing_highs_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
         )
-        if take_profit is None:
-            take_profit = htf_bms.breakout_price
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 
@@ -315,14 +320,16 @@ class ContinuationBuilder:
             ),
         )
 
+        # take_profit is Optional[float] on SMCCandidate by design.  When
+        # no swing clears the 1:1 R:R floor we emit None rather than
+        # substituting htf_bms.breakout_price; see the bullish variant
+        # above for the full rationale.
         take_profit = self._find_nearest_ssl_target(
             entry_price,
             self._get_swing_lows_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
         )
-        if take_profit is None:
-            take_profit = htf_bms.breakout_price
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 

@@ -159,18 +159,19 @@ class AMDCandidateBuilder:
             protective_level=asian_range.low if asian_range else None,
         )
 
-        if asian_range:
-            take_profit = self._find_nearest_bsl_target(
-                entry_price, swing_highs or [], pip_val,
-                stop_loss=stop_loss,
-            )
-            if take_profit is None:
-                take_profit = asian_range.high
-        else:
-            take_profit = self._find_nearest_bsl_target(
-                entry_price, swing_highs or [], pip_val,
-                stop_loss=stop_loss,
-            )
+        # take_profit is Optional[float] on SMCCandidate by design.  The
+        # Asian-range extreme was previously used as a fallback, but it
+        # has no directional guarantee relative to the current entry
+        # (e.g. an Asian range formed above the current OB makes
+        # asian_range.high a valid bullish TP, below it makes it an
+        # inverted target).  Rather than guess, we return None and let
+        # downstream (LLM, execution) decide.  The asian_range branch is
+        # kept to preserve the existing docstring contract even though
+        # both branches now evaluate identically.
+        take_profit = self._find_nearest_bsl_target(
+            entry_price, swing_highs or [], pip_val,
+            stop_loss=stop_loss,
+        )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 
@@ -339,18 +340,13 @@ class AMDCandidateBuilder:
             protective_level=asian_range.high if asian_range else None,
         )
 
-        if asian_range:
-            take_profit = self._find_nearest_ssl_target(
-                entry_price, swing_lows or [], pip_val,
-                stop_loss=stop_loss,
-            )
-            if take_profit is None:
-                take_profit = asian_range.low
-        else:
-            take_profit = self._find_nearest_ssl_target(
-                entry_price, swing_lows or [], pip_val,
-                stop_loss=stop_loss,
-            )
+        # take_profit is Optional[float] on SMCCandidate by design.  See
+        # the bullish variant above for the full rationale on why we do
+        # not substitute asian_range.low as a fallback.
+        take_profit = self._find_nearest_ssl_target(
+            entry_price, swing_lows or [], pip_val,
+            stop_loss=stop_loss,
+        )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
 

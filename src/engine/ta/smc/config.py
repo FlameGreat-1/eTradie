@@ -108,6 +108,24 @@ class SMCConfig(BaseSettings):
     # Maximum candle-index distance for sweep-to-BMS association.
     sweep_max_candle_distance: int = Field(default=10, ge=3, le=30)
 
+    # --- SMS-OB temporal coherence ---
+    # Maximum number of HTF candles between the HTF SMS event and the
+    # candidate OB before the pairing is considered structurally
+    # incoherent.  An SMS from many cycles ago paired with a fresh OB
+    # anchors the stop-loss at a failure level that has no bearing on
+    # the current impulse, producing absurd SL distances (thousands of
+    # points) and null TPs downstream.
+    #
+    # Enforced by SMCDetector._build_reversal_candidates via timestamp
+    # proximity, with the window derived from TIMEFRAME_MINUTES of the
+    # HTF so the same value works across H1/H4/D1/W1 without retuning.
+    #
+    # Default 50 HTF candles: D1 ~= 10 weeks, H4 ~= 8 days, H1 ~= 2
+    # days -- wider than any legitimate SMS->RTO window on these
+    # timeframes, tight enough to reject the stale pairings seen in
+    # diagnostic_results.json.  Bounded 10..200 for safety.
+    sms_max_ob_candle_distance: int = Field(default=50, ge=10, le=200)
+
     # --- Take-profit R:R floor ---
     # Minimum reward-to-risk multiple a candidate swing must satisfy
     # before it can be chosen as a take-profit target.  Applied

@@ -54,10 +54,14 @@ class FibonacciRetracement(FrozenModel):
                 details={"level": level},
             )
         
+        # SMC convention: level 0.618 means price has retraced 61.8% away
+        # from the impulse's terminal extreme (swing_high for bullish,
+        # swing_low for bearish) toward the origin.  See OTE_LEVELS in
+        # engine.ta.constants for the documented contract.
         if self.is_bullish:
-            return self.swing_low + (self.range_size * fib_value)
-        else:
             return self.swing_high - (self.range_size * fib_value)
+        else:
+            return self.swing_low + (self.range_size * fib_value)
     
     def get_all_levels(self) -> dict[FibonacciLevel, float]:
         return {
