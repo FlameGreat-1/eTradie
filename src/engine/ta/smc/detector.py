@@ -652,11 +652,21 @@ class SMCDetector:
         if direction == Direction.BULLISH:
             stop_loss = ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
             pattern = CandidatePattern.CHOCH_BMS_RTO_BULLISH
-            take_profit = self._find_bsl_target(entry_price, swing_highs or [])
+            take_profit = self._find_bsl_target(
+                entry_price,
+                swing_highs or [],
+                min_reward=abs(entry_price - stop_loss)
+                * self.config.min_take_profit_rr,
+            )
         else:
             stop_loss = ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
             pattern = CandidatePattern.CHOCH_BMS_RTO_BEARISH
-            take_profit = self._find_ssl_target(entry_price, swing_lows or [])
+            take_profit = self._find_ssl_target(
+                entry_price,
+                swing_lows or [],
+                min_reward=abs(entry_price - stop_loss)
+                * self.config.min_take_profit_rr,
+            )
 
         if take_profit is None:
             take_profit = htf_choch.breakout_price
@@ -841,18 +851,42 @@ class SMCDetector:
     def _find_bsl_target(
         entry_price: float,
         swing_highs: list,
+        min_reward: float = 0.0,
     ) -> Optional[float]:
-        """Find the nearest BSL (swing high) above entry."""
-        candidates = [sh.price for sh in swing_highs if sh.price > entry_price]
+        """Find the nearest BSL (swing high) above entry.
+
+        Only swings whose distance from ``entry_price`` is at least
+        ``min_reward`` are considered.  The caller is expected to
+        compute ``min_reward`` as
+        ``abs(entry_price - stop_loss) * config.min_take_profit_rr``;
+        when ``min_reward`` is 0 (default) the filter is inactive.
+        """
+        candidates = [
+            sh.price
+            for sh in swing_highs
+            if sh.price > entry_price
+            and (sh.price - entry_price) >= min_reward
+        ]
         return min(candidates) if candidates else None
 
     @staticmethod
     def _find_ssl_target(
         entry_price: float,
         swing_lows: list,
+        min_reward: float = 0.0,
     ) -> Optional[float]:
-        """Find the nearest SSL (swing low) below entry."""
-        candidates = [sl.price for sl in swing_lows if sl.price < entry_price]
+        """Find the nearest SSL (swing low) below entry.
+
+        Only swings whose distance from ``entry_price`` is at least
+        ``min_reward`` are considered.  See ``_find_bsl_target`` for
+        the convention.
+        """
+        candidates = [
+            sl.price
+            for sl in swing_lows
+            if sl.price < entry_price
+            and (entry_price - sl.price) >= min_reward
+        ]
         return max(candidates) if candidates else None
 
     # ------------------------------------------------------------------

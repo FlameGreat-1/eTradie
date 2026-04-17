@@ -105,8 +105,45 @@ class SMCCandidate(FrozenModel):
         Stable across re-analyses of the same setup. Used by the
         Gateway's RunConfirmationPulse to find the matching candidate
         when the Execution watcher requests LTF confirmation.
+
+        The ID has two parts joined by ``_``:
+
+        1. A human-readable prefix
+           ``{symbol}_{pattern}_{direction}_{round(entry_price, 4)}``
+           preserved verbatim from the original contract so any
+           prefix-matching consumer continues to work.
+
+        2. An 8-char SHA-256 fingerprint of the candidate's
+           originating source-event timestamps (bms, sweep, choch,
+           sms, order_block).  This disambiguates candidates that
+           share an OB midpoint but were built from different
+           structural source triples -- a situation visible in
+           diagnostic_results.json where multiple BMS events pair
+           with the same OB.
+
+        Same inputs -> same ID across runs.  Different source
+        triples -> different IDs.
         """
-        return f"{self.symbol}_{self.pattern}_{self.direction}_{round(self.entry_price, 4)}"
+        import hashlib
+
+        def _ts(value) -> str:
+            return value.isoformat() if value is not None else "-"
+
+        source_signature = "|".join([
+            _ts(self.bms_timestamp),
+            _ts(self.sweep_timestamp),
+            _ts(self.choch_timestamp),
+            _ts(self.sms_timestamp),
+            _ts(self.order_block_timestamp),
+        ])
+        fingerprint = hashlib.sha256(
+            source_signature.encode("utf-8")
+        ).hexdigest()[:8]
+
+        return (
+            f"{self.symbol}_{self.pattern}_{self.direction}_"
+            f"{round(self.entry_price, 4)}_{fingerprint}"
+        )
     
     bms_detected: bool = Field(default=False)
     bms_price: Optional[float] = Field(default=None, gt=0)
@@ -138,7 +175,22 @@ class SMCCandidate(FrozenModel):
     ltf_confirmation: bool = Field(default=False)
     ltf_confirmation_timestamp: Optional[datetime] = None
     
-    displacement_pips: Optional[float] = Field(default=None, ge=0)
+    displacement_pips: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Displacement (in pips) of the BMS event that this candidate "
+            "was built on, i.e. the BMS identified by ``bms_timestamp`` "
+            "and ``bms_price`` on this same record.  It is NOT a property "
+            "of the candidate itself.  When multiple candidates share the "
+            "same ``bms_timestamp`` (e.g. different OBs pairing with the "
+            "same run-terminal HTF BMS), they will report identical "
+            "``displacement_pips`` by construction -- that is correct, "
+            "not a duplication bug.  Consumers that need a candidate-"
+            "scoped displacement metric should combine this field with "
+            "``bms_timestamp`` to attribute it unambiguously."
+        ),
+    )
     
     fib_level: Optional[str] = None
     

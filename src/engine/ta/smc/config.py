@@ -84,6 +84,30 @@ class SMCConfig(BaseSettings):
     # Maximum candle-index distance for sweep-to-BMS association.
     sweep_max_candle_distance: int = Field(default=10, ge=3, le=30)
 
+    # --- Take-profit R:R floor ---
+    # Minimum reward-to-risk multiple a candidate swing must satisfy
+    # before it can be chosen as a take-profit target.  Applied
+    # uniformly to every TP selector in the builder and detector
+    # layers:
+    #
+    #   abs(swing - entry) >= sl_distance * min_take_profit_rr
+    #
+    # 1.0 is the mathematical breakeven floor (reward == risk).  It
+    # is deliberately the default rather than 2.0 or 3.0 because the
+    # engine is a *candidate* generator feeding a discretionary LLM;
+    # the LLM and execution layer make the final R:R judgement with
+    # full macro/Wyckoff context.  We only filter out mathematically
+    # impossible R:R here, not sub-optimal R:R.
+    #
+    # Expressed as a multiple of SL distance (not an absolute pip
+    # threshold) so it scales correctly across FX / metals / indices
+    # / crypto without per-symbol tuning.
+    #
+    # Bounded 0.5-5.0: 0.5 permits scalping-style overrides, 5.0 is
+    # a hard ceiling so a misconfigured env var cannot produce a
+    # floor that no swing can ever clear.
+    min_take_profit_rr: float = Field(default=1.0, ge=0.5, le=5.0)
+
     # --- Zone freshness / mitigation settings ---
     #
     # The mitigation rule is enforced directly in
