@@ -127,6 +127,10 @@ class ReversalBuilder:
             entry_price, swing_highs or [], pip_val,
         )
 
+        associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
+
+        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -150,8 +154,11 @@ class ReversalBuilder:
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
-            > 0,
+            fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
+            fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
+            fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
+            inducement_cleared=len(cleared_idms) > 0,
+            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
@@ -238,6 +245,10 @@ class ReversalBuilder:
             entry_price, swing_lows or [], pip_val,
         )
 
+        associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
+
+        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -255,14 +266,17 @@ class ReversalBuilder:
             bms_detected=True,
             bms_price=ltf_bms.breakout_price,
             bms_timestamp=ltf_bms.timestamp,
-            choch_detected=ltf_choch is not None,
+            choch_detected=True,
             choch_price=ltf_choch.breakout_price if ltf_choch else None,
             choch_timestamp=ltf_choch.timestamp if ltf_choch else None,
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
-            > 0,
+            fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
+            fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
+            fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
+            inducement_cleared=len(cleared_idms) > 0,
+            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None

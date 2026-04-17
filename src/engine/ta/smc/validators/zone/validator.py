@@ -76,6 +76,14 @@ class ZoneValidator:
         if not self.config.require_fvg_with_ob:
             return True
 
+        return self.get_associated_fvg(ob, fvgs) is not None
+
+    def get_associated_fvg(
+        self,
+        ob: OrderBlock,
+        fvgs: list[FairValueGap],
+    ) -> Optional[FairValueGap]:
+        """Returns the specific FVG associated with the given Order Block."""
         max_distance = self.config.fvg_max_candle_distance
 
         for fvg in fvgs:
@@ -92,19 +100,17 @@ class ZoneValidator:
                 ob.lower_bound, ob.upper_bound,
                 fvg.lower_bound, fvg.upper_bound,
             ):
-                return True
+                return fvg
 
-            # 3b. FVG is adjacent to the OB (displacement leg)
-            #     Bullish OB: FVG sits above the OB (price displaced up)
-            #     Bearish OB: FVG sits below the OB (price displaced down)
+            # 3b. FVG is adjacent to the OB
             if ob.direction == Direction.BULLISH:
                 if fvg.lower_bound >= ob.lower_bound:
-                    return True
+                    return fvg
             else:
                 if fvg.upper_bound <= ob.upper_bound:
-                    return True
+                    return fvg
 
-        return False
+        return None
 
     # ------------------------------------------------------------------
     # Rule 3: Liquidity / inducement present
@@ -231,80 +237,31 @@ class ZoneValidator:
         ob: OrderBlock,
         sequence: CandleSequence,
     ) -> bool:
-        """Validate zone is unmitigated (fresh) using body-threshold analysis.
+        """Validate zone is unmitigated (fresh) based on structural breaks.
 
-        Distinguishes between:
-        - **Retest / RTO**: price wicks into the zone but the candle
-          body closes outside.  This IS the entry opportunity.
-        - **True mitigation**: a candle's body closes decisively
-          through the zone (configurable threshold, default 50% of
-          body inside the zone).  The zone is consumed.
-
-        NOTE: We intentionally do NOT short-circuit on ``ob.mitigated``.
-        The ``ob.mitigated`` flag is set by ``MitigationDetector`` using
-        a wick-touch definition (any wick into zone = mitigated).  That
-        flag is correct for snapshot/informational purposes so the LLM
-        knows what price has touched.  But for candidate building, we
-        must distinguish retests from true mitigation using body-close
-        analysis.  A wick retest (RTO) is the entry opportunity, not
-        zone invalidation.
+        An Order Block remains structurally valid (fresh for an entry) until price
+        completely breaks it. A deep tap (50-90%) into the OB is normal mitigation
+        behavior before price continues in the original direction, and is precisely
+        what triggers our entry.
+        
+        The OB is only invalidated (destroyed, potentially becoming a Breaker Block)
+        if a candle CLOSES completely beyond its extreme boundary. Any past candle
+        that only severely wicked into it is considered the RTO leg itself.
         """
         if ob.candle_index >= len(sequence.candles) - 1:
             return True
 
-        body_threshold = self.config.zone_mitigation_body_threshold / 100.0
-
         for i in range(ob.candle_index + 1, len(sequence.candles)):
             candle = sequence.candles[i]
-            body_top = max(candle.open, candle.close)
-            body_bottom = min(candle.open, candle.close)
-            body_size = body_top - body_bottom
-
-            if body_size == 0:
-                # Doji candle — no body, cannot mitigate
-                continue
 
             if ob.direction == Direction.BULLISH:
-                # Bullish OB: mitigation = bearish body closes through
-                # the zone from above (price falls through the demand).
-                # A wick below is a retest, not mitigation.
-                if body_bottom > ob.upper_bound:
-                    # Body entirely above the zone — no interaction
-                    continue
-                if body_top < ob.lower_bound:
-                    # Body entirely below the zone — zone is broken
-                    return False
-
-                # Calculate how much of the body is inside the zone
-                overlap_top = min(body_top, ob.upper_bound)
-                overlap_bottom = max(body_bottom, ob.lower_bound)
-                overlap = max(0.0, overlap_top - overlap_bottom)
-                body_inside_pct = overlap / body_size
-
-                if body_inside_pct >= body_threshold:
+                # Bullish OB (demand zone): Invalidated if price CLOSES completely below the low.
+                if candle.close < ob.lower_bound:
                     return False
 
             else:
-                # Bearish OB (supply zone): sits ABOVE current price.
-                # Mitigation = bullish body closes through the zone
-                # from below (price rises through the supply).
-                # A wick into the zone from below is a retest (RTO).
-                if body_top < ob.lower_bound:
-                    # Body entirely below the zone - no interaction
-                    continue
-                if body_bottom > ob.upper_bound:
-                    # Body entirely above the zone - no interaction
-                    # (price has moved past the zone without body
-                    # overlap, which is normal before RTO)
-                    continue
-
-                # Body overlaps the zone - check if it's true mitigation
-                overlap_top = min(body_top, ob.upper_bound)
-                overlap_bottom = max(body_bottom, ob.lower_bound)
-                overlap = max(0.0, overlap_top - overlap_bottom)
-                body_inside_pct = overlap / body_size
-
-                if body_inside_pct >= body_threshold:
+                # Bearish OB (supply zone): Invalidated if price CLOSES completely above the high.
+                if candle.close > ob.upper_bound:
                     return False
 
         return True

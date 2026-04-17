@@ -130,6 +130,10 @@ class ContinuationBuilder:
         if take_profit is None:
             take_profit = htf_bms.breakout_price
 
+        associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
+
+        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -150,11 +154,14 @@ class ContinuationBuilder:
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
+            fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
+            fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
+            fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
             liquidity_swept=ltf_sweep is not None,
             swept_level=ltf_sweep.swept_level if ltf_sweep else None,
             sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
-            > 0,
+            inducement_cleared=len(cleared_idms) > 0,
+            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
@@ -253,6 +260,10 @@ class ContinuationBuilder:
         if take_profit is None:
             take_profit = htf_bms.breakout_price
 
+        associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
+
+        cleared_idms = [idm for idm in inducement_events if idm.cleared]
+
         candidate = SMCCandidate(
             symbol=ltf_sequence.symbol,
             timeframe=ltf_sequence.timeframe,
@@ -273,11 +284,14 @@ class ContinuationBuilder:
             order_block_upper=ltf_ob.upper_bound,
             order_block_lower=ltf_ob.lower_bound,
             order_block_timestamp=ltf_ob.timestamp,
+            fvg_upper=associated_fvg.upper_bound if associated_fvg else None,
+            fvg_lower=associated_fvg.lower_bound if associated_fvg else None,
+            fvg_timestamp=associated_fvg.timestamp if associated_fvg else None,
             liquidity_swept=ltf_sweep is not None,
             swept_level=ltf_sweep.swept_level if ltf_sweep else None,
             sweep_timestamp=ltf_sweep.timestamp if ltf_sweep else None,
-            inducement_cleared=len([idm for idm in inducement_events if idm.cleared])
-            > 0,
+            inducement_cleared=len(cleared_idms) > 0,
+            inducement_level=cleared_idms[-1].inducement_level if cleared_idms else None,
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None

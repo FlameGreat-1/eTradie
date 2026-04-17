@@ -102,17 +102,19 @@ class CandleAnalyzer:
         if candle1.symbol != candle2.symbol or candle2.symbol != candle3.symbol:
             return None
 
-        if candle2.low > candle1.high and candle2.low > candle3.high:
-            gap_low = max(candle1.high, candle3.high)
-            gap_high = candle2.low
-
+        # Bullish FVG: In a bullish displacement, only buyers are active.
+        # The gap is between candle1's high (bottom of the gap) and candle3's low (top of the gap).
+        if candle3.low > candle1.high:
+            gap_low = candle1.high
+            gap_high = candle3.low
             if gap_high > gap_low:
                 return (gap_low, gap_high)
 
-        if candle2.high < candle1.low and candle2.high < candle3.low:
-            gap_high = min(candle1.low, candle3.low)
-            gap_low = candle2.high
-
+        # Bearish FVG: In a bearish displacement, only sellers are active.
+        # The gap is between candle3's high (bottom of the gap) and candle1's low (top of the gap).
+        if candle1.low > candle3.high:
+            gap_low = candle3.high
+            gap_high = candle1.low
             if gap_high > gap_low:
                 return (gap_low, gap_high)
 
