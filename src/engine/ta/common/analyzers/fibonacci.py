@@ -53,10 +53,14 @@ class FibonacciAnalyzer:
 
         range_size = swing_high - swing_low
 
+        # SMC convention: level 0.618 means price has retraced 61.8% away
+        # from the impulse's terminal extreme (swing_high for bullish,
+        # swing_low for bearish) toward the origin.  Mirror of
+        # FibonacciRetracement.get_level_price -- keep both in lockstep.
         if is_bullish:
-            return swing_low + (range_size * fib_value)
-        else:
             return swing_high - (range_size * fib_value)
+        else:
+            return swing_low + (range_size * fib_value)
 
     def get_ote_zone(
         self,
