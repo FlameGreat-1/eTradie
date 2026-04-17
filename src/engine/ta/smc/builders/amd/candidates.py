@@ -11,6 +11,7 @@ from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import LiquiditySweep, InducementEvent
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
 from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.smc.builders.fib_leg import select_leg_for_amd
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.amd import AMDContext, AMDPhase
 from engine.ta.smc.validators.zone.validator import ZoneValidator
@@ -32,6 +33,21 @@ class AMDCandidateBuilder:
     - Simple RTO to Bullish/Bearish OB
     - SH + BMS + RTO
     - SMS + BMS + RTO
+
+    Fibonacci leg (SMC-MIT-003 / Universal Rule 6):
+    - The per-candidate leg runs from the Asian-range extreme on the
+      manipulation side to the distribution BMS breakout close:
+          Bullish: asian_range.low  -> ltf_bms.breakout_price
+          Bearish: ltf_bms.breakout_price -> asian_range.high
+    - Built via ``smc.builders.fib_leg.select_leg_for_amd``.
+    - The ``retracement`` argument on the public methods is a
+      deprecated passthrough retained only so SMCDetector can keep
+      calling the builder during the staged rollout.  It is NOT
+      consumed.
+    - No fallback: when ``amd_context.asian_range`` is None the
+      per-candidate leg is None and the candidate is emitted with
+      fib_level=None and no fib_context in metadata.  We never use a
+      global HTF leg.
 
     LTF confirmations (CHOCH) are evaluated when available and stored
     as metadata.  Their absence does NOT block candidate creation.
@@ -61,9 +77,18 @@ class AMDCandidateBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_highs: Optional[list[SwingHigh]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build an AMD_BULLISH candidate.
+
+        ``retracement`` is a deprecated passthrough and is ignored.
+        The true Fibonacci leg is built inline from
+        ``amd_context.asian_range.low`` and ``ltf_bms.breakout_price``
+        via ``select_leg_for_amd``.
+        """
+        del retracement  # intentionally unused; see docstring
+
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
                 "amd_not_in_distribution_phase",
@@ -83,12 +108,25 @@ class AMDCandidateBuilder:
         if ltf_ob.direction != Direction.BULLISH:
             return None
 
+        # Per-candidate Fibonacci leg (SMC-MIT-003).
+        asian_range = amd_context.asian_range
+        candidate_retracement = select_leg_for_amd(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            asian_range_high=asian_range.high if asian_range else None,
+            asian_range_low=asian_range.low if asian_range else None,
+            asian_range_start=asian_range.start_time if asian_range else None,
+            asian_range_end=asian_range.end_time if asian_range else None,
+            ltf_bms=ltf_bms,
+            is_bullish=True,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [ltf_sweep] if ltf_sweep else [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -117,7 +155,7 @@ class AMDCandidateBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -125,12 +163,12 @@ class AMDCandidateBuilder:
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.lower_bound - (self.config.ob_sl_buffer_pips * pip_val)
 
-        if amd_context.asian_range:
+        if asian_range:
             take_profit = self._find_nearest_bsl_target(
                 entry_price, swing_highs or [], pip_val,
             )
             if take_profit is None:
-                take_profit = amd_context.asian_range.high
+                take_profit = asian_range.high
         else:
             take_profit = self._find_nearest_bsl_target(
                 entry_price, swing_highs or [], pip_val,
@@ -178,7 +216,7 @@ class AMDCandidateBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             session_context="AMD_DISTRIBUTION",
             metadata=self._build_metadata(
                 # pattern_type / amd_phase / manipulation_direction are
@@ -187,7 +225,7 @@ class AMDCandidateBuilder:
                 # above, so we do not duplicate them here.
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
                 sweep=ltf_sweep,
                 ob=ltf_ob,
             ),
@@ -201,6 +239,7 @@ class AMDCandidateBuilder:
                 "confluences": confluences,
                 "amd_phase": amd_context.phase,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -217,9 +256,18 @@ class AMDCandidateBuilder:
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: Optional[FibonacciRetracement] = None,  # deprecated passthrough
         swing_lows: Optional[list[SwingLow]] = None,
     ) -> Optional[SMCCandidate]:
+        """Build an AMD_BEARISH candidate.
+
+        ``retracement`` is a deprecated passthrough and is ignored.
+        The true Fibonacci leg is built inline from
+        ``amd_context.asian_range.high`` and ``ltf_bms.breakout_price``
+        via ``select_leg_for_amd``.
+        """
+        del retracement  # intentionally unused; see docstring
+
         if amd_context.phase != AMDPhase.DISTRIBUTION:
             self._logger.debug(
                 "amd_not_in_distribution_phase",
@@ -239,12 +287,24 @@ class AMDCandidateBuilder:
         if ltf_ob.direction != Direction.BEARISH:
             return None
 
+        asian_range = amd_context.asian_range
+        candidate_retracement = select_leg_for_amd(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            asian_range_high=asian_range.high if asian_range else None,
+            asian_range_low=asian_range.low if asian_range else None,
+            asian_range_start=asian_range.start_time if asian_range else None,
+            asian_range_end=asian_range.end_time if asian_range else None,
+            ltf_bms=ltf_bms,
+            is_bullish=False,
+        )
+
         if not self.zone_validator.validate_all_ob_rules(
             ltf_ob,
             ltf_fvgs,
             [ltf_sweep] if ltf_sweep else [],
             inducement_events,
-            retracement,
+            candidate_retracement,
             ltf_sequence,
             [],
         ):
@@ -273,7 +333,7 @@ class AMDCandidateBuilder:
             ltf_choch,
             ltf_ob,
             ltf_fvgs,
-            retracement,
+            candidate_retracement,
             inducement_events,
         )
 
@@ -281,12 +341,12 @@ class AMDCandidateBuilder:
         entry_price = ltf_ob.midpoint
         stop_loss = ltf_ob.upper_bound + (self.config.ob_sl_buffer_pips * pip_val)
 
-        if amd_context.asian_range:
+        if asian_range:
             take_profit = self._find_nearest_ssl_target(
                 entry_price, swing_lows or [], pip_val,
             )
             if take_profit is None:
-                take_profit = amd_context.asian_range.low
+                take_profit = asian_range.low
         else:
             take_profit = self._find_nearest_ssl_target(
                 entry_price, swing_lows or [], pip_val,
@@ -334,7 +394,7 @@ class AMDCandidateBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=self._fib_level_str(entry_price, retracement),
+            fib_level=self._fib_level_str(entry_price, candidate_retracement),
             session_context="AMD_DISTRIBUTION",
             metadata=self._build_metadata(
                 # pattern_type / amd_phase / manipulation_direction are
@@ -343,7 +403,7 @@ class AMDCandidateBuilder:
                 # above, so we do not duplicate them here.
                 {"confluences": confluences},
                 entry_price,
-                retracement,
+                candidate_retracement,
                 sweep=ltf_sweep,
                 ob=ltf_ob,
             ),
@@ -357,6 +417,7 @@ class AMDCandidateBuilder:
                 "confluences": confluences,
                 "amd_phase": amd_context.phase,
                 "ltf_confirmed": ltf_confirmed,
+                "has_per_candidate_fib_leg": candidate_retracement is not None,
             },
         )
 
@@ -373,7 +434,12 @@ class AMDCandidateBuilder:
         retracement: Optional[FibonacciRetracement],
         inducement_events: list[InducementEvent],
     ) -> int:
-        """Count all confluences for an AMD candidate."""
+        """Count all confluences for an AMD candidate.
+
+        ``retracement`` here is the per-candidate leg built in the
+        corresponding build_* method; OTE confluence is scored against
+        the candidate's own impulse, never against a global leg.
+        """
         confluences = 0
 
         # 1. AMD context (accumulation + manipulation confirmed)
@@ -394,7 +460,7 @@ class AMDCandidateBuilder:
         if any(fvg.direction == ob.direction for fvg in fvgs):
             confluences += 1
 
-        # 6. Fibonacci / OTE confluence (0-3 points)
+        # 6. Fibonacci / OTE confluence (0-3 points), per-candidate leg
         fib_score = self.zone_validator.score_ob_fib_confluence(ob, retracement)
         if fib_score >= 3:
             confluences += 2  # OTE pocket = strong confluence
@@ -444,7 +510,9 @@ class AMDCandidateBuilder:
     ) -> Optional[str]:
         """Return the exact retracement percentage the entry price falls on,
         formatted to 3 decimals.  Returns None when no retracement is
-        available or the price falls outside the swing leg."""
+        available or the price falls outside the swing leg.  ``retracement``
+        is the per-candidate leg built inline in the build_* methods.
+        """
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
             return None
@@ -458,7 +526,14 @@ class AMDCandidateBuilder:
         sweep: Optional[LiquiditySweep] = None,
         ob: Optional[OrderBlock] = None,
     ) -> dict:
-        """Attach fib_context and sweep_context to the metadata dict."""
+        """Attach fib_context and sweep_context to the metadata dict.
+
+        ``fib_context`` is the structured Fibonacci context from
+        ``ZoneValidator.build_fib_context`` measured against the
+        **per-candidate** leg (see SMC-MIT-003).  When the
+        per-candidate leg is None (e.g. missing Asian range), the
+        field is simply omitted — no fabricated value.
+        """
         metadata = dict(base)
 
         fib_context = self.zone_validator.build_fib_context(price, retracement)
