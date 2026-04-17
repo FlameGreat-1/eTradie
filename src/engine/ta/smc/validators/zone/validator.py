@@ -338,7 +338,15 @@ class ZoneValidator:
         if sweep is None:
             return None
 
-        is_turtle_soup = bool(
+        # ``sweep_matches_turtle_soup_shape`` flags sweeps whose geometry
+        # matches the Turtle Soup pattern's sweep criterion (closed back
+        # inside the range with sufficient magnitude).  It is a property
+        # of the sweep, NOT an identity claim about the candidate: an
+        # SH_BMS_RTO setup backed by a Turtle-Soup-shaped sweep is a
+        # genuine confluence booster, but the candidate's pattern is
+        # still SH_BMS_RTO (the top-level ``pattern`` column).  The
+        # previous field name ``is_turtle_soup`` conflated the two.
+        sweep_matches_turtle_soup_shape = bool(
             sweep.closed_back_inside
             and sweep.sweep_pips >= self.config.turtle_soup_min_pips
         )
@@ -354,7 +362,7 @@ class ZoneValidator:
             "sweep_pips": round(sweep.sweep_pips, 2),
             "closed_back_inside": sweep.closed_back_inside,
             "is_major_sweep": sweep.is_major_sweep,
-            "is_turtle_soup": is_turtle_soup,
+            "sweep_matches_turtle_soup_shape": sweep_matches_turtle_soup_shape,
         }
 
     # ------------------------------------------------------------------
