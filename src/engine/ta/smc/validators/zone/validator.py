@@ -3,7 +3,12 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, PriceZone
+from engine.ta.constants import (
+    Direction,
+    FIBONACCI_VALUES,
+    FibonacciLevel,
+    PriceZone,
+)
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import InducementEvent, LiquiditySweep
@@ -227,6 +232,97 @@ class ZoneValidator:
         """
         # Always pass — Fib alignment is a confluence, not a gate.
         return True
+
+    # ------------------------------------------------------------------
+    # Fibonacci context builder (exact percentage + level + zone)
+    # ------------------------------------------------------------------
+
+    def build_fib_context(
+        self,
+        price: float,
+        retracement: Optional[FibonacciRetracement],
+    ) -> Optional[dict]:
+        """Build precise Fibonacci context for a candidate entry price.
+
+        Returns a structured dict containing:
+
+        - ``percentage``: the exact retracement percentage in [0, 1]
+          that the entry price falls on, measured along the swing leg
+          (swing_low → swing_high for bullish, swing_high → swing_low
+          for bearish).  Rounded to 4 decimals.
+        - ``percentage_str``: the same value formatted to 3 decimals as
+          a string, suitable for SMCCandidate.fib_level which is typed
+          Optional[str].
+        - ``zone``: the PriceZone (PREMIUM / EQUILIBRIUM / DISCOUNT)
+          the entry sits in, per SMC-MIT-003.
+        - ``is_in_ote``: True if the entry is within the configured
+          pip tolerance of the 61.8%–78.6% OTE pocket.
+        - ``nearest_level_name``: the closest named Fibonacci level
+          (e.g. ``"0.618"``) to the entry.
+        - ``nearest_level_price``: the exact price of that nearest
+          level on this retracement.
+        - ``swing_high`` / ``swing_low``: the retracement bounds.
+        - ``swing_high_timestamp`` / ``swing_low_timestamp``: ISO-8601
+          timestamps of those swings.
+        - ``retracement_direction``: ``"BULLISH"`` if the leg is
+          low→high (buys), ``"BEARISH"`` if high→low (sells).
+
+        Returns ``None`` if ``retracement`` is ``None`` or the range is
+        degenerate (swing_high == swing_low, which the model prevents
+        but we guard defensively).
+        """
+        if retracement is None:
+            return None
+
+        range_size = retracement.swing_high - retracement.swing_low
+        if range_size <= 0:
+            return None
+
+        if retracement.is_bullish:
+            # Buys: 0% at the swing low, 100% at the swing high.
+            # A retracement at the OB entry measures how far price has
+            # pulled back from the swing high toward the swing low.
+            percentage = (retracement.swing_high - price) / range_size
+        else:
+            # Sells: 0% at the swing high, 100% at the swing low.
+            percentage = (price - retracement.swing_low) / range_size
+
+        zone = self.fibonacci_analyzer.get_zone_for_price(price, retracement)
+        is_in_ote = self.fibonacci_analyzer.is_at_ote(
+            price,
+            retracement,
+            tolerance_pips=self.config.fibonacci_tolerance_pips,
+        )
+
+        # Find the nearest named Fibonacci level by value distance.
+        nearest_level = min(
+            FIBONACCI_VALUES.items(),
+            key=lambda kv: abs(percentage - kv[1]),
+        )
+        nearest_level_enum: FibonacciLevel = nearest_level[0]
+        nearest_level_value: float = nearest_level[1]
+        nearest_level_price = retracement.get_level_price(nearest_level_enum)
+
+        percentage_rounded = round(percentage, 4)
+        percentage_str = f"{percentage_rounded:.3f}"
+
+        return {
+            "percentage": percentage_rounded,
+            "percentage_str": percentage_str,
+            "zone": zone.value,
+            "is_in_ote": is_in_ote,
+            "nearest_level_name": str(nearest_level_value),
+            "nearest_level_price": round(nearest_level_price, 5),
+            "swing_high": retracement.swing_high,
+            "swing_low": retracement.swing_low,
+            "swing_high_timestamp": retracement.swing_high_timestamp.isoformat(),
+            "swing_low_timestamp": retracement.swing_low_timestamp.isoformat(),
+            "retracement_direction": (
+                Direction.BULLISH.value
+                if retracement.is_bullish
+                else Direction.BEARISH.value
+            ),
+        }
 
     # ------------------------------------------------------------------
     # Zone freshness (mitigation detection)

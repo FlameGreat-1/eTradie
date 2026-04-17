@@ -3,7 +3,7 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
+from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -164,10 +164,12 @@ class ReversalBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
+            fib_level=self._fib_level_str(entry_price, retracement),
+            metadata=self._build_metadata(
+                {"confluences": confluences, "pattern_type": "reversal"},
+                entry_price,
+                retracement,
             ),
-            metadata={"confluences": confluences, "pattern_type": "reversal"},
         )
 
         self._logger.info(
@@ -282,10 +284,12 @@ class ReversalBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
+            fib_level=self._fib_level_str(entry_price, retracement),
+            metadata=self._build_metadata(
+                {"confluences": confluences, "pattern_type": "reversal"},
+                entry_price,
+                retracement,
             ),
-            metadata={"confluences": confluences, "pattern_type": "reversal"},
         )
 
         self._logger.info(
@@ -494,26 +498,28 @@ class ReversalBuilder:
             return max(candidates)
         return None
 
-    def _get_fib_level(
+    def _fib_level_str(
         self,
         price: float,
-        retracement: FibonacciRetracement,
+        retracement: Optional[FibonacciRetracement],
     ) -> Optional[str]:
-        """Return the OTE fib level closest to price within tolerance."""
-        pip_val = float(get_pip_value(retracement.symbol))
-        tolerance = self.config.fibonacci_tolerance_pips * pip_val
-
-        best_level = None
-        best_distance = float("inf")
-
-        for level in OTE_LEVELS:
-            level_price = retracement.get_level_price(level)
-            distance = abs(price - level_price)
-            if distance <= tolerance and distance < best_distance:
-                best_distance = distance
-                best_level = level
-
-        if best_level is None:
+        """Return the exact retracement percentage the entry price falls on,
+        formatted to 3 decimals. Returns None only when no retracement is
+        available."""
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is None:
             return None
+        return context["percentage_str"]
 
-        return str(FIBONACCI_VALUES[best_level])
+    def _build_metadata(
+        self,
+        base: dict,
+        price: float,
+        retracement: Optional[FibonacciRetracement],
+    ) -> dict:
+        """Attach fib_context to the metadata dict when available."""
+        metadata = dict(base)
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is not None:
+            metadata["fib_context"] = context
+        return metadata

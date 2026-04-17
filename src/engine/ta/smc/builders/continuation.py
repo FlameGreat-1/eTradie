@@ -3,7 +3,7 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
+from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -167,10 +167,12 @@ class ContinuationBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
+            fib_level=self._fib_level_str(entry_price, retracement),
+            metadata=self._build_metadata(
+                {"confluences": confluences},
+                entry_price,
+                retracement,
             ),
-            metadata={"confluences": confluences},
         )
 
         self._logger.info(
@@ -297,10 +299,12 @@ class ContinuationBuilder:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
+            fib_level=self._fib_level_str(entry_price, retracement),
+            metadata=self._build_metadata(
+                {"confluences": confluences},
+                entry_price,
+                retracement,
             ),
-            metadata={"confluences": confluences},
         )
 
         self._logger.info(
@@ -455,28 +459,37 @@ class ContinuationBuilder:
                 ))
         return lows
 
-    def _get_fib_level(
+    def _fib_level_str(
         self,
         price: float,
-        retracement: FibonacciRetracement,
+        retracement: Optional[FibonacciRetracement],
     ) -> Optional[str]:
-        """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
-        but only if within the configured tolerance. Returns None if no OTE
-        level is close enough."""
-        pip_val = float(get_pip_value(retracement.symbol))
-        tolerance = self.config.fibonacci_tolerance_pips * pip_val
+        """Return the exact retracement percentage the entry price falls on.
 
-        best_level = None
-        best_distance = float("inf")
-
-        for level in OTE_LEVELS:
-            level_price = retracement.get_level_price(level)
-            distance = abs(price - level_price)
-            if distance <= tolerance and distance < best_distance:
-                best_distance = distance
-                best_level = level
-
-        if best_level is None:
+        Formatted to 3 decimals (e.g. ``"0.637"``) to stay within the
+        existing ``SMCCandidate.fib_level: Optional[str]`` contract.
+        Returns ``None`` only when no retracement is available.
+        """
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is None:
             return None
+        return context["percentage_str"]
 
-        return str(FIBONACCI_VALUES[best_level])
+    def _build_metadata(
+        self,
+        base: dict,
+        price: float,
+        retracement: Optional[FibonacciRetracement],
+    ) -> dict:
+        """Attach fib_context to the metadata dict when available.
+
+        The returned dict always contains ``base`` plus, when a
+        retracement is available, a ``fib_context`` key carrying the
+        full structured Fibonacci context built by
+        ``ZoneValidator.build_fib_context``.
+        """
+        metadata = dict(base)
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is not None:
+            metadata["fib_context"] = context
+        return metadata

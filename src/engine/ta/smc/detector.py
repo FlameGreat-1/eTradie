@@ -702,13 +702,17 @@ class SMCDetector:
                 ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
             ),
             displacement_pips=ltf_bms.displacement_pips,
-            fib_level=None,
-            metadata={
-                "confluences": confluences,
-                "pattern_type": "choch_reversal",
-                "htf_choch_direction": str(htf_choch.direction),
-                "htf_choch_is_minor": htf_choch.is_minor,
-            },
+            fib_level=self._fib_level_str_for_candidate(entry_price, retracement),
+            metadata=self._build_choch_metadata(
+                {
+                    "confluences": confluences,
+                    "pattern_type": "choch_reversal",
+                    "htf_choch_direction": str(htf_choch.direction),
+                    "htf_choch_is_minor": htf_choch.is_minor,
+                },
+                entry_price,
+                retracement,
+            ),
         )
 
         self._logger.info(
@@ -793,6 +797,31 @@ class SMCDetector:
             confluences += 1
 
         return confluences
+
+    def _fib_level_str_for_candidate(
+        self,
+        price: float,
+        retracement: Optional[FibonacciRetracement],
+    ) -> Optional[str]:
+        """Return the exact retracement percentage as a 3-decimal string,
+        or None if no retracement is available."""
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is None:
+            return None
+        return context["percentage_str"]
+
+    def _build_choch_metadata(
+        self,
+        base: dict,
+        price: float,
+        retracement: Optional[FibonacciRetracement],
+    ) -> dict:
+        """Attach fib_context to the CHoCH reversal metadata when available."""
+        metadata = dict(base)
+        context = self.zone_validator.build_fib_context(price, retracement)
+        if context is not None:
+            metadata["fib_context"] = context
+        return metadata
 
     @staticmethod
     def _find_bsl_target(
