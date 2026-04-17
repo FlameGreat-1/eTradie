@@ -40,9 +40,11 @@ class ZoneValidator:
       setups exist outside the OTE pocket; OTE simply adds probability.
     - FVG association uses structural proximity (candle distance) rather
       than arbitrary clock time, so it works across all timeframes.
-    - Zone freshness distinguishes between a retest/RTO (wick into zone,
-      body closes outside) and true mitigation (body closes through).
-      A retest IS the entry opportunity, not invalidation.
+    - Zone freshness is a pure close-beyond-extreme test (see
+      ``validate_zone_freshness``).  A wick into the OB is treated as
+      the RTO entry opportunity; mitigation requires a candle CLOSE
+      beyond the OB, per SMC-MS-004 / SMC-OB-004 / SMC-MIT-001 /
+      SMC-INV-005.  No body-percentage threshold is applied.
     """
 
     def __init__(
@@ -458,16 +460,38 @@ class ZoneValidator:
         ob: OrderBlock,
         sequence: CandleSequence,
     ) -> bool:
-        """Validate zone is unmitigated (fresh) based on structural breaks.
+        """Validate that an Order Block is still fresh (unmitigated).
 
-        An Order Block remains structurally valid (fresh for an entry) until price
-        completely breaks it. A deep tap (50-90%) into the OB is normal mitigation
-        behavior before price continues in the original direction, and is precisely
-        what triggers our entry.
-        
-        The OB is only invalidated (destroyed, potentially becoming a Breaker Block)
-        if a candle CLOSES completely beyond its extreme boundary. Any past candle
-        that only severely wicked into it is considered the RTO leg itself.
+        Enforces the framework's close-beyond-extreme rule directly:
+
+          - Bullish OB: invalid as soon as any candle after its
+            formation CLOSES strictly below ob.lower_bound.
+          - Bearish OB: invalid as soon as any candle after its
+            formation CLOSES strictly above ob.upper_bound.
+
+        This is a wick-tolerant test on purpose.  A candle that wicks
+        into the OB but closes back outside is the RTO leg itself —
+        the exact entry opportunity the strategy is built on.  Only
+        a close beyond the extreme counts as mitigation / structural
+        invalidation.
+
+        This matches the authoritative rules:
+
+          - SMC-MS-003: a liquidity grab (wick that fails to close
+            beyond) is NOT a structural break.
+          - SMC-MS-004: a break is a substantial CLOSE above/below.
+          - SMC-OB-004: OB invalid iff price CLOSES beyond the OB's
+            extreme boundary (low for bullish, high for bearish).
+          - SMC-MIT-001 / SMC-INV-005: OB is mitigated once price
+            closes beyond it.
+
+        No body-percentage threshold is applied here.  Any earlier
+        reference in the codebase to a "body-threshold analysis" on
+        this path was a documentation error; the code has always
+        been (and remains) a plain close-beyond check.
+
+        Returns True when the OB is still fresh for entry; False once
+        a later close has taken it out.
         """
         if ob.candle_index >= len(sequence.candles) - 1:
             return True
