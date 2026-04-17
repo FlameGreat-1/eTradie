@@ -482,12 +482,13 @@ class ContinuationBuilder:
 
         Formatted to 3 decimals (e.g. ``"0.637"``) to stay within the
         existing ``SMCCandidate.fib_level: Optional[str]`` contract.
-        Returns ``None`` only when no retracement is available.
+        Returns ``None`` when no retracement is available or the price
+        falls outside the swing leg.
         """
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
             return None
-        return context["percentage_str"]
+        return f"{context['percentage']:.3f}"
 
     def _build_metadata(
         self,

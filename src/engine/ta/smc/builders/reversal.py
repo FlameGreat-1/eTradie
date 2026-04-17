@@ -526,12 +526,12 @@ class ReversalBuilder:
         retracement: Optional[FibonacciRetracement],
     ) -> Optional[str]:
         """Return the exact retracement percentage the entry price falls on,
-        formatted to 3 decimals. Returns None only when no retracement is
-        available."""
+        formatted to 3 decimals.  Returns None when no retracement is
+        available or the price falls outside the swing leg."""
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
             return None
-        return context["percentage_str"]
+        return f"{context['percentage']:.3f}"
 
     def _build_metadata(
         self,

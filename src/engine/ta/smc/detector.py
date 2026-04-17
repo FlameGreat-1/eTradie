@@ -810,11 +810,12 @@ class SMCDetector:
         retracement: Optional[FibonacciRetracement],
     ) -> Optional[str]:
         """Return the exact retracement percentage as a 3-decimal string,
-        or None if no retracement is available."""
+        or None when no retracement is available or the price falls
+        outside the swing leg."""
         context = self.zone_validator.build_fib_context(price, retracement)
         if context is None:
             return None
-        return context["percentage_str"]
+        return f"{context['percentage']:.3f}"
 
     def _build_choch_metadata(
         self,
