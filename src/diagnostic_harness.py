@@ -577,8 +577,30 @@ def test_full_zone_validation(
                     latest_high, latest_low, is_bullish,
                 )
 
+        idm_cleared = [idm for idm in inducements if idm.cleared]
+        idm_uncleared = [idm for idm in inducements if not idm.cleared]
+        idm_total = len(inducements)
+        if idm_total > 0:
+            cleared_ratio = f"{len(idm_cleared)}/{idm_total} ({100 * len(idm_cleared) / idm_total:.0f}%)"
+        else:
+            cleared_ratio = "0/0"
+
         subheader(f"{tf.value}  —  {len(obs)} OBs | {len(fvgs)} FVGs | "
-                  f"{len(sweeps)} Sweeps | {len(inducements)} Inducements")
+                  f"{len(sweeps)} Sweeps | {idm_total} Inducements "
+                  f"(cleared: {cleared_ratio})")
+
+        if idm_cleared:
+            info("Sample cleared inducements:")
+            for idm in idm_cleared[-3:]:
+                bullet(
+                    f"Dir: {idm.direction.value:>7}  "
+                    f"Level: {idm.inducement_level:.2f}  "
+                    f"@ {idm.inducement_timestamp}  "
+                    f"cleared_at: {idm.cleared_timestamp}"
+                )
+        elif idm_uncleared:
+            info(f"No inducements cleared yet ({len(idm_uncleared)} waiting). "
+                 "This is expected post-Fix 1 for strict-penetration swings.")
 
         passed = 0
         failed_reasons = Counter()
@@ -666,11 +688,22 @@ def test_full_pipeline(
                 if non_turtle:
                     ok(f"NON-TURTLE candidates: {len(non_turtle)}")
                     for c in non_turtle[-5:]:
+                        meta = c.metadata or {}
+                        sweep_ctx = meta.get("sweep_context") or {}
+                        sweep_bits = ""
+                        if sweep_ctx:
+                            sweep_bits = (
+                                f"  Sweep: {sweep_ctx.get('liquidity_type')}"
+                                f"(cb_in={sweep_ctx.get('closed_back_inside')})"
+                            )
                         bullet(
                             f"Pattern: {c.pattern.value}  "
                             f"Dir: {c.direction.value}  "
                             f"Entry: {c.entry_price:.2f}  "
+                            f"Fib: {c.fib_level}  "
+                            f"IDM_cleared: {c.inducement_cleared}  "
                             f"LTF_Conf: {c.ltf_confirmation}"
+                            f"{sweep_bits}"
                         )
                 else:
                     warn("NON-TURTLE candidates: 0")
@@ -759,6 +792,7 @@ async def main():
     bullet(f"require_fvg_with_ob:   {config.require_fvg_with_ob}")
     bullet(f"zone_mitigation_body_threshold: {config.zone_mitigation_body_threshold}%")
     bullet(f"min_displacement_pips: {config.min_displacement_pips}")
+    bullet(f"inducement_min_break_pips: {config.inducement_min_break_pips}")
 
     # Create all common analyzers
     from engine.ta.common.analyzers.session import SessionAnalyzer
@@ -864,6 +898,92 @@ async def main():
         info("If non-turtle candidates are still 0, the issue is in "
              "FVG↔OB pairing (distance/direction/overlap) or "
              "the candidate builders themselves.")
+
+    # ── FIX VERIFICATION ────────────────────────────────────────────
+    # Summarise whether the recent Fixes are actually reflected in the
+    # emitted candidates. Purely informational; does not alter behaviour.
+    header("FIX VERIFICATION SUMMARY")
+
+    total_candidates = len(candidates)
+    info(f"Total candidates emitted: {total_candidates}")
+
+    if total_candidates == 0:
+        info("No candidates emitted — fix verification skipped.")
+    else:
+        pattern_summary = Counter(c.pattern.value for c in candidates)
+        info("Pattern distribution:")
+        for pattern, count in pattern_summary.most_common():
+            bullet(f"{pattern}: {count}")
+
+        # Fix 1: inducement clearance should not be uniformly True
+        cleared_count = sum(1 for c in candidates if c.inducement_cleared)
+        cleared_pct = 100.0 * cleared_count / total_candidates
+        info(
+            f"inducement_cleared=True on {cleared_count}/{total_candidates} "
+            f"({cleared_pct:.1f}%)"
+        )
+        if cleared_pct >= 99.0:
+            warn(
+                "Almost every candidate still shows inducement_cleared=True. "
+                "If this is real market behaviour it's fine, but verify the "
+                "inducement_min_break_pips threshold is applied."
+            )
+
+        # Fix 2: fib_level should be populated whenever a retracement exists
+        fib_level_count = sum(1 for c in candidates if c.fib_level is not None)
+        fib_context_count = sum(
+            1 for c in candidates
+            if isinstance(c.metadata, dict)
+            and c.metadata.get("fib_context") is not None
+        )
+        fib_level_pct = 100.0 * fib_level_count / total_candidates
+        fib_context_pct = 100.0 * fib_context_count / total_candidates
+        info(
+            f"fib_level populated on {fib_level_count}/{total_candidates} "
+            f"({fib_level_pct:.1f}%)"
+        )
+        info(
+            f"metadata.fib_context populated on {fib_context_count}/"
+            f"{total_candidates} ({fib_context_pct:.1f}%)"
+        )
+        if fib_level_count == 0:
+            warn(
+                "fib_level is null on every candidate. Verify that a "
+                "FibonacciRetracement is being constructed in detect_patterns."
+            )
+
+        # Fix 3: sweep_context should exist on candidates whose selected
+        # LiquiditySweep was non-null. We expect this on most SH_BMS_RTO
+        # candidates and on turtle-soup candidates.
+        sweep_context_count = sum(
+            1 for c in candidates
+            if isinstance(c.metadata, dict)
+            and c.metadata.get("sweep_context") is not None
+        )
+        liquidity_types = Counter()
+        for c in candidates:
+            if not isinstance(c.metadata, dict):
+                continue
+            ctx = c.metadata.get("sweep_context")
+            if ctx is None:
+                continue
+            lt = ctx.get("liquidity_type")
+            if lt:
+                liquidity_types[lt] += 1
+
+        info(
+            f"metadata.sweep_context populated on {sweep_context_count}/"
+            f"{total_candidates} ({100.0 * sweep_context_count / total_candidates:.1f}%)"
+        )
+        if liquidity_types:
+            info("Distinct liquidity_type values observed:")
+            for lt, count in liquidity_types.most_common():
+                bullet(f"{lt}: {count}")
+        elif sweep_context_count == 0:
+            info(
+                "No sweep_context present — either no sweep was selected "
+                "for any candidate, or the selected pattern had liquidity_swept=False."
+            )
 
     print(f"\n{'█' * 72}")
     print(f"  Diagnostic complete.")
