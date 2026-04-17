@@ -93,3 +93,21 @@ class SMCConfig(BaseSettings):
     zone_mitigation_body_threshold: float = Field(
         default=50.0, ge=0.0, le=100.0,
     )
+
+    # --- Inducement (IDM) clearance settings ---
+    # Per SMC-LIQ-004 and SMC-MS-003/004: an inducement is only
+    # "cleared/swept" when price genuinely takes it out with a wick
+    # that penetrates beyond the internal swing level.  A trivial
+    # retest or equal-touch does NOT clear the inducement.
+    #
+    # This value is the minimum wick penetration (in pips) past the
+    # internal swing price before the IDM is flagged as cleared.
+    # It is scaled per-symbol via get_pip_value() at detection time,
+    # so the same value works correctly for FX, metals, indices, and
+    # crypto instruments.
+    #
+    # 0.0 = any touch counts (legacy, not recommended).
+    # 1.0 = default; requires a real wick past the level.
+    inducement_min_break_pips: float = Field(
+        default=1.0, ge=0.0, le=50.0,
+    )
