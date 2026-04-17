@@ -110,10 +110,13 @@ class BMSDetector:
 
             # Calculate displacement from the broken level to the
             # breakout candle's close.
-            displacement = calculate_pips(
-                level,
-                breakout_candle.close,
-                sequence.symbol,
+            displacement = round(
+                calculate_pips(
+                    level,
+                    breakout_candle.close,
+                    sequence.symbol,
+                ),
+                2,
             )
 
             if displacement < min_disp:
@@ -225,10 +228,13 @@ class BMSDetector:
 
             breakout_candle = candles[first_break_idx]
 
-            displacement = calculate_pips(
-                breakout_candle.close,
-                level,
-                sequence.symbol,
+            displacement = round(
+                calculate_pips(
+                    breakout_candle.close,
+                    level,
+                    sequence.symbol,
+                ),
+                2,
             )
 
             if displacement < min_disp:
