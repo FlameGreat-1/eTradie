@@ -461,7 +461,9 @@ class SMCDetector:
                 if candidate:
                     candidates.append(candidate)
 
-            # If no LTF BMS yet, build from HTF structure alone
+            # If no LTF BMS yet, build from HTF structure alone.
+            # Freshness/mitigation is enforced inside _build_choch_candidate
+            # via ZoneValidator.validate_all_ob_rules (SMC-OB-004).
             if not ltf_bms_bullish:
                 htf_bms_from_choch = self.bms_detector.detect_bullish_bms(
                     htf_sequence,
@@ -475,27 +477,23 @@ class SMCDetector:
                         htf_sequence, latest_htf_bms
                     )
                     if htf_ob:
-                        unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                            [htf_ob], htf_sequence,
+                        candidate = self._build_choch_candidate(
+                            htf_sequence=htf_sequence,
+                            ltf_sequence=ltf_sequence,
+                            htf_choch=latest_htf_choch_bullish,
+                            ltf_bms=latest_htf_bms,
+                            ltf_choch=None,
+                            ltf_sweep=None,
+                            ob=htf_ob,
+                            ltf_fvgs=ltf_fvgs,
+                            inducement_events=inducement_events,
+                            retracement=retracement,
+                            direction=Direction.BULLISH,
+                            swing_highs=ltf_swing_highs,
+                            swing_lows=ltf_swing_lows,
                         )
-                        if unmitigated:
-                            candidate = self._build_choch_candidate(
-                                htf_sequence=htf_sequence,
-                                ltf_sequence=ltf_sequence,
-                                htf_choch=latest_htf_choch_bullish,
-                                ltf_bms=latest_htf_bms,
-                                ltf_choch=None,
-                                ltf_sweep=None,
-                                ob=htf_ob,
-                                ltf_fvgs=ltf_fvgs,
-                                inducement_events=inducement_events,
-                                retracement=retracement,
-                                direction=Direction.BULLISH,
-                                swing_highs=ltf_swing_highs,
-                                swing_lows=ltf_swing_lows,
-                            )
-                            if candidate:
-                                candidates.append(candidate)
+                        if candidate:
+                            candidates.append(candidate)
 
             self._logger.info(
                 "smc_choch_reversal_bullish_summary",
@@ -546,6 +544,9 @@ class SMCDetector:
                 if candidate:
                     candidates.append(candidate)
 
+            # If no LTF BMS yet, build from HTF structure alone.
+            # Freshness/mitigation is enforced inside _build_choch_candidate
+            # via ZoneValidator.validate_all_ob_rules (SMC-OB-004).
             if not ltf_bms_bearish:
                 htf_bms_from_choch = self.bms_detector.detect_bearish_bms(
                     htf_sequence,
@@ -559,27 +560,23 @@ class SMCDetector:
                         htf_sequence, latest_htf_bms
                     )
                     if htf_ob:
-                        unmitigated = self.mitigation_detector.get_unmitigated_obs(
-                            [htf_ob], htf_sequence,
+                        candidate = self._build_choch_candidate(
+                            htf_sequence=htf_sequence,
+                            ltf_sequence=ltf_sequence,
+                            htf_choch=latest_htf_choch_bearish,
+                            ltf_bms=latest_htf_bms,
+                            ltf_choch=None,
+                            ltf_sweep=None,
+                            ob=htf_ob,
+                            ltf_fvgs=ltf_fvgs,
+                            inducement_events=inducement_events,
+                            retracement=retracement,
+                            direction=Direction.BEARISH,
+                            swing_highs=ltf_swing_highs,
+                            swing_lows=ltf_swing_lows,
                         )
-                        if unmitigated:
-                            candidate = self._build_choch_candidate(
-                                htf_sequence=htf_sequence,
-                                ltf_sequence=ltf_sequence,
-                                htf_choch=latest_htf_choch_bearish,
-                                ltf_bms=latest_htf_bms,
-                                ltf_choch=None,
-                                ltf_sweep=None,
-                                ob=htf_ob,
-                                ltf_fvgs=ltf_fvgs,
-                                inducement_events=inducement_events,
-                                retracement=retracement,
-                                direction=Direction.BEARISH,
-                                swing_highs=ltf_swing_highs,
-                                swing_lows=ltf_swing_lows,
-                            )
-                            if candidate:
-                                candidates.append(candidate)
+                        if candidate:
+                            candidates.append(candidate)
 
             self._logger.info(
                 "smc_choch_reversal_bearish_summary",
