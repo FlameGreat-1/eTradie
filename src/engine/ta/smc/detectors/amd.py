@@ -141,7 +141,17 @@ class AMDDetector:
         self,
         sequence: CandleSequence,
     ) -> Optional[DealingRange]:
-        asian_range = self.session_analyzer.extract_session_range(
+        """Resolve the Asian range for THIS AMD cycle only.
+
+        Uses ``extract_most_recent_session_range`` (per-session) and
+        deliberately NOT ``extract_session_range`` (aggregates across
+        the full sequence).  The distinction matters: AMD is defined
+        within one 24h cycle, so the Asian extreme that London / NY
+        will manipulate has to be the extreme of the single most
+        recent completed Asian session, not a synthetic min/max over
+        every Asian session in the lookback window.
+        """
+        asian_range = self.session_analyzer.extract_most_recent_session_range(
             sequence,
             Session.ASIA,
         )

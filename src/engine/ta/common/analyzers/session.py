@@ -69,6 +69,18 @@ class SessionAnalyzer:
         sequence: CandleSequence,
         session: Session,
     ) -> Optional[SessionRange]:
+        """Aggregate every candle in the sequence whose hour matches ``session``.
+
+        NOTE: this method returns a *synthetic* range that merges every
+        occurrence of ``session`` across the full sequence.  On a
+        multi-day sequence the resulting high/low spans every matching
+        session, not just one.  That is useful for broad reference
+        views (see ``get_session_boundaries``) but it is NOT the right
+        primitive for per-session patterns such as AMD, which reason
+        about a single completed Asian session followed by one London /
+        NY cycle.  Per-session callers should use
+        ``extract_most_recent_session_range`` instead.
+        """
         session_window = get_session_window(session)
 
         session_candles = [
@@ -91,6 +103,74 @@ class SessionAnalyzer:
             session=session,
             start_time=session_candles[0].timestamp,
             end_time=session_candles[-1].timestamp,
+            high=high,
+            low=low,
+            open=open_price,
+            close=close_price,
+        )
+
+    def extract_most_recent_session_range(
+        self,
+        sequence: CandleSequence,
+        session: Session,
+    ) -> Optional[SessionRange]:
+        """Return the range of the most recent contiguous ``session`` block.
+
+        Walks ``sequence.candles`` in reverse.  Finds the first candle
+        whose hour falls in the session window and then extends
+        backwards until it hits a candle outside the window.  The
+        resulting contiguous block is the most recent fully-captured
+        (or partially-captured, if the sequence ends mid-session)
+        occurrence of that session.
+
+        Contiguity is defined as "the previous candle in the sequence
+        is also in the session window".  This works uniformly across
+        FX / crypto timeframes because it relies on sequence ordering
+        rather than absolute clock spacing, and it correctly stops at
+        the session boundary even when data is missing (the gap
+        candle will fail the window test and end the block).
+
+        Returns ``None`` when the sequence contains no candles whose
+        hour matches the session window.
+
+        This is the primitive that per-session patterns (AMD) must
+        use; see ``extract_session_range`` for the aggregated
+        alternative.
+        """
+        session_window = get_session_window(session)
+
+        candles = sequence.candles
+        if not candles:
+            return None
+
+        end_index: Optional[int] = None
+        for i in range(len(candles) - 1, -1, -1):
+            if session_window.contains_timestamp(candles[i].timestamp):
+                end_index = i
+                break
+
+        if end_index is None:
+            return None
+
+        start_index = end_index
+        while start_index - 1 >= 0 and session_window.contains_timestamp(
+            candles[start_index - 1].timestamp
+        ):
+            start_index -= 1
+
+        block = candles[start_index : end_index + 1]
+
+        high = max(c.high for c in block)
+        low = min(c.low for c in block)
+        open_price = block[0].open
+        close_price = block[-1].close
+
+        return SessionRange(
+            symbol=sequence.symbol,
+            timeframe=sequence.timeframe,
+            session=session,
+            start_time=block[0].timestamp,
+            end_time=block[-1].timestamp,
             high=high,
             low=low,
             open=open_price,
