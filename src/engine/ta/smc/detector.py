@@ -8,7 +8,14 @@ from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
 from engine.ta.common.analyzers.sweeps import SweepAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.constants import Direction, Timeframe, CandidatePattern
+from datetime import timedelta
+
+from engine.ta.constants import (
+    Direction,
+    Timeframe,
+    TIMEFRAME_MINUTES,
+    CandidatePattern,
+)
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -1153,13 +1160,33 @@ class SMCDetector:
         """
         candidates = []
 
+        # Temporal-coherence window for SMS-OB pairings: convert the
+        # configured HTF-candle count into a clock-time delta so the
+        # same check works for HTF-detected and LTF-refined OBs.
+        sms_coherence_window = timedelta(
+            minutes=TIMEFRAME_MINUTES[htf_sequence.timeframe]
+            * self.config.sms_max_ob_candle_distance,
+        )
+
         # -- Bullish reversal --
         latest_htf_sms_bullish = self.sms_detector.get_latest_sms(htf_sms_bullish)
         if latest_htf_sms_bullish:
+            sms_incoherent_skipped_bullish = 0
+
             # Try LTF-refined OBs first (higher precision)
             for ltf_bms in ltf_bms_bullish:
                 ltf_ob = self.ob_detector.detect_bullish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
+                    continue
+
+                # Reject SMS-OB pairings where the SMS event fired too
+                # long before the OB formed; see SMCConfig.
+                # sms_max_ob_candle_distance for the full rationale.
+                if (
+                    abs(ltf_ob.timestamp - latest_htf_sms_bullish.timestamp)
+                    > sms_coherence_window
+                ):
+                    sms_incoherent_skipped_bullish += 1
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bullish)
@@ -1195,6 +1222,15 @@ class SMCDetector:
                     if not htf_ob:
                         continue
 
+                    # Reject SMS-OB pairings where the SMS event fired
+                    # too long before the OB formed.
+                    if (
+                        abs(htf_ob.timestamp - latest_htf_sms_bullish.timestamp)
+                        > sms_coherence_window
+                    ):
+                        sms_incoherent_skipped_bullish += 1
+                        continue
+
                     candidate = self.reversal_builder.build_bullish_sms_reversal(
                         htf_sequence,
                         ltf_sequence,
@@ -1216,6 +1252,7 @@ class SMCDetector:
                     "htf_sms_count": len(htf_sms_bullish),
                     "ltf_bms_count": len(ltf_bms_bullish),
                     "ltf_choch_count": len(ltf_choch_bullish),
+                    "sms_incoherent_skipped": sms_incoherent_skipped_bullish,
                     "candidates_built": len(
                         [c for c in candidates if c.direction == Direction.BULLISH]
                     ),
@@ -1225,9 +1262,21 @@ class SMCDetector:
         # -- Bearish reversal --
         latest_htf_sms_bearish = self.sms_detector.get_latest_sms(htf_sms_bearish)
         if latest_htf_sms_bearish:
+            sms_incoherent_skipped_bearish = 0
+
             for ltf_bms in ltf_bms_bearish:
                 ltf_ob = self.ob_detector.detect_bearish_ob(ltf_sequence, ltf_bms)
                 if not ltf_ob:
+                    continue
+
+                # Reject SMS-OB pairings where the SMS event fired too
+                # long before the OB formed; see SMCConfig.
+                # sms_max_ob_candle_distance for the full rationale.
+                if (
+                    abs(ltf_ob.timestamp - latest_htf_sms_bearish.timestamp)
+                    > sms_coherence_window
+                ):
+                    sms_incoherent_skipped_bearish += 1
                     continue
 
                 ltf_choch = self.choch_detector.get_latest_choch(ltf_choch_bearish)
@@ -1261,6 +1310,15 @@ class SMCDetector:
                     if not htf_ob:
                         continue
 
+                    # Reject SMS-OB pairings where the SMS event fired
+                    # too long before the OB formed.
+                    if (
+                        abs(htf_ob.timestamp - latest_htf_sms_bearish.timestamp)
+                        > sms_coherence_window
+                    ):
+                        sms_incoherent_skipped_bearish += 1
+                        continue
+
                     candidate = self.reversal_builder.build_bearish_sms_reversal(
                         htf_sequence,
                         ltf_sequence,
@@ -1282,6 +1340,7 @@ class SMCDetector:
                     "htf_sms_count": len(htf_sms_bearish),
                     "ltf_bms_count": len(ltf_bms_bearish),
                     "ltf_choch_count": len(ltf_choch_bearish),
+                    "sms_incoherent_skipped": sms_incoherent_skipped_bearish,
                     "candidates_built": len(
                         [c for c in candidates if c.direction == Direction.BEARISH]
                     ),
