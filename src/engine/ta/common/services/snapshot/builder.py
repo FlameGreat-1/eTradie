@@ -159,8 +159,11 @@ class SnapshotBuilder:
             return Direction.NEUTRAL
 
         latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
+        
+        # Only allow MAJOR CHoCH events to flip the macro bias. Minor CHoCHs just indicate internal pullbacks.
+        major_choch_events = [c for c in choch_events if not getattr(c, "is_minor", False)]
         latest_choch = (
-            max(choch_events, key=lambda x: x.timestamp) if choch_events else None
+            max(major_choch_events, key=lambda x: x.timestamp) if major_choch_events else None
         )
 
         if latest_bms and latest_choch:
@@ -193,3 +196,52 @@ class SnapshotBuilder:
                 return Direction.BEARISH
 
         return Direction.NEUTRAL
+    
+
+
+
+    # def _determine_trend_direction(
+    #     self,
+    #     swing_highs: list,
+    #     swing_lows: list,
+    #     bms_events: list[BreakInMarketStructure],
+    #     choch_events: list[ChangeOfCharacter],
+    # ) -> Direction:
+    #     if not swing_highs or not swing_lows:
+    #         return Direction.NEUTRAL
+
+    #     latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
+    #     latest_choch = (
+    #         max(choch_events, key=lambda x: x.timestamp) if choch_events else None
+    #     )
+
+    #     if latest_bms and latest_choch:
+    #         if latest_bms.timestamp > latest_choch.timestamp:
+    #             return latest_bms.direction
+    #         else:
+    #             return latest_choch.direction
+    #     elif latest_bms:
+    #         return latest_bms.direction
+    #     elif latest_choch:
+    #         return latest_choch.direction
+
+    #     recent_highs = sorted(swing_highs, key=lambda x: x.timestamp)[-3:]
+    #     recent_lows = sorted(swing_lows, key=lambda x: x.timestamp)[-3:]
+
+    #     if len(recent_highs) >= 2:
+    #         higher_highs = all(
+    #             recent_highs[i].price > recent_highs[i - 1].price
+    #             for i in range(1, len(recent_highs))
+    #         )
+    #         if higher_highs:
+    #             return Direction.BULLISH
+
+    #     if len(recent_lows) >= 2:
+    #         lower_lows = all(
+    #             recent_lows[i].price < recent_lows[i - 1].price
+    #             for i in range(1, len(recent_lows))
+    #         )
+    #         if lower_lows:
+    #             return Direction.BEARISH
+
+    #     return Direction.NEUTRAL

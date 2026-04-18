@@ -434,6 +434,9 @@ class SnDDetector:
         if not latest_high or not latest_low:
             return None
 
+        if latest_high.price <= latest_low.price:
+            return None
+
         is_bullish = latest_low.timestamp > latest_high.timestamp
 
         return self.fibonacci_analyzer.create_retracement(

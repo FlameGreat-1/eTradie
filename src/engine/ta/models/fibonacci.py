@@ -182,9 +182,9 @@ class DealingRange(FrozenModel):
                 details={"high": self.high, "low": self.low},
             )
         
-        if self.end_time and self.end_time <= self.start_time:
+        if self.end_time and self.end_time < self.start_time:
             raise ConfigurationError(
-                "End time must be after start time",
+                "End time must be at or after start time",
                 details={
                     "start_time": self.start_time.isoformat(),
                     "end_time": self.end_time.isoformat(),

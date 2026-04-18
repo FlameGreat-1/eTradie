@@ -582,8 +582,8 @@ class TAOrchestrator:
         while LTFs need more to maintain structural integrity.
         """
         mapping = {
-            Timeframe.MN1: 30,
-            Timeframe.W1: 30,
+            Timeframe.MN1: 72,
+            Timeframe.W1: 250,
             Timeframe.D1: 60,
             Timeframe.H4: 150,
             Timeframe.H1: 300,

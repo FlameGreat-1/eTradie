@@ -1,0 +1,455 @@
+{
+  "central_bank": {
+    "id": "8625e528-cc0d-457c-8668-2a866270b7d4",
+    "created_at": "2026-04-18T00:33:21.477554Z",
+    "rate_decisions": [],
+    "speeches": [
+      {
+        "id": "6e8b5b88-485c-4788-ad00-544d7bee3406",
+        "created_at": "2026-04-18T00:33:10.930160Z",
+        "bank": "RBA",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Review of Merchant Card Payment Costs and Surcharging \u2013 Conclusions Paper",
+        "summary": "Media release number 2026-10: The Reserve Bank of Australia (RBA) has today published a Conclusions Paper which sets out the final decisions of the Payments System Board (PSB) on the Review of Merchant Card Payment Costs and Surcharging.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:10.929422Z",
+        "source_url": "https://www.rba.gov.au/media-releases/2026/mr-26-10.html"
+      },
+      {
+        "id": "998759bf-a112-4931-97e2-7812e3da8bbf",
+        "created_at": "2026-04-18T00:33:13.873205Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Changes to Bank of Canada Governing Council",
+        "summary": "The Bank of Canada announced today the departure of Deputy Governor Rhys Mendes on April 10, and the retirement of Deputy Governor Sharon Kozicki on July 15.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870570Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/changes-bank-of-canada-governing-council/"
+      },
+      {
+        "id": "5b4d2b5a-81e4-4fd9-98da-fbdbbe85d998",
+        "created_at": "2026-04-18T00:33:13.873305Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870647Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/fad-press-release-2026-03-18/"
+      },
+      {
+        "id": "dd77a0b9-0363-44c4-b90d-0c8552b20047",
+        "created_at": "2026-04-18T00:33:13.873369Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada, Export Development Canada, RBC and TD successfully complete bond issuance experiment  using distributed ledger technology",
+        "summary": "The Bank of Canada (BoC), RBC Capital Markets, RBC Investor Services, TD Bank Group (TD), and Export Development Canada (EDC) successfully completed Project Samara, a collaborative initiative to evaluate how tokenization and distributed ledger technology (DLT) can improve bond issuance and settlement in a real-world setting.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870787Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/bank-canada-export-development-canada-rbc-td-successfully-complete-bond-issuance-experiment-distributed-ledger-technology/"
+      },
+      {
+        "id": "957da87a-ed10-425a-9f7a-a2853c68b56e",
+        "created_at": "2026-04-18T00:33:13.873435Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada issues revised compliance order to XTM Inc.",
+        "summary": "The Bank of Canada today issued a revised temporary order to XTM Inc. (XTM). The Bank has authorized XTM to recommence retail payment activities under the supervision of the Monitor appointed today by the Ontario Superior Court of Justice under the Companies' Creditors Arrangement Act, and subject to terms and conditions set out in the Bank's revised order.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870838Z",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-of-canada-issues-revised-compliance-order-to-xtm-inc/"
+      },
+      {
+        "id": "a5e185e8-6238-4a36-98a0-0443d5f6cdb2",
+        "created_at": "2026-04-18T00:33:13.873484Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada issues immediate compliance order to XTM Inc.",
+        "summary": "The Bank of Canada today issued a temporary order to XTM Inc. (XTM) to immediately cease performing any retail payment activities.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870866Z",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-canada-issues-immediate-compliance-order-to-xtm-inc/"
+      },
+      {
+        "id": "b4cb4541-5995-4783-af34-4ea3f63a7f21",
+        "created_at": "2026-04-18T00:33:13.873538Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.870891Z",
+        "source_url": "https://www.bankofcanada.ca/2026/01/fad-press-release-2026-01-28/"
+      },
+      {
+        "id": "624a3694-0861-45c8-9488-ad29d7d0ac6e",
+        "created_at": "2026-04-18T00:33:13.873587Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.871142Z",
+        "source_url": "https://www.bankofcanada.ca/2025/12/fad-press-release-2025-12-10/"
+      },
+      {
+        "id": "ddd330bb-9fb6-45c1-8a4a-49c8ffb675bd",
+        "created_at": "2026-04-18T00:33:13.873654Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada announces finalists for the eleventh annual Governor\u2019s Challenge",
+        "summary": "The Bank of Canada has announced the five finalist teams in the 2025-26 edition of The Governor\u2019s Challenge, a competition where university students simulate the role of advisor to the Bank\u2019s Governing Council.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.871214Z",
+        "source_url": "https://www.bankofcanada.ca/2025/12/bank-canada-announces-finalists-eleventh-annual-governors-challenge/"
+      },
+      {
+        "id": "63fb69ac-8224-4af2-bbb1-f1c4f2e0a2fd",
+        "created_at": "2026-04-18T00:33:13.873710Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada lowers policy rate to 2\u00bc%",
+        "summary": "The Bank of Canada today reduced its target for the overnight rate by 25 basis points to 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.871246Z",
+        "source_url": "https://www.bankofcanada.ca/2025/10/fad-press-release-2025-10-29/"
+      },
+      {
+        "id": "3cf8297b-fc25-46eb-8d78-67fca063c8bf",
+        "created_at": "2026-04-18T00:33:13.873768Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Triennial Central Bank Survey of Foreign Exchange and Derivatives Market Activity in Canada during April 2025",
+        "summary": "In April, the Bank of Canada and 51 other central banks and monetary authorities conducted the latest triennial survey of turnover activity in the foreign exchange (FX) and over-the-counter (OTC) derivatives markets in their respective countries.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-18T00:33:13.871276Z",
+        "source_url": "https://www.bankofcanada.ca/2025/10/triennial-central-bank-survey-foreign-april-2025/"
+      }
+    ],
+    "meeting_minutes": [],
+    "forward_guidance": [],
+    "policy_actions": [],
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-04-18T00:33:21.477496Z"
+  },
+  "cot": null,
+  "economic": {
+    "id": "0cc93335-5440-4684-8d2a-60aa6e9066a9",
+    "created_at": "2026-04-18T00:33:31.407212Z",
+    "releases": [
+      {
+        "id": "110777eb-e7f0-462a-9fa6-dfecca974829",
+        "created_at": "2026-04-18T00:33:04.629236Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core CPI ex Food & Energy (US)",
+        "actual": 334.165,
+        "forecast": null,
+        "previous": 333.512,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "724473a6-ebf4-45a0-b363-958f3f71d4d5",
+        "created_at": "2026-04-18T00:33:05.322212Z",
+        "currency": "USD",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "actual": 128.859,
+        "forecast": null,
+        "previous": 128.388,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": "CORE",
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "dd2816ee-0b18-4956-a493-8663889e255c",
+        "created_at": "2026-04-18T00:33:05.786472Z",
+        "currency": "USD",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "actual": 31422.526,
+        "forecast": null,
+        "previous": 31098.027,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "83775312-6fd2-43c0-9947-52e52950dc0e",
+        "created_at": "2026-04-18T00:33:06.081584Z",
+        "currency": "USD",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "actual": 4.3,
+        "forecast": null,
+        "previous": 4.4,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "bdd787d7-5c34-4131-ac69-bfdb0c48a678",
+        "created_at": "2026-04-18T00:33:06.477030Z",
+        "currency": "USD",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "actual": 158637.0,
+        "forecast": null,
+        "previous": 158459.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "HIGH",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "75897f96-f0f4-4c29-9a74-4581c91ee9cd",
+        "created_at": "2026-04-18T00:33:06.805097Z",
+        "currency": "USD",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "actual": 638224.0,
+        "forecast": null,
+        "previous": 634233.0,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "68e7508b-5765-4936-89cf-da941994b88f",
+        "created_at": "2026-04-18T00:33:07.171411Z",
+        "currency": "USD",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "actual": 154.006,
+        "forecast": null,
+        "previous": 153.221,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": "HEADLINE",
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "id": "ac0d3134-e831-477c-8e6a-944bf69b9c98",
+        "created_at": "2026-04-18T00:33:07.636530Z",
+        "currency": "USD",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "actual": 101.7898,
+        "forecast": null,
+        "previous": 102.344,
+        "surprise": null,
+        "surprise_direction": "INLINE",
+        "impact": "MEDIUM",
+        "inflation_type": null,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ],
+    "collected_at": "2026-04-18T00:33:31.407145Z"
+  },
+  "news": {
+    "id": "9fe5f417-a485-46cd-8030-e0c15fdf56f2",
+    "created_at": "2026-04-18T00:33:07.053328Z",
+    "items": [
+      {
+        "id": "39164dee-cb49-4838-bec6-a32156a41ce4",
+        "created_at": "2026-04-18T00:33:07.037859Z",
+        "headline": "Fermi Shares Plunge After Announcing Departure of CEO",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-18/fermi-shares-plunge-after-announcing-departure-of-ceo",
+        "summary": "Fermi shares fell as much as 31% in post-market trading after the developer behind a massive planned AI campus in Texas announced the immediate departure of co-founder and Chief Executive Officer Toby Neugebauer.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-18T00:14:32Z",
+        "dedupe_hash": "1cbcc80e10dbe71b080f2860a372ab06ddaf5d5311d12e77a726319aeb4a183a"
+      }
+    ],
+    "sources": [
+      "bloomberg_rss"
+    ],
+    "collected_at": "2026-04-18T00:33:07.053268Z"
+  },
+  "calendar": {
+    "id": "47d09ec5-8d0b-481e-b67f-7f43d1775167",
+    "created_at": "2026-04-18T00:33:01.111953Z",
+    "events": [],
+    "sources": [
+      "investing_rss_calendar"
+    ],
+    "collected_at": "2026-04-18T00:33:01.111830Z"
+  },
+  "dxy": {
+    "id": "f12ce40b-aff5-4d9d-844c-5a8c5176e2b7",
+    "created_at": "2026-04-18T00:33:01.045070Z",
+    "snapshots": [
+      {
+        "id": "6ef51f11-914f-4a6a-b5e0-3ff49ce03dd2",
+        "created_at": "2026-04-18T00:33:01.044617Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-18T00:33:01.044429Z",
+        "source": "twelve_data"
+      }
+    ],
+    "latest": {
+      "id": "6ef51f11-914f-4a6a-b5e0-3ff49ce03dd2",
+      "created_at": "2026-04-18T00:33:01.044617Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-18T00:33:01.044429Z",
+      "source": "twelve_data"
+    },
+    "sources": [
+      "twelve_data"
+    ],
+    "collected_at": "2026-04-18T00:33:01.044979Z"
+  },
+  "intermarket": {
+    "id": "453ff3d8-c394-42ed-9b55-2b5304a12daf",
+    "created_at": "2026-04-18T00:33:15.292606Z",
+    "snapshots": [
+      {
+        "id": "bc16ae7e-3448-4e08-933a-152c2bfa8013",
+        "created_at": "2026-04-18T00:33:15.249239Z",
+        "dxy_value": null,
+        "dxy_momentum": null,
+        "gold_price": null,
+        "silver_price": null,
+        "oil_price": null,
+        "iron_ore": null,
+        "dairy_gdt": null,
+        "copper": null,
+        "natural_gas": null,
+        "us2y_yield": null,
+        "us10y_yield": null,
+        "us30y_yield": null,
+        "sp500": null,
+        "vix": null,
+        "snapshot_at": "2026-04-18T00:33:15.248689Z",
+        "source": "twelve_data+commodity_proxy"
+      }
+    ],
+    "latest": {
+      "id": "bc16ae7e-3448-4e08-933a-152c2bfa8013",
+      "created_at": "2026-04-18T00:33:15.249239Z",
+      "dxy_value": null,
+      "dxy_momentum": null,
+      "gold_price": null,
+      "silver_price": null,
+      "oil_price": null,
+      "iron_ore": null,
+      "dairy_gdt": null,
+      "copper": null,
+      "natural_gas": null,
+      "us2y_yield": null,
+      "us10y_yield": null,
+      "us30y_yield": null,
+      "sp500": null,
+      "vix": null,
+      "snapshot_at": "2026-04-18T00:33:15.248689Z",
+      "source": "twelve_data+commodity_proxy"
+    },
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ],
+    "collected_at": "2026-04-18T00:33:15.292517Z"
+  },
+  "sentiment": {
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ],
+    "risk_environment": "NEUTRAL",
+    "risk_assessment": {
+      "id": "695eee0e-3919-4fcc-9b7f-01b1d688964b",
+      "created_at": "2026-04-18T00:32:55.464334Z",
+      "environment": "NEUTRAL",
+      "vix_level": null,
+      "yield_curve_inverted": false,
+      "safe_haven_demand_elevated": false,
+      "commodity_currencies_weak": false,
+      "stagflation_detected": false,
+      "reasoning": [],
+      "assessed_at": "2026-04-18T00:32:55.464352Z"
+    },
+    "collected_at": "2026-04-18T00:32:55.462829+00:00"
+  }
+}

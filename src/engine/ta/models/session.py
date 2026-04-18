@@ -107,9 +107,9 @@ class SessionRange(FrozenModel):
                 },
             )
         
-        if self.end_time <= self.start_time:
+        if self.end_time < self.start_time:
             raise ConfigurationError(
-                "Session end time must be after start time",
+                "Session end time must be at or after start time",
                 details={
                     "symbol": self.symbol,
                     "session": self.session,
