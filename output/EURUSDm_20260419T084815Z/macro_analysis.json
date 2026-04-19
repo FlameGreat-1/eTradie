@@ -1,7 +1,7 @@
 {
   "central_bank": {
-    "id": "d43df67e-4b71-4f96-a25b-5132e4553743",
-    "created_at": "2026-04-18T00:23:40.371711Z",
+    "id": "205bc675-d2c0-4b60-a401-37e50619226c",
+    "created_at": "2026-04-19T08:46:53.349841Z",
     "rate_decisions": [],
     "speeches": [],
     "meeting_minutes": [],
@@ -12,16 +12,16 @@
       "ECB",
       "BOJ"
     ],
-    "collected_at": "2026-04-18T00:23:40.371631Z"
+    "collected_at": "2026-04-19T08:46:53.349742Z"
   },
   "cot": null,
   "economic": {
-    "id": "3970ae07-7d1e-4f06-89c8-2a799dc2db0c",
-    "created_at": "2026-04-18T00:23:35.878887Z",
+    "id": "f9d45620-a6aa-4986-865d-53a02eaee768",
+    "created_at": "2026-04-19T08:46:52.450995Z",
     "releases": [
       {
-        "id": "e2837ffb-0357-429d-a5b1-15718484aaf7",
-        "created_at": "2026-04-18T00:23:30.173067Z",
+        "id": "d6f769ea-e59d-43fb-b5d3-1c8b162edc45",
+        "created_at": "2026-04-19T08:46:46.392033Z",
         "currency": "USD",
         "indicator": "CPI",
         "indicator_name": "Core CPI ex Food & Energy (US)",
@@ -36,8 +36,8 @@
         "source": "fred"
       },
       {
-        "id": "d630a048-e0ee-485e-9ea8-977292e90863",
-        "created_at": "2026-04-18T00:23:30.897650Z",
+        "id": "71e4affd-46be-4a7d-b951-dadee4544790",
+        "created_at": "2026-04-19T08:46:48.329356Z",
         "currency": "USD",
         "indicator": "CPI",
         "indicator_name": "Core PCE ex Food & Energy (US)",
@@ -52,8 +52,8 @@
         "source": "fred"
       },
       {
-        "id": "e376604b-a395-406f-a480-18e6348bb0fe",
-        "created_at": "2026-04-18T00:23:31.168482Z",
+        "id": "6453f6be-57f4-4e75-bcdf-07634441076b",
+        "created_at": "2026-04-19T08:46:48.622839Z",
         "currency": "USD",
         "indicator": "GDP",
         "indicator_name": "Gross Domestic Product (US)",
@@ -68,8 +68,8 @@
         "source": "fred"
       },
       {
-        "id": "ca3b9e91-c4ae-4153-bc58-6d2482761d24",
-        "created_at": "2026-04-18T00:23:31.645355Z",
+        "id": "473ae047-4a6b-49fe-acce-85b7ed839434",
+        "created_at": "2026-04-19T08:46:48.926399Z",
         "currency": "USD",
         "indicator": "EMPLOYMENT",
         "indicator_name": "Unemployment Rate (US)",
@@ -84,8 +84,8 @@
         "source": "fred"
       },
       {
-        "id": "ca57f3af-c725-451e-85a3-d003c89b7e59",
-        "created_at": "2026-04-18T00:23:32.003639Z",
+        "id": "010e2a8a-5934-4761-b993-3020679d2d76",
+        "created_at": "2026-04-19T08:46:49.642410Z",
         "currency": "USD",
         "indicator": "NFP",
         "indicator_name": "Total Nonfarm Payrolls (US)",
@@ -100,8 +100,8 @@
         "source": "fred"
       },
       {
-        "id": "89d35af0-01e2-4632-8520-db5bc4383a7a",
-        "created_at": "2026-04-18T00:23:32.484286Z",
+        "id": "1948b190-e271-4e0f-881c-b46fded6a9f7",
+        "created_at": "2026-04-19T08:46:49.962446Z",
         "currency": "USD",
         "indicator": "RETAIL_SALES",
         "indicator_name": "Retail Sales (US)",
@@ -116,8 +116,8 @@
         "source": "fred"
       },
       {
-        "id": "249c9cb7-82b3-44ad-b2a0-6bd15cf0cb7d",
-        "created_at": "2026-04-18T00:23:32.973902Z",
+        "id": "93349ac5-e7d1-49c8-92c3-f282a7712ac9",
+        "created_at": "2026-04-19T08:46:50.248322Z",
         "currency": "USD",
         "indicator": "PPI",
         "indicator_name": "Producer Price Index (US)",
@@ -132,8 +132,8 @@
         "source": "fred"
       },
       {
-        "id": "313a0b75-cb9f-4080-9595-0e94eb3bab69",
-        "created_at": "2026-04-18T00:23:33.456278Z",
+        "id": "6e1647b6-8fe7-4318-a0ce-16669e3281ed",
+        "created_at": "2026-04-19T08:46:50.655679Z",
         "currency": "USD",
         "indicator": "MANUFACTURING",
         "indicator_name": "Industrial Production Index (US)",
@@ -151,33 +151,33 @@
     "sources": [
       "fred"
     ],
-    "collected_at": "2026-04-18T00:23:35.878836Z"
+    "collected_at": "2026-04-19T08:46:52.450942Z"
   },
   "news": {
-    "id": "329349c6-7d91-4fe3-993b-1b6bb2a258bd",
-    "created_at": "2026-04-18T00:23:41.527043Z",
+    "id": "5444824b-45f5-423b-8ee9-a9a0a1a632f8",
+    "created_at": "2026-04-19T08:46:55.686906Z",
     "items": [],
     "sources": [
       "bloomberg_rss"
     ],
-    "collected_at": "2026-04-18T00:23:41.526967Z"
+    "collected_at": "2026-04-19T08:46:55.686842Z"
   },
   "calendar": {
-    "id": "89ba5d4e-de0c-41ec-9255-f66b4f695ed7",
-    "created_at": "2026-04-18T00:23:30.064478Z",
+    "id": "850979d4-1246-4889-8787-21ebdc1e53af",
+    "created_at": "2026-04-19T08:46:45.883174Z",
     "events": [],
     "sources": [
       "investing_rss_calendar"
     ],
-    "collected_at": "2026-04-18T00:23:30.064384Z"
+    "collected_at": "2026-04-19T08:46:45.883071Z"
   },
   "dxy": {
-    "id": "97c086b2-5424-46e1-ab50-06569a8e8f43",
-    "created_at": "2026-04-18T00:23:30.436803Z",
+    "id": "e3f6e449-5e9b-4ba2-9dda-6393ff7baae5",
+    "created_at": "2026-04-19T08:46:44.705965Z",
     "snapshots": [
       {
-        "id": "a0cd9d0b-e546-4b9f-a9c5-008f630612a5",
-        "created_at": "2026-04-18T00:23:30.436369Z",
+        "id": "8d96a10b-9504-47bd-9c26-947a2ad8db93",
+        "created_at": "2026-04-19T08:46:44.705803Z",
         "dxy_value": null,
         "dxy_momentum": null,
         "gold_price": null,
@@ -192,13 +192,13 @@
         "us30y_yield": null,
         "sp500": null,
         "vix": null,
-        "snapshot_at": "2026-04-18T00:23:30.436052Z",
+        "snapshot_at": "2026-04-19T08:46:44.705731Z",
         "source": "twelve_data"
       }
     ],
     "latest": {
-      "id": "a0cd9d0b-e546-4b9f-a9c5-008f630612a5",
-      "created_at": "2026-04-18T00:23:30.436369Z",
+      "id": "8d96a10b-9504-47bd-9c26-947a2ad8db93",
+      "created_at": "2026-04-19T08:46:44.705803Z",
       "dxy_value": null,
       "dxy_momentum": null,
       "gold_price": null,
@@ -213,21 +213,21 @@
       "us30y_yield": null,
       "sp500": null,
       "vix": null,
-      "snapshot_at": "2026-04-18T00:23:30.436052Z",
+      "snapshot_at": "2026-04-19T08:46:44.705731Z",
       "source": "twelve_data"
     },
     "sources": [
       "twelve_data"
     ],
-    "collected_at": "2026-04-18T00:23:30.436658Z"
+    "collected_at": "2026-04-19T08:46:44.705929Z"
   },
   "intermarket": {
-    "id": "77a9c242-0143-4d44-8c95-7c5cb4ad6f53",
-    "created_at": "2026-04-18T00:23:36.305418Z",
+    "id": "fd653953-5307-405c-b18e-57b811dc4d59",
+    "created_at": "2026-04-19T08:46:56.892710Z",
     "snapshots": [
       {
-        "id": "fba46950-1821-4802-9034-778968203b19",
-        "created_at": "2026-04-18T00:23:36.265787Z",
+        "id": "5b0421d8-b66d-43a9-b930-91a00bff24ba",
+        "created_at": "2026-04-19T08:46:56.856133Z",
         "dxy_value": null,
         "dxy_momentum": null,
         "gold_price": null,
@@ -242,13 +242,13 @@
         "us30y_yield": null,
         "sp500": null,
         "vix": null,
-        "snapshot_at": "2026-04-18T00:23:36.263979Z",
+        "snapshot_at": "2026-04-19T08:46:56.855072Z",
         "source": "twelve_data+commodity_proxy"
       }
     ],
     "latest": {
-      "id": "fba46950-1821-4802-9034-778968203b19",
-      "created_at": "2026-04-18T00:23:36.265787Z",
+      "id": "5b0421d8-b66d-43a9-b930-91a00bff24ba",
+      "created_at": "2026-04-19T08:46:56.856133Z",
       "dxy_value": null,
       "dxy_momentum": null,
       "gold_price": null,
@@ -263,14 +263,14 @@
       "us30y_yield": null,
       "sp500": null,
       "vix": null,
-      "snapshot_at": "2026-04-18T00:23:36.263979Z",
+      "snapshot_at": "2026-04-19T08:46:56.855072Z",
       "source": "twelve_data+commodity_proxy"
     },
     "sources": [
       "twelve_data",
       "commodity_proxy"
     ],
-    "collected_at": "2026-04-18T00:23:36.305278Z"
+    "collected_at": "2026-04-19T08:46:56.892579Z"
   },
   "sentiment": {
     "sentiments": [],
@@ -279,8 +279,8 @@
     ],
     "risk_environment": "NEUTRAL",
     "risk_assessment": {
-      "id": "3cf7e8f9-e59b-435b-a5ca-3a621758caf3",
-      "created_at": "2026-04-18T00:23:20.953200Z",
+      "id": "568c577a-85f9-4d8e-b929-a32d674b982e",
+      "created_at": "2026-04-19T08:46:44.125443Z",
       "environment": "NEUTRAL",
       "vix_level": null,
       "yield_curve_inverted": false,
@@ -288,8 +288,8 @@
       "commodity_currencies_weak": false,
       "stagflation_detected": false,
       "reasoning": [],
-      "assessed_at": "2026-04-18T00:23:20.953215Z"
+      "assessed_at": "2026-04-19T08:46:44.125466Z"
     },
-    "collected_at": "2026-04-18T00:23:20.951601+00:00"
+    "collected_at": "2026-04-19T08:46:44.123614+00:00"
   }
 }
