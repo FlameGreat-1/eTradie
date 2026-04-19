@@ -235,6 +235,57 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
+    # Warm the macro cache before accepting HTTP traffic. APScheduler's
+    # first tick for each interval job fires only after one full
+    # interval has elapsed (up to one week for COT), so without this
+    # step the first analysis request after a restart would hit a cold
+    # Redis and pay the full provider-fetch latency on every namespace.
+    # Running through .refresh() invokes the single-flight lock inside
+    # BaseCollector, so if an incoming request somehow arrives during
+    # warm-up it will coalesce onto the same fetch rather than
+    # launching a duplicate.
+    macro_warmup_targets = {
+        "central_bank": container.cb_collector,
+        "cot": container.cot_collector,
+        "economic": container.economic_collector,
+        "news": container.news_collector,
+        "calendar": container.calendar_collector,
+        "dxy": container.dxy_collector,
+        "intermarket": container.intermarket_collector,
+        "sentiment": container.sentiment_collector,
+    }
+    logger.info(
+        "macro_cache_warmup_started",
+        extra={"namespaces": list(macro_warmup_targets.keys())},
+    )
+    warmup_start = asyncio.get_event_loop().time()
+    warmup_results = await asyncio.gather(
+        *(c.refresh() for c in macro_warmup_targets.values()),
+        return_exceptions=True,
+    )
+    warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
+    warmup_summary: dict[str, str] = {}
+    for name, result in zip(macro_warmup_targets.keys(), warmup_results):
+        if isinstance(result, Exception):
+            warmup_summary[name] = f"failed: {type(result).__name__}: {result}"
+            logger.warning(
+                "macro_cache_warmup_namespace_failed",
+                extra={
+                    "namespace": name,
+                    "error": str(result),
+                    "error_type": type(result).__name__,
+                },
+            )
+        else:
+            warmup_summary[name] = "ok"
+    logger.info(
+        "macro_cache_warmup_completed",
+        extra={
+            "duration_seconds": round(warmup_duration_s, 2),
+            "results": warmup_summary,
+        },
+    )
+
     container.scheduler.start()
     logger.info("application_started", env=settings.app_env.value)
 
