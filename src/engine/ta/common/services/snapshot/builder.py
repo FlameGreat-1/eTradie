@@ -92,6 +92,7 @@ class SnapshotBuilder:
         session_state = self.session_analyzer.identify_session(latest_candle.timestamp)
 
         trend_direction = self._determine_trend_direction(
+            candles=candles,
             swing_highs=swing_highs,
             swing_lows=swing_lows,
             bms_events=bms_events or [],
@@ -150,32 +151,104 @@ class SnapshotBuilder:
 
     def _determine_trend_direction(
         self,
+        candles: CandleSequence,
         swing_highs: list,
         swing_lows: list,
         bms_events: list[BreakInMarketStructure],
         choch_events: list[ChangeOfCharacter],
     ) -> Direction:
+        """Resolve the trend bias for a single timeframe.
+
+        The logic is layered from the most authoritative source of
+        truth to the most permissive, and the first layer that can
+        reach a decision wins:
+
+        1. Confirmed BMS / major CHoCH.  These are the SMC-defined
+           structural breaks; once they fire they dictate bias until
+           a newer break in the opposite direction fires.  Minor
+           CHoCHs (internal-structure breaks) are excluded because
+           they describe pullbacks within a larger leg, not a macro
+           flip.
+
+        2. In-flight momentum on the forming candle.  BMS requires
+           2 / 3 / 5 consecutive confirmation closes (per
+           BMSDetector._required_confirmation_candles) and swing
+           detection requires ``right_bars`` additional bars after
+           the swing.  During the current forming HTF candle those
+           requirements cannot yet be satisfied even when price has
+           unambiguously traded through every prior confirmed
+           extreme.  When the latest close is strictly above the
+           highest confirmed swing high (or strictly below the
+           lowest confirmed swing low) the break is unambiguous
+           regardless of confirmation, so the bias flips now.  This
+           closes the USTEC-W1-style blind spot without ever
+           contradicting a confirmed event from layer 1.
+
+        3. Strict monotonic HH / LL on the last three confirmed
+           swings (unchanged legacy behaviour, now reached only
+           when layers 1 and 2 cannot decide).
+
+        4. Premium / discount relative to the full swing range.
+           When a symbol has valid swings but no confirmed break,
+           no in-flight break, and no monotonic sequence, bias is
+           taken from the side of equilibrium the latest close sits
+           on.  This aligns with the dealing-range premium /
+           discount model used elsewhere in the TA stack and
+           eliminates spurious NEUTRAL readings that used to leak
+           through alignment and overall-trend downstream.
+
+        The only remaining NEUTRAL path is the "no swings" data
+        integrity guard at the top.  A symbol without swings has
+        nothing to analyse and should not be given a fabricated
+        direction.
+        """
         if not swing_highs or not swing_lows:
             return Direction.NEUTRAL
 
-        latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
-        
-        # Only allow MAJOR CHoCH events to flip the macro bias. Minor CHoCHs just indicate internal pullbacks.
-        major_choch_events = [c for c in choch_events if not getattr(c, "is_minor", False)]
+        # Layer 1: confirmed BMS / major CHoCH.
+        latest_bms = (
+            max(bms_events, key=lambda x: x.timestamp) if bms_events else None
+        )
+        # Only MAJOR CHoCH events flip macro bias; minor CHoCH events
+        # describe internal pullbacks, not a structural reversal.
+        major_choch_events = [
+            c for c in choch_events if not getattr(c, "is_minor", False)
+        ]
         latest_choch = (
-            max(major_choch_events, key=lambda x: x.timestamp) if major_choch_events else None
+            max(major_choch_events, key=lambda x: x.timestamp)
+            if major_choch_events
+            else None
         )
 
         if latest_bms and latest_choch:
             if latest_bms.timestamp > latest_choch.timestamp:
                 return latest_bms.direction
-            else:
-                return latest_choch.direction
-        elif latest_bms:
+            return latest_choch.direction
+        if latest_bms:
             return latest_bms.direction
-        elif latest_choch:
+        if latest_choch:
             return latest_choch.direction
 
+        # Layer 2: in-flight momentum on the forming candle.
+        # Uses the extremes of every confirmed swing (not just the
+        # most recent) so a partial break above the newest swing
+        # high but still below an older higher swing high does NOT
+        # count as bullish.  A break here is unambiguous by
+        # construction.
+        latest_close: Optional[float] = None
+        if candles is not None and candles.candles:
+            latest_close = candles.candles[-1].close
+
+        highest_swing_high = max(sh.price for sh in swing_highs)
+        lowest_swing_low = min(sl.price for sl in swing_lows)
+
+        if latest_close is not None:
+            if latest_close > highest_swing_high:
+                return Direction.BULLISH
+            if latest_close < lowest_swing_low:
+                return Direction.BEARISH
+
+        # Layer 3: strict monotonic HH / LL on the last three swings.
         recent_highs = sorted(swing_highs, key=lambda x: x.timestamp)[-3:]
         recent_lows = sorted(swing_lows, key=lambda x: x.timestamp)[-3:]
 
@@ -195,53 +268,18 @@ class SnapshotBuilder:
             if lower_lows:
                 return Direction.BEARISH
 
+        # Layer 4: premium / discount equilibrium fallback.
+        # Only reached when no confirmed break, no in-flight break,
+        # and no monotonic sequence exists.  Uses the latest close
+        # relative to the swing-range midpoint, matching the
+        # DealingRange equilibrium model used elsewhere.
+        if latest_close is not None:
+            equilibrium = (highest_swing_high + lowest_swing_low) / 2.0
+            if latest_close >= equilibrium:
+                return Direction.BULLISH
+            return Direction.BEARISH
+
+        # Final safety net: without a latest close we cannot score
+        # premium / discount either.  Preserve NEUTRAL only in this
+        # degenerate, data-incomplete case.
         return Direction.NEUTRAL
-    
-
-
-
-    # def _determine_trend_direction(
-    #     self,
-    #     swing_highs: list,
-    #     swing_lows: list,
-    #     bms_events: list[BreakInMarketStructure],
-    #     choch_events: list[ChangeOfCharacter],
-    # ) -> Direction:
-    #     if not swing_highs or not swing_lows:
-    #         return Direction.NEUTRAL
-
-    #     latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
-    #     latest_choch = (
-    #         max(choch_events, key=lambda x: x.timestamp) if choch_events else None
-    #     )
-
-    #     if latest_bms and latest_choch:
-    #         if latest_bms.timestamp > latest_choch.timestamp:
-    #             return latest_bms.direction
-    #         else:
-    #             return latest_choch.direction
-    #     elif latest_bms:
-    #         return latest_bms.direction
-    #     elif latest_choch:
-    #         return latest_choch.direction
-
-    #     recent_highs = sorted(swing_highs, key=lambda x: x.timestamp)[-3:]
-    #     recent_lows = sorted(swing_lows, key=lambda x: x.timestamp)[-3:]
-
-    #     if len(recent_highs) >= 2:
-    #         higher_highs = all(
-    #             recent_highs[i].price > recent_highs[i - 1].price
-    #             for i in range(1, len(recent_highs))
-    #         )
-    #         if higher_highs:
-    #             return Direction.BULLISH
-
-    #     if len(recent_lows) >= 2:
-    #         lower_lows = all(
-    #             recent_lows[i].price < recent_lows[i - 1].price
-    #             for i in range(1, len(recent_lows))
-    #         )
-    #         if lower_lows:
-    #             return Direction.BEARISH
-
-    #     return Direction.NEUTRAL
