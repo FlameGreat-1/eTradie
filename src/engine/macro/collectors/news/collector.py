@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 class NewsCollector(BaseCollector):
     collector_name = "news"
     cache_namespace = "news"
+    cache_model = NewsDataSet
 
     async def _do_collect(self) -> NewsDataSet:
         all_items = []

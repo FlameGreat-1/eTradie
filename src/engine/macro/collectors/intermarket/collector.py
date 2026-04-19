@@ -153,6 +153,7 @@ class IntermarketCollector(BaseCollector):
 
     collector_name = "intermarket"
     cache_namespace = "intermarket"
+    cache_model = MarketDataSet
 
     async def _do_collect(self) -> MarketDataSet:
         # Fetch from all providers and merge results.

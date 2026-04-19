@@ -164,6 +164,7 @@ class DXYCollector(BaseCollector):
 
     collector_name = "dxy"
     cache_namespace = "dxy"
+    cache_model = MarketDataSet
 
     async def _do_collect(self) -> MarketDataSet:
         snapshot = await self._fetch_with_failover(self._providers)

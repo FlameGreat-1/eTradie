@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 class EconomicDataCollector(BaseCollector):
     collector_name = "economic_data"
     cache_namespace = "economic"
+    cache_model = EconomicDataSet
 
     async def _do_collect(self) -> EconomicDataSet:
         all_releases = []

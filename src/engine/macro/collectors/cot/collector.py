@@ -66,6 +66,7 @@ def _detect_divergence(commercial_net: int, non_commercial_net: int) -> bool:
 class COTCollector(BaseCollector):
     collector_name = "cot"
     cache_namespace = "cot"
+    cache_model = COTDataSet
 
     async def _do_collect(self) -> COTDataSet:
         report = await self._fetch_with_failover(self._providers)

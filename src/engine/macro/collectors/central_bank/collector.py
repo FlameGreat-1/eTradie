@@ -27,6 +27,7 @@ class CentralBankCollector(BaseCollector):
 
     collector_name = "central_bank"
     cache_namespace = "cb"
+    cache_model = CentralBankDataSet
 
     async def _do_collect(self) -> CentralBankDataSet:
         all_events = []

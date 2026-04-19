@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 class CalendarCollector(BaseCollector):
     collector_name = "calendar"
     cache_namespace = "calendar"
+    cache_model = CalendarDataSet
 
     async def _do_collect(self) -> CalendarDataSet:
         all_events = []
