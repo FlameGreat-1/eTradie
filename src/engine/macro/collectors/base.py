@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import time
 from typing import Any, ClassVar, Optional, TypeVar
 
@@ -23,13 +24,17 @@ T = TypeVar("T")
 class BaseCollector(abc.ABC):
     """Base class for all macro data collectors.
 
-    Implements a read-through cache (cache-aside) pattern. ``collect()``
-    is the public read path used by the analysis pipeline, the rerun
-    endpoint, and the Go gateway via /internal/macro/collect: it
-    returns a cached value when one is available and only falls back
-    to a full provider fetch on a miss. ``refresh()`` is the explicit
-    cache-bypass writer path used by the APScheduler jobs so the
-    scheduler always produces fresh data regardless of cache state.
+    Implements a read-through cache (cache-aside) pattern with
+    single-flight stampede protection. ``collect()`` is the public
+    read path used by the analysis pipeline, the rerun endpoint, and
+    the Go gateway via /internal/macro/collect: it returns a cached
+    value when one is available, coalesces concurrent misses into a
+    single provider fetch, and only falls back to executing
+    ``_do_collect()`` when no other caller is already doing so.
+    ``refresh()`` is the explicit cache-bypass writer path used by
+    the APScheduler jobs so the scheduler always produces fresh data
+    regardless of cache state; it shares the same instance lock so
+    a scheduled refresh never races a request-driven miss.
 
     Subclasses must:
       - implement ``_do_collect()`` which performs the expensive fetch
@@ -60,84 +65,114 @@ class BaseCollector(abc.ABC):
         self._providers = providers
         self._cache = cache
         self._db = db
+        # Lazy-allocated fetch coalescing lock. Created on first use
+        # so it binds to the correct running event loop. The guard
+        # lock below protects concurrent first-use callers from each
+        # creating a different Lock instance.
+        self._fetch_lock: Optional[asyncio.Lock] = None
+        self._fetch_lock_guard = asyncio.Lock()
+
+    async def _get_fetch_lock(self) -> asyncio.Lock:
+        """Return the instance-wide fetch coalescing lock.
+
+        Created lazily on first call so the Lock binds to the
+        currently running asyncio event loop (the collector is
+        instantiated during Container() at import/startup, which
+        on some runtimes is not the same loop the request handlers
+        run on).
+        """
+        if self._fetch_lock is not None:
+            return self._fetch_lock
+        async with self._fetch_lock_guard:
+            if self._fetch_lock is None:
+                self._fetch_lock = asyncio.Lock()
+        return self._fetch_lock
 
     async def collect(self, *, force_refresh: bool = False) -> Any:
         """Return the latest collector dataset.
 
-        Read-through path: look up the value in Redis first. On hit,
-        rehydrate via ``cache_model`` (if declared) and return
-        immediately. On miss, on cache-read failure, or when the
-        caller sets ``force_refresh=True``, invoke ``_do_collect()``
-        which fetches from providers, persists to the database, and
-        writes the cache.
+        Read-through path with single-flight coalescing:
+
+          1. If ``force_refresh`` is False, check Redis. A hit
+             returns immediately and is recorded as status=cache_hit.
+          2. On miss, acquire the instance fetch lock. If a
+             concurrent caller already populated the cache while we
+             were waiting, return that value and record the call as
+             status=coalesced (observably distinct from a first-try
+             cache_hit, so operators can measure how often stampede
+             protection actually saved a fetch).
+          3. Otherwise execute ``_do_collect()`` exactly once. All
+             concurrent waiters take the coalesced path and share
+             the single provider fetch. Status is recorded as
+             success or error on the sole fetcher.
 
         Args:
-            force_refresh: When True, skip the cache read and always
-                execute ``_do_collect()``. Used by the scheduler to
-                guarantee the cache is periodically refreshed.
+            force_refresh: When True, skip the initial cache read
+                and always execute ``_do_collect()``. Used by the
+                scheduler.
 
         Returns:
-            The collector-specific dataset. Type matches the return
-            type of the subclass ``_do_collect()``.
+            The collector-specific dataset.
 
         Raises:
-            Exception: Re-raised from ``_do_collect()`` on cache miss.
+            Exception: Re-raised from ``_do_collect()``.
         """
         start = time.monotonic()
 
         if not force_refresh:
             cached = await self._try_read_cache()
             if cached is not None:
-                duration = time.monotonic() - start
-                COLLECTOR_RUN_TOTAL.labels(
-                    collector=self.collector_name, status="cache_hit"
-                ).inc()
-                COLLECTOR_RUN_DURATION.labels(
-                    collector=self.collector_name
-                ).observe(duration)
+                self._observe("cache_hit", start)
                 logger.debug(
                     "collector_cache_hit",
                     extra={
                         "collector": self.collector_name,
                         "namespace": self.cache_namespace,
-                        "duration_ms": round(duration * 1000, 2),
+                        "duration_ms": round((time.monotonic() - start) * 1000, 2),
                     },
                 )
                 return cached
 
-        try:
-            result = await self._do_collect()
-            duration = time.monotonic() - start
-            COLLECTOR_RUN_TOTAL.labels(
-                collector=self.collector_name, status="success"
-            ).inc()
-            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
-                duration
-            )
-            return result
-        except Exception as exc:
-            duration = time.monotonic() - start
-            COLLECTOR_RUN_TOTAL.labels(
-                collector=self.collector_name, status="error"
-            ).inc()
-            COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
-                duration
-            )
-            logger.error(
-                "collector_failed",
-                collector=self.collector_name,
-                error=str(exc),
-            )
-            raise
+        lock = await self._get_fetch_lock()
+        async with lock:
+            # Double-checked read under the lock: another waiter may
+            # have repopulated the cache while we were blocked.
+            if not force_refresh:
+                cached = await self._try_read_cache()
+                if cached is not None:
+                    self._observe("coalesced", start)
+                    logger.debug(
+                        "collector_fetch_coalesced",
+                        extra={
+                            "collector": self.collector_name,
+                            "namespace": self.cache_namespace,
+                            "duration_ms": round(
+                                (time.monotonic() - start) * 1000, 2
+                            ),
+                        },
+                    )
+                    return cached
+
+            try:
+                result = await self._do_collect()
+                self._observe("success", start)
+                return result
+            except Exception as exc:
+                self._observe("error", start)
+                logger.error(
+                    "collector_failed",
+                    collector=self.collector_name,
+                    error=str(exc),
+                )
+                raise
 
     async def refresh(self) -> Any:
         """Force a provider fetch and cache write, bypassing any hit.
 
-        This is the authoritative writer path. The APScheduler macro
-        jobs call this on their configured intervals so Redis is
-        always populated with a fresh dataset regardless of whether
-        downstream readers are hitting the cache. Semantically
-        equivalent to ``collect(force_refresh=True)``.
+        The scheduler's authoritative writer path. Holds the instance
+        fetch lock so a scheduled refresh and a request-driven miss
+        never double-fetch the same provider in the same instant.
+        Semantically equivalent to ``collect(force_refresh=True)``.
         """
         return await self.collect(force_refresh=True)
 
@@ -148,7 +183,7 @@ class BaseCollector(abc.ABC):
         read/timeout/connection error, or on rehydration validation
         error. A cache read failure is never propagated: the caller
         falls through to a full fetch, so the collector continues to
-        function identically to today when Redis is degraded.
+        function identically when Redis is degraded.
         """
         try:
             raw = await self._cache.get(
@@ -187,6 +222,22 @@ class BaseCollector(abc.ABC):
                 },
             )
             return None
+
+    def _observe(self, status: str, start: float) -> None:
+        """Record a single collect() invocation in Prometheus.
+
+        Emits both the run total counter with the appropriate status
+        label and the duration histogram. Keeping this in one helper
+        guarantees every return path from ``collect()`` produces
+        consistent telemetry.
+        """
+        duration = time.monotonic() - start
+        COLLECTOR_RUN_TOTAL.labels(
+            collector=self.collector_name, status=status
+        ).inc()
+        COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
+            duration
+        )
 
     @abc.abstractmethod
     async def _do_collect(self) -> Any:
