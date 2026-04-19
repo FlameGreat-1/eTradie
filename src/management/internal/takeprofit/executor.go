@@ -147,6 +147,15 @@ func (e *Executor) executeTP(
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_partial_failed")
 	}
 
+	// Compute the REALIZED percentage from the actual closed volume
+	// so the journal entry stays self-consistent with the lot amount
+	// on the same row, even when the LLM-emitted tpPct values drift
+	// (e.g. a 40/40/50=130 plan produces clamped closeVol on TP2/TP3).
+	realizedPct := 0.0
+	if trade.TotalLotSize > 0 {
+		realizedPct = closeVol / trade.TotalLotSize * 100.0
+	}
+
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
 		UserID:       userID,
 		TradeID:      tradeID,
@@ -156,7 +165,7 @@ func (e *Executor) executeTP(
 		ClosedVolume: closeVol,
 		RealizedPnL:  pnlEstimate,
 		RMultiple:    rMultiple,
-		Reason:       fmt.Sprintf("%s hit at %.5f — closed %.2f lots (%d%%)", label, closePrice, closeVol, tpPct),
+		Reason:       fmt.Sprintf("%s hit at %.5f — closed %.2f lots (%.1f%% realized, %d%% intended)", label, closePrice, closeVol, realizedPct, tpPct),
 		Timestamp:    time.Now().UTC(),
 	}); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_event_failed")

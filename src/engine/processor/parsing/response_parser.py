@@ -199,6 +199,16 @@ def _is_non_fatal_warning(error: str) -> bool:
     if "rag_sources" in error_lower:
         return True
 
+    # TP size_pct sum drift is cosmetic position-sizing arithmetic.
+    # The Go management executor clamps partial close volumes to the
+    # remaining lot size and always full-closes the runner on TP3, so
+    # a sum of 90/110/130 does not affect actual execution or realized
+    # P&L. The error remains counted via TRADE_PLAN_VALIDATION_FAILURES
+    # for observability, and surfaces in warnings for audit, but does
+    # not block an otherwise-valid trade plan.
+    if "take_profits size_pct sum" in error_lower:
+        return True
+
     # Everything else is trade-critical and must block execution.
     return False
 
