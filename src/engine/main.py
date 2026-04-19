@@ -189,16 +189,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             embedding=rag_health.embedding_provider_ready,
         )
 
+    # Scheduler jobs bind to .refresh() (cache-bypass writer path) so
+    # every scheduled interval unconditionally fetches from providers
+    # and repopulates Redis. All request-driven callers (analysis
+    # rerun, /internal/macro/collect, downstream readers) use
+    # .collect() which is the read-through fast path that serves
+    # from cache when a fresh value is available.
     register_macro_jobs(
         container.scheduler,
-        cb_collector_fn=container.cb_collector.collect,
-        cot_collector_fn=container.cot_collector.collect,
-        economic_collector_fn=container.economic_collector.collect,
-        news_collector_fn=container.news_collector.collect,
-        calendar_collector_fn=container.calendar_collector.collect,
-        dxy_collector_fn=container.dxy_collector.collect,
-        intermarket_collector_fn=container.intermarket_collector.collect,
-        sentiment_collector_fn=container.sentiment_collector.collect,
+        cb_collector_fn=container.cb_collector.refresh,
+        cot_collector_fn=container.cot_collector.refresh,
+        economic_collector_fn=container.economic_collector.refresh,
+        news_collector_fn=container.news_collector.refresh,
+        calendar_collector_fn=container.calendar_collector.refresh,
+        dxy_collector_fn=container.dxy_collector.refresh,
+        intermarket_collector_fn=container.intermarket_collector.refresh,
+        sentiment_collector_fn=container.sentiment_collector.refresh,
         poll_cb=settings.poll_interval_central_bank_rss,
         poll_news=settings.poll_interval_news,
         poll_calendar=settings.poll_interval_calendar,
