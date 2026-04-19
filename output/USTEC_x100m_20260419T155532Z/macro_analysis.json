@@ -1,12 +1,12 @@
 {
   "central_bank": {
-    "id": "911c7442-cead-4f5b-a2f2-3d92139b2772",
-    "created_at": "2026-04-19T08:37:58.521598Z",
+    "id": "8a75da66-0827-4152-9924-4c9209e0f7c7",
+    "created_at": "2026-04-19T15:54:12.250026Z",
     "rate_decisions": [],
     "speeches": [
       {
-        "id": "a29c85b8-9780-4e10-8f0a-cf181c70beb0",
-        "created_at": "2026-04-19T08:37:40.448942Z",
+        "id": "83ae3892-bac4-476e-ae39-b2ef4593e229",
+        "created_at": "2026-04-19T15:53:44.881659Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -18,8 +18,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260416a.htm"
       },
       {
-        "id": "77f03503-6668-468c-9538-1121af706a4a",
-        "created_at": "2026-04-19T08:37:40.449785Z",
+        "id": "cbbc63c4-2cdf-4fc5-b035-de5bb93a9bb3",
+        "created_at": "2026-04-19T15:53:44.881800Z",
         "bank": "FED",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -31,8 +31,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260414a.htm"
       },
       {
-        "id": "eb902cb1-836f-46f3-922c-ee462180b14b",
-        "created_at": "2026-04-19T08:37:40.449894Z",
+        "id": "de709b4b-faad-4e65-978a-562fce6d169b",
+        "created_at": "2026-04-19T15:53:44.881901Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -44,8 +44,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260410a.htm"
       },
       {
-        "id": "7c0587f6-0218-4447-89d6-600035147204",
-        "created_at": "2026-04-19T08:37:40.450049Z",
+        "id": "9155740c-267a-45d8-8f5b-2e8fe974e256",
+        "created_at": "2026-04-19T15:53:44.882033Z",
         "bank": "FED",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -57,8 +57,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260409a.htm"
       },
       {
-        "id": "46eaf20a-f95a-40a3-bfd6-68a3732b9c83",
-        "created_at": "2026-04-19T08:37:40.450267Z",
+        "id": "24bd44ee-5721-4f3c-ab45-9811208f98fd",
+        "created_at": "2026-04-19T15:53:44.882410Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -70,8 +70,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/other20260408a.htm"
       },
       {
-        "id": "efdf10f8-0c89-46b5-a4db-d23d13ffdb4c",
-        "created_at": "2026-04-19T08:37:40.450304Z",
+        "id": "289f1c63-6109-41ec-b74b-53d52b44c926",
+        "created_at": "2026-04-19T15:53:44.882458Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -83,8 +83,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260403a.htm"
       },
       {
-        "id": "2ea8e89b-9b54-4391-ad84-a30df92ac505",
-        "created_at": "2026-04-19T08:37:40.450347Z",
+        "id": "eb58a7e2-3061-40c1-aa0d-b3c28675fc52",
+        "created_at": "2026-04-19T15:53:44.882517Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -96,8 +96,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260326a.htm"
       },
       {
-        "id": "bf5338e5-6982-4d7e-aef4-6a8be4e07dda",
-        "created_at": "2026-04-19T08:37:40.450377Z",
+        "id": "7ede44f2-9001-4962-bce8-845a1171f6cc",
+        "created_at": "2026-04-19T15:53:44.882556Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -109,8 +109,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/other20260325a.htm"
       },
       {
-        "id": "aa5087fb-0880-46c1-a8e3-06aae2ece876",
-        "created_at": "2026-04-19T08:37:40.450411Z",
+        "id": "824510d1-1447-4ba7-9ffe-4e8fe8c7d3c1",
+        "created_at": "2026-04-19T15:53:44.882598Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -122,8 +122,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260320a.htm"
       },
       {
-        "id": "c3233b8f-0cd2-4e0d-af48-531647f93707",
-        "created_at": "2026-04-19T08:37:40.450445Z",
+        "id": "cc27667a-db9f-4223-8c7e-3159906d745b",
+        "created_at": "2026-04-19T15:53:44.882642Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -135,8 +135,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/bcreg20260319a.htm"
       },
       {
-        "id": "e767996c-815e-42e1-a282-2ae4be4ac602",
-        "created_at": "2026-04-19T08:37:40.450471Z",
+        "id": "171a6aa4-b71f-40fe-9107-ff8100584137",
+        "created_at": "2026-04-19T15:53:44.882676Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -148,8 +148,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318a.htm"
       },
       {
-        "id": "6f937d81-34fc-4766-b066-e7d7f52ff9a8",
-        "created_at": "2026-04-19T08:37:40.450611Z",
+        "id": "0a62510f-ce28-4ac7-b69c-170a532dc232",
+        "created_at": "2026-04-19T15:53:44.882778Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -161,8 +161,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260313a.htm"
       },
       {
-        "id": "e0419b64-78a0-4bbd-a892-2432fbf190d0",
-        "created_at": "2026-04-19T08:37:40.450646Z",
+        "id": "fbb50cfe-4d01-47e1-8615-1cb66e2f1d0c",
+        "created_at": "2026-04-19T15:53:44.882814Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -174,8 +174,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260312a.htm"
       },
       {
-        "id": "436ea2e3-9781-43d5-bfcd-b793154b1a1c",
-        "created_at": "2026-04-19T08:37:40.450696Z",
+        "id": "1faa0b53-6be4-4c9a-8abe-15c0955f21d0",
+        "created_at": "2026-04-19T15:53:44.882850Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -187,8 +187,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260311b.htm"
       },
       {
-        "id": "290cdc8f-9335-4015-b0d1-eac9d014ed65",
-        "created_at": "2026-04-19T08:37:40.450731Z",
+        "id": "4f8708e0-c4c2-4d6f-9494-c361ab7c0ca0",
+        "created_at": "2026-04-19T15:53:44.882893Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -200,8 +200,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260311a.htm"
       },
       {
-        "id": "ef93fa26-2286-4a24-9cde-6d781d19055f",
-        "created_at": "2026-04-19T08:37:40.450771Z",
+        "id": "37fc958e-be0f-4adb-abac-647f205dc46c",
+        "created_at": "2026-04-19T15:53:44.882947Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -213,8 +213,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260310a.htm"
       },
       {
-        "id": "69f88072-f8eb-457b-9ee3-c4c27882e2f5",
-        "created_at": "2026-04-19T08:37:40.450798Z",
+        "id": "4fba0928-8497-42b4-a6f2-49986f61de8e",
+        "created_at": "2026-04-19T15:53:44.882982Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -226,8 +226,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260309a.htm"
       },
       {
-        "id": "bdff18d5-362a-4fc2-a0e3-4ce033b0c32d",
-        "created_at": "2026-04-19T08:37:40.450824Z",
+        "id": "66a1205b-be59-477c-9312-422df8b31b64",
+        "created_at": "2026-04-19T15:53:44.883018Z",
         "bank": "FED",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -239,8 +239,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/bcreg20260305a.htm"
       },
       {
-        "id": "14c8e2ab-db19-4543-8162-baa5147a66ff",
-        "created_at": "2026-04-19T08:37:44.566971Z",
+        "id": "53abb71d-51a4-4b98-a520-2183d71edcf0",
+        "created_at": "2026-04-19T15:53:45.980220Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -252,8 +252,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260417~033a4546f5.en.html"
       },
       {
-        "id": "fa5978c9-9c02-4a60-8411-075355cb22e5",
-        "created_at": "2026-04-19T08:37:44.567175Z",
+        "id": "cdc83b93-a259-438b-8aee-5d826d14b571",
+        "created_at": "2026-04-19T15:53:45.980309Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -265,8 +265,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260416~3ae2dad6b3.en.pdf"
       },
       {
-        "id": "e0abca73-f080-4db3-b1d0-a8f50165c7d1",
-        "created_at": "2026-04-19T08:37:44.567340Z",
+        "id": "4aab2c47-ad9c-43d3-b013-24d63b3f07c7",
+        "created_at": "2026-04-19T15:53:45.980454Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -278,8 +278,8 @@
         "source_url": "https://www.ecb.europa.eu//press/accounts/2026/html/ecb.mg260416~6a27b0c258.en.html"
       },
       {
-        "id": "02dcdc5f-1cfa-405f-9125-685ae6e5fec9",
-        "created_at": "2026-04-19T08:37:44.567456Z",
+        "id": "8e4fe0d1-e692-4b87-9210-e415368b161e",
+        "created_at": "2026-04-19T15:53:45.980580Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -291,8 +291,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260415~868b59bca9.en.html"
       },
       {
-        "id": "5db3ce57-b082-4cd3-935a-bf9a130ad6a2",
-        "created_at": "2026-04-19T08:37:44.567856Z",
+        "id": "4b0ff52f-3c3a-491e-a76e-53ae00fad6fe",
+        "created_at": "2026-04-19T15:53:45.980921Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -304,8 +304,8 @@
         "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260414~ad43db8bb6.en.html"
       },
       {
-        "id": "677ae573-75e0-4009-b621-3019803e01dc",
-        "created_at": "2026-04-19T08:37:44.568039Z",
+        "id": "9eca58ec-baf3-41cd-bf81-8e0344382724",
+        "created_at": "2026-04-19T15:53:45.981176Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -317,8 +317,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260401~d9106c31db.en.html"
       },
       {
-        "id": "46f97f25-97c2-4db8-8484-cda81e6bb293",
-        "created_at": "2026-04-19T08:37:44.568172Z",
+        "id": "cbce5f65-3784-4885-b115-63a066b4e5a4",
+        "created_at": "2026-04-19T15:53:45.981258Z",
         "bank": "ECB",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -330,8 +330,8 @@
         "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260331~04561d8476.en.html"
       },
       {
-        "id": "467ea9a5-8d72-4cd6-b60e-77363625bb09",
-        "created_at": "2026-04-19T08:37:44.568319Z",
+        "id": "0e145426-09ee-41ac-9cf7-9aac6bf7a45e",
+        "created_at": "2026-04-19T15:53:45.981341Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -343,8 +343,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260327~eca8717025.en.pdf"
       },
       {
-        "id": "2e0eb43c-9054-4d29-b6cc-fbf687cdd46c",
-        "created_at": "2026-04-19T08:37:44.569713Z",
+        "id": "019384c9-62c0-46f7-b93a-424ddd159e20",
+        "created_at": "2026-04-19T15:53:45.981475Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -356,8 +356,8 @@
         "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260327~d8261341ca.en.html"
       },
       {
-        "id": "934b8129-227f-4864-b65d-6af4b442bd0d",
-        "created_at": "2026-04-19T08:37:44.569919Z",
+        "id": "e6130475-de80-4a85-927b-abbafe2a5db1",
+        "created_at": "2026-04-19T15:53:45.981609Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -369,8 +369,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260326~cbb4721baf.en.html"
       },
       {
-        "id": "eee18935-f230-453a-b997-3647d7b95316",
-        "created_at": "2026-04-19T08:37:44.570913Z",
+        "id": "68bfaba2-71cb-4997-9f9e-9d741073b6c7",
+        "created_at": "2026-04-19T15:53:45.981827Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -382,8 +382,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260325~ac2916a211.en.html"
       },
       {
-        "id": "0b304888-9703-4a10-949d-f60f112bdae1",
-        "created_at": "2026-04-19T08:37:44.571035Z",
+        "id": "0bfb3ef7-794a-4bb7-85a1-9b76507f6e3e",
+        "created_at": "2026-04-19T15:53:45.981878Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -395,8 +395,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260324~66f71f7577.en.html"
       },
       {
-        "id": "366215ee-62ac-4da2-ad2d-30b52810e428",
-        "created_at": "2026-04-19T08:37:44.571116Z",
+        "id": "1228105c-291d-439d-9f4f-0d6313f13717",
+        "created_at": "2026-04-19T15:53:45.981926Z",
         "bank": "ECB",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -408,8 +408,8 @@
         "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260324~c439239caa.en.html"
       },
       {
-        "id": "be6168f5-16b4-4f1e-abf4-5d30dd625431",
-        "created_at": "2026-04-19T08:37:54.044557Z",
+        "id": "aed35fe8-5020-49be-b5bf-dc610718235c",
+        "created_at": "2026-04-19T15:53:54.391867Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -421,8 +421,8 @@
         "source_url": "http://www.boj.or.jp/en/research/wps_rev/wps_2026/wp26e06.htm"
       },
       {
-        "id": "b52429a5-6f8c-463a-af4e-64368804afe9",
-        "created_at": "2026-04-19T08:37:54.044617Z",
+        "id": "961346cf-f882-4e0f-8fd3-b5b672eaa5bf",
+        "created_at": "2026-04-19T15:53:54.391897Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -434,8 +434,8 @@
         "source_url": "http://www.boj.or.jp/en/paym/bond/mbond_list/mbond260416.pdf"
       },
       {
-        "id": "804c860f-7fec-469b-92e4-581a9662eff0",
-        "created_at": "2026-04-19T08:37:54.044679Z",
+        "id": "2807e2f9-1f1f-4389-95be-3a723445cb9d",
+        "created_at": "2026-04-19T15:53:54.391942Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -447,8 +447,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260410.xlsx"
       },
       {
-        "id": "96f1990e-5a96-46fb-abc2-5052e14dcf76",
-        "created_at": "2026-04-19T08:37:54.044791Z",
+        "id": "81e14928-2a7a-4031-a76a-b4efc9a9788f",
+        "created_at": "2026-04-19T15:53:54.392065Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -460,8 +460,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/money/ms/ms2603.pdf"
       },
       {
-        "id": "f3122954-f96f-4b12-b70a-e4639159a57b",
-        "created_at": "2026-04-19T08:37:54.044855Z",
+        "id": "7c74a51d-e14c-4404-a89d-36e8541450e6",
+        "created_at": "2026-04-19T15:53:54.392122Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -473,8 +473,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/set/bffail/sjgb2603.pdf"
       },
       {
-        "id": "93764402-b93a-4464-acb1-a44a6b0e504b",
-        "created_at": "2026-04-19T08:37:54.044890Z",
+        "id": "c288635d-7f62-4f69-9c2f-f5c70f75e037",
+        "created_at": "2026-04-19T15:53:54.392171Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -486,8 +486,8 @@
         "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e06.htm"
       },
       {
-        "id": "90f1a8e5-2112-4a83-a21c-091daf1dc882",
-        "created_at": "2026-04-19T08:37:54.044930Z",
+        "id": "29e95af6-2a5b-4088-b75a-cce86bf42405",
+        "created_at": "2026-04-19T15:53:54.392224Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -499,8 +499,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/dl/depo/kashi/kasi2603.pdf"
       },
       {
-        "id": "cadaaf7f-bd20-4daa-8fdf-1f20c0d508ac",
-        "created_at": "2026-04-19T08:37:54.044972Z",
+        "id": "0014fbd3-587f-43c6-9f54-f72de800b617",
+        "created_at": "2026-04-19T15:53:54.392285Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -512,8 +512,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/pi/cgpi_release/cgpi2603.pdf"
       },
       {
-        "id": "fa5f975e-c481-4e54-adcb-8aec9e937f8b",
-        "created_at": "2026-04-19T08:37:54.045006Z",
+        "id": "f5f2d358-ac60-4f21-811d-d15e78a3e6f3",
+        "created_at": "2026-04-19T15:53:54.392332Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -525,8 +525,8 @@
         "source_url": "http://www.boj.or.jp/en/finsys/macpru/mac260408a.pdf"
       },
       {
-        "id": "a843fb31-8783-4a6f-8367-98ea8d87e367",
-        "created_at": "2026-04-19T08:37:54.045032Z",
+        "id": "bf7961ae-94e5-4eef-8dc9-98ea2b741719",
+        "created_at": "2026-04-19T15:53:54.392382Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -538,8 +538,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/br/bop_06/bpdata/diiqcy.htm"
       },
       {
-        "id": "1797da5d-3b28-410f-a4f4-d246e0786ffc",
-        "created_at": "2026-04-19T08:37:54.045052Z",
+        "id": "9e3255c8-15cc-4851-b13f-2c058ab4ffce",
+        "created_at": "2026-04-19T15:53:54.392424Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -551,8 +551,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/market/short/call/call.xlsx"
       },
       {
-        "id": "26725462-c89c-49a3-b889-58d43edcbd3c",
-        "created_at": "2026-04-19T08:37:54.045073Z",
+        "id": "ddc73fbd-dcd9-47ee-827d-830048279d9d",
+        "created_at": "2026-04-19T15:53:54.392457Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -564,8 +564,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/cai/index.htm"
       },
       {
-        "id": "8588b542-1481-47a2-83df-2e0e4be8bba1",
-        "created_at": "2026-04-19T08:37:54.045147Z",
+        "id": "22bc3a0c-064a-4482-b305-5820327d080b",
+        "created_at": "2026-04-19T15:53:54.392568Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -577,8 +577,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/tseifu/release/2026/seifu2603.pdf"
       },
       {
-        "id": "4001c1d8-6641-4171-a5c9-b84ed15eba34",
-        "created_at": "2026-04-19T08:37:54.045192Z",
+        "id": "d36a0dbb-82c6-49ec-a87f-c09f0e7a1c3a",
+        "created_at": "2026-04-19T15:53:54.392617Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -590,8 +590,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mbt/mbt2603.pdf"
       },
       {
-        "id": "30054117-2cd3-4b91-a777-d394a1be37ee",
-        "created_at": "2026-04-19T08:37:54.045217Z",
+        "id": "22f15f23-4303-4eb8-b155-3af424b0cab3",
+        "created_at": "2026-04-19T15:53:54.392660Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -603,8 +603,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/ope/m_release/2026/ope2603.xlsx"
       },
       {
-        "id": "b60dc76a-807f-4fc1-b70d-f61421162885",
-        "created_at": "2026-04-19T08:37:54.045238Z",
+        "id": "7b7a6ebf-05ab-4349-b77c-5c0fe9c1ba29",
+        "created_at": "2026-04-19T15:53:54.392729Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -616,8 +616,8 @@
         "source_url": "http://www.boj.or.jp/en/research/brp/rer/rer260406.htm"
       },
       {
-        "id": "87a9dc15-43a7-4990-8576-03904f3def58",
-        "created_at": "2026-04-19T08:37:54.045268Z",
+        "id": "e50a71d6-21b4-45e8-801b-7713eecc424d",
+        "created_at": "2026-04-19T15:53:54.392766Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -629,8 +629,8 @@
         "source_url": "http://www.boj.or.jp/en/research/brp/ron_2026/ron260406a.htm"
       },
       {
-        "id": "b0f3a65a-12b3-42da-8a47-bd6c804392e6",
-        "created_at": "2026-04-19T08:37:54.045289Z",
+        "id": "c6e77e26-feba-475b-8b1f-fe398def765d",
+        "created_at": "2026-04-19T15:53:54.392818Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -642,8 +642,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/gap/index.htm"
       },
       {
-        "id": "e29cb6a8-19f8-42a5-86e7-7df116719921",
-        "created_at": "2026-04-19T08:37:54.045339Z",
+        "id": "ed3ddb14-3bb1-4bfe-a525-e2cb7dd31dfc",
+        "created_at": "2026-04-19T15:53:54.392915Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -655,8 +655,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260331.xlsx"
       },
       {
-        "id": "24efdd2b-213b-4cb9-8323-ea5309850fe0",
-        "created_at": "2026-04-19T08:37:54.045359Z",
+        "id": "7dbb832a-ffc2-49dc-91ee-a141575b1608",
+        "created_at": "2026-04-19T15:53:54.392960Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -668,8 +668,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/col/col2603.xlsx"
       },
       {
-        "id": "df3288d7-a494-46cd-9143-9923c720f4c9",
-        "created_at": "2026-04-19T08:37:54.045377Z",
+        "id": "a146c873-7a69-4d62-9aed-1b9ba62a4bcc",
+        "created_at": "2026-04-19T15:53:54.393006Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -681,8 +681,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mb/mb.htm"
       },
       {
-        "id": "e95de594-b4f3-4d0b-8207-eca081f92ae9",
-        "created_at": "2026-04-19T08:37:54.045399Z",
+        "id": "2b0d902f-0dda-4fa7-8ba3-397cd3ce80d5",
+        "created_at": "2026-04-19T15:53:54.393048Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -694,8 +694,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/tk/tankan03b.htm"
       },
       {
-        "id": "b71defb8-c354-43bb-81a0-0a3e87a52fd1",
-        "created_at": "2026-04-19T08:37:54.045478Z",
+        "id": "7a424ef5-1bfd-4d32-aa60-bef614462393",
+        "created_at": "2026-04-19T15:53:54.393141Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -707,8 +707,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/tk/tankan03a.htm"
       },
       {
-        "id": "ef501fc9-85dc-43a7-bcad-28d48c33de34",
-        "created_at": "2026-04-19T08:37:54.045502Z",
+        "id": "97feb783-77cc-41ab-8ecd-88b80f1e20de",
+        "created_at": "2026-04-19T15:53:54.393183Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -720,8 +720,8 @@
         "source_url": "http://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/mpr260331a.pdf"
       },
       {
-        "id": "9feacd61-1ee8-4eaa-b51c-7ed6e5199c5c",
-        "created_at": "2026-04-19T08:37:54.045527Z",
+        "id": "1c89caba-bf9b-41bd-92d7-c6695e8c3cde",
+        "created_at": "2026-04-19T15:53:54.393224Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -733,8 +733,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/set/kess/release/2026/kess2602.pdf"
       },
       {
-        "id": "83ed1819-436a-4d2d-b60d-36726285d6b2",
-        "created_at": "2026-04-19T08:37:54.045556Z",
+        "id": "90ef2c33-78f5-4bae-a54d-c3b3183467a1",
+        "created_at": "2026-04-19T15:53:54.393269Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -746,8 +746,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/dl/loan/yaku/yaku2602.pdf"
       },
       {
-        "id": "278aa396-a6e0-419d-a4aa-4d6fb8412f04",
-        "created_at": "2026-04-19T08:37:54.045586Z",
+        "id": "1c639973-5003-415f-a157-208f0600938f",
+        "created_at": "2026-04-19T15:53:54.393322Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -759,8 +759,8 @@
         "source_url": "http://www.boj.or.jp/en/paym/bond/ryudo.pdf"
       },
       {
-        "id": "a41b39e6-1b88-48a6-bdaa-dbc5298ac48d",
-        "created_at": "2026-04-19T08:37:54.045607Z",
+        "id": "66c9e2b8-0774-4f1e-9989-ee86e2bbe3d3",
+        "created_at": "2026-04-19T15:53:54.393381Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -772,8 +772,8 @@
         "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e05.htm"
       },
       {
-        "id": "5769d1ac-d96d-4766-b930-25c56c3f2db7",
-        "created_at": "2026-04-19T08:37:54.045659Z",
+        "id": "e24831df-f622-4549-811e-0e362fab1f05",
+        "created_at": "2026-04-19T15:53:54.393468Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -785,8 +785,8 @@
         "source_url": "http://www.boj.or.jp/en/research/imes/dps/dpse260330b.htm"
       },
       {
-        "id": "446f0ce4-e9c1-4a5d-bac6-63d9924d536a",
-        "created_at": "2026-04-19T08:37:54.045681Z",
+        "id": "a5cfa2c3-8756-4bb4-93bd-7c2143cd74d9",
+        "created_at": "2026-04-19T15:53:54.393493Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -798,8 +798,8 @@
         "source_url": "http://www.boj.or.jp/en/research/imes/dps/dpse260330a.htm"
       },
       {
-        "id": "c3f05c05-bc20-4cd5-965c-2c5a766d3d42",
-        "created_at": "2026-04-19T08:37:54.045702Z",
+        "id": "003af41f-5072-4f65-89bb-9aee1e059801",
+        "created_at": "2026-04-19T15:53:54.393519Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -811,8 +811,8 @@
         "source_url": "http://www.boj.or.jp/en/mopo/mpmsche_minu/opinion_2026/opi260319.pdf"
       },
       {
-        "id": "34d94421-7c9f-4242-8fdc-d935f9ce859f",
-        "created_at": "2026-04-19T08:37:54.045725Z",
+        "id": "05f4463c-8dd0-44fe-9663-53982b30d4b0",
+        "created_at": "2026-04-19T15:53:54.393540Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -824,8 +824,8 @@
         "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e04.htm"
       },
       {
-        "id": "1325677c-7eb6-423b-85ad-18254641394a",
-        "created_at": "2026-04-19T08:37:54.045766Z",
+        "id": "8cfd4a3f-2fd2-48f2-b85f-6d9b360afa63",
+        "created_at": "2026-04-19T15:53:54.393565Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -837,8 +837,8 @@
         "source_url": "http://www.boj.or.jp/en/about/release_2026/rel260326a.htm"
       },
       {
-        "id": "77e8813e-7bbc-4ad5-ab53-4ff1743e48bf",
-        "created_at": "2026-04-19T08:37:54.045787Z",
+        "id": "1e604006-3453-48b8-b1b1-5acbba788455",
+        "created_at": "2026-04-19T15:53:54.393619Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -850,8 +850,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/cpi/cpi260326a.htm"
       },
       {
-        "id": "bac31616-acd9-44c6-ae48-c50d6652e6e1",
-        "created_at": "2026-04-19T08:37:54.045808Z",
+        "id": "dc8ea68e-4e44-449a-ad58-c3d03c2ed32d",
+        "created_at": "2026-04-19T15:53:54.393643Z",
         "bank": "BOJ",
         "event_type": "RATE_DECISION",
         "speaker": "",
@@ -863,8 +863,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/gap/gap260326a.htm"
       },
       {
-        "id": "75d897b4-b611-4e57-92b9-43a64821b782",
-        "created_at": "2026-04-19T08:37:54.045826Z",
+        "id": "5975304c-8673-4a55-912b-4f6848bf4401",
+        "created_at": "2026-04-19T15:53:54.393664Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -876,8 +876,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/cpi/index.htm"
       },
       {
-        "id": "81c7846e-7163-4cff-8800-80d1221654b2",
-        "created_at": "2026-04-19T08:37:54.045845Z",
+        "id": "04d27eed-883d-4b52-b745-3addf841364e",
+        "created_at": "2026-04-19T15:53:54.393684Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -889,8 +889,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/pi/cspi_release/sppi2602.pdf"
       },
       {
-        "id": "3f5d59e4-7c80-4630-a66d-d9927cb001a8",
-        "created_at": "2026-04-19T08:37:54.045868Z",
+        "id": "cb0a03d4-a515-4449-a74d-a98b8c0b408c",
+        "created_at": "2026-04-19T15:53:54.393708Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -902,8 +902,8 @@
         "source_url": "http://www.boj.or.jp/en/research/wps_rev/wps_2026/wp26e05.htm"
       },
       {
-        "id": "fe681e86-ca17-43e4-8f41-b6101c6bacf4",
-        "created_at": "2026-04-19T08:37:54.045989Z",
+        "id": "985075ec-a64c-449b-b637-0c0f33485035",
+        "created_at": "2026-04-19T15:53:54.393760Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -915,8 +915,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260319.xlsx"
       },
       {
-        "id": "b9cb74ce-72c0-4a61-8cf1-a4c5150b9395",
-        "created_at": "2026-04-19T08:37:54.046024Z",
+        "id": "d51324ee-043c-4517-a572-df75e8cbcb5b",
+        "created_at": "2026-04-19T15:53:54.393780Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -928,8 +928,8 @@
         "source_url": "http://www.boj.or.jp/en/research/research_data/reri/index.htm"
       },
       {
-        "id": "5bb3c52f-9ab5-4fee-8299-8233b925d9b6",
-        "created_at": "2026-04-19T08:37:54.046076Z",
+        "id": "a7a8b361-f309-4614-982f-74ccd97ff13e",
+        "created_at": "2026-04-19T15:53:54.393831Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -941,8 +941,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/bis/ibs/index.htm"
       },
       {
-        "id": "95da3556-7298-4773-9b18-5a8b995a9efa",
-        "created_at": "2026-04-19T08:37:54.046096Z",
+        "id": "33f24e70-3c5d-4327-9543-b19df2b315e3",
+        "created_at": "2026-04-19T15:53:54.393851Z",
         "bank": "BOJ",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -954,8 +954,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/bis/repo/index.htm"
       },
       {
-        "id": "66881f0b-f62f-4dd1-a911-bc44c3f29bff",
-        "created_at": "2026-04-19T08:37:58.374214Z",
+        "id": "64f57528-fef2-4671-8e4d-296d28f537c3",
+        "created_at": "2026-04-19T15:54:00.348891Z",
         "bank": "RBA",
         "event_type": "CB_SPEECH",
         "speaker": "",
@@ -963,14 +963,144 @@
         "summary": "Media release number 2026-10: The Reserve Bank of Australia (RBA) has today published a Conclusions Paper which sets out the final decisions of the Payments System Board (PSB) on the Review of Merchant Card Payment Costs and Surcharging.",
         "tone": "NEUTRAL",
         "monetary_policy_action": "NONE",
-        "speech_date": "2026-04-19T08:37:58.373551Z",
+        "speech_date": "2026-04-19T15:54:00.348174Z",
         "source_url": "https://www.rba.gov.au/media-releases/2026/mr-26-10.html"
+      },
+      {
+        "id": "a006c643-46f0-41f9-8916-0561233917f0",
+        "created_at": "2026-04-19T15:54:05.988823Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Changes to Bank of Canada Governing Council",
+        "summary": "The Bank of Canada announced today the departure of Deputy Governor Rhys Mendes on April 10, and the retirement of Deputy Governor Sharon Kozicki on July 15.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988022Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/changes-bank-of-canada-governing-council/"
+      },
+      {
+        "id": "1e82489b-8d4f-4686-a99e-d8cf5b1018b1",
+        "created_at": "2026-04-19T15:54:05.988931Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988076Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/fad-press-release-2026-03-18/"
+      },
+      {
+        "id": "dccbe722-3d05-4283-b5a5-6266cc04430d",
+        "created_at": "2026-04-19T15:54:05.989062Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada, Export Development Canada, RBC and TD successfully complete bond issuance experiment  using distributed ledger technology",
+        "summary": "The Bank of Canada (BoC), RBC Capital Markets, RBC Investor Services, TD Bank Group (TD), and Export Development Canada (EDC) successfully completed Project Samara, a collaborative initiative to evaluate how tokenization and distributed ledger technology (DLT) can improve bond issuance and settlement in a real-world setting.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988106Z",
+        "source_url": "https://www.bankofcanada.ca/2026/03/bank-canada-export-development-canada-rbc-td-successfully-complete-bond-issuance-experiment-distributed-ledger-technology/"
+      },
+      {
+        "id": "1ef0ea96-2e35-4a34-abf7-f714ae5eca31",
+        "created_at": "2026-04-19T15:54:05.989168Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada issues revised compliance order to XTM Inc.",
+        "summary": "The Bank of Canada today issued a revised temporary order to XTM Inc. (XTM). The Bank has authorized XTM to recommence retail payment activities under the supervision of the Monitor appointed today by the Ontario Superior Court of Justice under the Companies' Creditors Arrangement Act, and subject to terms and conditions set out in the Bank's revised order.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988130Z",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-of-canada-issues-revised-compliance-order-to-xtm-inc/"
+      },
+      {
+        "id": "a28e6b5c-e104-454c-a2bf-29545375e71b",
+        "created_at": "2026-04-19T15:54:05.989273Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada issues immediate compliance order to XTM Inc.",
+        "summary": "The Bank of Canada today issued a temporary order to XTM Inc. (XTM) to immediately cease performing any retail payment activities.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988152Z",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-canada-issues-immediate-compliance-order-to-xtm-inc/"
+      },
+      {
+        "id": "47151f7c-7d65-4518-96e3-21140dfa8f02",
+        "created_at": "2026-04-19T15:54:05.989386Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988175Z",
+        "source_url": "https://www.bankofcanada.ca/2026/01/fad-press-release-2026-01-28/"
+      },
+      {
+        "id": "ff7de5e1-0011-4635-8eea-640f5009c8fd",
+        "created_at": "2026-04-19T15:54:05.989512Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%",
+        "summary": "The Bank of Canada today held its target for the overnight rate at 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988198Z",
+        "source_url": "https://www.bankofcanada.ca/2025/12/fad-press-release-2025-12-10/"
+      },
+      {
+        "id": "d0f941fb-83c2-4f1c-893c-0c92d2f38f8a",
+        "created_at": "2026-04-19T15:54:05.989661Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Bank of Canada announces finalists for the eleventh annual Governor\u2019s Challenge",
+        "summary": "The Bank of Canada has announced the five finalist teams in the 2025-26 edition of The Governor\u2019s Challenge, a competition where university students simulate the role of advisor to the Bank\u2019s Governing Council.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988221Z",
+        "source_url": "https://www.bankofcanada.ca/2025/12/bank-canada-announces-finalists-eleventh-annual-governors-challenge/"
+      },
+      {
+        "id": "6dbc2ec1-f67e-41d2-8f6c-60379c22359a",
+        "created_at": "2026-04-19T15:54:05.989808Z",
+        "bank": "BOC",
+        "event_type": "RATE_DECISION",
+        "speaker": "",
+        "title": "Bank of Canada lowers policy rate to 2\u00bc%",
+        "summary": "The Bank of Canada today reduced its target for the overnight rate by 25 basis points to 2.25%, with the Bank Rate at 2.5% and the deposit rate at 2.20%.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988247Z",
+        "source_url": "https://www.bankofcanada.ca/2025/10/fad-press-release-2025-10-29/"
+      },
+      {
+        "id": "a617b6e1-b9eb-49ac-a533-6c22dec6701c",
+        "created_at": "2026-04-19T15:54:05.990157Z",
+        "bank": "BOC",
+        "event_type": "CB_SPEECH",
+        "speaker": "",
+        "title": "Triennial Central Bank Survey of Foreign Exchange and Derivatives Market Activity in Canada during April 2025",
+        "summary": "In April, the Bank of Canada and 51 other central banks and monetary authorities conducted the latest triennial survey of turnover activity in the foreign exchange (FX) and over-the-counter (OTC) derivatives markets in their respective countries.",
+        "tone": "NEUTRAL",
+        "monetary_policy_action": "NONE",
+        "speech_date": "2026-04-19T15:54:05.988271Z",
+        "source_url": "https://www.bankofcanada.ca/2025/10/triennial-central-bank-survey-foreign-april-2025/"
       }
     ],
     "meeting_minutes": [
       {
-        "id": "523791e5-1b37-4c2c-ae75-dd1d05bf2b1f",
-        "created_at": "2026-04-19T08:37:40.450189Z",
+        "id": "b2db3711-6253-4ff2-9089-ee3cf6a7e0b6",
+        "created_at": "2026-04-19T15:53:44.882300Z",
         "bank": "FED",
         "event_type": "MEETING_MINUTES",
         "title": "Minutes of the Federal Open Market Committee, March 17\u201318, 2026",
@@ -984,8 +1114,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260408a.htm"
       },
       {
-        "id": "5cdef5bd-a46e-4899-a556-cf2f6fc22e82",
-        "created_at": "2026-04-19T08:37:54.044445Z",
+        "id": "6601de9b-9ce8-4dac-8ef2-a3e466bd1a27",
+        "created_at": "2026-04-19T15:53:54.391821Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "BOJ Current Account Balances by Sector (Mar.)",
@@ -999,8 +1129,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/cabs/cabs.xlsx"
       },
       {
-        "id": "f3aed9f0-8734-4985-9e3d-bca74f40bbf5",
-        "created_at": "2026-04-19T08:37:54.044735Z",
+        "id": "763ec402-b23f-4c56-942c-5b26eb504496",
+        "created_at": "2026-04-19T15:53:54.392016Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Bank of Japan Accounts (April 10)",
@@ -1014,8 +1144,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/acmai/release/2026/ac260410.htm"
       },
       {
-        "id": "0ab4973d-092d-4bef-83cf-ed1a828c0686",
-        "created_at": "2026-04-19T08:37:54.045101Z",
+        "id": "0cb40a94-2042-4ce8-9bd1-4b93e1e3e90d",
+        "created_at": "2026-04-19T15:53:54.392533Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Bank of Japan Accounts (March 31)",
@@ -1029,8 +1159,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/other/acmai/release/2026/ac260331.htm"
       },
       {
-        "id": "b4a0a898-1fd2-411f-86a5-07a72dfc58f1",
-        "created_at": "2026-04-19T08:37:54.045317Z",
+        "id": "8d245e0a-0cc4-4bb7-be64-0aef94cf742b",
+        "created_at": "2026-04-19T15:53:54.392871Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Sources of Changes in Current Account Balances (Projections for Apr.)",
@@ -1044,8 +1174,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/juqp/juqp2604.xlsx"
       },
       {
-        "id": "9f58b58f-28fa-4e2c-9fdd-2493a803668d",
-        "created_at": "2026-04-19T08:37:54.045453Z",
+        "id": "522df50c-0176-45f5-8726-6cd2de6a7722",
+        "created_at": "2026-04-19T15:53:54.393100Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Sources of Changes in Current Account Balances and Market Operations (Mar.)",
@@ -1059,8 +1189,8 @@
         "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/juqf/juqf03.xlsx"
       },
       {
-        "id": "69dfe9f3-df8d-4d72-99f7-e57191dd616c",
-        "created_at": "2026-04-19T08:37:54.045894Z",
+        "id": "81208bd2-497a-4e29-8ebf-259898f803f8",
+        "created_at": "2026-04-19T15:53:54.393736Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Minutes of the Monetary Policy Meeting on January 22 and 23, 2026",
@@ -1074,8 +1204,8 @@
         "source_url": "http://www.boj.or.jp/en/mopo/mpmsche_minu/minu_2026/g260123.pdf"
       },
       {
-        "id": "f8dfb22b-c898-404b-9f17-32298ffb5025",
-        "created_at": "2026-04-19T08:37:54.046051Z",
+        "id": "509f3066-6d08-4ed0-9b9a-eb659fbe93e6",
+        "created_at": "2026-04-19T15:53:54.393805Z",
         "bank": "BOJ",
         "event_type": "MEETING_MINUTES",
         "title": "Bank of Japan Accounts (March 20)",
@@ -1091,8 +1221,8 @@
     ],
     "forward_guidance": [
       {
-        "id": "ddc6810e-3798-435e-8202-4a76d22e3629",
-        "created_at": "2026-04-19T08:37:40.450510Z",
+        "id": "069b7862-39c5-41ee-a438-0d80334a7939",
+        "created_at": "2026-04-19T15:53:44.882728Z",
         "bank": "FED",
         "event_type": "FORWARD_GUIDANCE",
         "title": "Federal Reserve Board and Federal Open Market Committee release economic projections from the March 17-18 FOMC meeting",
@@ -1104,8 +1234,8 @@
         "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318b.htm"
       },
       {
-        "id": "982eda80-171f-4951-9431-c8e5065e50b3",
-        "created_at": "2026-04-19T08:37:44.567644Z",
+        "id": "f16b80a1-2e26-4233-b701-f954a5f75ea7",
+        "created_at": "2026-04-19T15:53:45.980792Z",
         "bank": "ECB",
         "event_type": "FORWARD_GUIDANCE",
         "title": "Philip R. Lane: The economic outlook and monetary policy in the euro area",
@@ -1117,8 +1247,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260414~b312adeb55.en.pdf"
       },
       {
-        "id": "246e8710-6169-4ed1-822c-1464c331c1cf",
-        "created_at": "2026-04-19T08:37:44.570040Z",
+        "id": "b9f72a0b-507c-41c4-a0b9-e10989e48a6b",
+        "created_at": "2026-04-19T15:53:45.981760Z",
         "bank": "ECB",
         "event_type": "FORWARD_GUIDANCE",
         "title": "The outlook for the euro area economy",
@@ -1130,8 +1260,8 @@
         "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb~6b0b29cdd4.sp260325_1_en.pdf"
       },
       {
-        "id": "63b3d8f6-9828-4690-b892-9f054d4a87e4",
-        "created_at": "2026-04-19T08:37:54.045634Z",
+        "id": "5760c834-a175-4757-a8a8-b2069e693231",
+        "created_at": "2026-04-19T15:53:54.393436Z",
         "bank": "BOJ",
         "event_type": "FORWARD_GUIDANCE",
         "title": "(Research Paper) IMES DPS: Forecasting Recessions Using Machine Learning on Text Data and Mixed-Frequency Predictors",
@@ -1148,18 +1278,19 @@
       "FED",
       "ECB",
       "BOJ",
-      "RBA"
+      "RBA",
+      "BOC"
     ],
-    "collected_at": "2026-04-19T08:37:58.521446Z"
+    "collected_at": "2026-04-19T15:54:12.249908Z"
   },
   "cot": null,
   "economic": {
-    "id": "bbb090de-37d9-49b0-a605-28665294201c",
-    "created_at": "2026-04-19T08:37:58.175910Z",
+    "id": "0313356e-1dbd-4c20-89a0-4828ea1f9942",
+    "created_at": "2026-04-19T15:54:09.697201Z",
     "releases": [
       {
-        "id": "c6ebdf21-daa3-49c1-b545-28ccc8837fa1",
-        "created_at": "2026-04-19T08:37:41.257197Z",
+        "id": "2e51a6c2-25b5-400c-9dda-aaa13df57dd6",
+        "created_at": "2026-04-19T15:53:46.035224Z",
         "currency": "USD",
         "indicator": "CPI",
         "indicator_name": "Core CPI ex Food & Energy (US)",
@@ -1174,8 +1305,8 @@
         "source": "fred"
       },
       {
-        "id": "414bbf09-6cfd-45b6-8333-e7c1199d1cdd",
-        "created_at": "2026-04-19T08:37:43.147265Z",
+        "id": "15945614-116d-4500-9c6f-61ba03dfc85d",
+        "created_at": "2026-04-19T15:53:46.900139Z",
         "currency": "USD",
         "indicator": "CPI",
         "indicator_name": "Core PCE ex Food & Energy (US)",
@@ -1190,8 +1321,8 @@
         "source": "fred"
       },
       {
-        "id": "05417b37-e4c6-42c3-ab81-ce134ee6845f",
-        "created_at": "2026-04-19T08:37:43.915065Z",
+        "id": "dce48ea0-f49f-4409-b45e-ce2836f90e98",
+        "created_at": "2026-04-19T15:53:47.213896Z",
         "currency": "USD",
         "indicator": "GDP",
         "indicator_name": "Gross Domestic Product (US)",
@@ -1206,8 +1337,8 @@
         "source": "fred"
       },
       {
-        "id": "70b4aba5-d541-4e3e-97f6-a34f2e05df85",
-        "created_at": "2026-04-19T08:37:44.623160Z",
+        "id": "5fa8a38e-e99a-4d63-83eb-a0f5e35cdf08",
+        "created_at": "2026-04-19T15:53:47.497526Z",
         "currency": "USD",
         "indicator": "EMPLOYMENT",
         "indicator_name": "Unemployment Rate (US)",
@@ -1222,8 +1353,8 @@
         "source": "fred"
       },
       {
-        "id": "7bbbfdb8-dafe-450d-b86f-c035dbc8620d",
-        "created_at": "2026-04-19T08:37:45.237010Z",
+        "id": "82d5b19a-ea09-4f57-af24-65731c8f24af",
+        "created_at": "2026-04-19T15:53:47.790353Z",
         "currency": "USD",
         "indicator": "NFP",
         "indicator_name": "Total Nonfarm Payrolls (US)",
@@ -1238,8 +1369,8 @@
         "source": "fred"
       },
       {
-        "id": "73ddcfc1-d08f-4c6d-b4f3-ec6d036e7d60",
-        "created_at": "2026-04-19T08:37:48.513543Z",
+        "id": "8f7d4b62-c34c-41cc-b011-5b42aa704638",
+        "created_at": "2026-04-19T15:53:48.081325Z",
         "currency": "USD",
         "indicator": "RETAIL_SALES",
         "indicator_name": "Retail Sales (US)",
@@ -1254,8 +1385,8 @@
         "source": "fred"
       },
       {
-        "id": "a028cd31-eb3b-4537-bc50-e1a3bdf1df02",
-        "created_at": "2026-04-19T08:37:49.195325Z",
+        "id": "525d9218-11a8-4840-ba60-f8b0e7291f83",
+        "created_at": "2026-04-19T15:53:48.754377Z",
         "currency": "USD",
         "indicator": "PPI",
         "indicator_name": "Producer Price Index (US)",
@@ -1270,8 +1401,8 @@
         "source": "fred"
       },
       {
-        "id": "e518c1b9-f4f2-4350-9fbe-788406bba29a",
-        "created_at": "2026-04-19T08:37:49.995255Z",
+        "id": "70a359c3-f9ca-4178-8959-6748dc6f8518",
+        "created_at": "2026-04-19T15:53:49.082268Z",
         "currency": "USD",
         "indicator": "MANUFACTURING",
         "indicator_name": "Industrial Production Index (US)",
@@ -1289,67 +1420,224 @@
     "sources": [
       "fred"
     ],
-    "collected_at": "2026-04-19T08:37:58.175840Z"
+    "collected_at": "2026-04-19T15:54:09.696961Z"
   },
   "news": {
-    "id": "dd57235c-1cf4-4fcb-b363-a667e1bb0964",
-    "created_at": "2026-04-19T08:37:53.258174Z",
+    "id": "7cb18a46-0d5c-4fc8-a602-26be19ab3f04",
+    "created_at": "2026-04-19T15:54:07.534657Z",
     "items": [
       {
-        "id": "db8b6e3e-7558-4a69-951d-b06384677d51",
-        "created_at": "2026-04-19T08:37:53.145337Z",
-        "headline": "IEA Head Pitches Iraq-Turkey Pipeline to Bypass Hormuz: H\u00fcrriyet",
+        "id": "34a21c6a-3b47-49b3-b6d4-20e8053604f4",
+        "created_at": "2026-04-19T15:54:07.422160Z",
+        "headline": "Rep. Stutzman: Iran War Has Made Life Harder For Constituents",
         "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-19/iea-head-pitches-iraq-turkey-pipeline-to-bypass-hormuz-hurriyet",
-        "summary": "International Energy Agency Executive Director Fatih Birol proposed building a new oil pipeline linking Iraq\u2019s Basra oil fields and Turkey\u2019s Mediterranean oil terminal in Ceyhan to shift the balance away from the Strait of Hormuz, according to Turkish newspaper H\u00fcrriyet.",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/rep-stutzman-war-has-made-life-harder-for-constituents-video",
+        "summary": "Indiana Congressman Marlin Stutzman (R) joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss recent statements from President Trump. The President said he\u2019ll send representatives to Pakistan for talks to end the Iran war on Monday evening, while again threatening to strike civilian infrastructure if Tehran doesn\u2019t agree to a deal. (Source: Bloomberg)",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T15:14:15Z",
+        "dedupe_hash": "0ad4d9531b6d587eb2620ae743a9185c958f61f9cf21b83afe573ed60e984580"
+      },
+      {
+        "id": "779e7f90-7873-461f-86e9-4c1eee2f4e70",
+        "created_at": "2026-04-19T15:54:07.422275Z",
+        "headline": "Fmr. Secretary of Defense Esper: \"It's Gonna Be Hard To Get a Deal Done\"",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/fmr-sod-esper-it-s-gonna-be-hard-to-get-a-deal-done-video",
+        "summary": "Former Defense Secretary Mark Esper joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss recent statements from former President Trump, who declared he is ready to \"knock out\" power plants and bridges. (Source: Bloomberg)",
         "currencies_mentioned": [],
         "impact": "MEDIUM",
         "sentiment": "NEUTRAL",
-        "published_at": "2026-04-19T07:55:19Z",
-        "dedupe_hash": "4a661148b9184e44b826b0b160955b727db9c21dbf989b0c19ec750f29b4d640"
+        "published_at": "2026-04-19T15:02:10Z",
+        "dedupe_hash": "e8cb43a24de16067c221cea2da6b142fa34a15ef532abd404de0ba1d02209f3d"
       },
       {
-        "id": "e2248343-ded1-4e92-bda4-9bf658013b6e",
-        "created_at": "2026-04-19T08:37:53.145435Z",
-        "headline": "Hormuz Chaos, Lebanon Clashes Dent Trump Peace Deal Hopes",
+        "id": "82d31488-287f-4f6d-a508-621d9214f823",
+        "created_at": "2026-04-19T15:54:07.422362Z",
+        "headline": "Why Private Credit Is Not a Financial Crisis Threat",
         "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/chaos-erupts-in-hormuz-after-trump-claimed-iran-deal-is-imminent-mo48sbi2",
-        "summary": "Iran on Saturday reimposed restrictions on vessel traffic through the Strait of Hormuz and Israel attacked targets in Lebanon, undermining expectations of an imminent peace deal touted by US President Donald Trump.",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/why-private-credit-is-not-a-financial-crisis-threat-video",
+        "summary": "Bloomberg Senior Writer for Ideas & Culture Felix Salmon discusses with David Gura and Christina Ruffini on Bloomberg This Weekend the growing attention on private credit, a trillion-dollar asset class involving direct loans from investors to private equity-backed companies. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T14:49:46Z",
+        "dedupe_hash": "81b0d0a840a8039a8256b8ffef0766e0267b81d670d20d98f5a13f3ff5dcdd6e"
+      },
+      {
+        "id": "7a635853-dba6-47bc-a15f-4c6868eef056",
+        "created_at": "2026-04-19T15:54:07.422439Z",
+        "headline": "Jon Finer Criticizes Lack of Expertise in Iran Negotiations",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/finer-criticizes-lack-of-expertise-in-iran-negotiations-video",
+        "summary": "Former Principal Deputy National Security Advisor Jon Finer joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss the complexities involved in the Iran nuclear negotiations, emphasizing the need for a team with deep technical and legal expertise to properly assess Iranian demands and potential concessions. (Source: Bloomberg)",
         "currencies_mentioned": [],
         "impact": "MEDIUM",
         "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T11:15:56Z",
-        "dedupe_hash": "6226fff0b0a2b4f70b2b7260fb2ca70107cb0ca02a8451419b6c5d19ea7caffd"
+        "published_at": "2026-04-19T14:36:05Z",
+        "dedupe_hash": "2bb370df05b65d68062f6a146f523bd671313292835ad828c7bcfa86d4373d7c"
       },
       {
-        "id": "1c08f429-102c-4fe2-afa2-a4ac7588e8d8",
-        "created_at": "2026-04-19T08:37:53.145678Z",
-        "headline": "New World Sells All Flats on Offer at Rebuilt Luxury Project",
+        "id": "ef9da43d-3ff5-46bf-9d91-1540ec6a7f50",
+        "created_at": "2026-04-19T15:54:07.422524Z",
+        "headline": "Achieving a Comfortable Retirement Amid Rising Costs",
         "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-19/new-world-sells-out-all-offered-flats-at-rebuilt-luxury-project",
-        "summary": "New World Development Co. sold out all the flats in the first phase of its Pavilia Farm III residential project in Hong Kong, according to the developer.",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/achieving-a-comfortable-retirement-amid-rising-costs-video",
+        "summary": "Bloomberg Personal Finance Reporter Suzanne Woolley discusses the challenges of retiring comfortably in the face of increasing living expenses. She emphasizes to Bloomberg This Weekend hosts David Gura and Christina Ruffini that there is no universal dollar amount for retirement savings, as the required sum depends heavily on individual lifestyle choices and location. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T14:10:05Z",
+        "dedupe_hash": "7aa2f4e02a5614a0ec9623c213ce65f4c3c941ad5735a82a705cfa48fb86caf1"
+      },
+      {
+        "id": "ac5cd59d-073a-4108-bab9-82a5db3b8cbf",
+        "created_at": "2026-04-19T15:54:07.422616Z",
+        "headline": "Are the Rich Paying Their Fair Share of Taxes?",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/are-the-rich-paying-their-fair-share-of-taxes-video",
+        "summary": "Taxes have long been at the center of debates over fairness, growth, and the role of government. Yale law professor Natasha Sarin argues that gaps in the system, including the treatment of capital gains and inherited wealth, allow significant income to go untaxed, limiting federal revenue at a time of rising deficits. Investor Steve Rattner says higher taxes may be unavoidable given fiscal pressures, while University of Richmond professor Jessica Flanigan warns that overly aggressive taxation could slow economic growth and reduce overall prosperity. The result is a persistent tension between raising revenue, encouraging investment, and defining what constitutes a fair tax burden in a modern economy. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T14:03:45Z",
+        "dedupe_hash": "4d2e0ff15eeefcc35afdfe91f40437ab87c68b08fa48dd2f03689c821b610a80"
+      },
+      {
+        "id": "5f7724c4-3880-41fe-aaeb-3667eb06dcc9",
+        "created_at": "2026-04-19T15:54:07.422684Z",
+        "headline": "Option Traders Chasing Torrid Stock Rally Turn Focus to Earnings",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/option-traders-chasing-torrid-stock-rally-turn-focus-to-earnings",
+        "summary": "Option traders have flipped from concern that the Iran war will sink the economy to fear of missing out on the torrid equity rebound. That shift away from macro risk to individual stocks is set to continue as corporate earnings take center stage.",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T14:00:00Z",
+        "dedupe_hash": "fbd5473255a40e41689ab2a41ebf0ed6123271cfaa72bdb69800f232c6483af2"
+      },
+      {
+        "id": "89414a57-4299-4e2d-8cd3-1f47132fd5c5",
+        "created_at": "2026-04-19T15:54:07.422749Z",
+        "headline": "EU Special Rep. Ollogren Says Peace Requires Israel Restrains Itself",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/eusr-says-peace-requires-israel-restrains-itself-video",
+        "summary": "European Union Special Representative for Human Rights Kajsa Ollongren joins David Gura and Christina Ruffini on Bloomberg This Weekend the upcoming European Leaders Summit as they meet on Friday for talks with the war in Iran on the agenda. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T13:39:52Z",
+        "dedupe_hash": "5344260917153d8ff015e52c576aaf8c9fd2c09f0deab860779c6978792201a2"
+      },
+      {
+        "id": "9621a31e-8b94-4b32-a9a9-f6006fab9ec5",
+        "created_at": "2026-04-19T15:54:07.422824Z",
+        "headline": "Big Tech\u2019s $4 Trillion Boomerang Powers S&amp;P 500 to New Heights",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/big-tech-s-4-trillion-boomerang-powers-s-p-500-to-new-heights",
+        "summary": "Big Tech stocks are back and powering the S&amp;P 500 Index to new highs, giving investors confidence that the latest equity market rally has room to run even as the risks from the war with Iran remain.",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T13:00:07Z",
+        "dedupe_hash": "897beddc2ead35fe0ab82b09634a0b950396f784c10fbb41f43ba79543ceb253"
+      },
+      {
+        "id": "573a4856-2cb3-4997-af7c-fa79d485c1f8",
+        "created_at": "2026-04-19T15:54:07.422889Z",
+        "headline": "Chef Andrew Zimmern Explains Eating for Sustainability",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/chef-andrew-zimmern-explains-eating-for-sustainability-video",
+        "summary": "With Earth Day fast approaching, Chef and Restaurateur Andrew Zimmern joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss the concept of 'blue foods,' sustainable food sourced from water such as fish, shellfish, and seaweed, and their critical role in combating climate change and addressing global hunger.  (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T12:53:26Z",
+        "dedupe_hash": "f09bfdb28463d6e4dd0fcc48e95e9a64853f81183f4d6afe16a1db309b25b9de"
+      },
+      {
+        "id": "7a623a6f-3648-4054-bb1b-ce148bbacd73",
+        "created_at": "2026-04-19T15:54:07.422943Z",
+        "headline": "Hormuz Shipping Traffic Grinds to a Halt as Tensions Deepen",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/hormuz-shipping-traffic-grinds-to-a-halt-as-tensions-deepen",
+        "summary": "Observed transits of commercial ships through the Strait of Hormuz have come to a halt following a brief surge on Saturday as tensions ratcheted higher after vessels came under gunfire in the waterway and Iran warned against crossings.",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T12:41:47Z",
+        "dedupe_hash": "084977beec4bd70f5d1d46da202d67a8e5cf1dfb5e91b4e73fa0d262de99c78c"
+      },
+      {
+        "id": "8de8e695-0aca-4336-9a20-a7aecf1ea136",
+        "created_at": "2026-04-19T15:54:07.423022Z",
+        "headline": "What to Expect From Fed Chair Nominee Kevin Warsh's Confirmation Hearing",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/what-to-expect-from-fed-chair-nom-kevin-warsh-s-hearing-video",
+        "summary": "The Senate Banking Committee has scheduled a confirmation hearing at 10 a.m. on April 21 for Kevin Warsh, President Donald Trump\u2019s nominee for Federal Reserve chair. Bloomberg News Washington Correspondent Tyler Kendall and Bloomberg News International Economics and Policy Correspondent Michael McKee join David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T12:38:20Z",
+        "dedupe_hash": "3dc31985ab4b99c5b402dac8f5daa7520967037f8b6157aa853a1f9d6429446f"
+      },
+      {
+        "id": "792d46be-3c33-44a9-adab-8a9c126fa2e1",
+        "created_at": "2026-04-19T15:54:07.423086Z",
+        "headline": "Emerging-Market Bond Sales Are Soaring Again as Investors Dive Back Into Risk",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/emerging-market-bond-sales-are-soaring-again-as-investors-dive-back-into-risk",
+        "summary": "Emerging-market bond sales are roaring back from last month\u2019s doldrums, as issuers from Brazil to Turkey take advantage of rebounding markets to raise fresh financing.",
         "currencies_mentioned": [],
         "impact": "MEDIUM",
         "sentiment": "NEUTRAL",
-        "published_at": "2026-04-19T02:51:27Z",
-        "dedupe_hash": "bc753064eae025edef1de5ee2a456e562cee5a888d8bba5e10d30183ff15ec07"
+        "published_at": "2026-04-19T12:30:00Z",
+        "dedupe_hash": "16d29d81f6e87e2a0a1b513c6ea74638f0ca9db5542346fa791c946b7c7336d7"
       },
       {
-        "id": "63c68964-1ea5-4e74-9454-2b8f4b535fc6",
-        "created_at": "2026-04-19T08:37:53.145820Z",
-        "headline": "Australia\u2019s Victoria State Extends Public Transport Benefits",
+        "id": "1c873845-8ed7-4589-ad31-0df819ebf71b",
+        "created_at": "2026-04-19T15:54:07.423145Z",
+        "headline": "Blue Origin Launches With First Reused Booster",
         "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-19/australia-s-victoria-state-extends-public-transport-benefits",
-        "summary": "Travel on all public transport in the Australian state of Victoria will be free in May and then half price for the remainder of this year as the government ramps up help for consumers battling high fuel costs.",
-        "currencies_mentioned": [],
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/blue-origin-launches-with-first-reused-booster-video",
+        "summary": "Blue Origin, the US space company of Amazon founder Jeff Bezos, successfully reused and recovered a booster for its New Glenn rocket on Sunday, confirming its mastery of a technical feat that could boost its launch cadence and expand its rivalry with SpaceX. Bloomberg Tech Co-Host Ed Ludlow joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
+        "currencies_mentioned": [
+          "CAD"
+        ],
         "impact": "MEDIUM",
         "sentiment": "NEUTRAL",
-        "published_at": "2026-04-19T00:30:56Z",
-        "dedupe_hash": "89ac5e4cd33bcafe2778a5dd15797c34f5a977fc7612be19a3fced6d28e42720"
+        "published_at": "2026-04-19T12:23:05Z",
+        "dedupe_hash": "47fa6b9569ad5362dcdcd5364e8470490f47a273eb1575c37c950b346a80a6c6"
       },
       {
-        "id": "258e7a2e-aed9-4081-9b2e-d94a5634a6c6",
-        "created_at": "2026-04-19T08:37:53.145890Z",
+        "id": "4611e27e-e5cd-48f9-bf66-07cb48d6f758",
+        "created_at": "2026-04-19T15:54:07.423208Z",
+        "headline": "Hormuz at Standstill, Denting US-Iran Peace Deal Hopes",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/videos/2026-04-19/hormuz-at-standstill-denting-us-iran-peace-deal-hopes-video",
+        "summary": "Shipping in the Strait of Hormuz was at a near standstill early Sunday after Iran reversed its decision to reopen the waterway and fired on vessels attempting to pass, warning it would block transits as long as the US blockade of Iranian ports remained. Bloomberg News White House Correspondent Courtney Subramanian, Bloomberg Intelligence Senior Defense Research Analyst Colonel Wayne Sanders and The Associated Press' International Correspondent Philip Crowther join David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
+        "currencies_mentioned": [],
+        "impact": "HIGH",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T12:16:00Z",
+        "dedupe_hash": "8471840ebfde28ae15679f780d3f5aa2d10a6e91c9976feef4ef7535c65baddc"
+      },
+      {
+        "id": "49b34289-23bd-4d84-9046-e0518fdcb489",
+        "created_at": "2026-04-19T15:54:07.423255Z",
         "headline": "War Revives Stagflation Dangers for Global Economy",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/articles/2026-04-18/war-revives-stagflation-dangers-for-global-economy",
@@ -1361,8 +1649,73 @@
         "dedupe_hash": "6287dd262e7673515b1c9c092b3790eb53abb95423e281fe7a7142a74fced3c6"
       },
       {
-        "id": "3c8b5b8f-a196-490c-8521-b9de300ee360",
-        "created_at": "2026-04-19T08:37:53.145994Z",
+        "id": "ea9fee32-7716-49d4-b4f2-a8010d8bae1e",
+        "created_at": "2026-04-19T15:54:07.423362Z",
+        "headline": "China\u2019s Orient Securities Deal to Create $86 Billion Brokerage",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/china-s-orient-securities-deal-to-create-86-billion-brokerage",
+        "summary": "Two Shanghai government\u2011backed brokerages plan to merge in a deal that will create a firm with around $86 billion in assets, underscoring China\u2019s push to consolidate the securities industry as it seeks to build world\u2011class investment banks.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T10:05:14Z",
+        "dedupe_hash": "e4a9f7e51fdf9124f38233293fc53d77bc351b2b40fb125aa9179c945d275bfd"
+      },
+      {
+        "id": "5cff63d6-1d7f-4a5a-9d91-0ffba1116f50",
+        "created_at": "2026-04-19T15:54:07.423435Z",
+        "headline": "IEA Head Pitches Iraq-Turkey Pipeline to Bypass Hormuz: H\u00fcrriyet",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/iea-head-pitches-iraq-turkey-pipeline-to-bypass-hormuz-hurriyet",
+        "summary": "International Energy Agency Executive Director Fatih Birol proposed building a new oil pipeline linking Iraq\u2019s Basra oil fields and Turkey\u2019s Mediterranean oil terminal in Ceyhan to shift the balance away from the Strait of Hormuz, according to Turkish newspaper H\u00fcrriyet.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T07:55:19Z",
+        "dedupe_hash": "4a661148b9184e44b826b0b160955b727db9c21dbf989b0c19ec750f29b4d640"
+      },
+      {
+        "id": "08d15514-60ba-4835-9d71-1509e46dd8b6",
+        "created_at": "2026-04-19T15:54:07.423486Z",
+        "headline": "Hormuz Chaos, Lebanon Clashes Dent Trump Peace Deal Hopes",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-18/chaos-erupts-in-hormuz-after-trump-claimed-iran-deal-is-imminent-mo48sbi2",
+        "summary": "Iran on Saturday reimposed restrictions on vessel traffic through the Strait of Hormuz and Israel attacked targets in Lebanon, undermining expectations of an imminent peace deal touted by US President Donald Trump.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-18T11:15:56Z",
+        "dedupe_hash": "6226fff0b0a2b4f70b2b7260fb2ca70107cb0ca02a8451419b6c5d19ea7caffd"
+      },
+      {
+        "id": "82c3808b-c221-46b9-b695-30424a0bb787",
+        "created_at": "2026-04-19T15:54:07.423529Z",
+        "headline": "New World Sells All Flats on Offer at Rebuilt Luxury Project",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/new-world-sells-out-all-offered-flats-at-rebuilt-luxury-project",
+        "summary": "New World Development Co. sold out all the flats in the first phase of its Pavilia Farm III residential project in Hong Kong, according to the developer.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T02:51:27Z",
+        "dedupe_hash": "bc753064eae025edef1de5ee2a456e562cee5a888d8bba5e10d30183ff15ec07"
+      },
+      {
+        "id": "78f6d613-57ec-4ed3-8b8b-a79e30766df2",
+        "created_at": "2026-04-19T15:54:07.423585Z",
+        "headline": "Australia\u2019s Victoria State Extends Public Transport Benefits",
+        "source": "bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-04-19/australia-s-victoria-state-extends-public-transport-benefits",
+        "summary": "Travel on all public transport in the Australian state of Victoria will be free in May and then half price for the remainder of this year as the government ramps up help for consumers battling high fuel costs.",
+        "currencies_mentioned": [],
+        "impact": "MEDIUM",
+        "sentiment": "NEUTRAL",
+        "published_at": "2026-04-19T00:30:56Z",
+        "dedupe_hash": "89ac5e4cd33bcafe2778a5dd15797c34f5a977fc7612be19a3fced6d28e42720"
+      },
+      {
+        "id": "6329fb80-0b72-4102-8db3-301934d9c21c",
+        "created_at": "2026-04-19T15:54:07.423644Z",
         "headline": "Traders Ready to Put War Behind Them Dial Up Risk",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/articles/2026-04-18/traders-ready-to-put-war-behind-them-dial-up-risk-credit-weekly",
@@ -1374,8 +1727,8 @@
         "dedupe_hash": "e0fb19ff6602f52f6dee1192080cafd6809ed8142ac4baa66631e7897e46ec49"
       },
       {
-        "id": "f6e16cee-b14c-431a-add7-7d9ada8ed34e",
-        "created_at": "2026-04-19T08:37:53.146226Z",
+        "id": "23489868-8722-44a0-9daa-02ac22037627",
+        "created_at": "2026-04-19T15:54:07.423776Z",
         "headline": "Bloomberg This Weekend 4/18/2026",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/bloomberg-this-weekend-4-18-2026-video",
@@ -1389,8 +1742,8 @@
         "dedupe_hash": "d5e6608a742a1ce7db9b636febfa7139a064486abc2f215e26e7dd2baf3dd68b"
       },
       {
-        "id": "3d7b0912-baae-42ff-ae22-024692ce8ed1",
-        "created_at": "2026-04-19T08:37:53.146328Z",
+        "id": "b6d1a782-29e8-4af2-902b-da973f29e5e4",
+        "created_at": "2026-04-19T15:54:07.423844Z",
         "headline": "Orban Loss, Meloni Setback Signal Left\u2019s EU Return, Ribera Says",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/articles/2026-04-18/orban-loss-meloni-setback-signals-left-s-eu-return-ribera-says",
@@ -1404,8 +1757,8 @@
         "dedupe_hash": "333a954586defb547bbadb01af938af1c35230c66fc7364649b80fd3a2d0effe"
       },
       {
-        "id": "cc8bb7e8-410b-4f4e-bf4e-cfc1c4ffb662",
-        "created_at": "2026-04-19T08:37:53.146374Z",
+        "id": "ef98c594-cd99-419e-83ff-9d22aab27a75",
+        "created_at": "2026-04-19T15:54:07.423903Z",
         "headline": "How JLL is Embracing Artificial Intelligence | C-Suite Saturdays",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/how-jll-is-embracing-artificial-intelligence-video",
@@ -1417,8 +1770,8 @@
         "dedupe_hash": "7b229ae6cfa0464387a5ee96acbb0a87253068db304200f52ecd458c78a4e59c"
       },
       {
-        "id": "2253fc97-3604-4a2b-8ae1-8f6d4b100cff",
-        "created_at": "2026-04-19T08:37:53.146411Z",
+        "id": "cda3936d-a25e-44c8-8b6c-508e6b11999f",
+        "created_at": "2026-04-19T15:54:07.423952Z",
         "headline": "US Preparing to Board Iran-Linked Ships in Coming Days, WSJ Says",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/articles/2026-04-18/us-preparing-to-board-iran-linked-ships-in-coming-days-wsj-says",
@@ -1430,8 +1783,8 @@
         "dedupe_hash": "ace45613f67338dd9ac4741fd1544d2d8248eb941cfb2e0fd83dbaed9e1e8c47"
       },
       {
-        "id": "a6fa9ffd-509f-40a1-ac9e-4d0c1ad4f55d",
-        "created_at": "2026-04-19T08:37:53.146464Z",
+        "id": "3695257c-b66a-433b-8e06-3820136a69b2",
+        "created_at": "2026-04-19T15:54:07.424035Z",
         "headline": "Iran Claims \u2018Strict Control\u2019 of Strait of Hormuz",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/iran-claims-strict-control-of-strait-of-hormuz-video",
@@ -1443,8 +1796,8 @@
         "dedupe_hash": "014316a8853db34f93cb69be06a7a3cf2ccf3b38188bae53611e0cf4fbc2dcf6"
       },
       {
-        "id": "e5613081-72f6-4614-a79a-09f45527d179",
-        "created_at": "2026-04-19T08:37:53.146506Z",
+        "id": "cd1eb3e0-5930-4926-95a5-f5983a692e44",
+        "created_at": "2026-04-19T15:54:07.424098Z",
         "headline": "Strait of Hormuz Shut, US Blockade Intensifies, and Gunfire Reported",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/blockade-intensifies-vessels-report-gunfire-video",
@@ -1456,8 +1809,8 @@
         "dedupe_hash": "8820305ca18c4c2c9d09cf9c3264d55dcc9326c450d692d5e5f10e89b4084a54"
       },
       {
-        "id": "a42d256d-01e6-4897-b694-eed0fe2bbc2a",
-        "created_at": "2026-04-19T08:37:53.146558Z",
+        "id": "a47d56ba-05f9-404e-9429-9ebd55c6af7b",
+        "created_at": "2026-04-19T15:54:07.424185Z",
         "headline": "Why Oil Markets Won\u2019t Recover Quickly From the Iran War",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/why-oil-markets-won-t-recover-quickly-from-the-iran-war-video",
@@ -1469,8 +1822,8 @@
         "dedupe_hash": "6094fc0c2137c60cc40af946b21045d329db0beb05cec205fadb1bff79e389ec"
       },
       {
-        "id": "97c74431-40bf-45ba-8c0f-232e198d8c89",
-        "created_at": "2026-04-19T08:37:53.146599Z",
+        "id": "1c71faf9-2546-4475-a63b-30958d82ad1d",
+        "created_at": "2026-04-19T15:54:07.424256Z",
         "headline": "Major Banks Shake Off Private Credit Fears",
         "source": "bloomberg",
         "url": "https://www.bloomberg.com/news/videos/2026-04-18/major-banks-shake-off-private-credit-fears-video",
@@ -1480,234 +1833,20 @@
         "sentiment": "NEUTRAL",
         "published_at": "2026-04-18T14:03:06Z",
         "dedupe_hash": "57db0f5df028b0921dfe3e5010f340331a4d5cf4f509ebc212237b20aaa52a08"
-      },
-      {
-        "id": "c5762429-2b46-491a-9a82-147d89065a47",
-        "created_at": "2026-04-19T08:37:53.146702Z",
-        "headline": "ECB Moves Away From April Hike as Peace Talks Progress",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/ecb-moves-away-from-april-hike-as-peace-talks-progress-overview",
-        "summary": "European Central Bank officials are leaving Washington ever so slightly more optimistic than when they arrived, as ongoing US-Iran peace talks raise the prospect of energy shipments resuming from the Gulf.",
-        "currencies_mentioned": [
-          "EUR"
-        ],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T14:00:12Z",
-        "dedupe_hash": "440be8f4d8222c8f385534d7927cae6ee0cefcf5a0382ef7d6c773e121655d38"
-      },
-      {
-        "id": "3a4ca856-1613-455a-aa99-d4ba61de871d",
-        "created_at": "2026-04-19T08:37:53.146789Z",
-        "headline": "Federal Agency Probes Suspicious Oil Trades Made Before Trump Pivots",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/videos/2026-04-18/federal-agency-probes-suspicious-oil-trades-video",
-        "summary": "The top US derivatives regulator is investigating a series of suspiciously well-timed trades in the oil futures market ahead of recent policy pivots by President Donald Trump related to the war in Iran, according to people familiar with the matter. Commodity Futures Trading Commission former chairman Gary Gensler joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
-        "currencies_mentioned": [
-          "USD"
-        ],
-        "impact": "HIGH",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T13:58:28Z",
-        "dedupe_hash": "a6b6354ea534967ee6233543e58724a6ad45c308ec1ceece1af30e9e51c2a1e5"
-      },
-      {
-        "id": "4bbf3f7a-3e85-4f26-a1d7-3064df2d08d5",
-        "created_at": "2026-04-19T08:37:53.146830Z",
-        "headline": "Peace Deal Uncertain as Iran Says Strait of Hormuz is Shut",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/videos/2026-04-18/peace-deal-uncertain-iran-says-strait-of-hormuz-is-shut-video",
-        "summary": "International Maritime Organization Secretary General Arsenio Dominguez joins David Gura and Christina Ruffini on Bloomberg This Weekend as Iran reimposed restrictions on vessel traffic through the Strait of Hormuz and Israel attacked targets in Lebanon, undermining expectations of an imminent peace deal touted by US President Donald Trump Saturday morning. (Source: Bloomberg)",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T13:48:08Z",
-        "dedupe_hash": "22a6df274abff22175c58cf3ada4f9d0b75095ff5b2312068a9cd86cb7a68e96"
-      },
-      {
-        "id": "f7be862b-9c0d-4d2a-b1e9-853df11bc754",
-        "created_at": "2026-04-19T08:37:53.146867Z",
-        "headline": "India\u2019s HDFC Bank Beats Estimates on Strong Loan Growth",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/india-s-hdfc-bank-beats-estimates-as-loan-growth-stays-strong",
-        "summary": "HDFC Bank Ltd., India\u2019s largest private sector lender that faced a setback following the abrupt exit of its chairman last month, reported better-than-expected results on strong loan growth.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T10:01:36Z",
-        "dedupe_hash": "bf4a33a4b2eeef57b3724c29c5289134489f82638d6158132e49cda852788e50"
-      },
-      {
-        "id": "ff4fc335-3173-42aa-8991-b3df579c024c",
-        "created_at": "2026-04-19T08:37:53.146904Z",
-        "headline": "Nigeria Expands Stocks Trading Hours After Frontier Index Return",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/nigeria-expands-stocks-trading-hours-after-frontier-index-return",
-        "summary": "Nigerian Exchange Group is expanding equities trading hours after index provider FTSE Russell said it would allow the country\u2019s equities to return to its frontier-markets benchmark later this year.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T13:39:26Z",
-        "dedupe_hash": "c80c801e93c9e4cddb70ad95f8321e0a721df64aac4cb5ce5ecbd3c6d8eb49a1"
-      },
-      {
-        "id": "a150c5cc-cac5-4698-813c-716f96450a46",
-        "created_at": "2026-04-19T08:37:53.146940Z",
-        "headline": "Strong Earnings Results Can\u2019t Save Stocks from Dimming Forecasts",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/strong-earnings-results-can-t-save-stocks-from-dimming-forecasts",
-        "summary": "Stocks are surging to new highs on the prospects of peace in the Middle East and what has so far been robust first quarter earnings results. But strategists say the key to further equity upside will be corporate outlooks.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T13:30:00Z",
-        "dedupe_hash": "a29d822dbacc4ce36531678b77d663e63db53d883ae2889ea35e95ec44da83b5"
-      },
-      {
-        "id": "b7e23d90-e672-42bc-8500-78c91ba94053",
-        "created_at": "2026-04-19T08:37:53.146972Z",
-        "headline": "EQT Warns of Exit Risks for Alternative Energy Assets Held by PE",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-17/eqt-warns-of-exit-risks-for-alternative-energy-assets-held-by-pe",
-        "summary": "EQT AB, Europe\u2019s biggest private equity firm, says the path to exiting investments in clean-energy developers and operators faces a growing number of hurdles.",
-        "currencies_mentioned": [
-          "EUR"
-        ],
-        "impact": "HIGH",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-17T12:11:04Z",
-        "dedupe_hash": "c8d9e31b6a0ba676fe566e004eeb4f8f83912a198d2310bbc2242c9a4a2fca73"
-      },
-      {
-        "id": "0b1624a9-68c0-4de1-a679-1927ac7d6ae0",
-        "created_at": "2026-04-19T08:37:53.147012Z",
-        "headline": "Stocks Jump in Face of Uncertainty Over Strait of Hormuz",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/videos/2026-04-18/stocks-jump-in-face-of-uncertainty-over-strait-of-hormuz-video",
-        "summary": "A ceasefire between Israel and Hezbollah in Lebanon and news that Iran allegedly decided to reopen the Strait of Hormuz to commercial shipping sent risky assets surging anew on Friday. This surge extended a rally that pushed the S&amp;P 500 to a fresh record and fueling its biggest monthly advance since 2020. Bloomberg TV Anchor Dani Burger and Bloomberg Intelligence Senior Commodity Strategist Mike McGlone join David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T12:26:06Z",
-        "dedupe_hash": "f7fc4bdbf943811f68d437bfcbd8f66348e57a97fc85436dbd970d5cffe242e6"
-      },
-      {
-        "id": "9df52a1e-edf5-4366-b5b9-5c45686282dc",
-        "created_at": "2026-04-19T08:37:53.147046Z",
-        "headline": "Hank Paulson on Iran War, Inflation, and Market Risk",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/videos/2026-04-18/hank-paulson-on-iran-war-inflation-and-market-risk-video",
-        "summary": "The war in Iran is putting pressure on global energy markets, but its broader economic impact could be even farther-reaching. Former US Treasury Secretary Hank Paulson says the conflict is likely to push inflation higher, keep interest rates elevated, and strain industries from airlines to agriculture. At the same time, Paulson highlights rising sovereign debt and a fragile US-China relationship as key vulnerabilities, arguing that while the US economy remains resilient, the longer-term risks are mounting. (Source: Bloomberg)",
-        "currencies_mentioned": [],
-        "impact": "HIGH",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T12:04:16Z",
-        "dedupe_hash": "002eb5e327e4028e95caa092f9288c107494f021839cbca73a3296532140da23"
-      },
-      {
-        "id": "92ca97b7-25a0-403d-a6af-ff8443f7a676",
-        "created_at": "2026-04-19T08:37:53.147069Z",
-        "headline": "Hank Paulson Says the US Will Weather Iran War Fallout Better Than Anyone Else",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/newsletters/2026-04-18/hank-paulson-says-the-us-will-weather-iran-war-fallout-better-than-anyone-else",
-        "summary": "The former Treasury Secretary says the US will weather fallout from the war better than anyone",
-        "currencies_mentioned": [],
-        "impact": "HIGH",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T12:00:00Z",
-        "dedupe_hash": "632a56f2b6e63791163381ca2673be01aa6c7347c938d1d39c4095c113345c74"
-      },
-      {
-        "id": "fe2653b6-5090-4cd6-9b0c-c0dd236513d1",
-        "created_at": "2026-04-19T08:37:53.147115Z",
-        "headline": "Iran Says Strait of Hormuz is Shut Amid Reports of Gunfire",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/videos/2026-04-18/strait-of-hormuz-shut-amid-reports-of-gunfire-video",
-        "summary": "Iran broadcast to ships in the Strait of Hormuz that the vital oil and gas channel is closed to maritime traffic again, with owners reporting gunfire in the waterway less than 24 hours after the nation\u2019s foreign minister declared it open. Bloomberg News White House Correspondent Jeff Mason, Jerusalem Reporter Dan Williams and The Associated Press' International Correspondent Philip Crowther join David Gura and Christina Ruffini on Bloomberg This Weekend to discuss. (Source: Bloomberg)",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T11:47:13Z",
-        "dedupe_hash": "df9951fc311f580fe6af78aa25aae7750dfb782bad575c35ecba12149b83298f"
-      },
-      {
-        "id": "0be49f09-27a2-4cbc-bb1e-1a851fb50207",
-        "created_at": "2026-04-19T08:37:53.147201Z",
-        "headline": "LNG Ships Move Toward Hormuz as Iran Gives Mixed Signals",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-17/empty-lng-tankers-attempt-hormuz-crossing-into-persian-gulf",
-        "summary": "Several liquefied natural gas tankers appear to be nearing the Strait of Hormuz, as the market closely watches if flows of the super-chilled fuel through the waterway will resume despite Iran\u2019s mixed messages.",
-        "currencies_mentioned": [],
-        "impact": "HIGH",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-17T13:45:06Z",
-        "dedupe_hash": "392842d206b53ec2abe04a1feb5d29c3590cf959b28471cc4116e5841717f5e0"
-      },
-      {
-        "id": "71d32c98-4a82-42ae-a446-58df2f6b5571",
-        "created_at": "2026-04-19T08:37:53.147242Z",
-        "headline": "Tankers Test Hormuz Reopening as Uncertainty Lingers Over Strait",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/greek-indian-tankers-u-turn-before-hormuz-amid-reopening-doubt",
-        "summary": "More crude oil and gas carriers have begun to test the Strait of Hormuz on Saturday, even as mixed messages from Iranian authorities leave shipowners fretting over the status of the vital energy chokepoint.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T05:12:54Z",
-        "dedupe_hash": "5d6a6e854166230db349b83ff9c096d3ad224491c40dfa9e9077be5fd6cd01b6"
-      },
-      {
-        "id": "b8f14b18-3cc2-47c7-b804-4ebc494df676",
-        "created_at": "2026-04-19T08:37:53.147280Z",
-        "headline": "Lufthansa 100th Birthday Bash Leaves Little Room for Cheers",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/lufthansa-s-100th-birthday-bash-leaves-little-cause-for-cheers",
-        "summary": "Deutsche Lufthansa AG\u2019s 100th anniversary bash this week had all the elements of a picture-perfect party. The sun was out, flight attendants in polished vintage uniforms greeted guests, and Chief Executive Officer Carsten Spohr beamed on stage with German Chancellor Friedrich Merz.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T06:00:00Z",
-        "dedupe_hash": "69b6270e24c26de9891a15e0454dcc1a9a0bf2850d582008f0d3450585a2720c"
-      },
-      {
-        "id": "3314cbe0-5784-4dd6-87f3-a547dc98949d",
-        "created_at": "2026-04-19T08:37:53.147314Z",
-        "headline": "Blaze Quelled at Russian Baltic Port After Ukrainian Strike",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/russia-said-fire-broke-out-at-baltic-port-after-drone-attack",
-        "summary": "Russia said an overnight fire was extinguished at a port in the Vysotsk region on the Baltic Sea after Ukrainian drone attacks, while a Kremlin strike on Ukraine\u2019s north left 380,000 users without power.",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T05:06:20Z",
-        "dedupe_hash": "1002573818d87d66be8415a0e480e962930a0cce9793d683bf54bf567f1f05b6"
-      },
-      {
-        "id": "fbbc846a-02d9-46bd-961c-f673b8127f99",
-        "created_at": "2026-04-19T08:37:53.147336Z",
-        "headline": "Alex Imas on Why Economists Might Be Getting AI Wrong",
-        "source": "bloomberg",
-        "url": "https://www.bloomberg.com/news/articles/2026-04-18/economists-might-be-wrong-about-ai-and-jobs",
-        "summary": "<p>Maybe it really is a threat to work.</p>",
-        "currencies_mentioned": [],
-        "impact": "MEDIUM",
-        "sentiment": "NEUTRAL",
-        "published_at": "2026-04-18T08:00:08Z",
-        "dedupe_hash": "558cd59b0bd6f6e25dfd944121d1132600c030d6592891e77fce375e9ae1f777"
       }
     ],
     "sources": [
       "bloomberg_rss"
     ],
-    "collected_at": "2026-04-19T08:37:53.258103Z"
+    "collected_at": "2026-04-19T15:54:07.534608Z"
   },
   "calendar": {
-    "id": "41a4ecc7-3c21-4ec5-9900-0148ca415c17",
-    "created_at": "2026-04-19T08:37:40.500920Z",
+    "id": "f06f380b-9110-43ba-9598-06f8092bc826",
+    "created_at": "2026-04-19T15:53:44.512394Z",
     "events": [
       {
-        "id": "899690bf-14cf-4987-a828-785906115395",
-        "created_at": "2026-04-19T08:37:40.466297Z",
+        "id": "e6796bc4-9fec-4a62-bb26-83f6252a48b3",
+        "created_at": "2026-04-19T15:53:44.486355Z",
         "event_name": "U.S. dollar seen strengthening as U.S.-Israel strikes intensify",
         "currency": "USD",
         "impact": "LOW",
@@ -1718,8 +1857,8 @@
         "source": "investing.com"
       },
       {
-        "id": "d57ca072-821e-498e-ac80-eaa57fe839bb",
-        "created_at": "2026-04-19T08:37:40.466437Z",
+        "id": "7798bd95-57fc-48b1-8cc5-4bdf9e01e667",
+        "created_at": "2026-04-19T15:53:44.486440Z",
         "event_name": "OPEC+ agrees modest oil output boost even as US war on Iran disrupts shipments",
         "currency": "USD",
         "impact": "LOW",
@@ -1733,15 +1872,15 @@
     "sources": [
       "investing_rss_calendar"
     ],
-    "collected_at": "2026-04-19T08:37:40.500855Z"
+    "collected_at": "2026-04-19T15:53:44.512315Z"
   },
   "dxy": {
-    "id": "b34811ca-1cb5-49a4-b45c-e2dc9c902c7b",
-    "created_at": "2026-04-19T08:37:37.057754Z",
+    "id": "f47cdaea-3a42-44d0-852a-cdaaa12a5cdc",
+    "created_at": "2026-04-19T15:53:40.326920Z",
     "snapshots": [
       {
-        "id": "6baad433-aabd-4235-b5df-bc84a45d3bce",
-        "created_at": "2026-04-19T08:37:37.057619Z",
+        "id": "f22dceac-b67b-4888-be32-e13b41b15946",
+        "created_at": "2026-04-19T15:53:40.326747Z",
         "dxy_value": null,
         "dxy_momentum": null,
         "gold_price": null,
@@ -1756,13 +1895,13 @@
         "us30y_yield": null,
         "sp500": null,
         "vix": null,
-        "snapshot_at": "2026-04-19T08:37:37.057553Z",
+        "snapshot_at": "2026-04-19T15:53:40.326685Z",
         "source": "twelve_data"
       }
     ],
     "latest": {
-      "id": "6baad433-aabd-4235-b5df-bc84a45d3bce",
-      "created_at": "2026-04-19T08:37:37.057619Z",
+      "id": "f22dceac-b67b-4888-be32-e13b41b15946",
+      "created_at": "2026-04-19T15:53:40.326747Z",
       "dxy_value": null,
       "dxy_momentum": null,
       "gold_price": null,
@@ -1777,21 +1916,21 @@
       "us30y_yield": null,
       "sp500": null,
       "vix": null,
-      "snapshot_at": "2026-04-19T08:37:37.057553Z",
+      "snapshot_at": "2026-04-19T15:53:40.326685Z",
       "source": "twelve_data"
     },
     "sources": [
       "twelve_data"
     ],
-    "collected_at": "2026-04-19T08:37:37.057727Z"
+    "collected_at": "2026-04-19T15:53:40.326884Z"
   },
   "intermarket": {
-    "id": "e02d721d-13f5-40a3-a947-53b7c8ad54fe",
-    "created_at": "2026-04-19T08:39:39.390730Z",
+    "id": "15367f2d-a725-4a6e-91d9-5f2c0029dc30",
+    "created_at": "2026-04-19T15:54:00.251693Z",
     "snapshots": [
       {
-        "id": "e5d7aff3-9135-4701-889a-fe08addd3044",
-        "created_at": "2026-04-19T08:39:39.343392Z",
+        "id": "4a315eab-0569-4cbb-9d94-9d2b349bbd78",
+        "created_at": "2026-04-19T15:54:00.223918Z",
         "dxy_value": null,
         "dxy_momentum": null,
         "gold_price": null,
@@ -1806,13 +1945,13 @@
         "us30y_yield": null,
         "sp500": null,
         "vix": null,
-        "snapshot_at": "2026-04-19T08:39:39.342308Z",
+        "snapshot_at": "2026-04-19T15:54:00.223497Z",
         "source": "twelve_data+commodity_proxy"
       }
     ],
     "latest": {
-      "id": "e5d7aff3-9135-4701-889a-fe08addd3044",
-      "created_at": "2026-04-19T08:39:39.343392Z",
+      "id": "4a315eab-0569-4cbb-9d94-9d2b349bbd78",
+      "created_at": "2026-04-19T15:54:00.223918Z",
       "dxy_value": null,
       "dxy_momentum": null,
       "gold_price": null,
@@ -1827,14 +1966,14 @@
       "us30y_yield": null,
       "sp500": null,
       "vix": null,
-      "snapshot_at": "2026-04-19T08:39:39.342308Z",
+      "snapshot_at": "2026-04-19T15:54:00.223497Z",
       "source": "twelve_data+commodity_proxy"
     },
     "sources": [
       "twelve_data",
       "commodity_proxy"
     ],
-    "collected_at": "2026-04-19T08:39:39.390524Z"
+    "collected_at": "2026-04-19T15:54:00.251615Z"
   },
   "sentiment": {
     "sentiments": [],
@@ -1843,8 +1982,8 @@
     ],
     "risk_environment": "NEUTRAL",
     "risk_assessment": {
-      "id": "d7d9f440-7811-4c7c-8126-3b5a599f1c2f",
-      "created_at": "2026-04-19T08:37:36.446497Z",
+      "id": "7c934320-5aab-4522-9258-d8229c6fb718",
+      "created_at": "2026-04-19T15:53:40.061504Z",
       "environment": "NEUTRAL",
       "vix_level": null,
       "yield_curve_inverted": false,
@@ -1852,8 +1991,8 @@
       "commodity_currencies_weak": false,
       "stagflation_detected": false,
       "reasoning": [],
-      "assessed_at": "2026-04-19T08:37:36.446522Z"
+      "assessed_at": "2026-04-19T15:53:40.061608Z"
     },
-    "collected_at": "2026-04-19T08:37:36.440225+00:00"
+    "collected_at": "2026-04-19T15:53:40.058890+00:00"
   }
 }

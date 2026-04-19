@@ -2,6 +2,7 @@
   "status": "success",
   "symbol": "AUDUSDm",
   "htf_timeframes": [
+    "MN1",
     "W1",
     "D1",
     "H4",
@@ -13,9 +14,25 @@
     "M5",
     "M1"
   ],
-  "smc_candidates_count": 23,
+  "smc_candidates_count": 18,
   "snd_candidates_count": 8,
   "alignment": {
+    "MN1_W1": {
+      "htf_timeframe": "MN1",
+      "ltf_timeframe": "W1",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BULLISH",
+      "alignment_metadata": {
+        "trends_aligned": false,
+        "zones_nested": false,
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BULLISH",
+        "htf_timeframe": "MN1",
+        "ltf_timeframe": "W1"
+      }
+    },
     "W1_H4": {
       "htf_timeframe": "W1",
       "ltf_timeframe": "H4",
@@ -63,8 +80,24 @@
         "htf_timeframe": "H1",
         "ltf_timeframe": "M30"
       }
+    },
+    "M30_M5": {
+      "htf_timeframe": "M30",
+      "ltf_timeframe": "M5",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
+      "alignment_metadata": {
+        "trends_aligned": false,
+        "zones_nested": true,
+        "htf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
+        "htf_timeframe": "M30",
+        "ltf_timeframe": "M5"
+      }
     }
   },
-  "overall_trend": "BULLISH",
+  "overall_trend": "BEARISH",
   "error": null
 }

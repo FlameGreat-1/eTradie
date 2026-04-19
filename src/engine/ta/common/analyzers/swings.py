@@ -36,7 +36,7 @@ class SwingAnalyzer:
     _HTF_BAR_OVERRIDES: ClassVar[dict[Timeframe, tuple[int, int]]] = {
         Timeframe.D1: (3, 3),
         Timeframe.W1: (2, 2),
-        Timeframe.MN1: (2, 2),
+        Timeframe.MN1: (2, 1),
     }
 
     def __init__(
