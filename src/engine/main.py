@@ -380,6 +380,23 @@ class InternalRAGRequest(BaseModel):
 class InternalProcessorRequest(BaseModel):
     processor_input: dict
     trace_id: Optional[str] = None
+
+
+class InternalDebugRunCycleRequest(BaseModel):
+    """Payload sent by the Go gateway after a successful analysis cycle.
+
+    Contains the full pipeline data (TA, macro, RAG, processor) so the
+    engine can persist it to /output/runcycle/ for offline inspection.
+    """
+    symbol: str
+    ta_data: dict
+    macro_data: Optional[dict] = None
+    rag_data: Optional[dict] = None
+    processor_data: Optional[dict] = None
+    execution_request: Optional[dict] = None
+    trace_id: Optional[str] = None
+
+
 class CreateLLMConnectionRequest(BaseModel):
     provider: str
     model_name: str
@@ -740,6 +757,57 @@ def create_app() -> FastAPI:
             )
             raise HTTPException(status_code=500, detail=f"Processor failed: {exc}")
 
+    @app.post("/internal/debug/runcycle")
+    async def internal_debug_runcycle(
+        request: Request,
+        body: InternalDebugRunCycleRequest,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
+        """Persist analysis cycle outputs to /output/runcycle/ for debugging.
+
+        Called by the Go gateway (fire-and-forget) after a successful
+        analysis cycle to save the full pipeline data for offline
+        inspection. Identical output format to /api/analysis/rerun
+        but written to /output/runcycle/ instead of /output/rerun/.
+
+        This endpoint does NOT affect the main pipeline flow. The
+        gateway calls it in a background goroutine after the processor
+        LLM completes, so execution and management continue unimpeded.
+        """
+        symbol = body.symbol.strip()
+        if not symbol:
+            raise HTTPException(status_code=400, detail="Symbol is required")
+
+        try:
+            saved = _save_debug_output(
+                symbol,
+                ta_data=body.ta_data,
+                macro_data=body.macro_data,
+                rag_data=body.rag_data,
+                processor_data=body.processor_data,
+                execution_request=body.execution_request,
+                subdirectory="runcycle",
+            )
+        except Exception as exc:
+            logger.error(
+                "debug_runcycle_save_failed",
+                extra={
+                    "symbol": symbol,
+                    "error": str(exc),
+                    "trace_id": body.trace_id,
+                },
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save runcycle debug output: {exc}",
+            )
+
+        return {
+            "status": "saved",
+            "symbol": symbol,
+            "output_files": saved,
+        }
+
     # -- Analysis dashboard endpoints ----------------------------------------
 
     @app.get("/api/analysis/latest")
@@ -1011,19 +1079,29 @@ def create_app() -> FastAPI:
 
     # -- Re-run analysis endpoint --------------------------------------------
 
-    def _save_rerun_output(
+    def _save_debug_output(
         symbol: str,
         ta_data: dict,
         macro_data: dict | None = None,
         rag_data: dict | None = None,
         processor_data: dict | None = None,
+        execution_request: dict | None = None,
+        subdirectory: str = "rerun",
     ) -> dict:
-        """Persist analysis outputs to /output/<symbol>_<ts>/ as separate JSON files.
+        """Persist analysis outputs to /output/<subdirectory>/<symbol>_<ts>/ as separate JSON files.
+
+        Args:
+            symbol: The trading symbol (e.g. "GBPUSDm").
+            ta_data: TA analysis result dict.
+            macro_data: Macro analysis result dict.
+            rag_data: RAG knowledge bundle dict.
+            processor_data: Processor LLM result dict.
+            subdirectory: Output subdirectory name ("rerun" or "runcycle").
 
         Returns a dict of {label: filepath} for every file written.
         """
         ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out_dir = Path("/output") / f"{symbol}_{ts}"
+        out_dir = Path("/output") / subdirectory / f"{symbol}_{ts}"
         out_dir.mkdir(parents=True, exist_ok=True)
 
         files: dict[str, str] = {}
@@ -1039,17 +1117,23 @@ def create_app() -> FastAPI:
             _write("ta_snapshots", ta_data.get("snapshots"))
             _write("ta_smc_candidates", ta_data.get("smc_candidates"))
             _write("ta_snd_candidates", ta_data.get("snd_candidates"))
-            
+
             ta_meta = {k: v for k, v in ta_data.items() if k not in ("snapshots", "smc_candidates", "snd_candidates")}
             _write("ta_metadata", ta_meta)
-            
+
         _write("macro_analysis", macro_data)
         _write("rag_knowledge", rag_data)
         _write("processor_result", processor_data)
+        _write("execution_request", execution_request)
 
         logger.info(
-            "rerun_output_saved",
-            extra={"symbol": symbol, "directory": str(out_dir), "files": list(files.keys())},
+            "debug_output_saved",
+            extra={
+                "symbol": symbol,
+                "subdirectory": subdirectory,
+                "directory": str(out_dir),
+                "files": list(files.keys()),
+            },
         )
         return files
 
@@ -1110,7 +1194,7 @@ def create_app() -> FastAPI:
         )
         if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
             ta_error = ta_analysis.get("error", "unknown error")
-            saved = _save_rerun_output(symbol, ta_data=ta_analysis)
+            saved = _save_debug_output(symbol, ta_data=ta_analysis, subdirectory="rerun")
             return {
                 "status": "completed",
                 "symbol": symbol,
@@ -1366,11 +1450,12 @@ def create_app() -> FastAPI:
             logger.info(
                 "rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)}
             )
-            saved = _save_rerun_output(
+            saved = _save_debug_output(
                 symbol,
                 ta_data=ta_analysis,
                 macro_data=macro_analysis,
                 rag_data=retrieved_knowledge,
+                subdirectory="rerun",
             )
             return {
                 "status": "completed",
@@ -1386,11 +1471,12 @@ def create_app() -> FastAPI:
             logger.error(
                 "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
             )
-            saved = _save_rerun_output(
+            saved = _save_debug_output(
                 symbol,
                 ta_data=ta_analysis,
                 macro_data=macro_analysis,
                 rag_data=retrieved_knowledge,
+                subdirectory="rerun",
             )
             return {
                 "status": "error",
@@ -1411,12 +1497,13 @@ def create_app() -> FastAPI:
         else:
             processor_dict = {"raw": str(result)}
 
-        saved = _save_rerun_output(
+        saved = _save_debug_output(
             symbol,
             ta_data=ta_analysis,
             macro_data=macro_analysis,
             rag_data=retrieved_knowledge,
             processor_data=processor_dict,
+            subdirectory="rerun",
         )
         return {
             "status": "completed",

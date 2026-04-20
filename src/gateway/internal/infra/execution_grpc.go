@@ -64,7 +64,7 @@ func (a *ExecutionGRPCAdapter) HealthCheck(ctx context.Context) bool {
 // Execute converts ProcessorOutput to an ExecuteTradeRequest, calls
 // Module B, and returns the response as a map for the router.
 func (a *ExecutionGRPCAdapter) Execute(ctx context.Context, decision *models.ProcessorOutput) (map[string]interface{}, error) {
-	req := buildExecuteRequest(decision)
+	req := BuildExecuteRequest(decision)
 
 	a.log.Info().
 		Str("symbol", req.GetSymbol()).
@@ -143,7 +143,7 @@ func (a *ExecutionGRPCAdapter) Close() error {
 	return nil
 }
 
-func buildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeRequest {
+func BuildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeRequest {
 	req := &executionv1.ExecuteTradeRequest{
 		Symbol:          d.Symbol,
 		Direction:       d.Direction,

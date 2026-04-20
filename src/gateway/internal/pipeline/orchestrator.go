@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
@@ -916,6 +918,84 @@ func (o *Orchestrator) processSymbol(
 			WithTraceID(traceID).
 			WithDetails(analysisDetails),
 	)
+
+	// Fire-and-forget: persist pipeline data to /output/runcycle/ for debugging.
+	// Runs in a background goroutine so it NEVER blocks the pipeline.
+	// Uses processorInput (assembled TA + Macro + RAG) plus processorOutput.
+	go func() {
+		debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer debugCancel()
+
+		// Carry the auth token so the engine can authenticate the request.
+		if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+			debugCtx = auth.InjectTokenIntoContext(debugCtx, rawToken)
+		}
+
+		// Build the processor output as a map for JSON serialization.
+		procMap := map[string]interface{}{
+			"trade_valid":      processorOutput.TradeValid,
+			"direction":        processorOutput.Direction,
+			"symbol":           processorOutput.Symbol,
+			"confidence":       processorOutput.Confidence,
+			"grade":            processorOutput.Grade,
+			"reasoning":        processorOutput.Reasoning,
+			"rejection_rules":  processorOutput.RejectionRules,
+			"raw_response":     processorOutput.RawResponse,
+			"trading_style":    processorOutput.TradingStyle,
+			"session":          processorOutput.Session,
+			"confluence_score": processorOutput.ConfluenceScore,
+			"analysis_id":      processorOutput.AnalysisID,
+			"execution_mode":   processorOutput.ExecutionMode,
+			"ltf_confirmed":    processorOutput.LTFConfirmed,
+			"setup_type":       processorOutput.SetupType,
+		}
+		if processorOutput.EntryPrice != nil {
+			procMap["entry_price"] = *processorOutput.EntryPrice
+		}
+		if processorOutput.StopLoss != nil {
+			procMap["stop_loss"] = *processorOutput.StopLoss
+		}
+		if processorOutput.TakeProfit != nil {
+			procMap["take_profit"] = *processorOutput.TakeProfit
+		}
+		if processorOutput.RRRatio != nil {
+			procMap["rr_ratio"] = *processorOutput.RRRatio
+		}
+		if processorOutput.RiskPercentage != nil {
+			procMap["risk_percentage"] = *processorOutput.RiskPercentage
+		}
+
+		// EXACTLY what the execution receives:
+		execReq := infra.BuildExecuteRequest(processorOutput)
+		var execMap map[string]interface{}
+		if execJs, err := (protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}).Marshal(execReq); err == nil {
+			_ = json.Unmarshal(execJs, &execMap)
+		}
+
+		debugBody := map[string]interface{}{
+			"symbol":            symbol,
+			"ta_data":           processorInput.TAAnalysis,
+			"macro_data":        processorInput.MacroAnalysis,
+			"rag_data":          processorInput.RetrievedKnowledge,
+			"processor_data":    procMap,
+			"execution_request": execMap,
+			"trace_id":          traceID,
+		}
+
+		_, debugErr := o.engineHTTP.PostJSON(debugCtx, "/internal/debug/runcycle", debugBody)
+		if debugErr != nil {
+			o.log.Debug().
+				Err(debugErr).
+				Str("symbol", symbol).
+				Str("trace_id", traceID).
+				Msg("debug_runcycle_output_failed")
+		} else {
+			o.log.Debug().
+				Str("symbol", symbol).
+				Str("trace_id", traceID).
+				Msg("debug_runcycle_output_saved")
+		}
+	}()
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()
