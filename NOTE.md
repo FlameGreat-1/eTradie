@@ -1,4 +1,690 @@
 
+WE HAVE THIS LOGS IN THE BROWSER CONSOLE:
+
+
+
+    at App (<anonymous>)
+overrideMethod @ installHook.js:1
+warnOnce @ react-router-dom.js?v=c02f9180:4436
+logDeprecation @ react-router-dom.js?v=c02f9180:4439
+logV6DeprecationWarnings @ react-router-dom.js?v=c02f9180:4445
+(anonymous) @ react-router-dom.js?v=c02f9180:5314
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this warning
+useLiveReasoningStream.ts:131  GET http://localhost:8000/api/analysis/stream-live 404 (Not Found)
+(anonymous) @ useLiveReasoningStream.ts:131
+(anonymous) @ useLiveReasoningStream.ts:191
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+invokePassiveEffectMountInDEV @ chunk-WERSD76P.js?v=c02f9180:18324
+invokeEffectsInDev @ chunk-WERSD76P.js?v=c02f9180:19701
+commitDoubleInvokeEffectsInDEV @ chunk-WERSD76P.js?v=c02f9180:19686
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19503
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+retryTimedOutBoundary @ chunk-WERSD76P.js?v=c02f9180:19619
+resolveRetryWakeable @ chunk-WERSD76P.js?v=c02f9180:19650
+Promise.then
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:17654
+attachSuspenseRetryListeners @ chunk-WERSD76P.js?v=c02f9180:17641
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17839
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17851
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17818
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17794
+commitMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17663
+commitRootImpl @ chunk-WERSD76P.js?v=c02f9180:19347
+commitRoot @ chunk-WERSD76P.js?v=c02f9180:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=c02f9180:18783
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=c02f9180:18718
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+dispatchSetState @ chunk-WERSD76P.js?v=c02f9180:12403
+(anonymous) @ AuthContext.tsx:32
+await in (anonymous)
+(anonymous) @ AuthContext.tsx:42
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this error
+useLiveReasoningStream.ts:131  GET http://localhost:8000/api/analysis/stream-live 404 (Not Found)
+(anonymous) @ useLiveReasoningStream.ts:131
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:191
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+invokePassiveEffectMountInDEV @ chunk-WERSD76P.js?v=c02f9180:18324
+invokeEffectsInDev @ chunk-WERSD76P.js?v=c02f9180:19701
+commitDoubleInvokeEffectsInDEV @ chunk-WERSD76P.js?v=c02f9180:19686
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19503
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+retryTimedOutBoundary @ chunk-WERSD76P.js?v=c02f9180:19619
+resolveRetryWakeable @ chunk-WERSD76P.js?v=c02f9180:19650
+Promise.then
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:17654
+attachSuspenseRetryListeners @ chunk-WERSD76P.js?v=c02f9180:17641
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17839
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17851
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17818
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17794
+commitMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17663
+commitRootImpl @ chunk-WERSD76P.js?v=c02f9180:19347
+commitRoot @ chunk-WERSD76P.js?v=c02f9180:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=c02f9180:18783
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=c02f9180:18718
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+dispatchSetState @ chunk-WERSD76P.js?v=c02f9180:12403
+(anonymous) @ AuthContext.tsx:32
+await in (anonymous)
+(anonymous) @ AuthContext.tsx:42
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this error
+useLiveReasoningStream.ts:131  GET http://localhost:8000/api/analysis/stream-live 404 (Not Found)
+(anonymous) @ useLiveReasoningStream.ts:131
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:191
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+invokePassiveEffectMountInDEV @ chunk-WERSD76P.js?v=c02f9180:18324
+invokeEffectsInDev @ chunk-WERSD76P.js?v=c02f9180:19701
+commitDoubleInvokeEffectsInDEV @ chunk-WERSD76P.js?v=c02f9180:19686
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19503
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+retryTimedOutBoundary @ chunk-WERSD76P.js?v=c02f9180:19619
+resolveRetryWakeable @ chunk-WERSD76P.js?v=c02f9180:19650
+Promise.then
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:17654
+attachSuspenseRetryListeners @ chunk-WERSD76P.js?v=c02f9180:17641
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17839
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17851
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17818
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17794
+commitMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17663
+commitRootImpl @ chunk-WERSD76P.js?v=c02f9180:19347
+commitRoot @ chunk-WERSD76P.js?v=c02f9180:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=c02f9180:18783
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=c02f9180:18718
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+dispatchSetState @ chunk-WERSD76P.js?v=c02f9180:12403
+(anonymous) @ AuthContext.tsx:32
+await in (anonymous)
+(anonymous) @ AuthContext.tsx:42
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this error
+useLiveReasoningStream.ts:131  GET http://localhost:8000/api/analysis/stream-live 404 (Not Found)
+(anonymous) @ useLiveReasoningStream.ts:131
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:191
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+invokePassiveEffectMountInDEV @ chunk-WERSD76P.js?v=c02f9180:18324
+invokeEffectsInDev @ chunk-WERSD76P.js?v=c02f9180:19701
+commitDoubleInvokeEffectsInDEV @ chunk-WERSD76P.js?v=c02f9180:19686
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19503
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+retryTimedOutBoundary @ chunk-WERSD76P.js?v=c02f9180:19619
+resolveRetryWakeable @ chunk-WERSD76P.js?v=c02f9180:19650
+Promise.then
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:17654
+attachSuspenseRetryListeners @ chunk-WERSD76P.js?v=c02f9180:17641
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17839
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17851
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17818
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17794
+commitMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17663
+commitRootImpl @ chunk-WERSD76P.js?v=c02f9180:19347
+commitRoot @ chunk-WERSD76P.js?v=c02f9180:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=c02f9180:18783
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=c02f9180:18718
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+dispatchSetState @ chunk-WERSD76P.js?v=c02f9180:12403
+(anonymous) @ AuthContext.tsx:32
+await in (anonymous)
+(anonymous) @ AuthContext.tsx:42
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this error
+useLiveReasoningStream.ts:131  GET http://localhost:8000/api/analysis/stream-live 404 (Not Found)
+(anonymous) @ useLiveReasoningStream.ts:131
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:186
+setTimeout
+(anonymous) @ useLiveReasoningStream.ts:185
+await in (anonymous)
+(anonymous) @ useLiveReasoningStream.ts:191
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+invokePassiveEffectMountInDEV @ chunk-WERSD76P.js?v=c02f9180:18324
+invokeEffectsInDev @ chunk-WERSD76P.js?v=c02f9180:19701
+commitDoubleInvokeEffectsInDEV @ chunk-WERSD76P.js?v=c02f9180:19686
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19503
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+retryTimedOutBoundary @ chunk-WERSD76P.js?v=c02f9180:19619
+resolveRetryWakeable @ chunk-WERSD76P.js?v=c02f9180:19650
+Promise.then
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:17654
+attachSuspenseRetryListeners @ chunk-WERSD76P.js?v=c02f9180:17641
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17839
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17737
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17851
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17818
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17699
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17896
+recursivelyTraverseMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17685
+commitMutationEffectsOnFiber @ chunk-WERSD76P.js?v=c02f9180:17794
+commitMutationEffects @ chunk-WERSD76P.js?v=c02f9180:17663
+commitRootImpl @ chunk-WERSD76P.js?v=c02f9180:19347
+commitRoot @ chunk-WERSD76P.js?v=c02f9180:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=c02f9180:18783
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=c02f9180:18718
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+dispatchSetState @ chunk-WERSD76P.js?v=c02f9180:12403
+(anonymous) @ AuthContext.tsx:32
+await in (anonymous)
+(anonymous) @ AuthContext.tsx:42
+commitHookEffectListMount @ chunk-WERSD76P.js?v=c02f9180:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=c02f9180:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=c02f9180:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=c02f9180:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=c02f9180:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=c02f9180:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=c02f9180:19447
+(anonymous) @ chunk-WERSD76P.js?v=c02f9180:19328
+workLoop @ chunk-WERSD76P.js?v=c02f9180:197
+flushWork @ chunk-WERSD76P.js?v=c02f9180:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:387
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-WERSD76P.js?v=c02f9180:407
+requestHostCallback @ chunk-WERSD76P.js?v=c02f9180:418
+unstable_scheduleCallback @ chunk-WERSD76P.js?v=c02f9180:330
+scheduleCallback$1 @ chunk-WERSD76P.js?v=c02f9180:19826
+ensureRootIsScheduled @ chunk-WERSD76P.js?v=c02f9180:18652
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=c02f9180:18562
+updateContainer @ chunk-WERSD76P.js?v=c02f9180:20776
+ReactDOMHydrationRoot.render.ReactDOMRoot.render @ chunk-WERSD76P.js?v=c02f9180:21116
+(anonymous) @ main.tsx:6Understand this error
+
+
 
 THIS IS THE LOGS I AM SEEING ON THE GATEWAY LOGS:
 
