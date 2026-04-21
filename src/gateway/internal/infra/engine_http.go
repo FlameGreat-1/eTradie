@@ -26,11 +26,23 @@ type EngineHTTPClient struct {
 }
 
 // NewEngineHTTPClient creates an HTTP client for the Python engine.
+//
+// The client intentionally has NO http.Client.Timeout. Every phase in
+// the orchestrator wraps its ctx with context.WithTimeout using the
+// correct phase-level budget (ProcessorTimeoutSeconds, RAGTimeoutSeconds,
+// etc.), and http.NewRequestWithContext propagates that deadline all
+// the way through connect, write, read, and body-close. A client-wide
+// Timeout would silently override those per-call deadlines and cause
+// cycles to fail with "context deadline exceeded" long before the
+// phase budget is actually spent. The timeoutSeconds parameter is
+// preserved for API compatibility with callers but is only used for
+// the health-check path below.
 func NewEngineHTTPClient(baseURL string, timeoutSeconds int) *EngineHTTPClient {
 	log := observability.Logger("engine_http_client")
 
 	client := &http.Client{
-		Timeout: time.Duration(timeoutSeconds) * time.Second,
+		// No Timeout here: see doc comment above. Per-request deadlines
+		// come from the caller's context.
 		Transport: &http.Transport{
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 20,
@@ -40,7 +52,7 @@ func NewEngineHTTPClient(baseURL string, timeoutSeconds int) *EngineHTTPClient {
 
 	log.Info().
 		Str("base_url", baseURL).
-		Int("timeout_seconds", timeoutSeconds).
+		Int("health_check_timeout_seconds", timeoutSeconds).
 		Msg("engine_http_client_initialized")
 
 	return &EngineHTTPClient{

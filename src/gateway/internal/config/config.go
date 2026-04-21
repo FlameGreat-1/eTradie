@@ -19,6 +19,11 @@ type Config struct {
 	DefaultSymbols []string `envconfig:"DEFAULT_SYMBOLS"`
 
 	// Cycle timing.
+	// CycleTimeoutSeconds upper bound raised to 900s so operators can
+	// accommodate slow-tail LLM calls (Anthropic p99 for ~280KB user
+	// messages with 26 RAG chunks is ~130-180s) without having to edit
+	// this file. The default is unchanged; existing deployments keep
+	// their current budget.
 	CycleIntervalSeconds int `envconfig:"CYCLE_INTERVAL_SECONDS" default:"14400"`
 	CycleTimeoutSeconds  int `envconfig:"CYCLE_TIMEOUT_SECONDS" default:"450"`
 
@@ -30,6 +35,9 @@ type Config struct {
 	RAGTimeoutSeconds int `envconfig:"RAG_TIMEOUT_SECONDS" default:"30"`
 
 	// Processor LLM.
+	// Upper bound is 360s to match Python ProcessorConfig.total_timeout_seconds
+	// so the gateway phase deadline and the engine's internal processor
+	// timeout are coherent end-to-end.
 	ProcessorTimeoutSeconds int `envconfig:"PROCESSOR_TIMEOUT_SECONDS" default:"180"`
 
 	// Guard evaluation.
@@ -55,8 +63,11 @@ type Config struct {
 	RedisURL            string `envconfig:"REDIS_URL" default:"redis://localhost:6379/0"`
 	RedisMaxConnections int    `envconfig:"REDIS_MAX_CONNECTIONS" default:"20"`
 
-	// OpenTelemetry.
-	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
+	// OpenTelemetry. An empty endpoint disables tracing cleanly
+	// (no OTLP dial attempts, no export-deadline-exceeded noise in
+	// the log). Operators opt in by setting GATEWAY_OTEL_ENDPOINT
+	// to a real collector address, e.g. "otel-collector:4317".
+	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:""`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-gateway"`
 
 	// Execution engine (Module B).
@@ -99,8 +110,8 @@ func (c *Config) validate() error {
 	if c.CycleIntervalSeconds < 60 {
 		return fmt.Errorf("CYCLE_INTERVAL_SECONDS must be >= 60, got %d", c.CycleIntervalSeconds)
 	}
-	if c.CycleTimeoutSeconds < 30 || c.CycleTimeoutSeconds > 600 {
-		return fmt.Errorf("CYCLE_TIMEOUT_SECONDS must be 30..600, got %d", c.CycleTimeoutSeconds)
+	if c.CycleTimeoutSeconds < 30 || c.CycleTimeoutSeconds > 900 {
+		return fmt.Errorf("CYCLE_TIMEOUT_SECONDS must be 30..900, got %d", c.CycleTimeoutSeconds)
 	}
 
 	// Parallelism bounds.
@@ -116,9 +127,10 @@ func (c *Config) validate() error {
 		return fmt.Errorf("RAG_TIMEOUT_SECONDS must be 5..120, got %d", c.RAGTimeoutSeconds)
 	}
 
-	// Processor bounds.
-	if c.ProcessorTimeoutSeconds < 10 || c.ProcessorTimeoutSeconds > 180 {
-		return fmt.Errorf("PROCESSOR_TIMEOUT_SECONDS must be 10..180, got %d", c.ProcessorTimeoutSeconds)
+	// Processor bounds. Upper bound aligned with Python
+	// ProcessorConfig.total_timeout_seconds (max 600s).
+	if c.ProcessorTimeoutSeconds < 10 || c.ProcessorTimeoutSeconds > 360 {
+		return fmt.Errorf("PROCESSOR_TIMEOUT_SECONDS must be 10..360, got %d", c.ProcessorTimeoutSeconds)
 	}
 
 	// Guard bounds.

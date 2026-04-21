@@ -87,10 +87,19 @@ func main() {
 
 	log.Info().Msg("auth_service_initialized")
 
-	// Initialize OpenTelemetry tracing.
-	shutdownTracing, err := observability.InitTracing(ctx, cfg.OTELServiceName, cfg.OTELEndpoint)
-	if err != nil {
-		log.Warn().Err(err).Msg("tracing_init_failed_continuing_without_tracing")
+	// Initialize OpenTelemetry tracing. When GATEWAY_OTEL_ENDPOINT is
+	// empty (default), InitTracing returns (nil, nil) which we treat as
+	// "tracing explicitly disabled". Any non-empty endpoint that fails
+	// to dial is surfaced as a warning but does not abort startup; the
+	// gateway continues with a no-op tracer.
+	var shutdownTracing func(context.Context) error
+	if cfg.OTELEndpoint != "" {
+		shutdownTracing, err = observability.InitTracing(ctx, cfg.OTELServiceName, cfg.OTELEndpoint)
+		if err != nil {
+			log.Warn().Err(err).Msg("tracing_init_failed_continuing_without_tracing")
+		}
+	} else {
+		log.Info().Msg("tracing_disabled_via_empty_otel_endpoint")
 	}
 
 	// Build execution adapter if enabled.

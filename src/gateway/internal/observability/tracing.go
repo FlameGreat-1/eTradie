@@ -26,12 +26,22 @@ var (
 // InitTracing initialises the OpenTelemetry trace pipeline.
 // Must be called once at startup. The returned shutdown function
 // must be called during graceful shutdown to flush pending spans.
+//
+// When otlpEndpoint is empty, tracing is treated as explicitly
+// disabled: no OTLP dial is attempted, no exporter is constructed,
+// and nil is returned for both values. Callers should treat a nil
+// shutdown function as "tracing is off" and skip shutdown gracefully.
+// This is the canonical opt-in pattern for telemetry: absent
+// configuration means absent telemetry, not best-effort retries.
 func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(context.Context) error, error) {
 	if serviceName == "" {
 		return nil, fmt.Errorf("tracing: service name cannot be empty")
 	}
 	if otlpEndpoint == "" {
-		return nil, fmt.Errorf("tracing: OTLP endpoint cannot be empty")
+		Logger("tracing").Info().
+			Str("service_name", serviceName).
+			Msg("tracing_disabled_no_otlp_endpoint_configured")
+		return nil, nil
 	}
 
 	var initErr error
