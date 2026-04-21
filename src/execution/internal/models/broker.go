@@ -3,12 +3,18 @@ package models
 import "time"
 
 // AccountInfo holds live broker account state.
+//
+// JSON tags match the dashboard's expected field names
+// (balance, equity, margin, margin_free, currency). Without these
+// tags, Go's default encoder emits the PascalCase Go field names
+// ("Balance", "Equity", ...) and the dashboard displays NaN because
+// account.balance etc. are undefined on the wire.
 type AccountInfo struct {
-	Balance    float64
-	Equity     float64
-	Margin     float64
-	FreeMargin float64
-	Currency   string
+	Balance    float64 `json:"balance"`
+	Equity     float64 `json:"equity"`
+	Margin     float64 `json:"margin"`
+	FreeMargin float64 `json:"margin_free"`
+	Currency   string  `json:"currency"`
 }
 
 // Position represents an open broker position.

@@ -857,6 +857,7 @@ def create_app() -> FastAPI:
                     "display": {
                         "summary": display["summary"],
                         "analyzed_by": display["analyzed_by"],
+                        "reasoning": display.get("reasoning", ""),
                     },
                 }
             )
@@ -1006,6 +1007,112 @@ def create_app() -> FastAPI:
             repo = AnalysisRepository(session)
             stats = await repo.get_stats(user_id=user.user_id, pair=pair, since=since_dt, until=until_dt)
         return stats
+
+    # NOTE: The SSE /api/analysis/stream-live route below is registered
+    # BEFORE /api/analysis/{analysis_id} on purpose. FastAPI matches
+    # routes in declaration order and the {analysis_id} catch-all would
+    # otherwise swallow "stream-live" and return 404 from
+    # get_analysis_detail.
+    from fastapi.responses import StreamingResponse as _StreamingResponse_live
+    import json as _json_live
+    import asyncio as _asyncio_live
+
+    from engine.processor.streaming import (
+        SSE_HEARTBEAT_SECONDS as _SSE_HEARTBEAT_SECONDS_live,
+        stream_channel_for_user as _stream_channel_for_user_live,
+    )
+
+    @app.get("/api/analysis/stream-live")
+    async def stream_live_analysis_early(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ):
+        """SSE endpoint for the dashboard's live-reasoning panel.
+
+        Registered BEFORE /api/analysis/{analysis_id} so the static
+        path wins the route match. Streams per-user frames published
+        by the processor through Redis pub/sub.
+        """
+        container: Container = request.app.state.container
+        channel_name = _stream_channel_for_user_live(user.user_id)
+
+        async def event_generator():
+            pubsub = container.cache.pubsub()
+            await pubsub.subscribe(channel_name)
+            logger.info(
+                "stream_subscriber_started",
+                extra={"user_id": user.user_id, "channel": channel_name},
+            )
+
+            last_keepalive = _asyncio_live.get_event_loop().time()
+
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        break
+
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=1.0,
+                    )
+
+                    if message and message.get("type") == "message":
+                        try:
+                            data_raw = message["data"]
+                            if isinstance(data_raw, bytes):
+                                data_str = data_raw.decode("utf-8")
+                            else:
+                                data_str = str(data_raw)
+                            yield f"data: {data_str}\n\n"
+                            last_keepalive = _asyncio_live.get_event_loop().time()
+
+                            data_obj = _json_live.loads(data_str)
+                            if data_obj.get("type") in ("final", "error"):
+                                break
+                        except Exception as exc:
+                            logger.warning(
+                                "stream_parse_error",
+                                extra={
+                                    "user_id": user.user_id,
+                                    "error": str(exc),
+                                },
+                            )
+                    else:
+                        now = _asyncio_live.get_event_loop().time()
+                        if now - last_keepalive >= _SSE_HEARTBEAT_SECONDS_live:
+                            yield ": keepalive\n\n"
+                            last_keepalive = now
+            except _asyncio_live.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error(
+                    "stream_generator_error",
+                    extra={"user_id": user.user_id, "error": str(exc)},
+                    exc_info=True,
+                )
+            finally:
+                try:
+                    await pubsub.unsubscribe(channel_name)
+                except Exception:
+                    pass
+                try:
+                    await pubsub.aclose()
+                except Exception:
+                    pass
+                logger.info(
+                    "stream_subscriber_stopped",
+                    extra={"user_id": user.user_id, "channel": channel_name},
+                )
+
+        return _StreamingResponse_live(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/api/analysis/{analysis_id}")
     async def get_analysis_detail(
