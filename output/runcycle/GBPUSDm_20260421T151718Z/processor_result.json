@@ -1,0 +1,272 @@
+{
+  "analysis_id": "analysis_GBPUSDm_20260421_1515_a4b1",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 1.353585,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPUSDm_20260421_1515_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.9,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.92,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [],
+        "query_summary": "Analysis of conflicting HTF/LTF signals for GBPUSD, focusing on live edge SMC and SnD candidates to determine highest probability trade direction.",
+        "strategy_used": "scenario_first",
+        "top_k": 30
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, imposing no directional conflict. This is treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "The trade aligns with the H1 bearish pullback structure, which is a valid fractal retracement within the D1 bullish trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "H1 has a confirmed bearish BMS at 1.34835, establishing bearish order flow.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a confirmed M1 Bearish Order Block at [1.35345, 1.35372].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The AMD pattern candidate confirms a BSL sweep occurred prior to the structural break, fulfilling the manipulation phase.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data was not available for this analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The AMD (Accumulation, Manipulation, Distribution) pattern is a Wyckoff model. The entry occurs in the Distribution phase, which supports a short position.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of any high-impact news events around the entry window.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The potential R:R to TP3 is approximately 13.3R, far exceeding the 1:3 minimum for an Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "N/A",
+          "content_preview": "DXY data was not available in the provided analysis packet.",
+          "doc_id": "N/A",
+          "section": "dxy"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        1.35345,
+        1.35372
+      ],
+      "evidence": [
+        {
+          "chunk_id": "N/A",
+          "content_preview": "Candidate fc05ebb4 identifies an M1 Bearish Order Block at [1.35345, 1.35372] as the origin of a structural break.",
+          "doc_id": "N/A",
+          "section": "ta_analysis.smc_candidates"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPUSDM_AMD_BEARISH_BEARISH_1.3536_fc05ebb4"
+    },
+    "entry_zone": {
+      "high": 1.35372,
+      "low": 1.35345
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short setup based on a fractal market structure. While the D1 HTF trend is bullish, the market is in a clear H1 bearish pullback, confirmed by a Break of Market Structure (BMS). The recent LTF (M15/M5) bullish move was a retracement within this H1 pullback. At the live edge of the market (15:15 UTC), multiple high-confluence M1 bearish reversal patterns have formed, most notably an AMD (Accumulation, Manipulation, Distribution) pattern (AMD+SH+CHoCH+BMS+FVG+RTO). This signals the end of the LTF retracement and the likely resumption of the H1 bearish trend. The trade entry is a Return to Order Block (RTO) at the M1 bearish OB [1.35345, 1.35372]. The stop loss is structurally sound, placed above the recent M5 swing high. Take profit targets are set at clear downside liquidity pools (SSL), offering an exceptional R:R of over 13:1. The setup aligns with the MTF trend, is supported by a top-tier SMC pattern, and has no conflicting macroeconomic data, resulting in an 'A' grade with high confidence.",
+    "htf_bias": {
+      "key_levels": [
+        1.35992,
+        1.31587
+      ],
+      "notes": "D1 timeframe is structurally bullish following a CHoCH at 1.3515. However, price is currently in a pullback after failing to break the major swing high at 1.35992.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "N/A",
+            "content_preview": "All major US economic data releases (CPI, NFP, GDP) were inline with no significant surprise to drive a strong directional bias.",
+            "doc_id": "N/A",
+            "rule_id": "N/A",
+            "section": "economic.releases"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.35281,
+        1.35852,
+        1.34835
+      ],
+      "notes": "H1 timeframe has shifted bearish, confirmed by a BMS at 1.34835. This establishes a bearish order flow, indicating a deeper pullback against the HTF D1 trend. A key unmitigated bearish Order Block sits at [1.35281, 1.35852].",
+      "structure": "choch_bearish"
+    },
+    "pair": "GBPUSDm",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.92,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.85,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      }
+    ],
+    "rr_ratio": 13.3,
+    "session": "NEW_YORK",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.35406,
+      "reason": "Placed above the M5 Swing High (1.35396) and the M1 Order Block, providing strong structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest major Sell-side Liquidity (SSL) pool at the M5 Swing Low.",
+        "level": 1.35062,
+        "size_pct": 40
+      },
+      {
+        "basis": "Next major SSL pool at the M15 and H1 Swing Lows.",
+        "level": 1.34822,
+        "size_pct": 30
+      },
+      {
+        "basis": "Deeper structural liquidity target at the H4 Swing Low.",
+        "level": 1.34746,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-21T15:15:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "N/A",
+          "content_preview": "The selected M1 candidate 'GBPUSDM_AMD_BEARISH_BEARISH_1.3536_fc05ebb4' explicitly identifies the current phase as AMD_DISTRIBUTION, following a manipulation sweep.",
+          "doc_id": "N/A",
+          "section": "ta_analysis.smc_candidates"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short setup based on a fractal market structure. While the D1 HTF trend is bullish, the market is in a clear H1 bearish pullback, confirmed by a Break of Market Structure (BMS). The recent LTF (M15/M5) bullish move was a retracement within this H1 pullback. At the live edge of the market (15:15 UTC), multiple high-confluence M1 bearish reversal patterns have formed, most notably an AMD (Accumulation, Manipulation, Distribution) pattern (AMD+SH+CHoCH+BMS+FVG+RTO). This signals the end of the LTF retracement and the likely resumption of the H1 bearish trend. The trade entry is a Return to Order Block (RTO) at the M1 bearish OB [1.35345, 1.35372]. The stop loss is structurally sound, placed above the recent M5 swing high. Take profit targets are set at clear downside liquidity pools (SSL), offering an exceptional R:R of over 13:1. The setup aligns with the MTF trend, is supported by a top-tier SMC pattern, and has no conflicting macroeconomic data, resulting in an 'A' grade with high confidence.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 13.3,
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "stop_loss": 1.35406,
+  "symbol": "GBPUSDm",
+  "take_profit": 1.34746,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

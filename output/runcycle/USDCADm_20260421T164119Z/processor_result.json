@@ -1,0 +1,295 @@
+{
+  "analysis_id": "analysis_USDCADm_20260421_1640_a8b3",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 1.378145,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_USDCADm_20260421_1640_a8b3",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.94,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.93,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.94,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.93,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "Analyze USDCADm for intraday trading opportunities, focusing on SMC and SnD patterns, timeframe alignment, and macro context.",
+        "strategy_used": "scenario_first",
+        "top_k": 29
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, which is non-conflicting with the technical setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "Setup is a valid counter-trend pullback, authorized by a D1 minor bearish CHoCH.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H4 and M30 are structurally bearish, aligning with the trade direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "A high-conviction M15 SnD QML_KILLER_TYPE2 pattern aligns with an unmitigated M30 Bearish Order Block.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The QML pattern itself is a form of liquidity sweep above a prior high, adding conviction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was not available for this analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The current MTF price action is consistent with a Wyckoff distribution phase within the larger pullback.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The setup offers a potential R:R of over 1:13, far exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.37764,
+        1.37865
+      ],
+      "evidence": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "content_preview": "Valid Grade A or B SnD zone on 4H or above",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": null,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "USDCADM_QML_KILLER_TYPE2_BEARISH_1.3778"
+    },
+    "entry_zone": {
+      "high": 1.37865,
+      "low": 1.37764
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short opportunity on USDCADm based on a confluence of technical factors. The highest timeframe (MN1/D1) structure is bullish, but a minor bearish CHoCH on the D1 chart has validated the current move as a legitimate counter-trend pullback. The medium-term flow on H4 and M30 is bearish, providing the immediate directional bias for an intraday trade.\n\nThe primary entry signal is a high-conviction M15 SnD candidate, `USDCADM_QML_KILLER_TYPE2_BEARISH_1.3778`. This pattern, a QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU, indicates strong institutional selling intent and aligns perfectly with an unmitigated M30 Bearish Order Block at 1.37764 - 1.37865. This provides a precise zone for entry.\n\nThe macro environment is neutral, with no high-impact news or strong central bank bias, which places greater weight on the clear technical picture. The setup offers an exceptional R:R ratio of approximately 1:13 to the final target, which is the major H4 swing low at 1.36502. While conflicting M5 bullish signals exist, they are assessed as lower-probability scalps against the dominant MTF order flow. The trade aligns with the MTF trend, originates from a high-quality SnD pattern and SMC zone, and has a well-defined risk profile, resulting in an 'A' grade.",
+    "htf_bias": {
+      "key_levels": [
+        1.2288,
+        1.35257
+      ],
+      "notes": "The overall trend on MN1 and D1 is bullish. However, the D1 timeframe has printed a minor bearish CHoCH at 1.38455 (2026-04-10), validating the current price action as a legitimate counter-trend pullback. The primary target for this pullback could be deeper HTF demand zones.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.37984,
+        1.36502
+      ],
+      "notes": "The H4 and M30 timeframes are structurally bearish, confirming the pullback narrative. Price is currently in a minor H1 bullish retracement, likely targeting a key H4/M30 supply zone before continuing the bearish move. An unmitigated M30 Bearish Order Block exists at 1.37764-1.37865.",
+      "structure": "bearish"
+    },
+    "pair": "USDCADm",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.94,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.93,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 13.26,
+    "session": "NEW_YORK",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.37914,
+      "reason": "Placed 3 pips above the H1 swing high at 1.37884, which provides structural invalidation for the setup."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest significant M30 swing low (SSL).",
+        "level": 1.37103,
+        "size_pct": 40
+      },
+      {
+        "basis": "Next major M30 swing low (SSL).",
+        "level": 1.36747,
+        "size_pct": 30
+      },
+      {
+        "basis": "Major H4 swing low and primary downside liquidity target.",
+        "level": 1.36502,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-21T16:40:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short opportunity on USDCADm based on a confluence of technical factors. The highest timeframe (MN1/D1) structure is bullish, but a minor bearish CHoCH on the D1 chart has validated the current move as a legitimate counter-trend pullback. The medium-term flow on H4 and M30 is bearish, providing the immediate directional bias for an intraday trade.\n\nThe primary entry signal is a high-conviction M15 SnD candidate, `USDCADM_QML_KILLER_TYPE2_BEARISH_1.3778`. This pattern, a QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU, indicates strong institutional selling intent and aligns perfectly with an unmitigated M30 Bearish Order Block at 1.37764 - 1.37865. This provides a precise zone for entry.\n\nThe macro environment is neutral, with no high-impact news or strong central bank bias, which places greater weight on the clear technical picture. The setup offers an exceptional R:R ratio of approximately 1:13 to the final target, which is the major H4 swing low at 1.36502. While conflicting M5 bullish signals exist, they are assessed as lower-probability scalps against the dominant MTF order flow. The trade aligns with the MTF trend, originates from a high-quality SnD pattern and SMC zone, and has a well-defined risk profile, resulting in an 'A' grade.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 13.26,
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "stop_loss": 1.37914,
+  "symbol": "USDCADm",
+  "take_profit": 1.36502,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

@@ -1,0 +1,298 @@
+{
+  "analysis_id": "analysis_GBPUSDm_20260421_1515_a4b1",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "LONG",
+  "entry_price": 1.351345,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": true,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPUSDm_20260421_1515_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.89,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.88,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.82,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [],
+        "query_summary": "Analyze GBPUSDm for a trade setup, considering HTF bullish trend, MTF pullback, and LTF realignment. Evaluate conflicting SMC and SnD candidates at the live edge.",
+        "strategy_used": "scenario_first",
+        "top_k": 30
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, which is non-blocking and treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Trade direction is LONG, aligning with the D1 and H4 bullish trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M15 and M5 have flipped bullish, confirming a CHoCH and realignment with the HTF trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Exceptional quality entry based on a live M15 QMH Killer Type 2 SnD pattern with multiple confluences.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "An M15 Turtle Soup Long confirmed a sweep of SSL at 1.35138 right at the QML, engineering liquidity for the entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was unavailable for this analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The price action on M15/H1 resembles a Spring or Secondary Test in Phase C of accumulation after a markdown, supporting a long entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events for GBP or USD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The setup offers a 1:5 R:R to TP3, exceeding the 1:3 minimum for the INTRADAY style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data was unavailable for this analysis cycle due to a collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "master_rulebook",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        1.35062,
+        1.35207
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "trading_style_rules",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "GBPUSDM_QMH_KILLER_TYPE2_BULLISH_1.3514"
+    },
+    "entry_zone": {
+      "high": 1.35207,
+      "low": 1.35062
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The decision is to take a LONG position on GBPUSDm based on a high-probability pro-trend reversal setup. The higher timeframe context (D1, H4) is firmly bullish. The mid-timeframes (H1, M30) have been in a corrective pullback, which now shows signs of completion as the lower timeframes (M15, M5) have flipped back to a bullish structure. This realignment of LTF order flow with the HTF trend presents a strong entry opportunity.\n\nThe chosen setup is an M15 SnD candidate, a QMH_KILLER_TYPE2_BULLISH (ID: GBPUSDM_QMH_KILLER_TYPE2_BULLISH_1.3514), which is immediately actionable (ltf_confirmation: true). This is an exceptionally high-confluence pattern, identified as a QMH+MPL+RS_FLIP+FAKEOUT+COMPRESSION+MARUBOZU. It is supported by a recent M15 liquidity sweep of SSL at the entry level, further strengthening the case for a reversal.\n\nWhile numerous bearish SMC candidates exist, they are counter to the dominant HTF trend and the most recent LTF structural shift, making them lower-probability trades. The macro environment is neutral, placing emphasis on the technical picture, which is clearly favoring the long side. The setup achieves a 1:5 R:R, satisfying risk parameters, and scores a 9/10 for confluence, warranting an A+ grade.",
+    "htf_bias": {
+      "key_levels": [
+        1.35992,
+        1.31587
+      ],
+      "notes": "The D1 and H4 timeframes are structurally bullish. D1 shows multiple bullish CHoCH events, and H4 has a confirmed bullish BMS. The overall market direction is upwards.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": true,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "economic_releases",
+            "content_preview": "Recent high-impact US data (CPI, NFP, Unemployment) all came in 'INLINE' with no significant surprises to drive a strong directional bias.",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "economic.releases"
+          },
+          {
+            "chunk_id": "central_bank_speeches",
+            "content_preview": "Recent speeches and minutes from the Federal Reserve have been consistently neutral in tone, offering no new hawkish or dovish guidance.",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "central_bank.speeches"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.35281,
+        1.35852,
+        1.34822
+      ],
+      "notes": "H1 and M30 are in a bearish pullback against the HTF trend. However, M15 and M5 have recently flipped bullish, indicating a Character of Change (CHoCH) and a potential end to the pullback, realigning with the HTF bullish order flow.",
+      "structure": "choch_bullish"
+    },
+    "pair": "GBPUSDm",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.89,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      }
+    ],
+    "rr_ratio": 5,
+    "session": "NEW_YORK",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "trading_style_rules",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.34995,
+      "reason": "Placed below the M15 swing low at 1.35062, which forms the structural invalidation point for the QMH setup."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest H1 swing high, representing initial inducement liquidity.",
+        "level": 1.35332,
+        "size_pct": 40
+      },
+      {
+        "basis": "Next significant H1 swing high.",
+        "level": 1.35441,
+        "size_pct": 30
+      },
+      {
+        "basis": "Top of the unmitigated H1 bearish Order Block, a major draw on liquidity.",
+        "level": 1.35852,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-21T15:15:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "doc_id": "master_rulebook",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The decision is to take a LONG position on GBPUSDm based on a high-probability pro-trend reversal setup. The higher timeframe context (D1, H4) is firmly bullish. The mid-timeframes (H1, M30) have been in a corrective pullback, which now shows signs of completion as the lower timeframes (M15, M5) have flipped back to a bullish structure. This realignment of LTF order flow with the HTF trend presents a strong entry opportunity.\n\nThe chosen setup is an M15 SnD candidate, a QMH_KILLER_TYPE2_BULLISH (ID: GBPUSDM_QMH_KILLER_TYPE2_BULLISH_1.3514), which is immediately actionable (ltf_confirmation: true). This is an exceptionally high-confluence pattern, identified as a QMH+MPL+RS_FLIP+FAKEOUT+COMPRESSION+MARUBOZU. It is supported by a recent M15 liquidity sweep of SSL at the entry level, further strengthening the case for a reversal.\n\nWhile numerous bearish SMC candidates exist, they are counter to the dominant HTF trend and the most recent LTF structural shift, making them lower-probability trades. The macro environment is neutral, placing emphasis on the technical picture, which is clearly favoring the long side. The setup achieves a 1:5 R:R, satisfying risk parameters, and scores a 9/10 for confluence, warranting an A+ grade.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 5,
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "stop_loss": 1.34995,
+  "symbol": "GBPUSDm",
+  "take_profit": 1.35852,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}
