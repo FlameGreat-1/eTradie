@@ -82,16 +82,20 @@ class ProcessorConfig(BaseSettings):
     )
 
     # -- Timeouts ------------------------------------------------------------
+    # Upper bounds are sized to accommodate the slow tail of large-context
+    # LLM calls (~280KB user message, 26 RAG chunks) without relaxing the
+    # defaults for the common case. The defaults stay at 60/90 to keep
+    # existing deployments behaviourally unchanged.
     llm_timeout_seconds: int = Field(
         default=60,
         ge=10,
-        le=300,
+        le=540,
         description="Timeout for a single LLM API call",
     )
     total_timeout_seconds: int = Field(
         default=90,
         ge=15,
-        le=360,
+        le=600,
         description="Total timeout for the full process() call including retries",
     )
 

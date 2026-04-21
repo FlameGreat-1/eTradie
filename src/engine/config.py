@@ -171,7 +171,10 @@ class Settings(BaseSettings):
     circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
 
     # ── Observability ────────────────────────────────────────
-    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    # Empty otel_exporter_otlp_endpoint disables tracing cleanly (no
+    # OTLP dial attempts, no export-deadline-exceeded noise in the
+    # engine log). Operators opt in by setting a real collector URL.
+    otel_exporter_otlp_endpoint: str = ""
     otel_service_name: str = "etradie-engine"
     prometheus_metrics_port: int = Field(default=9090, ge=1024, le=65535)
 
