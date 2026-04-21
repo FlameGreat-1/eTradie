@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
+from typing import Optional, AsyncGenerator
 
 import orjson
 
@@ -65,10 +65,12 @@ class AnalysisProcessor(ProcessorPort):
         config: ProcessorConfig,
         llm_client: LLMClient,
         uow_factory: Optional[ProcessorUOWFactory] = None,
+        cache: Optional[Any] = None,
     ) -> None:
         self._config = config
         self._llm = llm_client
         self._uow_factory = uow_factory
+        self._cache = cache
 
     async def process(
         self,
@@ -215,10 +217,45 @@ class AnalysisProcessor(ProcessorPort):
         # errors, timeouts) with exponential backoff + jitter. Non-retryable
         # errors (auth, bad request) are raised immediately.
         async def _llm_call() -> LLMResponse:
-            return await self._llm.call(
+            full_text = ""
+            output_tokens = 0
+            start_llm = time.monotonic()
+            in_reasoning = False
+            if self._cache:
+                await self._cache.publish("etradie:stream:global", {"symbol": symbol, "type": "status", "message": "Generating AI Strategy..."})
+
+            import re
+            last_published_reasoning = ""
+            async for chunk in self._llm.stream_call(
                 system_prompt=system_prompt,
                 user_message=user_message,
                 trace_id=trace_id,
+            ):
+                full_text += chunk
+                output_tokens += 1
+                
+                # Progressively extract explainable_reasoning using regex that handles escaped quotes
+                match = re.search(r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)', full_text)
+                if match:
+                    current_extracted = match.group(1)
+                    # Unescape json newlines and quotes progressively
+                    current_extracted = current_extracted.replace('\\n', '\n').replace('\\"', '"')
+                    
+                    if len(current_extracted) > len(last_published_reasoning):
+                        new_text = current_extracted[len(last_published_reasoning):]
+                        last_published_reasoning = current_extracted
+                        if self._cache and new_text:
+                            await self._cache.publish("etradie:stream:global", {"symbol": symbol, "type": "reasoning_chunk", "text": new_text})
+
+            from engine.processor.llm.client import LLMResponse
+            return LLMResponse(
+                text=full_text,
+                model=self._config.model_name,
+                provider=self._llm.PROVIDER,
+                input_tokens=0, # Usage estimation varies by stream format
+                output_tokens=output_tokens,
+                duration_ms=(time.monotonic() - start_llm) * 1000,
+                stop_reason="stop",
             )
 
         llm_response: LLMResponse = await retry_llm_call(
@@ -246,7 +283,15 @@ class AnalysisProcessor(ProcessorPort):
 
         # Step 5: Build raw response dict for audit (include provider metadata)
         try:
-            raw_dict = orjson.loads(llm_response.text)
+            text = llm_response.text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            elif text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            raw_dict = orjson.loads(text)
         except (orjson.JSONDecodeError, ValueError):
             raw_dict = {"raw_text": llm_response.text[:4096]}
         raw_dict["_llm_provider"] = llm_response.provider
@@ -495,3 +540,5 @@ class AnalysisProcessor(ProcessorPort):
                 },
                 exc_info=True,
             )
+
+

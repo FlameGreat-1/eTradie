@@ -75,7 +75,7 @@ func (s *Store) GetActiveSymbols(ctx context.Context, userID string) []string {
 	for _, v := range slice {
 		str, ok := v.(string)
 		if ok && strings.TrimSpace(str) != "" {
-			symbols = append(symbols, strings.ToUpper(strings.TrimSpace(str)))
+			symbols = append(symbols, strings.TrimSpace(str))
 		}
 	}
 
@@ -99,22 +99,12 @@ func (s *Store) SetActiveSymbols(ctx context.Context, userID string, symbols []s
 		return false
 	}
 
-	if len(symbols) == 0 {
-		s.log.Warn().Str("user_id", userID).Msg("symbol_store_set_called_with_empty_list")
-		return false
-	}
-
 	normalized := make([]string, 0, len(symbols))
 	for _, sym := range symbols {
 		trimmed := strings.TrimSpace(sym)
 		if trimmed != "" {
-			normalized = append(normalized, strings.ToUpper(trimmed))
+			normalized = append(normalized, trimmed)
 		}
-	}
-
-	if len(normalized) == 0 {
-		s.log.Warn().Str("user_id", userID).Msg("symbol_store_set_called_with_invalid_symbols")
-		return false
 	}
 
 	key := activeSymbolsKey(userID)

@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "symbol": "USTEC_x100m",
+  "symbol": "USDCHFm",
   "htf_timeframes": [
     "MN1",
     "W1",
@@ -14,52 +14,68 @@
     "M5",
     "M1"
   ],
-  "smc_candidates_count": 76,
-  "snd_candidates_count": 6,
+  "smc_candidates_count": 12,
+  "snd_candidates_count": 9,
   "alignment": {
     "MN1_W1": {
       "htf_timeframe": "MN1",
       "ltf_timeframe": "W1",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
         "trends_aligned": true,
         "zones_nested": false,
-        "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "MN1",
         "ltf_timeframe": "W1"
       }
     },
-    "W1_H4": {
+    "W1_D1": {
       "htf_timeframe": "W1",
-      "ltf_timeframe": "H4",
+      "ltf_timeframe": "D1",
       "trends_aligned": true,
       "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
         "trends_aligned": true,
         "zones_nested": false,
-        "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "W1",
+        "ltf_timeframe": "D1"
+      }
+    },
+    "D1_H4": {
+      "htf_timeframe": "D1",
+      "ltf_timeframe": "H4",
+      "trends_aligned": true,
+      "htf_ltf_aligned": true,
+      "htf_trend": "BEARISH",
+      "ltf_trend": "BEARISH",
+      "alignment_metadata": {
+        "trends_aligned": true,
+        "zones_nested": false,
+        "htf_trend": "BEARISH",
+        "ltf_trend": "BEARISH",
+        "htf_timeframe": "D1",
         "ltf_timeframe": "H4"
       }
     },
     "H4_H1": {
       "htf_timeframe": "H4",
       "ltf_timeframe": "H1",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
       "ltf_trend": "BULLISH",
       "alignment_metadata": {
-        "trends_aligned": true,
-        "zones_nested": true,
-        "htf_trend": "BULLISH",
+        "trends_aligned": false,
+        "zones_nested": false,
+        "htf_trend": "BEARISH",
         "ltf_trend": "BULLISH",
         "htf_timeframe": "H4",
         "ltf_timeframe": "H1"
@@ -68,15 +84,15 @@
     "H1_M30": {
       "htf_timeframe": "H1",
       "ltf_timeframe": "M30",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
       "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
-        "trends_aligned": true,
+        "trends_aligned": false,
         "zones_nested": true,
         "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "H1",
         "ltf_timeframe": "M30"
       }
@@ -84,14 +100,14 @@
     "M30_M15": {
       "htf_timeframe": "M30",
       "ltf_timeframe": "M15",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
-      "htf_trend": "BULLISH",
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
+      "htf_trend": "BEARISH",
       "ltf_trend": "BULLISH",
       "alignment_metadata": {
-        "trends_aligned": true,
+        "trends_aligned": false,
         "zones_nested": true,
-        "htf_trend": "BULLISH",
+        "htf_trend": "BEARISH",
         "ltf_trend": "BULLISH",
         "htf_timeframe": "M30",
         "ltf_timeframe": "M15"
@@ -100,20 +116,20 @@
     "M15_M5": {
       "htf_timeframe": "M15",
       "ltf_timeframe": "M5",
-      "trends_aligned": true,
-      "htf_ltf_aligned": true,
+      "trends_aligned": false,
+      "htf_ltf_aligned": false,
       "htf_trend": "BULLISH",
-      "ltf_trend": "BULLISH",
+      "ltf_trend": "BEARISH",
       "alignment_metadata": {
-        "trends_aligned": true,
+        "trends_aligned": false,
         "zones_nested": true,
         "htf_trend": "BULLISH",
-        "ltf_trend": "BULLISH",
+        "ltf_trend": "BEARISH",
         "htf_timeframe": "M15",
         "ltf_timeframe": "M5"
       }
     }
   },
-  "overall_trend": "BULLISH",
+  "overall_trend": "BEARISH",
   "error": null
 }

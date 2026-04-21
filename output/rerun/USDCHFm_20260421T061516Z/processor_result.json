@@ -1,0 +1,270 @@
+{
+  "trade_valid": false,
+  "direction": null,
+  "symbol": "USDCHFm",
+  "confidence": 0.0,
+  "grade": "REJECT",
+  "risk_percentage": null,
+  "reasoning": "The analysis identified a strong bearish trend across all higher timeframes (MN1, W1, D1, H4). A high-confluence, live-edge SMC candidate was detected on the M15 timeframe (ID: ...c4778478), presenting a potential pro-trend short opportunity. This setup, a CHOCH+BMS+LIQUIDITY_SWEEP+IDM+RTO, showed excellent structural characteristics, including a prior liquidity sweep and inducement clearance, aligning perfectly with the HTF order flow.\n\nHowever, despite the high structural score of 7/10, the setup is decisively rejected due to a mandatory rule failure. Per rule `MR-REJECT-010` and `STYLE-RR-001`, any Intraday setup must offer a minimum Risk-to-Reward ratio of 1:3. The entry zone is the M15 Order Block at [0.77979, 0.7806]. A structurally sound stop loss must be placed above the swing high that initiated the move, around 0.78209. The primary liquidity target is the significant pool of equal lows at 0.77748. This configuration yields a maximum R:R of approximately 1.4:1, which is significantly below the required minimum. As capital preservation and favorable risk asymmetry are paramount, the trade is invalid regardless of its structural quality. No trade will be taken.",
+  "entry_price": null,
+  "stop_loss": null,
+  "take_profit": null,
+  "rejection_rules": [
+    "missing_COT alignment with trade direction",
+    "missing_Minimum R:R achievable"
+  ],
+  "raw_response": {
+    "analysis_id": "analysis_USDCHFm_20260421_0613_a4b1",
+    "pair": "USDCHFm",
+    "timestamp": "2026-04-21T06:13:00Z",
+    "trading_style": "INTRADAY",
+    "session": "ASIAN",
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "doc_id": "macro_analysis",
+            "chunk_id": null,
+            "section": "economic.releases",
+            "rule_id": null,
+            "content_preview": "All major USD economic indicators (CPI, PCE, GDP, Employment) reported 'INLINE' with no significant surprise."
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "doc_id": "macro_analysis",
+            "chunk_id": null,
+            "section": "central_bank.speeches",
+            "rule_id": null,
+            "content_preview": "No recent high-impact data or central bank speeches for CHF were provided."
+          }
+        ]
+      }
+    },
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "doc_id": "macro_analysis",
+          "chunk_id": null,
+          "section": "dxy.snapshots",
+          "content_preview": "No DXY snapshot data was available for analysis."
+        }
+      ]
+    },
+    "cot_signal": {
+      "summary": "No COT data provided.",
+      "week_over_week": null,
+      "extreme_flag": false,
+      "evidence": []
+    },
+    "event_risk": [],
+    "htf_bias": {
+      "structure": "bearish",
+      "key_levels": [
+        0.80423,
+        0.76034
+      ],
+      "notes": "The HTF context from MN1 down to D1 is unequivocally bearish. Price is consistently forming lower lows and lower highs, indicating strong institutional selling pressure. The overall trend is firmly established to the downside."
+    },
+    "mtf_bias": {
+      "structure": "bearish",
+      "key_levels": [
+        0.80005,
+        0.7981,
+        0.77748
+      ],
+      "notes": "The H4 timeframe confirms the bearish structure with a clear Break of Market Structure (BMS) at 0.79609 on 2026-04-08. An unmitigated bearish Order Block at [0.7981, 0.80005] remains a key point of interest above current price. The current price action is a complex pullback within this bearish leg."
+    },
+    "entry_setup": {
+      "type": "OB",
+      "zone_id": "USDCHFM_CHOCH_BMS_RTO_BEARISH_BEARISH_0.7802_c4778478",
+      "quality": "Invalid",
+      "bounds": [
+        0.77979,
+        0.7806
+      ],
+      "evidence": [
+        {
+          "doc_id": "ta_analysis.smc_candidates",
+          "chunk_id": null,
+          "section": "candidate_id: USDCHFM_CHOCH_BMS_RTO_BEARISH_BEARISH_0.7802_c4778478",
+          "rule_id": null,
+          "content_preview": "A live M15 SMC candidate was identified with high confluence (liquidity sweep, inducement clear) aligning with the HTF bearish trend."
+        }
+      ]
+    },
+    "wyckoff_phase": {
+      "phase": "markdown",
+      "evidence": [
+        {
+          "doc_id": "ta_analysis.snapshots",
+          "chunk_id": null,
+          "section": "D1.trend_direction",
+          "rule_id": null,
+          "content_preview": "The sustained bearish trend on the Daily and Weekly charts is characteristic of a Markdown phase, where price seeks lower liquidity levels."
+        }
+      ]
+    },
+    "confluence_score": {
+      "score": 7.0,
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "present": true,
+          "value": 0.0,
+          "notes": "Macro bias is neutral, which does not oppose the trade."
+        },
+        {
+          "name": "HTF structure aligned",
+          "present": true,
+          "value": 1.0,
+          "notes": "W1/D1 structure is strongly bearish, aligning with the short direction."
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "present": true,
+          "value": 1.0,
+          "notes": "H4 has a confirmed bearish BMS, supporting continuation shorts."
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "present": true,
+          "value": 1.0,
+          "notes": "The M15 candidate identifies a valid bearish Order Block at [0.77979, 0.7806]."
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "present": true,
+          "value": 1.0,
+          "notes": "The M15 candidate confirms a liquidity sweep occurred prior to the structural break, strengthening the setup."
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "present": false,
+          "value": 0.0,
+          "notes": "COT data was not provided for analysis."
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "present": true,
+          "value": 1.0,
+          "notes": "The overall market is in a Markdown phase, which supports short positions."
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "present": true,
+          "value": 1.0,
+          "notes": "The economic calendar is clear of high-impact events for USD/CHF."
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "present": false,
+          "value": 0.0,
+          "notes": "CRITICAL FAILURE: The setup does not meet the minimum 1:3 R:R for the Intraday style. Calculated R:R is ~1.4:1."
+        }
+      ]
+    },
+    "setup_grade": "REJECT",
+    "direction": "NO SETUP",
+    "entry_zone": {
+      "low": null,
+      "high": null
+    },
+    "stop_loss": {
+      "price": null,
+      "reason": null,
+      "evidence": []
+    },
+    "take_profits": [],
+    "rr_ratio": null,
+    "confidence": "NO SETUP",
+    "proceed_to_module_b": "NO",
+    "execution_mode": null,
+    "ltf_confirmed": false,
+    "explainable_reasoning": "The analysis identified a strong bearish trend across all higher timeframes (MN1, W1, D1, H4). A high-confluence, live-edge SMC candidate was detected on the M15 timeframe (ID: ...c4778478), presenting a potential pro-trend short opportunity. This setup, a CHOCH+BMS+LIQUIDITY_SWEEP+IDM+RTO, showed excellent structural characteristics, including a prior liquidity sweep and inducement clearance, aligning perfectly with the HTF order flow.\n\nHowever, despite the high structural score of 7/10, the setup is decisively rejected due to a mandatory rule failure. Per rule `MR-REJECT-010` and `STYLE-RR-001`, any Intraday setup must offer a minimum Risk-to-Reward ratio of 1:3. The entry zone is the M15 Order Block at [0.77979, 0.7806]. A structurally sound stop loss must be placed above the swing high that initiated the move, around 0.78209. The primary liquidity target is the significant pool of equal lows at 0.77748. This configuration yields a maximum R:R of approximately 1.4:1, which is significantly below the required minimum. As capital preservation and favorable risk asymmetry are paramount, the trade is invalid regardless of its structural quality. No trade will be taken.",
+    "rag_sources": [
+      {
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES",
+        "relevance_score": 0.98
+      },
+      {
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "section": "5. Risk-to-Reward Requirements",
+        "relevance_score": 0.97
+      },
+      {
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK",
+        "relevance_score": 0.92
+      },
+      {
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "section": "4. Permitted Setup Types",
+        "relevance_score": 0.89
+      }
+    ],
+    "audit": {
+      "retrieval": {
+        "query_summary": "Analyzed USDCHFm for pro-trend bearish continuation setups, focusing on SMC and SnD patterns on LTF aligning with HTF bearish structure, and validated against risk management rules.",
+        "strategy_used": "hybrid",
+        "top_k": 29,
+        "chunks_returned": [
+          {
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES",
+            "relevance_score": 0.98
+          },
+          {
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "section": "5. Risk-to-Reward Requirements",
+            "relevance_score": 0.97
+          }
+        ]
+      },
+      "citations": [
+        {
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES",
+          "relevance_score": 0.98
+        },
+        {
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "section": "5. Risk-to-Reward Requirements",
+          "relevance_score": 0.97
+        }
+      ]
+    },
+    "_llm_provider": "gemini",
+    "_llm_model": "gemini-2.5-pro"
+  },
+  "entry_zone_low": null,
+  "entry_zone_high": null,
+  "tp1_price": null,
+  "tp1_pct": 0,
+  "tp2_price": null,
+  "tp2_pct": 0,
+  "tp3_price": null,
+  "tp3_pct": 0,
+  "trading_style": "INTRADAY",
+  "session": "ASIAN",
+  "rr_ratio": null,
+  "confluence_score": 7.0,
+  "analysis_id": "analysis_USDCHFm_20260421_0613_a4b1",
+  "execution_mode": null,
+  "ltf_confirmed": false,
+  "setup_type": null
+}

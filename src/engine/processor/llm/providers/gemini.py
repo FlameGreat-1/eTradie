@@ -104,6 +104,40 @@ class GeminiClient(LLMClient):
             stop_reason=stop_reason,
         )
 
+    async def stream_call(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        trace_id: Optional[str] = None,
+    ) -> __import__("typing").AsyncGenerator[str, None]:
+        model = self._config.model_name
+        
+        try:
+            response_stream = await self._client.aio.models.generate_content_stream(
+                model=model,
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=self._config.temperature,
+                    max_output_tokens=self._config.max_output_tokens,
+                ),
+            )
+            async for chunk in response_stream:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as exc:
+            logger.error(
+                "llm_stream_call_failed",
+                extra={
+                    "provider": "gemini",
+                    "model": model,
+                    "error": str(exc),
+                    "trace_id": trace_id,
+                },
+            )
+            raise
+
     async def close(self) -> None:
         """Close the underlying genai client HTTP transport."""
         if hasattr(self._client, "_http_client") and hasattr(

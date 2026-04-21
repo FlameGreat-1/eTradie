@@ -955,6 +955,7 @@ def create_app() -> FastAPI:
                     "display": {
                         "summary": display["summary"],
                         "analyzed_by": display["analyzed_by"],
+                        "reasoning": display.get("reasoning", ""),
                     },
                 }
             )
@@ -1046,7 +1047,21 @@ def create_app() -> FastAPI:
                 "validation_errors": a.validation_errors,
             }
 
-        display = format_for_dashboard(row.raw_output or {}, row)
+        raw_data = row.raw_output or {}
+        if isinstance(raw_data, str):
+            try:
+                import json
+                raw_data = json.loads(raw_data)
+            except Exception:
+                raw_data = {}
+
+        display = format_for_dashboard(raw_data, row)
+        
+        # Override confidence since we have it correctly inside raw_data as well
+        if "confidence" in raw_data and raw_data["confidence"] is not None:
+            confidence = raw_data["confidence"]
+        else:
+            confidence = row.confidence
 
         return {
             "analysis_id": row.analysis_id,
@@ -1054,7 +1069,7 @@ def create_app() -> FastAPI:
             "direction": row.direction,
             "setup_grade": row.setup_grade,
             "confluence_score": row.confluence_score,
-            "confidence": row.confidence,
+            "confidence": confidence,
             "proceed_to_module_b": row.proceed_to_module_b,
             "rr_ratio": row.rr_ratio,
             "trading_style": row.trading_style,
@@ -1063,6 +1078,7 @@ def create_app() -> FastAPI:
             "llm_model": row.llm_model,
             "status": row.status,
             "created_at": row.created_at.isoformat() if row.created_at else None,
+            "raw_output": raw_data,
             "display": {
                 "summary": display["summary"],
                 "reasoning": display["reasoning"],
@@ -1511,6 +1527,51 @@ def create_app() -> FastAPI:
             "result": processor_dict,
             "output_files": saved,
         }
+
+    from fastapi.responses import StreamingResponse
+    import json
+
+    @app.get("/api/analysis/stream-live")
+    async def stream_live_analysis(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ):
+        container: Container = request.app.state.container
+        
+        async def event_generator():
+            pubsub = container.cache.pubsub()
+            channel_name = "etradie:stream:global"
+            await pubsub.subscribe(channel_name)
+            
+            try:
+                # Add a heartbeat timeout to prevent infinite hanging
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    
+                    try:
+                        message = await asyncio.wait_for(pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        continue
+                        
+                    if message and message["type"] == "message":
+                        try:
+                            data_str = message["data"].decode("utf-8")
+                            yield f"data: {data_str}\n\n"
+                            
+                            # Stop the stream loop gracefully if a terminal signal is sent
+                            data_obj = json.loads(data_str)
+                            if data_obj.get("type") in ("final", "error"):
+                                break
+                                
+                        except Exception as e:
+                            logger.error("stream_parse_error", extra={"error": str(e)})
+            finally:
+                await pubsub.unsubscribe(channel_name)
+                # Ensure the redis connection is cleaned back into the pool
+                await pubsub.reset()
+                
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # -- Processor config endpoints (LLM provider/model switching) -----------
 
@@ -2050,7 +2111,7 @@ def create_app() -> FastAPI:
                     ea_port = int(os.environ.get("MT5_ZMQ_PORT", "5555"))
                 except ValueError:
                     ea_port = 5555
-                # ea_auth_token should ideally be in settings too, but defaults to empty for now if not present
+                ea_auth_token = os.environ.get("MT5_ZMQ_AUTH_TOKEN", "")
 
             elif body.connection_type == "metaapi":
                 # Provision cloud MT5 account dynamically

@@ -15,11 +15,12 @@ type Config struct {
 	Enabled bool `envconfig:"ENABLED" default:"true"`
 
 	// Symbols: gateway is the authority for active symbols.
-	DefaultSymbols []string `envconfig:"DEFAULT_SYMBOLS" default:"EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,NZDUSD,USDCAD,XAUUSD"`
+	// Users are expected to add their own symbols via the dashboard matching their broker's format.
+	DefaultSymbols []string `envconfig:"DEFAULT_SYMBOLS"`
 
 	// Cycle timing.
 	CycleIntervalSeconds int `envconfig:"CYCLE_INTERVAL_SECONDS" default:"14400"`
-	CycleTimeoutSeconds  int `envconfig:"CYCLE_TIMEOUT_SECONDS" default:"300"`
+	CycleTimeoutSeconds  int `envconfig:"CYCLE_TIMEOUT_SECONDS" default:"450"`
 
 	// Parallelism.
 	MaxConcurrentSymbols          int `envconfig:"MAX_CONCURRENT_SYMBOLS" default:"4"`
@@ -29,7 +30,7 @@ type Config struct {
 	RAGTimeoutSeconds int `envconfig:"RAG_TIMEOUT_SECONDS" default:"30"`
 
 	// Processor LLM.
-	ProcessorTimeoutSeconds int `envconfig:"PROCESSOR_TIMEOUT_SECONDS" default:"60"`
+	ProcessorTimeoutSeconds int `envconfig:"PROCESSOR_TIMEOUT_SECONDS" default:"180"`
 
 	// Guard evaluation.
 	GuardTimeoutSeconds int `envconfig:"GUARD_TIMEOUT_SECONDS" default:"10"`
@@ -174,11 +175,6 @@ func (c *Config) validate() error {
 	}
 	if c.HTTPPort == c.GRPCPort {
 		return fmt.Errorf("HTTP_PORT and GRPC_PORT must be different, both are %d", c.HTTPPort)
-	}
-
-	// Default symbols must not be empty.
-	if len(c.DefaultSymbols) == 0 {
-		return fmt.Errorf("DEFAULT_SYMBOLS must contain at least one symbol")
 	}
 
 	return nil

@@ -116,6 +116,41 @@ class OpenAICompatibleClient(LLMClient):
             stop_reason=stop_reason,
         )
 
+    async def stream_call(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        trace_id: Optional[str] = None,
+    ) -> __import__("typing").AsyncGenerator[str, None]:
+        model = self._config.model_name
+        
+        try:
+            response = await self._client.chat.completions.create(
+                model=model,
+                max_tokens=self._config.max_output_tokens,
+                temperature=self._config.temperature,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                stream=True,
+            )
+            async for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as exc:
+            logger.error(
+                "llm_stream_call_failed",
+                extra={
+                    "provider": "self_hosted",
+                    "model": model,
+                    "error": str(exc),
+                    "trace_id": trace_id,
+                },
+            )
+            raise
+
     async def close(self) -> None:
         await self._client.close()
 

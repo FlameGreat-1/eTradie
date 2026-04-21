@@ -98,6 +98,37 @@ class AnthropicClient(LLMClient):
             stop_reason=stop_reason,
         )
 
+    async def stream_call(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        trace_id: Optional[str] = None,
+    ) -> __import__("typing").AsyncGenerator[str, None]:
+        model = self._config.model_name
+        
+        try:
+            async with self._client.messages.stream(
+                model=model,
+                max_tokens=self._config.max_output_tokens,
+                temperature=self._config.temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+        except Exception as exc:
+            logger.error(
+                "llm_stream_call_failed",
+                extra={
+                    "provider": "anthropic",
+                    "model": model,
+                    "error": str(exc),
+                    "trace_id": trace_id,
+                },
+            )
+            raise
+
     async def close(self) -> None:
         await self._client.close()
 

@@ -538,6 +538,43 @@ class RedisCache:
             seconds,
         )
 
+    async def publish(self, channel: str, message: Any) -> int:
+        """Publish a message to a Redis channel.
+
+        Args:
+            channel: The channel name to publish to.
+            message: The message to publish (must be JSON-serializable).
+
+        Returns:
+            The number of clients that received the message.
+        """
+        try:
+            raw = orjson.dumps(message)
+            result = await self._execute_with_retry(
+                "publish",
+                self._client.publish,
+                channel,
+                raw,
+            )
+            return int(result)
+        except Exception as e:
+            logger.error(
+                "cache_publish_error",
+                extra={
+                    "channel": channel,
+                    "error": str(e),
+                },
+            )
+            return 0
+
+    def pubsub(self) -> aioredis.client.PubSub:
+        """Get a PubSub object from the underlying Redis client.
+
+        Returns:
+            A new PubSub instance for subscribing to channels.
+        """
+        return self._client.pubsub()
+
     async def close(self) -> None:
         """Gracefully close Redis connections."""
         try:

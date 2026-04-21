@@ -57,6 +57,26 @@ class LLMClient(abc.ABC):
         ...
 
     @abc.abstractmethod
+    async def stream_call(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        trace_id: Optional[str] = None,
+    ) -> __import__("typing").AsyncGenerator[str, None]:
+        """Send a prompt and yield the raw text chunks as they arrive.
+        
+        Args:
+            system_prompt: The system message defining LLM behavior.
+            user_message: The user message with context payload.
+            trace_id: Distributed trace ID for correlation.
+
+        Yields:
+            str: Token chunks from the provider.
+        """
+        ...
+
+    @abc.abstractmethod
     async def close(self) -> None:
         """Release provider resources (HTTP connections, etc.)."""
         ...
