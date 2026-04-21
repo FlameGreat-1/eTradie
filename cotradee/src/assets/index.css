@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════
+   DARK THEME (default)
+   ═══════════════════════════════════════════ */
+:root {
+  --surface-0: #000000;
+  --surface-1: #0a0a0a;
+  --surface-2: #111111;
+  --surface-3: #1a1a1a;
+  --border: #1c1b20;
+  --border-subtle: #202020;
+  --content: #ffffff;
+  --content-secondary: #eaeaea;
+  --content-muted: #767676;
+  --sidebar-width: 48px;
+  --header-height: 50px;
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════
+   LIGHT THEME
+   ═══════════════════════════════════════════ */
+.light {
+  --surface-0: #ffffff;
+  --surface-1: #f8f9fa;
+  --surface-2: #f1f3f5;
+  --surface-3: #e9ecef;
+  --border: #dee2e6;
+  --border-subtle: #e9ecef;
+  --content: #111111;
+  --content-secondary: #495057;
+  --content-muted: #868e96;
+  color-scheme: light;
+}
+
+/* ═══════════════════════════════════════════
+   BASE RESETS
+   ═══════════════════════════════════════════ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--surface-0);
+    color: var(--content);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: #E85102;
+    color: white;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #E85102;
+    outline-offset: 2px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E85102;
+}
+
+/* ═══════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════ */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(180deg, var(--content) 0%, var(--content-muted) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

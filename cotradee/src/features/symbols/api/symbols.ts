@@ -1,0 +1,34 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/axios';
+
+export function useSymbols() {
+  return useQuery({
+    queryKey: ['symbols'],
+    queryFn: async () => {
+      const { data } = await api.gateway.get<{ symbols: string[]; source: string }>('/api/v1/symbols');
+      return data;
+    },
+  });
+}
+
+export function useUpdateSymbols() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (symbols: string[]) => {
+      const { data } = await api.gateway.put('/api/v1/symbols', { symbols });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['symbols'] }),
+  });
+}
+
+export function useResetSymbols() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.gateway.post('/api/v1/symbols/reset');
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['symbols'] }),
+  });
+}
