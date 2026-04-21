@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useLatestAnalysis, useAnalysisStats } from '@/features/analysis/api/analysis';
 import { useSymbols } from '@/features/symbols/api/symbols';
+import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
 import { formatCurrency, formatPercentage, formatRelativeTime } from '@/utils/formatters';
-import { Zap, TrendingUp, BarChart3, Activity, ChevronDown, ChevronUp, Play } from 'lucide-react';
-import { api } from '@/lib/axios';
+import { Zap, TrendingUp, BarChart3, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 
+/**
+ * Dashboard home page.
+ *
+ * Renders four metric cards, the recent-analysis feed (3 rows), and a
+ * live-reasoning panel that appears at the top of the feed whenever
+ * the user's engine is mid-cycle. The live panel auto-closes on
+ * `final`/`error` and triggers a feed refetch so the latest analysis
+ * slides into the top slot seamlessly.
+ */
 export default function DashboardPage() {
   const { data: execState } = useExecutionState();
   const { data: latest, refetch: refetchLatest } = useLatestAnalysis(10);
@@ -14,117 +23,38 @@ export default function DashboardPage() {
 
   const analyses = latest?.analyses ?? [];
   const recentThree = analyses.slice(0, 3);
-  
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [lastTopId, setLastTopId] = useState<string | null>(null);
 
-  // Streaming State
-  const [streamSymbol, setStreamSymbol] = useState('EURUSDm');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamData, setStreamData] = useState({
-    status: '',
-    reasoning: '',
-    error: '',
-    verifying: false
+  // Live reasoning stream. The hook owns connection lifecycle, auth,
+  // reconnect/backoff, and terminal-frame semantics. We only care
+  // about the state it produces.
+  const stream = useLiveReasoningStream(() => {
+    void refetchLatest();
   });
 
+  // Auto-expand the newest completed analysis as it arrives, but
+  // don't steal focus from the live stream while it is running.
   useEffect(() => {
-    if (recentThree.length > 0 && !isStreaming) {
+    if (recentThree.length > 0 && !stream.isStreaming) {
       const currentTopId = String(recentThree[0].analysis_id);
       if (currentTopId !== lastTopId) {
         setLastTopId(currentTopId);
         setExpandedId(currentTopId);
       }
     }
-  }, [recentThree, lastTopId, isStreaming]);
+  }, [recentThree, lastTopId, stream.isStreaming]);
 
-  // Global background stream listener
+  // While streaming, keep the live row expanded so the user sees the
+  // tokens appear. Once the stream ends the effect above takes over.
   useEffect(() => {
-    const controller = new AbortController();
-    
-    const listenToStreams = async () => {
-      try {
-        const token = api.engine.defaults.headers.common['Authorization'];
-        const res = await fetch(`/api/engine/api/analysis/stream-live`, {
-          headers: { ...(token ? { 'Authorization': String(token) } : {}) },
-          signal: controller.signal
-        });
-        
-        if (!res.body) return;
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        
-        let localReasoningMap: Record<string, string> = {}; 
+    if (stream.isStreaming) {
+      setExpandedId('stream_active');
+    }
+  }, [stream.isStreaming]);
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            // Connection closed remotely, retry
-            setTimeout(() => { if (!controller.signal.aborted) listenToStreams(); }, 5000);
-            break;
-          }
-          
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n\n');
-          
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) continue;
-            try {
-              const payload = JSON.parse(line.substring(6));
-              
-              // Only ever show the stream of the latest arriving payload to prevent UI jumping if 3 run simultaneously.
-              // We'll trust the payload structure has the "symbol" parameter as implemented.
-              if (payload.symbol) setStreamSymbol(payload.symbol);
-              
-              setStreamData(s => {
-                // Determine if we are just starting
-                let shouldOpen = false;
-                if (!s.reasoning && payload.type !== 'final') shouldOpen = true;
-                
-                if (shouldOpen) {
-                   setIsStreaming(true);
-                   setExpandedId("stream_active");
-                }
-                return s;
-              });
-
-              if (payload.type === 'status') {
-                setStreamData(s => ({ ...s, status: payload.message }));
-              } else if (payload.type === 'reasoning_chunk') {
-                const updatedReasoning = (localReasoningMap[payload.symbol] || "") + payload.text;
-                localReasoningMap[payload.symbol] = updatedReasoning;
-                setStreamData(s => ({ ...s, reasoning: updatedReasoning, status: 'Generating AI Strategy...' }));
-              } else if (payload.type === 'error') {
-                setStreamData(s => ({ ...s, error: payload.message, status: 'Error', verifying: true }));
-                localReasoningMap[payload.symbol] = ""; // clear stream on failure
-                setTimeout(() => {
-                    setStreamData(s => ({ ...s, error: '', verifying: false, status: 'Verifying output...' }));
-                }, 2000);
-              } else if (payload.type === 'final') {
-                setStreamData(s => ({ ...s, status: 'Analysis Complete!' }));
-                setTimeout(() => {
-                  localReasoningMap[payload.symbol] = "";
-                  setIsStreaming(false);
-                  setStreamData({ status: '', reasoning: '', error: '', verifying: false });
-                  refetchLatest();
-                }, 2000);
-              }
-            } catch (err) {
-               // Stream parse
-            }
-          }
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        setTimeout(() => {
-           if (!controller.signal.aborted) listenToStreams();
-        }, 5000);
-      }
-    };
-
-    listenToStreams();
-    return () => { controller.abort(); };
-  }, []);
+  const streamSymbol = stream.symbol ?? '—';
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -151,7 +81,9 @@ export default function DashboardPage() {
           icon={<TrendingUp size={18} />}
           label="Daily P&L"
           value={execState ? formatCurrency(execState.daily_realized_pnl) : '---'}
-          valueClass={execState?.daily_realized_pnl >= 0 ? 'text-success' : 'text-danger'}
+          valueClass={
+            execState && execState.daily_realized_pnl >= 0 ? 'text-success' : 'text-danger'
+          }
         />
         <MetricCard
           icon={<BarChart3 size={18} />}
@@ -162,48 +94,57 @@ export default function DashboardPage() {
 
       {/* Recent Analysis */}
       <section>
-        <h2 className="text-sm font-semibold text-content mb-3 uppercase tracking-wider">New Analysis</h2>
+        <h2 className="text-sm font-semibold text-content mb-3 uppercase tracking-wider">
+          New Analysis
+        </h2>
         <div className="rounded-xl border border-border bg-surface-1 overflow-hidden transition-all duration-300">
-          
-          {/* Virtual Active Stream Row */}
-          {isStreaming && (
+          {/* Live Stream Row */}
+          {stream.isStreaming && (
             <div className="border-b border-border bg-brand/5 relative overflow-hidden">
-                <div className="absolute top-0 left-0 h-0.5 bg-brand animate-pulse w-full"></div>
-                <button
-                  onClick={() => setExpandedId(expandedId === "stream_active" ? null : "stream_active")}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-2 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-brand uppercase">{streamSymbol}</span>
-                    <span className="text-xs font-semibold text-content-secondary uppercase animate-pulse">
-                      {streamData.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-brand animate-pulse">Live...</span>
-                    {expandedId === "stream_active" ? <ChevronUp size={14} className="text-content-muted" /> : <ChevronDown size={14} className="text-content-muted" />}
-                  </div>
-                </button>
-                
-                {expandedId === "stream_active" && (
-                  <div className="px-4 pb-4 pt-1 bg-transparent">
-                    {streamData.error && streamData.verifying ? (
-                       <div className="text-xs text-warning leading-relaxed font-mono relative pl-3 border-l-2 border-warning/50 bg-surface-2 p-3 rounded-r-lg flex flex-col gap-1">
-                          <span className="animate-pulse">Verifying output...</span>
-                       </div>
-                    ) : (
-                       <div className="text-xs text-content leading-relaxed font-mono relative pl-3 border-l-2 border-brand bg-surface-2 p-3 rounded-r-lg whitespace-pre-wrap flex flex-col">
-                           <span>{streamData.reasoning}</span>
-                           <span className="w-1.5 h-3 bg-brand animate-pulse inline-block mt-1"></span>
-                       </div>
-                    )}
-                  </div>
-                )}
+              <div className="absolute top-0 left-0 h-0.5 bg-brand animate-pulse w-full" />
+              <button
+                onClick={() =>
+                  setExpandedId(expandedId === 'stream_active' ? null : 'stream_active')
+                }
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-2 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-brand uppercase">{streamSymbol}</span>
+                  <span className="text-xs font-semibold text-content-secondary uppercase animate-pulse">
+                    {stream.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-brand animate-pulse">Live...</span>
+                  {expandedId === 'stream_active' ? (
+                    <ChevronUp size={14} className="text-content-muted" />
+                  ) : (
+                    <ChevronDown size={14} className="text-content-muted" />
+                  )}
+                </div>
+              </button>
+
+              {expandedId === 'stream_active' && (
+                <div className="px-4 pb-4 pt-1 bg-transparent">
+                  {stream.error ? (
+                    <div className="text-xs text-warning leading-relaxed font-mono relative pl-3 border-l-2 border-warning/50 bg-surface-2 p-3 rounded-r-lg">
+                      {stream.error}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-content leading-relaxed font-mono relative pl-3 border-l-2 border-brand bg-surface-2 p-3 rounded-r-lg whitespace-pre-wrap flex flex-col">
+                      <span>{stream.reasoning}</span>
+                      <span className="w-1.5 h-3 bg-brand animate-pulse inline-block mt-1" />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          {recentThree.length === 0 && !isStreaming && (
-            <div className="p-8 text-center text-sm text-content-muted">No analyses yet. Run a cycle or stream to generate signals.</div>
+          {recentThree.length === 0 && !stream.isStreaming && (
+            <div className="p-8 text-center text-sm text-content-muted">
+              No analyses yet. Run a cycle or stream to generate signals.
+            </div>
           )}
 
           {/* Historical Rows */}
@@ -211,7 +152,7 @@ export default function DashboardPage() {
             const id = String(a.analysis_id ?? i);
             const isExpanded = expandedId === id;
             const reasoningText = a.display?.reasoning || 'No details available.';
-            
+
             return (
               <div key={id} className="border-b border-border last:border-b-0 group">
                 <button
@@ -220,7 +161,15 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-brand">{String(a.pair ?? '')}</span>
-                    <span className={`text-xs font-semibold ${a.direction === 'LONG' || a.direction === 'BUY' ? 'text-success' : a.direction === 'SHORT' || a.direction === 'SELL' ? 'text-danger' : 'text-content-secondary'}`}>
+                    <span
+                      className={`text-xs font-semibold ${
+                        a.direction === 'LONG' || a.direction === 'BUY'
+                          ? 'text-success'
+                          : a.direction === 'SHORT' || a.direction === 'SELL'
+                          ? 'text-danger'
+                          : 'text-content-secondary'
+                      }`}
+                    >
                       {String(a.direction ?? '-')}
                     </span>
                     <span className="text-[10px] text-content-muted px-1.5 py-0.5 rounded bg-surface-2 border border-border">
@@ -234,11 +183,14 @@ export default function DashboardPage() {
                     {isExpanded ? (
                       <ChevronUp size={14} className="text-content-muted" />
                     ) : (
-                      <ChevronDown size={14} className="text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ChevronDown
+                        size={14}
+                        className="text-content-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
                     )}
                   </div>
                 </button>
-                
+
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-1 bg-surface-1">
                     <div className="text-xs text-brand/90 leading-relaxed font-mono relative pl-3 border-l-2 border-brand/30 bg-surface-2/50 p-3 rounded-r-lg">
@@ -272,11 +224,11 @@ function MetricCard({
         {icon}
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-medium text-content-muted uppercase tracking-wide">{label}</span>
+        <span className="text-[10px] font-medium text-content-muted uppercase tracking-wide">
+          {label}
+        </span>
         <span className={`text-lg font-bold ${valueClass}`}>{value}</span>
       </div>
     </div>
   );
 }
-
-
