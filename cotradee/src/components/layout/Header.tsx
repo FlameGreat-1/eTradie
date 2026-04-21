@@ -65,7 +65,15 @@ function Header() {
           <Divider />
           <StatItem label="Equity" value={account ? formatCurrency(account.equity) : '---'} />
           <Divider />
+          <StatItem label="Margin" value={account ? formatCurrency(account.margin) : '---'} />
+          <Divider />
           <StatItem label="Margin Free" value={account ? formatCurrency(account.margin_free) : '---'} />
+          <Divider />
+          <StatItem
+            label="Margin Level"
+            value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
+            valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
+          />
           <Divider />
           <StatItem label="Time Zone" value={`${fmtTime(time)} ${tzOffset()}`} />
           <Divider />
@@ -166,13 +174,45 @@ function Header() {
   );
 }
 
-function StatItem({ label, value }: { label: string; value: string }) {
+function StatItem({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] font-semibold text-content-muted uppercase tracking-wide select-none">{label}</span>
-      <span className="text-[11px] font-bold text-content whitespace-nowrap">{value}</span>
+      <span className={`text-[11px] font-bold whitespace-nowrap ${valueClass ?? 'text-content'}`}>{value}</span>
     </div>
   );
+}
+
+// Margin Level % = (Equity / Margin) * 100. When no positions are open
+// Margin is 0 and the ratio is mathematically undefined; MT5 and every
+// retail broker renders that case as a healthy infinity.
+function formatMarginLevel(equity: number | undefined, margin: number | undefined): string {
+  if (equity == null || margin == null) return '---';
+  if (margin <= 0) return '∞';
+  const pct = (equity / margin) * 100;
+  if (!Number.isFinite(pct)) return '∞';
+  return `${pct.toFixed(2)}%`;
+}
+
+// Standard broker thresholds. >= 300% is healthy, 100-300% is caution,
+// below 100% is margin-call territory and the broker begins forced
+// liquidations.
+function marginLevelClass(equity: number | undefined, margin: number | undefined): string {
+  if (equity == null || margin == null) return 'text-content';
+  if (margin <= 0) return 'text-success';
+  const pct = (equity / margin) * 100;
+  if (!Number.isFinite(pct)) return 'text-success';
+  if (pct < 100) return 'text-danger';
+  if (pct < 300) return 'text-warning';
+  return 'text-success';
 }
 
 function Divider() {
