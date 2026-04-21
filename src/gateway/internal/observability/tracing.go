@@ -38,7 +38,8 @@ func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(co
 		return nil, fmt.Errorf("tracing: service name cannot be empty")
 	}
 	if otlpEndpoint == "" {
-		Logger("tracing").Info().
+		log := Logger("tracing")
+		log.Info().
 			Str("service_name", serviceName).
 			Msg("tracing_disabled_no_otlp_endpoint_configured")
 		return nil, nil
