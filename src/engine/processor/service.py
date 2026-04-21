@@ -216,13 +216,30 @@ class AnalysisProcessor(ProcessorPort):
         # retry_llm_call handles transient failures (rate limits, server
         # errors, timeouts) with exponential backoff + jitter. Non-retryable
         # errors (auth, bad request) are raised immediately.
+        #
+        # Streaming: during the call we publish status/reasoning_chunk
+        # frames to the authenticated user's private pub/sub channel
+        # (see engine.processor.streaming). This is what the dashboard's
+        # SSE consumer subscribes to. On cache failure the publish is a
+        # no-op so the processor never blocks on streaming being broken.
+        from engine.processor.streaming import stream_channel_for_user
+        stream_channel = (
+            stream_channel_for_user(user_id) if self._cache and user_id else None
+        )
+
         async def _llm_call() -> LLMResponse:
             full_text = ""
             output_tokens = 0
             start_llm = time.monotonic()
-            in_reasoning = False
-            if self._cache:
-                await self._cache.publish("etradie:stream:global", {"symbol": symbol, "type": "status", "message": "Generating AI Strategy..."})
+            if stream_channel:
+                await self._cache.publish(
+                    stream_channel,
+                    {
+                        "symbol": symbol,
+                        "type": "status",
+                        "message": "Generating AI Strategy...",
+                    },
+                )
 
             import re
             last_published_reasoning = ""
@@ -233,26 +250,55 @@ class AnalysisProcessor(ProcessorPort):
             ):
                 full_text += chunk
                 output_tokens += 1
-                
-                # Progressively extract explainable_reasoning using regex that handles escaped quotes
-                match = re.search(r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)', full_text)
+
+                # Progressively extract explainable_reasoning using regex
+                # that handles escaped quotes so partial JSON still yields
+                # clean, displayable reasoning text to the dashboard.
+                match = re.search(
+                    r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)',
+                    full_text,
+                )
                 if match:
                     current_extracted = match.group(1)
                     # Unescape json newlines and quotes progressively
-                    current_extracted = current_extracted.replace('\\n', '\n').replace('\\"', '"')
-                    
+                    current_extracted = current_extracted.replace(
+                        "\\n", "\n"
+                    ).replace('\\"', '"')
+
                     if len(current_extracted) > len(last_published_reasoning):
                         new_text = current_extracted[len(last_published_reasoning):]
                         last_published_reasoning = current_extracted
-                        if self._cache and new_text:
-                            await self._cache.publish("etradie:stream:global", {"symbol": symbol, "type": "reasoning_chunk", "text": new_text})
+                        if stream_channel and new_text:
+                            await self._cache.publish(
+                                stream_channel,
+                                {
+                                    "symbol": symbol,
+                                    "type": "reasoning_chunk",
+                                    "text": new_text,
+                                },
+                            )
+
+            # Signal terminal state so the SSE reader on the dashboard
+            # can tear down its EventSource loop and trigger a refetch
+            # of the analysis feed. Publishing here (not inside the
+            # except path) guarantees we only emit `final` when the LLM
+            # call actually completed.
+            if stream_channel:
+                await self._cache.publish(
+                    stream_channel,
+                    {
+                        "symbol": symbol,
+                        "type": "final",
+                        "message": "Analysis Complete",
+                    },
+                )
 
             from engine.processor.llm.client import LLMResponse
             return LLMResponse(
                 text=full_text,
                 model=self._config.model_name,
                 provider=self._llm.PROVIDER,
-                input_tokens=0, # Usage estimation varies by stream format
+                input_tokens=0,  # Usage estimation varies by stream format
                 output_tokens=output_tokens,
                 duration_ms=(time.monotonic() - start_llm) * 1000,
                 stop_reason="stop",

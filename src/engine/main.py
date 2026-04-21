@@ -1531,47 +1531,127 @@ def create_app() -> FastAPI:
     from fastapi.responses import StreamingResponse
     import json
 
+    from engine.processor.streaming import (
+        SSE_HEARTBEAT_SECONDS,
+        stream_channel_for_user,
+    )
+
     @app.get("/api/analysis/stream-live")
     async def stream_live_analysis(
         request: Request,
         user: AuthenticatedUser = Depends(get_current_user),
     ):
+        """SSE endpoint for the dashboard's live-reasoning panel.
+
+        Streams frames published by the processor during an analysis
+        cycle run by the authenticated user. Each frame is a single
+        JSON object with a ``type`` field (``status``,
+        ``reasoning_chunk``, ``final``, or ``error``).
+
+        Each user has a private pub/sub channel so concurrent cycles
+        across users never cross-contaminate and a terminal frame from
+        one user does not close another user's stream.
+        """
         container: Container = request.app.state.container
-        
+        channel_name = stream_channel_for_user(user.user_id)
+
         async def event_generator():
             pubsub = container.cache.pubsub()
-            channel_name = "etradie:stream:global"
             await pubsub.subscribe(channel_name)
-            
+            logger.info(
+                "stream_subscriber_started",
+                extra={"user_id": user.user_id, "channel": channel_name},
+            )
+
+            last_keepalive = asyncio.get_event_loop().time()
+
             try:
-                # Add a heartbeat timeout to prevent infinite hanging
                 while True:
+                    # Fast exit on client disconnect so we release the
+                    # redis pub/sub connection back to the pool promptly.
                     if await request.is_disconnected():
                         break
-                    
-                    try:
-                        message = await asyncio.wait_for(pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0), timeout=2.0)
-                    except asyncio.TimeoutError:
-                        continue
-                        
-                    if message and message["type"] == "message":
+
+                    # get_message with a 1s timeout gives us a tight
+                    # disconnect-detection loop and a cheap cadence for
+                    # the heartbeat below.
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=1.0,
+                    )
+
+                    if message and message.get("type") == "message":
                         try:
-                            data_str = message["data"].decode("utf-8")
+                            data_raw = message["data"]
+                            if isinstance(data_raw, bytes):
+                                data_str = data_raw.decode("utf-8")
+                            else:
+                                data_str = str(data_raw)
                             yield f"data: {data_str}\n\n"
-                            
-                            # Stop the stream loop gracefully if a terminal signal is sent
+                            last_keepalive = asyncio.get_event_loop().time()
+
+                            # Terminal frame closes this subscriber.
+                            # Safe now that the channel is per-user:
+                            # another user's terminal frame cannot
+                            # appear on this connection.
                             data_obj = json.loads(data_str)
                             if data_obj.get("type") in ("final", "error"):
                                 break
-                                
-                        except Exception as e:
-                            logger.error("stream_parse_error", extra={"error": str(e)})
+                        except Exception as exc:
+                            logger.warning(
+                                "stream_parse_error",
+                                extra={
+                                    "user_id": user.user_id,
+                                    "error": str(exc),
+                                },
+                            )
+                    else:
+                        # No real message in this 1s window. Emit an SSE
+                        # comment frame periodically so intermediaries
+                        # (nginx/cloudflare/browsers) do not kill the
+                        # idle connection while the LLM is reasoning.
+                        now = asyncio.get_event_loop().time()
+                        if now - last_keepalive >= SSE_HEARTBEAT_SECONDS:
+                            yield ": keepalive\n\n"
+                            last_keepalive = now
+            except asyncio.CancelledError:
+                # Client went away mid-stream. Propagate so uvicorn
+                # can clean up its task reference; our finally block
+                # below still runs.
+                raise
+            except Exception as exc:
+                logger.error(
+                    "stream_generator_error",
+                    extra={"user_id": user.user_id, "error": str(exc)},
+                    exc_info=True,
+                )
             finally:
-                await pubsub.unsubscribe(channel_name)
-                # Ensure the redis connection is cleaned back into the pool
-                await pubsub.reset()
-                
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+                try:
+                    await pubsub.unsubscribe(channel_name)
+                except Exception:
+                    pass
+                try:
+                    await pubsub.aclose()
+                except Exception:
+                    pass
+                logger.info(
+                    "stream_subscriber_stopped",
+                    extra={"user_id": user.user_id, "channel": channel_name},
+                )
+
+        # Cache-Control disables client-side caching; X-Accel-Buffering
+        # tells nginx not to buffer the response (crucial for SSE);
+        # Connection: keep-alive keeps the socket warm across the
+        # slow-LLM window.
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     # -- Processor config endpoints (LLM provider/model switching) -----------
 
