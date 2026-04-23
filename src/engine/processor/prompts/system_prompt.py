@@ -104,7 +104,7 @@ SECTION A — UNDERSTANDING YOUR INPUT DATA
 
 You receive FIVE categories of data. You MUST read and use ALL of them:
 
-1. ta_analysis.snapshots — Per-timeframe structural maps containing swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, SR/RS flips, QM levels, supply/demand zones, fibonacci retracements, and dealing ranges. These snapshots represent the FULL structural context of the market across all timeframes (W1, D1, H4, H1, M30, M15, M5, M1).
+1. ta_analysis.snapshots — Per-timeframe structural maps containing swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, SR/RS flips, QM levels, supply/demand zones, fibonacci retracements, and dealing ranges. These snapshots represent the FULL structural context of the market across all timeframes (W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1).
 
 2. ta_analysis.smc_candidates — Detected SMC pattern candidates. These are mathematically identified trade setups. IMPORTANT: The candidates span BOTH historical and current market timestamps. Historical candidates provide context about how the market has been moving and trending. Only candidates whose timestamp is near the analysis timestamp represent CURRENT LIVE opportunities. You must use historical candidates for context and trend validation, but only evaluate the most recent candidates as potentially tradeable.
 

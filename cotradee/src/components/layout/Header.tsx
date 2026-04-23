@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useBrokerAccount } from '@/features/execution/api/brokerAccount';
@@ -7,18 +7,56 @@ import { formatCurrency } from '@/utils/formatters';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
 import { Moon, Sun, Bell, ChevronDown, Search, LogOut, Zap } from 'lucide-react';
 import { useRunCycle } from '@/features/analysis/api/analysis';
+import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown';
+import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal';
 
 function Header() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: account } = useBrokerAccount();
   const runCycle = useRunCycle();
 
   const [time, setTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isSymbolModalOpen, setIsSymbolModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const isDashboard = location.pathname === '/';
+  const [persistedSymbol, setPersistedSymbol] = useState(localStorage.getItem('active_symbol') || '');
+  const [persistedTf, setPersistedTf] = useState(localStorage.getItem('active_tf') || 'H1');
+
+  const symbol = searchParams.get('symbol') || persistedSymbol;
+  const timeframe = searchParams.get('tf') || persistedTf;
+
+  useEffect(() => {
+    if (searchParams.get('symbol')) {
+      localStorage.setItem('active_symbol', searchParams.get('symbol')!);
+      setPersistedSymbol(searchParams.get('symbol')!);
+    }
+    if (searchParams.get('tf')) {
+      localStorage.setItem('active_tf', searchParams.get('tf')!);
+      setPersistedTf(searchParams.get('tf')!);
+    }
+  }, [searchParams]);
+
+  const updateDashboardParams = useCallback((newSymbol?: string, newTf?: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (newSymbol) {
+      params.set('symbol', newSymbol);
+      localStorage.setItem('active_symbol', newSymbol);
+      setPersistedSymbol(newSymbol);
+    }
+    if (newTf) {
+      params.set('tf', newTf);
+      localStorage.setItem('active_tf', newTf);
+      setPersistedTf(newTf);
+    }
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -59,7 +97,7 @@ function Header() {
       }}
     >
       <div className="relative w-full h-full flex items-center justify-between px-3">
-        {/* Left: Stats */}
+        {/* Left: Stats & Controls */}
         <div className="hidden md:flex items-center gap-2.5">
           <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
           <Divider />
@@ -77,6 +115,21 @@ function Header() {
           <Divider />
           <StatItem label="Time Zone" value={`${fmtTime(time)} ${tzOffset()}`} />
           <Divider />
+
+          {/* TradingView-style Chart Controls */}
+          <>
+            <button
+              onClick={() => setIsSymbolModalOpen(true)}
+              className="px-3 h-8 rounded text-sm font-bold text-content hover:bg-surface-3 border border-border transition-colors flex items-center gap-2"
+            >
+              {symbol || 'Select Symbol'}
+              <ChevronDown size={14} className="text-content-muted" />
+            </button>
+            <TimeframeDropdown 
+              value={timeframe} 
+              onChange={(tf) => updateDashboardParams(undefined, tf)} 
+            />
+          </>
 
           {/* Search */}
           <div className="flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
@@ -170,6 +223,15 @@ function Header() {
           </div>
         </div>
       </div>
+      {/* Modals */}
+      <SymbolSearchModal 
+        isOpen={isSymbolModalOpen} 
+        onClose={() => setIsSymbolModalOpen(false)} 
+        onSelect={(sym) => {
+          updateDashboardParams(sym, undefined);
+          setIsSymbolModalOpen(false);
+        }}
+      />
     </header>
   );
 }

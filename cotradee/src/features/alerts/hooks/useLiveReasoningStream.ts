@@ -67,12 +67,12 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
         isStreaming: true,
         symbol,
         reasoning: state.reasoning + frame.text,
-        status: 'Generating AI Strategy...',
+        status: 'Analyzing...',
         error: null,
       };
     case 'final':
       // Keep the final reasoning on screen briefly; caller decides when to reset.
-      return { ...state, isStreaming: false, status: 'Analysis Complete', error: null };
+      return { ...state, isStreaming: false, status: 'NEW SETUP', error: null };
     case 'error':
       return { ...state, isStreaming: false, status: 'Error', error: frame.message };
     default:

@@ -50,7 +50,11 @@ _METAAPI_TIMEFRAME_MAP: dict[Timeframe, str] = {
     Timeframe.M15: "15m",
     Timeframe.M30: "30m",
     Timeframe.H1: "1h",
+    Timeframe.H3: "3h",
     Timeframe.H4: "4h",
+    Timeframe.H6: "6h",
+    Timeframe.H8: "8h",
+    Timeframe.H12: "12h",
     Timeframe.D1: "1d",
     Timeframe.W1: "1w",
     Timeframe.MN1: "1mn",
@@ -285,6 +289,38 @@ class MetaApiClient(BrokerBase):
             return True
         except ProviderResponseError:
             return False
+
+    async def get_all_symbols(self) -> list[dict]:
+        """Fetch all symbols from MetaApi account."""
+        try:
+            raw = await self._api_get("/symbols", category="symbols")
+        except Exception as e:
+            raise ProviderResponseError(
+                f"Failed to fetch symbols from MetaApi: {e}",
+                details={"error": str(e)},
+            ) from e
+
+        if not isinstance(raw, list):
+            return []
+
+        symbols: list[dict] = []
+        for s in raw:
+            if not isinstance(s, dict):
+                continue
+            name = s.get("symbol", "")
+            if not name:
+                continue
+            symbols.append({
+                "name": name,
+                "description": s.get("description", ""),
+                "path": s.get("path", s.get("type", "")),
+            })
+
+        logger.info(
+            "metaapi_all_symbols_fetched",
+            extra={"count": len(symbols)},
+        )
+        return symbols
 
     async def health_check(self) -> bool:
         try:

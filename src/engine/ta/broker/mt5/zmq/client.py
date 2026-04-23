@@ -58,7 +58,11 @@ _ZMQ_TIMEFRAME_MAP: dict[Timeframe, str] = {
     Timeframe.M15: "M15",
     Timeframe.M30: "M30",
     Timeframe.H1: "H1",
+    Timeframe.H3: "H3",
     Timeframe.H4: "H4",
+    Timeframe.H6: "H6",
+    Timeframe.H8: "H8",
+    Timeframe.H12: "H12",
     Timeframe.D1: "D1",
     Timeframe.W1: "W1",
     Timeframe.MN1: "MN1",
@@ -148,29 +152,54 @@ class ZmqClient(BrokerBase):
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Thread-safe async wrapper around the ZMQ call."""
         async with self._lock:
-            was_initialized = self._initialized
-            if not self._initialized:
-                self._connect_sync()
-            
-            # Auto-authenticate on first connect (or reconnect) if it's not a PING command
-            if not was_initialized and request.get("command") not in ("PING", "HEALTH"):
-                try:
-                    await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
-                except ProviderResponseError as e:
-                    logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
-            
             try:
-                return await self._send_recv_async(request)
-            except ProviderResponseError as e:
-                # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
-                if "Not authenticated" in str(e):
+                was_initialized = self._initialized
+                if not self._initialized:
+                    self._connect_sync()
+                
+                # Auto-authenticate on first connect (or reconnect) if it's not a PING command
+                if not was_initialized and request.get("command") not in ("PING", "HEALTH"):
                     try:
                         await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
-                    except ProviderResponseError as ping_e:
-                        raise ping_e from e
-                        
-                    # Retry original request after successful re-auth
+                    except ProviderResponseError as e:
+                        logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
+                
+                try:
                     return await self._send_recv_async(request)
+                except ProviderResponseError as e:
+                    # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
+                    if "Not authenticated" in str(e):
+                        try:
+                            await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                        except ProviderResponseError as ping_e:
+                            raise ping_e from e
+                            
+                        # Retry original request after successful re-auth
+                        return await self._send_recv_async(request)
+                    raise
+            except ProviderResponseError:
+                # Normal EA responses containing errors (e.g., {"error": "Invalid symbol"})
+                # mean the request-reply cycle finished successfully. We just re-raise.
+                raise
+            except asyncio.CancelledError as e:
+                # If the HTTP client (e.g. Go execution service) times out and cancels
+                # the request, FastAPI raises CancelledError. We MUST destroy the ZMQ
+                # socket because it is still waiting for a reply from MT5. Leaving it
+                # open poisons the REQ/REP sequence for the next caller.
+                logger.warning("zmq_request_cancelled_resetting", extra={"error": str(e)})
+                if self._socket:
+                    self._socket.close(linger=0)
+                    self._socket = None
+                self._initialized = False
+                raise
+            except Exception as e:
+                # Any other error (Timeout, ZMQError) means the REQ/REP state machine
+                # is desynchronized or poisoned. We MUST destroy the socket to recover.
+                logger.warning("zmq_socket_poisoned_resetting", extra={"error": str(e)})
+                if self._socket:
+                    self._socket.close(linger=0)
+                    self._socket = None
+                self._initialized = False
                 raise
 
     # -- BrokerBase implementation ---------------------------------------------
@@ -356,6 +385,39 @@ class ZmqClient(BrokerBase):
             return True
         except ProviderResponseError:
             return False
+
+    async def get_all_symbols(self) -> list[dict]:
+        """Fetch all symbols from the MT5 Market Watch via ZMQ EA."""
+        reply = await self._request({"command": "GET_ALL_SYMBOLS"})
+
+        if not reply or not isinstance(reply, dict):
+            raise ProviderResponseError(
+                "Invalid response from GET_ALL_SYMBOLS",
+                details={"reply_type": type(reply).__name__},
+            )
+
+        raw_symbols = reply.get("symbols", [])
+        if not isinstance(raw_symbols, list):
+            return []
+
+        symbols: list[dict] = []
+        for s in raw_symbols:
+            if not isinstance(s, dict):
+                continue
+            name = s.get("name", "")
+            if not name:
+                continue
+            symbols.append({
+                "name": name,
+                "description": s.get("description", ""),
+                "path": s.get("path", ""),
+            })
+
+        logger.info(
+            "zmq_all_symbols_fetched",
+            extra={"count": len(symbols)},
+        )
+        return symbols
 
     async def health_check(self) -> bool:
         try:

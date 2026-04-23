@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime as dt, timezone
 from typing import AsyncIterator, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field, SecretStr
@@ -835,6 +835,40 @@ def create_app() -> FastAPI:
         results = []
         for row in rows:
             display = format_for_dashboard(row.raw_output or {}, row)
+            raw = row.raw_output or {}
+
+            # Extract numeric trade levels for the dashboard chart.
+            # These come from the raw LLM output structure.
+            entry_zone = raw.get("entry_zone", {})
+            sl_obj = raw.get("stop_loss", {})
+            tps_list = raw.get("take_profits", [])
+
+            trade_levels = None
+            if row.direction and row.direction != "NO SETUP":
+                entry_price = None
+                if entry_zone.get("low") is not None and entry_zone.get("high") is not None:
+                    # Use midpoint of entry zone as the entry level.
+                    entry_price = (float(entry_zone["low"]) + float(entry_zone["high"])) / 2
+                elif entry_zone.get("low") is not None:
+                    entry_price = float(entry_zone["low"])
+
+                sl_price = float(sl_obj["price"]) if sl_obj.get("price") is not None else None
+
+                tp_price = None
+                if tps_list:
+                    # Use the first take-profit level for the chart line.
+                    first_tp = tps_list[0] if isinstance(tps_list, list) else None
+                    if first_tp and first_tp.get("level") is not None:
+                        tp_price = float(first_tp["level"])
+
+                if entry_price is not None or sl_price is not None or tp_price is not None:
+                    trade_levels = {
+                        "entry": entry_price,
+                        "stop_loss": sl_price,
+                        "take_profit": tp_price,
+                        "direction": row.direction,
+                    }
+
             results.append(
                 {
                     "analysis_id": row.analysis_id,
@@ -859,6 +893,7 @@ def create_app() -> FastAPI:
                         "analyzed_by": display["analyzed_by"],
                         "reasoning": display.get("reasoning", ""),
                     },
+                    "trade_levels": trade_levels,
                 }
             )
 
@@ -1091,14 +1126,20 @@ def create_app() -> FastAPI:
                     exc_info=True,
                 )
             finally:
-                try:
-                    await pubsub.unsubscribe(channel_name)
-                except Exception:
-                    pass
-                try:
-                    await pubsub.aclose()
-                except Exception:
-                    pass
+                async def _cleanup_pubsub():
+                    try:
+                        await pubsub.unsubscribe(channel_name)
+                    except Exception:
+                        pass
+                    try:
+                        await pubsub.aclose()
+                    except Exception:
+                        pass
+                
+                # Run cleanup in a background task so it doesn't get cancelled
+                # by the exact CancelledError that triggered this finally block.
+                _asyncio_live.create_task(_cleanup_pubsub())
+
                 logger.info(
                     "stream_subscriber_stopped",
                     extra={"user_id": user.user_id, "channel": channel_name},
@@ -3013,6 +3054,217 @@ def create_app() -> FastAPI:
                 extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id},
             )
             return {"success": False, "close_price": 0, "error": str(exc)}
+
+    # -- Chart data endpoints (Dashboard TradingView chart) ------------------
+    # These public-facing endpoints power the dashboard's Lightweight Charts.
+    # /api/broker/candles provides historical OHLCV data for the initial
+    # chart render, and /api/broker/stream-ticks provides a true WebSocket
+    # stream of live tick prices for real-time chart animation.
+
+    # ── Broker Symbol Directory ────────────────────────────────────────
+    # Fetches the entire list of available instruments from the connected
+    # broker (Market Watch for ZMQ, or the MetaApi /symbols endpoint).
+    # Cached in-memory for 5 minutes to avoid excessive ZMQ round-trips.
+
+    _broker_symbols_cache: dict = {"data": None, "expires": 0.0}
+
+    @app.get("/api/broker/symbols")
+    async def broker_symbols(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
+        """Return all available broker instruments with name, description, and path."""
+        import time as _time
+        container = request.app.state.container
+
+        # Return cached data if still fresh (5 minute TTL).
+        now = _time.time()
+        if _broker_symbols_cache["data"] is not None and now < _broker_symbols_cache["expires"]:
+            return _broker_symbols_cache["data"]
+
+        broker_client = await _resolve_user_broker(container, user.user_id)
+        try:
+            symbols = await broker_client.get_all_symbols()
+            result = {"symbols": symbols, "count": len(symbols)}
+            _broker_symbols_cache["data"] = result
+            _broker_symbols_cache["expires"] = now + 300.0  # 5 min TTL
+            return result
+        except Exception as exc:
+            logger.error(
+                "broker_symbols_failed",
+                extra={"error": str(exc), "user_id": user.user_id},
+            )
+            raise HTTPException(status_code=502, detail=f"Failed to fetch broker symbols: {exc}")
+
+    @app.get("/api/broker/candles")
+    async def chart_candles(
+        request: Request,
+        symbol: str = Query(..., description="Broker symbol, e.g. USDJPYm"),
+        timeframe: str = Query("H1", description="Timeframe: M1,M5,M15,M30,H1,H4,D1,W1"),
+        count: int = Query(300, ge=10, le=5000, description="Number of candles"),
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> dict:
+        """Return historical OHLCV candles for the dashboard chart.
+
+        Uses the user's cached broker connection (ZMQ → MT5) to fetch
+        candles in the exact format TradingView Lightweight Charts expects.
+        """
+        from engine.ta.constants import Timeframe as TF
+
+        tf_map = {
+            "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
+            "H1": TF.H1, "H3": TF.H3, "H4": TF.H4,
+            "H6": TF.H6, "H8": TF.H8, "H12": TF.H12,
+            "D1": TF.D1, "W1": TF.W1, "MN1": TF.MN1,
+        }
+        tf = tf_map.get(timeframe.upper())
+        if tf is None:
+            raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+
+        container: Container = request.app.state.container
+        broker_client = await _resolve_user_broker(container, user.user_id)
+
+        try:
+            seq = await broker_client.fetch_candles(
+                symbol=symbol,
+                timeframe=tf,
+                count=count,
+            )
+            # Return in Lightweight Charts format: { time, open, high, low, close, volume }
+            candles_out = []
+            for c in seq.candles:
+                candles_out.append({
+                    "time": int(c.timestamp.timestamp()),
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume,
+                })
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe.upper(),
+                "candles": candles_out,
+            }
+        except Exception as exc:
+            logger.error(
+                "chart_candles_failed",
+                extra={"symbol": symbol, "timeframe": timeframe, "error": str(exc), "user_id": user.user_id},
+            )
+            raise HTTPException(status_code=502, detail=f"Failed to fetch candles: {exc}")
+
+    @app.websocket("/api/broker/stream-ticks")
+    async def stream_ticks(websocket: WebSocket):
+        """True WebSocket stream of live tick prices for the dashboard chart.
+
+        Protocol:
+          1. Client connects and sends an init message:
+             { "symbol": "USDJPYm", "token": "<jwt>" }
+          2. Server authenticates, then pushes tick frames every ~500ms:
+             { "bid": 149.123, "ask": 149.125, "time": 1713765600 }
+          3. Client can send a symbol-switch message at any time:
+             { "symbol": "EURUSDm" }
+          4. Either side can close the connection.
+        """
+        await websocket.accept()
+
+        # Step 1: Wait for init message with token and symbol.
+        try:
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+            init_msg = json.loads(raw)
+        except WebSocketDisconnect:
+            return
+        except Exception:
+            try:
+                await websocket.close(code=4001, reason="Expected init message with token and symbol")
+            except Exception:
+                pass
+            return
+
+        token = init_msg.get("token", "")
+        symbol = init_msg.get("symbol", "")
+
+        if not token or not symbol:
+            try:
+                await websocket.close(code=4002, reason="token and symbol required")
+            except Exception:
+                pass
+            return
+
+        # Step 2: Authenticate the JWT.
+        from engine.shared.auth import _verify_token
+        try:
+            user = _verify_token(token)
+            user_id = user.user_id
+        except Exception:
+            try:
+                await websocket.close(code=4003, reason="Invalid or expired token")
+            except Exception:
+                pass
+            return
+
+        container: Container = websocket.app.state.container
+        broker_client = await container.load_user_broker(user_id)
+        if broker_client is None:
+            try:
+                await websocket.close(code=4004, reason="No broker connection configured")
+            except Exception:
+                pass
+            return
+
+        logger.info(
+            "tick_stream_connected",
+            extra={"user_id": user_id, "symbol": symbol},
+        )
+
+        # Step 3: Stream ticks in a loop.
+        try:
+            while True:
+                # Check for incoming messages (symbol switch or close).
+                try:
+                    raw = await asyncio.wait_for(websocket.receive_text(), timeout=0.5)
+                    msg = json.loads(raw)
+                    new_symbol = msg.get("symbol", "")
+                    if new_symbol:
+                        symbol = new_symbol
+                        logger.debug(
+                            "tick_stream_symbol_switch",
+                            extra={"user_id": user_id, "new_symbol": symbol},
+                        )
+                except asyncio.TimeoutError:
+                    pass  # No incoming message — continue streaming.
+
+                # Fetch the latest tick from the broker.
+                try:
+                    tick = await broker_client.get_tick_price(symbol)
+                    await websocket.send_json({
+                        "bid": tick.bid,
+                        "ask": tick.ask,
+                        "time": tick.time,
+                        "symbol": symbol,
+                    })
+                except Exception as exc:
+                    # Send error frame but don't disconnect — transient broker glitch.
+                    await websocket.send_json({
+                        "error": str(exc),
+                        "symbol": symbol,
+                    })
+                    await asyncio.sleep(2.0)  # Back off on error.
+
+        except WebSocketDisconnect:
+            logger.info(
+                "tick_stream_disconnected",
+                extra={"user_id": user_id, "symbol": symbol},
+            )
+        except Exception as exc:
+            logger.error(
+                "tick_stream_error",
+                extra={"user_id": user_id, "symbol": symbol, "error": str(exc)},
+            )
+            try:
+                await websocket.close(code=1011, reason="Internal error")
+            except Exception:
+                pass
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)

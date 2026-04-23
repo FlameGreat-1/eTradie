@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import { useLatestAnalysis, useAnalysisHistory, useRerunAnalysis } from '@/features/analysis/api/analysis';
 import { formatRelativeTime } from '@/utils/formatters';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import AnalysisDetailModal from '@/features/analysis/components/AnalysisDetailModal';
 
+const PAGE_SIZE = 15;
+
 export default function AnalysisPage() {
-  const { data: latest, isLoading } = useLatestAnalysis(50);
+  const { data: latest, isLoading } = useLatestAnalysis(200);
   const { data: history } = useAnalysisHistory();
   const rerun = useRerunAnalysis();
   const [rerunSymbol, setRerunSymbol] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const analyses = latest?.analyses ?? history?.analyses ?? [];
+  const totalPages = Math.max(1, Math.ceil(analyses.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = analyses.slice(startIdx, startIdx + PAGE_SIZE);
 
   const handleRerun = () => {
     if (rerunSymbol.trim()) {
@@ -44,9 +51,9 @@ export default function AnalysisPage() {
         </div>
       </div>
 
-      {/* Table Header */}
+      {/* Table */}
       <div className="rounded-xl border border-border bg-surface-1 overflow-hidden">
-        <div className="grid grid-cols-[100px_80px_60px_80px_1fr_100px] gap-4 items-center px-4 py-2 border-b border-border bg-surface-2 text-[10px] font-semibold text-content-muted uppercase tracking-wider">
+        <div className="grid grid-cols-6 gap-4 items-center px-4 py-2 border-b border-border bg-surface-2 text-[10px] font-semibold text-content-muted uppercase tracking-wider">
           <span>Pair</span>
           <span>Direction</span>
           <span>Grade</span>
@@ -61,7 +68,7 @@ export default function AnalysisPage() {
         {!isLoading && analyses.length === 0 && (
           <div className="p-8 text-center text-sm text-content-muted">No analysis records found.</div>
         )}
-        {analyses.map((a: Record<string, unknown>, i: number) => {
+        {pageItems.map((a: Record<string, unknown>, i: number) => {
           const id = String(a.analysis_id ?? '');
           const dir = String(a.direction ?? '-');
           const isLong = dir === 'LONG' || dir === 'BUY';
@@ -69,7 +76,7 @@ export default function AnalysisPage() {
             <div
               key={id || i}
               onClick={() => id && setSelectedId(id)}
-              className="grid grid-cols-[100px_80px_60px_80px_1fr_100px] gap-4 items-center px-4 py-3 border-b border-border last:border-b-0
+              className="grid grid-cols-6 gap-4 items-center px-4 py-3 border-b border-border last:border-b-0
                          hover:bg-surface-2 transition-colors text-xs cursor-pointer"
             >
               <span className="font-bold text-brand">{String(a.pair ?? '')}</span>
@@ -86,6 +93,64 @@ export default function AnalysisPage() {
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-content-muted">
+            Showing {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, analyses.length)} of {analyses.length} analyses
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-border bg-surface-2
+                         text-content-muted hover:bg-surface-3 hover:text-content disabled:opacity-30
+                         disabled:cursor-not-allowed transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce<(number | 'dot')[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('dot');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === 'dot' ? (
+                  <span key={`dot-${idx}`} className="px-1 text-xs text-content-muted select-none">…</span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => setPage(item as number)}
+                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-medium transition-colors
+                      ${
+                        currentPage === item
+                          ? 'bg-brand text-white border border-brand'
+                          : 'border border-border bg-surface-2 text-content-muted hover:bg-surface-3 hover:text-content'
+                      }`}
+                  >
+                    {item}
+                  </button>
+                ),
+              )}
+
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-border bg-surface-2
+                         text-content-muted hover:bg-surface-3 hover:text-content disabled:opacity-30
+                         disabled:cursor-not-allowed transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedId && (

@@ -1,13 +1,31 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useState, useEffect, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { SIDEBAR_WIDTH, HEADER_HEIGHT } from '@/utils/constants';
+import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
+import { AnalysisOverlay } from '@/features/chart/components/AnalysisOverlay';
 
 interface Props {
   children: ReactNode;
 }
 
 function DashboardLayout({ children }: Props) {
+  const queryClient = useQueryClient();
+  const [isOverlayVisible, setOverlayVisible] = useState(false);
+
+  // Global live reasoning stream. Triggers across all pages.
+  const stream = useLiveReasoningStream(() => {
+    void queryClient.invalidateQueries({ queryKey: ['analysis'] });
+  });
+
+  // Auto-show overlay when a new stream starts
+  useEffect(() => {
+    if (stream.isStreaming) {
+      setOverlayVisible(true);
+    }
+  }, [stream.isStreaming]);
+
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-surface-0">
       <Sidebar />
@@ -22,6 +40,14 @@ function DashboardLayout({ children }: Props) {
         }}
       >
         {children}
+        
+        {/* Global Analysis overlay — floats on top of everything */}
+        {isOverlayVisible && (
+          <AnalysisOverlay
+            stream={stream}
+            onDismiss={() => setOverlayVisible(false)}
+          />
+        )}
       </main>
     </div>
   );

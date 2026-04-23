@@ -237,7 +237,7 @@ class AnalysisProcessor(ProcessorPort):
                     {
                         "symbol": symbol,
                         "type": "status",
-                        "message": "Generating AI Strategy...",
+                        "message": "Analyzing...",
                     },
                 )
 

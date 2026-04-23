@@ -258,7 +258,11 @@ class TAConfig(BaseSettings):
             Timeframe.MN1,
             Timeframe.W1,
             Timeframe.D1,
+            Timeframe.H12,
+            Timeframe.H8,
+            Timeframe.H6,
             Timeframe.H4,
+            Timeframe.H3,
             Timeframe.H1,
         ]
     )

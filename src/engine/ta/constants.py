@@ -1,14 +1,16 @@
 from enum import IntEnum, StrEnum
 from typing import Final
-
-
 class Timeframe(StrEnum):
     M1 = "M1"
     M5 = "M5"
     M15 = "M15"
     M30 = "M30"
     H1 = "H1"
+    H3 = "H3"
     H4 = "H4"
+    H6 = "H6"
+    H8 = "H8"
+    H12 = "H12"
     D1 = "D1"
     W1 = "W1"
     MN1 = "MN1"
@@ -20,7 +22,11 @@ TIMEFRAME_MINUTES: Final[dict[Timeframe, int]] = {
     Timeframe.M15: 15,
     Timeframe.M30: 30,
     Timeframe.H1: 60,
+    Timeframe.H3: 180,
     Timeframe.H4: 240,
+    Timeframe.H6: 360,
+    Timeframe.H8: 480,
+    Timeframe.H12: 720,
     Timeframe.D1: 1440,
     Timeframe.W1: 10080,
     Timeframe.MN1: 43200,

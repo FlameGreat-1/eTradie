@@ -119,6 +119,10 @@ class BrokerBase(ABC):
         pass
 
     @abstractmethod
+    async def get_all_symbols(self) -> list[dict]:
+        """Return all available broker symbols with name, description, and category path."""
+
+    @abstractmethod
     async def health_check(self) -> bool:
         pass
 

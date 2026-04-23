@@ -136,6 +136,10 @@ class Container:
         # Invalidated when user changes their LLM connection.
         self._user_processors: dict[str, AnalysisProcessor] = {}
 
+        # Per-user broker client cache. Keyed by user_id.
+        # Invalidated when user changes their broker connection.
+        self._user_brokers: dict[str, BrokerBase] = {}
+
     def _build_providers(self) -> None:
         s = self.settings
         h = self.http_client
@@ -413,10 +417,39 @@ class Container:
         connection, this returns None and the caller returns HTTP 503.
 
         Resolution:
-          1. Active broker connection from DB for this user
-          2. None -> caller raises HTTP 503
+          1. Cached broker for this user -> return immediately
+          2. Active broker connection from DB for this user -> build, cache, return
+          3. None -> caller raises HTTP 503
         """
-        return await self._load_active_broker_connection(user_id)
+        # Check cache first.
+        cached = self._user_brokers.get(user_id)
+        if cached is not None:
+            return cached
+
+        client = await self._load_active_broker_connection(user_id)
+        if client is not None:
+            self._user_brokers[user_id] = client
+
+        return client
+
+    async def invalidate_user_broker(self, user_id: str) -> None:
+        """Invalidate the cached broker connection for a user.
+
+        Called when the user activates, updates, deactivates, or deletes
+        their broker connection. The next call to load_user_broker()
+        will rebuild from the DB.
+        """
+        old_broker = self._user_brokers.pop(user_id, None)
+        if old_broker is not None:
+            try:
+                if hasattr(old_broker, "shutdown"):
+                    await old_broker.shutdown()
+            except Exception:
+                pass
+            _logger.info(
+                "user_broker_invalidated",
+                extra={"user_id": user_id},
+            )
 
     async def _load_active_broker_connection(self, user_id: str):
         """Load the active broker connection from the database.
@@ -757,6 +790,16 @@ class Container:
             except Exception:
                 pass
         self._user_processors.clear()
+        
+        # Close per-user cached broker clients.
+        for user_id, broker in self._user_brokers.items():
+            try:
+                if hasattr(broker, "shutdown"):
+                    await broker.shutdown()
+            except Exception:
+                pass
+        self._user_brokers.clear()
+        
         # Close the global system-level processor LLM client.
         if hasattr(self, "processor_llm_client"):
             await self.processor_llm_client.close()

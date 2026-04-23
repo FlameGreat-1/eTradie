@@ -190,6 +190,7 @@ void OnTimer()
    else if(command == "POSITION_MODIFY")         response = HandlePositionModify(cmd);
    else if(command == "POSITION_CLOSE_PARTIAL")  response = HandlePositionClosePartial(cmd);
    else if(command == "POSITION_CLOSE")          response = HandlePositionClose(cmd);
+   else if(command == "GET_ALL_SYMBOLS")          response = HandleGetAllSymbols();
    else                                          response = "{\"error\":\"Unknown command: " + command + "\"}";
 
    // Send response
@@ -610,6 +611,55 @@ string HandleCandleLatest(CJAVal &cmd)
    
    Log(LOG_DEBUG, "Latest candle: " + symbol + " " + tf_str + " Close=" + DoubleToString(rates[0].close, 5));
    return bar.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| GET_ALL_SYMBOLS - All Symbols from Market Watch                  |
+//+------------------------------------------------------------------+
+string HandleGetAllSymbols()
+{
+   int total = SymbolsTotal(false);  // false = all symbols
+   int count = 0;
+   
+   string json = "{\"symbols\":[";
+   StringReserve(json, total * 100); // Pre-allocate memory for ~100 bytes per symbol
+   
+   for(int i = 0; i < total; i++)
+   {
+      string name = SymbolName(i, false);
+      if(StringLen(name) == 0) continue;
+
+      string desc = SymbolInfoString(name, SYMBOL_DESCRIPTION);
+      string path = SymbolInfoString(name, SYMBOL_PATH);
+      
+      // Safe JSON escaping: replace backslashes with forward slashes, and double quotes with single quotes.
+      // This guarantees no infinite replacement loops and perfectly valid JSON strings.
+      StringReplace(desc, "\\", "/");
+      StringReplace(desc, "\"", "'");
+      StringReplace(path, "\\", "/");
+      StringReplace(path, "\"", "'");
+      StringReplace(name, "\\", "/");
+      StringReplace(name, "\"", "'");
+      
+      if(count > 0) StringAdd(json, ",");
+      
+      StringAdd(json, "{\"name\":\"");
+      StringAdd(json, name);
+      StringAdd(json, "\",\"description\":\"");
+      StringAdd(json, desc);
+      StringAdd(json, "\",\"path\":\"");
+      StringAdd(json, path);
+      StringAdd(json, "\"}");
+      
+      count++;
+   }
+   
+   StringAdd(json, "],\"count\":");
+   StringAdd(json, IntegerToString(count));
+   StringAdd(json, "}");
+   
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " symbols directly from broker");
+   return json;
 }
 
 //+------------------------------------------------------------------+
@@ -1212,7 +1262,11 @@ ENUM_TIMEFRAMES StringToTimeframe(string tf)
    if(tf == "M15" || tf == "15m") return PERIOD_M15;
    if(tf == "M30" || tf == "30m") return PERIOD_M30;
    if(tf == "H1" || tf == "1h")   return PERIOD_H1;
+   if(tf == "H3" || tf == "3h")   return PERIOD_H3;
    if(tf == "H4" || tf == "4h")   return PERIOD_H4;
+   if(tf == "H6" || tf == "6h")   return PERIOD_H6;
+   if(tf == "H8" || tf == "8h")   return PERIOD_H8;
+   if(tf == "H12" || tf == "12h") return PERIOD_H12;
    if(tf == "D1" || tf == "1d")   return PERIOD_D1;
    if(tf == "W1" || tf == "1w")   return PERIOD_W1;
    if(tf == "MN1" || tf == "1M")  return PERIOD_MN1;

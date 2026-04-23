@@ -27,6 +27,16 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       host: true,
+      strictPort: true,
+      watch: {
+        usePolling: true,
+      },
+      hmr: {
+        protocol: 'ws',
+        host: 'localhost',
+        clientPort: 5173,
+        overlay: false,
+      },
       // Dev-only: same-origin proxy so developers can use relative
       // URLs like /api/engine/... when CORS is inconvenient (e.g.
       // behind a corporate VPN that rewrites Origin headers). The

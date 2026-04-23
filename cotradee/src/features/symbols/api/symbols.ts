@@ -11,6 +11,23 @@ export function useSymbols() {
   });
 }
 
+export interface BrokerSymbol {
+  name: string;
+  description: string;
+  path: string;
+}
+
+export function useBrokerSymbols() {
+  return useQuery({
+    queryKey: ['broker-symbols'],
+    queryFn: async () => {
+      const { data } = await api.engine.get<{ symbols: BrokerSymbol[]; count: number }>('/api/broker/symbols');
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes — matches backend cache TTL
+  });
+}
+
 export function useUpdateSymbols() {
   const qc = useQueryClient();
   return useMutation({

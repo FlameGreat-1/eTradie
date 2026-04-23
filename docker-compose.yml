@@ -245,6 +245,22 @@ services:
         limits:
           memory: 128M
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: etradie-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Web UI
+      - "4317:4317"   # OTLP gRPC payload ingest
+    networks:
+      - etradie-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   grafana:
     image: grafana/grafana:10.4.0
     container_name: etradie-grafana

@@ -1,11 +1,13 @@
 import { useManagedTrades } from '@/features/journal/api/journal';
 import { useExecutionState, useCancelOrder } from '@/features/execution/api/brokerAccount';
-import { formatCurrency } from '@/utils/formatters';
-import { X } from 'lucide-react';
+import { useAnalysisStats } from '@/features/analysis/api/analysis';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { X, Activity, Zap, TrendingUp, BarChart3 } from 'lucide-react';
 
 export default function TradesPage() {
   const { data: managed } = useManagedTrades();
   const { data: execState } = useExecutionState();
+  const { data: stats } = useAnalysisStats();
   const cancelOrder = useCancelOrder();
 
   const trades = managed ?? [];
@@ -13,6 +15,33 @@ export default function TradesPage() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
+      {/* Overview Metric Cards — relocated from Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          icon={<Activity size={18} />}
+          label="Open Positions"
+          value={String(execState?.open_position_count ?? 0)}
+        />
+        <MetricCard
+          icon={<Zap size={18} />}
+          label="Pending Orders"
+          value={String(execState?.pending_order_count ?? 0)}
+        />
+        <MetricCard
+          icon={<TrendingUp size={18} />}
+          label="Daily P&L"
+          value={execState ? formatCurrency(execState.daily_realized_pnl) : '---'}
+          valueClass={
+            execState && execState.daily_realized_pnl >= 0 ? 'text-success' : 'text-danger'
+          }
+        />
+        <MetricCard
+          icon={<BarChart3 size={18} />}
+          label="Win Rate"
+          value={stats?.win_rate != null ? formatPercentage(stats.win_rate) : '---'}
+        />
+      </div>
+
       {/* Active Managed Trades */}
       <section>
         <h2 className="text-sm font-semibold text-content mb-3">Active Managed Trades</h2>
@@ -95,6 +124,32 @@ export default function TradesPage() {
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  valueClass = 'text-content',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface-1 p-4 flex items-start gap-3">
+      <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand flex-shrink-0">
+        {icon}
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[10px] font-medium text-content-muted uppercase tracking-wide">
+          {label}
+        </span>
+        <span className={`text-lg font-bold ${valueClass}`}>{value}</span>
+      </div>
     </div>
   );
 }
