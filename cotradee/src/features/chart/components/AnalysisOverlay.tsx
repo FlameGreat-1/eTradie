@@ -5,14 +5,21 @@ import type { LiveStreamState } from '@/features/alerts/hooks/useLiveReasoningSt
 
 /**
  * Floating analysis overlay that appears on top of the chart
- * when a new analysis is streaming or has just completed.
+ * when an analysis is streaming, has just completed, or failed.
+ *
+ * Lifetime rules (matches the user-facing contract):
+ *   - The overlay stays visible after `final` until the user dismisses
+ *     it (X) or a new cycle for a different symbol replaces it.
+ *   - The reasoning text inside NEVER auto-disappears on a timer; it
+ *     is cleared only when the hook's `reset()` is called (on X) or
+ *     when the underlying reducer receives a `status` frame for a
+ *     different symbol.
  *
  * Features:
  *   - Glassmorphism styling with subtle backdrop blur
  *   - Live token streaming with cursor animation
  *   - "X" to dismiss and "Check" to open in Analysis History
  *   - Auto-scrolls to the bottom as new tokens arrive
- *   - Does NOT interfere with the existing useLiveReasoningStream hook
  */
 
 interface AnalysisOverlayProps {
@@ -91,13 +98,13 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
           </div>
         </div>
 
-        {/* Streaming body */}
+        {/* Streaming / held body */}
         <div
           ref={scrollRef}
           className="px-4 py-3 max-h-[60vh] overflow-y-auto scrollbar-thin"
         >
           {stream.error ? (
-            <div className="text-xs text-warning leading-relaxed font-mono pl-3 border-l-2 border-warning/50">
+            <div className="text-xs text-warning leading-relaxed font-mono pl-3 border-l-2 border-warning/50 whitespace-pre-wrap">
               {stream.error}
             </div>
           ) : stream.reasoning ? (
@@ -117,7 +124,7 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
           )}
         </div>
 
-        {/* Live progress bar */}
+        {/* Live progress bar (only while actively streaming) */}
         {stream.isStreaming && (
           <div className="h-0.5 bg-surface-2">
             <div className="h-full bg-brand animate-pulse" style={{ width: '100%' }} />

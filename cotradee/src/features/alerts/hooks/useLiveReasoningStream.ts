@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
@@ -17,9 +17,13 @@ import { useAuth } from '@/features/auth';
  *   { type: 'final',            message?: string, symbol?: string }
  *   { type: 'error',            message: string, symbol?: string }
  *
- * Terminal frames (`final`, `error`) close the stream and invoke
- * `onComplete`, which the caller typically uses to refetch the
- * analysis feed.
+ * Terminal frames (`final`, `error`) close the current connection and
+ * invoke `onComplete`, which the caller typically uses to refetch the
+ * analysis feed. The accumulated reasoning is held in state until the
+ * caller explicitly calls `reset()` OR a new status frame arrives for
+ * a different symbol (in which case the new stream replaces it). The
+ * hook intentionally does NOT wipe the text on a timer, so the UI
+ * popup stays visible after `final` until the user dismisses it.
  */
 export interface LiveStreamState {
   /** true while at least one status/reasoning_chunk frame has been seen and no terminal frame yet. */
@@ -32,6 +36,8 @@ export interface LiveStreamState {
   reasoning: string;
   /** Error message if the server emitted `type: error`. Cleared on reconnect. */
   error: string | null;
+  /** Explicit clear (caller-driven), e.g. on user-dismiss of the overlay. */
+  reset: () => void;
 }
 
 type ServerFrame =
@@ -40,11 +46,13 @@ type ServerFrame =
   | { type: 'final'; message?: string; symbol?: string }
   | { type: 'error'; message: string; symbol?: string };
 
+type InternalState = Omit<LiveStreamState, 'reset'>;
+
 type Action =
   | { kind: 'reset' }
   | { kind: 'frame'; frame: ServerFrame };
 
-const INITIAL_STATE: LiveStreamState = {
+const INITIAL_STATE: InternalState = {
   isStreaming: false,
   symbol: null,
   status: '',
@@ -52,29 +60,56 @@ const INITIAL_STATE: LiveStreamState = {
   error: null,
 };
 
-function reducer(state: LiveStreamState, action: Action): LiveStreamState {
+function reducer(state: InternalState, action: Action): InternalState {
   if (action.kind === 'reset') return INITIAL_STATE;
 
   const { frame } = action;
-  const symbol = frame.symbol ?? state.symbol;
+  const incomingSymbol = frame.symbol ?? null;
 
   switch (frame.type) {
-    case 'status':
-      return { ...state, isStreaming: true, symbol, status: frame.message, error: null };
+    case 'status': {
+      // A fresh status frame for a different symbol should supersede the
+      // previous displayed reasoning, not append to it. If the symbol
+      // matches (or this is the first frame), keep accumulated text.
+      const symbolChanged =
+        state.symbol != null &&
+        incomingSymbol != null &&
+        incomingSymbol !== state.symbol;
+      return {
+        isStreaming: true,
+        symbol: incomingSymbol ?? state.symbol,
+        status: frame.message,
+        reasoning: symbolChanged ? '' : state.reasoning,
+        error: null,
+      };
+    }
     case 'reasoning_chunk':
       return {
         ...state,
         isStreaming: true,
-        symbol,
+        symbol: incomingSymbol ?? state.symbol,
         reasoning: state.reasoning + frame.text,
-        status: 'Analyzing...',
+        status: state.status || 'Analyzing...',
         error: null,
       };
     case 'final':
-      // Keep the final reasoning on screen briefly; caller decides when to reset.
-      return { ...state, isStreaming: false, status: 'NEW SETUP', error: null };
+      // Stream is done; keep text on screen. Caller (or the next
+      // `status` for a different symbol) decides when to clear.
+      return {
+        ...state,
+        isStreaming: false,
+        symbol: incomingSymbol ?? state.symbol,
+        status: 'NEW SETUP',
+        error: null,
+      };
     case 'error':
-      return { ...state, isStreaming: false, status: 'Error', error: frame.message };
+      return {
+        ...state,
+        isStreaming: false,
+        symbol: incomingSymbol ?? state.symbol,
+        status: 'Error',
+        error: frame.message,
+      };
     default:
       return state;
   }
@@ -114,6 +149,10 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
   const reconnectAttemptsRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+
+  const reset = useCallback(() => {
+    dispatch({ kind: 'reset' });
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -168,9 +207,11 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
             dispatch({ kind: 'frame', frame });
             if (frame.type === 'final' || frame.type === 'error') {
               onCompleteRef.current?.();
-              // Reset after a short display hold so the dashboard can
-              // briefly show the terminal state before clearing.
-              window.setTimeout(() => dispatch({ kind: 'reset' }), 2000);
+              // Hold the final/error state on screen. The overlay will
+              // remain visible until the user dismisses it or a new
+              // cycle for a different symbol supersedes it. Close the
+              // HTTP side so the server can release its writer; the
+              // outer effect will re-open if the user stays logged in.
               controller.abort();
               return;
             }
@@ -197,5 +238,5 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
     };
   }, [isAuthenticated]);
 
-  return state;
+  return { ...state, reset };
 }
