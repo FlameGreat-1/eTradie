@@ -1,33 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
 import { useSymbols } from '@/features/symbols/api/symbols';
 import { useManagedTrades } from '@/features/journal/api/journal';
-import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
 import {
   TradingChart,
   type TradeLevels,
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
-import { AnalysisOverlay } from '@/features/chart/components/AnalysisOverlay';
 
 /**
  * Dashboard.
  *
- * The chart is the main surface; everything else is layered on top:
+ * The chart is the main surface. Two kinds of price levels are drawn:
  *
  *   - `TradeLevels`  : planned Entry / SL / TP from the latest VALID
  *                      analysis for the active symbol. Shown as
- *                      persistent price lines.
+ *                      persistent price lines while no live position
+ *                      exists for that symbol.
  *   - `ActiveTrade[]`: live broker position(s) for the active symbol.
- *                      Overrides the planned projection while the
+ *                      Replaces the planned projection while the
  *                      trade is open; levels persist until the broker
  *                      reports the position closed.
- *   - `AnalysisOverlay`: live-reasoning popup. Streams tokens as the
- *                      engine emits them, then holds the text on
- *                      screen after `final` until the user dismisses
- *                      or a new cycle for a different symbol arrives.
+ *
+ * The live-reasoning popup (`AnalysisOverlay`) is NOT rendered here;
+ * it lives in `DashboardLayout.tsx` as a single global instance that
+ * floats over every authenticated route.
  *
  * Invalid setups ("NO_SETUP", rejected, flat/neutral direction, or
  * proceed_to_module_b === false) are filtered out before being turned
@@ -98,7 +97,7 @@ function extractLevelsFromAnalysis(a: any): TradeLevels | undefined {
 
 export default function DashboardPage() {
   const { data: symbolData } = useSymbols();
-  const { data: latest, refetch: refetchLatest } = useLatestAnalysis(50);
+  const { data: latest } = useLatestAnalysis(50);
   const { data: execState } = useExecutionState();
   const { data: managed } = useManagedTrades();
 
@@ -109,22 +108,6 @@ export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeSymbol = searchParams.get('symbol') || '';
   const timeframe = searchParams.get('tf') || 'H1';
-
-  // Whether the reasoning overlay is currently visible. Users can
-  // dismiss it; a fresh status frame will re-open it automatically.
-  const [overlayOpen, setOverlayOpen] = useState(true);
-
-  // Live reasoning stream. On terminal frames we refetch the feed so
-  // the new analysis is available to drive chart levels.
-  const stream = useLiveReasoningStream(() => {
-    void refetchLatest();
-  });
-
-  // Re-open the overlay whenever a new stream actually starts. This
-  // lets the user X-out one setup and still see the next one arrive.
-  useEffect(() => {
-    if (stream.isStreaming) setOverlayOpen(true);
-  }, [stream.isStreaming, stream.symbol]);
 
   // Set initial chart symbol from the user's symbol list if none is selected.
   useEffect(() => {
@@ -151,7 +134,8 @@ export default function DashboardPage() {
       out.push({
         symbol: sym,
         entryPrice: entry,
-        // TradingChart treats 0 as "don't draw" via `> 0` guards.
+        // TradingChart draws these via `trade.stopLoss > 0` / `trade.takeProfit > 0`
+        // guards, so 0 means "don't render".
         stopLoss: pos.sl != null && !Number.isNaN(Number(pos.sl)) ? Number(pos.sl) : 0,
         takeProfit: pos.tp != null && !Number.isNaN(Number(pos.tp)) ? Number(pos.tp) : 0,
         direction: pos.type === 0 ? 'BUY' : 'SELL',
@@ -176,40 +160,22 @@ export default function DashboardPage() {
     return match ? extractLevelsFromAnalysis(match) : undefined;
   }, [analyses, activeSymbol]);
 
-  // If a position is open, prefer the live broker levels; the planned
-  // TradeLevels stay as a faint backdrop via `activeTrades` already.
-  // We only pass `plannedLevels` when there is no open trade so the
-  // chart doesn't duplicate markers.
+  // If a position is open, the live broker levels (via `activeTrades`)
+  // already cover Entry/SL/TP for that trade. Skip the planned-levels
+  // overlay in that case so the chart doesn't show duplicate markers.
   const levelsForChart = activeTrades.length > 0 ? undefined : plannedLevels;
-
-  const hasAnyOverlayState =
-    stream.isStreaming ||
-    !!stream.reasoning ||
-    !!stream.error ||
-    !!stream.status;
 
   return (
     <div className="flex h-full w-full overflow-hidden animate-fade-in bg-surface-1">
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 relative min-h-0">
           {activeSymbol ? (
-            <>
-              <TradingChart
-                symbol={activeSymbol}
-                timeframe={timeframe}
-                levels={levelsForChart}
-                activeTrades={activeTrades}
-              />
-              {overlayOpen && hasAnyOverlayState && (
-                <AnalysisOverlay
-                  stream={stream}
-                  onDismiss={() => {
-                    setOverlayOpen(false);
-                    stream.reset();
-                  }}
-                />
-              )}
-            </>
+            <TradingChart
+              symbol={activeSymbol}
+              timeframe={timeframe}
+              levels={levelsForChart}
+              activeTrades={activeTrades}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-content-muted">
               Add a symbol from the watchlist to begin charting.
