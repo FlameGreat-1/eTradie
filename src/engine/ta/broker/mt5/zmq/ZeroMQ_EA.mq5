@@ -350,6 +350,7 @@ string HandlePositions()
       
       arr[count++] = p;
    }
+   if(count == 0) return "[]";
    
    Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " open positions");
    return arr.Serialize();
@@ -385,6 +386,7 @@ string HandlePendingOrders()
       
       arr[count++] = o;
    }
+   if(count == 0) return "[]";
    
    Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " pending orders");
    return arr.Serialize();

@@ -7,7 +7,12 @@ import type { ReactNode } from 'react';
 
 export function AppProvider({ children }: { children: ReactNode }) {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_relativeSplatPath: true,
+        v7_startTransition: true,
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>

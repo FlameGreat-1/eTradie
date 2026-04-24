@@ -117,3 +117,14 @@ Add an aggressive **data pruning cron job** that permanently deletes:
 - `candidates` rows where `is_active = false` and older than 14 days
 
 This keeps the DB lean without requiring the full streaming refactor.
+
+
+
+
+
+
+
+
+
+
+

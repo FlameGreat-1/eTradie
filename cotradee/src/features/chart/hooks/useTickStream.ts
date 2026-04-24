@@ -114,7 +114,12 @@ export function useTickStream({ symbol, onTick }: UseTickStreamOptions) {
     return () => {
       disposedRef.current = true;
       if (wsRef.current) {
-        wsRef.current.close();
+        const ws = wsRef.current;
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.addEventListener('open', () => ws.close());
+        } else {
+          ws.close();
+        }
         wsRef.current = null;
       }
     };

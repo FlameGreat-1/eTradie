@@ -856,10 +856,10 @@ def create_app() -> FastAPI:
 
                 tp_price = None
                 if tps_list:
-                    # Use the first take-profit level for the chart line.
-                    first_tp = tps_list[0] if isinstance(tps_list, list) else None
-                    if first_tp and first_tp.get("level") is not None:
-                        tp_price = float(first_tp["level"])
+                    # Prefer the final TP (TP3) for the chart line; fall back to the highest available.
+                    tp_entry = tps_list[-1] if isinstance(tps_list, list) and len(tps_list) > 0 else None
+                    if tp_entry and tp_entry.get("level") is not None:
+                        tp_price = float(tp_entry["level"])
 
                 if entry_price is not None or sl_price is not None or tp_price is not None:
                     trade_levels = {

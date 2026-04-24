@@ -1,0 +1,253 @@
+{
+  "analysis_id": "analysis_XAUUSDm_20260424_0309_a4b1",
+  "confidence": 0,
+  "confluence_score": 3,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_XAUUSDm_20260424_0309_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.99,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.95,
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.99,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.95,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.92,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "Retrieved rules for setup validation, confluence scoring, and rejection conditions.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral USD macro aligns with a potential bearish move in XAUUSD, but is not a strong driver.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend",
+          "notes": "MANDATORY FACTOR FAILED: The proposed SHORT direction is counter to the D1 bullish trend, and there is no confirmed D1 bearish CHoCH to validate a counter-trend entry, as required by rule MR-REJECT-006.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1, M30, and M15 timeframes all show confirmed bearish BMS, supporting the short direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "A high-quality M15 Bearish Order Block was identified for the potential short setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The identified M15 setup includes a liquidity sweep, but this is irrelevant as the trade is rejected on a mandatory rule.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was not available for this analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase was identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "R:R is not calculated as the trade is rejected.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 3
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data collection failed.",
+      "week_over_week": null
+    },
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The analysis identified a clear conflict between the higher timeframe (HTF) and lower timeframe (LTF) structures. The overall trend, established on the D1 and W1 timeframes, is strongly bullish. However, the current price action on the H3, H1, M30, and M15 timeframes is bearish, indicating a significant pullback.\n\nMultiple high-confluence bearish SMC candidates were detected on the lower timeframes, aligning with this pullback. The most notable was a M15 SH+BMS+IDM+RTO pattern (ID: XAUUSDM_SH_BMS_RTO_BEARISH_BEARISH_4695.406_a3fe6203), which presented a textbook short setup with a potential confluence score of 10. This setup included a liquidity sweep of BSL at 4700.028, a subsequent bearish BMS, and a planned return to an order block within the OTE fibonacci zone.\n\nDespite the technical quality of this LTF setup, it must be rejected based on a mandatory rule from the master rulebook. Rule `MR-REJECT-006` explicitly forbids entering trades that are counter to the HTF trend unless a confirmed Character of Change (CHoCH) is present on the D1 timeframe. A review of the D1 snapshot confirms the trend is bullish and there is no recent bearish CHoCH to validate a counter-trend position. \n\nTherefore, taking a short trade here would be a direct violation of a core system principle. The final decision is `NO SETUP` to preserve capital and adhere strictly to the trading plan. Additionally, the current session is Asian, which is normally a no-trade period per rule `MR-REJECT-002`, but this rule was bypassed for testing purposes; otherwise, it would serve as a secondary reason for rejection.",
+    "htf_bias": {
+      "key_levels": [
+        4098.363,
+        5419.292
+      ],
+      "notes": "The D1 timeframe is structurally bullish, with the last major event being a bullish BMS on 2026-04-01. The overall trend is bullish.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BEARISH",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "Metals (XAU/USD, XAG/USD) | Inverse correlation. Bearish DXY = bullish Gold bias. | HIGH WEIGHT",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": null,
+            "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4664.01,
+        4889.866
+      ],
+      "notes": "The H1 timeframe is structurally bearish, indicating a pullback against the HTF bullish trend. There was a bearish BMS at 4676.807 at 2026-04-24T03:00:00Z.",
+      "structure": "bearish"
+    },
+    "pair": "XAUUSDm",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.99,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.92,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "ASIAN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": null
+    },
+    "take_profits": [
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-24T03:09:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identified a clear conflict between the higher timeframe (HTF) and lower timeframe (LTF) structures. The overall trend, established on the D1 and W1 timeframes, is strongly bullish. However, the current price action on the H3, H1, M30, and M15 timeframes is bearish, indicating a significant pullback.\n\nMultiple high-confluence bearish SMC candidates were detected on the lower timeframes, aligning with this pullback. The most notable was a M15 SH+BMS+IDM+RTO pattern (ID: XAUUSDM_SH_BMS_RTO_BEARISH_BEARISH_4695.406_a3fe6203), which presented a textbook short setup with a potential confluence score of 10. This setup included a liquidity sweep of BSL at 4700.028, a subsequent bearish BMS, and a planned return to an order block within the OTE fibonacci zone.\n\nDespite the technical quality of this LTF setup, it must be rejected based on a mandatory rule from the master rulebook. Rule `MR-REJECT-006` explicitly forbids entering trades that are counter to the HTF trend unless a confirmed Character of Change (CHoCH) is present on the D1 timeframe. A review of the D1 snapshot confirms the trend is bullish and there is no recent bearish CHoCH to validate a counter-trend position. \n\nTherefore, taking a short trade here would be a direct violation of a core system principle. The final decision is `NO SETUP` to preserve capital and adhere strictly to the trading plan. Additionally, the current session is Asian, which is normally a no-trade period per rule `MR-REJECT-002`, but this rule was bypassed for testing purposes; otherwise, it would serve as a secondary reason for rejection.",
+  "rejection_rules": [
+    "missing_HTF structure aligned OR Valid Counter-Trend",
+    "missing_Liquidity sweep into entry zone",
+    "missing_COT alignment",
+    "missing_Wyckoff phase supports direction",
+    "missing_Minimum R:R achievable"
+  ],
+  "session": "ASIAN",
+  "setup_type": "",
+  "symbol": "XAUUSDm",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}

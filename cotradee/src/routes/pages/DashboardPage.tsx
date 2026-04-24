@@ -59,18 +59,20 @@ function isValidSetup(a: any): boolean {
   // Must have at least an entry price to be projectable onto the chart.
   const raw = a.raw_output ?? {};
   const entry =
-    raw.entry_price ?? raw.entry_zone?.low ?? a.entry_price ?? null;
+    a.trade_levels?.entry ?? raw.entry_price ?? raw.entry_zone?.low ?? a.entry_price ?? null;
   return entry != null && !Number.isNaN(Number(entry));
 }
 
 function extractLevelsFromAnalysis(a: any): TradeLevels | undefined {
   const raw = a.raw_output ?? {};
-  const entry = raw.entry_price ?? raw.entry_zone?.low ?? a.entry_price;
+  const entry = a.trade_levels?.entry ?? raw.entry_price ?? raw.entry_zone?.low ?? a.entry_price;
   const stopLossRaw =
-    typeof raw.stop_loss === 'object' && raw.stop_loss !== null
+    a.trade_levels?.stop_loss ??
+    (typeof raw.stop_loss === 'object' && raw.stop_loss !== null
       ? raw.stop_loss.price
-      : raw.stop_loss ?? a.stop_loss;
+      : raw.stop_loss ?? a.stop_loss);
   const takeProfitRaw =
+    a.trade_levels?.take_profit ??
     raw.tp1_price ??
     raw.take_profits?.[0]?.level ??
     raw.take_profit ??

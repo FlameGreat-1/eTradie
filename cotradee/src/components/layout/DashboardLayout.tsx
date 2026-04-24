@@ -19,12 +19,12 @@ function DashboardLayout({ children }: Props) {
     void queryClient.invalidateQueries({ queryKey: ['analysis'] });
   });
 
-  // Auto-show overlay when a new stream starts
+  // Auto-show overlay when a new stream starts or a new analysis is hydrated from the DB
   useEffect(() => {
-    if (stream.isStreaming) {
+    if (stream.isStreaming || stream.analysisId) {
       setOverlayVisible(true);
     }
-  }, [stream.isStreaming]);
+  }, [stream.isStreaming, stream.analysisId]);
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-surface-0">
@@ -45,7 +45,12 @@ function DashboardLayout({ children }: Props) {
         {isOverlayVisible && (
           <AnalysisOverlay
             stream={stream}
-            onDismiss={() => setOverlayVisible(false)}
+            onDismiss={() => {
+              if (stream.analysisId) {
+                localStorage.setItem('dismissed_analysis_id', stream.analysisId);
+              }
+              setOverlayVisible(false);
+            }}
           />
         )}
       </main>

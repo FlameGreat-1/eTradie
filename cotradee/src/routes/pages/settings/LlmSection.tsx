@@ -85,7 +85,7 @@ export default function LlmSection() {
           {form.provider && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-content">2. Paste your API Key</label>
-              <input type="password" value={form.api_key}
+              <input type="password" autoComplete="off" value={form.api_key}
                 onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
                 placeholder={`Enter your ${form.provider} API key`}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-content

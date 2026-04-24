@@ -47,13 +47,13 @@ export default function ProfileSection() {
           )}
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-content-secondary">Current Password</label>
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required
+            <input type="password" autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required
               className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
                          focus:border-brand focus:outline-none transition-colors" />
           </div>
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-content-secondary">New Password</label>
-            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={8}
+            <input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={8}
               className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
                          focus:border-brand focus:outline-none transition-colors" />
           </div>

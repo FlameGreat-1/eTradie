@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLatestAnalysis, useAnalysisHistory, useRerunAnalysis } from '@/features/analysis/api/analysis';
 import { formatRelativeTime } from '@/utils/formatters';
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -10,9 +11,25 @@ export default function AnalysisPage() {
   const { data: latest, isLoading } = useLatestAnalysis(200);
   const { data: history } = useAnalysisHistory();
   const rerun = useRerunAnalysis();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rerunSymbol, setRerunSymbol] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('id'));
   const [page, setPage] = useState(1);
+
+  // Auto-open modal if ID is in URL (deep link)
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) setSelectedId(id);
+  }, [searchParams]);
+
+  const handleCloseModal = () => {
+    setSelectedId(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('id');
+      return next;
+    }, { replace: true });
+  };
 
   const analyses = latest?.analyses ?? history?.analyses ?? [];
   const totalPages = Math.max(1, Math.ceil(analyses.length / PAGE_SIZE));
@@ -154,7 +171,7 @@ export default function AnalysisPage() {
 
       {/* Detail Modal */}
       {selectedId && (
-        <AnalysisDetailModal analysisId={selectedId} onClose={() => setSelectedId(null)} />
+        <AnalysisDetailModal analysisId={selectedId} onClose={handleCloseModal} />
       )}
     </div>
   );

@@ -115,8 +115,9 @@ class ZmqClient(BrokerBase):
 
         payload = json.dumps(request).encode("utf-8")
         try:
-            await self._socket.send(payload)
-        except zmq.Again:
+            async with asyncio.timeout(self.config.timeout_seconds):
+                await self._socket.send(payload)
+        except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
                 details={
@@ -126,8 +127,9 @@ class ZmqClient(BrokerBase):
             )
 
         try:
-            raw_reply = await self._socket.recv()
-        except zmq.Again:
+            async with asyncio.timeout(self.config.timeout_seconds):
+                raw_reply = await self._socket.recv()
+        except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
                 details={
@@ -136,7 +138,11 @@ class ZmqClient(BrokerBase):
                 },
             )
 
-        reply = json.loads(raw_reply.decode("utf-8"))
+        decoded_reply = raw_reply.decode("utf-8")
+        if not decoded_reply:
+            reply = []
+        else:
+            reply = json.loads(decoded_reply)
 
         # Check for EA-level errors.
         if isinstance(reply, dict) and reply.get("error"):

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
@@ -17,13 +17,12 @@ import { useAuth } from '@/features/auth';
  *   { type: 'final',            message?: string, symbol?: string }
  *   { type: 'error',            message: string, symbol?: string }
  *
- * Terminal frames (`final`, `error`) close the current connection and
- * invoke `onComplete`, which the caller typically uses to refetch the
- * analysis feed. The accumulated reasoning is held in state until the
- * caller explicitly calls `reset()` OR a new status frame arrives for
- * a different symbol (in which case the new stream replaces it). The
- * hook intentionally does NOT wipe the text on a timer, so the UI
- * popup stays visible after `final` until the user dismisses it.
+ * Terminal frames (`final`, `error`) close the stream and invoke
+ * `onComplete`, which the caller typically uses to refetch the
+ * analysis feed. The accumulated reasoning text is kept in state
+ * after `final`; the UI (DashboardLayout) controls when the overlay
+ * is dismissed, so the reasoning stays visible until the user X's
+ * it.
  */
 export interface LiveStreamState {
   /** true while at least one status/reasoning_chunk frame has been seen and no terminal frame yet. */
@@ -36,8 +35,8 @@ export interface LiveStreamState {
   reasoning: string;
   /** Error message if the server emitted `type: error`. Cleared on reconnect. */
   error: string | null;
-  /** Explicit clear (caller-driven), e.g. on user-dismiss of the overlay. */
-  reset: () => void;
+  /** ID of the analysis (populated when hydrating from DB) so it can be dismissed. */
+  analysisId: string | null;
 }
 
 type ServerFrame =
@@ -46,70 +45,63 @@ type ServerFrame =
   | { type: 'final'; message?: string; symbol?: string }
   | { type: 'error'; message: string; symbol?: string };
 
-type InternalState = Omit<LiveStreamState, 'reset'>;
-
 type Action =
   | { kind: 'reset' }
-  | { kind: 'frame'; frame: ServerFrame };
+  | { kind: 'frame'; frame: ServerFrame }
+  | { kind: 'hydrate'; payload: { analysisId: string; symbol: string; reasoning: string; status: string } };
 
-const INITIAL_STATE: InternalState = {
+const INITIAL_STATE: LiveStreamState = {
   isStreaming: false,
   symbol: null,
   status: '',
   reasoning: '',
   error: null,
+  analysisId: null,
 };
 
-function reducer(state: InternalState, action: Action): InternalState {
+function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   if (action.kind === 'reset') return INITIAL_STATE;
+  
+  if (action.kind === 'hydrate') {
+    return {
+      ...state,
+      isStreaming: false,
+      symbol: action.payload.symbol,
+      reasoning: action.payload.reasoning,
+      status: action.payload.status,
+      error: null,
+      analysisId: action.payload.analysisId,
+    };
+  }
 
   const { frame } = action;
-  const incomingSymbol = frame.symbol ?? null;
+  const symbol = frame.symbol ?? state.symbol;
+
+  // If the stream switches to a new symbol, or signals the start of a new analysis 
+  // with a 'status' frame, we must reset the progressively accumulated text.
+  const isNewStream = frame.type === 'status' || (frame.symbol && state.symbol && frame.symbol !== state.symbol);
+  const currentReasoning = isNewStream ? '' : state.reasoning;
+  const currentAnalysisId = isNewStream ? null : state.analysisId;
 
   switch (frame.type) {
-    case 'status': {
-      // A fresh status frame for a different symbol should supersede the
-      // previous displayed reasoning, not append to it. If the symbol
-      // matches (or this is the first frame), keep accumulated text.
-      const symbolChanged =
-        state.symbol != null &&
-        incomingSymbol != null &&
-        incomingSymbol !== state.symbol;
-      return {
-        isStreaming: true,
-        symbol: incomingSymbol ?? state.symbol,
-        status: frame.message,
-        reasoning: symbolChanged ? '' : state.reasoning,
-        error: null,
-      };
-    }
+    case 'status':
+      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'reasoning_chunk':
       return {
         ...state,
         isStreaming: true,
-        symbol: incomingSymbol ?? state.symbol,
-        reasoning: state.reasoning + frame.text,
-        status: state.status || 'Analyzing...',
+        symbol,
+        reasoning: currentReasoning + frame.text,
+        status: 'Generating AI Strategy...',
         error: null,
+        analysisId: currentAnalysisId,
       };
     case 'final':
-      // Stream is done; keep text on screen. Caller (or the next
-      // `status` for a different symbol) decides when to clear.
-      return {
-        ...state,
-        isStreaming: false,
-        symbol: incomingSymbol ?? state.symbol,
-        status: 'NEW SETUP',
-        error: null,
-      };
+      // Keep the final reasoning on screen; the overlay stays visible
+      // until the user dismisses it or a new cycle replaces the state.
+      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'error':
-      return {
-        ...state,
-        isStreaming: false,
-        symbol: incomingSymbol ?? state.symbol,
-        status: 'Error',
-        error: frame.message,
-      };
+      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
     default:
       return state;
   }
@@ -142,17 +134,50 @@ function parseSSEBatch(raw: string): ServerFrame[] {
   return frames;
 }
 
+import { useLatestAnalysis } from '@/features/analysis/api/analysis';
+
 export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const { isAuthenticated } = useAuth();
+  const { data: latestAnalyses } = useLatestAnalysis(1);
+
+  // Automatically hydrate the reasoning modal from the database on page load
+  // or when an autonomous backend analysis completes, UNLESS the user has dismissed it.
+  useEffect(() => {
+    // If we're already streaming something live, don't overwrite it with DB state.
+    if (state.isStreaming) return;
+
+    const latest = latestAnalyses?.analyses?.[0];
+    if (!latest) return;
+
+    const analysisId = String(latest.analysis_id);
+
+    const dismissedId = localStorage.getItem('dismissed_analysis_id');
+    if (dismissedId === analysisId) return;
+
+    // The backend returns reasoning inside `display.reasoning`.
+    const reasoning = latest.display?.reasoning;
+    if (!reasoning) return;
+
+    // Only hydrate if we haven't already hydrated this exact analysis.
+    // (We don't want to continually dispatch if the user is just looking at it).
+    if (state.analysisId === analysisId) return;
+
+    dispatch({
+      kind: 'hydrate',
+      payload: {
+        analysisId,
+        symbol: latest.pair ?? '—',
+        reasoning,
+        status: 'Analysis Complete',
+      },
+    });
+  }, [latestAnalyses, state.isStreaming, state.analysisId]);
+
   const controllerRef = useRef<AbortController | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-
-  const reset = useCallback(() => {
-    dispatch({ kind: 'reset' });
-  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -207,11 +232,11 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
             dispatch({ kind: 'frame', frame });
             if (frame.type === 'final' || frame.type === 'error') {
               onCompleteRef.current?.();
-              // Hold the final/error state on screen. The overlay will
-              // remain visible until the user dismisses it or a new
-              // cycle for a different symbol supersedes it. Close the
-              // HTTP side so the server can release its writer; the
-              // outer effect will re-open if the user stays logged in.
+              // Close the HTTP side so the server can release its
+              // writer. The outer effect will re-open for the next
+              // cycle. Do NOT reset state here: the reasoning text
+              // must remain on screen until the user dismisses the
+              // overlay.
               controller.abort();
               return;
             }
@@ -238,5 +263,5 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
     };
   }, [isAuthenticated]);
 
-  return { ...state, reset };
+  return state;
 }
