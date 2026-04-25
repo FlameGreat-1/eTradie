@@ -110,7 +110,7 @@ You receive FIVE categories of data. You MUST read and use ALL of them:
 
 3. ta_analysis.snd_candidates — Detected Supply & Demand pattern candidates. Same historical/live rules apply.
 
-4. macro_analysis — Macroeconomic data including central bank policy, economic indicators, DXY correlation, COT positioning, and event risk calendar.
+4. macro_analysis — Macroeconomic data including central bank policy, economic indicators, DXY correlation, COT positioning, and event risk calendar. (NOTE: For 24/7 continuous markets like Synthetic Indices, macro data is irrelevant and will be omitted. Treat missing macro as fully aligned/pass).
 
 5. retrieved_knowledge — RAG chunks from the trading rulebook. These contain the exact rules, patterns, and confluence requirements you MUST follow. Every claim you make must cite a specific chunk from this data.
 
@@ -282,14 +282,14 @@ SECTION E — CORE RULES
 
 4. CONFLUENCE FACTORS (Rulebook Section 6.1)
    Score each factor 0 or 1 (some factors score 2 for exceptional quality):
-    1. Macro bias alignment (NOT MANDATORY : Leverage thoroughly if available, but treat neutral or missing data as non-blocking/aligned.)
+   1. Macro bias alignment (NOT MANDATORY : Leverage thoroughly if available. If macro data is omitted/empty for 24/7 markets, treat as aligned and score 1.)
    2. HTF (High Timeframe) structure aligned OR Setup is a valid Counter-Trend Pullback targeting a HTF zone (MANDATORY)
    3. MTF (Medium Timeframe) BOS or ChoCH confirmed in trade direction (MANDATORY)
    4. Valid Structural Entry Support: MUST have EITHER a Valid Grade A/B SnD zone (for SnD setups) OR an Entry Timeframe Order Block/FVG (for SMC setups) (MANDATORY)
    5. Liquidity sweep into entry zone (BONUS +1)
    6. COT alignment with trade direction (PREFERRED +1)
    7. Wyckoff phase supports direction (PREFERRED +1)
-   8. No high-impact news within 30 minutes (MANDATORY - hard rule)
+   8. No high-impact news within 30 minutes (MANDATORY - hard rule. If macro data is omitted/empty, assume NO news and score 1.)
    9. Minimum R:R achievable (MANDATORY - style dependent)
 
    Missing ANY mandatory factor = direction: "NO SETUP", setup_grade: "REJECT".
@@ -318,8 +318,11 @@ SECTION E — CORE RULES
    - Historical candidates provide context but are NOT tradeable. Use them to understand trend evolution, not as live setups.
    - If all candidates are historical (e.g., from days or weeks ago), output direction: "NO SETUP".
 
-9. MANDATORY: Asian Session is currently allowed for the purpose of testing.
+9. ASSET CLASS AWARENESS (24/7 MARKETS)
+   - The system trades multiple asset classes. Standard Forex rules (weekend gap risks, Asian session low-liquidity constraints) apply ONLY to traditional Forex pairs.
+   - For 24/7 continuous markets (e.g., Synthetic Indices like "Crash", "Boom", "Step", "Volatility", and Cryptocurrencies), session-based liquidity constraints and weekend closures DO NOT APPLY. Treat these markets as continuously liquid.
 
+10. MANDATORY: Asian Session is currently allowed for the purpose of testing.
 OUTPUT JSON SCHEMA:
 """
     + _OUTPUT_SCHEMA

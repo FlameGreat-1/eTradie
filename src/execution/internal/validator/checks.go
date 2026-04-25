@@ -3,6 +3,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
@@ -31,18 +32,34 @@ func check4NewsLockout(
 	return pass()
 }
 
+// is247Market determines if the symbol represents a 24/7 trading instrument (Synthetics, Crypto).
+func is247Market(symbol string) bool {
+	s := strings.ToUpper(symbol)
+	return strings.Contains(s, "CRASH") ||
+		strings.Contains(s, "BOOM") ||
+		strings.Contains(s, "VOLATILITY") ||
+		strings.Contains(s, "STEP") ||
+		strings.Contains(s, "JUMP") ||
+		strings.Contains(s, "BTC") ||
+		strings.Contains(s, "ETH")
+}
+
 // check5SessionFilter rejects execution when the current UTC time
 // does not fall within any enabled trading session. If no session
 // window is active, the trade is rejected.
 func check5SessionFilter(
 	_ context.Context,
-	_ *models.TradeRequest,
+	req *models.TradeRequest,
 	cfg *config.Config,
 	_ *RuntimeParams,
 	_ *state.Manager,
 	_ broker.Port,
 	now time.Time,
 ) models.ValidationResult {
+	if is247Market(req.Symbol) {
+		return pass()
+	}
+
 	hour := now.Hour()
 
 	// Find which session window the current hour falls into.
@@ -269,6 +286,10 @@ func check13WeekendDayFilter(
 	_ broker.Port,
 	now time.Time,
 ) models.ValidationResult {
+	if is247Market(req.Symbol) {
+		return pass()
+	}
+
 	weekday := now.Weekday()
 	hour := now.Hour()
 

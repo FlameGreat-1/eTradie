@@ -37,7 +37,7 @@ from engine.ta.models.candidate import TechnicalCandidate
 
 class TechnicalSnapshot(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     timestamp: datetime
     
@@ -204,7 +204,7 @@ class TechnicalSnapshot(FrozenModel):
 
 class MultiTimeframeSnapshot(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timestamp: datetime
     
     htf_snapshot: TechnicalSnapshot

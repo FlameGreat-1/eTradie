@@ -102,7 +102,7 @@ def map_to_processor_output(
         session=analysis.session,
         rr_ratio=analysis.rr_ratio,
         confluence_score=analysis.confluence_score.score,
-        analysis_id=analysis.analysis_id,
+        analysis_id=analysis.entry_setup.zone_id or analysis.analysis_id,
     )
 
 

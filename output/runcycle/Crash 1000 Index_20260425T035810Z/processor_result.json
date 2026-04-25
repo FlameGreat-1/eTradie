@@ -1,0 +1,311 @@
+{
+  "analysis_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5612.1085_d82e4e6e",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 5612.8015,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_crash_1000_index_20260425_0356_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.87,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.89,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.86,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.85,
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "Analyze Crash 1000 Index for a pro-trend reversal setup following a pullback, focusing on LTF confirmation and HTF alignment.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral/not applicable for a synthetic index. Treated as non-blocking and aligned per system instructions.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H12, H8, H6, H4 timeframes are all strongly bearish, aligning with the SHORT direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M30 has confirmed a bearish CHoCH, and M15/M5/M1 show bearish BMS, confirming the reversal into the HTF trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "The entry is based on a valid M1 Order Block [5611.939, 5612.278] and an adjacent FVG, identified in candidate d82e4e6e.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The bearish move was initiated by a sweep of BSL at 5619.719 on the M5 timeframe, adding validity to the breakdown.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The HTF distribution, MTF upthrust (pullback), and LTF Sign of Weakness (CHoCH/BMS) suggest the market is entering a Markdown phase, supporting shorts.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "The economic calendar is clear of any high-impact events.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The trade achieves a 1:5.5 R:R to the final target, exceeding the 1:3 minimum for the Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data collection failed.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5611.939,
+        5613.664
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "All trades must originate from one or more of the following frameworks: SMC: SH+BMS+RTO",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5612.1085_d82e4e6e"
+    },
+    "entry_zone": {
+      "high": 5613.664,
+      "low": 5611.939
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability, pro-trend short setup on Crash 1000 Index. The Higher Timeframe (HTF) context from D1 down to H4 is strongly bearish. An H1 counter-trend bullish pullback has shown clear signs of failure, confirmed by a bearish Change of Character (CHoCH) on the M30 timeframe and subsequent bearish Breaks of Market Structure (BMS) on all lower timeframes (M15, M5, M1). This indicates a structural realignment with the dominant bearish trend.\n\nThe entry is based on a live-edge M1 SH+BMS+FVG+LIQ_SWEEP+RTO pattern (ID: d82e4e6e), which provides a precise entry point for the anticipated continuation of the bearish move. The entry zone is defined by the M1 Order Block and adjacent FVG between 5611.939 and 5613.664. The stop loss is structurally placed at 5623.52, just above the M1 swing high that invalidates the bearish setup. Take profit targets are set at key HTF liquidity levels, specifically the H1 swing lows at 5592.802, 5574.591, and the major D1 swing low at 5555.013, offering an excellent R:R ratio of approximately 1:5.5. With an 8/10 confluence score, this setup receives an 'A' grade.",
+    "htf_bias": {
+      "key_levels": [
+        5787.467,
+        5555.013
+      ],
+      "notes": "The D1, H12, H8, H6, and H4 timeframes are all aligned in a clear bearish trend, indicating strong institutional selling pressure. The primary draw on liquidity is the D1 swing low at 5555.013.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        5651.555
+      ],
+      "notes": "The H1 timeframe was in a bullish counter-trend pullback. However, the M30 timeframe has printed a clear bearish Change of Character (CHoCH) at 5651.555, signaling that the pullback is failing and price is realigning with the HTF bearish order flow.",
+      "structure": "choch_bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.89,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      }
+    ],
+    "rr_ratio": 5.51,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5623.52,
+      "reason": "Placed above the M1 swing high at 5623.484 that initiated the bearish Break of Market Structure, invalidating the setup."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 internal swing low, providing >1:2R for TP1.",
+        "level": 5592.802,
+        "size_pct": 40
+      },
+      {
+        "basis": "Next significant H1 internal swing low.",
+        "level": 5574.591,
+        "size_pct": 30
+      },
+      {
+        "basis": "Major D1/H1 swing low and primary HTF draw on liquidity.",
+        "level": 5555.013,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-25T03:56:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "Wyckoff Theory | Phase identification, composite operator logic | 1W / 1D \u2014 directional context only",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability, pro-trend short setup on Crash 1000 Index. The Higher Timeframe (HTF) context from D1 down to H4 is strongly bearish. An H1 counter-trend bullish pullback has shown clear signs of failure, confirmed by a bearish Change of Character (CHoCH) on the M30 timeframe and subsequent bearish Breaks of Market Structure (BMS) on all lower timeframes (M15, M5, M1). This indicates a structural realignment with the dominant bearish trend.\n\nThe entry is based on a live-edge M1 SH+BMS+FVG+LIQ_SWEEP+RTO pattern (ID: d82e4e6e), which provides a precise entry point for the anticipated continuation of the bearish move. The entry zone is defined by the M1 Order Block and adjacent FVG between 5611.939 and 5613.664. The stop loss is structurally placed at 5623.52, just above the M1 swing high that invalidates the bearish setup. Take profit targets are set at key HTF liquidity levels, specifically the H1 swing lows at 5592.802, 5574.591, and the major D1 swing low at 5555.013, offering an excellent R:R ratio of approximately 1:5.5. With an 8/10 confluence score, this setup receives an 'A' grade.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 5.51,
+  "session": "ASIAN",
+  "setup_type": "",
+  "stop_loss": 5623.52,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5555.013,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

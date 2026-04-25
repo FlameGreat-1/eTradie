@@ -97,6 +97,7 @@ function TradingChartInner({
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const levelLinesRef = useRef<any[]>([]);
+  const latestCandleRef = useRef<CandlestickData | null>(null);
   const { theme } = useTheme();
 
   const colors = theme === 'dark' ? DARK_THEME : LIGHT_THEME;
@@ -108,19 +109,42 @@ function TradingChartInner({
   const handleTick = useCallback((tick: TickData) => {
     if (!seriesRef.current || tick.symbol !== symbol) return;
 
-    const now = Math.floor(Date.now() / 1000);
+    // Use tick timestamp if available, fallback to Date.now()
+    let nowSec = Math.floor(Date.now() / 1000);
+    if (tick.time) {
+       nowSec = tick.time > 1e11 ? Math.floor(tick.time / 1000) : Math.floor(tick.time);
+    }
+
     // Round to the current candle period boundary.
     const periodSeconds = timeframeToPeriod(timeframe);
-    const candleTime = Math.floor(now / periodSeconds) * periodSeconds;
+    const candleTime = Math.floor(nowSec / periodSeconds) * periodSeconds;
     const price = (tick.bid + tick.ask) / 2;
 
-    seriesRef.current.update({
-      time: candleTime as Time,
-      open: price,
-      high: price,
-      low: price,
-      close: price,
-    });
+    const currentCandle = latestCandleRef.current;
+    let updatedCandle: CandlestickData;
+
+    if (currentCandle && currentCandle.time === candleTime) {
+      // Update existing candle
+      updatedCandle = {
+        time: candleTime as Time,
+        open: currentCandle.open,
+        high: Math.max(currentCandle.high, price),
+        low: Math.min(currentCandle.low, price),
+        close: price,
+      };
+    } else {
+      // Create new candle (time crossed boundary)
+      updatedCandle = {
+        time: candleTime as Time,
+        open: currentCandle ? currentCandle.close : price, // gap prevention
+        high: currentCandle ? Math.max(currentCandle.close, price) : price,
+        low: currentCandle ? Math.min(currentCandle.close, price) : price,
+        close: price,
+      };
+    }
+
+    latestCandleRef.current = updatedCandle;
+    seriesRef.current.update(updatedCandle);
   }, [symbol, timeframe]);
 
   useTickStream({ symbol, onTick: handleTick });
@@ -229,6 +253,11 @@ function TradingChartInner({
 
     try {
       seriesRef.current.setData(unique);
+      if (unique.length > 0) {
+        latestCandleRef.current = { ...unique[unique.length - 1] };
+      } else {
+        latestCandleRef.current = null;
+      }
     } catch (err) {
       console.error('Failed to set chart data:', err);
     }

@@ -739,6 +739,32 @@ func getBoolField(m map[string]interface{}, key string) bool {
 	return false
 }
 
+func getFloat64Field(m map[string]interface{}, key string) float64 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return 0
+	}
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	// Integers from some sources
+	if i, ok := v.(int); ok {
+		return float64(i)
+	}
+	return 0
+}
+
+func getStringField(m map[string]interface{}, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // matchesCandidate checks if a candidate map matches the given analysisID.
 // Priority: candidate_id > analysis_id > id > structural fingerprint.
 func matchesCandidate(cand map[string]interface{}, analysisID string) bool {
@@ -813,12 +839,17 @@ func (o *Orchestrator) processSymbol(
 	traceID := tracker.TraceID()
 	symbol := symResult.Symbol
 
+	effectiveMacroResult := macroResult
+	if routing.Is247Market(symbol) {
+		effectiveMacroResult = nil
+	}
+
 	// Phase 2: Build RAG query.
 	phaseStart := time.Now()
 	_, qbSpan := observability.StartSpan(ctx, "pipeline.build_query",
 		attribute.String("symbol", symbol),
 	)
-	queryParams := o.queryBuilder.Build(symResult, macroResult, "", traceID)
+	queryParams := o.queryBuilder.Build(symResult, effectiveMacroResult, "", traceID)
 	qbSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseBuildingQuery.String()).Observe(time.Since(phaseStart).Seconds())
 
@@ -860,7 +891,7 @@ func (o *Orchestrator) processSymbol(
 	_, asmSpan := observability.StartSpan(ctx, "pipeline.assemble_context",
 		attribute.String("symbol", symbol),
 	)
-	processorInput := o.assembler.Assemble(symbol, symResult, macroResult, ragBundle, traceID)
+	processorInput := o.assembler.Assemble(symbol, symResult, effectiveMacroResult, ragBundle, traceID)
 	asmSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseAssemblingCtx.String()).Observe(time.Since(phaseStart).Seconds())
 
@@ -895,6 +926,41 @@ func (o *Orchestrator) processSymbol(
 		return buildSymbolErrorOutput(tracker, symbol, err)
 	}
 	procSpan.End()
+
+	// Inject candidate structural parameters into processorOutput for Execution.
+	// The LLM does not return these directly (to save tokens/prompt complexity),
+	// so we extract them from the matching TA candidate here.
+	if processorOutput.TradeValid && processorOutput.AnalysisID != "" {
+		for _, cand := range symResult.SMCCandidates {
+			if matchesCandidate(cand, processorOutput.AnalysisID) {
+				processorOutput.LTFTimeframe = getStringField(cand, "ltf_timeframe")
+				processorOutput.HTFTimeframe = getStringField(cand, "htf_timeframe")
+				processorOutput.OBUpper = getFloat64Field(cand, "order_block_upper")
+				processorOutput.OBLower = getFloat64Field(cand, "order_block_lower")
+				break
+			}
+		}
+		for _, cand := range symResult.SnDCandidates {
+			if matchesCandidate(cand, processorOutput.AnalysisID) {
+				processorOutput.LTFTimeframe = getStringField(cand, "ltf_timeframe")
+				processorOutput.HTFTimeframe = getStringField(cand, "htf_timeframe")
+				
+				// SnD candidates might use zone_upper / zone_lower instead of ob_upper
+				upper := getFloat64Field(cand, "ob_upper")
+				if upper == 0 {
+					upper = getFloat64Field(cand, "zone_upper")
+				}
+				lower := getFloat64Field(cand, "ob_lower")
+				if lower == 0 {
+					lower = getFloat64Field(cand, "zone_lower")
+				}
+				
+				processorOutput.OBUpper = upper
+				processorOutput.OBLower = lower
+				break
+			}
+		}
+	}
 
 	// Publish ANALYSIS_COMPLETE: processor returned a decision for this symbol.
 	analysisMsg := fmt.Sprintf("Analysis complete for %s: trade_valid=%t", symbol, processorOutput.TradeValid)

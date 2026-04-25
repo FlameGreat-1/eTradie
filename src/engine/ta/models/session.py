@@ -41,7 +41,7 @@ class SessionWindow(FrozenModel):
 
 class SessionState(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     timestamp: datetime
     active_session: Session
@@ -80,7 +80,7 @@ class SessionState(FrozenModel):
 
 class SessionRange(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     session: Session
     start_time: datetime

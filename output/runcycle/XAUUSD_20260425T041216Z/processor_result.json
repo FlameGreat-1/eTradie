@@ -1,0 +1,297 @@
+{
+  "analysis_id": "XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4699.4_f9bb89cc",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 4699.4,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_xauusd_20260424_2045_a8b3",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.85,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.84,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.83,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.82,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "24078a36-47d3-4e05-842c-740f90983568",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.89,
+            "section": "SECTION 8 \u2014 AI SYSTEM CONSTRAINTS & GUARDRAILS"
+          },
+          {
+            "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "2d4c9ec4-dbb8-47df-976c-f44ea9edc77a",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.87,
+            "section": "SECTION 7 \u2014 PERFORMANCE TRACKING & JOURNALING STANDARDS"
+          },
+          {
+            "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.86,
+            "section": "REFERENCED RAG DOCUMENTS"
+          },
+          {
+            "chunk_id": "f4015eef-6152-4efa-917f-01a058a2bb15",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.85,
+            "section": "SECTION 3 \u2014 TRADING STYLE GOVERNANCE"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.84,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "c095eb4a-7709-4a7a-ba3f-abeb3f4c7e77",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.83,
+            "section": "SECTION 6 \u2014 RISK MANAGEMENT RULES"
+          }
+        ],
+        "query_summary": "Analyze XAUUSD for intraday trading opportunities, focusing on SMC patterns that align with the HTF bullish trend and show signs of LTF pullback reversal.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral with no strong directional drivers. This is treated as a pass, allowing technicals to dominate.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "The trade direction is LONG, which is fully aligned with the dominant bullish trend on timeframes from MN1 through H1.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "The M15 entry timeframe has a confirmed bullish CHoCH and BMS, indicating a structural shift to align with the HTF trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "The entry is based on a valid M15 Bullish Order Block created after the structural break.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The setup was preceded by a sweep of sell-side liquidity (SSL), which adds significant confirmation.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase was identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of any high-impact news events around the current time.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to TP3 is approximately 14.3R, far exceeding the 1:3 minimum for an Intraday style trade.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        4693.55,
+        4705.25
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4699.4_f9bb89cc"
+    },
+    "entry_zone": {
+      "high": 4705.25,
+      "low": 4693.55
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability long opportunity on XAUUSD based on a clear fractal retracement narrative. The dominant trend across all higher timeframes (MN1, W1, D1, H1) is strongly bullish. The current bearish price action on lower timeframes (M15, M5, M1) is interpreted as a pullback into a discount area. A high-confluence M15 bullish setup, specifically a SH+BMS+CHoCH+IDM+RTO pattern (ID: XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4699.4_f9bb89cc), has formed at 2026-04-24T20:30:00Z. This pattern signals a potential end to the LTF pullback and a resumption of the HTF bullish trend. The setup is validated by a sweep of sell-side liquidity, a break of market structure, and the clearing of inducement. The macro environment is neutral, allowing technicals to be the primary driver. All bearish LTF setups are rejected as they are counter to the HTF trend and lack a D1 bearish CHoCH, making them likely inducement (per rule MR-REJECT-006). The trade plan is to enter long via a limit order within the M15 Bullish Order Block at [4693.55 - 4705.25], with a structural stop loss at 4692.38. Take profits are set at sequential buy-side liquidity levels on the M5, M15, and H1 timeframes. The setup achieves a score of 7/9, earning an 'A' grade with high confidence and an excellent R:R profile.",
+    "htf_bias": {
+      "key_levels": [
+        4443.98,
+        4512.74
+      ],
+      "notes": "Higher timeframe structure from MN1 down to H1 is unequivocally bullish. The overall trend is confirmed as BULLISH. The market is in a clear uptrend, making higher highs and higher lows.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4693.55,
+        4705.25
+      ],
+      "notes": "Mid-timeframes (H3, M15, M5) are showing a bearish pullback, which is a fractal retracement within the HTF bullish trend. A very recent M15 bullish CHoCH and BMS has occurred, signaling a potential end to this pullback and a realignment with the HTF bullish order flow.",
+      "structure": "choch_bullish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.92,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 14.3,
+    "session": "NEW_YORK",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4692.38,
+      "reason": "Placed structurally below the low of the M15 Bullish Order Block and the swing low that initiated the move."
+    },
+    "take_profits": [
+      {
+        "basis": "Targets recent M5 swing high (BSL).",
+        "level": 4726,
+        "size_pct": 40
+      },
+      {
+        "basis": "Targets M15 swing high (BSL).",
+        "level": 4740,
+        "size_pct": 30
+      },
+      {
+        "basis": "Targets H1 swing high (BSL).",
+        "level": 4800,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-24T20:45:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability long opportunity on XAUUSD based on a clear fractal retracement narrative. The dominant trend across all higher timeframes (MN1, W1, D1, H1) is strongly bullish. The current bearish price action on lower timeframes (M15, M5, M1) is interpreted as a pullback into a discount area. A high-confluence M15 bullish setup, specifically a SH+BMS+CHoCH+IDM+RTO pattern (ID: XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4699.4_f9bb89cc), has formed at 2026-04-24T20:30:00Z. This pattern signals a potential end to the LTF pullback and a resumption of the HTF bullish trend. The setup is validated by a sweep of sell-side liquidity, a break of market structure, and the clearing of inducement. The macro environment is neutral, allowing technicals to be the primary driver. All bearish LTF setups are rejected as they are counter to the HTF trend and lack a D1 bearish CHoCH, making them likely inducement (per rule MR-REJECT-006). The trade plan is to enter long via a limit order within the M15 Bullish Order Block at [4693.55 - 4705.25], with a structural stop loss at 4692.38. Take profits are set at sequential buy-side liquidity levels on the M5, M15, and H1 timeframes. The setup achieves a score of 7/9, earning an 'A' grade with high confidence and an excellent R:R profile.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 14.3,
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "stop_loss": 4692.38,
+  "symbol": "XAUUSD",
+  "take_profit": 4800,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

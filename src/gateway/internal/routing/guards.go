@@ -36,8 +36,8 @@ func (g *GuardEvaluator) Evaluate(
 		checkNewsProximity(macroResult),
 		checkSessionRestriction(taResult),
 		checkCounterTrend(processorOutput, taResult),
-		checkWeekendGapRisk(),
-		checkLowLiquidityHours(),
+		checkWeekendGapRisk(taResult),
+		checkLowLiquidityHours(taResult),
 	}
 
 	var blocking []string
@@ -124,8 +124,27 @@ func checkNewsProximity(macro *models.MacroResult) models.GuardCheckResult {
 	}
 }
 
+// Is247Market determines if the symbol represents a 24/7 trading instrument (Synthetics, Crypto).
+func Is247Market(symbol string) bool {
+	s := strings.ToUpper(symbol)
+	return strings.Contains(s, "CRASH") ||
+		strings.Contains(s, "BOOM") ||
+		strings.Contains(s, "VOLATILITY") ||
+		strings.Contains(s, "STEP") ||
+		strings.Contains(s, "JUMP") ||
+		strings.Contains(s, "BTC") ||
+		strings.Contains(s, "ETH")
+}
+
 // MR-REJECT-002: No entries during Asian session for non-Asian pairs.
 func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult {
+	if Is247Market(ta.Symbol) {
+		return models.GuardCheckResult{
+			Rule: constants.RuleSessionRestriction, Verdict: constants.VerdictPass,
+			Reason: "Session restrictions do not apply to 24/7 markets",
+		}
+	}
+
 	now := time.Now().UTC()
 	hour := now.Hour()
 	isAsian := hour >= 0 && hour < 7
@@ -236,7 +255,14 @@ func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolRes
 }
 
 // MR-REJECT-008: No new entries close to market close on Friday.
-func checkWeekendGapRisk() models.GuardCheckResult {
+func checkWeekendGapRisk(ta *models.TASymbolResult) models.GuardCheckResult {
+	if Is247Market(ta.Symbol) {
+		return models.GuardCheckResult{
+			Rule: constants.RuleWeekendGapRisk, Verdict: constants.VerdictPass,
+			Reason: "Weekend gap risk does not apply to 24/7 markets",
+		}
+	}
+
 	now := time.Now().UTC()
 
 	if now.Weekday() == time.Friday && now.Hour() >= 20 {
@@ -262,7 +288,14 @@ func checkWeekendGapRisk() models.GuardCheckResult {
 }
 
 // MR-REJECT-009: Warn during known low-liquidity hours.
-func checkLowLiquidityHours() models.GuardCheckResult {
+func checkLowLiquidityHours(ta *models.TASymbolResult) models.GuardCheckResult {
+	if Is247Market(ta.Symbol) {
+		return models.GuardCheckResult{
+			Rule: constants.RuleLowLiquidityHours, Verdict: constants.VerdictPass,
+			Reason: "Low liquidity hours do not apply to 24/7 markets",
+		}
+	}
+
 	now := time.Now().UTC()
 	hour := now.Hour()
 

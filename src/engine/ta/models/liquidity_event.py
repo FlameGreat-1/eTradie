@@ -9,7 +9,7 @@ from engine.ta.constants import Timeframe, Direction, LiquidityType
 
 class LiquidityPool(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     liquidity_type: LiquidityType
     price_level: float = Field(gt=0)
@@ -41,7 +41,7 @@ class LiquidityPool(FrozenModel):
 
 class LiquiditySweep(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     timestamp: datetime
     liquidity_type: LiquidityType
@@ -86,7 +86,7 @@ class LiquiditySweep(FrozenModel):
 
 class LiquidityGrab(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     timestamp: datetime
     direction: Direction
@@ -115,7 +115,7 @@ class LiquidityGrab(FrozenModel):
 
 class InducementEvent(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     timestamp: datetime
     inducement_level: float = Field(gt=0)
@@ -144,7 +144,7 @@ class InducementEvent(FrozenModel):
 
 class CompressionEvent(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     start_timestamp: datetime
     end_timestamp: Optional[datetime] = None
@@ -180,7 +180,7 @@ class CompressionEvent(FrozenModel):
 
 class EqualHighsLows(FrozenModel):
     
-    symbol: str = Field(min_length=3, max_length=15)
+    symbol: str = Field(min_length=3, max_length=30)
     timeframe: Timeframe
     liquidity_type: LiquidityType
     price_level: float = Field(gt=0)
