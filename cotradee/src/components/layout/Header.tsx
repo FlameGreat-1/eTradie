@@ -15,7 +15,6 @@ import {
   LogOut,
   Zap,
   Activity,
-  Menu as MenuIcon,
   X,
 } from 'lucide-react';
 import { useRunCycle } from '@/features/analysis/api/analysis';
@@ -24,6 +23,12 @@ import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal
 
 const SYMBOL_KEY = 'active_symbol';
 const TF_KEY = 'active_tf';
+
+// How long the connection must stay down before we surface anything
+// to the user. Anything shorter is silent: page-mount handshakes,
+// short network blips, and routine reconnects should NOT alarm the
+// trader.
+const DEGRADED_GRACE_MS = 10_000;
 
 function Header() {
   const { user, logout } = useAuth();
@@ -53,7 +58,6 @@ function Header() {
   const symbol = searchParams.get('symbol') || persistedSymbol;
   const timeframe = searchParams.get('tf') || persistedTf;
 
-  // Mirror URL params → localStorage when the user picks a symbol/tf on the dashboard.
   useEffect(() => {
     const sp = searchParams.get('symbol');
     const tp = searchParams.get('tf');
@@ -67,9 +71,6 @@ function Header() {
     }
   }, [searchParams, persistedSymbol, persistedTf]);
 
-  // Update active symbol/tf. Persists to localStorage always; updates
-  // URL only on the dashboard route so /journal etc. don't gain rogue
-  // query strings.
   const updateActive = useCallback(
     (newSymbol?: string, newTf?: string) => {
       if (newSymbol) {
@@ -86,8 +87,6 @@ function Header() {
         if (newTf) params.set('tf', newTf);
         setSearchParams(params, { replace: true });
       } else if (newSymbol || newTf) {
-        // Navigate to dashboard with the new selection so the user
-        // immediately sees it on the chart.
         const params = new URLSearchParams();
         params.set('symbol', newSymbol || persistedSymbol);
         params.set('tf', newTf || persistedTf);
@@ -169,12 +168,14 @@ function Header() {
             valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
           />
           <Divider />
-          <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
-          <Divider />
-          <ConnectionStatus connected={isConnected} />
+          <StatItem
+            label="Time"
+            value={`${fmtTime(time)} ${tzOffset()}`}
+            accessory={<DegradedIndicator connected={isConnected} />}
+          />
           <Divider />
 
-          {/* Symbol + timeframe — always visible on md+. */}
+          {/* Symbol + timeframe */}
           <button
             onClick={() => setIsSymbolModalOpen(true)}
             className="px-3 h-8 rounded-md text-xs font-bold text-content border border-border
@@ -317,9 +318,6 @@ function Header() {
               valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
             />
             <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
-            <div className="col-span-2">
-              <ConnectionStatus connected={isConnected} />
-            </div>
           </div>
         </div>
       )}
@@ -341,10 +339,12 @@ function StatItem({
   label,
   value,
   valueClass,
+  accessory,
 }: {
   label: string;
   value: string;
   valueClass?: string;
+  accessory?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
@@ -352,27 +352,76 @@ function StatItem({
         {label}
       </span>
       <span
-        className={`text-[11px] font-bold whitespace-nowrap ${valueClass ?? 'text-content'}`}
+        className={`flex items-center gap-1.5 text-[11px] font-bold whitespace-nowrap ${
+          valueClass ?? 'text-content'
+        }`}
       >
         {value}
+        {accessory}
       </span>
     </div>
   );
 }
 
-function ConnectionStatus({ connected }: { connected: boolean }) {
-  return (
-    <div className="flex items-center gap-1.5">
+/**
+ * Discreet connection indicator.
+ *
+ *   connected            -> a tiny green dot, no text (silent success).
+ *   disconnected < 10 s  -> renders nothing (silent grace window).
+ *   disconnected ≥ 10 s  -> small amber dot + "Offline" label.
+ *
+ * Data still flows during "Offline" because the polling fallback is
+ * in charge; the indicator only tells the trader the push channel
+ * is degraded.
+ */
+function DegradedIndicator({ connected }: { connected: boolean }) {
+  const [degraded, setDegraded] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (connected) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (degraded) setDegraded(false);
+      return;
+    }
+    // Disconnected: start (or keep) the grace timer.
+    if (timerRef.current) return;
+    timerRef.current = setTimeout(() => {
+      setDegraded(true);
+      timerRef.current = null;
+    }, DEGRADED_GRACE_MS);
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [connected, degraded]);
+
+  if (connected) {
+    return (
       <span
-        className={`w-1.5 h-1.5 rounded-full ${
-          connected ? 'bg-success' : 'bg-warning'
-        }`}
-        aria-hidden
+        className="inline-block w-1.5 h-1.5 rounded-full bg-success"
+        title="Live data"
+        aria-label="Live data"
       />
-      <span className="text-[10px] uppercase tracking-wider text-content-muted">
-        {connected ? 'Live' : 'Reconnecting'}
-      </span>
-    </div>
+    );
+  }
+
+  if (!degraded) return null;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-warning"
+      title="Real-time push channel offline. Data is still updating via polling."
+      aria-label="Real-time push channel offline"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+      Offline
+    </span>
   );
 }
 
