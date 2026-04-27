@@ -12,6 +12,7 @@ const AnalysisPage  = lazy(() => import('./pages/AnalysisPage'));
 const TradesPage    = lazy(() => import('./pages/TradesPage'));
 const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
+const SupportPage   = lazy(() => import('./pages/SupportPage'));
 
 function PageLoader() {
   return (
@@ -72,6 +73,7 @@ export default function AppRoutes() {
                     <Route path="trades"    element={<TradesPage />} />
                     <Route path="journal"   element={<JournalPage />} />
                     <Route path="settings/*" element={<SettingsPage />} />
+                    <Route path="support"    element={<SupportPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>

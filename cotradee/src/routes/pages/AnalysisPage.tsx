@@ -6,7 +6,7 @@ import {
   useRerunAnalysis,
 } from '@/features/analysis/api/analysis';
 import { formatRelativeTime } from '@/utils/formatters';
-import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import AnalysisDetailModal from '@/features/analysis/components/AnalysisDetailModal';
 
 const PAGE_SIZE = 15;
@@ -84,7 +84,7 @@ export default function AnalysisPage() {
 
       {/* Desktop grid */}
       <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
-        <div className="grid grid-cols-6 gap-4 items-center px-4 py-2 border-b border-border bg-surface-2
+        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-4 py-2 border-b border-border bg-surface-2
                         text-[10px] font-semibold text-content-muted uppercase tracking-wider">
           <span>Pair</span>
           <span>Direction</span>
@@ -92,6 +92,7 @@ export default function AnalysisPage() {
           <span>Status</span>
           <span>Style</span>
           <span className="text-right">Time</span>
+          <span className="sr-only">Open</span>
         </div>
 
         {isLoading && (
@@ -110,12 +111,13 @@ export default function AnalysisPage() {
           const id = String(a.analysis_id ?? '');
           const dir = String(a.direction ?? '-');
           const isLong = dir === 'LONG' || dir === 'BUY';
+          const isOpen = selectedId === id && !!id;
           return (
             <div
               key={id || i}
               onClick={() => id && setSelectedId(id)}
-              className="grid grid-cols-6 gap-4 items-center px-4 py-3 border-b border-border last:border-b-0
-                         hover:bg-surface-2 transition-colors duration-fast text-xs cursor-pointer"
+              className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-4 py-3 border-b border-border last:border-b-0
+                         hover:bg-surface-2 transition-colors duration-fast text-xs cursor-pointer group"
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -142,6 +144,25 @@ export default function AnalysisPage() {
               <span className="text-right text-content-muted">
                 {a.created_at ? formatRelativeTime(String(a.created_at)) : ''}
               </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (id) setSelectedId(id);
+                }}
+                disabled={!id}
+                aria-expanded={isOpen}
+                aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
+                className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
+                            transition-all duration-300 focus-ring
+                            ${
+                              isOpen
+                                ? 'bg-brand text-white rotate-180'
+                                : 'bg-surface-2 text-content-muted group-hover:bg-surface-3'
+                            }`}
+              >
+                <ChevronDown size={14} strokeWidth={2.5} />
+              </button>
             </div>
           );
         })}
@@ -164,22 +185,49 @@ export default function AnalysisPage() {
           const id = String(a.analysis_id ?? '');
           const dir = String(a.direction ?? '-');
           const isLong = dir === 'LONG' || dir === 'BUY';
+          const isOpen = selectedId === id && !!id;
           return (
-            <button
+            <div
               key={id || i}
+              role="button"
+              tabIndex={0}
               onClick={() => id && setSelectedId(id)}
+              onKeyDown={(e) => {
+                if (id && (e.key === 'Enter' || e.key === ' ')) setSelectedId(id);
+              }}
               className="w-full text-left rounded-xl border border-border bg-surface-1 p-3 hover:bg-surface-2
-                         transition-colors duration-fast focus-ring"
+                         transition-colors duration-fast focus-ring cursor-pointer"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-brand text-sm">{a.pair ?? ''}</span>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wide ${
-                    isLong ? 'text-success' : 'text-danger'
-                  }`}
-                >
-                  {dir}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wide ${
+                      isLong ? 'text-success' : 'text-danger'
+                    }`}
+                  >
+                    {dir}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (id) setSelectedId(id);
+                    }}
+                    disabled={!id}
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
+                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
+                                transition-all duration-300 focus-ring
+                                ${
+                                  isOpen
+                                    ? 'bg-brand text-white rotate-180'
+                                    : 'bg-surface-2 text-content-muted'
+                                }`}
+                  >
+                    <ChevronDown size={14} strokeWidth={2.5} />
+                  </button>
+                </div>
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px]">
                 <Field label="Grade" value={a.setup_grade ?? '—'} />
@@ -199,7 +247,7 @@ export default function AnalysisPage() {
               <div className="mt-2 text-[10px] text-content-muted">
                 {a.created_at ? formatRelativeTime(String(a.created_at)) : ''}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
