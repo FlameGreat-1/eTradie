@@ -149,57 +149,68 @@ function Header() {
           <Activity size={16} />
         </button>
 
-        {/* Desktop: full stats strip */}
-        <div className="hidden md:flex items-center gap-2.5 min-w-0 overflow-x-auto no-scrollbar">
-          <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
-          <Divider />
-          <StatItem label="Equity" value={account ? formatCurrency(account.equity) : '---'} />
-          <Divider />
-          <StatItem label="Margin" value={account ? formatCurrency(account.margin) : '---'} />
-          <Divider />
-          <StatItem
-            label="Free"
-            value={account ? formatCurrency(account.margin_free) : '---'}
-          />
-          <Divider />
-          <StatItem
-            label="M. Level"
-            value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
-            valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
-          />
-          <Divider />
-          <StatItem
-            label="Time"
-            value={`${fmtTime(time)} ${tzOffset()}`}
-            accessory={<DegradedIndicator connected={isConnected} />}
-          />
-          <Divider />
-
-          {/* Symbol + timeframe */}
-          <button
-            onClick={() => setIsSymbolModalOpen(true)}
-            className="px-3 h-8 rounded-md text-xs font-bold text-content border border-border
-                       hover:bg-surface-3 transition-colors duration-fast flex items-center gap-2 focus-ring"
-          >
-            {symbol || 'Select Symbol'}
-            <ChevronDown size={14} className="text-content-muted" />
-          </button>
-          <TimeframeDropdown
-            value={timeframe}
-            onChange={(tf) => updateActive(undefined, tf)}
-          />
-
-          {/* Search */}
-          <div className="flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
-            <Search size={14} className="text-content-muted" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search…"
-              className="bg-transparent border-none outline-none text-xs text-content placeholder:text-content-muted w-24"
-              aria-label="Search"
+        {/* Desktop: stats strip (scrollable) + non-scrollable controls cluster.
+            They are TWO siblings; the controls live outside the scroll
+            container so their dropdowns can escape into the header's
+            overflow-visible region. */}
+        <div className="hidden md:flex items-center gap-2.5 min-w-0 flex-1">
+          {/* Scrollable stats strip. Shrinks on narrow widths without
+              clipping the controls cluster. */}
+          <div className="flex items-center gap-2.5 min-w-0 overflow-x-auto no-scrollbar">
+            <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
+            <Divider />
+            <StatItem label="Equity" value={account ? formatCurrency(account.equity) : '---'} />
+            <Divider />
+            <StatItem label="Margin" value={account ? formatCurrency(account.margin) : '---'} />
+            <Divider />
+            <StatItem
+              label="Free"
+              value={account ? formatCurrency(account.margin_free) : '---'}
             />
+            <Divider />
+            <StatItem
+              label="M. Level"
+              value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
+              valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
+            />
+            <Divider />
+            <StatItem
+              label="Time"
+              value={`${fmtTime(time)} ${tzOffset()}`}
+              accessory={<DegradedIndicator connected={isConnected} />}
+            />
+          </div>
+
+          <Divider />
+
+          {/* Controls cluster — NEVER clipped: lives outside the
+              overflow-x-auto container so symbol-picker / timeframe
+              dropdown menus can pop down freely. */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <button
+              onClick={() => setIsSymbolModalOpen(true)}
+              className="px-3 h-8 rounded-md text-xs font-bold text-content border border-border
+                         hover:bg-surface-3 transition-colors duration-fast flex items-center gap-2 focus-ring"
+            >
+              {symbol || 'Select Symbol'}
+              <ChevronDown size={14} className="text-content-muted" />
+            </button>
+            <TimeframeDropdown
+              value={timeframe}
+              onChange={(tf) => updateActive(undefined, tf)}
+            />
+
+            <div className="flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
+              <Search size={14} className="text-content-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search…"
+                className="bg-transparent border-none outline-none text-xs text-content placeholder:text-content-muted w-24"
+                aria-label="Search"
+              />
+            </div>
           </div>
         </div>
 
@@ -220,7 +231,7 @@ function Header() {
         </div>
 
         {/* Right: action buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-shrink-0">
           <IconButton
             title="Run analysis scan"
             onClick={() => runCycle.mutate(undefined)}
@@ -370,7 +381,7 @@ function StatItem({
  *   Disconnected, < 10 s          -> renders nothing (grace window).
  *   Disconnected, >= 10 s         -> small amber "Offline" pill.
  *
- * Healthy operation must never produce visual chrome — the trader's
+ * Healthy operation never produces visual chrome — the trader's
  * attention belongs on prices and trades, not on a status light.
  */
 function DegradedIndicator({ connected }: { connected: boolean }) {

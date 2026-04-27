@@ -61,19 +61,28 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 px-3 h-8 rounded border border-border text-sm font-bold transition-colors ${
-          isOpen
-            ? 'bg-surface-3 text-content'
-            : 'text-content hover:bg-surface-3'
-        }`}
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-bold transition-colors duration-fast focus-ring
+                    ${isOpen ? 'bg-surface-3 text-content' : 'text-content hover:bg-surface-3'}`}
       >
         <span>{value}</span>
-        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={14}
+          className={`text-content-muted transition-transform duration-fast ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-surface-1 border border-border rounded-md shadow-xl z-[100] py-1">
+        <div
+          role="listbox"
+          className="absolute top-full left-0 mt-1 w-48 bg-surface-elevated border border-border
+                     rounded-md shadow-pop py-1 z-dropdown animate-fade-in"
+        >
           {CATEGORIES.map((cat, i) => (
             <div key={cat.name}>
               {i > 0 && <div className="h-px bg-border my-1" />}
@@ -82,9 +91,13 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
               </div>
               {cat.items.map((item) => (
                 <button
+                  type="button"
                   key={item.id}
                   onClick={() => handleSelect(item.id)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left hover:bg-surface-2 text-content transition-colors"
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left
+                             hover:bg-surface-2 text-content transition-colors duration-fast focus-ring"
+                  role="option"
+                  aria-selected={value === item.id}
                 >
                   <span>{item.label}</span>
                   {value === item.id && <Check size={14} className="text-brand" />}
