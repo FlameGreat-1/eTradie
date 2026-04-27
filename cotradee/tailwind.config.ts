@@ -1,5 +1,17 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * The colour palette is published as RGB triplets in CSS so Tailwind's
+ * `<alpha-value>` modifier (e.g. `bg-brand/20`) compiles to a valid
+ * `rgb(r g b / 0.2)` rule in both themes.
+ *
+ * Where a colour does not have an `-rgb` triplet (e.g. `*-soft` already
+ * encodes its own opacity), it is declared as a direct CSS variable.
+ */
+function rgb(token: string) {
+  return `rgb(var(${token}) / <alpha-value>)`;
+}
+
 const config: Config = {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -11,48 +23,47 @@ const config: Config = {
       },
       colors: {
         brand: {
-          DEFAULT: 'var(--brand)',
-          hover: 'var(--brand-hover)',
-          active: 'var(--brand-active)',
+          DEFAULT: rgb('--brand-rgb'),
+          hover: rgb('--brand-hover-rgb'),
+          active: rgb('--brand-active-rgb'),
           soft: 'var(--brand-soft)',
           'soft-strong': 'var(--brand-soft-strong)',
-          /* Aliases preserved for backward compatibility with existing markup */
-          dark: 'var(--brand-active)',
-          light: 'var(--brand-hover)',
+          dark: rgb('--brand-active-rgb'),
+          light: rgb('--brand-hover-rgb'),
         },
         surface: {
-          0: 'var(--surface-0)',
-          1: 'var(--surface-1)',
-          2: 'var(--surface-2)',
-          3: 'var(--surface-3)',
-          elevated: 'var(--surface-elevated)',
+          0: rgb('--surface-0-rgb'),
+          1: rgb('--surface-1-rgb'),
+          2: rgb('--surface-2-rgb'),
+          3: rgb('--surface-3-rgb'),
+          elevated: rgb('--surface-elevated-rgb'),
           glass: 'var(--surface-glass)',
         },
         border: {
-          DEFAULT: 'var(--border)',
-          strong: 'var(--border-strong)',
-          subtle: 'var(--border-subtle)',
+          DEFAULT: rgb('--border-rgb'),
+          strong: rgb('--border-strong-rgb'),
+          subtle: rgb('--border-subtle-rgb'),
         },
         content: {
-          DEFAULT: 'var(--content)',
-          secondary: 'var(--content-secondary)',
-          muted: 'var(--content-muted)',
-          faint: 'var(--content-faint)',
+          DEFAULT: rgb('--content-rgb'),
+          secondary: rgb('--content-secondary-rgb'),
+          muted: rgb('--content-muted-rgb'),
+          faint: rgb('--content-faint-rgb'),
         },
         success: {
-          DEFAULT: 'var(--success)',
+          DEFAULT: rgb('--success-rgb'),
           soft: 'var(--success-soft)',
         },
         danger: {
-          DEFAULT: 'var(--danger)',
+          DEFAULT: rgb('--danger-rgb'),
           soft: 'var(--danger-soft)',
         },
         warning: {
-          DEFAULT: 'var(--warning)',
+          DEFAULT: rgb('--warning-rgb'),
           soft: 'var(--warning-soft)',
         },
         info: {
-          DEFAULT: 'var(--info)',
+          DEFAULT: rgb('--info-rgb'),
           soft: 'var(--info-soft)',
         },
       },

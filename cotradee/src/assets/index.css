@@ -4,26 +4,38 @@
 
 /* ═══════════════════════════════════════════════════════════════════
    SHARED TOKENS — present in BOTH dark and light modes.
-   These never change between themes.
+   Each colour is published as both a raw RGB triplet (suffix `-rgb`)
+   and a fully-formed colour. The triplet enables Tailwind's
+   `<alpha-value>` modifier (e.g. `bg-brand/20`).
    ═══════════════════════════════════════════════════════════════════ */
 :root {
   /* Brand */
-  --brand: #e85102;
-  --brand-hover: #ff5a0a;
-  --brand-active: #d94802;
-  --brand-soft: rgba(232, 81, 2, 0.12);
-  --brand-soft-strong: rgba(232, 81, 2, 0.22);
-  --brand-glow: 0 0 0 1px rgba(232, 81, 2, 0.35), 0 0 20px rgba(232, 81, 2, 0.25);
+  --brand-rgb: 232 81 2;
+  --brand: rgb(var(--brand-rgb));
+  --brand-hover-rgb: 255 90 10;
+  --brand-hover: rgb(var(--brand-hover-rgb));
+  --brand-active-rgb: 217 72 2;
+  --brand-active: rgb(var(--brand-active-rgb));
+  --brand-soft: rgb(var(--brand-rgb) / 0.12);
+  --brand-soft-strong: rgb(var(--brand-rgb) / 0.22);
+  --brand-glow: 0 0 0 1px rgb(var(--brand-rgb) / 0.35), 0 0 20px rgb(var(--brand-rgb) / 0.25);
 
-  /* Semantic colors */
-  --success: #2fd77b;
-  --success-soft: rgba(47, 215, 123, 0.14);
-  --danger: #ff3b30;
-  --danger-soft: rgba(255, 59, 48, 0.14);
-  --warning: #ffcc00;
-  --warning-soft: rgba(255, 204, 0, 0.14);
-  --info: #3b82f6;
-  --info-soft: rgba(59, 130, 246, 0.14);
+  /* Semantic colours */
+  --success-rgb: 47 215 123;
+  --success: rgb(var(--success-rgb));
+  --success-soft: rgb(var(--success-rgb) / 0.14);
+
+  --danger-rgb: 255 59 48;
+  --danger: rgb(var(--danger-rgb));
+  --danger-soft: rgb(var(--danger-rgb) / 0.14);
+
+  --warning-rgb: 255 204 0;
+  --warning: rgb(var(--warning-rgb));
+  --warning-soft: rgb(var(--warning-rgb) / 0.14);
+
+  --info-rgb: 59 130 246;
+  --info: rgb(var(--info-rgb));
+  --info-soft: rgb(var(--info-rgb) / 0.14);
 
   /* Layout */
   --sidebar-width: 48px;
@@ -54,39 +66,50 @@
    ═══════════════════════════════════════════════════════════════════ */
 .dark,
 :root {
-  --surface-0: #050507;
-  --surface-1: #0b0b10;
-  --surface-2: #131319;
-  --surface-3: #1c1c24;
-  --surface-elevated: #1f1f28;
-  --surface-glass: rgba(11, 11, 16, 0.72);
+  --surface-0-rgb: 5 5 7;
+  --surface-0: rgb(var(--surface-0-rgb));
+  --surface-1-rgb: 11 11 16;
+  --surface-1: rgb(var(--surface-1-rgb));
+  --surface-2-rgb: 19 19 25;
+  --surface-2: rgb(var(--surface-2-rgb));
+  --surface-3-rgb: 28 28 36;
+  --surface-3: rgb(var(--surface-3-rgb));
+  --surface-elevated-rgb: 31 31 40;
+  --surface-elevated: rgb(var(--surface-elevated-rgb));
+  --surface-glass: rgb(11 11 16 / 0.72);
 
-  --border: #232330;
-  --border-strong: #2c2c3a;
-  --border-subtle: #1a1a22;
+  --border-rgb: 35 35 48;
+  --border: rgb(var(--border-rgb));
+  --border-strong-rgb: 44 44 58;
+  --border-strong: rgb(var(--border-strong-rgb));
+  --border-subtle-rgb: 26 26 34;
+  --border-subtle: rgb(var(--border-subtle-rgb));
 
-  --content: #f5f5f7;
-  --content-secondary: #c7c7d1;
-  --content-muted: #8a8a96;
-  --content-faint: #5b5b66;
+  --content-rgb: 245 245 247;
+  --content: rgb(var(--content-rgb));
+  --content-secondary-rgb: 199 199 209;
+  --content-secondary: rgb(var(--content-secondary-rgb));
+  --content-muted-rgb: 138 138 150;
+  --content-muted: rgb(var(--content-muted-rgb));
+  --content-faint-rgb: 91 91 102;
+  --content-faint: rgb(var(--content-faint-rgb));
 
-  --focus-ring: rgba(232, 81, 2, 0.55);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --focus-ring: rgb(var(--brand-rgb) / 0.55);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
 
-  --gradient-header: linear-gradient(90deg, #1a1a22 0%, #131319 50%, #1a1a22 100%);
-  --gradient-sidebar: linear-gradient(180deg, #0b0b10 0%, #1a1a22 100%);
+  --gradient-header: linear-gradient(90deg, rgb(26 26 34) 0%, rgb(19 19 25) 50%, rgb(26 26 34) 100%);
+  --gradient-sidebar: linear-gradient(180deg, rgb(11 11 16) 0%, rgb(26 26 34) 100%);
 
-  /* Chart palette */
   --chart-bg: #0a0a0f;
   --chart-text: #9ca3af;
-  --chart-grid: rgba(255, 255, 255, 0.04);
-  --chart-border: rgba(255, 255, 255, 0.08);
-  --chart-crosshair: rgba(255, 255, 255, 0.18);
+  --chart-grid: rgb(255 255 255 / 0.04);
+  --chart-border: rgb(255 255 255 / 0.08);
+  --chart-crosshair: rgb(255 255 255 / 0.18);
   --chart-up: #22c55e;
   --chart-down: #ef4444;
-  --chart-axis-label-bg: rgba(20, 20, 25, 0.92);
+  --chart-axis-label-bg: rgb(20 20 25 / 0.92);
   --chart-axis-label-text: #ffffff;
   --chart-tooltip-bg: #1f2937;
 
@@ -97,39 +120,50 @@
    LIGHT THEME — applied via `.light` on <html>.
    ═══════════════════════════════════════════════════════════════════ */
 .light {
-  --surface-0: #f7f8fa;
-  --surface-1: #ffffff;
-  --surface-2: #f1f3f7;
-  --surface-3: #e6e9ef;
-  --surface-elevated: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-0-rgb: 247 248 250;
+  --surface-0: rgb(var(--surface-0-rgb));
+  --surface-1-rgb: 255 255 255;
+  --surface-1: rgb(var(--surface-1-rgb));
+  --surface-2-rgb: 241 243 247;
+  --surface-2: rgb(var(--surface-2-rgb));
+  --surface-3-rgb: 230 233 239;
+  --surface-3: rgb(var(--surface-3-rgb));
+  --surface-elevated-rgb: 255 255 255;
+  --surface-elevated: rgb(var(--surface-elevated-rgb));
+  --surface-glass: rgb(255 255 255 / 0.78);
 
-  --border: #dfe3ea;
-  --border-strong: #c8cdd6;
-  --border-subtle: #ebeef3;
+  --border-rgb: 223 227 234;
+  --border: rgb(var(--border-rgb));
+  --border-strong-rgb: 200 205 214;
+  --border-strong: rgb(var(--border-strong-rgb));
+  --border-subtle-rgb: 235 238 243;
+  --border-subtle: rgb(var(--border-subtle-rgb));
 
-  --content: #0d1117;
-  --content-secondary: #2c3340;
-  --content-muted: #5c6573;
-  --content-faint: #98a0ad;
+  --content-rgb: 13 17 23;
+  --content: rgb(var(--content-rgb));
+  --content-secondary-rgb: 44 51 64;
+  --content-secondary: rgb(var(--content-secondary-rgb));
+  --content-muted-rgb: 92 101 115;
+  --content-muted: rgb(var(--content-muted-rgb));
+  --content-faint-rgb: 152 160 173;
+  --content-faint: rgb(var(--content-faint-rgb));
 
-  --focus-ring: rgba(232, 81, 2, 0.45);
-  --shadow-sm: 0 1px 2px rgba(20, 30, 50, 0.06);
-  --shadow-md: 0 6px 20px rgba(20, 30, 50, 0.08);
-  --shadow-lg: 0 18px 40px rgba(20, 30, 50, 0.12);
+  --focus-ring: rgb(var(--brand-rgb) / 0.45);
+  --shadow-sm: 0 1px 2px rgb(20 30 50 / 0.06);
+  --shadow-md: 0 6px 20px rgb(20 30 50 / 0.08);
+  --shadow-lg: 0 18px 40px rgb(20 30 50 / 0.12);
 
-  --gradient-header: linear-gradient(90deg, #ffffff 0%, #f7f8fa 50%, #ffffff 100%);
-  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #f1f3f7 100%);
+  --gradient-header: linear-gradient(90deg, rgb(255 255 255) 0%, rgb(247 248 250) 50%, rgb(255 255 255) 100%);
+  --gradient-sidebar: linear-gradient(180deg, rgb(255 255 255) 0%, rgb(241 243 247) 100%);
 
-  /* Chart palette */
   --chart-bg: #ffffff;
   --chart-text: #475569;
-  --chart-grid: rgba(15, 23, 42, 0.05);
-  --chart-border: rgba(15, 23, 42, 0.10);
-  --chart-crosshair: rgba(15, 23, 42, 0.18);
+  --chart-grid: rgb(15 23 42 / 0.05);
+  --chart-border: rgb(15 23 42 / 0.10);
+  --chart-crosshair: rgb(15 23 42 / 0.18);
   --chart-up: #16a34a;
   --chart-down: #dc2626;
-  --chart-axis-label-bg: rgba(15, 23, 42, 0.92);
+  --chart-axis-label-bg: rgb(15 23 42 / 0.92);
   --chart-axis-label-text: #ffffff;
   --chart-tooltip-bg: #f1f5f9;
 
@@ -175,9 +209,7 @@
     color: #ffffff;
   }
 
-  *:focus {
-    outline: none;
-  }
+  *:focus { outline: none; }
 
   *:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -185,7 +217,6 @@
     border-radius: 4px;
   }
 
-  /* Native form controls inherit theme */
   input,
   textarea,
   select,
@@ -199,19 +230,13 @@
     color: var(--content-muted);
   }
 
-  /* Native select dropdown options use the system color-scheme so they
-     are readable in both themes. */
   select option {
     background-color: var(--surface-1);
     color: var(--content);
   }
 
-  img {
-    max-width: 100%;
-    height: auto;
-  }
+  img { max-width: 100%; height: auto; }
 
-  /* Honour user's reduced-motion preference. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -225,59 +250,39 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   SCROLLBARS — token-driven so they switch with the theme.
+   SCROLLBARS
    ═══════════════════════════════════════════════════════════════════ */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: var(--brand);
   background-clip: content-box;
   border: 2px solid transparent;
 }
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
-}
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ANIMATIONS — referenced by Tailwind keyframes config too,
-   declared here so they are always available even outside Tailwind.
+   ANIMATIONS
    ═══════════════════════════════════════════════════════════════════ */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slideRight {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
 }
-
 @keyframes shimmer {
   0%   { background-position: -1000px 0; }
   100% { background-position: 1000px 0; }
 }
-
 @keyframes pulseDot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.5; transform: scale(0.85); }
@@ -287,32 +292,19 @@
    UTILITY CLASSES
    ═══════════════════════════════════════════════════════════════════ */
 @layer utilities {
-  .bg-app {
-    background-color: var(--surface-0);
-  }
-
-  .bg-surface-glass {
+  .bg-app             { background-color: var(--surface-0); }
+  .bg-surface-glass   {
     background-color: var(--surface-glass);
     backdrop-filter: blur(16px) saturate(140%);
     -webkit-backdrop-filter: blur(16px) saturate(140%);
   }
-
-  .bg-elevated {
+  .bg-elevated        {
     background-color: var(--surface-elevated);
     box-shadow: var(--shadow-md);
   }
-
-  .text-strong {
-    color: var(--content);
-  }
-
-  .text-soft {
-    color: var(--content-secondary);
-  }
-
-  .text-faint {
-    color: var(--content-faint);
-  }
+  .text-strong { color: var(--content); }
+  .text-soft   { color: var(--content-secondary); }
+  .text-faint  { color: var(--content-faint); }
 
   .text-gradient {
     background: linear-gradient(180deg, var(--content) 0%, var(--content-muted) 100%);
@@ -328,10 +320,8 @@
 
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
   .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 
-  /* Skeleton shimmer for loading states. */
   .skeleton {
     background: linear-gradient(
       90deg,
@@ -344,7 +334,6 @@
     border-radius: var(--radius-sm);
   }
 
-  /* Status indicator dot. */
   .live-dot {
     position: relative;
     display: inline-block;
@@ -363,7 +352,6 @@
     animation: pulseDot 1.6s var(--ease-in-out) infinite;
   }
 
-  /* High-contrast media query bumps border weight for accessibility. */
   @media (prefers-contrast: more) {
     :root,
     .dark,
