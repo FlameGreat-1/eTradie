@@ -1,7 +1,6 @@
-import { memo, useState, useEffect, type ReactNode } from 'react';
+import { memo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
@@ -30,25 +29,16 @@ function DashboardLayout({ children }: Props) {
     }
   }, [stream.isStreaming, stream.analysisId]);
 
+  const handleMenuClick = useCallback(() => setMobileNavOpen(true), []);
+  const handleMenuClose = useCallback(() => setMobileNavOpen(false), []);
+
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-app text-content">
       <Sidebar
         isMobileOpen={isMobileNavOpen}
-        onMobileClose={() => setMobileNavOpen(false)}
+        onMobileClose={handleMenuClose}
       />
-      <Header />
-
-      {/* Mobile nav toggle (only visible < md) */}
-      <button
-        onClick={() => setMobileNavOpen(true)}
-        className="md:hidden fixed left-2 top-[calc(var(--header-height)+8px)] z-dropdown
-                   flex items-center justify-center w-9 h-9 rounded-md
-                   bg-surface-2 border border-border text-content
-                   hover:border-brand transition-colors duration-fast focus-ring shadow-card"
-        aria-label="Open navigation menu"
-      >
-        <Menu size={16} />
-      </button>
+      <Header onMenuClick={handleMenuClick} />
 
       <main
         className="absolute overflow-auto bg-app"

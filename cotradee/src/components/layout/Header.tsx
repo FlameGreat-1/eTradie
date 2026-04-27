@@ -14,6 +14,7 @@ import {
   LogOut,
   Zap,
   Activity,
+  Menu,
   X,
 } from 'lucide-react';
 import { useRunCycle } from '@/features/analysis/api/analysis';
@@ -23,7 +24,16 @@ import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal
 const SYMBOL_KEY = 'active_symbol';
 const TF_KEY = 'active_tf';
 
-function Header() {
+interface HeaderProps {
+  /**
+   * When provided, the mobile hamburger trigger is rendered inside
+   * the header (md:hidden) and this callback fires on click. Pass
+   * `undefined` to suppress the trigger (e.g. on auth screens).
+   */
+  onMenuClick?: () => void;
+}
+
+function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -121,25 +131,48 @@ function Header() {
     <header
       className="fixed top-0 z-header overflow-visible border-b border-border"
       style={{
-        left: SIDEBAR_WIDTH,
+        left: 'var(--header-left, 0px)',
         right: 0,
         height: 'var(--header-height)',
         background: 'var(--gradient-header)',
       }}
       role="banner"
     >
+      {/* Header sits flush against the desktop rail (>=md) and full-width on mobile. */}
+      <style>{`
+        @media (min-width: 768px) {
+          :root { --header-left: ${SIDEBAR_WIDTH}px; }
+        }
+        @media (max-width: 767.98px) {
+          :root { --header-left: 0px; }
+        }
+      `}</style>
+
       <div className="relative w-full h-full flex items-center justify-between gap-2 px-2 sm:px-3">
-        {/* Mobile: stats drawer toggle */}
-        <button
-          onClick={() => setShowStatsDrawer((p) => !p)}
-          className="md:hidden flex items-center justify-center w-9 h-9 rounded-md
-                     bg-surface-2 border border-border text-content focus-ring
-                     transition-colors duration-fast hover:border-brand"
-          aria-label="Toggle account stats"
-          aria-expanded={showStatsDrawer}
-        >
-          <Activity size={16} />
-        </button>
+        {/* Mobile-only: hamburger + stats-drawer toggle, anchored to the left of the bar. */}
+        <div className="flex md:hidden items-center gap-1.5">
+          {onMenuClick && (
+            <button
+              onClick={onMenuClick}
+              className="flex items-center justify-center w-9 h-9 rounded-md
+                         bg-surface-2 border border-border text-content focus-ring
+                         transition-colors duration-fast hover:border-brand"
+              aria-label="Open navigation menu"
+            >
+              <Menu size={16} />
+            </button>
+          )}
+          <button
+            onClick={() => setShowStatsDrawer((p) => !p)}
+            className="flex items-center justify-center w-9 h-9 rounded-md
+                       bg-surface-2 border border-border text-content focus-ring
+                       transition-colors duration-fast hover:border-brand"
+            aria-label="Toggle account stats"
+            aria-expanded={showStatsDrawer}
+          >
+            <Activity size={16} />
+          </button>
+        </div>
 
         {/* Desktop: stats strip + non-scrollable controls. */}
         <div className="hidden md:flex items-center gap-2.5 min-w-0 flex-1">
@@ -180,7 +213,7 @@ function Header() {
               onChange={(tf) => updateActive(undefined, tf)}
             />
 
-            <div className="flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
+            <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
               <Search size={14} className="text-content-muted" />
               <input
                 type="text"
