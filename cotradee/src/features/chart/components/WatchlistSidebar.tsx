@@ -15,7 +15,6 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
   const [searchFilter, setSearchFilter] = useState('');
 
   const symbols = symbolData?.symbols ?? [];
-
   const filteredSymbols = searchFilter
     ? symbols.filter((s: string) => s.toLowerCase().includes(searchFilter.toLowerCase()))
     : symbols;
@@ -39,26 +38,26 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
     [symbols, updateSymbols],
   );
 
-  // Collapsed state — show a thin toggle bar.
   if (isCollapsed) {
     return (
       <div
         className="flex flex-col items-center justify-start h-full border-l border-border
-                    bg-surface-1 transition-all duration-300 ease-out"
+                    bg-surface-1 transition-all duration-base ease-out-expo"
         style={{ width: 36 }}
       >
         <button
           onClick={() => setIsCollapsed(false)}
           className="flex items-center justify-center w-full h-10 hover:bg-surface-2
-                     text-content-muted hover:text-content transition-colors"
-          title="Expand Watchlist"
+                     text-content-muted hover:text-content transition-colors duration-fast focus-ring"
+          title="Expand watchlist"
+          aria-label="Expand watchlist"
         >
           <ChevronLeft size={14} />
         </button>
-        {/* Vertical label */}
         <span
           className="text-[9px] font-bold text-content-muted uppercase tracking-widest mt-4"
           style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+          aria-hidden
         >
           Watchlist
         </span>
@@ -69,23 +68,23 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
   return (
     <div
       className="flex flex-col h-full border-l border-border bg-surface-1
-                  transition-all duration-300 ease-out overflow-hidden"
+                  transition-all duration-base ease-out-expo overflow-hidden"
       style={{ width: 260 }}
+      aria-label="Watchlist"
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-3 h-10 border-b border-border flex-shrink-0">
         <span className="text-xs font-bold text-content uppercase tracking-wider">Watchlist</span>
         <button
           onClick={() => setIsCollapsed(true)}
           className="flex items-center justify-center w-6 h-6 rounded hover:bg-surface-2
-                     text-content-muted hover:text-content transition-colors"
-          title="Collapse Watchlist"
+                     text-content-muted hover:text-content transition-colors duration-fast focus-ring"
+          title="Collapse watchlist"
+          aria-label="Collapse watchlist"
         >
           <ChevronRight size={14} />
         </button>
       </div>
 
-      {/* Search */}
       <div className="px-3 py-2 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-1.5 rounded-lg bg-surface-2 border border-border px-2.5 h-7">
           <Search size={12} className="text-content-muted flex-shrink-0" />
@@ -94,13 +93,16 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Filter symbols…"
-            className="bg-transparent border-none outline-none text-xs text-content placeholder:text-content-muted w-full"
+            className="bg-transparent border-none outline-none text-xs text-content placeholder:text-content-muted w-full focus-ring"
+            aria-label="Filter symbols"
           />
         </div>
       </div>
 
-      {/* Add symbol */}
-      <form onSubmit={handleAddSymbol} className="px-3 py-2 border-b border-border flex-shrink-0">
+      <form
+        onSubmit={handleAddSymbol}
+        className="px-3 py-2 border-b border-border flex-shrink-0"
+      >
         <div className="flex items-center gap-1.5">
           <input
             type="text"
@@ -108,20 +110,21 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
             onChange={(e) => setNewSymbol(e.target.value)}
             placeholder="Add symbol…"
             className="flex-1 rounded-lg bg-surface-2 border border-border px-2.5 h-7
-                       text-xs text-content placeholder:text-content-muted focus:border-brand focus:outline-none"
+                       text-xs text-content placeholder:text-content-muted focus:border-brand focus-ring"
+            aria-label="Add symbol"
           />
           <button
             type="submit"
             disabled={!newSymbol.trim()}
-            className="flex items-center justify-center w-7 h-7 rounded-lg bg-brand/10
-                       text-brand hover:bg-brand/20 transition-colors disabled:opacity-30"
+            className="flex items-center justify-center w-7 h-7 rounded-lg bg-brand-soft
+                       text-brand hover:bg-brand-soft-strong transition-colors duration-fast disabled:opacity-30 focus-ring"
+            aria-label="Add symbol to watchlist"
           >
             <Plus size={14} />
           </button>
         </div>
       </form>
 
-      {/* Symbol List */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
         {filteredSymbols.length === 0 && (
           <div className="px-3 py-6 text-center text-xs text-content-muted">
@@ -131,22 +134,25 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
         {filteredSymbols.map((sym: string) => {
           const isActive = sym === activeSymbol;
           return (
-            <button
+            <div
               key={sym}
-              onClick={() => onSymbolSelect(sym)}
-              className={`group w-full flex items-center justify-between px-3 py-2.5 text-left
-                         transition-all duration-150 border-b border-border/30
-                         ${isActive
-                           ? 'bg-brand/8 border-l-2 border-l-brand'
-                           : 'hover:bg-surface-2 border-l-2 border-l-transparent'
-                         }`}
+              className={`group w-full flex items-center justify-between transition-colors duration-fast border-b border-border-subtle
+                          ${
+                            isActive
+                              ? 'bg-brand-soft border-l-2 border-l-brand'
+                              : 'hover:bg-surface-2 border-l-2 border-l-transparent'
+                          }`}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                {/* Color dot */}
+              <button
+                type="button"
+                onClick={() => onSymbolSelect(sym)}
+                className="flex-1 flex items-center gap-2 px-3 py-2.5 text-left min-w-0 focus-ring"
+              >
                 <span
                   className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    isActive ? 'bg-brand' : 'bg-content-muted/40'
+                    isActive ? 'bg-brand' : 'bg-content-faint'
                   }`}
+                  aria-hidden
                 />
                 <span
                   className={`text-xs font-semibold truncate ${
@@ -155,25 +161,25 @@ function WatchlistSidebarInner({ activeSymbol, onSymbolSelect }: WatchlistSideba
                 >
                   {sym}
                 </span>
-              </div>
-              {/* Remove button */}
+              </button>
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleRemoveSymbol(sym);
                 }}
-                className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity
-                           text-content-muted hover:text-danger p-0.5"
+                className="flex-shrink-0 mr-2 opacity-0 group-hover:opacity-100 transition-opacity duration-fast
+                           text-content-muted hover:text-danger p-1 focus-ring rounded"
                 title={`Remove ${sym}`}
+                aria-label={`Remove ${sym} from watchlist`}
               >
                 <X size={12} />
               </button>
-            </button>
+            </div>
           );
         })}
       </div>
 
-      {/* Footer stats */}
       <div className="px-3 py-2 border-t border-border flex-shrink-0">
         <span className="text-[10px] text-content-muted">
           {symbols.length} symbol{symbols.length !== 1 ? 's' : ''} active
