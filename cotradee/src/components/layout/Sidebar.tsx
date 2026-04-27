@@ -17,8 +17,8 @@ const PRIMARY_NAV: NavItem[] = [
 ];
 
 const FOOTER_NAV: NavItem[] = [
-  { path: '/settings', icon: '/assets/sidebar/icons/setting.svg',   label: 'Settings',      iconSize: 28 },
-  { path: '/support',  icon: '/assets/sidebar/icons/support.svg',   label: 'Support',       iconSize: 28 },
+  { path: '/settings', icon: '/assets/sidebar/icons/Setting-support.svg', label: 'Settings', iconSize: 28 },
+  { path: '/support',  icon: '/assets/sidebar/icons/Setting-support.svg', label: 'Support',  iconSize: 28 },
 ];
 
 interface SidebarProps {

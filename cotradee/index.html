@@ -4,39 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#e85102" />
-    <meta name="description" content="eTradie – Enterprise AI Trading Dashboard" />
+    <meta name="description" content="eTradie - Enterprise AI Trading Dashboard" />
     <link rel="icon" type="image/svg+xml" href="/assets/sidebar/icons/logo.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <title>eTradie Dashboard</title>
-    <!--
-      Critical: navigator.userAgentData polyfill MUST run before any
-      module is parsed. lightweight-charts 4.2.0 calls
-        navigator.userAgentData.brands.some(...)
-      at module top-level inside its isChromiumBased() probe. On
-      Firefox, Safari and many privacy-hardened or mobile browsers
-      navigator.userAgentData is undefined, so .brands is undefined,
-      and the .some() call throws. The crash happens during module
-      evaluation, before our React error boundary or the chart's
-      try/catch around createChart can react.
-
-      The only execution context guaranteed to fire before any
-      ES module is parsed - including Vite's pre-bundled deps and
-      HMR re-evaluations - is an inline classic <script> in <head>.
-      We keep the script ES5-compatible (no optional chaining, no
-      const-only) so it cannot itself fail in older runtimes.
-    -->
     <script>
+      // Critical: navigator.userAgentData polyfill MUST run before any
+      // ES module is parsed. lightweight-charts 4.2.x calls
+      //   navigator.userAgentData.brands.some(...)
+      // at module top-level inside its isChromiumBased() probe. On
+      // Firefox, Safari, iOS WebViews and many privacy-hardened mobile
+      // browsers navigator.userAgentData is undefined, so .brands is
+      // undefined and the .some() call throws synchronously - long
+      // before our React error boundary or chart try/catch can react.
+      //
+      // The only execution context guaranteed to fire before any ES
+      // module is parsed - including Vite's pre-bundled deps and HMR
+      // re-evaluations - is an inline classic <script> in <head>.
+      // The script is ES5-compatible and self-contained so it cannot
+      // itself fail in older runtimes.
       (function () {
         try {
           if (typeof navigator === 'undefined') return;
 
           function makeStub() {
-            var stub = { brands: [], mobile: false, platform: '' };
-            try { Object.freeze(stub.brands); } catch (e) { /* ignore */ }
-            try { Object.freeze(stub); } catch (e) { /* ignore */ }
-            return stub;
+            return { brands: [], mobile: false, platform: '' };
           }
 
           function brandsIsArray() {
@@ -93,14 +87,11 @@
           var proto;
           try { proto = Object.getPrototypeOf(navigator); } catch (e) { proto = null; }
           if (proto) {
-            if (tryDefine(proto, 'userAgentData', stub) && brandsIsArray()) return;
-            if (tryDeleteThenAssign(proto, 'userAgentData', stub) && brandsIsArray()) return;
-            if (tryAssign(proto, 'userAgentData', stub) && brandsIsArray()) return;
+            var stub2 = makeStub();
+            if (tryDefine(proto, 'userAgentData', stub2) && brandsIsArray()) return;
+            if (tryDeleteThenAssign(proto, 'userAgentData', stub2) && brandsIsArray()) return;
+            if (tryAssign(proto, 'userAgentData', stub2) && brandsIsArray()) return;
           }
-
-          // If we get here, the chart's try/catch around createChart
-          // will catch the eventual throw and render its "chart
-          // unavailable" fallback instead of crashing the dashboard.
         } catch (e) {
           /* never let the polyfill itself crash the page */
         }
