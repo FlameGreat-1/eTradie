@@ -8,7 +8,6 @@ import { SIDEBAR_WIDTH } from '@/utils/constants';
 import {
   Moon,
   Sun,
-  Bell,
   ChevronDown,
   Search,
   LogOut,
@@ -20,6 +19,7 @@ import {
 import { useRunCycle } from '@/features/analysis/api/analysis';
 import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown';
 import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal';
+import { NotificationsPanel } from '@/features/alerts/components/NotificationsPanel';
 
 const SYMBOL_KEY = 'active_symbol';
 const TF_KEY = 'active_tf';
@@ -260,14 +260,7 @@ function Header({ onMenuClick }: HeaderProps) {
               ? <Sun size={14} className="text-content" />
               : <Moon size={14} className="text-content" />}
           </IconButton>
-          <IconButton
-            title="Notifications"
-            onClick={() => navigate('/notifications')}
-            className="relative"
-          >
-            <Bell size={14} className="text-content" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand" />
-          </IconButton>
+          <NotificationsPanel />
 
           {/* User pill */}
           <div className="relative" ref={menuRef}>
