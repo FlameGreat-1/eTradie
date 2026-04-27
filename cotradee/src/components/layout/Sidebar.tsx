@@ -3,22 +3,34 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
 
 interface NavItem {
-  path: string;
+  path?: string;
   icon: string;
   label: string;
   iconSize?: number;
+  width?: number;
+  height?: number;
+  /** For consolidated icons that contain multiple targets (e.g. Settings & Support pill). */
+  splitPaths?: { path: string; label: string }[];
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { path: '/',         icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 28 },
-  { path: '/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 28 },
-  { path: '/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 28 },
-  { path: '/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 28 },
+  { path: '/',         icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 36 },
+  { path: '/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 36 },
+  { path: '/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 36 },
+  { path: '/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 36 },
 ];
 
 const FOOTER_NAV: NavItem[] = [
-  { path: '/settings', icon: '/assets/sidebar/icons/Setting-support.svg', label: 'Settings', iconSize: 28 },
-  { path: '/support',  icon: '/assets/sidebar/icons/Setting-support.svg', label: 'Support',  iconSize: 28 },
+  {
+    icon: '/assets/sidebar/icons/Setting-support.svg',
+    label: 'Settings & Support',
+    width: 37,
+    height: 82,
+    splitPaths: [
+      { path: '/settings', label: 'Settings' },
+      { path: '/support',  label: 'Support' },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -139,11 +151,15 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
               ))}
             </nav>
             <div className="border-t border-border py-2">
-              {FOOTER_NAV.map((item) => (
+              {FOOTER_NAV.map((item, idx) => (
                 <DrawerNavButton
-                  key={item.path}
+                  key={item.path || idx}
                   item={item}
-                  active={isActive(item.path)}
+                  active={
+                    item.path
+                      ? isActive(item.path)
+                      : item.splitPaths?.some((sp) => isActive(sp.path)) ?? false
+                  }
                   onNavigate={handleNavigate}
                 />
               ))}
@@ -164,21 +180,52 @@ function DrawerNavButton({
   active: boolean;
   onNavigate: (p: string) => void;
 }) {
+  const isSplit = item.splitPaths && item.splitPaths.length > 0;
+  const needsBackground = ['Analysis', 'Active Trades', 'Journal'].includes(item.label);
+
   return (
-    <button
-      onClick={() => onNavigate(item.path)}
-      aria-current={active ? 'page' : undefined}
-      className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+    <div
+      className={`relative flex items-center gap-3 px-4 py-2.5 text-sm font-medium
                   transition-colors duration-fast border-l-2
                   ${
                     active
-                      ? 'border-l-brand bg-brand-soft text-brand'
-                      : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
+                      ? 'border-l-brand text-brand'
+                      : 'border-l-transparent text-content-secondary hover:text-content'
                   }`}
     >
-      <img src={item.icon} alt="" width={22} height={22} className="select-none" />
-      {item.label}
-    </button>
+      <div className="relative flex items-center justify-center w-9 h-9 shrink-0">
+        {active && needsBackground && (
+          <span className="absolute inset-0 rounded-full bg-active-icon shadow-sm" />
+        )}
+        <img
+          src={item.icon}
+          alt=""
+          width={item.width || item.iconSize || 22}
+          height={item.height || item.iconSize || 22}
+          className="select-none brightness-0 invert dark:brightness-100 dark:invert-0 relative z-[1]"
+        />
+      </div>
+      <span className="relative z-[1]">{item.label}</span>
+
+      {isSplit ? (
+        <div className="absolute inset-0 z-[2] flex flex-col">
+          {item.splitPaths?.map((sp) => (
+            <button
+              key={sp.path}
+              onClick={() => onNavigate(sp.path)}
+              className="flex-1 w-full bg-transparent border-none cursor-pointer focus-ring"
+              aria-label={sp.label}
+            />
+          ))}
+        </div>
+      ) : (
+        <button
+          onClick={() => onNavigate(item.path || '')}
+          className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring"
+          aria-label={item.label}
+        />
+      )}
+    </div>
   );
 }
 
@@ -253,33 +300,56 @@ function RailButton({
   onHover: (label: string, e: React.MouseEvent) => void;
   onLeave: () => void;
 }) {
+  const isSplit = item.splitPaths && item.splitPaths.length > 0;
+  const needsBackground = ['Analysis', 'Active Trades', 'Journal'].includes(item.label);
+
   return (
-    <button
-      onClick={() => onNavigate(item.path)}
-      onMouseEnter={(e) => onHover(item.label, e)}
+    <div
+      className="relative flex items-center justify-center w-full min-h-[3rem] h-auto mb-1 group/rail"
       onMouseLeave={onLeave}
-      aria-label={item.label}
-      aria-current={active ? 'page' : undefined}
-      className="relative flex items-center justify-center w-full h-12 mb-1
-                 transition-all duration-fast cursor-pointer border-none bg-transparent focus-ring"
     >
-      {active && (
+      {active && !isSplit && (
         <>
           <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full" />
-          <span
-            className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
-            aria-hidden
-          />
+          {needsBackground && (
+            <span
+              className="absolute inset-1.5 rounded-full pointer-events-none bg-active-icon shadow-lg"
+              aria-hidden
+            />
+          )}
         </>
       )}
+
       <img
         src={item.icon}
         alt=""
-        width={item.iconSize || 28}
-        height={item.iconSize || 28}
-        className="select-none transition-transform duration-fast relative z-[1]"
+        width={item.width || item.iconSize || 28}
+        height={item.height || item.iconSize || 28}
+        className="select-none transition-transform duration-fast relative z-[1]
+                   brightness-0 invert dark:brightness-100 dark:invert-0"
       />
-    </button>
+
+      {isSplit ? (
+        <div className="absolute inset-0 z-[2] flex flex-col">
+          {item.splitPaths?.map((sp) => (
+            <button
+              key={sp.path}
+              onClick={() => onNavigate(sp.path)}
+              onMouseEnter={(e) => onHover(sp.label, e)}
+              className="flex-1 w-full bg-transparent border-none cursor-pointer focus-ring rounded-lg"
+              aria-label={sp.label}
+            />
+          ))}
+        </div>
+      ) : (
+        <button
+          onClick={() => item.path && onNavigate(item.path)}
+          onMouseEnter={(e) => onHover(item.label, e)}
+          className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring"
+          aria-label={item.label}
+        />
+      )}
+    </div>
   );
 }
 

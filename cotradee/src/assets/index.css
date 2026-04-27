@@ -305,6 +305,11 @@
   .text-strong { color: var(--content); }
   .text-soft   { color: var(--content-secondary); }
   .text-faint  { color: var(--content-faint); }
+  
+  .bg-active-icon {
+    background: linear-gradient(135deg, #333333 0%, #111111 49%, #6E2600 100%);
+    border: 1px solid rgba(146, 146, 146, 0.2);
+  }
 
   .text-gradient {
     background: linear-gradient(180deg, var(--content) 0%, var(--content-muted) 100%);
