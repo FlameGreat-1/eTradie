@@ -7,7 +7,15 @@ import type { LiveStreamState } from '@/features/alerts/hooks/useLiveReasoningSt
  * Floating analysis overlay shown over the chart while a cycle
  * streams reasoning, when one has just finished, or when one failed.
  *
- * Theme-aware: every color comes from a CSS token, so the overlay
+ * Positioning rules:
+ *   • Pinned to the viewport (`position: fixed`) so the overlay never
+ *     drifts when the underlying main element scrolls.
+ *   • On md+ screens it horizontally centres in the area to the right
+ *     of the sidebar (left = sidebar width); on mobile it spans the
+ *     full viewport width minus padding.
+ *   • Vertically centres below the fixed header.
+ *
+ * Theme-aware: every colour comes from a CSS token, so the overlay
  * renders correctly in both dark and light modes.
  */
 
@@ -26,6 +34,15 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
     }
   }, [stream.reasoning]);
 
+  // Close on Escape, like a proper dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onDismiss]);
+
   const handleCheckAnalysis = () => {
     onDismiss();
     navigate(stream.analysisId ? `/analysis?id=${stream.analysisId}` : '/analysis');
@@ -35,83 +52,93 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
 
   return (
     <div
-      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-overlay animate-fade-in"
-      style={{ width: 'min(800px, calc(100% - 32px))' }}
+      className="fixed z-overlay animate-fade-in pointer-events-none"
+      style={{
+        top: 'var(--header-height)',
+        bottom: 0,
+        left: 'var(--main-left, 0px)',
+        right: 0,
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="Analysis stream"
     >
-      <div className="rounded-xl border border-border overflow-hidden shadow-modal bg-surface-glass">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {stream.isStreaming && (
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto"
+        style={{ width: 'min(800px, calc(100% - 32px))' }}
+      >
+        <div className="rounded-xl border border-border overflow-hidden shadow-modal bg-surface-glass">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {stream.isStreaming && (
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+                </span>
+              )}
+              <span className="text-xs font-bold text-brand tracking-wide truncate">
+                {streamSymbol}
               </span>
-            )}
-            <span className="text-xs font-bold text-brand tracking-wide truncate">
-              {streamSymbol}
-            </span>
-            <span className="text-[10px] font-semibold text-content-secondary uppercase truncate">
-              {stream.status || 'New analysis'}
-            </span>
+              <span className="text-[10px] font-semibold text-content-secondary uppercase truncate">
+                {stream.status || 'New analysis'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleCheckAnalysis}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold
+                           text-brand bg-brand-soft hover:bg-brand-soft-strong transition-colors duration-fast focus-ring"
+                title="View in Analysis History"
+              >
+                <ExternalLink size={10} />
+                Check
+              </button>
+              <button
+                onClick={onDismiss}
+                className="flex items-center justify-center w-6 h-6 rounded-md
+                           text-content-muted hover:text-content hover:bg-surface-3 transition-colors duration-fast focus-ring"
+                title="Close"
+                aria-label="Close analysis overlay"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleCheckAnalysis}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold
-                         text-brand bg-brand-soft hover:bg-brand-soft-strong transition-colors duration-fast focus-ring"
-              title="View in Analysis History"
-            >
-              <ExternalLink size={10} />
-              Check
-            </button>
-            <button
-              onClick={onDismiss}
-              className="flex items-center justify-center w-6 h-6 rounded-md
-                         text-content-muted hover:text-content hover:bg-surface-3 transition-colors duration-fast focus-ring"
-              title="Close"
-              aria-label="Close analysis overlay"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
 
-        {/* Body */}
-        <div
-          ref={scrollRef}
-          className="px-4 py-3 max-h-[60vh] overflow-y-auto scrollbar-thin"
-        >
-          {stream.error ? (
-            <div className="text-xs text-warning leading-relaxed font-mono pl-3 border-l-2 border-warning whitespace-pre-wrap">
-              {stream.error}
-            </div>
-          ) : stream.reasoning ? (
-            <div className="text-xs text-content leading-relaxed font-mono pl-3 border-l-2 border-brand whitespace-pre-wrap">
-              {stream.reasoning}
-              {stream.isStreaming && (
-                <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-0.5 align-middle" />
-              )}
-            </div>
-          ) : (
-            <div className="text-xs text-content-muted font-mono pl-3 border-l-2 border-border">
-              Waiting for analysis data…
-              {stream.isStreaming && (
-                <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-1 align-middle" />
-              )}
+          {/* Body */}
+          <div
+            ref={scrollRef}
+            className="px-4 py-3 max-h-[60vh] overflow-y-auto scrollbar-thin"
+          >
+            {stream.error ? (
+              <div className="text-xs text-warning leading-relaxed font-mono pl-3 border-l-2 border-warning whitespace-pre-wrap">
+                {stream.error}
+              </div>
+            ) : stream.reasoning ? (
+              <div className="text-xs text-content leading-relaxed font-mono pl-3 border-l-2 border-brand whitespace-pre-wrap">
+                {stream.reasoning}
+                {stream.isStreaming && (
+                  <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-0.5 align-middle" />
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-content-muted font-mono pl-3 border-l-2 border-border">
+                Waiting for analysis data…
+                {stream.isStreaming && (
+                  <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-1 align-middle" />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Live progress strip */}
+          {stream.isStreaming && (
+            <div className="h-0.5 bg-surface-2" aria-hidden>
+              <div className="h-full bg-brand animate-pulse" style={{ width: '100%' }} />
             </div>
           )}
         </div>
-
-        {/* Live progress strip */}
-        {stream.isStreaming && (
-          <div className="h-0.5 bg-surface-2" aria-hidden>
-            <div className="h-full bg-brand animate-pulse" style={{ width: '100%' }} />
-          </div>
-        )}
       </div>
     </div>
   );
