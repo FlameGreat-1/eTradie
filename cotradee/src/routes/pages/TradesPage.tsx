@@ -3,13 +3,7 @@ import { useManagedTrades, usePerformanceMetrics } from '@/features/journal/api/
 import { useExecutionState, useCancelOrder } from '@/features/execution/api/brokerAccount';
 import { useRealtime } from '@/features/realtime';
 import { formatCurrency, formatPercentage, formatVolume } from '@/utils/formatters';
-import {
-  X,
-  Activity,
-  Zap,
-  TrendingUp,
-  BarChart3,
-} from 'lucide-react';
+import { Activity, Zap, TrendingUp, BarChart3 } from 'lucide-react';
 
 interface ManagedTrade {
   trade_id: string;
@@ -92,7 +86,6 @@ export default function TradesPage() {
         />
       </div>
 
-      {/* Floating unrealised P&L summary (only when there's something to show). */}
       {trades.length > 0 && (
         <div className="rounded-lg border border-border bg-surface-1 px-4 py-2 flex items-center justify-between">
           <span className="text-xs text-content-muted uppercase tracking-wider">
@@ -115,7 +108,6 @@ export default function TradesPage() {
           Active Managed Trades
         </h2>
 
-        {/* Desktop: full table */}
         <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -192,7 +184,6 @@ export default function TradesPage() {
           </div>
         </div>
 
-        {/* Mobile: card list */}
         <div className="md:hidden space-y-2">
           {trades.length === 0 && (
             <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-content-muted">
@@ -247,7 +238,6 @@ export default function TradesPage() {
           Pending Orders
         </h2>
 
-        {/* Desktop table */}
         <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -293,10 +283,10 @@ export default function TradesPage() {
                           cancelOrder.mutate({ order_id: String(o.order_id) })
                         }
                         disabled={cancelOrder.isPending}
-                        className="inline-flex items-center gap-1 rounded bg-danger-soft text-danger px-2 py-1 text-[10px] font-medium
+                        className="inline-flex items-center justify-center rounded bg-danger-soft text-danger px-2.5 py-1 text-[10px] font-medium
                                    hover:bg-danger/20 transition-colors duration-fast disabled:opacity-50 focus-ring"
                       >
-                        <X size={10} /> Cancel
+                        Cancel
                       </button>
                     </Td>
                   </tr>
@@ -306,7 +296,6 @@ export default function TradesPage() {
           </div>
         </div>
 
-        {/* Mobile cards */}
         <div className="md:hidden space-y-2">
           {pending.length === 0 && (
             <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-content-muted">
@@ -332,10 +321,10 @@ export default function TradesPage() {
                 <button
                   onClick={() => cancelOrder.mutate({ order_id: String(o.order_id) })}
                   disabled={cancelOrder.isPending}
-                  className="inline-flex items-center gap-1 rounded bg-danger-soft text-danger px-3 py-1.5 text-[11px] font-medium
+                  className="inline-flex items-center justify-center rounded bg-danger-soft text-danger px-3 py-1.5 text-[11px] font-medium
                              hover:bg-danger/20 transition-colors duration-fast disabled:opacity-50 focus-ring"
                 >
-                  <X size={12} /> Cancel
+                  Cancel
                 </button>
               </div>
             </div>

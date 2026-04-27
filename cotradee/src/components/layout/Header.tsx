@@ -3,7 +3,6 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useBrokerAccount } from '@/features/execution/api/brokerAccount';
-import { useRealtime } from '@/features/realtime';
 import { formatCurrency } from '@/utils/formatters';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
 import {
@@ -24,12 +23,6 @@ import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal
 const SYMBOL_KEY = 'active_symbol';
 const TF_KEY = 'active_tf';
 
-// How long the connection must stay down before we surface anything
-// to the user. Anything shorter is silent: page-mount handshakes,
-// short network blips, and routine reconnects must NOT alarm the
-// trader. Healthy operation never renders any indicator at all.
-const DEGRADED_GRACE_MS = 10_000;
-
 function Header() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -37,7 +30,6 @@ function Header() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: account } = useBrokerAccount();
-  const { isConnected } = useRealtime();
   const runCycle = useRunCycle();
 
   const [time, setTime] = useState(new Date());
@@ -149,13 +141,8 @@ function Header() {
           <Activity size={16} />
         </button>
 
-        {/* Desktop: stats strip (scrollable) + non-scrollable controls cluster.
-            They are TWO siblings; the controls live outside the scroll
-            container so their dropdowns can escape into the header's
-            overflow-visible region. */}
+        {/* Desktop: stats strip + non-scrollable controls. */}
         <div className="hidden md:flex items-center gap-2.5 min-w-0 flex-1">
-          {/* Scrollable stats strip. Shrinks on narrow widths without
-              clipping the controls cluster. */}
           <div className="flex items-center gap-2.5 min-w-0 overflow-x-auto no-scrollbar">
             <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
             <Divider />
@@ -174,18 +161,11 @@ function Header() {
               valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
             />
             <Divider />
-            <StatItem
-              label="Time"
-              value={`${fmtTime(time)} ${tzOffset()}`}
-              accessory={<DegradedIndicator connected={isConnected} />}
-            />
+            <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
           </div>
 
           <Divider />
 
-          {/* Controls cluster — NEVER clipped: lives outside the
-              overflow-x-auto container so symbol-picker / timeframe
-              dropdown menus can pop down freely. */}
           <div className="flex items-center gap-2.5 flex-shrink-0">
             <button
               onClick={() => setIsSymbolModalOpen(true)}
@@ -333,7 +313,6 @@ function Header() {
         </div>
       )}
 
-      {/* Symbol search modal */}
       <SymbolSearchModal
         isOpen={isSymbolModalOpen}
         onClose={() => setIsSymbolModalOpen(false)}
@@ -350,12 +329,10 @@ function StatItem({
   label,
   value,
   valueClass,
-  accessory,
 }: {
   label: string;
   value: string;
   valueClass?: string;
-  accessory?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
@@ -363,64 +340,11 @@ function StatItem({
         {label}
       </span>
       <span
-        className={`flex items-center gap-1.5 text-[11px] font-bold whitespace-nowrap ${
-          valueClass ?? 'text-content'
-        }`}
+        className={`text-[11px] font-bold whitespace-nowrap ${valueClass ?? 'text-content'}`}
       >
         {value}
-        {accessory}
       </span>
     </div>
-  );
-}
-
-/**
- * DegradedIndicator: enterprise-grade connection status surface.
- *
- *   Healthy connection           -> renders nothing.
- *   Disconnected, < 10 s          -> renders nothing (grace window).
- *   Disconnected, >= 10 s         -> small amber "Offline" pill.
- *
- * Healthy operation never produces visual chrome — the trader's
- * attention belongs on prices and trades, not on a status light.
- */
-function DegradedIndicator({ connected }: { connected: boolean }) {
-  const [degraded, setDegraded] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (connected) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      if (degraded) setDegraded(false);
-      return;
-    }
-    if (timerRef.current) return;
-    timerRef.current = setTimeout(() => {
-      setDegraded(true);
-      timerRef.current = null;
-    }, DEGRADED_GRACE_MS);
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [connected, degraded]);
-
-  if (!degraded) return null;
-
-  return (
-    <span
-      className="inline-flex items-center gap-1 text-[10px] font-semibold text-warning"
-      title="Real-time push channel offline. Data is still updating via polling."
-      aria-label="Real-time push channel offline"
-    >
-      <span className="w-1.5 h-1.5 rounded-full bg-warning" />
-      Offline
-    </span>
   );
 }
 

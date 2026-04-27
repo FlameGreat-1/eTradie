@@ -1,20 +1,27 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  LineChart,
+  CandlestickChart,
+  BookText,
+  Settings as SettingsIcon,
+  type LucideIcon,
+} from 'lucide-react';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
 
 interface NavItem {
   path: string;
-  icon: string;
+  Icon: LucideIcon;
   label: string;
-  iconSize?: number;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { path: '/',         icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 28 },
-  { path: '/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 28 },
-  { path: '/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 28 },
-  { path: '/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 28 },
-  { path: '/settings', icon: '/assets/sidebar/icons/wallet.svg',    label: 'Settings',      iconSize: 28 },
+  { path: '/',         Icon: LayoutDashboard,    label: 'Dashboard' },
+  { path: '/analysis', Icon: LineChart,          label: 'Analysis' },
+  { path: '/trades',   Icon: CandlestickChart,   label: 'Active Trades' },
+  { path: '/journal',  Icon: BookText,           label: 'Journal' },
+  { path: '/settings', Icon: SettingsIcon,       label: 'Settings' },
 ];
 
 interface SidebarProps {
@@ -31,7 +38,8 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const [tooltipTop, setTooltipTop] = useState(0);
 
   const isActive = useCallback(
-    (path: string) => (path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)),
+    (path: string) =>
+      path === '/' ? location.pathname === '/' : location.pathname.startsWith(path),
     [location.pathname],
   );
 
@@ -77,7 +85,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
         <RailContents
           isActive={isActive}
           onNavigate={handleNavigate}
-          onHover={(label, e) => handleMouseEnter(label, e)}
+          onHover={handleMouseEnter}
           onLeave={() => setHovered(null)}
         />
         {hovered && (
@@ -113,7 +121,6 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
             }}
             aria-label="Primary navigation"
           >
-            {/* Logo + label header */}
             <div className="flex items-center gap-2 px-4 h-12 border-b border-border">
               <img
                 src="/assets/sidebar/icons/logo.svg"
@@ -125,12 +132,12 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
               <span className="text-sm font-bold tracking-wide text-content">eTradie</span>
             </div>
             <nav className="flex-1 flex flex-col py-2">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(item.path);
+              {NAV_ITEMS.map(({ path, Icon, label }) => {
+                const active = isActive(path);
                 return (
                   <button
-                    key={item.path}
-                    onClick={() => handleNavigate(item.path)}
+                    key={path}
+                    onClick={() => handleNavigate(path)}
                     aria-current={active ? 'page' : undefined}
                     className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium
                                 transition-colors duration-fast border-l-2
@@ -140,8 +147,8 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                                     : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
                                 }`}
                   >
-                    <img src={item.icon} alt="" width={22} height={22} className="select-none" />
-                    {item.label}
+                    <Icon size={18} />
+                    {label}
                   </button>
                 );
               })}
@@ -181,34 +188,40 @@ function RailContents({
       </button>
 
       <nav className="flex flex-col" aria-label="Primary">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(item.path);
+        {NAV_ITEMS.map(({ path, Icon, label }) => {
+          const active = isActive(path);
           return (
             <button
-              key={item.path}
-              onClick={() => onNavigate(item.path)}
-              onMouseEnter={(e) => onHover(item.label, e)}
+              key={path}
+              onClick={() => onNavigate(path)}
+              onMouseEnter={(e) => onHover(label, e)}
               onMouseLeave={onLeave}
-              aria-label={item.label}
+              aria-label={label}
               aria-current={active ? 'page' : undefined}
-              className="relative flex items-center justify-center w-full h-12 mb-1
-                         transition-all duration-fast cursor-pointer border-none bg-transparent focus-ring"
+              className={`relative flex items-center justify-center w-full h-12 mb-1
+                          transition-colors duration-fast cursor-pointer border-none bg-transparent focus-ring
+                          ${
+                            active
+                              ? 'text-brand'
+                              : 'text-content-secondary hover:text-content'
+                          }`}
             >
               {active && (
                 <>
-                  <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full" />
+                  <span
+                    className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full"
+                    aria-hidden
+                  />
                   <span
                     className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
                     aria-hidden
                   />
                 </>
               )}
-              <img
-                src={item.icon}
-                alt=""
-                width={item.iconSize || 28}
-                height={item.iconSize || 28}
-                className="select-none transition-transform duration-fast"
+              <Icon
+                size={18}
+                strokeWidth={active ? 2.25 : 2}
+                className="relative z-[1]"
               />
             </button>
           );
