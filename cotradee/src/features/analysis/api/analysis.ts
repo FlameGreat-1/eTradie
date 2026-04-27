@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 
+/**
+ * Latest analyses. 60 s safety poll — the realtime WebSocket pushes
+ * ANALYSIS_COMPLETE / CYCLE_COMPLETED events that invalidate this
+ * key instantly via the realtime provider.
+ */
 export function useLatestAnalysis(limit = 20) {
   return useQuery({
     queryKey: ['analysis', 'latest', limit],
@@ -8,7 +13,8 @@ export function useLatestAnalysis(limit = 20) {
       const { data } = await api.engine.get(`/api/analysis/latest?limit=${limit}`);
       return data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
+    staleTime: 5_000,
   });
 }
 

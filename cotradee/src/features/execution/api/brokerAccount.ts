@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 
+/**
+ * Live broker account snapshot. Refetches every 5 s as a safety net;
+ * the realtime WebSocket pushes the authoritative delta whenever
+ * money moves on the account (ORDER_FILLED, TRADE_CLOSED,
+ * PARTIAL_CLOSE, BROKER_DISCONNECTED, BROKER_RECONNECTED).
+ */
 export function useBrokerAccount() {
   return useQuery({
     queryKey: ['execution', 'account'],
@@ -9,9 +15,15 @@ export function useBrokerAccount() {
       return data;
     },
     refetchInterval: 5_000,
+    staleTime: 1_000,
   });
 }
 
+/**
+ * Live execution state: open positions and pending orders.
+ * Polled every 3 s; WS events for order lifecycle invalidate this
+ * key instantly via the realtime provider.
+ */
 export function useExecutionState() {
   return useQuery({
     queryKey: ['execution', 'state'],
@@ -19,7 +31,8 @@ export function useExecutionState() {
       const { data } = await api.execution.get('/api/v1/state');
       return data;
     },
-    refetchInterval: 2_000,
+    refetchInterval: 3_000,
+    staleTime: 500,
   });
 }
 
