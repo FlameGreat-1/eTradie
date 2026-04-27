@@ -9,14 +9,14 @@ import type { RealtimeEvent } from './types';
  *
  * Behaviour:
  *   • Opens only when the user is authenticated.
- *   • Sends auth via the WebSocket subprotocol header (Bearer, token).
- *     This is what the gateway middleware accepts (auth.RequireAuth
- *     in src/gateway/internal/server/http_server.go).
- *   • Reconnects with exponential backoff capped at 30s on any drop.
+ *   • Sends auth via the WebSocket subprotocol header (Bearer, token);
+ *     the gateway middleware extracts and validates it from
+ *     `Sec-WebSocket-Protocol` (see src/auth/middleware.go).
+ *   • Reconnects with exponential backoff capped at 30s. After 6 failed
+ *     attempts in a row WITHOUT ever seeing onopen, the hook switches
+ *     to a slow 60s heartbeat retry so a missing gateway service does
+ *     not flood the dev console with reconnect noise.
  *   • Closes cleanly on logout / unmount.
- *
- * The hook keeps a callback ref so subscribers can change their
- * onEvent handler between renders without tearing down the socket.
  */
 interface UseNotificationsSocketOptions {
   onEvent: (event: RealtimeEvent) => void;
@@ -25,6 +25,9 @@ interface UseNotificationsSocketOptions {
 interface SocketStatus {
   isConnected: boolean;
 }
+
+const MAX_FAST_RETRIES = 6;
+const SLOW_RETRY_MS = 60_000;
 
 export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOptions): SocketStatus {
   const { isAuthenticated } = useAuth();
@@ -42,7 +45,18 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
     let disposed = false;
     let ws: WebSocket | null = null;
     let reconnectAttempts = 0;
+    let everConnected = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      reconnectAttempts += 1;
+      const delay =
+        reconnectAttempts > MAX_FAST_RETRIES && !everConnected
+          ? SLOW_RETRY_MS
+          : Math.min(1000 * 2 ** Math.min(reconnectAttempts - 1, 5), 30_000);
+      reconnectTimer = setTimeout(connect, delay);
+    };
 
     const connect = () => {
       if (disposed) return;
@@ -63,6 +77,7 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
       ws.onopen = () => {
         if (disposed) return;
         reconnectAttempts = 0;
+        everConnected = true;
         setIsConnected(true);
       };
 
@@ -77,22 +92,15 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
         }
       };
 
-      ws.onerror = () => {
-        /* the close handler runs after onerror; let it deal with retry */
-      };
+      // Silently swallow onerror; onclose runs right after with the
+      // useful information and triggers reconnect logic.
+      ws.onerror = () => { /* no-op */ };
 
       ws.onclose = () => {
-        setIsConnected(false);
+        if (!disposed) setIsConnected(false);
         ws = null;
         if (!disposed) scheduleReconnect();
       };
-    };
-
-    const scheduleReconnect = () => {
-      if (disposed) return;
-      reconnectAttempts = Math.min(reconnectAttempts + 1, 6);
-      const delay = Math.min(1000 * 2 ** (reconnectAttempts - 1), 30_000);
-      reconnectTimer = setTimeout(connect, delay);
     };
 
     connect();
@@ -107,7 +115,9 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
           /* ignore */
         }
       }
-      setIsConnected(false);
+      // Don't call setIsConnected here — the component is unmounting,
+      // React will GC its state and a setState call from cleanup
+      // produces a warning under StrictMode.
     };
   }, [isAuthenticated]);
 

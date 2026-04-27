@@ -70,14 +70,49 @@ function periodSeconds(tf: string): number {
 }
 
 /**
- * Read a CSS custom property off the document root. We re-resolve
- * tokens whenever the theme class changes so colors track the active
- * palette without recreating the chart instance.
+ * Translate modern CSS color syntax into the legacy comma-separated
+ * form that lightweight-charts' built-in colorStringToRgba parser
+ * understands. Supports:
+ *   • `rgb(R G B / A)`     -> `rgba(R, G, B, A)`
+ *   • `rgb(R G B)`         -> `rgb(R, G, B)`
+ *   • `rgba(...)` / `#hex` / named colours -> returned unchanged.
+ */
+function toLibColor(value: string): string {
+  const v = value.trim();
+  if (!v) return v;
+
+  // Already in a supported form.
+  if (v.startsWith('#') || v.startsWith('rgba(')) return v;
+
+  // Modern `rgb(R G B [/ A])` syntax.
+  const m = v.match(/^rgba?\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)(?:\s*\/\s*([0-9.]+%?))?\s*\)$/i);
+  if (m) {
+    const [, r, g, b, a] = m;
+    if (a != null) {
+      const alpha = a.endsWith('%') ? Number(a.slice(0, -1)) / 100 : Number(a);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  // `rgb(R, G, B)` legacy comma form (Tailwind never emits this for
+  // our tokens but stay safe).
+  if (/^rgb\(\s*\d+\s*,/.test(v)) return v;
+
+  // Anything else — named colour, hsl, etc. — hand back as-is and
+  // let the library complain on truly unsupported inputs.
+  return v;
+}
+
+/**
+ * Read the chart palette off the document root. Re-resolved on every
+ * theme change so colours track the active token set, normalised
+ * through `toLibColor` so lightweight-charts can parse them.
  */
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
-    (styles.getPropertyValue(name).trim() || fallback).trim();
+    toLibColor((styles.getPropertyValue(name).trim() || fallback).trim());
   return {
     background:    get('--chart-bg',           '#0a0a0f'),
     textColor:     get('--chart-text',         '#9ca3af'),
@@ -98,15 +133,13 @@ function readThemeColors() {
 
 function pipDistance(symbol: string, a: number, b: number): number {
   const diff = Math.abs(a - b);
-  // JPY pairs use 0.01 pip, everything else uses 0.0001. This matches MT5.
   if (/JPY/i.test(symbol)) return diff * 100;
   return diff * 10000;
 }
 
 function directionTone(dir: string): 'BUY' | 'SELL' {
-  return String(dir).toUpperCase() === 'BUY' || String(dir).toUpperCase() === 'LONG'
-    ? 'BUY'
-    : 'SELL';
+  const u = String(dir).toUpperCase();
+  return u === 'BUY' || u === 'LONG' ? 'BUY' : 'SELL';
 }
 
 /* ── Component ─────────────────────────────────────────────────── */
@@ -128,7 +161,7 @@ function TradingChartInner({
   const { theme } = useTheme();
   const { data: candleData, isFetching } = useChartCandles(symbol, timeframe);
 
-  /* ── 1. Create chart once ──────────────────────────────────── */
+  /* 1. Create chart once. */
   useEffect(() => {
     if (!containerRef.current) return;
     const colors = readThemeColors();
@@ -196,7 +229,7 @@ function TradingChartInner({
     };
   }, []);
 
-  /* ── 2. Re-skin (no recreate) when theme flips ─────────────────────── */
+  /* 2. Re-skin (no recreate) when theme flips. */
   useEffect(() => {
     if (!chartRef.current || !seriesRef.current) return;
     const colors = readThemeColors();
@@ -224,17 +257,15 @@ function TradingChartInner({
     });
   }, [theme]);
 
-  /* ── 3. Load historical candles when (symbol, timeframe, data) changes ── */
+  /* 3. Load historical candles. */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
     if (!candleData?.candles) return;
 
     const key = `${symbol}|${timeframe}|${candleData.candles.length}`;
-    if (key === lastDataKeyRef.current) return; // already drawn
+    if (key === lastDataKeyRef.current) return;
     lastDataKeyRef.current = key;
 
-    // Lightweight Charts demands ascending time + unique timestamps.
-    // MT5 frequently returns reverse-chronological data.
     const formatted: CandlestickData[] = candleData.candles
       .map((c) => ({
         time: c.time as Time,
@@ -258,26 +289,20 @@ function TradingChartInner({
     try {
       seriesRef.current.setData(unique);
       latestCandleRef.current = unique.length > 0 ? { ...unique[unique.length - 1] } : null;
-      if (unique.length > 0) {
-        setLatestPrice(unique[unique.length - 1].close);
-      }
+      if (unique.length > 0) setLatestPrice(unique[unique.length - 1].close);
       chartRef.current.timeScale().fitContent();
     } catch (err) {
-      // Lightweight Charts throws on out-of-order data; we already
-      // sort so this should be unreachable in practice. Logging
-      // helps when the backend contract is violated.
       // eslint-disable-next-line no-console
       console.error('Chart setData failed:', err);
     }
   }, [candleData, symbol, timeframe]);
 
-  /* ── 4. Live tick stream → update last candle in place ─────────────────── */
+  /* 4. Live tick stream -> last candle update. */
   const handleTick = useCallback(
     (tick: TickData) => {
       if (!seriesRef.current) return;
       if (tick.symbol && tick.symbol !== symbol) return;
 
-      // Tick time can arrive in seconds or milliseconds.
       const tNow =
         typeof tick.time === 'number' && tick.time > 0
           ? tick.time > 1e11
@@ -292,7 +317,6 @@ function TradingChartInner({
 
       const last = latestCandleRef.current;
       let updated: CandlestickData;
-
       if (last && (last.time as number) === candleTime) {
         updated = {
           time: candleTime as Time,
@@ -302,7 +326,6 @@ function TradingChartInner({
           close: price,
         };
       } else {
-        // Cross a candle boundary: open at prior close to avoid gaps.
         const openPrice = last ? last.close : price;
         updated = {
           time: candleTime as Time,
@@ -322,15 +345,12 @@ function TradingChartInner({
 
   useTickStream({ symbol, onTick: handleTick });
 
-  /* ── 5. Single canonical "redraw all lines" pass ─────────────────────── */
+  /* 5. Single canonical "redraw all lines" pass. */
   useEffect(() => {
     if (!seriesRef.current) return;
     const series = seriesRef.current;
     const colors = readThemeColors();
 
-    // Wipe everything we've drawn and start fresh. This is O(n) where
-    // n is the number of lines, typically <= 6, so it's cheaper than
-    // a diff and impossible to leave stale.
     for (const line of linesRef.current) {
       try { series.removePriceLine(line); } catch { /* already gone */ }
     }
@@ -341,7 +361,6 @@ function TradingChartInner({
       axisLabelTextColor: colors.axisLabelText,
     };
 
-    // Planned levels (only when no live trade exists for the symbol).
     if (levels && (!activeTrades || activeTrades.length === 0)) {
       if (Number.isFinite(levels.entry)) {
         linesRef.current.push(
@@ -384,7 +403,6 @@ function TradingChartInner({
       }
     }
 
-    // Active trade levels (broker truth).
     if (activeTrades && activeTrades.length > 0) {
       for (const trade of activeTrades) {
         if (trade.symbol !== symbol) continue;
@@ -430,7 +448,7 @@ function TradingChartInner({
     }
   }, [levels, activeTrades, symbol, theme]);
 
-  /* ── 6. Live P&L overlay ─────────────────────────────────────────── */
+  /* 6. Live P&L overlay state. */
   const overlay = useMemo(() => {
     const trade = activeTrades?.find((t) => t.symbol === symbol);
     if (!trade) return null;
@@ -440,16 +458,10 @@ function TradingChartInner({
       trade.takeProfit > 0 ? pipDistance(symbol, price, trade.takeProfit) : null;
     const pipsToSl =
       trade.stopLoss > 0 ? pipDistance(symbol, price, trade.stopLoss) : null;
-    return {
-      tone,
-      price,
-      pipsToTp,
-      pipsToSl,
-      profit: trade.profit,
-    };
+    return { tone, price, pipsToTp, pipsToSl, profit: trade.profit };
   }, [activeTrades, symbol, latestPrice]);
 
-  /* ── 7. Render ────────────────────────────────────────────────────── */
+  /* 7. Render. */
   return (
     <div className="relative w-full h-full bg-[var(--chart-bg)]">
       <div
@@ -459,7 +471,6 @@ function TradingChartInner({
         style={{ minHeight: 240 }}
       />
 
-      {/* Loading skeleton */}
       {isFetching && !candleData && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-surface-2/80 border border-border text-xs text-content-secondary">
@@ -469,7 +480,6 @@ function TradingChartInner({
         </div>
       )}
 
-      {/* Live P&L overlay */}
       {overlay && (
         <div
           className="absolute top-3 left-3 z-10 flex items-center gap-3 px-3 py-2
