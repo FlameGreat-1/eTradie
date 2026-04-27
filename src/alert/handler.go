@@ -21,9 +21,23 @@ const (
 	maxMessageSize = 512
 )
 
+// upgrader configuration:
+//
+//   • ReadBufferSize / WriteBufferSize tuned for our event payloads.
+//   • CheckOrigin: localhost during development; for cross-origin
+//     production traffic the gateway is fronted by a reverse proxy
+//     that strips Origin or matches it against the configured
+//     allowlist; here we accept matching Host as well.
+//   • Subprotocols: we MUST advertise "Bearer" so that the browser's
+//     WebSocket('...', ['Bearer', '<jwt>']) handshake accepts our
+//     101 response. The auth middleware (auth.RequireAuth) reads
+//     and validates the JWT before we ever reach this upgrade call,
+//     so by the time gorilla echoes the subprotocol the token has
+//     already been verified.
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 4096,
+	Subprotocols:    []string{"Bearer"},
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
@@ -62,7 +76,8 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 	log := newLogger("ws_handler")
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Extract authenticated user ID from context (set by auth.RequireAuth middleware).
+		// Auth has already passed (we sit behind RequireAuth) so the
+		// user ID is in the request context.
 		userID := auth.UserIDFromContext(r.Context())
 
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -71,11 +86,8 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 			return
 		}
 
-		// Parse optional severity filter from query string.
 		minSeverity := parseSeverityParam(r.URL.Query().Get("severity"))
 
-		// Create a user-scoped subscriber so this client only receives
-		// events belonging to the authenticated user plus system events.
 		sub := hub.SubscribeForUser(userID, minSeverity)
 
 		log.Info().
@@ -85,10 +97,7 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 			Str("min_severity", string(minSeverity)).
 			Msg("ws_client_connected")
 
-		// Read pump: handles client close frames and pong responses.
 		go readPump(conn, hub, sub, log)
-
-		// Write pump: streams events from subscriber channel to WebSocket.
 		go writePump(conn, sub, log)
 	}
 }
@@ -130,8 +139,6 @@ func RecentEventsHandler(provider HistoryProvider) http.HandlerFunc {
 			events = provider.Recent(r.Context(), count)
 		}
 
-		// Filter events by user scope: only return events owned by the
-		// authenticated user or system events (empty UserID).
 		events = filterEventsByUser(events, userID)
 
 		if events == nil {
@@ -180,7 +187,6 @@ func EventsSinceHandler(provider HistoryProvider) http.HandlerFunc {
 
 		events := provider.RecentSince(r.Context(), lastEventID, count)
 
-		// Filter events by user scope.
 		events = filterEventsByUser(events, userID)
 
 		if events == nil {

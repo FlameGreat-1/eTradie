@@ -78,18 +78,22 @@ func IsAdminContext(ctx context.Context) bool {
 
 // RequireAuth returns HTTP middleware that rejects unauthenticated requests.
 // On success, the Claims are injected into the request context.
+//
+// Both classic Bearer-in-Authorization-header requests and WebSocket
+// upgrade requests carrying the token in the Sec-WebSocket-Protocol
+// header are accepted. The WS path exists because browsers do not
+// allow setting arbitrary HTTP headers on a WebSocket connection;
+// the only browser-safe authentication channel for new WebSocket()
+// is the subprotocol list. See `extractWebSocketToken` below.
 func RequireAuth(ts *TokenService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, err := extractAndVerifyHTTP(r, ts)
+			claims, rawToken, err := extractAndVerifyHTTP(r, ts)
 			if err != nil {
 				writeAuthError(w, http.StatusUnauthorized, "unauthorized: "+err.Error())
 				return
 			}
 
-			// Store both parsed claims and raw token in context.
-			// Raw token is forwarded to Python engine by EngineHTTPClient.
-			rawToken := extractBearerToken(r.Header.Get("Authorization"))
 			ctx := context.WithValue(r.Context(), claimsKey, claims)
 			ctx = context.WithValue(ctx, rawTokenKey, rawToken)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -122,9 +126,8 @@ func RequireAdmin(next http.Handler) http.Handler {
 func OptionalAuth(ts *TokenService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, _ := extractAndVerifyHTTP(r, ts)
-			if claims != nil {
-				rawToken := extractBearerToken(r.Header.Get("Authorization"))
+			claims, rawToken, err := extractAndVerifyHTTP(r, ts)
+			if err == nil && claims != nil {
 				ctx := context.WithValue(r.Context(), claimsKey, claims)
 				ctx = context.WithValue(ctx, rawTokenKey, rawToken)
 				next.ServeHTTP(w, r.WithContext(ctx))
@@ -162,12 +165,10 @@ func UnaryAuthInterceptor(ts *TokenService, skipMethods map[string]bool) grpc.Un
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		// Skip auth for whitelisted methods.
 		if skipMethods != nil && skipMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
 
-		// Extract token from gRPC metadata.
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
 			return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
@@ -188,7 +189,6 @@ func UnaryAuthInterceptor(ts *TokenService, skipMethods map[string]bool) grpc.Un
 			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 		}
 
-		// Inject both claims and raw token into context.
 		newCtx := context.WithValue(ctx, claimsKey, claims)
 		newCtx = context.WithValue(newCtx, rawTokenKey, tokenString)
 		return handler(newCtx, req)
@@ -197,7 +197,6 @@ func UnaryAuthInterceptor(ts *TokenService, skipMethods map[string]bool) grpc.Un
 
 // UnaryAdminInterceptor returns a gRPC unary server interceptor that
 // requires the authenticated user to have the admin role.
-// Must be chained after UnaryAuthInterceptor.
 func UnaryAdminInterceptor() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
@@ -220,20 +219,96 @@ func UnaryAdminInterceptor() grpc.UnaryServerInterceptor {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// extractAndVerifyHTTP extracts the Bearer token from the HTTP
-// Authorization header and verifies it.
-func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return nil, errMissingAuth
+// extractAndVerifyHTTP returns the validated claims and the raw token
+// string for the request. It tries, in order:
+//
+//  1. the standard `Authorization: Bearer <token>` HTTP header
+//  2. for WebSocket upgrade requests, the `Sec-WebSocket-Protocol`
+//     header in the form `Bearer, <token>`
+//
+// Returns errMissingAuth / errInvalidFormat / a token verification
+// error when none of the channels yields a valid token.
+func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, string, error) {
+	// 1. Authorization header.
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		tokenString := extractBearerToken(authHeader)
+		if tokenString == "" {
+			return nil, "", errInvalidFormat
+		}
+		claims, err := ts.VerifyAccessToken(tokenString)
+		if err != nil {
+			return nil, "", err
+		}
+		return claims, tokenString, nil
 	}
 
-	tokenString := extractBearerToken(authHeader)
-	if tokenString == "" {
-		return nil, errInvalidFormat
+	// 2. WebSocket subprotocol fallback.
+	if isWebSocketUpgrade(r) {
+		if tokenString := extractWebSocketToken(r); tokenString != "" {
+			claims, err := ts.VerifyAccessToken(tokenString)
+			if err != nil {
+				return nil, "", err
+			}
+			return claims, tokenString, nil
+		}
 	}
 
-	return ts.VerifyAccessToken(tokenString)
+	return nil, "", errMissingAuth
+}
+
+// isWebSocketUpgrade reports whether the request is a WebSocket
+// handshake. Per RFC 6455 the HTTP request must carry
+// `Connection: Upgrade` and `Upgrade: websocket`. Header values are
+// case-insensitive and `Connection` may contain a comma-separated list.
+func isWebSocketUpgrade(r *http.Request) bool {
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	for _, v := range strings.Split(r.Header.Get("Connection"), ",") {
+		if strings.EqualFold(strings.TrimSpace(v), "upgrade") {
+			return true
+		}
+	}
+	return false
+}
+
+// extractWebSocketToken parses the Sec-WebSocket-Protocol header used
+// by browser WebSocket clients to smuggle a Bearer token through the
+// handshake. The agreed format is:
+//
+//     Sec-WebSocket-Protocol: Bearer, <jwt>
+//
+// Multiple Sec-WebSocket-Protocol header lines are also supported
+// (RFC 6455 §4.1). The function returns the first token after the
+// "Bearer" marker, or "" if none is present / malformed.
+func extractWebSocketToken(r *http.Request) string {
+	headers := r.Header.Values("Sec-WebSocket-Protocol")
+	if len(headers) == 0 {
+		return ""
+	}
+
+	// Flatten all values from all header lines into a single ordered
+	// list of trimmed protocol items.
+	items := make([]string, 0, 4)
+	for _, line := range headers {
+		for _, part := range strings.Split(line, ",") {
+			if p := strings.TrimSpace(part); p != "" {
+				items = append(items, p)
+			}
+		}
+	}
+
+	// Find the Bearer marker and return the next non-empty item.
+	for i, item := range items {
+		if strings.EqualFold(item, "Bearer") {
+			if i+1 < len(items) {
+				return items[i+1]
+			}
+			return ""
+		}
+	}
+
+	return ""
 }
 
 // extractBearerToken strips the "Bearer " prefix from an auth header value.
@@ -246,7 +321,7 @@ func extractBearerToken(header string) string {
 }
 
 var (
-	errMissingAuth  = &authError{"missing Authorization header"}
+	errMissingAuth   = &authError{"missing Authorization header"}
 	errInvalidFormat = &authError{"invalid Authorization format, expected: Bearer <token>"}
 )
 
