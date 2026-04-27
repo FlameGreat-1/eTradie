@@ -18,34 +18,42 @@ type AccountInfo struct {
 }
 
 // Position represents an open broker position.
+//
+// JSON tags use the MT5-style field names expected by the dashboard
+// (price_open, sl, tp, volume, profit). Without these tags, Go emits
+// PascalCase names and the dashboard renders NaN / empty values.
 type Position struct {
-	Symbol        string
-	Direction     string
-	EntryPrice    float64
-	CurrentPrice  float64
-	StopLoss      float64
-	TakeProfit    float64
-	LotSize       float64
-	UnrealizedPnL float64
-	OrderID       string
-	AnalysisID    string
-	TradingStyle  string
-	OpenTime      time.Time
+	Symbol        string    `json:"symbol"`
+	Direction     string    `json:"direction"`
+	EntryPrice    float64   `json:"price_open"`
+	CurrentPrice  float64   `json:"price_current"`
+	StopLoss      float64   `json:"sl"`
+	TakeProfit    float64   `json:"tp"`
+	LotSize       float64   `json:"volume"`
+	UnrealizedPnL float64   `json:"profit"`
+	OrderID       string    `json:"order_id"`
+	AnalysisID    string    `json:"analysis_id"`
+	TradingStyle  string    `json:"trading_style"`
+	OpenTime      time.Time `json:"open_time"`
 }
 
 // BrokerPendingOrder represents a pending limit order at the broker.
+//
+// JSON tags match the dashboard's expected field names. Same rationale
+// as Position above — without tags the dashboard shows $0 / '-' for
+// every column except Symbol.
 type BrokerPendingOrder struct {
-	Symbol        string
-	Direction     string
-	EntryPrice    float64
-	StopLoss      float64
-	TakeProfit    float64
-	LotSize       float64
-	OrderID       string
-	AnalysisID    string
-	ExecutionMode string
-	Status        string
-	CreatedAt     time.Time
+	Symbol        string    `json:"symbol"`
+	Direction     string    `json:"direction"`
+	EntryPrice    float64   `json:"price"`
+	StopLoss      float64   `json:"sl"`
+	TakeProfit    float64   `json:"tp"`
+	LotSize       float64   `json:"volume"`
+	OrderID       string    `json:"order_id"`
+	AnalysisID    string    `json:"analysis_id"`
+	ExecutionMode string    `json:"execution_mode"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // InstrumentInfo holds broker-provided instrument metadata.

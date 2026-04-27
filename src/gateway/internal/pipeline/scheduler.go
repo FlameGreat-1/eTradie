@@ -280,8 +280,8 @@ func (s *Scheduler) runUserLoop(ctx context.Context, user *auth.User) {
 	// Fire the first cycle immediately after jitter.
 	s.executeUserCycle(ctx, user, userLog)
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 
 	// Re-check interval from Redis periodically to pick up dashboard changes.
 	intervalCheckTicker := time.NewTicker(5 * time.Minute)
@@ -302,11 +302,12 @@ func (s *Scheduler) runUserLoop(ctx context.Context, user *auth.User) {
 					Float64("new_interval_seconds", newInterval.Seconds()).
 					Msg("user_scheduler_interval_changed")
 				interval = newInterval
-				ticker.Reset(interval)
+				// Next cycle will use the new interval when resetting.
 			}
 
-		case <-ticker.C:
+		case <-timer.C:
 			s.executeUserCycle(ctx, user, userLog)
+			timer.Reset(interval)
 		}
 	}
 }

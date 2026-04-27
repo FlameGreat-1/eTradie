@@ -1,0 +1,293 @@
+{
+  "analysis_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5638.178_b3289517",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 5638.178,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Crash 1000 Index_20260426_0645_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.9,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.88,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.85,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.82,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          }
+        ],
+        "query_summary": "Analysis of Crash 1000 Index for bearish SMC setup aligning with HTF trend after LTF pullback.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "No conflicting macro data provided. Treated as aligned/non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H12, H8, H6 timeframes are all confirmed bearish, aligning with the SHORT direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "The selected H6 candidate confirms a BMS at 5511.148 in the trade direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a valid H6 Order Block at [5617.929, 5658.427].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The H6 candidate confirms a sweep of BSL at 5690.149 prior to the market structure shift, adding significant conviction.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available for this instrument.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news events were provided in the data.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Calculated R:R is ~4.07:1, which exceeds the 1:3 minimum for the Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for this instrument.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5617.929,
+        5658.427
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5638.178_b3289517"
+    },
+    "entry_zone": {
+      "high": 5658.427,
+      "low": 5617.929
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short opportunity on Crash 1000 Index based on a strong alignment of timeframe structures. The dominant trend across all higher timeframes (D1 down to H1) is bearish. While lower timeframes (M30/M15) have been in a bullish pullback, the most recent price action shows a clear reversal back in line with the HTF trend. This is confirmed by a high-confluence (10/10) H6 bearish SMC candidate (ID: ...b3289517) which formed at 06:00 UTC. This setup is a textbook SH+BMS+CHOCH+FVG+SWEEP+RTO, indicating a liquidity sweep above 5690.149, followed by a strong break of structure, with price now expected to return to the originating H6 Order Block at [5617.929, 5658.427]. The entry is planned within this zone, targeting multiple lower timeframe liquidity pools with a final target at the major D1 swing low of 5362.297, offering a favorable R:R of approximately 4.07:1. The setup grade is 'A' based on an 8/10 confluence score, making it a strong candidate for execution.",
+    "htf_bias": {
+      "key_levels": [],
+      "notes": "The overall trend from D1 down to H1 is consistently bearish, confirmed by the ta_analysis.alignment data. This establishes a strong higher-timeframe directional bias for short positions.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [],
+      "notes": "While M30/M15 show a bullish pullback, the most recent and highest confluence signals on H6 and M5 are strongly bearish, indicating a reversal of the pullback and resumption of the HTF bearish trend. A key H6 bearish SH+BMS+RTO setup has formed.",
+      "structure": "choch_bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 4.07,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5705.8118,
+      "reason": "Placed above the H6 swing high at 5690.149 that was swept, providing structural invalidation for the bearish setup."
+    },
+    "take_profits": [
+      {
+        "basis": "Targets the recent D1 swing low liquidity pool at 5553.664.",
+        "level": 5555.013,
+        "size_pct": 40
+      },
+      {
+        "basis": "Targets the H1 swing low liquidity pool from 2026-04-26.",
+        "level": 5499.89,
+        "size_pct": 30
+      },
+      {
+        "basis": "Targets the major D1 swing low liquidity pool from 2026-03-21.",
+        "level": 5362.297,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-26T06:45:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short opportunity on Crash 1000 Index based on a strong alignment of timeframe structures. The dominant trend across all higher timeframes (D1 down to H1) is bearish. While lower timeframes (M30/M15) have been in a bullish pullback, the most recent price action shows a clear reversal back in line with the HTF trend. This is confirmed by a high-confluence (10/10) H6 bearish SMC candidate (ID: ...b3289517) which formed at 06:00 UTC. This setup is a textbook SH+BMS+CHOCH+FVG+SWEEP+RTO, indicating a liquidity sweep above 5690.149, followed by a strong break of structure, with price now expected to return to the originating H6 Order Block at [5617.929, 5658.427]. The entry is planned within this zone, targeting multiple lower timeframe liquidity pools with a final target at the major D1 swing low of 5362.297, offering a favorable R:R of approximately 4.07:1. The setup grade is 'A' based on an 8/10 confluence score, making it a strong candidate for execution.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 4.07,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 5705.8118,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5362.297,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

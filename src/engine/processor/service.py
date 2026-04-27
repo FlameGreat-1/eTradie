@@ -243,10 +243,12 @@ class AnalysisProcessor(ProcessorPort):
 
             import re
             last_published_reasoning = ""
+            usage_dict = {}
             async for chunk in self._llm.stream_call(
                 system_prompt=system_prompt,
                 user_message=user_message,
                 trace_id=trace_id,
+                usage_out=usage_dict,
             ):
                 full_text += chunk
                 output_tokens += 1
@@ -298,8 +300,8 @@ class AnalysisProcessor(ProcessorPort):
                 text=full_text,
                 model=self._config.model_name,
                 provider=self._llm.PROVIDER,
-                input_tokens=0,  # Usage estimation varies by stream format
-                output_tokens=output_tokens,
+                input_tokens=usage_dict.get("input_tokens", 0),
+                output_tokens=usage_dict.get("output_tokens", output_tokens),
                 duration_ms=(time.monotonic() - start_llm) * 1000,
                 stop_reason="stop",
             )

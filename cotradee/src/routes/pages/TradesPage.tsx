@@ -1,13 +1,13 @@
-import { useManagedTrades } from '@/features/journal/api/journal';
+import { useManagedTrades, usePerformanceMetrics } from '@/features/journal/api/journal';
 import { useExecutionState, useCancelOrder } from '@/features/execution/api/brokerAccount';
-import { useAnalysisStats } from '@/features/analysis/api/analysis';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { X, Activity, Zap, TrendingUp, BarChart3 } from 'lucide-react';
 
 export default function TradesPage() {
   const { data: managed } = useManagedTrades();
   const { data: execState } = useExecutionState();
-  const { data: stats } = useAnalysisStats();
+  const { data: dailyMetrics } = usePerformanceMetrics('DAILY');
+  const { data: allTimeMetrics } = usePerformanceMetrics();
   const cancelOrder = useCancelOrder();
 
   const trades = managed ?? [];
@@ -30,15 +30,15 @@ export default function TradesPage() {
         <MetricCard
           icon={<TrendingUp size={18} />}
           label="Daily P&L"
-          value={execState ? formatCurrency(execState.daily_realized_pnl) : '---'}
+          value={dailyMetrics?.total_pnl != null ? formatCurrency(dailyMetrics.total_pnl) : '---'}
           valueClass={
-            execState && execState.daily_realized_pnl >= 0 ? 'text-success' : 'text-danger'
+            (dailyMetrics?.total_pnl ?? 0) >= 0 ? 'text-success' : 'text-danger'
           }
         />
         <MetricCard
           icon={<BarChart3 size={18} />}
           label="Win Rate"
-          value={stats?.win_rate != null ? formatPercentage(stats.win_rate) : '---'}
+          value={allTimeMetrics?.win_rate != null ? formatPercentage(allTimeMetrics.win_rate) : '---'}
         />
       </div>
 
@@ -103,14 +103,14 @@ export default function TradesPage() {
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-content-muted">No pending orders</td></tr>
               )}
               {pending.map((o: Record<string, unknown>) => (
-                <tr key={String(o.order_id ?? o.OrderID)} className="border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors">
-                  <td className="px-4 py-2.5 font-bold text-brand">{String(o.symbol ?? o.Symbol)}</td>
-                  <td className="px-4 py-2.5">{String(o.type ?? o.Type ?? '-')}</td>
-                  <td className="px-4 py-2.5 text-right">{formatCurrency(Number(o.price ?? o.Price ?? 0))}</td>
-                  <td className="px-4 py-2.5 text-right">{String(o.volume ?? o.Volume ?? '-')}</td>
+                <tr key={String(o.order_id)} className="border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors">
+                  <td className="px-4 py-2.5 font-bold text-brand">{String(o.symbol)}</td>
+                  <td className="px-4 py-2.5">{String(o.direction ?? '-')}</td>
+                  <td className="px-4 py-2.5 text-right">{formatCurrency(Number(o.price ?? 0))}</td>
+                  <td className="px-4 py-2.5 text-right">{String(o.volume ?? '-')}</td>
                   <td className="px-4 py-2.5 text-center">
                     <button
-                      onClick={() => cancelOrder.mutate({ order_id: String(o.order_id ?? o.OrderID) })}
+                      onClick={() => cancelOrder.mutate({ order_id: String(o.order_id) })}
                       disabled={cancelOrder.isPending}
                       className="inline-flex items-center gap-1 rounded bg-danger/10 text-danger px-2 py-1 text-[10px] font-medium
                                  hover:bg-danger/20 transition-colors disabled:opacity-50"

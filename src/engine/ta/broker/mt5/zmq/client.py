@@ -624,7 +624,7 @@ class ZmqClient(BrokerBase):
             order_id=int(raw.get("order_id", 0)),
             price=float(raw.get("price", price)),
             status=status,
-            error=raw.get("error", ""),
+            error=raw.get("error") or "",
         )
 
     async def cancel_order(self, order_id: str) -> bool:

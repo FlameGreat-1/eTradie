@@ -99,6 +99,9 @@ type COTPositionSignal struct {
 
 // ExtractMacroSignals extracts ALL RAG-relevant signals from the aggregated macro output.
 func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
+	if result == nil {
+		return &MacroSignals{}
+	}
 	cb := extractCentralBank(result.CentralBank)
 	cot := extractCOT(result.COT)
 	econ := extractEconomic(result.Economic)

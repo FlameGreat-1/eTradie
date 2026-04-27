@@ -122,6 +122,7 @@ class OpenAICompatibleClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        usage_out: Optional[dict] = None,
     ) -> __import__("typing").AsyncGenerator[str, None]:
         model = self._config.model_name
         
@@ -135,8 +136,12 @@ class OpenAICompatibleClient(LLMClient):
                     {"role": "user", "content": user_message},
                 ],
                 stream=True,
+                stream_options={"include_usage": True},
             )
             async for chunk in response:
+                if usage_out is not None and getattr(chunk, "usage", None):
+                    usage_out["input_tokens"] = chunk.usage.prompt_tokens
+                    usage_out["output_tokens"] = chunk.usage.completion_tokens
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as exc:

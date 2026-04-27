@@ -140,7 +140,7 @@ export default function DashboardPage() {
         // guards, so 0 means "don't render".
         stopLoss: pos.sl != null && !Number.isNaN(Number(pos.sl)) ? Number(pos.sl) : 0,
         takeProfit: pos.tp != null && !Number.isNaN(Number(pos.tp)) ? Number(pos.tp) : 0,
-        direction: pos.type === 0 ? 'BUY' : 'SELL',
+        direction: String(pos.direction ?? '').toUpperCase() === 'BUY' ? 'BUY' : 'SELL',
         profit: Number(pos.profit ?? 0),
       });
     }

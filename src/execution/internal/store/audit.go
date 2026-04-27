@@ -83,8 +83,8 @@ func (s *AuditStore) Write(ctx context.Context, e *AuditEntry) {
 		e.Symbol,
 		e.Direction,
 		e.OrderID,
-		e.AnalysisID,
-		e.TraceID,
+		truncate(e.AnalysisID, 64),
+		truncate(e.TraceID, 64),
 		e.ExecutionMode,
 		e.EntryPrice,
 		e.StopLoss,
@@ -130,4 +130,11 @@ func marshalDetails(details map[string]interface{}, log zerolog.Logger) []byte {
 		return []byte("{}")
 	}
 	return b
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen]
+	}
+	return s
 }

@@ -63,6 +63,7 @@ class LLMClient(abc.ABC):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        usage_out: Optional[dict] = None,
     ) -> __import__("typing").AsyncGenerator[str, None]:
         """Send a prompt and yield the raw text chunks as they arrive.
         

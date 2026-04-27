@@ -27,24 +27,27 @@ func NewMetrics(pool *pgxpool.Pool) *Metrics {
 }
 
 // PerformanceSummary holds aggregated performance data.
+//
+// JSON tags use snake_case to match the dashboard's field expectations.
+// Without tags, Go emits PascalCase and the dashboard reads undefined.
 type PerformanceSummary struct {
-	WinRate              float64
-	AvgRMultiple         float64
-	Expectancy           float64
-	TotalTrades          int
-	Wins                 int
-	Losses               int
-	Breakevens           int
-	TotalPnL             float64
-	MaxConsecutiveWins   int
-	MaxConsecutiveLosses int
-	MaxDrawdownPct       float64
-	BestTradeR           float64
-	WorstTradeR          float64
-	WinRateBySymbol      map[string]float64
-	WinRateByStyle       map[string]float64
-	WinRateBySetup       map[string]float64
-	WinRateBySession     map[string]float64
+	WinRate              float64            `json:"win_rate"`
+	AvgRMultiple         float64            `json:"avg_r_multiple"`
+	Expectancy           float64            `json:"expectancy"`
+	TotalTrades          int                `json:"total_trades"`
+	Wins                 int                `json:"wins"`
+	Losses               int                `json:"losses"`
+	Breakevens           int                `json:"breakevens"`
+	TotalPnL             float64            `json:"total_pnl"`
+	MaxConsecutiveWins   int                `json:"max_consecutive_wins"`
+	MaxConsecutiveLosses int                `json:"max_consecutive_losses"`
+	MaxDrawdownPct       float64            `json:"max_drawdown_pct"`
+	BestTradeR           float64            `json:"best_trade_r"`
+	WorstTradeR          float64            `json:"worst_trade_r"`
+	WinRateBySymbol      map[string]float64 `json:"win_rate_by_symbol"`
+	WinRateByStyle       map[string]float64 `json:"win_rate_by_style"`
+	WinRateBySetup       map[string]float64 `json:"win_rate_by_setup"`
+	WinRateBySession     map[string]float64 `json:"win_rate_by_session"`
 }
 
 // Calculate computes the full performance summary for a given user and period filter.

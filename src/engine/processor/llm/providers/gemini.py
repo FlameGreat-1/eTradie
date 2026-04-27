@@ -110,6 +110,7 @@ class GeminiClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        usage_out: Optional[dict] = None,
     ) -> __import__("typing").AsyncGenerator[str, None]:
         model = self._config.model_name
         
@@ -124,6 +125,9 @@ class GeminiClient(LLMClient):
                 ),
             )
             async for chunk in response_stream:
+                if usage_out is not None and chunk.usage_metadata:
+                    usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
+                    usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
                 if chunk.text:
                     yield chunk.text
         except Exception as exc:

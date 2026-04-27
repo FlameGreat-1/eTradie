@@ -34,12 +34,17 @@ func (a *Assembler) Assemble(
 	// Extract enriched macro signals for metadata.
 	macroSignals := querybuilder.ExtractMacroSignals(macroResult)
 
+	var availableDatasets []string
+	if macroResult != nil {
+		availableDatasets = macroResult.AvailableDatasets()
+	}
+
 	metadata := map[string]interface{}{
 		"symbol":                   symbol,
 		"htf_timeframes":           taResult.HTFTimeframes,
 		"ltf_timeframes":           taResult.LTFTimeframes,
 		"overall_trend":            taResult.OverallTrend,
-		"macro_datasets_available": macroResult.AvailableDatasets(),
+		"macro_datasets_available": availableDatasets,
 		"trace_id":                 traceID,
 	}
 
@@ -86,11 +91,16 @@ func (a *Assembler) Assemble(
 		Metadata:           metadata,
 	}
 
+	var macroDatasetsCount int
+	if macroResult != nil {
+		macroDatasetsCount = len(macroResult.AvailableDatasets())
+	}
+
 	a.log.Debug().
 		Str("symbol", symbol).
 		Int("ta_smc_count", len(taResult.SMCCandidates)).
 		Int("ta_snd_count", len(taResult.SnDCandidates)).
-		Int("macro_datasets", len(macroResult.AvailableDatasets())).
+		Int("macro_datasets", macroDatasetsCount).
 		Str("risk_environment", macroSignals.RiskEnvironment).
 		Bool("stagflation", macroSignals.StagflationDetected).
 		Str("dxy_momentum", macroSignals.DXYMomentum).
@@ -117,6 +127,9 @@ func buildTASection(ta *models.TASymbolResult) map[string]interface{} {
 }
 
 func buildMacroSection(macro *models.MacroResult) map[string]interface{} {
+	if macro == nil {
+		return map[string]interface{}{}
+	}
 	return map[string]interface{}{
 		"central_bank":       macro.CentralBank,
 		"cot":                macro.COT,

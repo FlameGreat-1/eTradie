@@ -1,0 +1,306 @@
+{
+  "analysis_id": "VOLATILITY 100 INDEX_CHOCH_BMS_RTO_BULLISH_BULLISH_709.745_50fdeec6",
+  "confidence": 0.85,
+  "confluence_score": 10,
+  "direction": "LONG",
+  "entry_price": 709.745,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Volatility 100 Index_20260426_0655_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.9,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.88,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.88,
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "Find high-confluence SMC/SnD setups for Volatility 100 Index, prioritizing pro-trend entries after a pullback.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral macro data is treated as aligned and non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "HTF (D1/W1) is bullish, and the setup is a LONG, representing a pro-trend entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M30/M15 have confirmed a bullish CHoCH and BMS, signaling a reversal in trade direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Exceptional quality: Entry is from a refined M15 Order Block nested inside a valid D1 Bullish Order Block.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The selected M15 candidate confirms a liquidity sweep occurred prior to the structural break, strengthening the setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available for this instrument, treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The pullback, sweep, and reversal align with a potential Spring or Secondary Test in a HTF accumulation phase.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Calculated R:R of 1:9.86 significantly exceeds the 1:3 minimum for the Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 10
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for this instrument.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        705.86,
+        713.63
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "VOLATILITY 100 INDEX_CHOCH_BMS_RTO_BULLISH_BULLISH_709.745_50fdeec6"
+    },
+    "entry_zone": {
+      "high": 713.63,
+      "low": 705.86
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability pro-trend long setup. The dominant trend on the Weekly and Daily timeframes is strongly bullish. The market has executed a bearish pullback on the H1-H6 timeframes, mitigating a key D1 bullish Order Block between 661.66 and 715.39. At this HTF point of interest, the lower timeframes (M15/M30) have confirmed a reversal with a high-confluence 'CHOCH+BMS+LIQUIDITY_SWEEP+RTO' pattern. The selected entry is based on the M15 bullish Order Block at [705.86, 713.63], which is nested within the D1 zone. The stop loss is structurally placed at 705.08, below the M15 OB low. Take profit levels target opposing H1 structural liquidity pools, offering an excellent R:R of over 1:9. The setup aligns perfectly with the strategy of entering on a confirmed LTF reversal at a HTF support level in a bullish market.",
+    "htf_bias": {
+      "key_levels": [
+        661.66,
+        715.39
+      ],
+      "notes": "The higher timeframes (W1, D1, H12, H8) are strongly bullish, confirmed by multiple timeframe alignment checks. Price is currently reacting within a key D1 bullish Order Block between 661.66 and 715.39, suggesting the dominant bullish order flow is likely to resume.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        705.86,
+        713.63
+      ],
+      "notes": "Mid-timeframes (H1-H6) have been in a bearish pullback. However, lower timeframes (M30, M15) are now showing a clear change of character (CHoCH) and break of market structure (BMS) to the upside. This indicates a potential reversal at a HTF point of interest, aligning with the overall bullish trend.",
+      "structure": "choch_bullish"
+    },
+    "pair": "Volatility 100 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.9,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": 9.86,
+    "session": "ASIAN",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 705.08,
+      "reason": "Placed below the low of the M15 Order Block that initiated the bullish Break of Market Structure."
+    },
+    "take_profits": [
+      {
+        "basis": "Base of opposing H1 Bearish Order Block.",
+        "level": 738.07,
+        "size_pct": 40
+      },
+      {
+        "basis": "Nearest significant H1 Swing High (Buy-Side Liquidity).",
+        "level": 746.82,
+        "size_pct": 30
+      },
+      {
+        "basis": "Next significant H1 Swing High (Buy-Side Liquidity).",
+        "level": 755.76,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-26T06:55:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "Wyckoff Theory | Phase identification, composite operator logic | 1W / 1D \u2014 directional context only",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability pro-trend long setup. The dominant trend on the Weekly and Daily timeframes is strongly bullish. The market has executed a bearish pullback on the H1-H6 timeframes, mitigating a key D1 bullish Order Block between 661.66 and 715.39. At this HTF point of interest, the lower timeframes (M15/M30) have confirmed a reversal with a high-confluence 'CHOCH+BMS+LIQUIDITY_SWEEP+RTO' pattern. The selected entry is based on the M15 bullish Order Block at [705.86, 713.63], which is nested within the D1 zone. The stop loss is structurally placed at 705.08, below the M15 OB low. Take profit levels target opposing H1 structural liquidity pools, offering an excellent R:R of over 1:9. The setup aligns perfectly with the strategy of entering on a confirmed LTF reversal at a HTF support level in a bullish market.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 9.86,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 705.08,
+  "symbol": "Volatility 100 Index",
+  "take_profit": 755.76,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

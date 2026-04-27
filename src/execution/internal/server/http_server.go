@@ -204,6 +204,15 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		equity = account.Equity
 	}
 
+	// Convert positions slice to a map keyed by symbol. The dashboard
+	// iterates open_positions with Object.entries() expecting
+	// {symbol: positionData} pairs. A flat array would produce
+	// ["0", data] entries whose keys never match the active symbol.
+	posMap := make(map[string]interface{}, len(positions))
+	for _, p := range positions {
+		posMap[p.Symbol] = p
+	}
+
 	resp := map[string]interface{}{
 		"open_position_count": len(positions),
 		"pending_order_count": len(pending),
@@ -211,7 +220,7 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		"weekly_realized_pnl": s.state.WeeklyPnL(userID),
 		"account_balance":     balance,
 		"account_equity":      equity,
-		"open_positions":      positions,
+		"open_positions":      posMap,
 		"pending_orders":      pending,
 	}
 

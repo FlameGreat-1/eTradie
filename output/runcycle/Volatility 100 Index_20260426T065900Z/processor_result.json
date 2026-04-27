@@ -1,0 +1,317 @@
+{
+  "analysis_id": "D1_OB_661.66_715.39",
+  "confidence": 0.85,
+  "confluence_score": 10,
+  "direction": "LONG",
+  "entry_price": 712.605,
+  "execution_mode": "INSTANT",
+  "grade": "A+",
+  "ltf_confirmed": true,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Volatility_100_Index_20260426_0655_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.94,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.9,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.87,
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.94,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.91,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.85,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          }
+        ],
+        "query_summary": "Analyze Volatility 100 Index for a pro-trend reversal setup at a HTF POI after a pullback.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "No conflicting macro data provided; treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Trade direction is LONG, aligning with the D1/W1 bullish trend. This is a pro-trend entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF/LTF BOS or ChoCH confirmed",
+          "notes": "M1 has a confirmed bullish CHoCH at 716.7, providing LTF entry confirmation.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is inside a high-quality, unmitigated D1 Bullish Order Block [661.66, 715.39]. Exceptional quality warrants a score of 2.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The selected M1 candidate (ID ...5b968559) confirms an SSL sweep occurred just before the bullish structural shift.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available; treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The sweep below recent lows into the D1 demand zone, followed by a sharp reversal, is characteristic of a Wyckoff Spring.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events were provided in the data.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The potential R:R to TP3 is approximately 34:1, far exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 10
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for this instrument.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        661.66,
+        715.39
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "D1_OB_661.66_715.39"
+    },
+    "entry_zone": {
+      "high": 713.87,
+      "low": 711.34
+    },
+    "event_risk": [],
+    "execution_mode": "INSTANT",
+    "explainable_reasoning": "The overall market structure is strongly bullish on the HTF (W1/D1). A counter-trend bearish pullback on the MTF (H4/H1) has driven price into a key unmitigated D1 Bullish Order Block between 661.66 and 715.39. The most recent price action shows a high-confidence reversal pattern at this HTF POI. Specifically, the M1 timeframe has printed a bullish Change of Character (CHoCH) at 716.7, followed by a Break of Market Structure (BMS). The selected entry is based on a high-confluence M1 candidate (ID: ...5b968559, Confluence: 10/10) which is a HTF_CHOCH+LTF_BMS+SSL_SWEEP+RTO pattern. This indicates that the LTF is now aligning with the dominant HTF bullish trend. The entry is taken from the M1 Order Block [711.34, 713.87] created during this reversal. Since the LTF confirmation has already occurred within the HTF POI, an instant execution is warranted. The setup has an exceptional R:R ratio targeting the liquidity resting above the MTF pullback swing highs.",
+    "htf_bias": {
+      "key_levels": [
+        661.66,
+        715.39
+      ],
+      "notes": "W1 and D1 timeframes are strongly bullish, with a confirmed bullish BMS on D1 at 775.47. Price is currently mitigating a major unmitigated D1 Bullish Order Block at [661.66, 715.39].",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": true,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        716.7
+      ],
+      "notes": "H6 down to H1 exhibited a clear bearish pullback structure, driving price into the HTF D1 demand zone. The most recent price action on M1 shows a bullish Change of Character (CHoCH) at 716.7, signaling a potential reversal to align with the HTF bullish trend.",
+      "structure": "choch_bullish"
+    },
+    "pair": "Volatility 100 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.94,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.91,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 34.14,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 711,
+      "reason": "Placed below the M1 bullish Order Block and the structural low that preceded the bullish CHoCH."
+    },
+    "take_profits": [
+      {
+        "basis": "Targets the M15 swing high and recent structural break level.",
+        "level": 728.82,
+        "size_pct": 40
+      },
+      {
+        "basis": "Targets the H1 swing high, a key liquidity pool from the bearish pullback.",
+        "level": 746.82,
+        "size_pct": 30
+      },
+      {
+        "basis": "Targets a more significant H1 swing high, representing a major draw on liquidity.",
+        "level": 767.23,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-26T06:55:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "Wyckoff Theory | Phase identification, composite operator logic | 1W / 1D \u2014 directional context only",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "spring"
+    }
+  },
+  "reasoning": "The overall market structure is strongly bullish on the HTF (W1/D1). A counter-trend bearish pullback on the MTF (H4/H1) has driven price into a key unmitigated D1 Bullish Order Block between 661.66 and 715.39. The most recent price action shows a high-confidence reversal pattern at this HTF POI. Specifically, the M1 timeframe has printed a bullish Change of Character (CHoCH) at 716.7, followed by a Break of Market Structure (BMS). The selected entry is based on a high-confluence M1 candidate (ID: ...5b968559, Confluence: 10/10) which is a HTF_CHOCH+LTF_BMS+SSL_SWEEP+RTO pattern. This indicates that the LTF is now aligning with the dominant HTF bullish trend. The entry is taken from the M1 Order Block [711.34, 713.87] created during this reversal. Since the LTF confirmation has already occurred within the HTF POI, an instant execution is warranted. The setup has an exceptional R:R ratio targeting the liquidity resting above the MTF pullback swing highs.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 34.14,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 711,
+  "symbol": "Volatility 100 Index",
+  "take_profit": 767.23,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

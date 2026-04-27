@@ -1,0 +1,313 @@
+{
+  "analysis_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5638.178_b3289517",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "SHORT",
+  "entry_price": 5638.178,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Crash_1000_Index_20260426_0643_a8b3",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.89,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.87,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.91,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.89,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.86,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.85,
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "High-confluence bearish SMC setup on Crash 1000 Index, aligning with HTF trend after an LTF pullback.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data not provided, treated as neutral/aligned per rules.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Exceptional alignment. D1, H12, H8, H6, H4, H1 are all confirmed bearish.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H6 candidate confirms both BMS and CHoCH bearishly. D1 also has a fresh BMS on the analysis day.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "High-quality H6 Order Block is perfectly nested within a larger unmitigated D1 Order Block.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "Clear Stop Hunt (SH) swept Buy-Side Liquidity (BSL) at 5690.149 before the structural break.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data not available for this instrument.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The liquidity sweep and subsequent break of structure is characteristic of an Upthrust After Distribution (UTAD), initiating a Markdown phase.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events were provided in the data.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Calculated R:R to final TP is ~4.15, which exceeds the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for this instrument.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5617.929,
+        5658.427
+      ],
+      "evidence": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "content_preview": "Valid Grade A or B SnD zone on 4H or above | MANDATORY | High |\n| 5 | 4H Order Block or FVG at entry zone | MANDATORY | High |",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": null,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5638.178_b3289517"
+    },
+    "entry_zone": {
+      "high": 5658.427,
+      "low": 5617.929
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short opportunity on Crash 1000 Index, aligning with a strong, multi-timeframe bearish trend. The dominant structure from the Daily down to the H1 is bearish, with a fresh D1 BMS at 5511.148 today confirming institutional selling pressure. A recent LTF pullback has driven price into a premium supply area, where a high-confluence H6 SMC pattern (ID: b3289517) has formed at 2026-04-26 06:00Z. This SH+BMS+CHOCH+FVG+RTO setup originated from a liquidity sweep above the 5690.149 high, followed by a strong displacement downwards. The proposed entry is a return to the H6 Order Block between 5617.929 and 5658.427, which is nested within a larger, unmitigated D1 Order Block, adding significant conviction. The setup is further validated by a concurrent H3 QML+SR_FLIP+FAKEOUT+MARUBOZU pattern. With a confluence score of 9/10, this A+ grade setup offers a favorable R:R of 4.15 to the final target at the D1 swing low of 5357.275. A limit order is appropriate to await the return to the H6 OB.",
+    "htf_bias": {
+      "key_levels": [
+        5555.013,
+        5690.149
+      ],
+      "notes": "The higher timeframe structure is strongly bearish, with timeframes from D1 down to H1 showing aligned bearish trends. The D1 snapshot confirms a fresh Break of Market Structure (BMS) to the downside at 5511.148 on the day of analysis (2026-04-26), reinforcing the institutional order flow downwards.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        5617.929,
+        5658.427
+      ],
+      "notes": "Medium timeframes (H6, H4, H1) are aligned with the HTF bearish trend. A recent counter-trend pullback on LTFs (M30, M15) has pushed price into a premium area, mitigating an H6 supply zone. The formation of a high-quality H6 bearish SMC candidate suggests this pullback has culminated and price is ready to resume the HTF bearish trend.",
+      "structure": "bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.91,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.89,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      }
+    ],
+    "rr_ratio": 4.15,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5705.8117,
+      "reason": "Placed above the H6 swing high at 5690.149 that performed the liquidity sweep, providing structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "Recent structural low on the D1 timeframe, first area of potential support.",
+        "level": 5555.013,
+        "size_pct": 40
+      },
+      {
+        "basis": "Significant swing low on the H1 timeframe, a clear liquidity pool.",
+        "level": 5499.89,
+        "size_pct": 30
+      },
+      {
+        "basis": "Major D1 swing low, representing the primary draw on liquidity for the HTF bearish leg.",
+        "level": 5357.275,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-26T06:43:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short opportunity on Crash 1000 Index, aligning with a strong, multi-timeframe bearish trend. The dominant structure from the Daily down to the H1 is bearish, with a fresh D1 BMS at 5511.148 today confirming institutional selling pressure. A recent LTF pullback has driven price into a premium supply area, where a high-confluence H6 SMC pattern (ID: b3289517) has formed at 2026-04-26 06:00Z. This SH+BMS+CHOCH+FVG+RTO setup originated from a liquidity sweep above the 5690.149 high, followed by a strong displacement downwards. The proposed entry is a return to the H6 Order Block between 5617.929 and 5658.427, which is nested within a larger, unmitigated D1 Order Block, adding significant conviction. The setup is further validated by a concurrent H3 QML+SR_FLIP+FAKEOUT+MARUBOZU pattern. With a confluence score of 9/10, this A+ grade setup offers a favorable R:R of 4.15 to the final target at the D1 swing low of 5357.275. A limit order is appropriate to await the return to the H6 OB.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 4.15,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 5705.8117,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5357.275,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

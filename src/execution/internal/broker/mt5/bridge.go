@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -161,7 +162,7 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 		TickSize     float64 `json:"trade_tick_size"`  // SYMBOL_TRADE_TICK_SIZE: smallest price change.
 	}
 
-	if err := b.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", symbol), &resp); err != nil {
+	if err := b.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", url.QueryEscape(symbol)), &resp); err != nil {
 		return nil, fmt.Errorf("get instrument info for %s: %w", symbol, err)
 	}
 
@@ -290,7 +291,7 @@ func (b *Bridge) GetTickPrice(ctx context.Context, symbol string) (*models.TickP
 		Time int64   `json:"time"`
 	}
 
-	if err := b.get(ctx, fmt.Sprintf("/internal/broker/tick_price?symbol=%s", symbol), &resp); err != nil {
+	if err := b.get(ctx, fmt.Sprintf("/internal/broker/tick_price?symbol=%s", url.QueryEscape(symbol)), &resp); err != nil {
 		return nil, fmt.Errorf("get tick price for %s: %w", symbol, err)
 	}
 
