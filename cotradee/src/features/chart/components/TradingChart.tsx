@@ -17,6 +17,7 @@ import {
   CrosshairMode,
   LineStyle,
 } from 'lightweight-charts';
+import { AlertTriangle } from 'lucide-react';
 import { useChartCandles } from '@/features/chart/api/chartData';
 import { useTickStream, type TickData } from '@/features/chart/hooks/useTickStream';
 import { formatCurrency } from '@/utils/formatters';
@@ -89,11 +90,6 @@ function toLibColor(value: string): string {
   return v;
 }
 
-/**
- * Read the chart palette off the document root. Re-resolved on every
- * theme change so colours track the active token set, normalised
- * through `toLibColor` so lightweight-charts can parse them.
- */
 function readThemeColors() {
   const styles = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) =>
@@ -142,105 +138,117 @@ function TradingChartInner({
   const latestCandleRef = useRef<CandlestickData | null>(null);
   const lastDataKeyRef = useRef<string>('');
   const [latestPrice, setLatestPrice] = useState<number | null>(null);
-
-  // Local theme key bumped by the MutationObserver below whenever the
-  // .dark / .light class on <html> actually changes. Driving the level
-  // redraw effect off this key (in addition to symbol/levels) means
-  // theme changes also re-paint price-line colours instantly.
+  const [chartFailed, setChartFailed] = useState(false);
   const [themeTick, setThemeTick] = useState(0);
 
   const { data: candleData, isFetching } = useChartCandles(symbol, timeframe);
 
-  /* ── Apply the live theme palette to the chart. Idempotent. ─────────── */
   const applyPalette = useCallback(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series) return;
     const colors = readThemeColors();
-    chart.applyOptions({
-      layout: {
-        background: { type: ColorType.Solid, color: colors.background },
-        textColor: colors.textColor,
-      },
-      grid: {
-        vertLines: { color: colors.gridColor },
-        horzLines: { color: colors.gridColor },
-      },
-      crosshair: {
-        vertLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
-        horzLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
-      },
-      rightPriceScale: { borderColor: colors.borderColor },
-      timeScale: { borderColor: colors.borderColor },
-    });
-    series.applyOptions({
-      upColor: colors.upColor,
-      downColor: colors.downColor,
-      wickUpColor: colors.upColor,
-      wickDownColor: colors.downColor,
-    });
+    try {
+      chart.applyOptions({
+        layout: {
+          background: { type: ColorType.Solid, color: colors.background },
+          textColor: colors.textColor,
+        },
+        grid: {
+          vertLines: { color: colors.gridColor },
+          horzLines: { color: colors.gridColor },
+        },
+        crosshair: {
+          vertLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
+          horzLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
+        },
+        rightPriceScale: { borderColor: colors.borderColor },
+        timeScale: { borderColor: colors.borderColor },
+      });
+      series.applyOptions({
+        upColor: colors.upColor,
+        downColor: colors.downColor,
+        wickUpColor: colors.upColor,
+        wickDownColor: colors.downColor,
+      });
+    } catch {
+      /* ignore palette apply errors — chart stays on previous theme */
+    }
   }, []);
 
-  /* ── 1. Create chart once. ─────────────────────────────────────────── */
+  /* 1. Create chart once. Wrapped in try/catch so a library crash on
+        a hostile browser (e.g. iOS WebView with no userAgentData)
+        cannot tear down the whole app. */
   useEffect(() => {
     if (!containerRef.current) return;
-    const colors = readThemeColors();
 
-    const chart = createChart(containerRef.current, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: colors.background },
-        textColor: colors.textColor,
-        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-        fontSize: 11,
-      },
-      grid: {
-        vertLines: { color: colors.gridColor },
-        horzLines: { color: colors.gridColor },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: {
-          color: colors.crosshair,
-          width: 1,
-          style: LineStyle.Dashed,
-          labelBackgroundColor: colors.tooltipBg,
-        },
-        horzLine: {
-          color: colors.crosshair,
-          width: 1,
-          style: LineStyle.Dashed,
-          labelBackgroundColor: colors.tooltipBg,
-        },
-      },
-      rightPriceScale: {
-        borderColor: colors.borderColor,
-        scaleMargins: { top: 0.08, bottom: 0.08 },
-      },
-      timeScale: {
-        borderColor: colors.borderColor,
-        timeVisible: true,
-        secondsVisible: false,
-        rightOffset: 12,
-        barSpacing: 8,
-        minBarSpacing: 1,
-      },
-      handleScroll: { vertTouchDrag: false },
-    });
+    let chart: IChartApi | null = null;
+    let series: ISeriesApi<'Candlestick'> | null = null;
 
-    const series = chart.addCandlestickSeries({
-      upColor: colors.upColor,
-      downColor: colors.downColor,
-      borderVisible: false,
-      wickUpColor: colors.upColor,
-      wickDownColor: colors.downColor,
-    });
+    try {
+      const colors = readThemeColors();
+      chart = createChart(containerRef.current, {
+        autoSize: true,
+        layout: {
+          background: { type: ColorType.Solid, color: colors.background },
+          textColor: colors.textColor,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+          fontSize: 11,
+        },
+        grid: {
+          vertLines: { color: colors.gridColor },
+          horzLines: { color: colors.gridColor },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: {
+            color: colors.crosshair,
+            width: 1,
+            style: LineStyle.Dashed,
+            labelBackgroundColor: colors.tooltipBg,
+          },
+          horzLine: {
+            color: colors.crosshair,
+            width: 1,
+            style: LineStyle.Dashed,
+            labelBackgroundColor: colors.tooltipBg,
+          },
+        },
+        rightPriceScale: {
+          borderColor: colors.borderColor,
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+        },
+        timeScale: {
+          borderColor: colors.borderColor,
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 12,
+          barSpacing: 8,
+          minBarSpacing: 1,
+        },
+        handleScroll: { vertTouchDrag: false },
+      });
+
+      series = chart.addCandlestickSeries({
+        upColor: colors.upColor,
+        downColor: colors.downColor,
+        borderVisible: false,
+        wickUpColor: colors.upColor,
+        wickDownColor: colors.downColor,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Chart construction failed:', err);
+      try { chart?.remove(); } catch { /* noop */ }
+      setChartFailed(true);
+      return;
+    }
 
     chartRef.current = chart;
     seriesRef.current = series;
 
     return () => {
-      chart.remove();
+      try { chart?.remove(); } catch { /* noop */ }
       chartRef.current = null;
       seriesRef.current = null;
       linesRef.current = [];
@@ -249,24 +257,15 @@ function TradingChartInner({
     };
   }, []);
 
-  /* ── 2. Track the .dark / .light class on <html> via MutationObserver.
-     This runs AFTER the DOM mutation has been applied, so subsequent
-     getComputedStyle calls see the new palette — unlike a useEffect
-     keyed on a sibling provider's state, which has no guaranteed order
-     w.r.t. the provider that flips the class. ──────────────────────── */
+  /* 2. MutationObserver → instant theme repaint. */
   useEffect(() => {
     const root = document.documentElement;
     let lastClass = root.className;
     const observer = new MutationObserver(() => {
       if (root.className === lastClass) return;
       lastClass = root.className;
-      // Re-read the palette and re-paint the chart in the next frame.
-      // requestAnimationFrame guarantees the new tokens have been laid
-      // out by the browser before getComputedStyle reads them.
       requestAnimationFrame(() => {
         applyPalette();
-        // Bump the local tick so the level-redraw effect reruns and
-        // recolours every active price line as well.
         setThemeTick((t) => t + 1);
       });
     });
@@ -274,7 +273,7 @@ function TradingChartInner({
     return () => observer.disconnect();
   }, [applyPalette]);
 
-  /* ── 3. Load historical candles. ──────────────────────────────────── */
+  /* 3. Load historical candles. */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
     if (!candleData?.candles) return;
@@ -314,7 +313,7 @@ function TradingChartInner({
     }
   }, [candleData, symbol, timeframe]);
 
-  /* ── 4. Live tick stream -> last candle update. ──────────────────────── */
+  /* 4. Live tick stream. */
   const handleTick = useCallback(
     (tick: TickData) => {
       if (!seriesRef.current) return;
@@ -354,7 +353,11 @@ function TradingChartInner({
       }
 
       latestCandleRef.current = updated;
-      seriesRef.current.update(updated);
+      try {
+        seriesRef.current.update(updated);
+      } catch {
+        /* ignore one bad frame */
+      }
       setLatestPrice(price);
     },
     [symbol, timeframe],
@@ -362,8 +365,7 @@ function TradingChartInner({
 
   useTickStream({ symbol, onTick: handleTick });
 
-  /* ── 5. Single canonical "redraw all lines" pass. Reruns on theme
-     change so price-line colours track the palette too. ──────────── */
+  /* 5. Single canonical "redraw all lines" pass. */
   useEffect(() => {
     if (!seriesRef.current) return;
     const series = seriesRef.current;
@@ -379,83 +381,41 @@ function TradingChartInner({
       axisLabelTextColor: colors.axisLabelText,
     };
 
-    if (levels && (!activeTrades || activeTrades.length === 0)) {
-      if (Number.isFinite(levels.entry)) {
-        linesRef.current.push(
-          series.createPriceLine({
-            price: levels.entry as number,
-            color: colors.info,
-            lineWidth: 2,
-            lineStyle: LineStyle.Solid,
-            axisLabelVisible: true,
-            ...labelStyle,
-            title: 'Entry',
-          }),
-        );
-      }
-      if (Number.isFinite(levels.stopLoss)) {
-        linesRef.current.push(
-          series.createPriceLine({
-            price: levels.stopLoss as number,
-            color: colors.danger,
-            lineWidth: 2,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            ...labelStyle,
-            title: 'SL',
-          }),
-        );
-      }
-      if (Number.isFinite(levels.takeProfit)) {
-        linesRef.current.push(
-          series.createPriceLine({
-            price: levels.takeProfit as number,
-            color: colors.success,
-            lineWidth: 2,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            ...labelStyle,
-            title: 'TP',
-          }),
-        );
-      }
-    }
-
-    if (activeTrades && activeTrades.length > 0) {
-      for (const trade of activeTrades) {
-        if (trade.symbol !== symbol) continue;
-        const tone = directionTone(trade.direction);
-        linesRef.current.push(
-          series.createPriceLine({
-            price: trade.entryPrice,
-            color: tone === 'BUY' ? colors.success : colors.danger,
-            lineWidth: 2,
-            lineStyle: LineStyle.Solid,
-            axisLabelVisible: true,
-            ...labelStyle,
-            title: `${tone} · Entry`,
-          }),
-        );
-        if (trade.stopLoss > 0) {
+    try {
+      if (levels && (!activeTrades || activeTrades.length === 0)) {
+        if (Number.isFinite(levels.entry)) {
           linesRef.current.push(
             series.createPriceLine({
-              price: trade.stopLoss,
+              price: levels.entry as number,
+              color: colors.info,
+              lineWidth: 2,
+              lineStyle: LineStyle.Solid,
+              axisLabelVisible: true,
+              ...labelStyle,
+              title: 'Entry',
+            }),
+          );
+        }
+        if (Number.isFinite(levels.stopLoss)) {
+          linesRef.current.push(
+            series.createPriceLine({
+              price: levels.stopLoss as number,
               color: colors.danger,
-              lineWidth: 1,
-              lineStyle: LineStyle.Dotted,
+              lineWidth: 2,
+              lineStyle: LineStyle.Dashed,
               axisLabelVisible: true,
               ...labelStyle,
               title: 'SL',
             }),
           );
         }
-        if (trade.takeProfit > 0) {
+        if (Number.isFinite(levels.takeProfit)) {
           linesRef.current.push(
             series.createPriceLine({
-              price: trade.takeProfit,
+              price: levels.takeProfit as number,
               color: colors.success,
-              lineWidth: 1,
-              lineStyle: LineStyle.Dotted,
+              lineWidth: 2,
+              lineStyle: LineStyle.Dashed,
               axisLabelVisible: true,
               ...labelStyle,
               title: 'TP',
@@ -463,10 +423,56 @@ function TradingChartInner({
           );
         }
       }
+
+      if (activeTrades && activeTrades.length > 0) {
+        for (const trade of activeTrades) {
+          if (trade.symbol !== symbol) continue;
+          const tone = directionTone(trade.direction);
+          linesRef.current.push(
+            series.createPriceLine({
+              price: trade.entryPrice,
+              color: tone === 'BUY' ? colors.success : colors.danger,
+              lineWidth: 2,
+              lineStyle: LineStyle.Solid,
+              axisLabelVisible: true,
+              ...labelStyle,
+              title: `${tone} · Entry`,
+            }),
+          );
+          if (trade.stopLoss > 0) {
+            linesRef.current.push(
+              series.createPriceLine({
+                price: trade.stopLoss,
+                color: colors.danger,
+                lineWidth: 1,
+                lineStyle: LineStyle.Dotted,
+                axisLabelVisible: true,
+                ...labelStyle,
+                title: 'SL',
+              }),
+            );
+          }
+          if (trade.takeProfit > 0) {
+            linesRef.current.push(
+              series.createPriceLine({
+                price: trade.takeProfit,
+                color: colors.success,
+                lineWidth: 1,
+                lineStyle: LineStyle.Dotted,
+                axisLabelVisible: true,
+                ...labelStyle,
+                title: 'TP',
+              }),
+            );
+          }
+        }
+      }
+    } catch {
+      /* never let a price-line draw call crash the page */
     }
   }, [levels, activeTrades, symbol, themeTick]);
 
-  /* ── 6. Live P&L overlay state. ─────────────────────────────────────── */
+  /* 6. Live P&L overlay state. */
   const overlay = useMemo(() => {
     const trade = activeTrades?.find((t) => t.symbol === symbol);
     if (!trade) return null;
@@ -479,7 +485,26 @@ function TradingChartInner({
     return { tone, price, pipsToTp, pipsToSl, profit: trade.profit };
   }, [activeTrades, symbol, latestPrice]);
 
-  /* ── 7. Render. ─────────────────────────────────────────────────────── */
+  /* 7. Render. */
+  if (chartFailed) {
+    return (
+      <div className="relative w-full h-full bg-[var(--chart-bg)] flex items-center justify-center px-6">
+        <div className="max-w-sm text-center flex flex-col items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-warning-soft text-warning">
+            <AlertTriangle size={18} />
+          </div>
+          <h3 className="text-sm font-bold text-content">Chart unavailable</h3>
+          <p className="text-xs text-content-muted">
+            Your browser doesn&apos;t support the chart engine. The rest of the
+            dashboard — trades, journal, account stats — keeps working
+            normally. Use a recent Chrome, Edge, Safari, or Firefox to enable
+            charting.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-full bg-[var(--chart-bg)]">
       <div
