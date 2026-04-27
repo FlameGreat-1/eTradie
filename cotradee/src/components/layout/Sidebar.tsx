@@ -6,6 +6,7 @@ import {
   CandlestickChart,
   BookText,
   Settings as SettingsIcon,
+  LifeBuoy,
   type LucideIcon,
 } from 'lucide-react';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
@@ -16,12 +17,16 @@ interface NavItem {
   label: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const PRIMARY_NAV: NavItem[] = [
   { path: '/',         Icon: LayoutDashboard,    label: 'Dashboard' },
   { path: '/analysis', Icon: LineChart,          label: 'Analysis' },
   { path: '/trades',   Icon: CandlestickChart,   label: 'Active Trades' },
   { path: '/journal',  Icon: BookText,           label: 'Journal' },
+];
+
+const FOOTER_NAV: NavItem[] = [
   { path: '/settings', Icon: SettingsIcon,       label: 'Settings' },
+  { path: '/support',  Icon: LifeBuoy,           label: 'Support' },
 ];
 
 interface SidebarProps {
@@ -132,31 +137,64 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
               <span className="text-sm font-bold tracking-wide text-content">eTradie</span>
             </div>
             <nav className="flex-1 flex flex-col py-2">
-              {NAV_ITEMS.map(({ path, Icon, label }) => {
-                const active = isActive(path);
-                return (
-                  <button
-                    key={path}
-                    onClick={() => handleNavigate(path)}
-                    aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                                transition-colors duration-fast border-l-2
-                                ${
-                                  active
-                                    ? 'border-l-brand bg-brand-soft text-brand'
-                                    : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
-                                }`}
-                  >
-                    <Icon size={18} />
-                    {label}
-                  </button>
-                );
-              })}
+              {PRIMARY_NAV.map(({ path, Icon, label }) => (
+                <DrawerNavButton
+                  key={path}
+                  path={path}
+                  Icon={Icon}
+                  label={label}
+                  active={isActive(path)}
+                  onNavigate={handleNavigate}
+                />
+              ))}
             </nav>
+            <div className="border-t border-border py-2">
+              {FOOTER_NAV.map(({ path, Icon, label }) => (
+                <DrawerNavButton
+                  key={path}
+                  path={path}
+                  Icon={Icon}
+                  label={label}
+                  active={isActive(path)}
+                  onNavigate={handleNavigate}
+                />
+              ))}
+            </div>
           </aside>
         </>
       )}
     </>
+  );
+}
+
+function DrawerNavButton({
+  path,
+  Icon,
+  label,
+  active,
+  onNavigate,
+}: {
+  path: string;
+  Icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onNavigate: (p: string) => void;
+}) {
+  return (
+    <button
+      onClick={() => onNavigate(path)}
+      aria-current={active ? 'page' : undefined}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                  transition-colors duration-fast border-l-2
+                  ${
+                    active
+                      ? 'border-l-brand bg-brand-soft text-brand'
+                      : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
+                  }`}
+    >
+      <Icon size={18} />
+      {label}
+    </button>
   );
 }
 
@@ -187,47 +225,87 @@ function RailContents({
         />
       </button>
 
-      <nav className="flex flex-col" aria-label="Primary">
-        {NAV_ITEMS.map(({ path, Icon, label }) => {
-          const active = isActive(path);
-          return (
-            <button
-              key={path}
-              onClick={() => onNavigate(path)}
-              onMouseEnter={(e) => onHover(label, e)}
-              onMouseLeave={onLeave}
-              aria-label={label}
-              aria-current={active ? 'page' : undefined}
-              className={`relative flex items-center justify-center w-full h-12 mb-1
-                          transition-colors duration-fast cursor-pointer border-none bg-transparent focus-ring
-                          ${
-                            active
-                              ? 'text-brand'
-                              : 'text-content-secondary hover:text-content'
-                          }`}
-            >
-              {active && (
-                <>
-                  <span
-                    className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full"
-                    aria-hidden
-                  />
-                  <span
-                    className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
-                    aria-hidden
-                  />
-                </>
-              )}
-              <Icon
-                size={18}
-                strokeWidth={active ? 2.25 : 2}
-                className="relative z-[1]"
-              />
-            </button>
-          );
-        })}
+      {/* Primary navigation — fills available vertical space. */}
+      <nav className="flex flex-col flex-1" aria-label="Primary">
+        {PRIMARY_NAV.map((item) => (
+          <NavRailButton
+            key={item.path}
+            item={item}
+            active={isActive(item.path)}
+            onNavigate={onNavigate}
+            onHover={onHover}
+            onLeave={onLeave}
+          />
+        ))}
       </nav>
+
+      {/* Footer navigation — anchored to the bottom of the rail. */}
+      <div
+        className="flex flex-col pt-2 pb-2 border-t border-border"
+        aria-label="Account"
+      >
+        {FOOTER_NAV.map((item) => (
+          <NavRailButton
+            key={item.path}
+            item={item}
+            active={isActive(item.path)}
+            onNavigate={onNavigate}
+            onHover={onHover}
+            onLeave={onLeave}
+          />
+        ))}
+      </div>
     </>
+  );
+}
+
+function NavRailButton({
+  item,
+  active,
+  onNavigate,
+  onHover,
+  onLeave,
+}: {
+  item: NavItem;
+  active: boolean;
+  onNavigate: (p: string) => void;
+  onHover: (label: string, e: React.MouseEvent) => void;
+  onLeave: () => void;
+}) {
+  const { path, Icon, label } = item;
+  return (
+    <button
+      onClick={() => onNavigate(path)}
+      onMouseEnter={(e) => onHover(label, e)}
+      onMouseLeave={onLeave}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      className={`relative flex items-center justify-center w-full h-12 mb-1
+                  transition-colors duration-fast cursor-pointer border-none bg-transparent focus-ring
+                  ${
+                    active
+                      ? 'text-brand'
+                      : 'text-content-secondary hover:text-content'
+                  }`}
+    >
+      {active && (
+        <>
+          <span
+            className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full"
+            aria-hidden
+          />
+          <span
+            className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
+            aria-hidden
+          />
+        </>
+      )}
+      <Icon
+        size={18}
+        strokeWidth={active ? 2.25 : 2}
+        className="relative z-[1]"
+      />
+    </button>
   );
 }
 
