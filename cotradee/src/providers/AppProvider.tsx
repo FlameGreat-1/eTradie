@@ -2,9 +2,23 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { queryClient } from '@/config/queryClient';
 import { AuthProvider } from '@/features/auth';
+import { RealtimeProvider } from '@/features/realtime';
 import { ThemeProvider } from './ThemeProvider';
 import type { ReactNode } from 'react';
 
+/**
+ * Application-level provider stack.
+ *
+ * Order matters:
+ *  1. BrowserRouter   → routing primitives
+ *  2. QueryClient     → server-state cache (must wrap Realtime so it
+ *                       can call invalidateQueries)
+ *  3. ThemeProvider   → token + class binding on <html>
+ *  4. AuthProvider    → session state (must wrap Realtime so the
+ *                       socket only opens when authenticated)
+ *  5. RealtimeProvider→ single WS that drives instant invalidations
+ *                       across all panels.
+ */
 export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <BrowserRouter
@@ -16,7 +30,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <RealtimeProvider>{children}</RealtimeProvider>
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
