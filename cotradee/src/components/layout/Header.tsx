@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -33,6 +34,40 @@ interface HeaderProps {
   onMenuClick?: () => void;
 }
 
+function StatGroup({
+  account,
+  time,
+  fmtTime,
+  tzOffset,
+  withDividers = true,
+}: {
+  account: any;
+  time: Date;
+  fmtTime: (d: Date) => string;
+  tzOffset: () => string;
+  withDividers?: boolean;
+}) {
+  return (
+    <>
+      <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
+      {withDividers && <Divider />}
+      <StatItem label="Equity" value={account ? formatCurrency(account.equity) : '---'} />
+      {withDividers && <Divider />}
+      <StatItem label="Margin" value={account ? formatCurrency(account.margin) : '---'} />
+      {withDividers && <Divider />}
+      <StatItem label="Free" value={account ? formatCurrency(account.margin_free) : '---'} />
+      {withDividers && <Divider />}
+      <StatItem
+        label="M. Level"
+        value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
+        valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
+      />
+      {withDividers && <Divider />}
+      <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
+    </>
+  );
+}
+
 function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -47,7 +82,23 @@ function Header({ onMenuClick }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showStatsDrawer, setShowStatsDrawer] = useState(false);
   const [isSymbolModalOpen, setIsSymbolModalOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [userMenuCoords, setUserMenuCoords] = useState({ top: 0, right: 0 });
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const desktopMenuRef = useRef<HTMLDivElement>(null);
+
+  const toggleUserMenu = () => {
+    if (!showUserMenu) {
+      const activeRef = window.innerWidth < 768 ? mobileMenuRef : desktopMenuRef;
+      if (activeRef.current) {
+        const rect = activeRef.current.getBoundingClientRect();
+        setUserMenuCoords({
+          top: rect.bottom + window.scrollY,
+          right: window.innerWidth - rect.right - window.scrollX,
+        });
+      }
+    }
+    setShowUserMenu(!showUserMenu);
+  };
 
   const onDashboard = location.pathname === '/';
   const [persistedSymbol, setPersistedSymbol] = useState(
@@ -105,7 +156,8 @@ function Header({ onMenuClick }: HeaderProps) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const activeRef = window.innerWidth < 768 ? mobileMenuRef : desktopMenuRef;
+      if (activeRef.current && !activeRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
       }
     };
@@ -150,7 +202,7 @@ function Header({ onMenuClick }: HeaderProps) {
 
       <div className="relative w-full h-full flex items-center justify-between gap-2 px-2 sm:px-3">
         {/* Mobile-only: hamburger + stats-drawer toggle, anchored to the left of the bar. */}
-        <div className="flex md:hidden items-center gap-1.5">
+        <div className="flex md:hidden items-center gap-1.5 shrink-0">
           {onMenuClick && (
             <button
               onClick={onMenuClick}
@@ -174,27 +226,64 @@ function Header({ onMenuClick }: HeaderProps) {
           </button>
         </div>
 
+        {/* Swipeable container for Symbol, TF, and Actions (Mobile) */}
+        <div className="flex md:hidden items-center gap-2 flex-1 min-w-0 overflow-x-auto no-scrollbar py-1 pr-2">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsSymbolModalOpen(true)}
+              className="px-2 h-8 rounded-md text-xs font-bold text-content border border-border
+                         hover:bg-surface-3 transition-colors duration-fast flex items-center gap-1.5 focus-ring max-w-[120px] truncate"
+            >
+              <span className="truncate">{symbol || 'Symbol'}</span>
+              <ChevronDown size={12} className="text-content-muted shrink-0" />
+            </button>
+            <TimeframeDropdown
+              value={timeframe}
+              onChange={(tf) => updateActive(undefined, tf)}
+            />
+          </div>
+
+          <Divider />
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <IconButton
+              title="Run analysis"
+              onClick={() => runCycle.mutate(undefined)}
+              disabled={runCycle.isPending}
+              className="!w-8 !h-8"
+            >
+              <Zap
+                size={14}
+                className={runCycle.isPending ? 'animate-pulse text-brand' : 'text-content'}
+              />
+            </IconButton>
+            <IconButton title="Toggle theme" onClick={toggleTheme} className="!w-8 !h-8">
+              {theme === 'dark'
+                ? <Sun size={14} className="text-content" />
+                : <Moon size={14} className="text-content" />}
+            </IconButton>
+            <NotificationsPanel />
+            
+            {/* User pill*/}
+            <div className="relative shrink-0" ref={mobileMenuRef}>
+              <button
+                onClick={toggleUserMenu}
+                className="flex items-center gap-2 rounded-full bg-surface-2 border border-border
+                           px-2 h-9 hover:border-brand transition-colors duration-fast focus-ring"
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-soft to-brand flex items-center justify-center text-[11px] font-bold text-strong">
+                  {user?.username?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <ChevronDown size={12} className="text-content-muted" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Desktop: stats strip + non-scrollable controls. */}
         <div className="hidden md:flex items-center gap-2.5 min-w-0 flex-1">
           <div className="flex items-center gap-2.5 min-w-0 overflow-x-auto no-scrollbar">
-            <StatItem label="Balance" value={account ? formatCurrency(account.balance) : '---'} />
-            <Divider />
-            <StatItem label="Equity" value={account ? formatCurrency(account.equity) : '---'} />
-            <Divider />
-            <StatItem label="Margin" value={account ? formatCurrency(account.margin) : '---'} />
-            <Divider />
-            <StatItem
-              label="Free"
-              value={account ? formatCurrency(account.margin_free) : '---'}
-            />
-            <Divider />
-            <StatItem
-              label="M. Level"
-              value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
-              valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
-            />
-            <Divider />
-            <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
+            <StatGroup account={account} time={time} fmtTime={fmtTime} tzOffset={tzOffset} />
           </div>
 
           <Divider />
@@ -227,26 +316,11 @@ function Header({ onMenuClick }: HeaderProps) {
           </div>
         </div>
 
-        {/* Mobile: compact symbol + tf */}
-        <div className="flex md:hidden items-center gap-1.5">
-          <button
-            onClick={() => setIsSymbolModalOpen(true)}
-            className="px-2 h-8 rounded-md text-xs font-bold text-content border border-border
-                       hover:bg-surface-3 transition-colors duration-fast flex items-center gap-1.5 focus-ring max-w-[120px] truncate"
-          >
-            <span className="truncate">{symbol || 'Symbol'}</span>
-            <ChevronDown size={12} className="text-content-muted shrink-0" />
-          </button>
-          <TimeframeDropdown
-            value={timeframe}
-            onChange={(tf) => updateActive(undefined, tf)}
-          />
-        </div>
 
-        {/* Right: action buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-shrink-0">
+        {/* Right: action buttons (Desktop only, now integrated in swipe area for mobile) */}
+        <div className="hidden md:flex items-center gap-1.5 sm:gap-2 ml-auto flex-shrink-0">
           <IconButton
-            title="Run analysis scan"
+            title="Run analysis"
             onClick={() => runCycle.mutate(undefined)}
             disabled={runCycle.isPending}
           >
@@ -263,10 +337,10 @@ function Header({ onMenuClick }: HeaderProps) {
           <NotificationsPanel />
 
           {/* User pill */}
-          <div className="relative" ref={menuRef}>
+          <div className="relative" ref={desktopMenuRef}>
             <button
               title="User menu"
-              onClick={() => setShowUserMenu((p) => !p)}
+              onClick={toggleUserMenu}
               className="flex items-center gap-2 rounded-full bg-surface-2 border border-border
                          px-2 h-9 hover:border-brand transition-colors duration-fast focus-ring"
               aria-haspopup="menu"
@@ -285,30 +359,36 @@ function Header({ onMenuClick }: HeaderProps) {
               </div>
               <ChevronDown size={12} className="text-content-muted" />
             </button>
-
-            {showUserMenu && (
-              <div
-                role="menu"
-                className="absolute right-0 top-11 w-48 rounded-lg bg-surface-elevated border border-border
-                           shadow-pop animate-fade-in z-dropdown"
-              >
-                <MenuItem onClick={() => { navigate('/settings/profile'); setShowUserMenu(false); }}>
-                  My Profile
-                </MenuItem>
-                <MenuItem onClick={() => { navigate('/settings'); setShowUserMenu(false); }}>
-                  Settings
-                </MenuItem>
-                <div className="border-t border-border" />
-                <MenuItem onClick={handleLogout} danger>
-                  <LogOut size={12} /> Sign out
-                </MenuItem>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Mobile stats drawer */}
+      {showUserMenu && createPortal(
+        <div
+          role="menu"
+          style={{
+            position: 'fixed',
+            top: `${userMenuCoords.top + 8}px`,
+            right: `${userMenuCoords.right}px`,
+          }}
+          className="w-48 rounded-lg bg-surface-elevated border border-border
+                     shadow-pop animate-fade-in z-portal"
+        >
+          <MenuItem onClick={() => { navigate('/settings/profile'); setShowUserMenu(false); }}>
+            My Profile
+          </MenuItem>
+          <MenuItem onClick={() => { navigate('/settings'); setShowUserMenu(false); }}>
+            Settings
+          </MenuItem>
+          <div className="border-t border-border" />
+          <MenuItem onClick={handleLogout} danger>
+            <LogOut size={12} /> Sign out
+          </MenuItem>
+        </div>,
+        document.body
+      )}
+
+      {/* Mobile stats drawer (Restored) */}
       {showStatsDrawer && (
         <div className="md:hidden fixed inset-x-0 top-[var(--header-height)] z-dropdown
                         bg-surface-1 border-b border-border shadow-pop animate-slide-up">
@@ -325,19 +405,11 @@ function Header({ onMenuClick }: HeaderProps) {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-3 p-4">
-            <StatItem label="Balance"  value={account ? formatCurrency(account.balance) : '---'} />
-            <StatItem label="Equity"   value={account ? formatCurrency(account.equity) : '---'} />
-            <StatItem label="Margin"   value={account ? formatCurrency(account.margin) : '---'} />
-            <StatItem label="Free"     value={account ? formatCurrency(account.margin_free) : '---'} />
-            <StatItem
-              label="M. Level"
-              value={account ? formatMarginLevel(account.equity, account.margin) : '---'}
-              valueClass={account ? marginLevelClass(account.equity, account.margin) : undefined}
-            />
-            <StatItem label="Time" value={`${fmtTime(time)} ${tzOffset()}`} />
+            <StatGroup account={account} time={time} fmtTime={fmtTime} tzOffset={tzOffset} withDividers={false} />
           </div>
         </div>
       )}
+
 
       <SymbolSearchModal
         isOpen={isSymbolModalOpen}

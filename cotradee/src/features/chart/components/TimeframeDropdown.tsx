@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
 interface TimeframeDropdownProps {
@@ -39,7 +40,19 @@ const CATEGORIES = [
 
 export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const toggle = () => {
+    if (!isOpen && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom,
+        left: rect.left + rect.width / 2,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -62,7 +75,7 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
     <div className="relative" ref={menuRef}>
       <button
         type="button"
-        onClick={() => setIsOpen((o) => !o)}
+        onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={`flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-bold transition-colors duration-fast focus-ring
@@ -77,11 +90,18 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
         />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
           role="listbox"
-          className="absolute top-full left-0 mt-1 w-48 bg-surface-elevated border border-border
-                     rounded-md shadow-pop py-1 z-dropdown animate-fade-in"
+          style={{
+            position: 'fixed',
+            top: `${coords.top + 6}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '12rem', // Restore original w-48
+          }}
+          className="bg-surface-elevated border border-border
+                     rounded-md shadow-pop py-1 z-[9999] animate-fade-in"
         >
           {CATEGORIES.map((cat, i) => (
             <div key={cat.name}>
@@ -105,7 +125,8 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
               ))}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

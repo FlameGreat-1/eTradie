@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Inbox, AlertTriangle, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useRecentEvents } from '@/features/alerts/api/events';
@@ -68,10 +69,22 @@ function severityDotClass(sev?: string): string {
 function NotificationsPanelInner() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
   const [lastSeenId, setLastSeenId] = useState<string>(
     () => localStorage.getItem(LAST_SEEN_KEY) ?? '',
   );
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggle = () => {
+    if (!isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setCoords({ 
+        top: rect.bottom, 
+        left: rect.left + rect.width / 2 
+      });
+    }
+    setIsOpen(!isOpen);
+  };
 
   const { data: events, isLoading, isError } = useRecentEvents(20);
 
@@ -149,7 +162,7 @@ function NotificationsPanelInner() {
         aria-label="Notifications"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((p) => !p)}
+        onClick={toggle}
         className="relative flex items-center justify-center w-9 h-9 rounded-full
                    bg-surface-2 border border-border hover:border-brand transition-colors duration-fast
                    focus-ring"
@@ -167,13 +180,19 @@ function NotificationsPanelInner() {
         )}
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-11 w-[min(360px,calc(100vw-1rem))]
-                     rounded-lg bg-surface-elevated border border-border
-                     shadow-pop animate-fade-in z-dropdown overflow-hidden"
+          style={{
+            position: 'fixed',
+            top: `${coords.top + 8}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'min(360px, calc(100vw - 1rem))',
+          }}
+          className="rounded-lg bg-surface-elevated border border-border
+                     shadow-pop animate-fade-in z-[9999] overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
@@ -287,7 +306,8 @@ function NotificationsPanelInner() {
               View all in Journal
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
