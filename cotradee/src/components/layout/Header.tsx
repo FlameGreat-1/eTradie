@@ -26,8 +26,8 @@ const TF_KEY = 'active_tf';
 
 // How long the connection must stay down before we surface anything
 // to the user. Anything shorter is silent: page-mount handshakes,
-// short network blips, and routine reconnects should NOT alarm the
-// trader.
+// short network blips, and routine reconnects must NOT alarm the
+// trader. Healthy operation never renders any indicator at all.
 const DEGRADED_GRACE_MS = 10_000;
 
 function Header() {
@@ -364,15 +364,14 @@ function StatItem({
 }
 
 /**
- * Discreet connection indicator.
+ * DegradedIndicator: enterprise-grade connection status surface.
  *
- *   connected            -> a tiny green dot, no text (silent success).
- *   disconnected < 10 s  -> renders nothing (silent grace window).
- *   disconnected ≥ 10 s  -> small amber dot + "Offline" label.
+ *   Healthy connection           -> renders nothing.
+ *   Disconnected, < 10 s          -> renders nothing (grace window).
+ *   Disconnected, >= 10 s         -> small amber "Offline" pill.
  *
- * Data still flows during "Offline" because the polling fallback is
- * in charge; the indicator only tells the trader the push channel
- * is degraded.
+ * Healthy operation must never produce visual chrome — the trader's
+ * attention belongs on prices and trades, not on a status light.
  */
 function DegradedIndicator({ connected }: { connected: boolean }) {
   const [degraded, setDegraded] = useState(false);
@@ -387,7 +386,6 @@ function DegradedIndicator({ connected }: { connected: boolean }) {
       if (degraded) setDegraded(false);
       return;
     }
-    // Disconnected: start (or keep) the grace timer.
     if (timerRef.current) return;
     timerRef.current = setTimeout(() => {
       setDegraded(true);
@@ -400,16 +398,6 @@ function DegradedIndicator({ connected }: { connected: boolean }) {
       }
     };
   }, [connected, degraded]);
-
-  if (connected) {
-    return (
-      <span
-        className="inline-block w-1.5 h-1.5 rounded-full bg-success"
-        title="Live data"
-        aria-label="Live data"
-      />
-    );
-  }
 
   if (!degraded) return null;
 

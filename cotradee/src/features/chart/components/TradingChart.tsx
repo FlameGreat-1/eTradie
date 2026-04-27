@@ -17,7 +17,6 @@ import {
   CrosshairMode,
   LineStyle,
 } from 'lightweight-charts';
-import { useTheme } from '@/providers/ThemeProvider';
 import { useChartCandles } from '@/features/chart/api/chartData';
 import { useTickStream, type TickData } from '@/features/chart/hooks/useTickStream';
 import { formatCurrency } from '@/utils/formatters';
@@ -71,20 +70,12 @@ function periodSeconds(tf: string): number {
 
 /**
  * Translate modern CSS color syntax into the legacy comma-separated
- * form that lightweight-charts' built-in colorStringToRgba parser
- * understands. Supports:
- *   • `rgb(R G B / A)`     -> `rgba(R, G, B, A)`
- *   • `rgb(R G B)`         -> `rgb(R, G, B)`
- *   • `rgba(...)` / `#hex` / named colours -> returned unchanged.
+ * form lightweight-charts' built-in colorStringToRgba parser supports.
  */
 function toLibColor(value: string): string {
   const v = value.trim();
   if (!v) return v;
-
-  // Already in a supported form.
   if (v.startsWith('#') || v.startsWith('rgba(')) return v;
-
-  // Modern `rgb(R G B [/ A])` syntax.
   const m = v.match(/^rgba?\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)(?:\s*\/\s*([0-9.]+%?))?\s*\)$/i);
   if (m) {
     const [, r, g, b, a] = m;
@@ -94,13 +85,7 @@ function toLibColor(value: string): string {
     }
     return `rgb(${r}, ${g}, ${b})`;
   }
-
-  // `rgb(R, G, B)` legacy comma form (Tailwind never emits this for
-  // our tokens but stay safe).
   if (/^rgb\(\s*\d+\s*,/.test(v)) return v;
-
-  // Anything else — named colour, hsl, etc. — hand back as-is and
-  // let the library complain on truly unsupported inputs.
   return v;
 }
 
@@ -158,10 +143,45 @@ function TradingChartInner({
   const lastDataKeyRef = useRef<string>('');
   const [latestPrice, setLatestPrice] = useState<number | null>(null);
 
-  const { theme } = useTheme();
+  // Local theme key bumped by the MutationObserver below whenever the
+  // .dark / .light class on <html> actually changes. Driving the level
+  // redraw effect off this key (in addition to symbol/levels) means
+  // theme changes also re-paint price-line colours instantly.
+  const [themeTick, setThemeTick] = useState(0);
+
   const { data: candleData, isFetching } = useChartCandles(symbol, timeframe);
 
-  /* 1. Create chart once. */
+  /* ── Apply the live theme palette to the chart. Idempotent. ─────────── */
+  const applyPalette = useCallback(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+    const colors = readThemeColors();
+    chart.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: colors.background },
+        textColor: colors.textColor,
+      },
+      grid: {
+        vertLines: { color: colors.gridColor },
+        horzLines: { color: colors.gridColor },
+      },
+      crosshair: {
+        vertLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
+        horzLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
+      },
+      rightPriceScale: { borderColor: colors.borderColor },
+      timeScale: { borderColor: colors.borderColor },
+    });
+    series.applyOptions({
+      upColor: colors.upColor,
+      downColor: colors.downColor,
+      wickUpColor: colors.upColor,
+      wickDownColor: colors.downColor,
+    });
+  }, []);
+
+  /* ── 1. Create chart once. ─────────────────────────────────────────── */
   useEffect(() => {
     if (!containerRef.current) return;
     const colors = readThemeColors();
@@ -229,35 +249,32 @@ function TradingChartInner({
     };
   }, []);
 
-  /* 2. Re-skin (no recreate) when theme flips. */
+  /* ── 2. Track the .dark / .light class on <html> via MutationObserver.
+     This runs AFTER the DOM mutation has been applied, so subsequent
+     getComputedStyle calls see the new palette — unlike a useEffect
+     keyed on a sibling provider's state, which has no guaranteed order
+     w.r.t. the provider that flips the class. ──────────────────────── */
   useEffect(() => {
-    if (!chartRef.current || !seriesRef.current) return;
-    const colors = readThemeColors();
-    chartRef.current.applyOptions({
-      layout: {
-        background: { type: ColorType.Solid, color: colors.background },
-        textColor: colors.textColor,
-      },
-      grid: {
-        vertLines: { color: colors.gridColor },
-        horzLines: { color: colors.gridColor },
-      },
-      crosshair: {
-        vertLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
-        horzLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
-      },
-      rightPriceScale: { borderColor: colors.borderColor },
-      timeScale: { borderColor: colors.borderColor },
+    const root = document.documentElement;
+    let lastClass = root.className;
+    const observer = new MutationObserver(() => {
+      if (root.className === lastClass) return;
+      lastClass = root.className;
+      // Re-read the palette and re-paint the chart in the next frame.
+      // requestAnimationFrame guarantees the new tokens have been laid
+      // out by the browser before getComputedStyle reads them.
+      requestAnimationFrame(() => {
+        applyPalette();
+        // Bump the local tick so the level-redraw effect reruns and
+        // recolours every active price line as well.
+        setThemeTick((t) => t + 1);
+      });
     });
-    seriesRef.current.applyOptions({
-      upColor: colors.upColor,
-      downColor: colors.downColor,
-      wickUpColor: colors.upColor,
-      wickDownColor: colors.downColor,
-    });
-  }, [theme]);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, [applyPalette]);
 
-  /* 3. Load historical candles. */
+  /* ── 3. Load historical candles. ──────────────────────────────────── */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
     if (!candleData?.candles) return;
@@ -297,7 +314,7 @@ function TradingChartInner({
     }
   }, [candleData, symbol, timeframe]);
 
-  /* 4. Live tick stream -> last candle update. */
+  /* ── 4. Live tick stream -> last candle update. ──────────────────────── */
   const handleTick = useCallback(
     (tick: TickData) => {
       if (!seriesRef.current) return;
@@ -345,7 +362,8 @@ function TradingChartInner({
 
   useTickStream({ symbol, onTick: handleTick });
 
-  /* 5. Single canonical "redraw all lines" pass. */
+  /* ── 5. Single canonical "redraw all lines" pass. Reruns on theme
+     change so price-line colours track the palette too. ──────────── */
   useEffect(() => {
     if (!seriesRef.current) return;
     const series = seriesRef.current;
@@ -446,9 +464,9 @@ function TradingChartInner({
         }
       }
     }
-  }, [levels, activeTrades, symbol, theme]);
+  }, [levels, activeTrades, symbol, themeTick]);
 
-  /* 6. Live P&L overlay state. */
+  /* ── 6. Live P&L overlay state. ─────────────────────────────────────── */
   const overlay = useMemo(() => {
     const trade = activeTrades?.find((t) => t.symbol === symbol);
     if (!trade) return null;
@@ -461,7 +479,7 @@ function TradingChartInner({
     return { tone, price, pipsToTp, pipsToSl, profit: trade.profit };
   }, [activeTrades, symbol, latestPrice]);
 
-  /* 7. Render. */
+  /* ── 7. Render. ─────────────────────────────────────────────────────── */
   return (
     <div className="relative w-full h-full bg-[var(--chart-bg)]">
       <div
