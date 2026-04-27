@@ -1,8 +1,10 @@
 import { memo, useState, useEffect, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { SIDEBAR_WIDTH, HEADER_HEIGHT } from '@/utils/constants';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
 import { AnalysisOverlay } from '@/features/chart/components/AnalysisOverlay';
 
@@ -12,14 +14,16 @@ interface Props {
 
 function DashboardLayout({ children }: Props) {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const [isOverlayVisible, setOverlayVisible] = useState(false);
+  const [isMobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Global live reasoning stream. Triggers across all pages.
+  const onDashboard = location.pathname === '/';
+
   const stream = useLiveReasoningStream(() => {
     void queryClient.invalidateQueries({ queryKey: ['analysis'] });
   });
 
-  // Auto-show overlay when a new stream starts or a new analysis is hydrated from the DB
   useEffect(() => {
     if (stream.isStreaming || stream.analysisId) {
       setOverlayVisible(true);
@@ -27,22 +31,48 @@ function DashboardLayout({ children }: Props) {
   }, [stream.isStreaming, stream.analysisId]);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-surface-0">
-      <Sidebar />
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-app text-content">
+      <Sidebar
+        isMobileOpen={isMobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
       <Header />
+
+      {/* Mobile nav toggle (only visible < md) */}
+      <button
+        onClick={() => setMobileNavOpen(true)}
+        className="md:hidden fixed left-2 top-[calc(var(--header-height)+8px)] z-dropdown
+                   flex items-center justify-center w-9 h-9 rounded-md
+                   bg-surface-2 border border-border text-content
+                   hover:border-brand transition-colors duration-fast focus-ring shadow-card"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={16} />
+      </button>
+
       <main
-        className="absolute overflow-auto bg-surface-0"
+        className="absolute overflow-auto bg-app"
         style={{
-          left: SIDEBAR_WIDTH,
-          top: HEADER_HEIGHT,
+          left: 'var(--main-left, 0px)',
+          top: 'var(--header-height)',
           right: 0,
           bottom: 0,
         }}
       >
-        {children}
-        
-        {/* Global Analysis overlay — floats on top of everything */}
-        {isOverlayVisible && (
+        <style>{`
+          @media (min-width: 768px) {
+            :root { --main-left: var(--sidebar-width); }
+          }
+          @media (max-width: 767.98px) {
+            :root { --main-left: 0px; }
+          }
+        `}</style>
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+
+        {/* Live reasoning overlay — only on the dashboard route. */}
+        {onDashboard && isOverlayVisible && (
           <AnalysisOverlay
             stream={stream}
             onDismiss={() => {
