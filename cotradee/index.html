@@ -10,6 +10,102 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <title>eTradie Dashboard</title>
+    <!--
+      Critical: navigator.userAgentData polyfill MUST run before any
+      module is parsed. lightweight-charts 4.2.0 calls
+        navigator.userAgentData.brands.some(...)
+      at module top-level inside its isChromiumBased() probe. On
+      Firefox, Safari and many privacy-hardened or mobile browsers
+      navigator.userAgentData is undefined, so .brands is undefined,
+      and the .some() call throws. The crash happens during module
+      evaluation, before our React error boundary or the chart's
+      try/catch around createChart can react.
+
+      The only execution context guaranteed to fire before any
+      ES module is parsed - including Vite's pre-bundled deps and
+      HMR re-evaluations - is an inline classic <script> in <head>.
+      We keep the script ES5-compatible (no optional chaining, no
+      const-only) so it cannot itself fail in older runtimes.
+    -->
+    <script>
+      (function () {
+        try {
+          if (typeof navigator === 'undefined') return;
+
+          function makeStub() {
+            var stub = { brands: [], mobile: false, platform: '' };
+            try { Object.freeze(stub.brands); } catch (e) { /* ignore */ }
+            try { Object.freeze(stub); } catch (e) { /* ignore */ }
+            return stub;
+          }
+
+          function brandsIsArray() {
+            try {
+              var uad = navigator.userAgentData;
+              return !!uad && Object.prototype.toString.call(uad.brands) === '[object Array]';
+            } catch (e) {
+              return false;
+            }
+          }
+
+          function tryDefine(target, key, value) {
+            try {
+              Object.defineProperty(target, key, {
+                configurable: true,
+                writable: true,
+                enumerable: true,
+                value: value
+              });
+              return true;
+            } catch (e) {
+              return false;
+            }
+          }
+
+          function tryDeleteThenAssign(target, key, value) {
+            try { delete target[key]; } catch (e) { /* ignore */ }
+            try { target[key] = value; return true; } catch (e) { return false; }
+          }
+
+          function tryAssign(target, key, value) {
+            try { target[key] = value; return true; } catch (e) { return false; }
+          }
+
+          // Already correct? Nothing to do.
+          if (brandsIsArray()) return;
+
+          // Strategy 1: patch the existing userAgentData.brands.
+          var current;
+          try { current = navigator.userAgentData; } catch (e) { current = undefined; }
+          if (current) {
+            if (tryDefine(current, 'brands', []) && brandsIsArray()) return;
+            if (tryDeleteThenAssign(current, 'brands', []) && brandsIsArray()) return;
+            if (tryAssign(current, 'brands', []) && brandsIsArray()) return;
+          }
+
+          // Strategy 2: replace userAgentData on the navigator instance.
+          var stub = makeStub();
+          if (tryDefine(navigator, 'userAgentData', stub) && brandsIsArray()) return;
+          if (tryDeleteThenAssign(navigator, 'userAgentData', stub) && brandsIsArray()) return;
+          if (tryAssign(navigator, 'userAgentData', stub) && brandsIsArray()) return;
+
+          // Strategy 3: replace userAgentData on Navigator.prototype.
+          var proto;
+          try { proto = Object.getPrototypeOf(navigator); } catch (e) { proto = null; }
+          if (proto) {
+            if (tryDefine(proto, 'userAgentData', stub) && brandsIsArray()) return;
+            if (tryDeleteThenAssign(proto, 'userAgentData', stub) && brandsIsArray()) return;
+            if (tryAssign(proto, 'userAgentData', stub) && brandsIsArray()) return;
+          }
+
+          // If we get here, the chart's try/catch around createChart
+          // will catch the eventual throw and render its "chart
+          // unavailable" fallback instead of crashing the dashboard.
+        } catch (e) {
+          /* never let the polyfill itself crash the page */
+        }
+      })();
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

@@ -1,14 +1,14 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { installUserAgentDataPolyfill } from '@/lib/userAgentDataPolyfill';
 import App from './App';
 import './assets/index.css';
 
-// Must run before any module that touches navigator.userAgentData.
-// In our codebase that's lightweight-charts (loaded lazily by the
-// dashboard route), but we install eagerly so any future caller is
-// covered too.
-installUserAgentDataPolyfill();
+// Note: the navigator.userAgentData polyfill required by
+// lightweight-charts 4.2.0 runs as an inline <script> in index.html,
+// which is the only place guaranteed to execute before any ES module
+// (including Vite's pre-bundled deps and HMR re-evaluations).
+// See cotradee/src/lib/userAgentDataPolyfill.ts for the typed
+// reference implementation.
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
