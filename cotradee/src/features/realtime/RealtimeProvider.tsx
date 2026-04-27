@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -99,7 +100,12 @@ export function useRealtime(): RealtimeContextValue {
   return ctx;
 }
 
-/** Convenience: subscribe to a single event type with a memoised handler. */
+/**
+ * Subscribe to one or more event types. The handler is kept in a ref
+ * so changing it between renders does not re-create the underlying
+ * subscription; the subscription itself is set up in `useEffect` so
+ * React StrictMode can correctly invoke the cleanup on remount.
+ */
 export function useRealtimeEvent(
   type: string | string[],
   handler: (event: RealtimeEvent) => void,
@@ -108,16 +114,16 @@ export function useRealtimeEvent(
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
-  // We subscribe once per type-set; the handler ref keeps the latest impl.
   const types = Array.isArray(type) ? type : [type];
   const key = types.join('|');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(
-    () =>
-      subscribe((event) => {
-        if (types.includes(event.type)) handlerRef.current(event);
-      }),
-    [key, subscribe],
-  );
+  useEffect(() => {
+    if (!key) return;
+    const wanted = new Set(types);
+    const off = subscribe((event) => {
+      if (wanted.has(event.type)) handlerRef.current(event);
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, subscribe]);
 }
