@@ -9,12 +9,16 @@ interface NavItem {
   iconSize?: number;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const PRIMARY_NAV: NavItem[] = [
   { path: '/',         icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 28 },
   { path: '/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 28 },
   { path: '/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 28 },
   { path: '/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 28 },
-  { path: '/settings', icon: '/assets/sidebar/icons/wallet.svg',    label: 'Settings',      iconSize: 28 },
+];
+
+const FOOTER_NAV: NavItem[] = [
+  { path: '/settings', icon: '/assets/sidebar/icons/setting.svg',   label: 'Settings',      iconSize: 28 },
+  { path: '/support',  icon: '/assets/sidebar/icons/support.svg',   label: 'Support',       iconSize: 28 },
 ];
 
 interface SidebarProps {
@@ -124,32 +128,57 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
               />
               <span className="text-sm font-bold tracking-wide text-content">eTradie</span>
             </div>
-            <nav className="flex-1 flex flex-col py-2">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(item.path);
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => handleNavigate(item.path)}
-                    aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                                transition-colors duration-fast border-l-2
-                                ${
-                                  active
-                                    ? 'border-l-brand bg-brand-soft text-brand'
-                                    : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
-                                }`}
-                  >
-                    <img src={item.icon} alt="" width={22} height={22} className="select-none" />
-                    {item.label}
-                  </button>
-                );
-              })}
+            <nav className="flex-1 flex flex-col py-2 overflow-y-auto">
+              {PRIMARY_NAV.map((item) => (
+                <DrawerNavButton
+                  key={item.path}
+                  item={item}
+                  active={isActive(item.path)}
+                  onNavigate={handleNavigate}
+                />
+              ))}
             </nav>
+            <div className="border-t border-border py-2">
+              {FOOTER_NAV.map((item) => (
+                <DrawerNavButton
+                  key={item.path}
+                  item={item}
+                  active={isActive(item.path)}
+                  onNavigate={handleNavigate}
+                />
+              ))}
+            </div>
           </aside>
         </>
       )}
     </>
+  );
+}
+
+function DrawerNavButton({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: boolean;
+  onNavigate: (p: string) => void;
+}) {
+  return (
+    <button
+      onClick={() => onNavigate(item.path)}
+      aria-current={active ? 'page' : undefined}
+      className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                  transition-colors duration-fast border-l-2
+                  ${
+                    active
+                      ? 'border-l-brand bg-brand-soft text-brand'
+                      : 'border-l-transparent text-content-secondary hover:bg-surface-2 hover:text-content'
+                  }`}
+    >
+      <img src={item.icon} alt="" width={22} height={22} className="select-none" />
+      {item.label}
+    </button>
   );
 }
 
@@ -180,41 +209,77 @@ function RailContents({
         />
       </button>
 
-      <nav className="flex flex-col" aria-label="Primary">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(item.path);
-          return (
-            <button
-              key={item.path}
-              onClick={() => onNavigate(item.path)}
-              onMouseEnter={(e) => onHover(item.label, e)}
-              onMouseLeave={onLeave}
-              aria-label={item.label}
-              aria-current={active ? 'page' : undefined}
-              className="relative flex items-center justify-center w-full h-12 mb-1
-                         transition-all duration-fast cursor-pointer border-none bg-transparent focus-ring"
-            >
-              {active && (
-                <>
-                  <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full" />
-                  <span
-                    className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
-                    aria-hidden
-                  />
-                </>
-              )}
-              <img
-                src={item.icon}
-                alt=""
-                width={item.iconSize || 28}
-                height={item.iconSize || 28}
-                className="select-none transition-transform duration-fast"
-              />
-            </button>
-          );
-        })}
+      {/* Primary navigation — fills available vertical space. */}
+      <nav className="flex flex-col flex-1" aria-label="Primary">
+        {PRIMARY_NAV.map((item) => (
+          <RailButton
+            key={item.path}
+            item={item}
+            active={isActive(item.path)}
+            onNavigate={onNavigate}
+            onHover={onHover}
+            onLeave={onLeave}
+          />
+        ))}
       </nav>
+
+      {/* Footer navigation — anchored to the bottom of the rail. */}
+      <div className="flex flex-col pt-2 pb-2 border-t border-border" aria-label="Account">
+        {FOOTER_NAV.map((item) => (
+          <RailButton
+            key={item.path}
+            item={item}
+            active={isActive(item.path)}
+            onNavigate={onNavigate}
+            onHover={onHover}
+            onLeave={onLeave}
+          />
+        ))}
+      </div>
     </>
+  );
+}
+
+function RailButton({
+  item,
+  active,
+  onNavigate,
+  onHover,
+  onLeave,
+}: {
+  item: NavItem;
+  active: boolean;
+  onNavigate: (p: string) => void;
+  onHover: (label: string, e: React.MouseEvent) => void;
+  onLeave: () => void;
+}) {
+  return (
+    <button
+      onClick={() => onNavigate(item.path)}
+      onMouseEnter={(e) => onHover(item.label, e)}
+      onMouseLeave={onLeave}
+      aria-label={item.label}
+      aria-current={active ? 'page' : undefined}
+      className="relative flex items-center justify-center w-full h-12 mb-1
+                 transition-all duration-fast cursor-pointer border-none bg-transparent focus-ring"
+    >
+      {active && (
+        <>
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full" />
+          <span
+            className="absolute inset-1.5 rounded-lg pointer-events-none bg-brand-soft"
+            aria-hidden
+          />
+        </>
+      )}
+      <img
+        src={item.icon}
+        alt=""
+        width={item.iconSize || 28}
+        height={item.iconSize || 28}
+        className="select-none transition-transform duration-fast relative z-[1]"
+      />
+    </button>
   );
 }
 
