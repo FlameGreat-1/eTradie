@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 /**
  * Fetch historical OHLCV candles for the dashboard chart.
@@ -10,6 +11,7 @@ import { api } from '@/lib/axios';
  * Automatically refetches when symbol or timeframe changes.
  */
 export function useChartCandles(symbol: string, timeframe: string) {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['chart', 'candles', symbol, timeframe],
     queryFn: async () => {
@@ -25,11 +27,11 @@ export function useChartCandles(symbol: string, timeframe: string) {
           volume: number;
         }>;
       }>('/api/broker/candles', {
-        params: { symbol, timeframe, count: 500 },
+        params: { symbol, timeframe, count: 2000 },
       });
       return data;
     },
-    enabled: !!symbol,
+    enabled: !!symbol && isAuthenticated,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });

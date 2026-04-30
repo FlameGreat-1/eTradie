@@ -1,33 +1,40 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 export function useLlmProviders() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['llm', 'providers'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/llm/providers');
       return data.providers;
     },
+    enabled: isAuthenticated,
   });
 }
 
 export function useLlmConnections() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['llm', 'connections'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/llm/connections');
       return data.connections ?? [];
     },
+    enabled: isAuthenticated,
   });
 }
 
 export function useActiveLlmConnection() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['llm', 'connections', 'active'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/llm/connections/active');
       return data.connection ?? null;
     },
+    enabled: isAuthenticated,
   });
 }
 

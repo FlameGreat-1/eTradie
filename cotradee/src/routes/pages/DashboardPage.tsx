@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
@@ -32,6 +32,10 @@ import {
  * proceed_to_module_b === false) are filtered out before being turned
  * into chart levels.
  */
+
+/** localStorage keys — must match Header.tsx */
+const SYMBOL_KEY = 'active_symbol';
+const TF_KEY = 'active_tf';
 
 const INVALID_DIRECTIONS = new Set([
   '',
@@ -107,16 +111,46 @@ export default function DashboardPage() {
   const analyses = latest?.analyses ?? [];
 
   // Chart state from URL (synced with Header controls).
+  // On login redirect the URL has no params, so we fall back to the
+  // last-viewed instrument persisted in localStorage — exactly how
+  // TradingView restores your chart on every visit.
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeSymbol = searchParams.get('symbol') || '';
-  const timeframe = searchParams.get('tf') || 'H1';
+  const activeSymbol =
+    searchParams.get('symbol') || localStorage.getItem(SYMBOL_KEY) || '';
+  const timeframe =
+    searchParams.get('tf') || localStorage.getItem(TF_KEY) || 'H1';
 
-  // Set initial chart symbol from the user's symbol list if none is selected.
+  // One-time mount sync: push the resolved symbol/tf into the URL so
+  // Header, WatchlistSidebar, and any other URL-readers stay in sync.
+  const didSyncRef = useRef(false);
   useEffect(() => {
-    if (!activeSymbol && symbols.length > 0) {
+    if (didSyncRef.current) return;
+
+    const urlHasSymbol = searchParams.has('symbol');
+    const urlHasTf = searchParams.has('tf');
+
+    if (activeSymbol && (!urlHasSymbol || !urlHasTf)) {
+      didSyncRef.current = true;
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
-        next.set('symbol', symbols[0]);
+        if (!urlHasSymbol) next.set('symbol', activeSymbol);
+        if (!urlHasTf) next.set('tf', timeframe);
+        return next;
+      }, { replace: true });
+    } else {
+      didSyncRef.current = true;
+    }
+  }, [activeSymbol, timeframe, searchParams, setSearchParams]);
+
+  // Fallback for first-time users with nothing in localStorage:
+  // once the symbols API resolves, auto-select the first instrument.
+  useEffect(() => {
+    if (!activeSymbol && symbols.length > 0) {
+      const firstSymbol = symbols[0];
+      localStorage.setItem(SYMBOL_KEY, firstSymbol);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('symbol', firstSymbol);
         return next;
       });
     }

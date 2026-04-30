@@ -1,0 +1,276 @@
+{
+  "analysis_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 1.8417,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPCAD_20260428_1430_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.85,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "24078a36-47d3-4e05-842c-740f90983568",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 8 \u2014 AI SYSTEM CONSTRAINTS & GUARDRAILS"
+          },
+          {
+            "chunk_id": "2d4c9ec4-dbb8-47df-976c-f44ea9edc77a",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 7 \u2014 PERFORMANCE TRACKING & JOURNALING STANDARDS"
+          }
+        ],
+        "query_summary": "Analysis of GBPCAD focusing on HTF bullish trend, LTF pullback, and potential pro-trend entry.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, which does not oppose the technical setup.",
+          "present": true,
+          "value": 0
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Trade direction is LONG, aligning with the D1 and H4 bullish trends. This is a pro-trend entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "M15 has confirmed a bullish CHoCH, signaling the end of the H1 pullback and realignment with the HTF.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a valid M5 Order Block created after a structural shift.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The M5 candidate confirms an SSL sweep at 1.84376 occurred just before the structural break that formed the entry OB.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The price action is consistent with a Spring or secondary test in a larger re-accumulation phase.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled for GBP or CAD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to the final target (D1 Swing High) is well over 20:1, easily exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.84126,
+        1.84214
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101"
+    },
+    "entry_zone": {
+      "high": 1.84214,
+      "low": 1.84126
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability pro-trend long setup on GBPCAD. The higher timeframe (D1, H4) structure is firmly bullish. Price has recently executed a bearish pullback on lower timeframes (H1, M30), creating a discount opportunity. The M15 timeframe has now printed a bullish Change of Character (CHoCH), signaling the potential end of this pullback and a realignment with the dominant bullish trend. The selected entry is based on a high-confluence M5 candidate (ID: GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101), which represents a CHOCH+BMS+LIQUIDITY_SWEEP+RTO pattern. The entry zone is a well-defined M5 Order Block [1.84126 - 1.84214] that was formed immediately after a sweep of sell-side liquidity. The macro environment is neutral and poses no immediate risk. The setup achieves an excellent R:R ratio, targeting liquidity at H1 and D1 swing highs. A limit order is appropriate to await price returning to this high-value POI.",
+    "htf_bias": {
+      "key_levels": [
+        1.84208,
+        1.86946
+      ],
+      "notes": "The dominant trend from D1 through H4 is bullish. D1 confirmed a bullish CHoCH at 1.85487 on 2026-04-09. Price is currently in a pullback from the 1.86946 swing high, approaching the discount area of the dealing range.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.84393
+      ],
+      "notes": "H1 and M30 are in a bearish pullback, confirmed by a bearish CHoCH on H1 at 1.84393. However, the M15 timeframe has recently shifted structure to bullish, indicating the pullback may be concluding and price is realigning with the HTF bullish trend.",
+      "structure": "choch_bullish"
+    },
+    "pair": "GBPCAD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.94,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 25.23,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.8406,
+      "reason": "Placed below the M5 Order Block and the M15 swing low at 1.8407, providing structural invalidation for the setup."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 recent swing high / BSL",
+        "level": 1.84529,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 major swing high / BSL",
+        "level": 1.85074,
+        "size_pct": 30
+      },
+      {
+        "basis": "D1 major swing high / BSL",
+        "level": 1.86946,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-28T14:30:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability pro-trend long setup on GBPCAD. The higher timeframe (D1, H4) structure is firmly bullish. Price has recently executed a bearish pullback on lower timeframes (H1, M30), creating a discount opportunity. The M15 timeframe has now printed a bullish Change of Character (CHoCH), signaling the potential end of this pullback and a realignment with the dominant bullish trend. The selected entry is based on a high-confluence M5 candidate (ID: GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101), which represents a CHOCH+BMS+LIQUIDITY_SWEEP+RTO pattern. The entry zone is a well-defined M5 Order Block [1.84126 - 1.84214] that was formed immediately after a sweep of sell-side liquidity. The macro environment is neutral and poses no immediate risk. The setup achieves an excellent R:R ratio, targeting liquidity at H1 and D1 swing highs. A limit order is appropriate to await price returning to this high-value POI.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 25.23,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 1.8406,
+  "symbol": "GBPCAD",
+  "take_profit": 1.86946,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

@@ -1,23 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 export function useBrokerConnections() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['broker', 'connections'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/broker/connections');
       return data.connections ?? [];
     },
+    enabled: isAuthenticated,
   });
 }
 
 export function useActiveBrokerConnection() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['broker', 'connections', 'active'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/broker/connections/active');
       return data.connection ?? null;
     },
+    enabled: isAuthenticated,
   });
 }
 

@@ -1,0 +1,270 @@
+{
+  "analysis_id": "GBPUSD_CHOCH_BMS_RTO_BEARISH_BEARISH_1.3557_649b3e5c",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "SHORT",
+  "entry_price": 1.355,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPUSD_20260429_0848_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.89,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          }
+        ],
+        "query_summary": "GBPUSD intraday short setup based on HTF pullback and MTF bearish structure",
+        "strategy_used": "scenario_first",
+        "top_k": 30
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral and does not oppose the technical setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Setup is a valid Counter-Trend Pullback",
+          "notes": "The setup is a valid bearish pullback (H1/H4) within a larger bullish structure (D1).",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "H1 confirmed a bearish CHoCH at 07:00 UTC, aligning with the H4 bearish structure.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support (OB/FVG or SnD Zone)",
+          "notes": "Entry is planned within a clear, unmitigated H1 Bearish Order Block from 1.35285 to 1.35857.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "Bonus Point: The selected SMC candidate confirms inducement was cleared at 1.35293 just below the OB, strengthening the POI.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff schematic was identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events around the potential entry time.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The setup offers a 3.2R potential to the final target, exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.35285,
+        1.35857
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPUSD_CHOCH_BMS_RTO_BEARISH_BEARISH_1.3557_649b3e5c"
+    },
+    "entry_zone": {
+      "high": 1.356,
+      "low": 1.354
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The overall market narrative is a bearish pullback within a higher-timeframe (D1) bullish trend. The medium-term timeframes (H4, H1) have confirmed this bearish structure with recent CHoCH events, indicating immediate order flow is to the downside. A high-quality, live H1 SMC candidate (CHOCH+BMS+IDM+RTO) provides a clear trade plan to short the market upon a return to a fresh, unmitigated H1 Bearish Order Block located between 1.35285 and 1.35857. This setup is strengthened by the recent clearance of inducement liquidity at 1.35293, making the OB a high-probability reversal point. The stop loss is structurally placed above the OB high, and take profit targets are set at sequential downside liquidity pools (SSL), culminating at the D1 inducement level of 1.34477. The macro environment is neutral and presents no opposition to this technical setup. All live SnD candidates were invalidated due to the absence of a required Marubozu candle confirmation, focusing the decision on this strong SMC setup.",
+    "htf_bias": {
+      "key_levels": [
+        1.34477
+      ],
+      "notes": "D1 timeframe is structurally bullish following a CHoCH on 2026-04-15. However, price is currently in a bearish pullback, targeting the swing low and inducement level at 1.34477.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "Recent high-impact economic releases for USD (CPI, GDP, NFP) were all inline, providing no strong directional pressure.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": null,
+            "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.35285,
+        1.35857
+      ],
+      "notes": "H4 and H1 are confirmed bearish, indicating a pullback phase. A bearish CHoCH occurred on H1 at 2026-04-29T07:00:00Z, confirming the immediate bearish order flow. The key point of interest is the unmitigated H1 Bearish Order Block between 1.35285 and 1.35857.",
+      "structure": "choch_bearish"
+    },
+    "pair": "GBPUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.9,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": 3.2,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.35915,
+      "reason": "Placed above the H1 Swing High and the top of the invalidating Bearish Order Block."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest H1 Swing Low (SSL)",
+        "level": 1.35064,
+        "size_pct": 40
+      },
+      {
+        "basis": "Major H4 Swing Low (SSL)",
+        "level": 1.34631,
+        "size_pct": 30
+      },
+      {
+        "basis": "D1 Swing Low / Inducement Level (SSL)",
+        "level": 1.34477,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T08:48:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The overall market narrative is a bearish pullback within a higher-timeframe (D1) bullish trend. The medium-term timeframes (H4, H1) have confirmed this bearish structure with recent CHoCH events, indicating immediate order flow is to the downside. A high-quality, live H1 SMC candidate (CHOCH+BMS+IDM+RTO) provides a clear trade plan to short the market upon a return to a fresh, unmitigated H1 Bearish Order Block located between 1.35285 and 1.35857. This setup is strengthened by the recent clearance of inducement liquidity at 1.35293, making the OB a high-probability reversal point. The stop loss is structurally placed above the OB high, and take profit targets are set at sequential downside liquidity pools (SSL), culminating at the D1 inducement level of 1.34477. The macro environment is neutral and presents no opposition to this technical setup. All live SnD candidates were invalidated due to the absence of a required Marubozu candle confirmation, focusing the decision on this strong SMC setup.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3.2,
+  "session": "LONDON_OPEN",
+  "setup_type": "OB",
+  "stop_loss": 1.35915,
+  "symbol": "GBPUSD",
+  "take_profit": 1.34477,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

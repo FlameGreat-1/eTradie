@@ -1,0 +1,248 @@
+{
+  "analysis_id": "analysis_GBPUSD_20260429_0838_a4b1",
+  "confidence": 0,
+  "confluence_score": 4,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPUSD_20260429_0838_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "5. Risk-to-Reward Requirements"
+          }
+        ],
+        "query_summary": "Analyze GBPUSD for intraday trading opportunities, focusing on SMC and SnD patterns, HTF/LTF alignment, and R:R validation.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, providing no directional bias. Considered non-blocking.",
+          "present": true,
+          "value": 0
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "The bearish setup aligns with a valid MTF (H4/H1) pullback within a dominant HTF (D1) bullish trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1 and H4 are confirmed bearish, supporting a short entry.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "A high-quality unmitigated H1 Bearish Order Block at [1.35285, 1.35857] provides a valid POI. This is confirmed by a M15 QML_KILLER_TYPE2 candidate.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The setup anticipates a sweep of the significant Equal Highs at 1.35293 before or upon entry into the H1 OB.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data was unavailable for this analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "While a distribution phase is plausible, it is not strongly confirmed. Not scored.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "MANDATORY FAILURE: The distance to the structural invalidation high (1.35993) results in an R:R of ~2.8R to TP3, which is below the 1:3 minimum for the INTRADAY style.",
+          "present": false,
+          "value": -1
+        }
+      ],
+      "score": 4
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data was not available for this analysis cycle.",
+      "week_over_week": null
+    },
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The analysis identified a technically strong, high-confluence bearish scenario. The D1 timeframe is bullish but in a pullback, while the H4 and H1 timeframes have a confirmed bearish structure, validating this pullback. Multiple SMC and SnD candidates align on a short entry within the unmitigated H1 Bearish Order Block between 1.35285 and 1.35857. A key confluence is the presence of Equal Highs at 1.35293, which are a likely target for a liquidity sweep before a move down.\n\nHowever, the setup is **REJECTED** due to a mandatory rule failure. The structural invalidation for this setup is the swing high at 1.35993. Placing a stop loss above this level results in a risk-to-reward ratio of approximately 1:2.8, which is below the required minimum of 1:3 for the INTRADAY trading style as per rule `STYLE-RR-001`. According to master rule `MR-REJECT-010`, any setup that fails to meet the minimum R:R must be rejected, regardless of its technical quality. Therefore, the final decision is NO SETUP.",
+    "htf_bias": {
+      "key_levels": [
+        1.35993,
+        1.34477
+      ],
+      "notes": "D1 structure is bullish following a CHoCH on 2026-04-15. Price is currently in a pullback phase after reaching a high of 1.35993. The overall trend remains bullish, with the current bearish price action interpreted as a retracement.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": null,
+            "content_preview": "All major US economic data points (CPI, PCE, GDP, NFP) have been inline with expectations, providing no strong directional catalyst for the USD.",
+            "doc_id": null,
+            "rule_id": null,
+            "section": "economic.releases"
+          },
+          {
+            "chunk_id": null,
+            "content_preview": "Recent FED communications and minutes have been consistently neutral in tone, indicating a steady policy outlook.",
+            "doc_id": null,
+            "rule_id": null,
+            "section": "central_bank.speeches"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.35285,
+        1.35857,
+        1.35293
+      ],
+      "notes": "H4 and H1 timeframes are bearish, confirming the HTF pullback. There is a significant unmitigated H1 bearish Order Block at [1.35285, 1.35857] and a pool of Buy-Side Liquidity (BSL) in the form of Equal Highs at 1.35293 just below it.",
+      "structure": "bearish"
+    },
+    "pair": "GBPUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "LONDON_OPEN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": null
+    },
+    "take_profits": [
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T08:38:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": null,
+          "content_preview": "The recent failure to break the 1.35993 high and the subsequent bearish structure on H1/H4 suggests a distribution phase is in play, with price potentially forming an Upthrust (UT) or Upthrust After Distribution (UTAD) if it sweeps the 1.35293 highs.",
+          "doc_id": null,
+          "rule_id": null,
+          "section": "ta_analysis.snapshots.H1"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The analysis identified a technically strong, high-confluence bearish scenario. The D1 timeframe is bullish but in a pullback, while the H4 and H1 timeframes have a confirmed bearish structure, validating this pullback. Multiple SMC and SnD candidates align on a short entry within the unmitigated H1 Bearish Order Block between 1.35285 and 1.35857. A key confluence is the presence of Equal Highs at 1.35293, which are a likely target for a liquidity sweep before a move down.\n\nHowever, the setup is **REJECTED** due to a mandatory rule failure. The structural invalidation for this setup is the swing high at 1.35993. Placing a stop loss above this level results in a risk-to-reward ratio of approximately 1:2.8, which is below the required minimum of 1:3 for the INTRADAY trading style as per rule `STYLE-RR-001`. According to master rule `MR-REJECT-010`, any setup that fails to meet the minimum R:R must be rejected, regardless of its technical quality. Therefore, the final decision is NO SETUP.",
+  "rejection_rules": [
+    "missing_COT alignment",
+    "missing_Wyckoff phase supports direction"
+  ],
+  "session": "LONDON_OPEN",
+  "setup_type": "",
+  "symbol": "GBPUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}

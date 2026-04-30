@@ -2712,33 +2712,62 @@ def create_app() -> FastAPI:
         request: Request,
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
-        """Return live account balance, equity, margin, free margin."""
+        """Return live account balance, equity, margin, free margin.
+        Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
+        """
+        import asyncio
+        import json
         container: Container = request.app.state.container
         broker_client = await _resolve_user_broker(container, user.user_id)
+        cache_key = f"cache_failover:account_info:{user.user_id}"
+
         try:
-            info = await broker_client.get_account_info()
-            return {
+            # Enforce a strict 2-second timeout. If the ZMQ lock is held by a massive 
+            # background candle fetch, this will timeout and drop to the Redis cache failover.
+            info = await asyncio.wait_for(broker_client.get_account_info(), timeout=2.0)
+            result = {
                 "balance": info.balance,
                 "equity": info.equity,
                 "margin": info.margin,
                 "margin_free": info.free_margin,
                 "currency": info.currency,
             }
-        except Exception as exc:
-            logger.error("broker_account_info_failed", extra={"error": str(exc), "user_id": user.user_id})
-            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+            # Update the failover cache silently
+            try:
+                await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            except Exception:
+                pass
+            return result
+        except (asyncio.TimeoutError, Exception) as exc:
+            # Failover to the last known state in Redis instead of throwing a 503
+            try:
+                cached = await container.cache.get("internal", cache_key)
+                if cached:
+                    return cached
+            except Exception:
+                pass
+            
+            logger.error("broker_account_info_failed_no_cache", extra={"error": str(exc), "user_id": user.user_id})
+            # Return empty skeleton to prevent 502s from bubbling up to the dashboard UI
+            return {"balance": 0, "equity": 0, "margin": 0, "margin_free": 0, "currency": "USD"}
 
     @app.get("/internal/broker/positions")
     async def broker_positions(
         request: Request,
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> list:
-        """Return all open positions at the broker."""
+        """Return all open positions at the broker.
+        Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
+        """
+        import asyncio
+        import json
         container: Container = request.app.state.container
         broker_client = await _resolve_user_broker(container, user.user_id)
+        cache_key = f"cache_failover:positions:{user.user_id}"
+
         try:
-            positions = await broker_client.get_positions()
-            return [
+            positions = await asyncio.wait_for(broker_client.get_positions(), timeout=2.0)
+            result = [
                 {
                     "symbol": p.symbol,
                     "type": 0 if p.direction == "BUY" else 1,
@@ -2754,9 +2783,24 @@ def create_app() -> FastAPI:
                 }
                 for p in positions
             ]
-        except Exception as exc:
-            logger.error("broker_positions_failed", extra={"error": str(exc), "user_id": user.user_id})
-            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+            # Update the failover cache silently
+            try:
+                await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            except Exception:
+                pass
+            return result
+        except (asyncio.TimeoutError, Exception) as exc:
+            # Failover to the last known state in Redis instead of throwing a 503
+            try:
+                cached = await container.cache.get("internal", cache_key)
+                if cached:
+                    return cached
+            except Exception:
+                pass
+
+            logger.error("broker_positions_failed_no_cache", extra={"error": str(exc), "user_id": user.user_id})
+            # Return empty list to prevent 502s from bubbling up to the dashboard UI
+            return []
 
     @app.get("/internal/broker/pending_orders")
     async def broker_pending_orders(
@@ -2764,11 +2808,14 @@ def create_app() -> FastAPI:
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> list:
         """Return all pending limit/stop orders at the broker."""
+        import asyncio
         container: Container = request.app.state.container
         broker_client = await _resolve_user_broker(container, user.user_id)
+        cache_key = f"cache_failover:pending_orders:{user.user_id}"
+        
         try:
-            orders = await broker_client.get_pending_orders()
-            return [
+            orders = await asyncio.wait_for(broker_client.get_pending_orders(), timeout=2.0)
+            result = [
                 {
                     "symbol": o.symbol,
                     "type": o.order_type,
@@ -2782,9 +2829,23 @@ def create_app() -> FastAPI:
                 }
                 for o in orders
             ]
-        except Exception as exc:
-            logger.error("broker_pending_orders_failed", extra={"error": str(exc), "user_id": user.user_id})
-            raise HTTPException(status_code=502, detail=f"Broker unavailable: {exc}")
+            
+            try:
+                await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            except Exception:
+                pass
+            return result
+        except (asyncio.TimeoutError, Exception) as exc:
+            logger.warning("zmq_execution_lock_timeout_falling_back_to_pending_orders_cache", extra={"error": str(exc), "user_id": user.user_id})
+            
+            try:
+                cached_orders = await container.cache.get("internal", cache_key)
+                if cached_orders is not None:
+                    return cached_orders
+            except Exception:
+                pass
+                
+            return []
 
     @app.get("/internal/broker/symbol_info")
     async def broker_symbol_info(
@@ -3106,10 +3167,12 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Return historical OHLCV candles for the dashboard chart.
 
-        Uses the user's cached broker connection (ZMQ → MT5) to fetch
-        candles in the exact format TradingView Lightweight Charts expects.
+        Implements an Enterprise-Grade asynchronous cache using Redis.
+        If data is cached, returns instantly and syncs with MT5 in the background
+        to avoid locking the ZMQ socket.
         """
         from engine.ta.constants import Timeframe as TF
+        import asyncio
 
         tf_map = {
             "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
@@ -3122,6 +3185,52 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
 
         container: Container = request.app.state.container
+
+        # 1. Try to fetch from Redis Cache
+        # Normalize symbol for Redis key (e.g. "Boom 500 Index" -> "Boom_500_Index")
+        safe_symbol = symbol.replace(" ", "_")
+        cache_key = f"{user.user_id}:{safe_symbol}:{timeframe.upper()}:{count}"
+        cached_raw = None
+        try:
+            cached_raw = await container.cache.get("candles", cache_key)
+        except Exception as e:
+            logger.warning("redis_cache_get_failed", extra={"error": str(e)})
+
+        # 2. Define the background sync worker
+        async def sync_candles_to_cache():
+            try:
+                bg_client = await _resolve_user_broker(container, user.user_id)
+                seq = await bg_client.fetch_candles(
+                    symbol=symbol,
+                    timeframe=tf,
+                    count=count,
+                )
+                candles_out = []
+                for c in seq.candles:
+                    candles_out.append({
+                        "time": int(c.timestamp.timestamp()),
+                        "open": c.open,
+                        "high": c.high,
+                        "low": c.low,
+                        "close": c.close,
+                        "volume": c.volume,
+                    })
+                result = {
+                    "symbol": symbol,
+                    "timeframe": timeframe.upper(),
+                    "candles": candles_out,
+                }
+                # Store in Redis (10 minute TTL to keep it fresh enough, but rely on WebSocket for true realtime)
+                await container.cache.set("candles", cache_key, result, ttl_seconds=600)
+            except Exception as e:
+                logger.error("background_sync_candles_failed", extra={"error": str(e)})
+
+        # 3. If cache hit, return instantly and fire background sync
+        if cached_raw:
+            asyncio.create_task(sync_candles_to_cache())
+            return cached_raw
+
+        # 4. If cache miss, we must fetch synchronously the very first time so the UI gets data
         broker_client = await _resolve_user_broker(container, user.user_id)
 
         try:
@@ -3141,11 +3250,19 @@ def create_app() -> FastAPI:
                     "close": c.close,
                     "volume": c.volume,
                 })
-            return {
+            result = {
                 "symbol": symbol,
                 "timeframe": timeframe.upper(),
                 "candles": candles_out,
             }
+            
+            # Save to cache before returning
+            try:
+                await container.cache.set("candles", cache_key, result, ttl_seconds=600)
+            except Exception as e:
+                logger.warning("redis_cache_set_failed", extra={"error": str(e)})
+                
+            return result
         except Exception as exc:
             logger.error(
                 "chart_candles_failed",

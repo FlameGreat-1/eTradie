@@ -145,7 +145,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                 <DrawerNavButton
                   key={item.path}
                   item={item}
-                  active={isActive(item.path)}
+                  active={isActive(item.path || '')}
                   onNavigate={handleNavigate}
                 />
               ))}
@@ -262,7 +262,7 @@ function RailContents({
           <RailButton
             key={item.path}
             item={item}
-            active={isActive(item.path)}
+            active={isActive(item.path || '')}
             onNavigate={onNavigate}
             onHover={onHover}
             onLeave={onLeave}
@@ -274,9 +274,13 @@ function RailContents({
       <div className="flex flex-col pt-2 pb-2 border-t border-border" aria-label="Account">
         {FOOTER_NAV.map((item) => (
           <RailButton
-            key={item.path}
+            key={item.path || item.label}
             item={item}
-            active={isActive(item.path)}
+            active={
+              item.path
+                ? isActive(item.path)
+                : item.splitPaths?.some((sp) => isActive(sp.path)) ?? false
+            }
             onNavigate={onNavigate}
             onHover={onHover}
             onLeave={onLeave}

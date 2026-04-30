@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { POLL_RETRY, adaptiveInterval } from '@/lib/queryHelpers';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 /**
  * Active managed trades. Returns ALWAYS an array — callers can use
@@ -10,6 +12,7 @@ import { api } from '@/lib/axios';
  * invalidate this key for instant updates.
  */
 export function useManagedTrades() {
+  const { isAuthenticated } = useAuth();
   return useQuery<unknown[]>({
     queryKey: ['management', 'trades'],
     queryFn: async () => {
@@ -17,8 +20,10 @@ export function useManagedTrades() {
       const trades = (data && Array.isArray(data.trades) ? data.trades : []) as unknown[];
       return trades;
     },
-    refetchInterval: 5_000,
+    refetchInterval: adaptiveInterval(5_000),
     staleTime: 1_000,
+    retry: POLL_RETRY,
+    enabled: isAuthenticated,
   });
 }
 
@@ -32,6 +37,7 @@ export function useTradeJournal(params?: {
   symbol?: string;
   style?: string;
 }) {
+  const { isAuthenticated } = useAuth();
   const limit = params?.limit ?? 50;
   const offset = params?.offset ?? 0;
 
@@ -48,8 +54,10 @@ export function useTradeJournal(params?: {
       const { data } = await api.management.get(`/api/v1/management/journal?${searchParams}`);
       return data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: adaptiveInterval(30_000),
     staleTime: 5_000,
+    retry: POLL_RETRY,
+    enabled: isAuthenticated,
   });
 }
 
@@ -59,13 +67,17 @@ export function useTradeJournal(params?: {
  * / PERFORMANCE_REPORT events that invalidate this key.
  */
 export function usePerformanceMetrics(period = 'ALL_TIME') {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['management', 'metrics', period],
     queryFn: async () => {
       const { data } = await api.management.get(`/api/v1/management/metrics?period=${period}`);
       return data;
     },
-    refetchInterval: 15_000,
+    refetchInterval: adaptiveInterval(15_000),
     staleTime: 2_000,
+    retry: POLL_RETRY,
+    enabled: isAuthenticated,
   });
 }
+

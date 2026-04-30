@@ -141,14 +141,18 @@ class CFTCProvider(BaseCOTProvider):
         self, raw_rows: list[dict[str, Any]]
     ) -> list[COTPosition]:
         positions: list[COTPosition] = []
-        seen_currencies: set[str] = set()
+        currency_counts: dict[str, int] = {}
 
         for row in raw_rows:
             contract_name = row.get("market_and_exchange_names", "")
             currency = self._map_contract_to_currency(contract_name)
-            if currency is None or currency.value in seen_currencies:
+            if currency is None:
                 continue
-            seen_currencies.add(currency.value)
+
+            count = currency_counts.get(currency.value, 0)
+            if count >= 4:
+                continue
+            currency_counts[currency.value] = count + 1
 
             nc_long = int(row.get("noncomm_positions_long_all", 0))
             nc_short = int(row.get("noncomm_positions_short_all", 0))
@@ -180,14 +184,18 @@ class CFTCProvider(BaseCOTProvider):
 
     def _parse_tff_positions(self, raw_rows: list[dict[str, Any]]) -> list[TFFPosition]:
         positions: list[TFFPosition] = []
-        seen_currencies: set[str] = set()
+        currency_counts: dict[str, int] = {}
 
         for row in raw_rows:
             contract_name = row.get("market_and_exchange_names", "")
             currency = self._map_contract_to_currency(contract_name)
-            if currency is None or currency.value in seen_currencies:
+            if currency is None:
                 continue
-            seen_currencies.add(currency.value)
+
+            count = currency_counts.get(currency.value, 0)
+            if count >= 4:
+                continue
+            currency_counts[currency.value] = count + 1
 
             lev_long = int(row.get("lev_money_positions_long_all", 0))
             lev_short = int(row.get("lev_money_positions_short_all", 0))

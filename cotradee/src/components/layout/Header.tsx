@@ -85,6 +85,7 @@ function Header({ onMenuClick }: HeaderProps) {
   const [userMenuCoords, setUserMenuCoords] = useState({ top: 0, right: 0 });
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const desktopMenuRef = useRef<HTMLDivElement>(null);
+  const userPortalRef = useRef<HTMLDivElement>(null);
 
   const toggleUserMenu = () => {
     if (!showUserMenu) {
@@ -156,8 +157,13 @@ function Header({ onMenuClick }: HeaderProps) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
       const activeRef = window.innerWidth < 768 ? mobileMenuRef : desktopMenuRef;
-      if (activeRef.current && !activeRef.current.contains(e.target as Node)) {
+      
+      const clickedOutsideTrigger = activeRef.current && !activeRef.current.contains(target);
+      const clickedOutsidePortal = userPortalRef.current && !userPortalRef.current.contains(target);
+
+      if (clickedOutsideTrigger && clickedOutsidePortal) {
         setShowUserMenu(false);
       }
     };
@@ -365,6 +371,7 @@ function Header({ onMenuClick }: HeaderProps) {
 
       {showUserMenu && createPortal(
         <div
+          ref={userPortalRef}
           role="menu"
           style={{
             position: 'fixed',

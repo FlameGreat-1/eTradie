@@ -1,0 +1,257 @@
+{
+  "analysis_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 1.8417,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPCAD_20260428_1430_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.85,
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.84,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.89,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          }
+        ],
+        "query_summary": "GBPCAD intraday long setup after pullback, aligning with HTF bullish trend.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral, providing no conflict with the technical setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H12, H4 timeframes are bullish. This setup is a pro-trend entry aligning with the dominant structure.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "M15 has a confirmed bullish CHoCH at 1.84394, signaling the end of the bearish pullback.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a valid M5 Order Block at [1.84126, 1.84214].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The candidate confirms a sweep of SSL at 1.84376 prior to the bullish structural shift, indicating a potential stop hunt.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data collection failed.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact news for GBP and CAD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to the first structural target (H1 Swing High) is > 3:1, meeting the Intraday style requirement.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data collection failed from CFTC.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.84126,
+        1.84214
+      ],
+      "evidence": [
+        {
+          "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+          "content_preview": "HTF context drives direction. LTF structure drives entry and exit.",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "MR-PHIL-009",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8417_37676101"
+    },
+    "entry_zone": {
+      "high": 1.84214,
+      "low": 1.84126
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The dominant HTF (D1, H4) trend for GBPCAD is bullish. The market has been in a bearish pullback on LTF (H1, M30), which now shows signs of exhaustion. A bullish CHoCH has been confirmed on the M15 timeframe, indicating a potential reversal to realign with the HTF bullish order flow. A high-confluence, pro-trend SMC setup has been identified on the M5 timeframe: a CHOCH+BMS+SSL_SWEEP+RTO pattern (ID: ...37676101). This setup provides a precise entry at an M5 Order Block between 1.84126 and 1.84214. The stop loss is placed structurally below the M15 swing low at 1.8406. Take profit targets are set at the nearest H1 and D1 swing highs, which are the next logical draws on liquidity. The macro environment is neutral and does not conflict with the setup. With a confluence score of 7/9 and an excellent R:R profile, this is a high-probability A-grade long setup.",
+    "htf_bias": {
+      "key_levels": [
+        1.86946,
+        1.84208
+      ],
+      "notes": "HTF structure from D1 down to H4 is strongly bullish, confirmed by a D1 bullish CHoCH on 2026-04-09. The current price action is a pullback within this established bullish trend. The key HTF swing low is at 1.84208 (D1).",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.84394,
+        1.8407
+      ],
+      "notes": "The H1 and M30 timeframes show a bearish pullback structure. However, the M15 timeframe has recently printed a bullish CHoCH at 1.84394, signaling a potential end to the pullback and a realignment with the HTF bullish trend. The key MTF swing low is at 1.8407 (M15).",
+      "structure": "choch_bullish"
+    },
+    "pair": "GBPCAD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.94,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.93,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": 25.23,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.8406,
+      "reason": "Placed below the M15 swing low at 1.8407 for structural protection."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 Swing High (BSL)",
+        "level": 1.84529,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 Swing High (BSL)",
+        "level": 1.85074,
+        "size_pct": 30
+      },
+      {
+        "basis": "D1 Swing High (BSL)",
+        "level": 1.86946,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-28T14:30:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The dominant HTF (D1, H4) trend for GBPCAD is bullish. The market has been in a bearish pullback on LTF (H1, M30), which now shows signs of exhaustion. A bullish CHoCH has been confirmed on the M15 timeframe, indicating a potential reversal to realign with the HTF bullish order flow. A high-confluence, pro-trend SMC setup has been identified on the M5 timeframe: a CHOCH+BMS+SSL_SWEEP+RTO pattern (ID: ...37676101). This setup provides a precise entry at an M5 Order Block between 1.84126 and 1.84214. The stop loss is placed structurally below the M15 swing low at 1.8406. Take profit targets are set at the nearest H1 and D1 swing highs, which are the next logical draws on liquidity. The macro environment is neutral and does not conflict with the setup. With a confluence score of 7/9 and an excellent R:R profile, this is a high-probability A-grade long setup.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 25.23,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 1.8406,
+  "symbol": "GBPCAD",
+  "take_profit": 1.86946,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

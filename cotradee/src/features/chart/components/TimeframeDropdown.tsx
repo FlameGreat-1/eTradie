@@ -42,6 +42,7 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   const toggle = () => {
     if (!isOpen && menuRef.current) {
@@ -49,6 +50,7 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
       setCoords({
         top: rect.bottom,
         left: rect.left + rect.width / 2,
+        width: rect.width,
       });
     }
     setIsOpen(!isOpen);
@@ -56,7 +58,11 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedOutsideTrigger = menuRef.current && !menuRef.current.contains(target);
+      const clickedOutsidePortal = portalRef.current && !portalRef.current.contains(target);
+      
+      if (clickedOutsideTrigger && clickedOutsidePortal) {
         setIsOpen(false);
       }
     };
@@ -92,6 +98,7 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
 
       {isOpen && createPortal(
         <div
+          ref={portalRef}
           role="listbox"
           style={{
             position: 'fixed',

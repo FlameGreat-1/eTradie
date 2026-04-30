@@ -74,6 +74,7 @@ function NotificationsPanelInner() {
     () => localStorage.getItem(LAST_SEEN_KEY) ?? '',
   );
   const containerRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   const toggle = () => {
     if (!isOpen && containerRef.current) {
@@ -88,10 +89,14 @@ function NotificationsPanelInner() {
 
   const { data: events, isLoading, isError } = useRecentEvents(20);
 
-  const eventList: EventLike[] = useMemo(
-    () => (Array.isArray(events) ? (events as EventLike[]) : []),
-    [events],
-  );
+  const eventList: EventLike[] = useMemo(() => {
+    if (!Array.isArray(events)) return [];
+    return [...(events as EventLike[])].sort((a, b) => {
+      const timeA = new Date(a.created_at ?? a.timestamp ?? 0).getTime();
+      const timeB = new Date(b.created_at ?? b.timestamp ?? 0).getTime();
+      return timeB - timeA;
+    });
+  }, [events]);
 
   const unreadCount = useMemo(() => {
     if (!eventList.length) return 0;
@@ -110,10 +115,11 @@ function NotificationsPanelInner() {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      const clickedOutsideTrigger = containerRef.current && !containerRef.current.contains(target);
+      const clickedOutsidePortal = portalRef.current && !portalRef.current.contains(target);
+
+      if (clickedOutsideTrigger && clickedOutsidePortal) {
         close();
       }
     };
@@ -182,6 +188,7 @@ function NotificationsPanelInner() {
 
       {isOpen && createPortal(
         <div
+          ref={portalRef}
           role="dialog"
           aria-label="Notifications"
           style={{

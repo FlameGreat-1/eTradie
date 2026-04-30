@@ -1,13 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 export function useSymbols() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['symbols'],
     queryFn: async () => {
       const { data } = await api.gateway.get<{ symbols: string[]; source: string }>('/api/v1/symbols');
       return data;
     },
+    enabled: isAuthenticated,
   });
 }
 
@@ -18,6 +21,7 @@ export interface BrokerSymbol {
 }
 
 export function useBrokerSymbols() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['broker-symbols'],
     queryFn: async () => {
@@ -25,6 +29,7 @@ export function useBrokerSymbols() {
       return data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes — matches backend cache TTL
+    enabled: isAuthenticated,
   });
 }
 

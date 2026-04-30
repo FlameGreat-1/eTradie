@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 export interface SystemConfig {
   enabled: boolean;
@@ -16,12 +17,14 @@ export interface SystemConfig {
 }
 
 export function useSystemConfig() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['system', 'config'],
     queryFn: async () => {
       const { data } = await api.gateway.get<SystemConfig>('/api/v1/config');
       return data;
     },
+    enabled: isAuthenticated,
   });
 }
 

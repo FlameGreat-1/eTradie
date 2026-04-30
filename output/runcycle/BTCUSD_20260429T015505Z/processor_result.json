@@ -1,0 +1,251 @@
+{
+  "analysis_id": "analysis_BTCUSD_20260429_0155_a4b1",
+  "confidence": 0,
+  "confluence_score": 0,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_BTCUSD_20260429_0155_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "00ad19a1-e2d7-4cbc-b0d9-35895c12c547",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.95,
+          "section": "10. Conditions to Avoid"
+        },
+        {
+          "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.92,
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "00ad19a1-e2d7-4cbc-b0d9-35895c12c547",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.95,
+            "section": "10. Conditions to Avoid"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.92,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.88,
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "Analyze BTCUSD for a trading setup based on multi-timeframe structural conflict and live edge candidates.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral macro data is treated as non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "MTF (H4-H1) is bearish, but LTF (M5-M1) has shown a bullish CHoCH, creating a direct structural conflict and ambiguity. This is not a clean pullback or reversal scenario.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "No clear, actionable setup aligns with a confirmed MTF structural break at the current price.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Price is caught between MTF supply and a recent LTF demand creation, with no high-quality entry zone presenting itself.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "No live, valid setup has formed following a liquidity sweep.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "No COT data provided, treated as non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The market is in a ranging/conflicted state, not a clear Markup/Markdown phase.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "No valid setup identified to calculate R:R against.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 0
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data provided.",
+      "week_over_week": null
+    },
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The analysis reveals a highly conflicted market structure, leading to a 'NO SETUP' decision. The HTF (D1/W1) trend is bullish. However, the MTF (H4/H1/M15) is in a clear bearish pullback. Complicating this, the LTF (M5/M1) has recently experienced a bullish Change of Character (CHoCH) around 76358.715, indicating a counter-trend move against the MTF bearish flow. This places the current price action in a state of ambiguity, caught between the dominant MTF bearish pressure and a nascent LTF bullish reversal. As per rule STYLE-AVOID-002, trading in such ambiguous conditions is prohibited. The LTF bullishness is likely inducement driving price towards higher MTF bearish POIs, such as the H1 Order Block between 76970 and 77418. Forcing a trade now would be a low-probability gamble. The most professional course of action is to remain patient and wait for the market to provide a clearer directional bias. A valid short setup would require the M5 bullish structure to fail with a bearish BMS, confirming the resumption of the MTF trend. A valid long setup would require a break of the M15/H1 bearish structure to the upside. Neither condition is currently met.",
+    "htf_bias": {
+      "key_levels": [],
+      "notes": "Higher timeframe structure (W1, D1, H12, H8, H6) remains bullish, indicating a long-term uptrend.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        76970.089,
+        77418.538
+      ],
+      "notes": "Medium timeframe structure (H4, H3, H1) has shifted bearish, indicating a significant pullback against the HTF trend. The key resistance area is the H1 Order Block between 76970 and 77418.",
+      "structure": "bearish"
+    },
+    "pair": "BTCUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "00ad19a1-e2d7-4cbc-b0d9-35895c12c547",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "10. Conditions to Avoid"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.92,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.9,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "ASIAN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": null
+    },
+    "take_profits": [
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": null,
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T01:55:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "00ad19a1-e2d7-4cbc-b0d9-35895c12c547",
+          "content_preview": "Do not trade when HTF market structure is unclear \u2014 no definitive HH+HL or LH+LL pattern. Price ranging without directional bias.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-AVOID-002",
+          "section": "10. Conditions to Avoid"
+        }
+      ],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis reveals a highly conflicted market structure, leading to a 'NO SETUP' decision. The HTF (D1/W1) trend is bullish. However, the MTF (H4/H1/M15) is in a clear bearish pullback. Complicating this, the LTF (M5/M1) has recently experienced a bullish Change of Character (CHoCH) around 76358.715, indicating a counter-trend move against the MTF bearish flow. This places the current price action in a state of ambiguity, caught between the dominant MTF bearish pressure and a nascent LTF bullish reversal. As per rule STYLE-AVOID-002, trading in such ambiguous conditions is prohibited. The LTF bullishness is likely inducement driving price towards higher MTF bearish POIs, such as the H1 Order Block between 76970 and 77418. Forcing a trade now would be a low-probability gamble. The most professional course of action is to remain patient and wait for the market to provide a clearer directional bias. A valid short setup would require the M5 bullish structure to fail with a bearish BMS, confirming the resumption of the MTF trend. A valid long setup would require a break of the M15/H1 bearish structure to the upside. Neither condition is currently met.",
+  "rejection_rules": [
+    "missing_HTF structure aligned OR Valid Counter-Trend Pullback",
+    "missing_MTF BOS or ChoCH confirmed in trade direction",
+    "missing_Valid Structural Entry Support",
+    "missing_Liquidity sweep into entry zone",
+    "missing_Wyckoff phase supports direction",
+    "missing_Minimum R:R achievable"
+  ],
+  "session": "ASIAN",
+  "setup_type": "",
+  "symbol": "BTCUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}

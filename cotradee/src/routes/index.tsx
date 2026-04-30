@@ -16,12 +16,20 @@ const SupportPage   = lazy(() => import('./pages/SupportPage'));
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center h-full bg-app">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-brand border-t-transparent animate-spin" />
-        <span className="text-xs text-content-muted uppercase tracking-wider">
-          Loading
-        </span>
+    <div className="flex items-center justify-center w-full h-full min-h-screen bg-app">
+      <div className="flex flex-col items-center justify-center pointer-events-none gap-3">
+        <img 
+          src="/assets/sidebar/icons/logo.svg" 
+          alt="Loading" 
+          className="w-12 h-12"
+          style={{ animation: 'logoZoom 1.2s ease-in-out infinite' }}
+        />
+        <style>{`
+          @keyframes logoZoom {
+            0%, 100% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.15); opacity: 1; }
+          }
+        `}</style>
       </div>
     </div>
   );

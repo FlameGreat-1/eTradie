@@ -1,15 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 /* ─── User Management ──────────────────────────── */
 
 export function useAdminUsers() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
       const { data } = await api.gateway.get('/auth/admin/users');
       return data;
     },
+    enabled: isAuthenticated,
   });
 }
 
@@ -49,22 +52,26 @@ export function useDeactivateUser() {
 /* ─── Global Processor Config ──────────────────── */
 
 export function useProcessorModels() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['admin', 'processor', 'models'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/processor/models');
       return data;
     },
+    enabled: isAuthenticated,
   });
 }
 
 export function useProcessorConfig() {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['admin', 'processor', 'config'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/processor/config');
       return data;
     },
+    enabled: isAuthenticated,
   });
 }
 

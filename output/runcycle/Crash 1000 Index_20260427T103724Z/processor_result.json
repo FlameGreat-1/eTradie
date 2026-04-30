@@ -1,0 +1,289 @@
+{
+  "analysis_id": "CRASH 1000 INDEX_CHOCH_BMS_RTO_BEARISH_BEARISH_5524.351_253ea558",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "SHORT",
+  "entry_price": 5524.351,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Crash_1000_Index_20260427_1035_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "3. Timeframe Structure"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.85,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.89,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "5. Risk-to-Reward Requirements"
+          }
+        ],
+        "query_summary": "Analysis of Crash 1000 Index for a bearish intraday setup based on SMC and timeframe alignment.",
+        "strategy_used": "scenario_first",
+        "top_k": 29
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral/unavailable, which is treated as non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H12, H8, H6, H4, H3, and H1 timeframes are all aligned bearish, confirming the dominant trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1 timeframe confirms a recent bearish CHoCH and BMS, validating the entry direction.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "A valid H1 Bearish Order Block is present at the entry zone [5515.963, 5532.739].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The candidate confirms a sweep of Buy-Side Liquidity (BSL) at 5570.955 before the structural break, indicating a stop hunt.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data is not available for this instrument.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The BSL sweep followed by a sharp breakdown (BMS) is characteristic of an Upthrust/UTAD and the beginning of a Markdown phase, supporting a short position.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to the final TP target is approximately 15.4R, well above the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for this instrument.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5515.963,
+        5532.739
+      ],
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "Smart Money Concepts (SMC) | Order flow, institutional footprints, liquidity engineering | 4H / 1H \u2014 entry precision | Primary",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": null,
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "CRASH 1000 INDEX_CHOCH_BMS_RTO_BEARISH_BEARISH_5524.351_253ea558"
+    },
+    "entry_zone": {
+      "high": 5532.739,
+      "low": 5515.963
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short setup on Crash 1000 Index based on strong multi-timeframe bearish alignment. The dominant trend is bearish from the Daily down to the M5 timeframe. A key H1 CHOCH+BMS+SH+RTO pattern (candidate ID ...253ea558) has formed, confirming a shift to bearish order flow after sweeping buy-side liquidity at 5570.955. The current M1 bullish price action is interpreted as a counter-trend pullback (inducement) into a high-quality H1 Bearish Order Block located at [5515.963, 5532.739]. The setup achieves a confluence score of 9/10, grading it as A+. A limit order will be placed within the OB, with a structural stop loss above its high at 5535.0. Take profit levels are set at key sell-side liquidity pools on the M15, H1, and D1 timeframes, offering an excellent R:R ratio. This trade aligns with the HTF narrative and capitalizes on an LTF pullback for an optimal entry.",
+    "htf_bias": {
+      "key_levels": [],
+      "notes": "Strong bearish alignment from D1 down to H1. The overall trend is confirmed as BEARISH. While W1 shows a bullish structure, the current D1 price action is a clear bearish leg, which dictates the intraday directional bias.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [],
+      "notes": "H1 timeframe has confirmed a bearish shift with both a CHoCH at 5533.759 and a subsequent BMS at 5484.535. This establishes clear bearish order flow for an intraday perspective.",
+      "structure": "bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "3. Timeframe Structure"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.89,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      }
+    ],
+    "rr_ratio": 15.43,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5535,
+      "reason": "Structurally placed above the high of the H1 Bearish Order Block, providing a buffer against wicks."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest significant Sell-Side Liquidity (SSL) pool from the M15 timeframe.",
+        "level": 5490,
+        "size_pct": 40
+      },
+      {
+        "basis": "Major H1 swing low at 5481.185, a primary draw on liquidity.",
+        "level": 5482,
+        "size_pct": 30
+      },
+      {
+        "basis": "Deeper structural swing low from the D1 timeframe at 5357.275, representing the HTF liquidity target.",
+        "level": 5360,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-27T10:35:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "Wyckoff Theory | Phase identification, composite operator logic | 1W / 1D \u2014 directional context only | Context",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": null,
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short setup on Crash 1000 Index based on strong multi-timeframe bearish alignment. The dominant trend is bearish from the Daily down to the M5 timeframe. A key H1 CHOCH+BMS+SH+RTO pattern (candidate ID ...253ea558) has formed, confirming a shift to bearish order flow after sweeping buy-side liquidity at 5570.955. The current M1 bullish price action is interpreted as a counter-trend pullback (inducement) into a high-quality H1 Bearish Order Block located at [5515.963, 5532.739]. The setup achieves a confluence score of 9/10, grading it as A+. A limit order will be placed within the OB, with a structural stop loss above its high at 5535.0. Take profit levels are set at key sell-side liquidity pools on the M15, H1, and D1 timeframes, offering an excellent R:R ratio. This trade aligns with the HTF narrative and capitalizes on an LTF pullback for an optimal entry.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 15.43,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 5535,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5360,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

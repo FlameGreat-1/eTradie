@@ -6,21 +6,24 @@ import {
   memo,
   useState,
 } from 'react';
-import {
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-  type CandlestickData,
-  type IPriceLine,
-  type Time,
-  ColorType,
-  CrosshairMode,
-  LineStyle,
+import type {
+  IChartApi,
+  ISeriesApi,
+  CandlestickData,
+  IPriceLine,
+  Time,
 } from 'lightweight-charts';
 import { AlertTriangle } from 'lucide-react';
 import { useChartCandles } from '@/features/chart/api/chartData';
 import { useTickStream, type TickData } from '@/features/chart/hooks/useTickStream';
 import { formatCurrency } from '@/utils/formatters';
+
+/**
+ * lightweight-charts is loaded via dynamic import() to prevent its
+ * internal navigator.userAgentData.brands.some() probe from crashing
+ * at module-eval time on mobile browsers where the polyfill fails.
+ */
+type LWCModule = typeof import('lightweight-charts');
 
 /* ── Public types ────────────────────────────────────────────────── */
 
@@ -134,24 +137,30 @@ function TradingChartInner({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const lwcRef = useRef<LWCModule | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
   const latestCandleRef = useRef<CandlestickData | null>(null);
   const lastDataKeyRef = useRef<string>('');
   const [latestPrice, setLatestPrice] = useState<number | null>(null);
   const [chartFailed, setChartFailed] = useState(false);
+  const [chartReady, setChartReady] = useState(false);
   const [themeTick, setThemeTick] = useState(0);
 
+  const [overlayPos, setOverlayPos] = useState({ x: 12, y: 12 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0 });
   const { data: candleData, isFetching } = useChartCandles(symbol, timeframe);
 
   const applyPalette = useCallback(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
-    if (!chart || !series) return;
+    const lwc = lwcRef.current;
+    if (!chart || !series || !lwc) return;
     const colors = readThemeColors();
     try {
       chart.applyOptions({
         layout: {
-          background: { type: ColorType.Solid, color: colors.background },
+          background: { type: lwc.ColorType.Solid, color: colors.background },
           textColor: colors.textColor,
         },
         grid: {
@@ -176,81 +185,94 @@ function TradingChartInner({
     }
   }, []);
 
-  /* 1. Create chart once. Wrapped in try/catch so a library crash on
-        a hostile browser (e.g. iOS WebView with no userAgentData)
-        cannot tear down the whole app. */
+  /* 1. Dynamically import lightweight-charts and create chart.
+        The dynamic import() ensures the library's internal
+        navigator.userAgentData.brands.some() probe runs inside
+        async code we can catch, not at module-eval time. */
   useEffect(() => {
     if (!containerRef.current) return;
-
+    let cancelled = false;
     let chart: IChartApi | null = null;
-    let series: ISeriesApi<'Candlestick'> | null = null;
 
-    try {
-      const colors = readThemeColors();
-      chart = createChart(containerRef.current, {
-        autoSize: true,
-        layout: {
-          background: { type: ColorType.Solid, color: colors.background },
-          textColor: colors.textColor,
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-          fontSize: 11,
-        },
-        grid: {
-          vertLines: { color: colors.gridColor },
-          horzLines: { color: colors.gridColor },
-        },
-        crosshair: {
-          mode: CrosshairMode.Normal,
-          vertLine: {
-            color: colors.crosshair,
-            width: 1,
-            style: LineStyle.Dashed,
-            labelBackgroundColor: colors.tooltipBg,
+    (async () => {
+      try {
+        const lwc = await import('lightweight-charts');
+        if (cancelled) return;
+        lwcRef.current = lwc;
+
+        const colors = readThemeColors();
+        chart = lwc.createChart(containerRef.current!, {
+          autoSize: true,
+          layout: {
+            background: { type: lwc.ColorType.Solid, color: colors.background },
+            textColor: colors.textColor,
+            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+            fontSize: 11,
           },
-          horzLine: {
-            color: colors.crosshair,
-            width: 1,
-            style: LineStyle.Dashed,
-            labelBackgroundColor: colors.tooltipBg,
+          grid: {
+            vertLines: { color: colors.gridColor },
+            horzLines: { color: colors.gridColor },
           },
-        },
-        rightPriceScale: {
-          borderColor: colors.borderColor,
-          scaleMargins: { top: 0.08, bottom: 0.08 },
-        },
-        timeScale: {
-          borderColor: colors.borderColor,
-          timeVisible: true,
-          secondsVisible: false,
-          rightOffset: 12,
-          barSpacing: 8,
-          minBarSpacing: 1,
-        },
-        handleScroll: { vertTouchDrag: false },
-      });
+          crosshair: {
+            mode: lwc.CrosshairMode.Normal,
+            vertLine: {
+              color: colors.crosshair,
+              width: 1,
+              style: lwc.LineStyle.Dashed,
+              labelBackgroundColor: colors.tooltipBg,
+            },
+            horzLine: {
+              color: colors.crosshair,
+              width: 1,
+              style: lwc.LineStyle.Dashed,
+              labelBackgroundColor: colors.tooltipBg,
+            },
+          },
+          rightPriceScale: {
+            borderColor: colors.borderColor,
+            scaleMargins: { top: 0.08, bottom: 0.08 },
+          },
+          timeScale: {
+            borderColor: colors.borderColor,
+            timeVisible: true,
+            secondsVisible: false,
+            rightOffset: 12,
+            barSpacing: 4,
+            minBarSpacing: 1,
+          },
+          handleScroll: { vertTouchDrag: false },
+        });
 
-      series = chart.addCandlestickSeries({
-        upColor: colors.upColor,
-        downColor: colors.downColor,
-        borderVisible: false,
-        wickUpColor: colors.upColor,
-        wickDownColor: colors.downColor,
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Chart construction failed:', err);
-      try { chart?.remove(); } catch { /* noop */ }
-      setChartFailed(true);
-      return;
-    }
+        const series = chart.addCandlestickSeries({
+          upColor: colors.upColor,
+          downColor: colors.downColor,
+          borderVisible: false,
+          wickUpColor: colors.upColor,
+          wickDownColor: colors.downColor,
+        });
 
-    chartRef.current = chart;
-    seriesRef.current = series;
+        if (cancelled) {
+          try { chart.remove(); } catch { /* noop */ }
+          return;
+        }
+
+        chartRef.current = chart;
+        seriesRef.current = series;
+        setChartReady(true);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Chart library load / construction failed:', err);
+        try { chart?.remove(); } catch { /* noop */ }
+        if (!cancelled) setChartFailed(true);
+      }
+    })();
 
     return () => {
-      try { chart?.remove(); } catch { /* noop */ }
+      cancelled = true;
+      try { chartRef.current?.remove(); } catch { /* noop */ }
       chartRef.current = null;
       seriesRef.current = null;
+      lwcRef.current = null;
       linesRef.current = [];
       latestCandleRef.current = null;
       lastDataKeyRef.current = '';
@@ -277,6 +299,12 @@ function TradingChartInner({
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
     if (!candleData?.candles) return;
+    if (candleData.symbol !== symbol || candleData.timeframe !== timeframe) {
+      seriesRef.current.setData([]);
+      latestCandleRef.current = null;
+      lastDataKeyRef.current = '';
+      return;
+    }
 
     const key = `${symbol}|${timeframe}|${candleData.candles.length}`;
     if (key === lastDataKeyRef.current) return;
@@ -306,17 +334,17 @@ function TradingChartInner({
       seriesRef.current.setData(unique);
       latestCandleRef.current = unique.length > 0 ? { ...unique[unique.length - 1] } : null;
       if (unique.length > 0) setLatestPrice(unique[unique.length - 1].close);
-      chartRef.current.timeScale().fitContent();
+
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Chart setData failed:', err);
     }
-  }, [candleData, symbol, timeframe]);
+  }, [candleData, symbol, timeframe, chartReady]);
 
   /* 4. Live tick stream. */
   const handleTick = useCallback(
     (tick: TickData) => {
-      if (!seriesRef.current) return;
+      if (!seriesRef.current || !latestCandleRef.current) return;
       if (tick.symbol && tick.symbol !== symbol) return;
 
       const tNow =
@@ -367,8 +395,9 @@ function TradingChartInner({
 
   /* 5. Single canonical "redraw all lines" pass. */
   useEffect(() => {
-    if (!seriesRef.current) return;
+    if (!seriesRef.current || !lwcRef.current) return;
     const series = seriesRef.current;
+    const lwc = lwcRef.current;
     const colors = readThemeColors();
 
     for (const line of linesRef.current) {
@@ -389,7 +418,7 @@ function TradingChartInner({
               price: levels.entry as number,
               color: colors.info,
               lineWidth: 2,
-              lineStyle: LineStyle.Solid,
+              lineStyle: lwc.LineStyle.Solid,
               axisLabelVisible: true,
               ...labelStyle,
               title: 'Entry',
@@ -402,7 +431,7 @@ function TradingChartInner({
               price: levels.stopLoss as number,
               color: colors.danger,
               lineWidth: 2,
-              lineStyle: LineStyle.Dashed,
+              lineStyle: lwc.LineStyle.Dashed,
               axisLabelVisible: true,
               ...labelStyle,
               title: 'SL',
@@ -415,7 +444,7 @@ function TradingChartInner({
               price: levels.takeProfit as number,
               color: colors.success,
               lineWidth: 2,
-              lineStyle: LineStyle.Dashed,
+              lineStyle: lwc.LineStyle.Dashed,
               axisLabelVisible: true,
               ...labelStyle,
               title: 'TP',
@@ -433,7 +462,7 @@ function TradingChartInner({
               price: trade.entryPrice,
               color: tone === 'BUY' ? colors.success : colors.danger,
               lineWidth: 2,
-              lineStyle: LineStyle.Solid,
+              lineStyle: lwc.LineStyle.Solid,
               axisLabelVisible: true,
               ...labelStyle,
               title: `${tone} · Entry`,
@@ -445,7 +474,7 @@ function TradingChartInner({
                 price: trade.stopLoss,
                 color: colors.danger,
                 lineWidth: 1,
-                lineStyle: LineStyle.Dotted,
+                lineStyle: lwc.LineStyle.Dotted,
                 axisLabelVisible: true,
                 ...labelStyle,
                 title: 'SL',
@@ -458,7 +487,7 @@ function TradingChartInner({
                 price: trade.takeProfit,
                 color: colors.success,
                 lineWidth: 1,
-                lineStyle: LineStyle.Dotted,
+                lineStyle: lwc.LineStyle.Dotted,
                 axisLabelVisible: true,
                 ...labelStyle,
                 title: 'TP',
@@ -470,7 +499,8 @@ function TradingChartInner({
     } catch {
       /* never let a price-line draw call crash the page */
     }
-  }, [levels, activeTrades, symbol, themeTick]);
+  }, [levels, activeTrades, symbol, themeTick, chartReady]);
+
 
   /* 6. Live P&L overlay state. */
   const overlay = useMemo(() => {
@@ -484,6 +514,33 @@ function TradingChartInner({
       trade.stopLoss > 0 ? pipDistance(symbol, price, trade.stopLoss) : null;
     return { tone, price, pipsToTp, pipsToSl, profit: trade.profit };
   }, [activeTrades, symbol, latestPrice]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: overlayPos.x,
+      initY: overlayPos.y,
+    };
+  }, [overlayPos]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setOverlayPos({
+      x: dragRef.current.initX + dx,
+      y: dragRef.current.initY + dy,
+    });
+  }, [isDragging]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }, []);
 
   /* 7. Render. */
   if (chartFailed) {
@@ -514,20 +571,18 @@ function TradingChartInner({
         style={{ minHeight: 240 }}
       />
 
-      {isFetching && !candleData && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-surface-2/80 border border-border text-xs text-content-secondary">
-            <span className="inline-block w-2 h-2 rounded-full bg-brand animate-pulse" />
-            Loading {symbol} · {timeframe}…
-          </div>
-        </div>
-      )}
+
 
       {overlay && (
         <div
-          className="absolute top-3 left-3 z-10 flex items-center gap-3 px-3 py-2
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className={`absolute z-10 flex items-center gap-3 px-3 py-2
                      rounded-lg border border-border bg-surface-glass
-                     shadow-card text-xs select-none"
+                     shadow-card text-xs select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={{ transform: `translate(${overlayPos.x}px, ${overlayPos.y}px)` }}
         >
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-wider text-content-muted">

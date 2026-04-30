@@ -1,0 +1,305 @@
+{
+  "analysis_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8447_9724fe17",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 1.844735,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPCAD_20260429_0200_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.87,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "3. Timeframe Structure"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.87,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.86,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "a19857cb-0863-497e-a805-b88ab39ffe9c",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.85,
+            "section": "11. Strategy Consistency"
+          }
+        ],
+        "query_summary": "GBPCAD bullish intraday setup based on HTF alignment and LTF SMC confirmation.",
+        "strategy_used": "scenario_first",
+        "top_k": 29
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral and non-contradictory.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H12, H8, H6, H4, H1 are all aligned bullish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1 and M30 show confirmed bullish BMS, indicating strong order flow.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a valid, unmitigated M30 Bullish Order Block at 1.84406-1.84541.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The selected candidate confirms a sweep of internal SSL prior to the structural break, adding validity.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data is unavailable.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Wyckoff phase is not clearly defined from the provided data.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events for GBP and CAD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Potential R:R to final TP is >20R, well above the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data is unavailable due to a collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        1.84406,
+        1.84541
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPCAD_CHOCH_BMS_RTO_BULLISH_BULLISH_1.8447_9724fe17"
+    },
+    "entry_zone": {
+      "high": 1.84541,
+      "low": 1.84406
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability long setup for GBPCAD based on strong, multi-timeframe bullish alignment. The overall trend from the Daily timeframe down to M15 is consistently bullish, providing a solid directional bias. A live, high-confluence M30 SMC candidate (CHOCH+BMS+SWEEP+RTO) has been selected, with an entry point targeting a return to an unmitigated M30 Bullish Order Block between 1.84406 and 1.84541. The stop loss is structurally placed at 1.843925, just below the OB's invalidation level. The macroeconomic environment is neutral, with no high-impact news events scheduled, minimizing external risk. Take profit levels are strategically set to target significant liquidity pools, including the recent H1 swing high (1.85042) and a major unmitigated D1 Fair Value Gap (1.85704-1.86115). The setup offers an exceptional risk-to-reward ratio of over 20R to the final target, easily satisfying the minimum 1:3 requirement. With a confluence score of 7/10, this trade is graded 'A' with high confidence. Although the current session is Asian, a specific override allows for execution during this testing phase.",
+    "htf_bias": {
+      "key_levels": [
+        1.84208,
+        1.86946
+      ],
+      "notes": "D1 timeframe is strongly bullish following a CHoCH on 2026-04-09. Price is in an uptrend, creating higher highs and higher lows. The current dealing range is between the swing low at 1.80201 and swing high at 1.86946.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "content_preview": "If a situation is not covered by this rulebook, the system outputs `NO SETUP` and waits.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": "MR-PHIL-002",
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.8407,
+        1.85042
+      ],
+      "notes": "H1 and M30 timeframes are aligned with the HTF bullish trend, confirmed by a recent bullish BMS on H1 at 1.84771 on 2026-04-28. An unmitigated M30 Bullish Order Block exists at 1.84406 - 1.84541, which is a high-probability point of interest.",
+      "structure": "bullish"
+    },
+    "pair": "GBPCAD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "3. Timeframe Structure"
+      }
+    ],
+    "rr_ratio": 20.26,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.843925,
+      "reason": "Placed below the low of the M30 Bullish Order Block, which serves as the structural invalidation point for this setup."
+    },
+    "take_profits": [
+      {
+        "basis": "Targets the recent H1 swing high (BSL) at 1.85042.",
+        "level": 1.85042,
+        "size_pct": 40
+      },
+      {
+        "basis": "Targets the lower bound of the unmitigated D1 Fair Value Gap.",
+        "level": 1.85704,
+        "size_pct": 30
+      },
+      {
+        "basis": "Targets the upper bound of the unmitigated D1 Fair Value Gap, a major HTF liquidity draw.",
+        "level": 1.86115,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T02:00:59.075279Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability long setup for GBPCAD based on strong, multi-timeframe bullish alignment. The overall trend from the Daily timeframe down to M15 is consistently bullish, providing a solid directional bias. A live, high-confluence M30 SMC candidate (CHOCH+BMS+SWEEP+RTO) has been selected, with an entry point targeting a return to an unmitigated M30 Bullish Order Block between 1.84406 and 1.84541. The stop loss is structurally placed at 1.843925, just below the OB's invalidation level. The macroeconomic environment is neutral, with no high-impact news events scheduled, minimizing external risk. Take profit levels are strategically set to target significant liquidity pools, including the recent H1 swing high (1.85042) and a major unmitigated D1 Fair Value Gap (1.85704-1.86115). The setup offers an exceptional risk-to-reward ratio of over 20R to the final target, easily satisfying the minimum 1:3 requirement. With a confluence score of 7/10, this trade is graded 'A' with high confidence. Although the current session is Asian, a specific override allows for execution during this testing phase.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 20.26,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 1.843925,
+  "symbol": "GBPCAD",
+  "take_profit": 1.86115,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

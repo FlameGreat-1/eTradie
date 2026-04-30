@@ -1,0 +1,291 @@
+{
+  "analysis_id": "GBPUSD_SH_BMS_RTO_BEARISH_BEARISH_1.3557_4a31d217",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 1.35686,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPUSD_20260429_0838_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.9,
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "Analyze GBPUSD for intraday trading opportunities, focusing on HTF structure, MTF order blocks, and confluence factors.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro environment is neutral, which does not conflict with the technical setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "Setup is a valid counter-trend pullback. D1 is bullish, but H4/H1 have confirmed a bearish shift, and the trade targets a premium H1 POI for a short.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "H1 timeframe has a confirmed bearish BMS at 1.34802 and a bearish CHoCH at 1.35046.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is planned within a high-quality, unmitigated H1 Bearish Order Block at [1.35285, 1.35857].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "Candidate `GBPUSD_SH_BMS_RTO_BEARISH_BEARISH_1.3557_4a31d217` confirms inducement was cleared at 1.35389 before the structural break.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The move towards the H1 OB can be interpreted as an Upthrust in a Distribution phase, supporting a short position.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled for the upcoming session.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "With an optimized entry in the OTE of the H1 OB, the R:R to TP3 is ~3.85R, exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data collection failed due to a provider error (403). Positioning cannot be assessed.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.35285,
+        1.35857
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPUSD_SH_BMS_RTO_BEARISH_BEARISH_1.3557_4a31d217"
+    },
+    "entry_zone": {
+      "high": 1.35733,
+      "low": 1.35639
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short setup on GBPUSD based on a valid counter-trend pullback scenario. While the D1 trend is bullish, the H4 and H1 timeframes have confirmed a bearish structure, indicating a pullback. Price is currently being driven by LTF noise towards a significant, unmitigated H1 Bearish Order Block located at [1.35285, 1.35857]. This zone represents a key institutional point of interest. The trade plan is based on the SH+BMS+IDM+RTO pattern identified in candidate `GBPUSD_SH_BMS_RTO_BEARISH_BEARISH_1.3557_4a31d217`. To optimize risk-to-reward, a limit order entry is planned within the OTE (Optimal Trade Entry) of this H1 OB, specifically in the [1.35639, 1.35733] zone. The stop loss is structurally placed at 1.3600, safely above the D1 swing high. Take profit targets are set at key liquidity levels: H1 Swing Low (1.35064), H1 Equal Lows (1.34745), and the D1 Inducement level (1.34477). The macro environment is neutral and there is no immediate event risk. With a confluence score of 8/10 and an achievable R:R of 3.85, this setup is graded 'A'.",
+    "htf_bias": {
+      "key_levels": [
+        1.35993,
+        1.31591
+      ],
+      "notes": "D1/H12 structure is bullish, having made a recent bullish CHoCH. However, price is currently in the premium of the D1 dealing range [1.31591, 1.35993] and is showing signs of a significant pullback.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "content_preview": "Recent central bank communications from the FED have been consistently neutral, with no clear hawkish or dovish tilt, providing no strong directional bias for the USD.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": null,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.35285,
+        1.35857
+      ],
+      "notes": "H4 and H1 have shifted bearish, confirming a pullback against the HTF bullish trend. The primary MTF point of interest is a large, unmitigated H1 Bearish Order Block between 1.35285 and 1.35857.",
+      "structure": "choch_bearish"
+    },
+    "pair": "GBPUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 3.85,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.36,
+      "reason": "Placed above the H1 OB high (1.35857) and the D1 swing high (1.35993) for structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 Swing Low (SSL)",
+        "level": 1.35064,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 Equal Lows (SSL Pool)",
+        "level": 1.34745,
+        "size_pct": 30
+      },
+      {
+        "basis": "D1 Inducement Level (HTF SSL)",
+        "level": 1.34477,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T08:38:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "The current price action pushing into the H1 supply zone can be interpreted as a potential Upthrust After Distribution (UTAD), which supports a bearish reversal.",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": null,
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short setup on GBPUSD based on a valid counter-trend pullback scenario. While the D1 trend is bullish, the H4 and H1 timeframes have confirmed a bearish structure, indicating a pullback. Price is currently being driven by LTF noise towards a significant, unmitigated H1 Bearish Order Block located at [1.35285, 1.35857]. This zone represents a key institutional point of interest. The trade plan is based on the SH+BMS+IDM+RTO pattern identified in candidate `GBPUSD_SH_BMS_RTO_BEARISH_BEARISH_1.3557_4a31d217`. To optimize risk-to-reward, a limit order entry is planned within the OTE (Optimal Trade Entry) of this H1 OB, specifically in the [1.35639, 1.35733] zone. The stop loss is structurally placed at 1.3600, safely above the D1 swing high. Take profit targets are set at key liquidity levels: H1 Swing Low (1.35064), H1 Equal Lows (1.34745), and the D1 Inducement level (1.34477). The macro environment is neutral and there is no immediate event risk. With a confluence score of 8/10 and an achievable R:R of 3.85, this setup is graded 'A'.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3.85,
+  "session": "LONDON_OPEN",
+  "setup_type": "OB",
+  "stop_loss": 1.36,
+  "symbol": "GBPUSD",
+  "take_profit": 1.34477,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

@@ -1,0 +1,251 @@
+{
+  "analysis_id": "GBPCAD_SH_BMS_RTO_BULLISH_BULLISH_1.8413_9c5a36c7",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 1.841305,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_GBPCAD_20260429_0153_a8b3",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          }
+        ],
+        "query_summary": "GBPCAD bullish continuation setup analysis",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral and not opposing the technical setup.",
+          "present": true,
+          "value": 0.5
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1, H4, and H1 timeframes are all confirmed bullish, providing strong directional alignment.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "A clear bullish BMS occurred on H1 at 1.84771, confirming immediate buying pressure.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "The entry is a valid M15 Order Block [1.8407-1.84191] which is the extreme POI associated with the H1 swing low that created the BMS.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The trade plan anticipates a pullback that will sweep internal liquidity before mitigating the extreme OB, a high-probability scenario.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The strong impulsive move up suggests a Markup phase is underway.",
+          "present": true,
+          "value": 0.5
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of any high-impact events for GBP or CAD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to the final target is exceptionally high (>1:30), easily meeting the minimum 1:3 requirement.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.8407,
+        1.84191
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "All trades must originate from one or more of the following frameworks: - SMC: SH+BMS+RTO",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "GBPCAD_SH_BMS_RTO_BULLISH_BULLISH_1.8413_9c5a36c7"
+    },
+    "entry_zone": {
+      "high": 1.84191,
+      "low": 1.8407
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability bullish continuation setup on GBPCAD. The higher timeframe context is strongly bullish, with confirmed bullish market structure on the D1, H4, and H1 charts. A recent H1 Break of Market Structure (BMS) at 1.84771 signals strong buying intent. The selected trade is based on a live M15 SMC candidate, a SH+BMS+IDM+OB+RTO pattern, which anticipates a return to the extreme M15 Order Block at 1.8407-1.84191. This POI is of high quality as it is located at the H1 swing low that initiated the bullish BMS. Conflicting bearish SnD candidates on lower timeframes were analyzed and deemed invalid due to the mandatory absence of a Marubozu confirmation candle, which strengthens the bullish conviction. The trade plan is to place a limit order in the OB, with a structural stop loss below the H1 low. Take profit targets are set at clear buy-side liquidity pools at M15, H1, and D1 swing highs, offering an exceptional R:R ratio. Although the analysis is during the Asian session, a system directive permits execution for testing purposes. The setup grade is 'A' with high confidence.",
+    "htf_bias": {
+      "key_levels": [
+        1.86946,
+        1.80201
+      ],
+      "notes": "HTF structure is bullish from D1 through H1. The D1 snapshot confirms a bullish CHoCH on 2026-04-09, establishing a clear bullish trend. While W1 is technically bearish, the current price action on D1 and below is a strong, confirmed bullish leg, making pro-trend setups favorable.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.84771,
+        1.8407
+      ],
+      "notes": "MTF structure is strongly bullish, confirmed by a recent H1 Break of Market Structure (BMS) at 1.84771 on 2026-04-28T18:00:00. This break originated from the swing low at 1.8407, making the associated order block a key point of interest.",
+      "structure": "bullish"
+    },
+    "pair": "GBPCAD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      }
+    ],
+    "rr_ratio": 35.5,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.8405,
+      "reason": "Placed just below the H1 swing low of 1.8407, which is the structural invalidation point for this bullish leg."
+    },
+    "take_profits": [
+      {
+        "basis": "BSL at recent M15/H1 swing high (1.85042).",
+        "level": 1.8504,
+        "size_pct": 40
+      },
+      {
+        "basis": "BSL at next significant H1 swing high (1.85704).",
+        "level": 1.857,
+        "size_pct": 30
+      },
+      {
+        "basis": "BSL at the major D1 swing high (1.86946), the primary draw on liquidity.",
+        "level": 1.8694,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-29T01:53:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "markup"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability bullish continuation setup on GBPCAD. The higher timeframe context is strongly bullish, with confirmed bullish market structure on the D1, H4, and H1 charts. A recent H1 Break of Market Structure (BMS) at 1.84771 signals strong buying intent. The selected trade is based on a live M15 SMC candidate, a SH+BMS+IDM+OB+RTO pattern, which anticipates a return to the extreme M15 Order Block at 1.8407-1.84191. This POI is of high quality as it is located at the H1 swing low that initiated the bullish BMS. Conflicting bearish SnD candidates on lower timeframes were analyzed and deemed invalid due to the mandatory absence of a Marubozu confirmation candle, which strengthens the bullish conviction. The trade plan is to place a limit order in the OB, with a structural stop loss below the H1 low. Take profit targets are set at clear buy-side liquidity pools at M15, H1, and D1 swing highs, offering an exceptional R:R ratio. Although the analysis is during the Asian session, a system directive permits execution for testing purposes. The setup grade is 'A' with high confidence.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 35.5,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 1.8405,
+  "symbol": "GBPCAD",
+  "take_profit": 1.8694,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

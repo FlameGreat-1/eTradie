@@ -1,0 +1,303 @@
+{
+  "analysis_id": "XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4664.87_b96b6dbf",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "LONG",
+  "entry_price": 4664.87,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_XAUUSD_20260427_1036_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.9,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.9,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.88,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          }
+        ],
+        "query_summary": "Analyze XAUUSD for pro-trend bullish setups at HTF POIs during a LTF pullback.",
+        "strategy_used": "scenario_first",
+        "top_k": 29
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral USD macro data is non-blocking for a XAUUSD long position.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Trade direction is LONG, aligning with the confirmed bullish trend on D1, H4, H6, H8, W1, and MN1 timeframes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "The selected H1 candidate confirms both a BMS and CHoCH in the bullish direction, signaling a potential end to the LTF pullback.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a H1 Order Block (4645.88-4683.86) which is located within a D1 FVG, a high-probability POI.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The SH_BMS_RTO pattern inherently includes a stop hunt (liquidity sweep) as part of its formation.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "Commitment of Traders data was not available for this analysis cycle.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "The pullback into the HTF demand zone is consistent with a Wyckoff Spring or re-accumulation test.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "The economic calendar is clear of high-impact events around the potential entry time.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The calculated R:R to TP3 is approximately 9.8R, far exceeding the 1:3 minimum for an Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Data not available due to collection error.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": null,
+          "doc_id": null,
+          "section": "macro_analysis.economic"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        4645.88,
+        4683.86
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4664.87_b96b6dbf"
+    },
+    "entry_zone": {
+      "high": 4683.86,
+      "low": 4645.88
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability pro-trend long setup for XAUUSD. The dominant market structure across all high timeframes (H4, D1, W1, MN1) is unequivocally bullish. Currently, the lower timeframes (M30, H3) are in a bearish pullback, which is interpreted as a retracement to gather liquidity before the next bullish leg. This pullback is heading directly towards a key H1 Order Block at 4645.88 - 4683.86, which is itself nested within a D1 Fair Value Gap, creating a high-confluence point of interest. \n\nThe selected trade is based on the live H1 candidate 'XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4664.87_b96b6dbf', a flagship SH+BMS+RTO pattern. This setup signals a potential end to the bearish pullback and a resumption of the HTF bullish trend. Confluence is strong with a score of 8/10, including HTF alignment, a confirmed structural shift (BMS/CHoCH) on the entry timeframe, and a structurally sound entry zone. The potential reward-to-risk ratio is excellent at approximately 9.8R. A limit order will be placed to enter within the H1 Order Block, anticipating a bullish reaction from this key demand level.",
+    "htf_bias": {
+      "key_levels": [
+        4443.98,
+        4512.74
+      ],
+      "notes": "The overall trend from MN1 down to H4 is strongly bullish. The D1 snapshot confirms this with a recent bullish BMS at 4696.51 on 2026-04-01. Price is currently pulling back within the major D1 dealing range of 4099.15 - 5419.24. A key unmitigated D1 Order Block exists at 4443.98 - 4512.74.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": null,
+            "content_preview": "Recent high-impact US data (CPI, PCE, GDP, NFP) have all been inline with expectations, suggesting a stable but not aggressively hawkish or dovish stance from the FED. This creates a neutral bias for the USD.",
+            "doc_id": null,
+            "rule_id": null,
+            "section": "economic.releases"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4605.57,
+        4654.5
+      ],
+      "notes": "There is a conflict between timeframes, indicating a fractal retracement. H4 is bullish, but H3 and M30 are bearish. This LTF bearish order flow is viewed as a pullback driving price towards a HTF (H4) point of interest, specifically the unmitigated H4 Order Block at 4605.57 - 4654.5.",
+      "structure": "choch_bearish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.88,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      }
+    ],
+    "rr_ratio": 9.8,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4642.08,
+      "reason": "Placed structurally below the low of the H1 Order Block (4645.88) to invalidate the setup on a close below."
+    },
+    "take_profits": [
+      {
+        "basis": "Targets the recent H1 swing high as the first pool of buy-side liquidity.",
+        "level": 4729.91,
+        "size_pct": 40
+      },
+      {
+        "basis": "Targets the next significant H1 swing high.",
+        "level": 4740.45,
+        "size_pct": 30
+      },
+      {
+        "basis": "Targets the major swing high on both the H1 and D1 timeframes, representing a significant draw on liquidity.",
+        "level": 4889.05,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-27T10:36:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": null,
+          "content_preview": "The bearish pullback into a key HTF demand zone (H4 OB) can be interpreted as a potential Spring or a test within a re-accumulation phase, preceding the continuation of the HTF bullish trend.",
+          "doc_id": null,
+          "rule_id": null,
+          "section": "ta_analysis.snapshots.H1"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability pro-trend long setup for XAUUSD. The dominant market structure across all high timeframes (H4, D1, W1, MN1) is unequivocally bullish. Currently, the lower timeframes (M30, H3) are in a bearish pullback, which is interpreted as a retracement to gather liquidity before the next bullish leg. This pullback is heading directly towards a key H1 Order Block at 4645.88 - 4683.86, which is itself nested within a D1 Fair Value Gap, creating a high-confluence point of interest. \n\nThe selected trade is based on the live H1 candidate 'XAUUSD_SH_BMS_RTO_BULLISH_BULLISH_4664.87_b96b6dbf', a flagship SH+BMS+RTO pattern. This setup signals a potential end to the bearish pullback and a resumption of the HTF bullish trend. Confluence is strong with a score of 8/10, including HTF alignment, a confirmed structural shift (BMS/CHoCH) on the entry timeframe, and a structurally sound entry zone. The potential reward-to-risk ratio is excellent at approximately 9.8R. A limit order will be placed to enter within the H1 Order Block, anticipating a bullish reaction from this key demand level.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 9.8,
+  "session": "LONDON_OPEN",
+  "setup_type": "OB",
+  "stop_loss": 4642.08,
+  "symbol": "XAUUSD",
+  "take_profit": 4889.05,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}
