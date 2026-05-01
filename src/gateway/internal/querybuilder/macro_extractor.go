@@ -213,7 +213,7 @@ func extractCentralBank(data map[string]interface{}) map[string]interface{} {
 	for _, source := range []string{"speeches", "forward_guidance"} {
 		for _, item := range getSliceOfMaps(data, source) {
 			bank := strings.ToUpper(getStrDefault(item, "bank", ""))
-			tone := strings.ToUpper(getStrDefault(item, "tone", "NEUTRAL"))
+			tone := strings.ToUpper(getStrDefault(item, "tone", ""))
 			key := strings.ToLower(bank) + "_tone"
 			if _, exists := signals[key]; !exists {
 				signals[key] = tone
@@ -254,7 +254,7 @@ func extractCentralBank(data map[string]interface{}) map[string]interface{} {
 
 	for _, decision := range getSliceOfMaps(data, "rate_decisions") {
 		bank := strings.ToUpper(getStrDefault(decision, "bank", ""))
-		tone := strings.ToUpper(getStrDefault(decision, "tone", "NEUTRAL"))
+		tone := strings.ToUpper(getStrDefault(decision, "tone", ""))
 		key := strings.ToLower(bank) + "_tone"
 		signals[key] = tone
 
@@ -552,7 +552,7 @@ func extractIntermarket(data map[string]interface{}) map[string]interface{} {
 }
 
 func deriveUSDBias(cb map[string]interface{}) string {
-	fedTone := strings.ToUpper(getStrDefault(cb, "fed_tone", "NEUTRAL"))
+	fedTone := strings.ToUpper(getStrDefault(cb, "fed_tone", ""))
 
 	// Primary signal: Fed tone.
 	switch fedTone {

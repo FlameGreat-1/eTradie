@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from engine.shared.logging import get_logger
+from engine.shared.models.currency import Currency
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.news import NewsDataSet
+from engine.macro.models.provider.news import NewsItem
 from engine.macro.storage.repositories.news.item import NewsRepository
 
 logger = get_logger(__name__)
@@ -38,11 +40,7 @@ class NewsCollector(BaseCollector):
                 {
                     "headline": item.headline,
                     "source": item.source,
-                    "url": item.url,
-                    "summary": item.summary,
                     "currencies": [c.value for c in item.currencies_mentioned],
-                    "sentiment": item.sentiment.value,
-                    "impact": item.impact.value,
                     "dedupe_hash": item.dedupe_hash,
                     "published_at": item.published_at,
                 }
@@ -53,8 +51,7 @@ class NewsCollector(BaseCollector):
                     rows,
                     index_elements=["dedupe_hash"],
                     update_fields=[
-                        "headline", "summary", "sentiment", "impact",
-                        "currencies",
+                        "headline", "currencies",
                     ],
                 )
 
@@ -71,3 +68,24 @@ class NewsCollector(BaseCollector):
         )
         self._record_items_stored(len(all_items))
         return dataset
+
+    async def _read_from_db(self) -> NewsDataSet | None:
+        async with self._db.session() as session:
+            repo = NewsRepository(session)
+            rows = await repo.get_recent(since=datetime.now(UTC) - timedelta(days=2), limit=50)
+            if not rows:
+                return None
+            items = []
+            for r in rows:
+                items.append(NewsItem(
+                    headline=r.headline,
+                    source=r.source,
+                    currencies_mentioned=[Currency(c) for c in r.currencies],
+                    dedupe_hash=r.dedupe_hash,
+                    published_at=r.published_at,
+                ))
+            return NewsDataSet(items=items, sources=["database_fallback"], collected_at=datetime.now(UTC))
+
+    def _empty_dataset(self) -> NewsDataSet:
+        return NewsDataSet(items=[], sources=[], collected_at=datetime.now(UTC))
+

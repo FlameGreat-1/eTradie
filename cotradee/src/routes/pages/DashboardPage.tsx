@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
 import { useSymbols } from '@/features/symbols/api/symbols';
-import { useManagedTrades } from '@/features/journal/api/journal';
+import { useManagedTrades, useTradeJournal } from '@/features/journal/api/journal';
 import {
   TradingChart,
   type TradeLevels,
@@ -106,9 +106,11 @@ export default function DashboardPage() {
   const { data: latest } = useLatestAnalysis(50);
   const { data: execState } = useExecutionState();
   const { data: managed } = useManagedTrades();
+  const { data: journalData } = useTradeJournal({ limit: 50 });
 
   const symbols = symbolData?.symbols ?? [];
   const analyses = latest?.analyses ?? [];
+  const journalTrades = Array.isArray(journalData?.trades) ? journalData.trades : [];
 
   // Chart state from URL (synced with Header controls).
   // On login redirect the URL has no params, so we fall back to the
@@ -193,8 +195,23 @@ export default function DashboardPage() {
       const pairNorm = normalizeSymbol(a.pair ?? a.symbol);
       return pairNorm === activeNorm && isValidSetup(a);
     });
-    return match ? extractLevelsFromAnalysis(match) : undefined;
-  }, [analyses, activeSymbol]);
+    
+    if (!match) return undefined;
+    
+    // Check if this analysis has already been executed.
+    // If we have a closed trade for this symbol that opened *after* 
+    // the analysis was generated, we consider the setup spent.
+    const analysisTime = new Date(match.created_at ?? match.timestamp ?? 0).getTime();
+    if (analysisTime > 0) {
+      const recentlyClosed = journalTrades.find((t: any) => {
+        return normalizeSymbol(t.symbol) === activeNorm && 
+               new Date(t.open_time ?? t.time ?? 0).getTime() >= analysisTime;
+      });
+      if (recentlyClosed) return undefined;
+    }
+
+    return extractLevelsFromAnalysis(match);
+  }, [analyses, activeSymbol, journalTrades]);
 
   // If a position is open, the live broker levels (via `activeTrades`)
   // already cover Entry/SL/TP for that trade. Skip the planned-levels

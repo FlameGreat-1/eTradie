@@ -360,20 +360,39 @@ def build_user_message(context: ProcessorInput) -> str:
             for c in raw_chunks
         ]
 
+    # Fields that are always stripped (DB/internal metadata)
+    _STRIP_KEYS = {
+        "id", "created_at", "snapshot_at", "collected_at",
+        "sources", "assessed_at", "source_url", "summary",
+    }
+
+    # Values that carry zero information for the LLM
+    _EMPTY_VALUES = {
+        None, "", "NONE", "NEUTRAL", "INLINE", "UNKNOWN",
+    }
+
     def _clean_dict(d: Any) -> Any:
-        """Recursively strip nulls, empties, and db IDs from payload."""
+        """Recursively strip nulls, empties, defaults, and db metadata."""
         if isinstance(d, dict):
             cleaned = {}
             for k, v in d.items():
-                if k in (
-                    "id", "created_at", "snapshot_at", "collected_at", 
-                    "sources", "assessed_at", "source_url", "summary"
-                ):
+                if k in _STRIP_KEYS:
                     continue
                 v_clean = _clean_dict(v)
-                # Keep false/0, but drop None, empty string, empty list, empty dict
-                if v_clean is not None and v_clean != "" and v_clean != [] and v_clean != {}:
-                    cleaned[k] = v_clean
+                # Drop None, empty string, empty list, empty dict
+                if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
+                    continue
+                # Drop known zero-information string defaults
+                if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
+                    continue
+                # Drop zero counts/scores that add no signal
+                if isinstance(v_clean, (int, float)) and v_clean == 0 and k in (
+                    "dovish_count", "hawkish_count", "wow_change",
+                    "leveraged_long", "leveraged_short", "leveraged_net",
+                    "asset_manager_long", "asset_manager_short", "asset_manager_net",
+                ):
+                    continue
+                cleaned[k] = v_clean
             return cleaned
         elif isinstance(d, list):
             cleaned = [_clean_dict(item) for item in d]

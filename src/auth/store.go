@@ -131,6 +131,28 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]*User, error) {
 	return users, rows.Err()
 }
 
+// ListActiveUsers returns all users where active=true.
+func (s *UserStore) ListActiveUsers(ctx context.Context) ([]*User, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
+		 FROM auth_users WHERE active = TRUE ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list active users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		u, err := s.scanUserFromRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+
 // UpdateLastLogin sets the last_login_at timestamp for a user.
 func (s *UserStore) UpdateLastLogin(ctx context.Context, userID string) error {
 	now := time.Now().UTC()

@@ -98,20 +98,20 @@ function readThemeColors() {
   const get = (name: string, fallback: string) =>
     toLibColor((styles.getPropertyValue(name).trim() || fallback).trim());
   return {
-    background:    get('--chart-bg',           '#0a0a0f'),
-    textColor:     get('--chart-text',         '#9ca3af'),
-    gridColor:     get('--chart-grid',         'rgba(255,255,255,0.04)'),
-    borderColor:   get('--chart-border',       'rgba(255,255,255,0.08)'),
-    crosshair:     get('--chart-crosshair',    'rgba(255,255,255,0.18)'),
-    upColor:       get('--chart-up',           '#22c55e'),
-    downColor:     get('--chart-down',         '#ef4444'),
-    axisLabelBg:   get('--chart-axis-label-bg','rgba(20,20,25,0.92)'),
-    axisLabelText: get('--chart-axis-label-text','#ffffff'),
-    tooltipBg:     get('--chart-tooltip-bg',   '#1f2937'),
-    success:       get('--success',            '#22c55e'),
-    danger:        get('--danger',             '#ef4444'),
-    info:          get('--info',               '#3b82f6'),
-    warning:       get('--warning',            '#f59e0b'),
+    background: get('--chart-bg', '#0a0a0f'),
+    textColor: get('--chart-text', '#9ca3af'),
+    gridColor: get('--chart-grid', 'rgba(255,255,255,0.04)'),
+    borderColor: get('--chart-border', 'rgba(255,255,255,0.08)'),
+    crosshair: get('--chart-crosshair', 'rgba(255,255,255,0.18)'),
+    upColor: get('--chart-up', '#22c55e'),
+    downColor: get('--chart-down', '#ef4444'),
+    axisLabelBg: get('--chart-axis-label-bg', 'rgba(20,20,25,0.92)'),
+    axisLabelText: get('--chart-axis-label-text', '#ffffff'),
+    tooltipBg: get('--chart-tooltip-bg', '#1f2937'),
+    success: get('--success', '#22c55e'),
+    danger: get('--danger', '#ef4444'),
+    info: get('--info', '#3b82f6'),
+    warning: get('--warning', '#f59e0b'),
   };
 }
 
@@ -298,11 +298,15 @@ function TradingChartInner({
   /* 3. Load historical candles. */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
-    if (!candleData?.candles) return;
-    if (candleData.symbol !== symbol || candleData.timeframe !== timeframe) {
-      seriesRef.current.setData([]);
-      latestCandleRef.current = null;
-      lastDataKeyRef.current = '';
+
+    // Determine if we need to clear the chart due to a symbol/timeframe mismatch
+    // or if the data is just not ready yet.
+    if (!candleData?.candles || candleData.symbol !== symbol || candleData.timeframe !== timeframe) {
+      if (latestCandleRef.current !== null) {
+        seriesRef.current.setData([]);
+        latestCandleRef.current = null;
+        lastDataKeyRef.current = '';
+      }
       return;
     }
 
@@ -579,7 +583,7 @@ function TradingChartInner({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`absolute z-10 flex items-center gap-3 px-3 py-2
+          className={`absolute top-0 left-0 z-10 flex items-center gap-3 px-3 py-2
                      rounded-lg border border-border bg-surface-glass
                      shadow-card text-xs select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           style={{ transform: `translate(${overlayPos.x}px, ${overlayPos.y}px)` }}
@@ -589,9 +593,8 @@ function TradingChartInner({
               {symbol}
             </span>
             <span
-              className={`font-bold ${
-                overlay.tone === 'BUY' ? 'text-success' : 'text-danger'
-              }`}
+              className={`font-bold ${overlay.tone === 'BUY' ? 'text-success' : 'text-danger'
+                }`}
             >
               {overlay.tone}
             </span>
@@ -602,9 +605,8 @@ function TradingChartInner({
               P&L
             </span>
             <span
-              className={`font-bold ${
-                overlay.profit >= 0 ? 'text-success' : 'text-danger'
-              }`}
+              className={`font-bold ${overlay.profit >= 0 ? 'text-success' : 'text-danger'
+                }`}
             >
               {overlay.profit >= 0 ? '+' : ''}
               {formatCurrency(overlay.profit)}

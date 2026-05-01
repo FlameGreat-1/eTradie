@@ -38,11 +38,9 @@ class BloombergRSSProvider(BaseNewsProvider):
                     NewsItem(
                         headline=entry.title,
                         source="bloomberg",
-                        url=entry.link,
-                        summary=entry.summary[:1000],
                         currencies_mentioned=extract_currencies(full_text),
-                        impact=classify_impact(full_text),
                         published_at=entry.published_at,
+                        impact=classify_impact(full_text),
                         dedupe_hash=compute_dedupe_hash("bloomberg", entry.title),
                     ),
                 )

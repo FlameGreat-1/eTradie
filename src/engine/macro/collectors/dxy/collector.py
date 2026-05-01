@@ -218,3 +218,10 @@ class DXYCollector(BaseCollector):
         )
         self._record_items_stored(1 if snapshot else 0)
         return dataset
+
+
+    async def _read_from_db(self):
+        return None
+
+    def _empty_dataset(self):
+        return MarketDataSet(snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC))

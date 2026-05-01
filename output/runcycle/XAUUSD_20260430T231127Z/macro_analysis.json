@@ -1,0 +1,2145 @@
+{
+  "calendar": {
+    "collected_at": "2026-04-30T23:07:50.722507Z",
+    "created_at": "2026-04-30T23:07:50.722704Z",
+    "events": [],
+    "id": "fff40902-50fd-44ae-84b8-4641eda509de",
+    "sources": []
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-04-30T23:04:24.699033Z",
+    "created_at": "2026-04-30T23:04:24.699100Z",
+    "forward_guidance": [
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994140Z",
+        "event_type": "FORWARD_GUIDANCE",
+        "guidance_date": "2026-03-18T18:00:00Z",
+        "id": "3e62a388-ed19-46e3-91bd-ee70518764e9",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318b.htm",
+        "title": "Federal Reserve Board and Federal Open Market Committee release economic projections from the March 17-18 FOMC meeting"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481198Z",
+        "event_type": "FORWARD_GUIDANCE",
+        "guidance_date": "2026-04-14T14:00:00Z",
+        "id": "0d2fe547-89d1-4d95-a85b-c19c8629bce5",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260414~b312adeb55.en.pdf",
+        "title": "Philip R. Lane: The economic outlook and monetary policy in the euro area"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594014Z",
+        "event_type": "FORWARD_GUIDANCE",
+        "guidance_date": "2026-04-30T05:00:00Z",
+        "id": "f4c1d760-b9f8-48e2-b210-f31b40e0764c",
+        "source_url": "http://www.boj.or.jp/en/mopo/outlook/gor2604b.pdf",
+        "title": "Outlook for Economic Activity and Prices (April 2026, full text)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594180Z",
+        "event_type": "FORWARD_GUIDANCE",
+        "guidance_date": "2026-04-28T04:10:00Z",
+        "id": "3176fafe-e212-4e00-9175-43becf93741c",
+        "source_url": "http://www.boj.or.jp/en/mopo/outlook/gor2604a.pdf",
+        "title": "Outlook for Economic Activity and Prices (April 2026, The Bank's View)"
+      }
+    ],
+    "id": "c5be111e-be11-4f38-a6bd-92918a1051b2",
+    "meeting_minutes": [
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993887Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "5a918f64-a7bd-47e3-b3a3-60c80e36c324",
+        "meeting_date": "2026-04-08T18:00:00Z",
+        "release_date": "2026-04-08T18:00:00Z",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260408a.htm",
+        "title": "Minutes of the Federal Open Market Committee, March 17\u201318, 2026"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594272Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "36c19973-e01f-48af-97b8-924d8daefa43",
+        "meeting_date": "2026-04-22T01:00:00Z",
+        "release_date": "2026-04-22T01:00:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/acmai/release/2026/ac260420.htm",
+        "title": "Bank of Japan Accounts (April 20)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594376Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "997d4fc9-7d72-4329-8480-1e414f45de69",
+        "meeting_date": "2026-04-16T08:00:00Z",
+        "release_date": "2026-04-16T08:00:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/cabs/cabs.xlsx",
+        "title": "BOJ Current Account Balances by Sector (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594438Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "6c7b0778-4f6f-44d6-a59f-fab5a0181c54",
+        "meeting_date": "2026-04-14T01:00:00Z",
+        "release_date": "2026-04-14T01:00:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/acmai/release/2026/ac260410.htm",
+        "title": "Bank of Japan Accounts (April 10)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594564Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "59a98d6b-d877-45d8-8507-38b794251aa1",
+        "meeting_date": "2026-04-07T01:00:00Z",
+        "release_date": "2026-04-07T01:00:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/acmai/release/2026/ac260331.htm",
+        "title": "Bank of Japan Accounts (March 31)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594662Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "643fdd65-c5ab-4a3c-93ca-7281c0916e75",
+        "meeting_date": "2026-04-02T23:50:00Z",
+        "release_date": "2026-04-02T23:50:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/juqp/juqp2604.xlsx",
+        "title": "Sources of Changes in Current Account Balances (Projections for Apr.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594739Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "ce543b95-88a8-48f9-a150-5d47775b2784",
+        "meeting_date": "2026-04-01T04:00:00Z",
+        "release_date": "2026-04-01T04:00:00Z",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/juqf/juqf03.xlsx",
+        "title": "Sources of Changes in Current Account Balances and Market Operations (Mar.)"
+      },
+      {
+        "bank": "RBA",
+        "created_at": "2026-04-30T23:04:01.009742Z",
+        "event_type": "MEETING_MINUTES",
+        "id": "78630844-5fe9-420a-86fa-5c06d4c89352",
+        "meeting_date": "2026-04-30T23:04:01.009008Z",
+        "release_date": "2026-04-30T23:04:01.009008Z",
+        "source_url": "https://www.rba.gov.au/media-releases/2026/mr-26-11.html",
+        "title": "Roundtable Opens Public Consultation on Draft Vision for Account-to-Account Payments in Australia"
+      }
+    ],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": [
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993589Z",
+        "event_type": "CB_SPEECH",
+        "id": "cc884b9b-d4db-4ff6-a9ba-da53bf97200a",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260429a.htm",
+        "speech_date": "2026-04-29T18:00:00Z",
+        "title": "Federal Reserve issues FOMC statement"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993656Z",
+        "event_type": "CB_SPEECH",
+        "id": "d792200e-de61-4512-8d87-a574beb1b222",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260424a.htm",
+        "speech_date": "2026-04-24T20:00:00Z",
+        "title": "Federal Reserve Board announces approval of application by OceanFirst Financial Corp."
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993684Z",
+        "event_type": "CB_SPEECH",
+        "id": "fe15847a-09a0-43c9-85e1-e8818745a23b",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260424b.htm",
+        "speech_date": "2026-04-24T20:00:00Z",
+        "title": "Federal Reserve Board announces approval of application by Banco de Credito del Peru"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993714Z",
+        "event_type": "CB_SPEECH",
+        "id": "0fe4032c-6888-42b9-8e5f-3cecac85e4e8",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/bcreg20260423a.htm",
+        "speech_date": "2026-04-23T19:30:00Z",
+        "title": "Agencies\u202ffinalize\u202fchanges to enhance community bank leverage ratio"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993742Z",
+        "event_type": "CB_SPEECH",
+        "id": "d0c46ec3-0778-4ad2-9d3d-fbeac94fb844",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260422a.htm",
+        "speech_date": "2026-04-22T15:00:00Z",
+        "title": "Federal Reserve Board issues enforcement action with former employee of First Financial Bank"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993768Z",
+        "event_type": "CB_SPEECH",
+        "id": "213625d2-3cce-4bc0-ac97-bbc8b7adcaed",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260416a.htm",
+        "speech_date": "2026-04-16T15:00:00Z",
+        "title": "Federal Reserve Board issues enforcement action with Community Bankshares, Inc."
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993796Z",
+        "event_type": "RATE_DECISION",
+        "id": "f6d776ac-76d7-4f48-8be5-34b0a2508e16",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260414a.htm",
+        "speech_date": "2026-04-14T18:00:00Z",
+        "title": "Minutes of the Board\u2019s discount rate meetings on February 9 and March 18, 2026"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993822Z",
+        "event_type": "CB_SPEECH",
+        "id": "3a69e793-1f26-467e-9652-eb4fdbe3a40a",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260410a.htm",
+        "speech_date": "2026-04-10T20:15:00Z",
+        "title": "Federal Reserve Board announces approval of application by Burke & Herbert Financial Services Corp."
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993850Z",
+        "event_type": "RATE_DECISION",
+        "id": "112d1868-baec-4a12-badf-7becc3afee82",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260409a.htm",
+        "speech_date": "2026-04-09T15:00:00Z",
+        "title": "Federal Reserve Board announces termination of enforcement actions with Cr\u00e9dit Agricole S.A. and Cr\u00e9dit Agricole Corporate and Investment Bank, Mega International Commercial Bank Co., Ltd, and the Goldman Sachs Group, Inc."
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993921Z",
+        "event_type": "CB_SPEECH",
+        "id": "543de4d5-dd30-4887-85c2-ffacacc4b9af",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/other20260408a.htm",
+        "speech_date": "2026-04-08T15:30:00Z",
+        "title": "Federal Reserve Board invites public comment on proposal that would allow U.S. banks and credit unions to use intermediaries to transfer funds through the FedNow Service"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993945Z",
+        "event_type": "CB_SPEECH",
+        "id": "31857b1d-0d74-4339-ad29-88369c2345f3",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260403a.htm",
+        "speech_date": "2026-04-03T15:00:00Z",
+        "title": "Federal Reserve Board issues enforcement action with former employee of United Bank"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.993972Z",
+        "event_type": "CB_SPEECH",
+        "id": "3477965d-abd8-4227-ba6c-17b4e7aa38e6",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260326a.htm",
+        "speech_date": "2026-03-26T21:00:00Z",
+        "title": "Federal Reserve Board announces it has made the joint findings with the Office of the Comptroller of the Currency required for the OCC to approve a request by Morgan Stanley Bank, N.A., for an exemption under section 23A of the Federal Reserve Act"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994020Z",
+        "event_type": "CB_SPEECH",
+        "id": "8cd3c3d4-82f4-4100-b7d8-c8f00b7afabb",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/other20260325a.htm",
+        "speech_date": "2026-03-25T16:00:00Z",
+        "title": "Federal Reserve Board releases annual audited financial statements"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994045Z",
+        "event_type": "CB_SPEECH",
+        "id": "5345268a-0827-4b7c-9c31-3529b581dc70",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260320a.htm",
+        "speech_date": "2026-03-20T15:00:00Z",
+        "title": "Federal Reserve Board issues enforcement actions with former employee of Ally Bank and former employee of Regions Bank"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994077Z",
+        "event_type": "CB_SPEECH",
+        "id": "55cd7033-36a3-42a4-a2e5-bc8f66e5aef4",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/bcreg20260319a.htm",
+        "speech_date": "2026-03-19T16:30:00Z",
+        "title": "Agencies request comment on proposals to modernize the regulatory capital framework and maintain the strength of the banking system"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994107Z",
+        "event_type": "CB_SPEECH",
+        "id": "f43346cf-e4b1-4730-b3a3-3bdd55ff5453",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318a.htm",
+        "speech_date": "2026-03-18T18:00:00Z",
+        "title": "Federal Reserve issues FOMC statement"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994171Z",
+        "event_type": "CB_SPEECH",
+        "id": "086e74e7-f507-49d7-896d-1eec579d3ee6",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/enforcement20260313a.htm",
+        "speech_date": "2026-03-13T15:00:00Z",
+        "title": "Federal Reserve Board issues enforcement actions with former employee of Equity Bank and former employee of First State Bank of Dongola"
+      },
+      {
+        "bank": "FED",
+        "created_at": "2026-04-30T23:03:51.994194Z",
+        "event_type": "CB_SPEECH",
+        "id": "6e6623a2-b6c1-42a3-8ec0-d572b34bef92",
+        "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/orders20260312a.htm",
+        "speech_date": "2026-03-12T20:30:00Z",
+        "title": "Federal Reserve Board announces approval of application by Home BancShares"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.480769Z",
+        "event_type": "CB_SPEECH",
+        "id": "225ecedd-5a8b-4fba-966d-4636a7778ae9",
+        "source_url": "https://www.ecb.europa.eu//press/press_conference/monetary-policy-statement/2026/html/ecb.is260430~f99cb123a8.en.html",
+        "speech_date": "2026-04-30T13:00:00Z",
+        "title": "Christine Lagarde, Luis de Guindos: Monetary policy statement (with Q&A)"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.480864Z",
+        "event_type": "RATE_DECISION",
+        "id": "f3368925-33e6-44c8-9aa4-905595d8a3eb",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.mp260430~81b7179e6f.en.html",
+        "speech_date": "2026-04-30T12:15:00Z",
+        "title": "Monetary policy decisions"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.480914Z",
+        "event_type": "CB_SPEECH",
+        "id": "d7b5f987-3272-4e97-bee0-7cbba04c67f6",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260428_1~eddb480492.en.html",
+        "speech_date": "2026-04-28T08:00:00Z",
+        "title": "ECB Consumer Expectations Survey results \u2013 March 2026"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.480954Z",
+        "event_type": "CB_SPEECH",
+        "id": "6fb540e3-f9a9-4c86-a932-00f49ef5b376",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260428~6b156107c1.en.html",
+        "speech_date": "2026-04-28T08:00:00Z",
+        "title": "April 2026 euro area bank lending survey"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.480983Z",
+        "event_type": "CB_SPEECH",
+        "id": "3e0fe76d-478a-4597-90ad-92c66768f761",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260427~039951e152.en.html",
+        "speech_date": "2026-04-27T08:00:00Z",
+        "title": "Survey on the Access to Finance of Enterprises: lending conditions tightened"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481008Z",
+        "event_type": "CB_SPEECH",
+        "id": "e5703013-b239-4b63-8545-b7d00c52a154",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260424~202f9d832b.en.html",
+        "speech_date": "2026-04-24T09:30:00Z",
+        "title": "ECB signs agreements with European standard setters to facilitate digital euro payments"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481029Z",
+        "event_type": "CB_SPEECH",
+        "id": "66b9b22b-687c-43d2-91df-26494d52af75",
+        "source_url": "https://www.ecb.europa.eu//press/inter/date/2026/html/ecb.in260422~0201121d60.en.html",
+        "speech_date": "2026-04-22T10:30:00Z",
+        "title": "Frank Elderson: Interview with NRC"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481052Z",
+        "event_type": "CB_SPEECH",
+        "id": "7bc31d99-3ef4-490c-acd2-b39312e3d1e3",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260422~0242ad3585.en.html",
+        "speech_date": "2026-04-22T07:40:00Z",
+        "title": "Philip R. Lane: Expanding the supply of euro safe assets"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481073Z",
+        "event_type": "CB_SPEECH",
+        "id": "966e01e7-15ab-4e9a-ad6e-e4f82d9c5dc2",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260420~cdf674023e.en.html",
+        "speech_date": "2026-04-20T16:40:00Z",
+        "title": "Christine Lagarde: The energy shock: where we stand and what we need to know"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481095Z",
+        "event_type": "CB_SPEECH",
+        "id": "b5714930-e8ad-40ad-9dba-3d6cee526b33",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260417~033a4546f5.en.html",
+        "speech_date": "2026-04-17T13:00:00Z",
+        "title": "Christine Lagarde: IMFC Statement"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481116Z",
+        "event_type": "CB_SPEECH",
+        "id": "7a7b6661-5e08-4dba-aef8-c7b2c98a9b2b",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260416~3ae2dad6b3.en.pdf",
+        "speech_date": "2026-04-16T13:15:00Z",
+        "title": "Isabel Schnabel: Europe's successes and the path forward"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481138Z",
+        "event_type": "CB_SPEECH",
+        "id": "53779bed-bb07-45b1-89a4-d99593c1d0ca",
+        "source_url": "https://www.ecb.europa.eu//press/accounts/2026/html/ecb.mg260416~6a27b0c258.en.html",
+        "speech_date": "2026-04-16T11:30:00Z",
+        "title": "Meeting of 18-19 March 2026"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481161Z",
+        "event_type": "CB_SPEECH",
+        "id": "b312b8ed-ec61-4a5c-a37c-724fa4f9ae32",
+        "source_url": "https://www.ecb.europa.eu//press/key/date/2026/html/ecb.sp260415~868b59bca9.en.html",
+        "speech_date": "2026-04-15T15:20:00Z",
+        "title": "Piero Cipollone: Sparking the transformation of finance: tokenisation and the role of central banks"
+      },
+      {
+        "bank": "ECB",
+        "created_at": "2026-04-30T23:03:53.481285Z",
+        "event_type": "CB_SPEECH",
+        "id": "f741d68c-6fc4-48e2-b7fb-8a0a75b3720b",
+        "source_url": "https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.pr260414~ad43db8bb6.en.html",
+        "speech_date": "2026-04-14T09:00:00Z",
+        "title": "ECB Governing Council urges Single Market boost to strengthen bank competitiveness"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.593892Z",
+        "event_type": "CB_SPEECH",
+        "id": "4dc65b97-25a7-4d70-b18b-75330059365c",
+        "source_url": "http://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/mpr260430b.pdf",
+        "speech_date": "2026-04-30T08:00:00Z",
+        "title": "Quarterly Schedule of Outright Purchases of Japanese Government Bonds (Competitive Auction Method) (April-June 2026) (Schedule Updates)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.593937Z",
+        "event_type": "CB_SPEECH",
+        "id": "5cc40472-a5d6-4852-b597-198bdaf49b84",
+        "source_url": "http://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/mpr260430a.pdf",
+        "speech_date": "2026-04-30T08:00:00Z",
+        "title": "Timetable and Schedule of U.S. Dollar Funds-Supplying Operations (May-September 2026)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.593967Z",
+        "event_type": "CB_SPEECH",
+        "id": "c18c7e50-37d7-4cac-af7a-ca1bf4d1544f",
+        "source_url": "http://www.boj.or.jp/en/about/release_2026/rel260430a.htm",
+        "speech_date": "2026-04-30T07:00:00Z",
+        "title": "(IMES Newsletter) 2026 BOK/ERI - BOJ/IMES Joint Research Workshop"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594055Z",
+        "event_type": "CB_SPEECH",
+        "id": "694e6897-6f68-4c74-864b-878b2f37423d",
+        "source_url": "http://www.boj.or.jp/en/research/research_data/cai/cai260430a.htm",
+        "speech_date": "2026-04-30T05:00:00Z",
+        "title": "Updates on the Consumption Activity Index"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594086Z",
+        "event_type": "CB_SPEECH",
+        "id": "c586d240-e9e4-465c-a50b-d12472133335",
+        "source_url": "http://www.boj.or.jp/en/statistics/set/kess/release/2026/kess2603.pdf",
+        "speech_date": "2026-04-30T02:00:00Z",
+        "title": "Payment and Settlement Statistics (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594116Z",
+        "event_type": "CB_SPEECH",
+        "id": "b95af961-d574-4ebb-9f19-9effab43cd01",
+        "source_url": "http://www.boj.or.jp/en/research/imes/dps/dps26.htm",
+        "speech_date": "2026-04-30T02:00:00Z",
+        "title": "IMES Discussion Paper Series (2026)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594153Z",
+        "event_type": "CB_SPEECH",
+        "id": "7ae3bb0e-67ef-48df-9507-088d0dca4e68",
+        "source_url": "http://www.boj.or.jp/en/research/research_data/cpi/index.htm",
+        "speech_date": "2026-04-28T05:00:00Z",
+        "title": "Indicators for Core CPI"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594194Z",
+        "event_type": "CB_SPEECH",
+        "id": "e5391f5c-5639-4dc6-8c00-240a596f6d80",
+        "source_url": "http://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/k260428a.pdf",
+        "speech_date": "2026-04-28T04:10:00Z",
+        "title": "Statement on Monetary Policy"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594218Z",
+        "event_type": "CB_SPEECH",
+        "id": "ac6684fd-b5f6-46a4-a87f-64362de3c9db",
+        "source_url": "http://www.boj.or.jp/en/research/research_data/reri/index.htm",
+        "speech_date": "2026-04-27T05:00:00Z",
+        "title": "Developments in Real Exports and Real Imports"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594235Z",
+        "event_type": "CB_SPEECH",
+        "id": "540df0bc-69e2-4ad4-b456-efc2c25fbdf4",
+        "source_url": "http://www.boj.or.jp/en/statistics/pi/cspi_release/sppi2603.pdf",
+        "speech_date": "2026-04-23T23:50:00Z",
+        "title": "Services Producer Price Index (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594247Z",
+        "event_type": "CB_SPEECH",
+        "id": "5c390d3a-75cd-409b-9638-6ed221f40c01",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260420.xlsx",
+        "speech_date": "2026-04-22T08:00:00Z",
+        "title": "Japanese Government Bonds Held by the Bank of Japan"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594289Z",
+        "event_type": "CB_SPEECH",
+        "id": "256ba9a3-2990-4942-bc8a-1d0c6e298a88",
+        "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e03.htm",
+        "speech_date": "2026-04-21T07:30:00Z",
+        "title": "(BOJ Review) Recent Developments in Private Funds -- Increasing Presence of PE and PD Funds and Their Recent Traits"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594302Z",
+        "event_type": "CB_SPEECH",
+        "id": "c82cc893-a655-4ba3-b3de-43dcdc294484",
+        "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e01.htm",
+        "speech_date": "2026-04-21T07:30:00Z",
+        "title": "(BOJ Review) Evolving Trends in Business Development Companies (BDCs) in the U.S. Direct Lending Market"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594313Z",
+        "event_type": "CB_SPEECH",
+        "id": "1e8899ca-8420-4b09-89c1-9ff87be1977d",
+        "source_url": "http://www.boj.or.jp/en/research/brp/fsr/fsr260421.htm",
+        "speech_date": "2026-04-21T06:00:00Z",
+        "title": "Financial System Report (April 2026)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594324Z",
+        "event_type": "CB_SPEECH",
+        "id": "408526ea-7c52-48e4-b64e-6b3a51ec6d99",
+        "source_url": "http://www.boj.or.jp/en/statistics/dl/loan/loos/release/loos2604.pdf",
+        "speech_date": "2026-04-20T23:50:00Z",
+        "title": "Senior Loan Officer Opinion Survey (Apr.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594336Z",
+        "event_type": "CB_SPEECH",
+        "id": "2646e639-2dbe-4e24-9478-023e88e46106",
+        "source_url": "http://www.boj.or.jp/en/statistics/bis/repo/index.htm",
+        "speech_date": "2026-04-20T23:50:00Z",
+        "title": "Statistics on Securities Financing Transactions in Japan"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594363Z",
+        "event_type": "CB_SPEECH",
+        "id": "3ee6656a-045e-4319-8751-946f59667804",
+        "source_url": "http://www.boj.or.jp/en/research/o_survey/ishiki2604.htm",
+        "speech_date": "2026-04-20T04:30:00Z",
+        "title": "Results of the 105th Opinion Survey on the General Public's Views and Behavior"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594392Z",
+        "event_type": "CB_SPEECH",
+        "id": "a7088817-2496-4ce9-84ce-71942da586d3",
+        "source_url": "http://www.boj.or.jp/en/research/wps_rev/wps_2026/wp26e06.htm",
+        "speech_date": "2026-04-16T07:00:00Z",
+        "title": "(Research Paper) The Limited Effects of Post-Pandemic U.S. Monetary Policy Tightening: Demand Composition and the Credit Channel"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594411Z",
+        "event_type": "CB_SPEECH",
+        "id": "124a7ec1-7bdb-4d04-a0ed-e8bc367b6734",
+        "source_url": "http://www.boj.or.jp/en/paym/bond/mbond_list/mbond260416.pdf",
+        "speech_date": "2026-04-16T07:00:00Z",
+        "title": "Holding the Twenty-fourth Round of the \"Bond Market Group\" Meetings"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594426Z",
+        "event_type": "CB_SPEECH",
+        "id": "9549021b-3e78-4e01-b853-a43752953db6",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260410.xlsx",
+        "speech_date": "2026-04-14T08:00:00Z",
+        "title": "Japanese Government Bonds Held by the Bank of Japan"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594450Z",
+        "event_type": "CB_SPEECH",
+        "id": "82435a86-1a6a-4f1e-b5c0-c17fdb3de5dd",
+        "source_url": "http://www.boj.or.jp/en/statistics/money/ms/ms2603.pdf",
+        "speech_date": "2026-04-12T23:50:00Z",
+        "title": "Money Stock (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594468Z",
+        "event_type": "CB_SPEECH",
+        "id": "145ea7cf-1017-4756-aca0-6b824505a25f",
+        "source_url": "http://www.boj.or.jp/en/statistics/set/bffail/sjgb2603.pdf",
+        "speech_date": "2026-04-10T07:30:00Z",
+        "title": "Basic Figures on Fails (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594483Z",
+        "event_type": "CB_SPEECH",
+        "id": "ab717a95-e433-4ca4-bb83-674a05ce4c05",
+        "source_url": "http://www.boj.or.jp/en/research/wps_rev/rev_2026/rev26e06.htm",
+        "speech_date": "2026-04-10T05:00:00Z",
+        "title": "(BOJ Review) Verifiable Credentials for Identity Assurance in the Digital Society: An Overview and Trends in Standards Development"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594496Z",
+        "event_type": "CB_SPEECH",
+        "id": "9348cdc9-158f-4a5c-9310-b9e5bc6df7ac",
+        "source_url": "http://www.boj.or.jp/en/statistics/dl/depo/kashi/kasi2603.pdf",
+        "speech_date": "2026-04-09T23:50:00Z",
+        "title": "Principal Figures of Financial Institutions (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594507Z",
+        "event_type": "RATE_DECISION",
+        "id": "61630677-6b2a-4af1-9cbf-670544c229ac",
+        "source_url": "http://www.boj.or.jp/en/statistics/pi/cgpi_release/cgpi2603.pdf",
+        "speech_date": "2026-04-09T23:50:00Z",
+        "title": "Corporate Goods Price Index (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594519Z",
+        "event_type": "CB_SPEECH",
+        "id": "061841f0-2760-4b95-9058-d6c8b5870a94",
+        "source_url": "http://www.boj.or.jp/en/finsys/macpru/mac260408a.pdf",
+        "speech_date": "2026-04-08T08:00:00Z",
+        "title": "Twenty-fourth Meeting of the \"Council for Cooperation on Financial Stability\""
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594540Z",
+        "event_type": "CB_SPEECH",
+        "id": "2238ad7d-1212-410d-bb66-b05f3ab6ea63",
+        "source_url": "http://www.boj.or.jp/en/statistics/br/bop_06/bpdata/diiqcy.htm",
+        "speech_date": "2026-04-07T23:50:00Z",
+        "title": "Direct Investment by Region and Industry (4th quarter 2025, 2025 C.Y.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594552Z",
+        "event_type": "CB_SPEECH",
+        "id": "b1230fe1-9c8c-40e6-9083-d5ea55c4d4de",
+        "source_url": "http://www.boj.or.jp/en/statistics/market/short/call/call.xlsx",
+        "speech_date": "2026-04-07T06:00:00Z",
+        "title": "Amounts Outstanding in the Call Money Market (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594588Z",
+        "event_type": "CB_SPEECH",
+        "id": "28adcd9f-f237-4102-85e7-e505bb5699d2",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/tseifu/release/2026/seifu2603.pdf",
+        "speech_date": "2026-04-06T23:50:00Z",
+        "title": "Bank of Japan's Transactions with the Government (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594604Z",
+        "event_type": "CB_SPEECH",
+        "id": "afc90f3a-b397-4b7b-83bd-fceba3d1bd88",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mbt/mbt2603.pdf",
+        "speech_date": "2026-04-06T23:50:00Z",
+        "title": "Monetary Base and the Bank of Japan's Transactions (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594615Z",
+        "event_type": "CB_SPEECH",
+        "id": "77c4643a-87ce-40b5-bf4e-caffada9dd18",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/fm/ope/m_release/2026/ope2603.xlsx",
+        "speech_date": "2026-04-06T23:50:00Z",
+        "title": "Market Operations by the Bank of Japan (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594627Z",
+        "event_type": "CB_SPEECH",
+        "id": "f7687e90-6797-4cda-aa0f-7d5545b49f4f",
+        "source_url": "http://www.boj.or.jp/en/research/brp/rer/rer260406.htm",
+        "speech_date": "2026-04-06T05:00:00Z",
+        "title": "Regional Economic Report (Summary) (Apr. 2026)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594640Z",
+        "event_type": "CB_SPEECH",
+        "id": "7b50e364-ecc1-4d7b-9373-d10b94d7104b",
+        "source_url": "http://www.boj.or.jp/en/research/brp/ron_2026/ron260406a.htm",
+        "speech_date": "2026-04-06T05:00:00Z",
+        "title": "(Research Paper) Key Features of Japan's Final Demand-Intermediate Demand Price Indexes during the Post-2020 Inflationary Episode"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594650Z",
+        "event_type": "RATE_DECISION",
+        "id": "526e23e2-13cb-4dd2-ad9d-d9d5f3fc9d7a",
+        "source_url": "http://www.boj.or.jp/en/research/research_data/gap/index.htm",
+        "speech_date": "2026-04-03T05:00:00Z",
+        "title": "Output Gap, Potential Growth Rate, and Labor Market Indicators"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594674Z",
+        "event_type": "CB_SPEECH",
+        "id": "3c129dc5-e603-4cb3-9aef-1c86f4df0f39",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mei/release/2026/mei260331.xlsx",
+        "speech_date": "2026-04-02T08:00:00Z",
+        "title": "Japanese Government Bonds Held by the Bank of Japan"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594690Z",
+        "event_type": "CB_SPEECH",
+        "id": "72d63518-7013-45f5-81aa-bf378e410e26",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/col/col2603.xlsx",
+        "speech_date": "2026-04-02T08:00:00Z",
+        "title": "Collateral Accepted by the Bank of Japan (End of Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594702Z",
+        "event_type": "CB_SPEECH",
+        "id": "bc232bda-9d95-403d-96a8-03328a431017",
+        "source_url": "http://www.boj.or.jp/en/statistics/boj/other/mb/mb.htm",
+        "speech_date": "2026-04-01T23:50:00Z",
+        "title": "Monetary Base (Mar.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594720Z",
+        "event_type": "CB_SPEECH",
+        "id": "5ee195d4-9105-4d41-a2a7-351e89de9eb4",
+        "source_url": "http://www.boj.or.jp/en/statistics/tk/tankan03b.htm",
+        "speech_date": "2026-04-01T23:50:00Z",
+        "title": "Tankan (Mar.): Comprehensive Data Set"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594758Z",
+        "event_type": "CB_SPEECH",
+        "id": "bc19a424-b80c-49a9-ae53-399bca7cd73c",
+        "source_url": "http://www.boj.or.jp/en/statistics/tk/tankan03a.htm",
+        "speech_date": "2026-03-31T23:50:00Z",
+        "title": "Tankan (Mar.): Summary and Outline"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594807Z",
+        "event_type": "CB_SPEECH",
+        "id": "8725cb32-792e-4ef1-823a-6e0f107f226a",
+        "source_url": "http://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/mpr260331a.pdf",
+        "speech_date": "2026-03-31T08:00:00Z",
+        "title": "Quarterly Schedule of Outright Purchases of Japanese Government Bonds (Competitive Auction Method) (April-June 2026)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594827Z",
+        "event_type": "CB_SPEECH",
+        "id": "b90c17cd-a2fd-4ea6-b4fb-d8cf0d7f06a4",
+        "source_url": "http://www.boj.or.jp/en/statistics/set/kess/release/2026/kess2602.pdf",
+        "speech_date": "2026-03-31T02:00:00Z",
+        "title": "Payment and Settlement Statistics (Feb.)"
+      },
+      {
+        "bank": "BOJ",
+        "created_at": "2026-04-30T23:03:57.594854Z",
+        "event_type": "RATE_DECISION",
+        "id": "ae9d721a-5943-4f66-9b4f-a0be88060e71",
+        "source_url": "http://www.boj.or.jp/en/statistics/dl/loan/yaku/yaku2602.pdf",
+        "speech_date": "2026-03-30T23:50:00Z",
+        "title": "Average Contract Interest Rates on Loans and Discounts (Feb.)"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049063Z",
+        "event_type": "RATE_DECISION",
+        "id": "00792d45-00e0-45b1-86d8-03c37d7e4626",
+        "source_url": "https://www.bankofcanada.ca/2026/04/fad-press-release-2026-04-29/",
+        "speech_date": "2026-04-30T23:04:08.048220Z",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049128Z",
+        "event_type": "CB_SPEECH",
+        "id": "c9d8a4ff-c5f3-4c01-9c4e-e0b37f5301fe",
+        "source_url": "https://www.bankofcanada.ca/2026/04/bank-of-canada-announces-appointment-two-deputy-governors/",
+        "speech_date": "2026-04-30T23:04:08.048279Z",
+        "title": "Bank of Canada announces the appointment of two Deputy Governors"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049170Z",
+        "event_type": "CB_SPEECH",
+        "id": "be0db0ca-ceab-44b9-8f1e-328cd37fd85d",
+        "source_url": "https://www.bankofcanada.ca/2026/03/changes-bank-of-canada-governing-council/",
+        "speech_date": "2026-04-30T23:04:08.048303Z",
+        "title": "Changes to Bank of Canada Governing Council"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049211Z",
+        "event_type": "RATE_DECISION",
+        "id": "3426abf9-68f1-4ff4-a1fa-24810a7fc73d",
+        "source_url": "https://www.bankofcanada.ca/2026/03/fad-press-release-2026-03-18/",
+        "speech_date": "2026-04-30T23:04:08.048334Z",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049251Z",
+        "event_type": "CB_SPEECH",
+        "id": "86a88b57-a166-4286-817d-0020717d571e",
+        "source_url": "https://www.bankofcanada.ca/2026/03/bank-canada-export-development-canada-rbc-td-successfully-complete-bond-issuance-experiment-distributed-ledger-technology/",
+        "speech_date": "2026-04-30T23:04:08.048377Z",
+        "title": "Bank of Canada, Export Development Canada, RBC and TD successfully complete bond issuance experiment  using distributed ledger technology"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049300Z",
+        "event_type": "CB_SPEECH",
+        "id": "98feff16-6351-4de7-a234-0cb87d8e49e2",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-of-canada-issues-revised-compliance-order-to-xtm-inc/",
+        "speech_date": "2026-04-30T23:04:08.048418Z",
+        "title": "Bank of Canada issues revised compliance order to XTM Inc."
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049342Z",
+        "event_type": "CB_SPEECH",
+        "id": "e29d5fb6-e72e-48d5-a77b-413eae41e024",
+        "source_url": "https://www.bankofcanada.ca/2026/02/bank-canada-issues-immediate-compliance-order-to-xtm-inc/",
+        "speech_date": "2026-04-30T23:04:08.048449Z",
+        "title": "Bank of Canada issues immediate compliance order to XTM Inc."
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049375Z",
+        "event_type": "RATE_DECISION",
+        "id": "9c5f9b76-0ca0-4655-97c6-933e241dc578",
+        "source_url": "https://www.bankofcanada.ca/2026/01/fad-press-release-2026-01-28/",
+        "speech_date": "2026-04-30T23:04:08.048479Z",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049393Z",
+        "event_type": "RATE_DECISION",
+        "id": "fc6858f5-0b60-4657-8152-1709f8b9d9cb",
+        "source_url": "https://www.bankofcanada.ca/2025/12/fad-press-release-2025-12-10/",
+        "speech_date": "2026-04-30T23:04:08.048511Z",
+        "title": "Bank of Canada maintains policy rate at 2\u00bc%"
+      },
+      {
+        "bank": "BOC",
+        "created_at": "2026-04-30T23:04:08.049410Z",
+        "event_type": "CB_SPEECH",
+        "id": "69ecff65-4522-4c7d-9e6a-d0ba15e1e39a",
+        "source_url": "https://www.bankofcanada.ca/2025/12/bank-canada-announces-finalists-eleventh-annual-governors-challenge/",
+        "speech_date": "2026-04-30T23:04:08.048542Z",
+        "title": "Bank of Canada announces finalists for the eleventh annual Governor\u2019s Challenge"
+      }
+    ]
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-04-30T23:03:52.154322Z",
+    "created_at": "2026-04-30T23:03:52.154379Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "2dfdb954-c584-405f-bbed-2b121600e8fc",
+    "latest_positions": [
+      {
+        "commercial_long": 158814,
+        "commercial_net": 59221,
+        "commercial_short": 99593,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "CANADIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                        Code-090741",
+        "created_at": "2026-04-30T23:03:51.832861Z",
+        "currency": "CAD",
+        "extreme_flag": false,
+        "id": "2ed71e26-1e70-4ed3-8630-95209e0478ea",
+        "non_commercial_long": 60889,
+        "non_commercial_net": -58834,
+        "non_commercial_short": 119723,
+        "open_interest": 255128,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 71762,
+        "commercial_net": 42255,
+        "commercial_short": 29507,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "SWISS FRANC - CHICAGO MERCANTILE EXCHANGE                            Code-092741",
+        "created_at": "2026-04-30T23:03:52.063281Z",
+        "currency": "CHF",
+        "extreme_flag": false,
+        "id": "fd9b513e-0097-4aac-957c-39f70e92a52d",
+        "non_commercial_long": 8372,
+        "non_commercial_net": -33273,
+        "non_commercial_short": 41645,
+        "open_interest": 91532,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 172752,
+        "commercial_net": 56839,
+        "commercial_short": 115913,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "BRITISH POUND - CHICAGO MERCANTILE EXCHANGE                          Code-096742",
+        "created_at": "2026-04-30T23:03:52.085624Z",
+        "currency": "GBP",
+        "extreme_flag": false,
+        "id": "494bbb27-cafb-46b6-9290-e3891042abfa",
+        "non_commercial_long": 63086,
+        "non_commercial_net": -52039,
+        "non_commercial_short": 115125,
+        "open_interest": 263523,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 188723,
+        "commercial_net": 95467,
+        "commercial_short": 93256,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE                           Code-097741",
+        "created_at": "2026-04-30T23:03:52.101013Z",
+        "currency": "JPY",
+        "extreme_flag": false,
+        "id": "186acd4c-295d-4200-9f90-504006468d43",
+        "non_commercial_long": 101386,
+        "non_commercial_net": -94460,
+        "non_commercial_short": 195846,
+        "open_interest": 351782,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 459844,
+        "commercial_net": -83663,
+        "commercial_short": 543507,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "EURO FX - CHICAGO MERCANTILE EXCHANGE                                Code-099741",
+        "created_at": "2026-04-30T23:03:52.116443Z",
+        "currency": "EUR",
+        "extreme_flag": false,
+        "id": "b0ae1b65-d88d-4591-855a-b3de59bb0c36",
+        "non_commercial_long": 217407,
+        "non_commercial_net": 41324,
+        "non_commercial_short": 176083,
+        "open_interest": 790622,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 70056,
+        "commercial_net": 48983,
+        "commercial_short": 21073,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "NZ DOLLAR - CHICAGO MERCANTILE EXCHANGE                              Code-112741",
+        "created_at": "2026-04-30T23:03:52.126604Z",
+        "currency": "NZD",
+        "extreme_flag": false,
+        "id": "3857ef16-4dc7-4e7d-b61c-c30a5c31d656",
+        "non_commercial_long": 7917,
+        "non_commercial_net": -48454,
+        "non_commercial_short": 56371,
+        "open_interest": 82508,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 100168,
+        "commercial_net": -93198,
+        "commercial_short": 193366,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                      Code-232741",
+        "created_at": "2026-04-30T23:03:52.141307Z",
+        "currency": "AUD",
+        "extreme_flag": false,
+        "id": "2d5add8e-78d0-4e2e-83ad-07e215cb0b5e",
+        "non_commercial_long": 128811,
+        "non_commercial_net": 64817,
+        "non_commercial_short": 63994,
+        "open_interest": 275415,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      }
+    ],
+    "previous_positions": [
+      {
+        "commercial_long": 158814,
+        "commercial_net": 59221,
+        "commercial_short": 99593,
+        "contract_name": "CANADIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                        Code-090741",
+        "created_at": "2026-04-30T23:03:51.600602Z",
+        "currency": "CAD",
+        "id": "c15b23b5-e68c-4ff4-bb34-03d0e3495ea2",
+        "non_commercial_long": 60889,
+        "non_commercial_net": -58834,
+        "non_commercial_short": 119723,
+        "open_interest": 255128,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 71762,
+        "commercial_net": 42255,
+        "commercial_short": 29507,
+        "contract_name": "SWISS FRANC - CHICAGO MERCANTILE EXCHANGE                            Code-092741",
+        "created_at": "2026-04-30T23:03:51.600768Z",
+        "currency": "CHF",
+        "id": "8503abe9-1536-4a34-bd29-e798c3eefc36",
+        "non_commercial_long": 8372,
+        "non_commercial_net": -33273,
+        "non_commercial_short": 41645,
+        "open_interest": 91532,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 172752,
+        "commercial_net": 56839,
+        "commercial_short": 115913,
+        "contract_name": "BRITISH POUND - CHICAGO MERCANTILE EXCHANGE                          Code-096742",
+        "created_at": "2026-04-30T23:03:51.600867Z",
+        "currency": "GBP",
+        "id": "0118cb6d-bf64-4d8f-a297-0dca2f9bb6cc",
+        "non_commercial_long": 63086,
+        "non_commercial_net": -52039,
+        "non_commercial_short": 115125,
+        "open_interest": 263523,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 188723,
+        "commercial_net": 95467,
+        "commercial_short": 93256,
+        "contract_name": "JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE                           Code-097741",
+        "created_at": "2026-04-30T23:03:51.600953Z",
+        "currency": "JPY",
+        "id": "bbbe6e6b-dad3-450c-9459-8555a78de16c",
+        "non_commercial_long": 101386,
+        "non_commercial_net": -94460,
+        "non_commercial_short": 195846,
+        "open_interest": 351782,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 459844,
+        "commercial_net": -83663,
+        "commercial_short": 543507,
+        "contract_name": "EURO FX - CHICAGO MERCANTILE EXCHANGE                                Code-099741",
+        "created_at": "2026-04-30T23:03:51.601096Z",
+        "currency": "EUR",
+        "id": "dcc986c2-7257-479d-84cb-6ed61c0dee2b",
+        "non_commercial_long": 217407,
+        "non_commercial_net": 41324,
+        "non_commercial_short": 176083,
+        "open_interest": 790622,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 70056,
+        "commercial_net": 48983,
+        "commercial_short": 21073,
+        "contract_name": "NZ DOLLAR - CHICAGO MERCANTILE EXCHANGE                              Code-112741",
+        "created_at": "2026-04-30T23:03:51.601347Z",
+        "currency": "NZD",
+        "id": "62100d9a-4bb5-422b-a44f-4aceebc9d452",
+        "non_commercial_long": 7917,
+        "non_commercial_net": -48454,
+        "non_commercial_short": 56371,
+        "open_interest": 82508,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 100168,
+        "commercial_net": -93198,
+        "commercial_short": 193366,
+        "contract_name": "AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                      Code-232741",
+        "created_at": "2026-04-30T23:03:51.601477Z",
+        "currency": "AUD",
+        "id": "eb23b5f5-1e43-4a68-8ae7-fa12bf2b43ba",
+        "non_commercial_long": 128811,
+        "non_commercial_net": 64817,
+        "non_commercial_short": 63994,
+        "open_interest": 275415,
+        "report_date": "2026-04-21"
+      }
+    ],
+    "previous_report_date": null,
+    "report_date": "2026-04-21",
+    "tff_positions": [],
+    "wow_shifts": {
+      "AUD": 0,
+      "CAD": 0,
+      "CHF": 0,
+      "EUR": 0,
+      "GBP": 0,
+      "JPY": 0,
+      "NZD": 0
+    }
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "news",
+    "calendar",
+    "dxy",
+    "intermarket",
+    "sentiment"
+  ],
+  "dxy": {
+    "collected_at": "2026-04-30T23:03:50.960371Z",
+    "created_at": "2026-04-30T23:03:50.960400Z",
+    "id": "2f5ef498-8468-40aa-99b7-977ab384fde1",
+    "latest": {
+      "copper": null,
+      "created_at": "2026-04-30T23:03:50.960265Z",
+      "dairy_gdt": null,
+      "dxy_momentum": null,
+      "dxy_value": null,
+      "gold_price": null,
+      "id": "985c7331-f449-44f2-8e70-bdbf9256f55a",
+      "iron_ore": null,
+      "natural_gas": null,
+      "oil_price": null,
+      "silver_price": null,
+      "snapshot_at": "2026-04-30T23:03:50.960214Z",
+      "source": "twelve_data",
+      "sp500": null,
+      "us10y_yield": null,
+      "us2y_yield": null,
+      "us30y_yield": null,
+      "vix": null
+    },
+    "snapshots": [
+      {
+        "copper": null,
+        "created_at": "2026-04-30T23:03:50.960265Z",
+        "dairy_gdt": null,
+        "dxy_momentum": null,
+        "dxy_value": null,
+        "gold_price": null,
+        "id": "985c7331-f449-44f2-8e70-bdbf9256f55a",
+        "iron_ore": null,
+        "natural_gas": null,
+        "oil_price": null,
+        "silver_price": null,
+        "snapshot_at": "2026-04-30T23:03:50.960214Z",
+        "source": "twelve_data",
+        "sp500": null,
+        "us10y_yield": null,
+        "us2y_yield": null,
+        "us30y_yield": null,
+        "vix": null
+      }
+    ],
+    "sources": [
+      "twelve_data"
+    ]
+  },
+  "economic": {
+    "collected_at": "2026-04-30T23:04:12.388839Z",
+    "created_at": "2026-04-30T23:04:12.388992Z",
+    "id": "636843ad-38cd-4c06-b86a-26e02d3997d7",
+    "releases": [
+      {
+        "actual": 129.279,
+        "created_at": "2026-04-30T23:03:53.209916Z",
+        "currency": "USD",
+        "id": "208d46bb-f09e-4f5e-b387-c50871b05c1c",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 128.901,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 128.901,
+        "created_at": "2026-04-30T23:03:53.209983Z",
+        "currency": "USD",
+        "id": "988211e6-d2df-4146-96dc-4ae07bd225dd",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 128.429,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 128.429,
+        "created_at": "2026-04-30T23:03:53.210028Z",
+        "currency": "USD",
+        "id": "05b2cef4-b25f-4095-b17f-31f1e2bf1bc9",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.886,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.886,
+        "created_at": "2026-04-30T23:03:53.210071Z",
+        "currency": "USD",
+        "id": "b0072619-1af9-41d5-83c9-9dd2f29a35dd",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.469,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.469,
+        "created_at": "2026-04-30T23:03:53.210103Z",
+        "currency": "USD",
+        "id": "e25ef009-18b5-4d17-bfaa-405efbbabd8a",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.243,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.243,
+        "created_at": "2026-04-30T23:03:53.210139Z",
+        "currency": "USD",
+        "id": "4446b430-39c0-40ff-a39f-504a096a9b02",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31856.257,
+        "created_at": "2026-04-30T23:03:53.563846Z",
+        "currency": "USD",
+        "id": "1f388c06-92d0-4f3d-9f13-efad799cbd79",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 31422.526,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31422.526,
+        "created_at": "2026-04-30T23:03:53.563915Z",
+        "currency": "USD",
+        "id": "b26a93cc-27e5-4977-886c-2abf5789205d",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 31098.027,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31098.027,
+        "created_at": "2026-04-30T23:03:53.563954Z",
+        "currency": "USD",
+        "id": "ae55c90b-975d-4801-9006-ba6654be0c0f",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 30485.729,
+        "release_time": "2025-07-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 30485.729,
+        "created_at": "2026-04-30T23:03:53.563994Z",
+        "currency": "USD",
+        "id": "63474861-87ad-494b-974e-133f2653bc64",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 30042.113,
+        "release_time": "2025-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 30042.113,
+        "created_at": "2026-04-30T23:03:53.564035Z",
+        "currency": "USD",
+        "id": "9fccd55d-10d9-42cd-bcf7-e29f52c8c7f1",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 29825.182,
+        "release_time": "2025-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 29825.182,
+        "created_at": "2026-04-30T23:03:53.564068Z",
+        "currency": "USD",
+        "id": "93e36679-548e-4df7-bd74-e9c4081482cf",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": null,
+        "release_time": "2024-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.3,
+        "created_at": "2026-04-30T23:03:54.172791Z",
+        "currency": "USD",
+        "id": "743f85ec-a7b1-4f11-9974-f174f6427564",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.4,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.4,
+        "created_at": "2026-04-30T23:03:54.172861Z",
+        "currency": "USD",
+        "id": "9ac34c83-eb52-4d2b-99ff-e0f7d5f4bf51",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.3,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.3,
+        "created_at": "2026-04-30T23:03:54.172909Z",
+        "currency": "USD",
+        "id": "3cffb150-0177-4ba3-8acb-9e42c248ba23",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.4,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.4,
+        "created_at": "2026-04-30T23:03:54.172947Z",
+        "currency": "USD",
+        "id": "b3bdaebe-5e35-4684-bef5-a927df3c7f9b",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.5,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.5,
+        "created_at": "2026-04-30T23:03:54.172987Z",
+        "currency": "USD",
+        "id": "6947792d-0ff9-4331-b9ce-40e071f4e941",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158637,
+        "created_at": "2026-04-30T23:03:54.508333Z",
+        "currency": "USD",
+        "id": "6d206013-7952-427f-a441-878038dd724d",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158459,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158459,
+        "created_at": "2026-04-30T23:03:54.508466Z",
+        "currency": "USD",
+        "id": "6625af0e-3879-4119-bcd9-2bdf4e17ef62",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158592,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158592,
+        "created_at": "2026-04-30T23:03:54.508506Z",
+        "currency": "USD",
+        "id": "0a7e2306-fd9a-43e7-a67f-fbef06db0d1e",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158432,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158432,
+        "created_at": "2026-04-30T23:03:54.508535Z",
+        "currency": "USD",
+        "id": "ef26ed85-bd4e-474b-a6bf-eb44b9ac5246",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158449,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158449,
+        "created_at": "2026-04-30T23:03:54.508561Z",
+        "currency": "USD",
+        "id": "3ee4eb61-7cdf-4b86-b121-8a90d91cd826",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158408,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158408,
+        "created_at": "2026-04-30T23:03:54.508606Z",
+        "currency": "USD",
+        "id": "2016eb1d-4c12-4868-a4ba-8e29ecea4dfd",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 651843,
+        "created_at": "2026-04-30T23:03:54.849708Z",
+        "currency": "USD",
+        "id": "0d912044-cafd-417c-b4e3-84b512692c7e",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 639691,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 639691,
+        "created_at": "2026-04-30T23:03:54.849774Z",
+        "currency": "USD",
+        "id": "cf20c5da-1012-48ac-ac58-83a711e4c7cd",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634949,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634949,
+        "created_at": "2026-04-30T23:03:54.849806Z",
+        "currency": "USD",
+        "id": "8892826c-8dc1-42aa-82a2-67c52d4e4cc3",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634830,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634830,
+        "created_at": "2026-04-30T23:03:54.849830Z",
+        "currency": "USD",
+        "id": "1187ebc5-deb0-4c26-8689-24f5dab0895a",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634477,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634477,
+        "created_at": "2026-04-30T23:03:54.849864Z",
+        "currency": "USD",
+        "id": "58206e0c-7ba7-428c-830d-f72fbb61dc14",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 631346,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 631346,
+        "created_at": "2026-04-30T23:03:54.849901Z",
+        "currency": "USD",
+        "id": "830eb8c9-b4d0-4111-a524-5e4ee8af5681",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 154.006,
+        "created_at": "2026-04-30T23:03:55.349928Z",
+        "currency": "USD",
+        "id": "c7ef1812-6b91-46b1-9f7c-17d19dd1693b",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 153.221,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 153.221,
+        "created_at": "2026-04-30T23:03:55.350005Z",
+        "currency": "USD",
+        "id": "cbe2dc1f-cded-4ca9-80f9-848b9fb5bd58",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 152.464,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 152.464,
+        "created_at": "2026-04-30T23:03:55.350026Z",
+        "currency": "USD",
+        "id": "0b53c818-622c-4519-a930-3a1ac9dc6494",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 151.626,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 151.626,
+        "created_at": "2026-04-30T23:03:55.350050Z",
+        "currency": "USD",
+        "id": "604c7090-8be3-45f8-9c15-c00ca5d7298c",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 151.054,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 151.054,
+        "created_at": "2026-04-30T23:03:55.350081Z",
+        "currency": "USD",
+        "id": "f9aea754-2663-453b-8e20-9773b0316fd5",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 150.439,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 150.439,
+        "created_at": "2026-04-30T23:03:55.350114Z",
+        "currency": "USD",
+        "id": "baab8002-7ba1-4572-b0cf-de981746721f",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.7898,
+        "created_at": "2026-04-30T23:03:56.007936Z",
+        "currency": "USD",
+        "id": "70a3efcb-3768-4d1b-8bd8-1f80f3e126bb",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 102.344,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 102.344,
+        "created_at": "2026-04-30T23:03:56.008000Z",
+        "currency": "USD",
+        "id": "be984e92-ffba-4f20-81a8-e3ca70917140",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.5954,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.5954,
+        "created_at": "2026-04-30T23:03:56.008047Z",
+        "currency": "USD",
+        "id": "ba7e4c20-479d-41a5-914f-4f6ee36c3ef4",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.6113,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.6113,
+        "created_at": "2026-04-30T23:03:56.008111Z",
+        "currency": "USD",
+        "id": "dfada1cf-3b15-4126-8435-9c2b1e60c59a",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.081,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.081,
+        "created_at": "2026-04-30T23:03:56.008149Z",
+        "currency": "USD",
+        "id": "3b91f98a-e888-4b97-a334-94a5affeda33",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.2195,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.2195,
+        "created_at": "2026-04-30T23:03:56.008194Z",
+        "currency": "USD",
+        "id": "b33e6937-39a7-4837-b01b-17182784275f",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ]
+  },
+  "intermarket": {
+    "collected_at": "2026-04-30T23:04:03.982267Z",
+    "created_at": "2026-04-30T23:04:03.982373Z",
+    "id": "fd4924bd-5568-4995-862f-8fb54e27b3cf",
+    "latest": {
+      "copper": null,
+      "created_at": "2026-04-30T23:04:03.338734Z",
+      "dairy_gdt": null,
+      "dxy_momentum": null,
+      "dxy_value": null,
+      "gold_price": null,
+      "id": "26a8cf0e-ae59-4d7f-87fa-e6222fe43435",
+      "iron_ore": null,
+      "natural_gas": null,
+      "oil_price": null,
+      "silver_price": null,
+      "snapshot_at": "2026-04-30T23:04:03.338355Z",
+      "source": "twelve_data+commodity_proxy",
+      "sp500": null,
+      "us10y_yield": null,
+      "us2y_yield": null,
+      "us30y_yield": null,
+      "vix": null
+    },
+    "snapshots": [
+      {
+        "copper": null,
+        "created_at": "2026-04-30T23:04:03.338734Z",
+        "dairy_gdt": null,
+        "dxy_momentum": null,
+        "dxy_value": null,
+        "gold_price": null,
+        "id": "26a8cf0e-ae59-4d7f-87fa-e6222fe43435",
+        "iron_ore": null,
+        "natural_gas": null,
+        "oil_price": null,
+        "silver_price": null,
+        "snapshot_at": "2026-04-30T23:04:03.338355Z",
+        "source": "twelve_data+commodity_proxy",
+        "sp500": null,
+        "us10y_yield": null,
+        "us2y_yield": null,
+        "us30y_yield": null,
+        "vix": null
+      }
+    ],
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ]
+  },
+  "news": {
+    "collected_at": "2026-04-30T23:04:04.336502Z",
+    "created_at": "2026-04-30T23:04:04.336561Z",
+    "id": "d11094ad-6c02-4087-aa55-85d0a7203f1d",
+    "items": [
+      {
+        "created_at": "2026-04-30T23:04:03.507680Z",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "dedupe_hash": "745f0c9f3fd32cae466328292a7c80986030b7eff507540f346260f7aa3a3873",
+        "headline": "Goldman\u2019s Freund Sees Early Signs of Australia M&amp;A Rebound",
+        "id": "e3c18ad1-a220-4325-9821-c6771ba1a09d",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T22:56:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.507839Z",
+        "currencies_mentioned": [
+          "JPY",
+          "USD",
+          "XAU"
+        ],
+        "dedupe_hash": "29562a87ad6b56bf60ec4302b4c94bdb849ee7b87d825246bbb877126cecdf71",
+        "headline": "Gold Steadies After Japan\u2019s Yen Intervention Weakens Dollar",
+        "id": "f94ce863-aebe-4169-86e4-15268db7ecfd",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T22:13:58Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.507922Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f2df3b1f703b5c8525e7d6afb597ab5bb6902559b0e857df178c762e2b22003c",
+        "headline": "Petrobras Output Hits Record as Iran War Jolts Oil Markets",
+        "id": "c20404d5-a751-4e6f-b017-afb16404358d",
+        "impact": "HIGH",
+        "published_at": "2026-04-30T22:39:41Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508057Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "14dc8233ac3aa5ee851e0540aa954cce71a137395751c21e7191b12055a62946",
+        "headline": "UK Man Agrees to Plead Guilty in \u2018Singapore Solution\u2019 Tax Case",
+        "id": "0747833a-5771-4f89-80a5-c7c81c75b954",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T22:37:11Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508131Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "0c916726a12787601969ff1130e53ef74a1a69b1cd08e6e078aeb5d66bfdc363",
+        "headline": "Oil Holds Weekly Gain as Trump Says Iran Blockade Is Working",
+        "id": "1e6840ea-740d-4f65-bd62-55c38d7e1697",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T22:01:45Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508193Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "292eff01f96b522f7e561a11dbb55916d79abe46705d99cb89c32180af758374",
+        "headline": "Tanger Beats Earnings Estimates as Gen Z Drives Return to Physical Stores",
+        "id": "00083b16-9c69-4266-a607-04937a14e335",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:36:45Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508251Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3d65e90cc9d27f5d2d97f5850c5e3f6e845a16e40980e0f747e3b69b0f16e795",
+        "headline": "S&amp;P Weighs New Index Rules to Speed Up Addition of Mega IPOs",
+        "id": "4a560588-9b2d-41d5-bb06-7f4143c84b33",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T21:56:14Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508380Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "e783943aa5241b65786bebaf8003d9c6e4f816ccc37ff32e807c09fad165de67",
+        "headline": "US Stock Futures Rise on Tech Earnings, Yen Gains: Markets Wrap",
+        "id": "bf9610fd-6c1e-4087-a86d-f9654c4da87e",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T22:05:17Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508467Z",
+        "currencies_mentioned": [
+          "AUD",
+          "USD"
+        ],
+        "dedupe_hash": "447edf5e6c910e80dfa18b375753ae8f9e5398bc55a2fb82068052daa5383c33",
+        "headline": "First Brands Creditor Sues Auditor BDO Over Missed Red Flags",
+        "id": "1e2c4569-0af4-4d49-9c72-80977c722759",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T21:55:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508526Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "927a79d52ecdd641ca2158a456656ebad8af8ad09eebefa7bde1c722141eaf0f",
+        "headline": "Air Canada Pulls 2026 Outlook on Rising Jet Fuel Costs",
+        "id": "01eb1712-4605-451f-86cb-f42ab770cc19",
+        "impact": "HIGH",
+        "published_at": "2026-04-30T20:51:17Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508588Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b5e2acd9d84dacbc2ce6aa61c97a983f72dfbb381719f8e861414051328edac7",
+        "headline": "Emerging Stocks See Best Month Since 2022 Amid AI Boom, Oil Fear",
+        "id": "d78cb0fd-fa76-437b-a2c5-7990a2a266ae",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T11:51:39Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508672Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "bfc5ed3cd672498978e3adbcc1fee696d58ee3e564cff7642797b12b121a93bb",
+        "headline": "The Business of Influence",
+        "id": "f7bc9241-f8cf-4151-baca-af461cb68f9a",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T21:42:13Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508731Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "97064099ec0d1dfb28c7073be4932f50d8949783066f856d13ed5e1b6ac3e979",
+        "headline": "Trader Mercuria Sues Baltic Exchange Over Oil Shipping Benchmark",
+        "id": "60f1368d-614c-479a-99d0-2e7c59fc6e12",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T21:13:30Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508833Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "b49aae187f7332b718b2d5788a4a06d1a5410ac862fe2e4492436c68147f9463",
+        "headline": "Yen Soars as Japan Intervenes After Issuing \u2018Final\u2019 Warning",
+        "id": "80eaeece-3a3f-4c0c-b32b-aec9c0a9983d",
+        "impact": "HIGH",
+        "published_at": "2026-04-30T08:07:38Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508895Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "74407fc09c0c63d6a070ed5fa1686b74cb990954e224588159cbc541221b8a25",
+        "headline": "AI Debt Investors Show Fatigue After $300 Billion Binge",
+        "id": "16fe90b3-319b-4b5c-9502-da17130f4716",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T18:07:08Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.508976Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8f3b26c6a80c72f85d28fe4438adbf603e73337f8e568aa077a3e4d8129f4273",
+        "headline": "Bloomberg Markets 4/30/2026",
+        "id": "02c57da2-a787-461e-b9df-12816c635e3b",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:49:57Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509032Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "931fb7470208cf11c4341747c47e8abc6d0b9c5b421aab2621a8dce977db5c5c",
+        "headline": "Alphabet Has the Second Biggest One-Day Jump in Market Cap Ever",
+        "id": "a1239731-3936-46cd-97f2-c83fe3deb48c",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:48:40Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509233Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8969c05890c24f43af863a2aa32c81508d42b70cec46f0471d00d8a842f3ca38",
+        "headline": "Metals Miner Lumina Ends Trading Day Flat After Toronto IPO",
+        "id": "48e9857e-0e26-410e-a337-efd283473a0b",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T14:24:44Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509323Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "27029bf6d2b7a74a2d43597fe202c5390427d81bdebff5b5f5b45730f18b3b7c",
+        "headline": "Stocks Hit Record at End of Best Month Since 2020: Markets Wrap",
+        "id": "937132fb-4dc8-446a-812b-6eaf6f264f53",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-29T22:04:06Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509402Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "255e703481ed21105b0f681db95e5e1afab4dc6134aea5407947220d513cb8fc",
+        "headline": "Banamex Sells Global Bonds for First Time Since Citi Sale",
+        "id": "eeefb656-b211-4a0a-9c22-4c783868b76f",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T14:17:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509475Z",
+        "currencies_mentioned": [
+          "JPY",
+          "USD",
+          "XAU"
+        ],
+        "dedupe_hash": "ab2c14ccabe7a77161c6ea6bfd4dc63fb80f926f139d8aad0453245105aef8b3",
+        "headline": "Gold Rebounds as Speculation of Yen Intervention Weakens Dollar",
+        "id": "1f990f3f-9139-4ee7-94b4-5337e3961679",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-29T22:32:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509534Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e7eb45887c65784752ba1daadfa82b2824120851a5c45851c1091c4a6055521e",
+        "headline": "Meta Sells $25 Billion of Debt as Investor Worry, Fatigue Builds",
+        "id": "74c3fcbc-1921-4f96-af05-9da7a9e81cbb",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T11:50:19Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509642Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "42ed636fd56a6deb0e59c79363250f72e63bae6665968da48f61caef4411e826",
+        "headline": "World Cup Executives on Scaling a Global Event",
+        "id": "9081e967-f797-4a40-b457-f1f8095306d1",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:34:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509703Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "778e6b2b7a35d400c3bb4780648ed3deaf1a27efa490120c1fd4d5e0f0b12aac",
+        "headline": "Alphabet Soars, S&P Hits Another Record | Closing Bell",
+        "id": "06360750-0977-480d-9f9d-0b87e0c7c2bc",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:31:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509769Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "98d3695e49d36971bea5f8ea0af95eff777660d534921ddd690d14fcdc56c12f",
+        "headline": "Wayfair CFO Sees Growth Despite 'Challenged' Consumer",
+        "id": "553d9e33-7e2e-4bc0-977c-4d561f175705",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:28:52Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509857Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "db77ce2033769b9c16b4e98e5019d2b7ca9546016ace830f417de7d584181fa2",
+        "headline": "Susie Wolff on What's Next for F1",
+        "id": "eb797f0c-cd95-4199-8b60-ac70d8077844",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:25:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.509918Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "664f00be13bccd8dcd232ad1e00780ad2230537a4af6c69ced69267553557a2a",
+        "headline": "Dollar Wraps Worst Month Since June as Haven Trade Unwinds",
+        "id": "555b178e-4efe-45f3-9a1c-d639ebb14934",
+        "impact": "HIGH",
+        "published_at": "2026-04-30T17:16:50Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.510000Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "5f328950af1001c78d3bc0f0efc5d836135c4bfccfc4339678e4a02f743fa396",
+        "headline": "Inside Cadillac's New Formula 1 Team",
+        "id": "9b8f825f-3759-407d-a233-9453c3684499",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:24:12Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.510094Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3a8046ce71d4446cf00374bc238f11b77d399aa181045e6ea06e2824ae9888c5",
+        "headline": "AIG Profit Jumps as CEO Zaffino\u2019s Strategic Deals Take Effect",
+        "id": "bc1dc494-ad2d-4d92-8f71-3507695571b7",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T20:22:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T23:04:03.510155Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "84a56fca3e5bc49f2b3a94b82d1a6b72d1ed6417dd15d8e0de2e01aefd4b892e",
+        "headline": "Novo-Backed Drugmaker Avalyn Soars 64% After Trading Debut",
+        "id": "d19595be-8254-4fcc-b314-048d5e6da107",
+        "impact": "MEDIUM",
+        "published_at": "2026-04-30T16:36:02Z",
+        "source": "bloomberg"
+      }
+    ],
+    "sources": [
+      "bloomberg_rss"
+    ]
+  },
+  "sentiment": {
+    "collected_at": "2026-04-30T23:03:42.841893+00:00",
+    "risk_assessment": {
+      "assessed_at": "2026-04-30T23:03:42.893662Z",
+      "commodity_currencies_weak": false,
+      "created_at": "2026-04-30T23:03:42.893641Z",
+      "environment": "NEUTRAL",
+      "id": "2a386a98-0020-4bee-bf34-5f3a31e8ac8a",
+      "reasoning": [],
+      "safe_haven_demand_elevated": false,
+      "stagflation_detected": false,
+      "vix_level": null,
+      "yield_curve_inverted": false
+    },
+    "risk_environment": "NEUTRAL",
+    "sentiments": [
+      {
+        "created_at": "2026-04-30T23:03:42.835079Z",
+        "currency": "CAD",
+        "id": "7012c9b7-bd29-4aae-b119-d1fc8d220691",
+        "long_percentage": 25,
+        "net_positioning": -50,
+        "short_percentage": 75,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.840949Z",
+        "currency": "CHF",
+        "id": "a78093aa-f502-4f74-8b2f-af164780f7ad",
+        "long_percentage": 25,
+        "net_positioning": -50,
+        "short_percentage": 75,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.840993Z",
+        "currency": "GBP",
+        "id": "8204eb6e-383e-4663-8922-86a98c5c0d87",
+        "long_percentage": 25,
+        "net_positioning": -50,
+        "short_percentage": 75,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.841008Z",
+        "currency": "JPY",
+        "id": "5d418e43-da5b-4765-9504-95b6b3203369",
+        "long_percentage": 25,
+        "net_positioning": -50,
+        "short_percentage": 75,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.841028Z",
+        "currency": "EUR",
+        "id": "6442d362-e46d-4ac4-bb71-3b67be9e5cb7",
+        "long_percentage": 75,
+        "net_positioning": 50,
+        "short_percentage": 25,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.841042Z",
+        "currency": "NZD",
+        "id": "791e6b9a-ba01-4821-8c60-72b270e49283",
+        "long_percentage": 25,
+        "net_positioning": -50,
+        "short_percentage": 75,
+        "source": "cot_positioning"
+      },
+      {
+        "created_at": "2026-04-30T23:03:42.841054Z",
+        "currency": "AUD",
+        "id": "590a2efa-0d1b-4b2b-83fe-e0b7331a04a3",
+        "long_percentage": 75,
+        "net_positioning": 50,
+        "short_percentage": 25,
+        "source": "cot_positioning"
+      }
+    ],
+    "sources": [
+      "cot_derived_sentiment"
+    ]
+  }
+}

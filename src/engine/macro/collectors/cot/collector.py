@@ -197,3 +197,10 @@ class COTCollector(BaseCollector):
         )
         self._record_items_stored(len(enriched))
         return dataset
+
+
+    async def _read_from_db(self):
+        return None
+
+    def _empty_dataset(self):
+        return COTDataSet(reports=[], sources=[], collected_at=datetime.now(UTC))

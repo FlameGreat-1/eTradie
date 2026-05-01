@@ -1,0 +1,266 @@
+{
+  "analysis_id": "VOLATILITY 75 INDEX_SH_BMS_RTO_BULLISH_BULLISH_33849.43_69c0c1b7",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "LONG",
+  "entry_price": 33849.43,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_Volatility_75_Index_20260501_0248_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.85,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.85,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.84,
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "24078a36-47d3-4e05-842c-740f90983568",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 8 \u2014 AI SYSTEM CONSTRAINTS & GUARDRAILS"
+          },
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "2d4c9ec4-dbb8-47df-976c-f44ea9edc77a",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.9,
+            "section": "SECTION 7 \u2014 PERFORMANCE TRACKING & JOURNALING STANDARDS"
+          }
+        ],
+        "query_summary": "Analysis of Volatility 75 Index for bullish SMC continuation setup within a multi-timeframe context.",
+        "strategy_used": "scenario_first",
+        "top_k": 31
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "N/A for synthetic index, treated as neutral/aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "Setup is a bullish continuation within a valid D1 bullish retracement, which is counter to the W1/MN1 bearish trend. This is a valid fractal pullback scenario.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "H1 timeframe is confirmed bullish. The M15 candidate itself has a recent BMS at 34902.14, confirming immediate bullish intent.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is based on a valid M15 Order Block at [33756.78, 33942.08], which is confluent with the H1 swing low at 33780.48.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The candidate confirms a sweep of Sell-Side Liquidity (SSL) prior to the structural break.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "N/A for synthetic index.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No Wyckoff data available for analysis.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "N/A for synthetic index, condition is met by default.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Calculated R:R to final TP is >20R, far exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Inducement Cleared (Bonus)",
+          "notes": "Candidate confirms inducement was cleared at 34295.49, strengthening the setup.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "N/A for Synthetic Indices",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        33756.78,
+        33942.08
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "All trades must originate from one or more of the following frameworks: - SMC: SH+BMS+RTO",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "VOLATILITY 75 INDEX_SH_BMS_RTO_BULLISH_BULLISH_33849.43_69c0c1b7"
+    },
+    "entry_zone": {
+      "high": 33942.08,
+      "low": 33756.78
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability bullish continuation setup on the Volatility 75 Index. While the highest timeframes (MN1, W1) are bearish, the market structure from D1 down to M1 is clearly bullish, indicating the current price action is a valid, strong retracement. The chosen setup is a live-edge M15 SH+BMS+CHOCH+IDM+RTO pattern, which aligns perfectly with this D1-down bullish order flow. The entry is planned as a return to a valid M15 Order Block between 33756.78 and 33942.08, which is strongly confluent with a recent H1 swing low. The stop loss at 33738.25 is structurally sound, placed below this key low. The setup has cleared inducement and swept sell-side liquidity, adding significant conviction. Take profit targets are set at logical liquidity pools: an H1 FVG, an H1 swing high, and the major D1 swing high, offering an excellent R:R ratio over 20R. Despite being in the Asian session, which is permitted for testing, the technical strength and multi-timeframe alignment of this setup warrant an 'A' grade and high confidence.",
+    "htf_bias": {
+      "key_levels": [],
+      "notes": "MN1 and W1 timeframes are structurally bearish, indicating the dominant long-term order flow is to the downside. The current bullish price action on lower timeframes is classified as a large-scale retracement within this bearish structure.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        33780.48,
+        32008.84
+      ],
+      "notes": "From the D1 timeframe down to M15, the structure is consistently bullish. The D1 snapshot shows a bullish SMS event, confirming a counter-trend retracement is in control. The H1 trend is bullish, providing immediate directional bias for intraday setups.",
+      "structure": "bullish"
+    },
+    "pair": "Volatility 75 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 20.88,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 33738.25,
+      "reason": "Placed below the M15 Order Block and the H1 swing low at 33780.48, providing structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "Lower bound of H1 Fair Value Gap, first logical liquidity target.",
+        "level": 34195.22,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 Swing High (BSL), a significant pool of buy-side liquidity.",
+        "level": 34774.12,
+        "size_pct": 30
+      },
+      {
+        "basis": "D1 Swing High (BSL), the major MTF liquidity target.",
+        "level": 36171.01,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-01T02:48:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability bullish continuation setup on the Volatility 75 Index. While the highest timeframes (MN1, W1) are bearish, the market structure from D1 down to M1 is clearly bullish, indicating the current price action is a valid, strong retracement. The chosen setup is a live-edge M15 SH+BMS+CHOCH+IDM+RTO pattern, which aligns perfectly with this D1-down bullish order flow. The entry is planned as a return to a valid M15 Order Block between 33756.78 and 33942.08, which is strongly confluent with a recent H1 swing low. The stop loss at 33738.25 is structurally sound, placed below this key low. The setup has cleared inducement and swept sell-side liquidity, adding significant conviction. Take profit targets are set at logical liquidity pools: an H1 FVG, an H1 swing high, and the major D1 swing high, offering an excellent R:R ratio over 20R. Despite being in the Asian session, which is permitted for testing, the technical strength and multi-timeframe alignment of this setup warrant an 'A' grade and high confidence.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 20.88,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 33738.25,
+  "symbol": "Volatility 75 Index",
+  "take_profit": 36171.01,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

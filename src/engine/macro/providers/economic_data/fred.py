@@ -127,9 +127,8 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
         try:
             releases: list[EconomicRelease] = []
             for series_cfg in _FRED_SERIES:
-                release = await self._fetch_series(series_cfg)
-                if release is not None:
-                    releases.append(release)
+                series_releases = await self._fetch_series(series_cfg)
+                releases.extend(series_releases)
 
             if not releases:
                 logger.warning(
@@ -150,12 +149,12 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
             )
             raise
 
-    async def _fetch_series(self, series_cfg: dict[str, Any]) -> EconomicRelease | None:
-        """Fetch the two most recent observations for a FRED series.
+    async def _fetch_series(self, series_cfg: dict[str, Any]) -> list[EconomicRelease]:
+        """Fetch the most recent observations for a FRED series.
 
-        We need two observations so we can populate both ``actual``
-        (latest) and ``previous`` (prior period).  FRED does not provide
-        forecast/consensus values so those fields are left as ``None``.
+        We fetch 6 observations (~3 months for monthly data) so the
+        LLM has enough historical context to identify trends, not
+        just a single latest + previous pair.
         """
         series_id = series_cfg["series_id"]
         try:
@@ -168,7 +167,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                     "api_key": self._api_key,
                     "file_type": "json",
                     "sort_order": "desc",
-                    "limit": "2",
+                    "limit": "6",
                 },
             )
             observations = raw.get("observations", []) if isinstance(raw, dict) else []
@@ -177,45 +176,39 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                     "fred_series_no_observations",
                     extra={"series_id": series_id},
                 )
-                return None
+                return []
 
-            actual = self._parse_float(observations[0].get("value"))
-            previous = (
-                self._parse_float(observations[1].get("value"))
-                if len(observations) > 1
-                else None
-            )
+            releases: list[EconomicRelease] = []
+            for i, obs in enumerate(observations):
+                actual = self._parse_float(obs.get("value"))
+                if actual is None:
+                    continue
 
-            if actual is None:
-                logger.debug(
-                    "fred_series_no_actual_value",
-                    extra={
-                        "series_id": series_id,
-                        "raw_value": observations[0].get("value"),
-                    },
+                previous = (
+                    self._parse_float(observations[i + 1].get("value"))
+                    if i + 1 < len(observations)
+                    else None
                 )
-                return None
 
-            date_str = str(observations[0].get("date", ""))
-            try:
-                release_time = datetime.fromisoformat(date_str).replace(tzinfo=UTC)
-            except (ValueError, TypeError):
-                release_time = datetime.now(UTC)
+                date_str = str(obs.get("date", ""))
+                try:
+                    release_time = datetime.fromisoformat(date_str).replace(tzinfo=UTC)
+                except (ValueError, TypeError):
+                    release_time = datetime.now(UTC)
 
-            return EconomicRelease(
-                currency=Currency.USD,
-                indicator=series_cfg["indicator"],
-                indicator_name=series_cfg["name"],
-                actual=actual,
-                forecast=None,
-                previous=previous,
-                surprise=None,
-                surprise_direction=compute_surprise_direction(actual, None),
-                impact=series_cfg["impact"],
-                inflation_type=series_cfg["inflation_type"],
-                release_time=release_time,
-                source="fred",
-            )
+                releases.append(
+                    EconomicRelease(
+                        currency=Currency.USD,
+                        indicator=series_cfg["indicator"],
+                        indicator_name=series_cfg["name"],
+                        actual=actual,
+                        previous=previous,
+                        release_time=release_time,
+                        source="fred",
+                    )
+                )
+
+            return releases
         except Exception as exc:
             logger.warning(
                 "fred_series_skipped",
@@ -225,7 +218,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                     "error_type": type(exc).__name__,
                 },
             )
-            return None
+            return []
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:

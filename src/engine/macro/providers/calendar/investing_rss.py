@@ -94,14 +94,7 @@ _MEDIUM_IMPACT_KEYWORDS = frozenset(
     }
 )
 
-# Regex to extract actual/forecast/previous from RSS description.
-_VALUE_PATTERN = re.compile(r"(?:Actual|Act\.?)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE)
-_FORECAST_PATTERN = re.compile(
-    r"(?:Forecast|Cons\.?|Expected)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE
-)
-_PREVIOUS_PATTERN = re.compile(
-    r"(?:Previous|Prior|Prev\.?)\s*[:=]?\s*([\d.,%-]+)", re.IGNORECASE
-)
+# Removed regexes for actual/forecast/previous as they are no longer collected.
 
 
 class InvestingRSSCalendarProvider(BaseCalendarProvider):
@@ -141,19 +134,11 @@ class InvestingRSSCalendarProvider(BaseCalendarProvider):
         if currency is None:
             return None
 
-        impact = self._classify_impact(full_text)
-        actual = self._extract_value(_VALUE_PATTERN, entry.summary)
-        forecast = self._extract_value(_FORECAST_PATTERN, entry.summary)
-        previous = self._extract_value(_PREVIOUS_PATTERN, entry.summary)
-
         return CalendarEvent(
             event_name=entry.title.strip(),
             currency=currency,
-            impact=impact,
             event_time=entry.published_at or datetime.now(UTC),
-            actual=actual or "",
-            forecast=forecast or "",
-            previous=previous or "",
+            impact=self._detect_impact(full_text),
             source="investing.com",
         )
 
@@ -165,16 +150,11 @@ class InvestingRSSCalendarProvider(BaseCalendarProvider):
         return None
 
     @staticmethod
-    def _classify_impact(text: str) -> EventImpact:
-        if any(kw in text for kw in _HIGH_IMPACT_KEYWORDS):
-            return EventImpact.HIGH
-        if any(kw in text for kw in _MEDIUM_IMPACT_KEYWORDS):
-            return EventImpact.MEDIUM
+    def _detect_impact(text: str) -> EventImpact:
+        for keyword in _HIGH_IMPACT_KEYWORDS:
+            if keyword in text:
+                return EventImpact.HIGH
+        for keyword in _MEDIUM_IMPACT_KEYWORDS:
+            if keyword in text:
+                return EventImpact.MEDIUM
         return EventImpact.LOW
-
-    @staticmethod
-    def _extract_value(pattern: re.Pattern[str], text: str) -> str | None:
-        match = pattern.search(text)
-        if match:
-            return match.group(1).strip()
-        return None

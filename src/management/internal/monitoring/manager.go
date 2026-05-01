@@ -105,6 +105,15 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 	// this is the first trade on this symbol.
 	m.tickCache.Subscribe(trade.Symbol)
 
+	// Ensure the tick cache has a valid auth token for broker calls.
+	// Tick prices are not user-scoped, so any valid token works.
+	// This is critical when the service starts with zero active trades
+	// and the first trade arrives via gRPC — without this, the tick
+	// cache poller would have no token and get 401 on every request.
+	if trade.AuthToken != "" {
+		m.tickCache.SetAuthToken(trade.AuthToken)
+	}
+
 	m.wg.Add(1)
 	go m.runWorker(ctx, trade)
 

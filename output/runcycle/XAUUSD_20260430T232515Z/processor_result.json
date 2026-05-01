@@ -1,0 +1,311 @@
+{
+  "analysis_id": "XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4685.875_d8f0e2aa",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "SHORT",
+  "entry_price": 4685.5,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_xauusd_20260430_2323_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.91,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.88,
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.87,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.91,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.89,
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.88,
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.87,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.86,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.85,
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "Analysis of XAUUSD for a high-probability trading setup, considering timeframe alignment, SMC/SnD patterns, and macro context.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral/stale, which is treated as non-conflicting and thus aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "SHORT direction aligns with the confirmed bearish trend on D1, H12, H8, H6, H4, and H3 timeframes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "D1 timeframe shows a confirmed bearish BMS on 2026-04-29, validating the bearish order flow.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Setup is based on a valid, unmitigated H6 bearish Order Block at [4676.65, 4695.1].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The H6 candidate confirms a liquidity sweep of a BSL at 4706.62, which created the OB, adding validity to the zone.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data is stale and cannot be used for confluence.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Wyckoff phase is not clearly defined from the provided data.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events are scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The potential R:R to the final target (D1 SSL) is over 20:1, far exceeding the 1:3 minimum.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data is stale (older than 7 days) and shows no week-over-week shift. Cannot be used for directional bias.",
+      "week_over_week": "flat"
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        4676.65,
+        4695.1
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Every entry must be inside or at a valid 4H or higher Supply/Demand zone or Order Block.",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-003",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4685.875_d8f0e2aa"
+    },
+    "entry_zone": {
+      "high": 4688,
+      "low": 4683
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability short setup based on a fractal market structure. The Higher Timeframe (HTF) narrative from D1 down to H3 is strongly bearish, confirmed by a D1 Break of Market Structure on 2026-04-29. Concurrently, the Lower Timeframes (LTF) from H1 downwards are in a bullish counter-trend retracement. This pullback is interpreted as a liquidity engineering move, driving price up into a premium area of the bearish dealing range.\n\nThe target for this retracement is a high-confluence H6 bearish Order Block located at [4676.65, 4695.1]. This POI is validated by the SMC candidate `XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4685.875_d8f0e2aa`, which represents a pro-trend SH+BMS+FVG+RTO pattern created after a liquidity sweep at 4706.62.\n\nThe trade plan is to patiently wait for the LTF bullish move to exhaust and mitigate this H6 OB. A limit order will be placed to enter SHORT within the zone [4683.0, 4688.0]. The stop loss is structurally sound, placed at 4714.46 above the invalidation high. Take profit targets are set at sequential sell-side liquidity pools on the H1, H4, and D1 timeframes, offering an excellent R:R ratio. This setup aligns with the dominant bearish order flow and represents a patient, rule-based entry.",
+    "htf_bias": {
+      "key_levels": [
+        4744.68,
+        4833.16
+      ],
+      "notes": "The D1 timeframe confirmed a bearish Break of Market Structure (BMS) on 2026-04-29 at price 4595.49, establishing a clear bearish order flow. This is occurring as a pullback within a larger W1 bullish trend, but the immediate dominant pressure is to the downside.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4676.65,
+        4695.1
+      ],
+      "notes": "Timeframes from H12 down to H3 are aligned bearish, respecting the D1 order flow. A high-confluence cluster of unmitigated bearish Order Blocks exists between 4676.65 and 4695.1, representing a key Point of Interest (POI) for a potential reversal.",
+      "structure": "bearish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.91,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.89,
+        "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.88,
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 20.52,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4714.46,
+      "reason": "Placed structurally above the swing high (4706.62) that swept liquidity and created the H6 bearish Order Block."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest significant Sell-Side Liquidity (SSL) pool from the H1 timeframe.",
+        "level": 4605.51,
+        "size_pct": 40
+      },
+      {
+        "basis": "Major Sell-Side Liquidity (SSL) pool from the H4 timeframe.",
+        "level": 4510.18,
+        "size_pct": 30
+      },
+      {
+        "basis": "Ultimate draw on liquidity, targeting the major D1 swing low.",
+        "level": 4099.15,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-30T23:23:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability short setup based on a fractal market structure. The Higher Timeframe (HTF) narrative from D1 down to H3 is strongly bearish, confirmed by a D1 Break of Market Structure on 2026-04-29. Concurrently, the Lower Timeframes (LTF) from H1 downwards are in a bullish counter-trend retracement. This pullback is interpreted as a liquidity engineering move, driving price up into a premium area of the bearish dealing range.\n\nThe target for this retracement is a high-confluence H6 bearish Order Block located at [4676.65, 4695.1]. This POI is validated by the SMC candidate `XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4685.875_d8f0e2aa`, which represents a pro-trend SH+BMS+FVG+RTO pattern created after a liquidity sweep at 4706.62.\n\nThe trade plan is to patiently wait for the LTF bullish move to exhaust and mitigate this H6 OB. A limit order will be placed to enter SHORT within the zone [4683.0, 4688.0]. The stop loss is structurally sound, placed at 4714.46 above the invalidation high. Take profit targets are set at sequential sell-side liquidity pools on the H1, H4, and D1 timeframes, offering an excellent R:R ratio. This setup aligns with the dominant bearish order flow and represents a patient, rule-based entry.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 20.52,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 4714.46,
+  "symbol": "XAUUSD",
+  "take_profit": 4099.15,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

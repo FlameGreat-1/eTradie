@@ -1,0 +1,958 @@
+{
+  "calendar": {
+    "collected_at": "2026-04-30T21:14:54.106702Z",
+    "created_at": "2026-04-30T21:14:54.106790Z",
+    "events": [],
+    "id": "557c079b-9b91-432a-a51e-c06d430ea316",
+    "sources": [
+      "investing_rss_calendar"
+    ]
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB"
+    ],
+    "collected_at": "2026-04-30T21:14:55.995254Z",
+    "created_at": "2026-04-30T21:14:55.995347Z",
+    "forward_guidance": [],
+    "id": "bd7a4aaa-f825-43dd-9d50-4a20e35b3a4c",
+    "meeting_minutes": [],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": []
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-04-30T20:44:54.771668Z",
+    "created_at": "2026-04-30T20:44:54.771711Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "5edfc7ca-94dd-4197-bc44-250f5f484e38",
+    "latest_positions": [
+      {
+        "commercial_long": 158814,
+        "commercial_net": 59221,
+        "commercial_short": 99593,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "CANADIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                        Code-090741",
+        "created_at": "2026-04-30T20:44:54.579394Z",
+        "currency": "CAD",
+        "extreme_flag": false,
+        "id": "d366323d-00de-4db7-a835-015639704640",
+        "non_commercial_long": 60889,
+        "non_commercial_net": -58834,
+        "non_commercial_short": 119723,
+        "open_interest": 255128,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 71762,
+        "commercial_net": 42255,
+        "commercial_short": 29507,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "SWISS FRANC - CHICAGO MERCANTILE EXCHANGE                            Code-092741",
+        "created_at": "2026-04-30T20:44:54.624395Z",
+        "currency": "CHF",
+        "extreme_flag": false,
+        "id": "a11f17b6-942a-46d5-8152-4633a4af4de1",
+        "non_commercial_long": 8372,
+        "non_commercial_net": -33273,
+        "non_commercial_short": 41645,
+        "open_interest": 91532,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 172752,
+        "commercial_net": 56839,
+        "commercial_short": 115913,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "BRITISH POUND - CHICAGO MERCANTILE EXCHANGE                          Code-096742",
+        "created_at": "2026-04-30T20:44:54.657433Z",
+        "currency": "GBP",
+        "extreme_flag": false,
+        "id": "0872b3da-e500-484b-8ab8-f4ff27ffbc25",
+        "non_commercial_long": 63086,
+        "non_commercial_net": -52039,
+        "non_commercial_short": 115125,
+        "open_interest": 263523,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 188723,
+        "commercial_net": 95467,
+        "commercial_short": 93256,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE                           Code-097741",
+        "created_at": "2026-04-30T20:44:54.705708Z",
+        "currency": "JPY",
+        "extreme_flag": false,
+        "id": "bd13653d-ed97-4cbf-87a9-5f284330a26d",
+        "non_commercial_long": 101386,
+        "non_commercial_net": -94460,
+        "non_commercial_short": 195846,
+        "open_interest": 351782,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 459844,
+        "commercial_net": -83663,
+        "commercial_short": 543507,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "EURO FX - CHICAGO MERCANTILE EXCHANGE                                Code-099741",
+        "created_at": "2026-04-30T20:44:54.730576Z",
+        "currency": "EUR",
+        "extreme_flag": false,
+        "id": "47e42f09-7551-473e-96eb-ca6e13a8fce5",
+        "non_commercial_long": 217407,
+        "non_commercial_net": 41324,
+        "non_commercial_short": 176083,
+        "open_interest": 790622,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 70056,
+        "commercial_net": 48983,
+        "commercial_short": 21073,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "NZ DOLLAR - CHICAGO MERCANTILE EXCHANGE                              Code-112741",
+        "created_at": "2026-04-30T20:44:54.748785Z",
+        "currency": "NZD",
+        "extreme_flag": false,
+        "id": "b3e9d24c-0e79-4666-a6d8-54006e8c172e",
+        "non_commercial_long": 7917,
+        "non_commercial_net": -48454,
+        "non_commercial_short": 56371,
+        "open_interest": 82508,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      },
+      {
+        "commercial_long": 100168,
+        "commercial_net": -93198,
+        "commercial_short": 193366,
+        "commercial_vs_speculator_divergence": true,
+        "contract_name": "AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                      Code-232741",
+        "created_at": "2026-04-30T20:44:54.763335Z",
+        "currency": "AUD",
+        "extreme_flag": false,
+        "id": "cfe68be2-25e7-4c4c-89b5-c2c757fb0ed0",
+        "non_commercial_long": 128811,
+        "non_commercial_net": 64817,
+        "non_commercial_short": 63994,
+        "open_interest": 275415,
+        "percentile_rank": 50,
+        "report_date": "2026-04-21",
+        "signal_strength": "NEUTRAL",
+        "wow_change": 0
+      }
+    ],
+    "previous_positions": [
+      {
+        "commercial_long": 158814,
+        "commercial_net": 59221,
+        "commercial_short": 99593,
+        "contract_name": "CANADIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                        Code-090741",
+        "created_at": "2026-04-30T20:44:54.442488Z",
+        "currency": "CAD",
+        "id": "d2a0da46-94b1-48d9-b5bd-ae7d8ca84c50",
+        "non_commercial_long": 60889,
+        "non_commercial_net": -58834,
+        "non_commercial_short": 119723,
+        "open_interest": 255128,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 71762,
+        "commercial_net": 42255,
+        "commercial_short": 29507,
+        "contract_name": "SWISS FRANC - CHICAGO MERCANTILE EXCHANGE                            Code-092741",
+        "created_at": "2026-04-30T20:44:54.448094Z",
+        "currency": "CHF",
+        "id": "96f6234b-0457-4daa-ad1c-27a8cb6c415c",
+        "non_commercial_long": 8372,
+        "non_commercial_net": -33273,
+        "non_commercial_short": 41645,
+        "open_interest": 91532,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 172752,
+        "commercial_net": 56839,
+        "commercial_short": 115913,
+        "contract_name": "BRITISH POUND - CHICAGO MERCANTILE EXCHANGE                          Code-096742",
+        "created_at": "2026-04-30T20:44:54.449844Z",
+        "currency": "GBP",
+        "id": "f6615ddd-9119-4e43-93fa-904502e469d6",
+        "non_commercial_long": 63086,
+        "non_commercial_net": -52039,
+        "non_commercial_short": 115125,
+        "open_interest": 263523,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 188723,
+        "commercial_net": 95467,
+        "commercial_short": 93256,
+        "contract_name": "JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE                           Code-097741",
+        "created_at": "2026-04-30T20:44:54.450358Z",
+        "currency": "JPY",
+        "id": "b091b812-604a-4c50-93a8-8f5f2a570ce1",
+        "non_commercial_long": 101386,
+        "non_commercial_net": -94460,
+        "non_commercial_short": 195846,
+        "open_interest": 351782,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 459844,
+        "commercial_net": -83663,
+        "commercial_short": 543507,
+        "contract_name": "EURO FX - CHICAGO MERCANTILE EXCHANGE                                Code-099741",
+        "created_at": "2026-04-30T20:44:54.450983Z",
+        "currency": "EUR",
+        "id": "3322052a-00db-47be-932e-545c8b6f9d24",
+        "non_commercial_long": 217407,
+        "non_commercial_net": 41324,
+        "non_commercial_short": 176083,
+        "open_interest": 790622,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 70056,
+        "commercial_net": 48983,
+        "commercial_short": 21073,
+        "contract_name": "NZ DOLLAR - CHICAGO MERCANTILE EXCHANGE                              Code-112741",
+        "created_at": "2026-04-30T20:44:54.452815Z",
+        "currency": "NZD",
+        "id": "8fca6eaf-4dc5-462e-b554-aea9a86e1bdb",
+        "non_commercial_long": 7917,
+        "non_commercial_net": -48454,
+        "non_commercial_short": 56371,
+        "open_interest": 82508,
+        "report_date": "2026-04-21"
+      },
+      {
+        "commercial_long": 100168,
+        "commercial_net": -93198,
+        "commercial_short": 193366,
+        "contract_name": "AUSTRALIAN DOLLAR - CHICAGO MERCANTILE EXCHANGE                      Code-232741",
+        "created_at": "2026-04-30T20:44:54.454473Z",
+        "currency": "AUD",
+        "id": "3b7a0b18-f4c4-4478-9a0e-32b6617e1bc3",
+        "non_commercial_long": 128811,
+        "non_commercial_net": 64817,
+        "non_commercial_short": 63994,
+        "open_interest": 275415,
+        "report_date": "2026-04-21"
+      }
+    ],
+    "previous_report_date": null,
+    "report_date": "2026-04-21",
+    "tff_positions": [],
+    "wow_shifts": {
+      "AUD": 0,
+      "CAD": 0,
+      "CHF": 0,
+      "EUR": 0,
+      "GBP": 0,
+      "JPY": 0,
+      "NZD": 0
+    }
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "news",
+    "calendar",
+    "dxy",
+    "intermarket",
+    "sentiment"
+  ],
+  "dxy": {
+    "collected_at": "2026-04-30T20:44:53.967138Z",
+    "created_at": "2026-04-30T20:44:53.967177Z",
+    "id": "7f08ebd6-408b-4c9f-868c-39a0245132a0",
+    "latest": {
+      "copper": null,
+      "created_at": "2026-04-30T20:44:53.967021Z",
+      "dairy_gdt": null,
+      "dxy_momentum": null,
+      "dxy_value": null,
+      "gold_price": null,
+      "id": "d73f27fe-d578-4041-9e0c-ac6f39f953fb",
+      "iron_ore": null,
+      "natural_gas": null,
+      "oil_price": null,
+      "silver_price": null,
+      "snapshot_at": "2026-04-30T20:44:53.966958Z",
+      "source": "twelve_data",
+      "sp500": null,
+      "us10y_yield": null,
+      "us2y_yield": null,
+      "us30y_yield": null,
+      "vix": null
+    },
+    "snapshots": [
+      {
+        "copper": null,
+        "created_at": "2026-04-30T20:44:53.967021Z",
+        "dairy_gdt": null,
+        "dxy_momentum": null,
+        "dxy_value": null,
+        "gold_price": null,
+        "id": "d73f27fe-d578-4041-9e0c-ac6f39f953fb",
+        "iron_ore": null,
+        "natural_gas": null,
+        "oil_price": null,
+        "silver_price": null,
+        "snapshot_at": "2026-04-30T20:44:53.966958Z",
+        "source": "twelve_data",
+        "sp500": null,
+        "us10y_yield": null,
+        "us2y_yield": null,
+        "us30y_yield": null,
+        "vix": null
+      }
+    ],
+    "sources": [
+      "twelve_data"
+    ]
+  },
+  "economic": {
+    "collected_at": "2026-04-30T21:20:31.227139Z",
+    "created_at": "2026-04-30T21:20:31.227194Z",
+    "id": "c4ecbb5b-b7df-477f-b904-1ad35a6efb7d",
+    "releases": [],
+    "sources": []
+  },
+  "intermarket": {
+    "collected_at": "2026-04-30T20:45:12.223563Z",
+    "created_at": "2026-04-30T20:45:12.223768Z",
+    "id": "0bb3fa04-675c-43f8-b540-df518fa48a2f",
+    "latest": {
+      "copper": null,
+      "created_at": "2026-04-30T20:45:12.129134Z",
+      "dairy_gdt": null,
+      "dxy_momentum": null,
+      "dxy_value": null,
+      "gold_price": null,
+      "id": "0057b090-42fe-41e4-be4a-1d7296100268",
+      "iron_ore": null,
+      "natural_gas": null,
+      "oil_price": null,
+      "silver_price": null,
+      "snapshot_at": "2026-04-30T20:45:12.124640Z",
+      "source": "twelve_data+commodity_proxy",
+      "sp500": null,
+      "us10y_yield": null,
+      "us2y_yield": null,
+      "us30y_yield": null,
+      "vix": null
+    },
+    "snapshots": [
+      {
+        "copper": null,
+        "created_at": "2026-04-30T20:45:12.129134Z",
+        "dairy_gdt": null,
+        "dxy_momentum": null,
+        "dxy_value": null,
+        "gold_price": null,
+        "id": "0057b090-42fe-41e4-be4a-1d7296100268",
+        "iron_ore": null,
+        "natural_gas": null,
+        "oil_price": null,
+        "silver_price": null,
+        "snapshot_at": "2026-04-30T20:45:12.124640Z",
+        "source": "twelve_data+commodity_proxy",
+        "sp500": null,
+        "us10y_yield": null,
+        "us2y_yield": null,
+        "us30y_yield": null,
+        "vix": null
+      }
+    ],
+    "sources": [
+      "twelve_data",
+      "commodity_proxy"
+    ]
+  },
+  "news": {
+    "collected_at": "2026-04-30T21:20:31.340820Z",
+    "created_at": "2026-04-30T21:20:31.340835Z",
+    "id": "91f7ba46-4dde-4ad7-9e30-d314e157697d",
+    "items": [
+      {
+        "created_at": "2026-04-30T21:20:31.337903Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "576611cf5ee42f06c795f0ff3c62909a865eeaf3c6992987bc41a71395641504",
+        "headline": "Tanger Revenue Beats as Gen Z Reconnects with Physical Stores",
+        "id": "1087088e-6668-4407-9051-31adf231e264",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:36:45Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338198Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "778e6b2b7a35d400c3bb4780648ed3deaf1a27efa490120c1fd4d5e0f0b12aac",
+        "headline": "Alphabet Soars, S&P Hits Another Record | Closing Bell",
+        "id": "c2142263-49a5-4b5e-aebf-889db2cd47f8",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:31:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338417Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "431e9333fe12571c44fd2d961dcf7577c0b3edf9325b38234207d3cd962a2180",
+        "headline": "Gresham House Said to Plan \u20ac1 Billion Fund for Battery Storage",
+        "id": "8e6b5011-0514-41db-8f43-71ec7b410c72",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:30:51Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338462Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "98d3695e49d36971bea5f8ea0af95eff777660d534921ddd690d14fcdc56c12f",
+        "headline": "Wayfair CFO Sees Growth Despite 'Challenged' Consumer",
+        "id": "53a148ce-d411-44af-b86e-2054ad6cc0cb",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:28:52Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338617Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "5f328950af1001c78d3bc0f0efc5d836135c4bfccfc4339678e4a02f743fa396",
+        "headline": "Inside Cadillac's New Formula 1 Team",
+        "id": "af592597-e719-4d4a-90f9-2a1281b2f6e5",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:24:12Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338654Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3a8046ce71d4446cf00374bc238f11b77d399aa181045e6ea06e2824ae9888c5",
+        "headline": "AIG Profit Jumps as CEO Zaffino\u2019s Strategic Deals Take Effect",
+        "id": "86182a2c-db3b-4d57-afe8-c3a83bd8149f",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:22:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338680Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "bc93c6656e6da7f7f5f17a6754a322c5183fe4b89043f407e8472820b36a4bee",
+        "headline": "Citi\u2019s Bhatia Warns of Private Credit \u2018Tourists\u2019 Forced to Sell",
+        "id": "b1ad4cb2-4e72-481b-9502-f5bc7faa9dd1",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:04:40Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338706Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "35d089050b0e90782106c587b04bf86e27f777c4d12797fcab8a2a708cc62969",
+        "headline": "Ares, JPMorgan Ink $800 Million Private Credit Deal for GoodLife",
+        "id": "e4dd636b-53e7-49fa-a64d-92aae1f0fb25",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:04:39Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338734Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "6480acc9657fc8035954692c2115c482b5bb4daad32e9e29f4725ae8bb6c1e6d",
+        "headline": "How Ketamine Spawned a $1.7 Billion J&J Blockbuster Drug",
+        "id": "93cdf384-1728-4bc9-b803-b781968a71f1",
+        "impact": "LOW",
+        "published_at": "2026-04-30T20:00:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338758Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "937179537fd4602b1d8c97e6f912c85cad8d1091d96124162e9899893730a027",
+        "headline": "Private Credit Giants Try to Reassure Investors on AI Risks to Software Bets",
+        "id": "151686e5-4145-4fb0-b8c5-2fc12056e88b",
+        "impact": "LOW",
+        "published_at": "2026-04-30T19:37:57Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338781Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "83f46d8449e465d08a875e30a222589d4d0a39374376c07fde6627ad765f1316",
+        "headline": "Blue Owl Scrutiny to Ramp Up as Shares Near \u2018Doomsday\u2019 Level",
+        "id": "ec701709-aee3-4113-bbb3-c6ca33d12ae9",
+        "impact": "LOW",
+        "published_at": "2026-04-30T19:04:12Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338805Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "87d6ad614a0f4ac5792c3b7aa41b349a00ebefdbc9438706ff295a1b0d5e5c79",
+        "headline": "NY Pied-\u00e0-Terre Tax Needs Significant Rates to Earn $500 Million",
+        "id": "9fb0b20f-e013-4b31-9950-106512e0490e",
+        "impact": "LOW",
+        "published_at": "2026-04-30T18:50:36Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.338829Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "31a9e9926a53b5c60dfea4e7ad89979807059972bf5e1cdeb1da55c68d4b61b6",
+        "headline": "Iran\u2019s New Leader Pledges to Guard Nuclear and Missile Tech",
+        "id": "b5a11d7c-1868-4c34-9520-b9b146c2da6c",
+        "impact": "LOW",
+        "published_at": "2026-04-30T18:44:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339501Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "aa8f28a188bbd0453fa3ef5ff425ecbf2ac81ccaa24a0c387f12798f0d4a986f",
+        "headline": "US Senate Bans Members, Staff From Trading on Prediction Markets",
+        "id": "15a5797c-d088-4550-b6f8-6a562e8de3c7",
+        "impact": "LOW",
+        "published_at": "2026-04-30T18:43:21Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339553Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "a0ff922b3d1e112ed302f88d9a4070c9ae1c0d9c0717589dfa2a306ebeb327e0",
+        "headline": "'No Signs Whatsoever' of High-End Consumer Pullback: Hyatt CEO",
+        "id": "4efd3dfb-d717-4c04-997c-34342e4ebea0",
+        "impact": "LOW",
+        "published_at": "2026-04-30T17:50:57Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339869Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "664f00be13bccd8dcd232ad1e00780ad2230537a4af6c69ced69267553557a2a",
+        "headline": "Dollar Wraps Worst Month Since June as Haven Trade Unwinds",
+        "id": "3cdb0a66-8b15-4a8e-a74a-514b82411ee4",
+        "impact": "LOW",
+        "published_at": "2026-04-30T17:16:50Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339890Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "1f78d79ce50fda628624724045a6f4bcb2f834b3f3621a61be93a273aec3826a",
+        "headline": "Bombardier CEO Says Debt \u2018Melting Away\u2019; Shares Soar to 23-Year High",
+        "id": "58326412-1644-4e95-876a-aeae47bd5ed7",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:49:29Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339906Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "0e8f7fd53f7590458d063ad2b9e1186c186ffa4cfc50a33ee75a42b6a262d5ce",
+        "headline": "\u2018Right Tail Risk\u2019 Trade Put to Test by Megacap Earnings Deluge",
+        "id": "adfead1a-84d7-44a3-805a-7e5bbfa12af5",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:37:19Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339919Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "84a56fca3e5bc49f2b3a94b82d1a6b72d1ed6417dd15d8e0de2e01aefd4b892e",
+        "headline": "Novo-Backed Drugmaker Avalyn Soars 64% After Trading Debut",
+        "id": "c25d04c8-e244-48ed-8c22-cb8560430d2c",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:36:02Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339931Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d7b838721bfb7eea7973abd2546ed39b3e46d97196478c45f0ddf39b1d537583",
+        "headline": "Novo-Backed Drugmaker Avalyn Soars 44% After $300 Million US IPO",
+        "id": "1ff8bc35-2322-455b-9b86-e1fddd49ebb7",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:36:02Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339942Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5b085048e8c7f95d186af2efaa731b735e2d1fee6a931a9ac49241207d4217d5",
+        "headline": "The Haves and Have Nots of AI",
+        "id": "41529424-4071-41f1-a679-374ac21c60fd",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:30:19Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339957Z",
+        "currencies_mentioned": [
+          "AUD"
+        ],
+        "dedupe_hash": "029299dda2885fc1098795c7bb6b3799f5f7fa70b3e317f1247062017339ea07",
+        "headline": "Audi F1 CEO Tries to Turn Also-Ran Legacy Team Into a Winner",
+        "id": "ca7c9902-81a0-47ed-9240-9cd8d3d9b7bd",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:21:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339972Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "63007ef42ac301bf8be80bae929e15d38ace4ebc3923706e71621e1f65a3d4db",
+        "headline": "Hospitals Sell Muni Debt at Fastest Pace in More Than a Decade",
+        "id": "597cbcb8-b68c-4d0a-b84e-9f9d4f61db5f",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:15:47Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.339992Z",
+        "currencies_mentioned": [
+          "AUD"
+        ],
+        "dedupe_hash": "c8bd0181c074c1f331739c8b2a04386e47841a7f8c8a7b1188878a6a52e20f37",
+        "headline": "TelevisaUnivision CEO on Global Sports Media",
+        "id": "b3cebfaa-eafe-46e6-bb0e-c19ead7e5653",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:15:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340013Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "62a96190f503103141b017e7e6ca10ab40ad67036228f71b1a6ec334677c404b",
+        "headline": "Miami Mayor on Growth, World Cup, Wealth Influx",
+        "id": "fd445d0f-1996-4dda-b8b3-9baf8999504f",
+        "impact": "LOW",
+        "published_at": "2026-04-30T16:00:57Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340034Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2246a461fdcff089d8774c229cdcb1d1e3b4f895acf1bff29a62a5bfdecf8b70",
+        "headline": "Pemex Posts Third Straight Loss Despite War-Fueled Oil Rally",
+        "id": "f92840cf-d8f6-406f-965c-0fa161750d2c",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:55:17Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340052Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5d3ae3644f06daa13497d757bcb3ee8046e89f47d9d41b70fa57e86ffa6345e7",
+        "headline": "Pemex Posts Third Straight Loss After $16.5 Billion Debt Payment",
+        "id": "7dc363d8-55b1-4403-b13f-d948ed67f4dd",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:55:17Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340069Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "01db6fd3ff0acf2eb80476d1186c43a9e4c620e64049334901de029bed0a081c",
+        "headline": "Mario Carbone on Modern Power Dining",
+        "id": "46959bf3-6b89-488a-846e-cb5471f2e298",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:51:30Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340090Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "7adcecd5e057d2c24dd6e5053da9d0ef0d607aa4436c978751cf51b5da1438b6",
+        "headline": "New York Life Raises C$1.1 Billion in Maple Bond Sale",
+        "id": "ddcc49d1-5357-4aba-a931-880ecce2975a",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:42:38Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340110Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "c6f5e9e43738b446b5f62cdfb4625776a28dbe4146bf338e3670a84018fb4279",
+        "headline": "New York Life Eyes Potential Canadian Dollar Debt Sale",
+        "id": "7d1408d5-26f1-4a91-8f99-5f6c5fa83978",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:42:38Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340199Z",
+        "currencies_mentioned": [
+          "AUD"
+        ],
+        "dedupe_hash": "6890047d61da1267ba60b13bdf94ea1619e9a69b89277f69b6f92f8178d1baff",
+        "headline": "Audi on Building Its Formula 1 Team",
+        "id": "31903060-2016-4d6b-8a63-a18a5861eea6",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:29:02Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340232Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e9717ea666e9e7d179dc9e00d1df2a57f010c00a5d7f6ac7af9d015f0e37ee83",
+        "headline": "Jana Pushes Markel to Divest Ventures, Buy Back $2 Billion Shares",
+        "id": "c5a64c97-cddd-4523-9631-ebfd5f4be0c1",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:27:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340256Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "4fe625bc49b86103e27d7313a99ce707495f088ebeb16e4c29ab9feb8b07bf39",
+        "headline": "The David Rubenstein Show: Charlie Scharf",
+        "id": "3aec9cb5-8e42-4a97-b411-6f955e35cefd",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:23:47Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340277Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2a0afaa7b747ade9c9bbf8884d67bffcccd95468ce0c5e5f7166b73da1b3d03a",
+        "headline": "Stocks Edge Higher as Oil Prices Ease; JPMorgan 's Meera Pandit",
+        "id": "b7db81f7-9137-4c7c-a971-d1f4beb86ef5",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:19:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340295Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e7d1d7067dded68a593c65e3183c611a11a2ebe87dd81fdd8f0debf0ceec480c",
+        "headline": "Bloomberg Surveillance 4/30/2026",
+        "id": "bf9f9129-35c4-46d8-b2bd-d6fc2e02c3c8",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:14:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340510Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "d84d143297d6aa34b04cdcc7a85a57b8e4ad478c949a1849276238892dcee819",
+        "headline": "ECB Officials See June Hike If Energy Costs Don\u2019t Ease First",
+        "id": "3c139f7c-b5c5-494e-8909-79985e8fc7cd",
+        "impact": "LOW",
+        "published_at": "2026-04-30T15:14:04Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340571Z",
+        "currencies_mentioned": [
+          "XAG"
+        ],
+        "dedupe_hash": "45b68907150b8c40fd480552133dde48b910b83dacdb02af26c4c7da597f02ab",
+        "headline": "Copper and Silver Miner Lumina Shares Teeter After Toronto IPO",
+        "id": "453b9ae4-bae8-4a30-ba31-9bb89eedbad9",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:24:44Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340586Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8969c05890c24f43af863a2aa32c81508d42b70cec46f0471d00d8a842f3ca38",
+        "headline": "Metals Miner Lumina Ends Trading Day Flat After Toronto IPO",
+        "id": "35bd83e7-5974-4a03-8b24-1ec4d6bece59",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:24:44Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340599Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "255e703481ed21105b0f681db95e5e1afab4dc6134aea5407947220d513cb8fc",
+        "headline": "Banamex Sells Global Bonds for First Time Since Citi Sale",
+        "id": "c41a73bb-e905-48dc-b806-f44b5f01be93",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:17:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340611Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "024dacfcbf6ca7571cdf3c9404549daa62621ed4b9084a07ebd63bf586606a53",
+        "headline": "Banamex Is Selling Global Bonds for First Time Since Citi Sale",
+        "id": "71d71ee2-72a9-4f00-9f2e-6ba2155630e0",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:17:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340660Z",
+        "currencies_mentioned": [
+          "GBP"
+        ],
+        "dedupe_hash": "82200708749b6602b742013b507a3583ee7db2f3a175ed84374f11a341d02b46",
+        "headline": "BOE Interest-Rate Decision | Special Coverage",
+        "id": "2916f802-f8db-4a9f-a271-1da12b11f0c2",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:06:12Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340676Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "c6bc06eb41f6dec58ce3de2ee7921ec3fe9d7402f15e24073fa4dc57b6ccdd20",
+        "headline": "Australia\u2019s Home Prices Grow at Slowest Pace Since January 2025",
+        "id": "5205b56f-590f-4a50-97e8-32f7d066a16b",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:01:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340690Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3c85ac95dbe96c38a41a617ccc20a4e2a73e9c08daa0f82267f1b61de8c65c1b",
+        "headline": "Pershing Square Shares Rebound After Ackman Bought Stock",
+        "id": "d5cfed60-fd0c-4158-96f0-4378b4514957",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:00:09Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340701Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "ebcb9daa9e7a7a2af3681a6351cf4e997509fb3888d58d8db470300818210493",
+        "headline": "Bill Ackman Bought Pershing Square Shares in First Trading Day",
+        "id": "9172d9ad-743d-4fea-b8b6-a3019b1c3e4b",
+        "impact": "LOW",
+        "published_at": "2026-04-30T14:00:09Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340716Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "1975775dbf0e0c0969126a54e0f1658f09040cf7ef04dcb6fddc343768c34792",
+        "headline": "Lagarde Joins Powell in Rejecting Stagflation Label of 1970s",
+        "id": "c5c8d3c4-d64c-4b81-9bb1-c8d548df50b7",
+        "impact": "LOW",
+        "published_at": "2026-04-30T13:57:42Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340763Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "9c8588fefeca1c5452cc7df87856aa56782c1c3e3846c6afac5cae570785db4b",
+        "headline": "Air Baltic Bondholders Hire Lawyers as Restructuring Fears Mount",
+        "id": "4fe50749-6e30-4630-ab76-0bb522617221",
+        "impact": "LOW",
+        "published_at": "2026-04-30T13:56:09Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340778Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "98fbac3e4b70be08b4696b3fe15352bbac488c2c98823b69fe0ed45c917d9136",
+        "headline": "RBI\u2019s Short Dollar Book Surges Past $100 Billion for First Time",
+        "id": "a59d2f02-4e94-49c0-b2ec-85192bfc7723",
+        "impact": "LOW",
+        "published_at": "2026-04-30T13:53:17Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340791Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "367ac998ab8a93bda7aea3a02d9132105a08a8971d960ace975d00bb16a57e68",
+        "headline": "Taiwan's Cheng Li-wun Seeks Trump Meeting After Beijing Trip",
+        "id": "4850d325-fa3f-49a4-bd18-1fb8c5dc3c90",
+        "impact": "LOW",
+        "published_at": "2026-04-30T13:45:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340802Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5ddca0ea806058692d1ad544941dbf04d44b29704ca28ea52e90f20609717599",
+        "headline": "Chinese Investment in US Seen Stagnant Even After Xi-Trump Talks",
+        "id": "92ea16bb-0499-4de8-8003-cbb36c37b933",
+        "impact": "LOW",
+        "published_at": "2026-04-30T13:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-04-30T21:20:31.340813Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "aac6fba8d17e226a679b5eb8cc5a6aeedebe9ef171c2be7f23db28ddf33b78b2",
+        "headline": "US Economy Stays Resilient as GDP Grows 2% in First Quarter",
+        "id": "9f4e0aa9-30da-4fec-b2e1-759ccc32519c",
+        "impact": "LOW",
+        "published_at": "2026-04-30T12:59:39Z",
+        "source": "bloomberg"
+      }
+    ],
+    "sources": [
+      "database_fallback"
+    ]
+  },
+  "sentiment": {
+    "collected_at": "2026-04-30T20:44:49.968161+00:00",
+    "risk_assessment": {
+      "assessed_at": "2026-04-30T20:44:49.970983Z",
+      "commodity_currencies_weak": false,
+      "created_at": "2026-04-30T20:44:49.970890Z",
+      "environment": "NEUTRAL",
+      "id": "3bfa8cb0-21ef-4415-90a0-27f84e6958a5",
+      "reasoning": [],
+      "safe_haven_demand_elevated": false,
+      "stagflation_detected": false,
+      "vix_level": null,
+      "yield_curve_inverted": false
+    },
+    "risk_environment": "NEUTRAL",
+    "sentiments": [],
+    "sources": [
+      "cot_derived_sentiment"
+    ]
+  }
+}

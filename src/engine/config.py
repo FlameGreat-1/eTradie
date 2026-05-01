@@ -87,6 +87,8 @@ class Settings(BaseSettings):
         description="CFTC Socrata app token for reliable COT data access. "
         "Register free at https://publicreporting.cftc.gov/profile/edit/developer_settings",
     )
+    # CFTC DEA HTML page — primary COT source (always accessible, no token)
+    cftc_dea_url: str = "https://www.cftc.gov/dea/futures/deacmesf.htm"
 
     # Twelve Data — primary market data provider
     twelvedata_api_key: str = Field(default="", description="TwelveData API key")

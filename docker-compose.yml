@@ -153,6 +153,7 @@ services:
     environment:
       - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
       - GATEWAY_EXECUTION_ADDR=execution:50053
+      - GATEWAY_MANAGEMENT_ADDR=management:50054
       - AUTH_DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     ports:
       - "8080:8080"

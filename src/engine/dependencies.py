@@ -26,7 +26,7 @@ from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
 from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
 from engine.macro.providers.central_bank.snb_rss import SNBRSSProvider
-from engine.macro.providers.cot.cftc import CFTCProvider
+from engine.macro.providers.cot.cftc_dea import CFTCDEAProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
 from engine.macro.providers.market_data.commodity_proxy import CommodityProxyProvider
@@ -165,12 +165,11 @@ class Container:
         ):
             self.registry.register(p)
 
-        self.cftc_provider = CFTCProvider(
+        self.cftc_dea_provider = CFTCDEAProvider(
             h,
-            base_url=s.cftc_api_base_url,
-            app_token=getattr(s, "cftc_app_token", "") or "",
+            url=s.cftc_dea_url,
         )
-        self.registry.register(self.cftc_provider)
+        self.registry.register(self.cftc_dea_provider)
 
         self.fred_provider = FREDEconomicProvider(
             h,
@@ -231,7 +230,7 @@ class Container:
         )
         self.cb_collector.cache_ttl = s.cache_ttl_central_bank
 
-        self.cot_collector = COTCollector([self.cftc_provider], c, d)
+        self.cot_collector = COTCollector([self.cftc_dea_provider], c, d)
         self.cot_collector.cache_ttl = s.cache_ttl_cot
 
         self.economic_collector = EconomicDataCollector(

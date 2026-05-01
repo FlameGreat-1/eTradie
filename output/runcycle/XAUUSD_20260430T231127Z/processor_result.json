@@ -1,0 +1,317 @@
+{
+  "analysis_id": "XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4548.8_a32ee645",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 4548.5,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-2.5-pro",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_xauusd_20260430_2308_a4b1",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.91,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.92,
+          "section": "5. Risk-to-Reward Requirements"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.89,
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.91,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.92,
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.89,
+            "section": "6. Risk Management Rules"
+          }
+        ],
+        "query_summary": "Analysis of XAUUSD with conflicting HTF bearish and LTF bullish structure, considering macro news about USD weakness.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro news indicates significant USD weakness due to JPY intervention and end-of-month flows, which is bullish for XAUUSD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned OR Valid Counter-Trend Pullback",
+          "notes": "The setup is a valid counter-trend pullback. The H1 bullish structure is moving towards HTF bearish POIs, which is a valid fractal retracement narrative.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed in trade direction",
+          "notes": "The H1 timeframe is confirmed bullish, and the specific candidate confirms a bullish BMS.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "The entry is based on a valid H1 Order Block at [4540.57, 4557.03].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "The candidate confirms a sweep of sell-side liquidity (SSL) at 4575.9 prior to the structural break, strengthening the setup.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment with trade direction",
+          "notes": "COT data for proxy currencies is mixed, providing no clear directional bias for USD.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff accumulation or distribution pattern was identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "There are no high-impact news events scheduled around the current time.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "The R:R to the final TP target (H4 Bearish OB) is approximately 13.0R, far exceeding the 1:3 minimum for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [
+        {
+          "chunk_id": "cot",
+          "content_preview": "EUR net long, JPY net short, GBP net short, AUD net long.",
+          "doc_id": "macro_analysis",
+          "section": "cot"
+        }
+      ],
+      "extreme_flag": false,
+      "summary": "No direct COT data for XAUUSD. Proxy currency positioning is mixed, providing a neutral signal for USD strength.",
+      "week_over_week": "flat"
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "dxy",
+          "content_preview": "No DXY data was provided in the input.",
+          "doc_id": "macro_analysis",
+          "section": "dxy"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        4540.57,
+        4557.03
+      ],
+      "evidence": [
+        {
+          "chunk_id": "XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4548.8_a32ee645",
+          "content_preview": "pattern: CHOCH_BMS_RTO_BULLISH, timeframe: H1, timestamp: 2026-04-30T23:00:00Z",
+          "doc_id": "ta_analysis.smc_candidates",
+          "section": "smc_candidates"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4548.8_a32ee645"
+    },
+    "entry_zone": {
+      "high": 4550,
+      "low": 4547
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The analysis identifies a high-probability, counter-trend LONG setup on XAUUSD. While the dominant trend from the D1 down to H3 is bearish, the current price action on H1 and lower timeframes is a clear bullish pullback. This retracement is strongly supported by the macroeconomic environment, with recent news indicating significant USD weakness following JPY intervention. The chosen setup is a high-confluence H1 'HTF_CHOCH+LTF_BMS+LIQ_SWEEP+IDM+RTO' pattern (ID: XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4548.8_a32ee645), which provides a structured entry point to join the bullish pullback. The entry is planned within a valid H1 Order Block at [4540.57, 4557.03], with a stop loss placed below its structural low at 4538.92. The trade targets higher timeframe bearish points of interest, with a final target at the H4 Bearish Order Block around 4677.42, offering an excellent R:R of approximately 13:1. Given the confluence score of 7/10, this setup is graded 'A' and a limit order is warranted.",
+    "htf_bias": {
+      "key_levels": [
+        4889.05,
+        4644.17
+      ],
+      "notes": "The D1 timeframe is bearish, having confirmed a BMS to the downside on 2026-04-29. This bearish structure is aligned down to the H3 timeframe, establishing the dominant MTF/HTF trend.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "news",
+            "content_preview": "Gold Steadies After Japan\u2019s Yen Intervention Weakens Dollar",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "news"
+          },
+          {
+            "chunk_id": "news",
+            "content_preview": "Dollar Wraps Worst Month Since June as Haven Trade Unwinds",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "news"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "BEARISH",
+        "evidence": [
+          {
+            "chunk_id": "news",
+            "content_preview": "Gold Steadies After Japan\u2019s Yen Intervention Weakens Dollar",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "news"
+          },
+          {
+            "chunk_id": "news",
+            "content_preview": "Dollar Wraps Worst Month Since June as Haven Trade Unwinds",
+            "doc_id": "macro_analysis",
+            "rule_id": null,
+            "section": "news"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4647.13,
+        4540.57
+      ],
+      "notes": "The H1 timeframe is in a bullish counter-trend, confirmed by its bullish trend alignment with all lower timeframes (M30 down to M1). This represents a valid fractal retracement against the dominant HTF bearish trend.",
+      "structure": "choch_bullish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "6d772ec5-c4f0-4f77-992c-1cbb4e19bd8d",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "5. Risk-to-Reward Requirements"
+      },
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.91,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.89,
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 13.02,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4538.92,
+      "reason": "Placed below the low of the H1 Order Block [4540.57], providing structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest opposing liquidity pool identified by the candidate.",
+        "level": 4601.53,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 Swing High from the snapshot data.",
+        "level": 4647.13,
+        "size_pct": 30
+      },
+      {
+        "basis": "Mitigation of the lower bound of the H4 Bearish Order Block.",
+        "level": 4677.42,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-04-30T23:08:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The analysis identifies a high-probability, counter-trend LONG setup on XAUUSD. While the dominant trend from the D1 down to H3 is bearish, the current price action on H1 and lower timeframes is a clear bullish pullback. This retracement is strongly supported by the macroeconomic environment, with recent news indicating significant USD weakness following JPY intervention. The chosen setup is a high-confluence H1 'HTF_CHOCH+LTF_BMS+LIQ_SWEEP+IDM+RTO' pattern (ID: XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4548.8_a32ee645), which provides a structured entry point to join the bullish pullback. The entry is planned within a valid H1 Order Block at [4540.57, 4557.03], with a stop loss placed below its structural low at 4538.92. The trade targets higher timeframe bearish points of interest, with a final target at the H4 Bearish Order Block around 4677.42, offering an excellent R:R of approximately 13:1. Given the confluence score of 7/10, this setup is graded 'A' and a limit order is warranted.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 13.02,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 4538.92,
+  "symbol": "XAUUSD",
+  "take_profit": 4677.42,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

@@ -286,6 +286,30 @@ func main() {
 			Msg("pending_watchers_restoration_complete")
 	}
 
+	// ── Startup tick-cache token (fallback for zero-watcher cold starts) ─
+	// When no pending watchers exist at startup, the tick cache has no auth
+	// token and every tick_price request gets 401 Unauthorized. Issue a
+	// service token from any active user so the tick cache can authenticate
+	// immediately. The token will be refreshed when the first watcher is
+	// armed (Arm sets it via the order's AuthToken) or by the execution
+	// gRPC handler.
+	{
+		users, userErr := userStore.ListActiveUsers(ctx)
+		if userErr == nil && len(users) > 0 {
+			for _, u := range users {
+				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role)
+				if tokenErr == nil {
+					wm.TickCache().SetAuthToken(startupToken)
+					log.Info().
+						Str("user_id", u.ID).
+						Str("username", u.Username).
+						Msg("startup_tick_cache_token_issued")
+					break
+				}
+			}
+		}
+	}
+
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).

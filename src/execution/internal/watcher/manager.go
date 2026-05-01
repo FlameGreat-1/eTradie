@@ -140,6 +140,15 @@ func (m *Manager) Arm(order *models.Order) {
 	// Subscribe to tick cache for this symbol.
 	m.tickCache.Subscribe(order.Symbol)
 
+	// Ensure the tick cache has a valid auth token for broker calls.
+	// Tick prices are not user-scoped, so any valid token works.
+	// This is critical when the service starts with zero pending watchers
+	// and the first order arrives via gRPC — without this, the tick
+	// cache poller would have no token and get 401 on every request.
+	if order.AuthToken != "" {
+		m.tickCache.SetAuthToken(order.AuthToken)
+	}
+
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "armed").Inc()
 
 	go w.run(m.ctx, m.onWatcherDone)

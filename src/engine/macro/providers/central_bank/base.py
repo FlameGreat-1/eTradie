@@ -163,17 +163,11 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
         self, entry: RSSEntry
     ) -> CentralBankSpeech | RateDecision | ForwardGuidance | MeetingMinutes:
         event_type = classify_event_type(entry.title)
-        full_text = f"{entry.title} {entry.summary}"
-        tone = classify_tone(full_text)
-        policy_action = classify_policy_action(full_text)
 
         if event_type == EventType.FORWARD_GUIDANCE:
             return ForwardGuidance(
                 bank=self.bank,
                 title=entry.title,
-                summary=entry.summary[:2000],
-                tone=tone,
-                monetary_policy_action=policy_action,
                 guidance_date=entry.published_at,
                 source_url=entry.link,
             )
@@ -182,15 +176,6 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
             return MeetingMinutes(
                 bank=self.bank,
                 title=entry.title,
-                summary=entry.summary[:2000],
-                tone=tone,
-                monetary_policy_action=policy_action,
-                hawkish_count=sum(
-                    1 for kw in _HAWKISH_KEYWORDS if kw in full_text.lower()
-                ),
-                dovish_count=sum(
-                    1 for kw in _DOVISH_KEYWORDS if kw in full_text.lower()
-                ),
                 meeting_date=entry.published_at,
                 release_date=entry.published_at,
                 source_url=entry.link,
@@ -199,11 +184,7 @@ class BaseCentralBankProvider(BaseProvider, abc.ABC):
         return CentralBankSpeech(
             bank=self.bank,
             event_type=event_type,
-            speaker="",
             title=entry.title,
-            summary=entry.summary[:2000],
-            tone=tone,
-            monetary_policy_action=policy_action,
             speech_date=entry.published_at,
             source_url=entry.link,
         )

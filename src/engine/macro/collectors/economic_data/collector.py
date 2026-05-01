@@ -73,16 +73,7 @@ class EconomicDataCollector(BaseCollector):
                             "indicator": release.indicator.value,
                             "indicator_name": release.indicator_name,
                             "actual": release.actual,
-                            "forecast": release.forecast,
                             "previous": release.previous,
-                            "surprise": release.surprise,
-                            "surprise_direction": release.surprise_direction.value,
-                            "impact": release.impact.value,
-                            "inflation_type": (
-                                release.inflation_type.value
-                                if release.inflation_type
-                                else None
-                            ),
                             "source": release.source,
                             "release_time": release.release_time,
                         }
@@ -97,12 +88,7 @@ class EconomicDataCollector(BaseCollector):
                         ],
                         update_fields=[
                             "actual",
-                            "forecast",
                             "previous",
-                            "surprise",
-                            "surprise_direction",
-                            "impact",
-                            "inflation_type",
                             "source",
                         ],
                     )
@@ -130,3 +116,10 @@ class EconomicDataCollector(BaseCollector):
         )
         self._record_items_stored(len(all_releases))
         return dataset
+
+
+    async def _read_from_db(self):
+        return None
+
+    def _empty_dataset(self):
+        return EconomicDataSet(releases=[], sources=[], collected_at=datetime.now(UTC))

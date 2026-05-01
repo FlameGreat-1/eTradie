@@ -152,6 +152,39 @@ class BaseCollector(abc.ABC):
                         },
                     )
                     return cached
+                
+                # If cache is still empty, and we are not forcing refresh, we MUST NOT hit the APIs.
+                # Fallback to the DB.
+                db_data = await self._read_from_db()
+                if db_data is not None:
+                    self._observe("db_hit", start)
+                    logger.debug(
+                        "collector_db_fallback",
+                        extra={
+                            "collector": self.collector_name,
+                            "namespace": self.cache_namespace,
+                            "duration_ms": round((time.monotonic() - start) * 1000, 2),
+                        },
+                    )
+                    # Rehydrate cache asynchronously if we got it from DB
+                    if self.cache_model:
+                        asyncio.create_task(
+                            self._cache.set(
+                                self.cache_namespace,
+                                self._cache_key(),
+                                db_data.model_dump(mode="json"),
+                                self.cache_ttl,
+                            )
+                        )
+                    return db_data
+                
+                # If DB is also empty or _read_from_db not implemented, return empty dataset to avoid API fetch
+                self._observe("empty_fallback", start)
+                logger.warning(
+                    "collector_cache_and_db_miss_returning_empty",
+                    extra={"collector": self.collector_name},
+                )
+                return self._empty_dataset()
 
             try:
                 result = await self._do_collect()
@@ -250,6 +283,20 @@ class BaseCollector(abc.ABC):
         from its own cached JSON form via ``self.cache_model`` when
         that attribute is set.
         """
+        ...
+
+    async def _read_from_db(self) -> Any | None:
+        """Fallback to read latest data from the database.
+        
+        Called during an analysis cycle when the cache is empty,
+        to prevent runtime API delays. If not overridden, or if
+        the DB is empty, falls back to `_empty_dataset()`.
+        """
+        return None
+        
+    @abc.abstractmethod
+    def _empty_dataset(self) -> Any:
+        """Return an empty dataset to avoid API fetch during analysis."""
         ...
 
     async def _fetch_with_failover(self, providers: list[BaseProvider]) -> Any:

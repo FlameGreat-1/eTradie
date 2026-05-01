@@ -290,12 +290,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
                     indicator=cfg["indicator"],
                     indicator_name=cfg["name_template"].format(country_name),
                     actual=actual,
-                    forecast=None,
                     previous=previous,
-                    surprise=None,
-                    surprise_direction=compute_surprise_direction(actual, None),
-                    impact=cfg["impact"],
-                    inflation_type=cfg["inflation_type"],
                     release_time=release_time,
                     source="oecd",
                 )
