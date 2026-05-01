@@ -28,6 +28,8 @@ type PositionInfo struct {
 	TakeProfit   float64
 	Volume       float64
 	Profit       float64
+	Commission   float64
+	Swap         float64
 	Ticket       string
 }
 

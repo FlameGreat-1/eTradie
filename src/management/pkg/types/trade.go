@@ -69,6 +69,8 @@ type Trade struct {
 	RealizedPnL   float64
 	UnrealizedPnL float64
 	CurrentPrice  float64
+	Swap          float64
+	Commission    float64
 
 	// Tracking.
 	OpenedAt time.Time

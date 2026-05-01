@@ -128,13 +128,13 @@ class Settings(BaseSettings):
 
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(
-        default=600, ge=60, description="CB RSS poll: 10 min default"
+        default=3600, ge=60, description="CB RSS poll: 1H default"
     )
     poll_interval_news: int = Field(
-        default=900, ge=60, description="News poll: 15 min default"
+        default=3600, ge=60, description="News poll: 1H default"
     )
     poll_interval_calendar: int = Field(
-        default=1800, ge=60, description="Calendar poll: 30 min default"
+        default=14400, ge=60, description="Calendar poll: 4H default"
     )
     poll_interval_cot: int = Field(
         default=604800, ge=3600, description="COT poll: weekly default"
@@ -149,7 +149,7 @@ class Settings(BaseSettings):
         default=604800, ge=3600, description="Sentiment poll: weekly default"
     )
     poll_interval_economic_data: int = Field(
-        default=3600, ge=300, description="Economic data poll: 1H default"
+        default=14400, ge=300, description="Economic data poll: 4H default"
     )
     analysis_cycle_interval: int = Field(
         default=14400, ge=300, description="Analysis cycle: 4H default"

@@ -154,19 +154,46 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 		return
 	}
 
-	// Calculate P&L.
+	// Wait slightly to ensure the deal propagates in broker history before querying
+	time.Sleep(500 * time.Millisecond)
+
+	// --- P&L Calculation (layered) ---
 	pnl := 0.0
 	rMultiple := 0.0
+	pnlSource := "none"
+
+	// Always compute price distance and R-multiple for journal enrichment.
+	var priceDist float64
+	if isLong {
+		priceDist = closePrice - entryPrice
+	} else {
+		priceDist = entryPrice - closePrice
+	}
 	slDist := trade.SLDistanceFromEntry()
-	if slDist > 0 && riskAmount > 0 {
-		var priceDist float64
-		if isLong {
-			priceDist = closePrice - entryPrice
-		} else {
-			priceDist = entryPrice - closePrice
-		}
+	if slDist > 0 {
 		rMultiple = priceDist / slDist
+	}
+
+	// Layer 1: Broker deal history (most accurate, works for all instruments).
+	if brokerPnL, ok := m.fetchClosedDealProfit(ctx, brokerID, symbol); ok {
+		pnl = brokerPnL
+		pnlSource = "broker_history"
+	}
+
+	// Layer 2: R-multiple system (fallback).
+	if pnlSource == "none" && slDist > 0 && riskAmount > 0 {
 		pnl = rMultiple * riskAmount
+		pnlSource = "r_multiple"
+	}
+
+	if pnlSource == "none" {
+		m.log.Warn().
+			Str("trade_id", tradeID).
+			Str("symbol", symbol).
+			Float64("entry", entryPrice).
+			Float64("close", closePrice).
+			Float64("risk_amount", riskAmount).
+			Msg("internal_sl_pnl_unavailable")
 	}
 
 	outcome := string(constants.OutcomeLoss)
@@ -206,13 +233,14 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 
 	m.transport.Publish(ctx,
 		alert.NewEvent(alert.SourceTradeManager, alert.TypeTradeClosed, alert.SeverityWarning,
-			fmt.Sprintf("SL hit on %s \u2014 trade closed at %.5f (%.2fR)", symbol, closePrice, rMultiple)).
+			fmt.Sprintf("SL hit on %s — trade closed at %.5f (%.2fR, $%.2f)", symbol, closePrice, rMultiple, pnl)).
 			WithSymbol(symbol).
 			WithDetails(map[string]interface{}{
 				"trade_id":   tradeID,
 				"pnl":        pnl,
 				"r_multiple": rMultiple,
 				"outcome":    outcome,
+				"pnl_source": pnlSource,
 			}),
 	)
 
@@ -222,6 +250,7 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 		Float64("close_price", closePrice).
 		Float64("pnl", pnl).
 		Float64("r", rMultiple).
+		Str("pnl_source", pnlSource).
 		Msg("sl_hit_trade_closed")
 }
 
@@ -374,10 +403,12 @@ func (m *Manager) fetchClosedDealProfit(ctx context.Context, brokerOrderID, symb
 		return 0, false
 	}
 
-	// Search for the close deal matching this position.
-	// MT5 deals carry a PositionID that links back to the original
-	// position ticket, enabling precise matching.
-	for _, deal := range history {
+	// Search backward to find the MOST RECENT close deal matching this position.
+	// This is critical because a position might have multiple partial
+	// closes (multiple OUT deals). By searching backward, we grab the
+	// one that was just executed.
+	for i := len(history) - 1; i >= 0; i-- {
+		deal := history[i]
 		if deal.PositionID == brokerOrderID || deal.Ticket == brokerOrderID {
 			if deal.Symbol != "" && deal.Symbol != symbol {
 				continue // Different symbol, not our deal

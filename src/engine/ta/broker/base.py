@@ -45,6 +45,8 @@ class PositionInfo(FrozenModel):
     take_profit: float = Field(ge=0)
     volume: float = Field(gt=0)
     profit: float
+    commission: float = Field(default=0.0)
+    swap: float = Field(default=0.0)
     ticket: str
     comment: str = Field(default="")
     open_time: int = Field(default=0)  # Unix timestamp

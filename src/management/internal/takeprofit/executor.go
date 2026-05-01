@@ -103,12 +103,18 @@ func (e *Executor) executeTP(
 		return "", fmt.Errorf("%s partial close: %w", label, err)
 	}
 
-	// Estimate realized P&L for this partial.
-	// For a BUY: pnl = (closePrice - entryPrice) * closeVol * pipValue
-	// Since we don't have exact pip value here, we use a proportional
-	// estimate based on the risk_amount and the R-multiple.
-	// actual_pnl will be reconciled from the broker in the journal.
-	pnlEstimate := 0.0
+	// Wait slightly to ensure the deal propagates in broker history
+	time.Sleep(500 * time.Millisecond)
+
+	// Layer 1: Broker deal history (exact profit, commissions, swaps)
+	pnl := 0.0
+	pnlSource := "none"
+	if brokerPnL, ok := e.fetchClosedDealProfit(ctx, brokerID, symbol); ok {
+		pnl = brokerPnL
+		pnlSource = "broker_history"
+	}
+
+	// Calculate R-multiple and estimate fallback
 	rMultiple := 0.0
 	if riskAmount > 0 {
 		slDist := trade.SLDistanceFromEntry()
@@ -118,8 +124,12 @@ func (e *Executor) executeTP(
 				priceDist = entryPrice - closePrice
 			}
 			rMultiple = priceDist / slDist
-			// Scale by the partial's proportion of total risk.
-			pnlEstimate = rMultiple * riskAmount * (closeVol / trade.TotalLotSize)
+			
+			// Layer 2: R-multiple estimate fallback
+			if pnlSource == "none" {
+				pnl = rMultiple * riskAmount * (closeVol / trade.TotalLotSize)
+				pnlSource = "r_multiple"
+			}
 		}
 	}
 
@@ -134,7 +144,7 @@ func (e *Executor) executeTP(
 		trade.TP3Hit = true
 	}
 	trade.RemainingLotSize -= closeVol
-	trade.RealizedPnL += pnlEstimate
+	trade.RealizedPnL += pnl
 	trade.Partials++
 	if trade.RemainingLotSize <= 0.001 {
 		trade.RemainingLotSize = 0
@@ -143,7 +153,7 @@ func (e *Executor) executeTP(
 	trade.Unlock()
 
 	// Persist partial.
-	if err := e.journal.UpdateTradePartial(ctx, userID, tradeID, pnlEstimate); err != nil {
+	if err := e.journal.UpdateTradePartial(ctx, userID, tradeID, pnl); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_partial_failed")
 	}
 
@@ -163,7 +173,7 @@ func (e *Executor) executeTP(
 		Symbol:       symbol,
 		Price:        closePrice,
 		ClosedVolume: closeVol,
-		RealizedPnL:  pnlEstimate,
+		RealizedPnL:  pnl,
 		RMultiple:    rMultiple,
 		Reason:       fmt.Sprintf("%s hit at %.5f — closed %.2f lots (%.1f%% realized, %d%% intended)", label, closePrice, closeVol, realizedPct, tpPct),
 		Timestamp:    time.Now().UTC(),
@@ -179,9 +189,59 @@ func (e *Executor) executeTP(
 		Str("tp_level", label).
 		Float64("close_price", closePrice).
 		Float64("volume_closed", closeVol).
-		Float64("pnl_estimate", pnlEstimate).
+		Float64("pnl", pnl).
 		Float64("r_multiple", rMultiple).
+		Str("pnl_source", pnlSource).
 		Msg("tp_partial_close_executed")
 
 	return eventType, nil
+}
+
+// fetchClosedDealProfit queries the broker's deal history to find the
+// actual P&L for a closed position. MT5 records the exact profit
+// including commission and swap for all instrument types, so this is
+// the most accurate P&L source.
+//
+// Searches backward to find the MOST RECENT close deal matching this position.
+// This is critical because a position might have multiple partial
+// closes (multiple OUT deals). By searching backward, we grab the
+// one that was just executed.
+func (e *Executor) fetchClosedDealProfit(ctx context.Context, brokerOrderID, symbol string) (float64, bool) {
+	if brokerOrderID == "" {
+		return 0, false
+	}
+
+	history, err := e.bp.GetHistory(ctx, 1) // last 1 day of deals
+	if err != nil {
+		e.log.Warn().Err(err).
+			Str("broker_order_id", brokerOrderID).
+			Msg("broker_history_fetch_failed_for_pnl")
+		return 0, false
+	}
+
+	for i := len(history) - 1; i >= 0; i-- {
+		deal := history[i]
+		if deal.PositionID == brokerOrderID || deal.Ticket == brokerOrderID {
+			if deal.Symbol != "" && deal.Symbol != symbol {
+				continue // Different symbol, not our deal
+			}
+			totalProfit := deal.Profit + deal.Commission + deal.Swap
+			e.log.Info().
+				Str("broker_order_id", brokerOrderID).
+				Str("deal_ticket", deal.Ticket).
+				Float64("profit", deal.Profit).
+				Float64("commission", deal.Commission).
+				Float64("swap", deal.Swap).
+				Float64("total", totalProfit).
+				Msg("broker_deal_profit_resolved")
+			return totalProfit, true
+		}
+	}
+
+	e.log.Warn().
+		Str("broker_order_id", brokerOrderID).
+		Str("symbol", symbol).
+		Int("history_deals_checked", len(history)).
+		Msg("broker_deal_not_found_in_history")
+	return 0, false
 }

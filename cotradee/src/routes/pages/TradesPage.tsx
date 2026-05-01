@@ -19,6 +19,8 @@ interface ManagedTrade {
   remaining_lot_size: number;
   unrealized_pnl: number;
   realized_pnl: number;
+  swap?: number;
+  commission?: number;
   trading_style: string;
   status: string;
   breakeven_set: boolean;
@@ -52,7 +54,11 @@ export default function TradesPage() {
   const winRate = allTimeMetrics?.win_rate;
 
   const totalUnrealized = useMemo(
-    () => trades.reduce((acc, t) => acc + (Number(t.unrealized_pnl) || 0), 0),
+    () =>
+      trades.reduce(
+        (acc, t) => acc + (Number(t.unrealized_pnl) || 0) + (Number(t.swap) || 0) + (Number(t.commission) || 0),
+        0,
+      ),
     [trades],
   );
 
@@ -160,10 +166,10 @@ export default function TradesPage() {
                     <Td
                       align="right"
                       className={`font-medium ${
-                        Number(t.unrealized_pnl) >= 0 ? 'text-success' : 'text-danger'
+                        (Number(t.unrealized_pnl) + (Number(t.swap) || 0) + (Number(t.commission) || 0)) >= 0 ? 'text-success' : 'text-danger'
                       }`}
                     >
-                      {formatCurrency(Number(t.unrealized_pnl))}
+                      {formatCurrency(Number(t.unrealized_pnl) + (Number(t.swap) || 0) + (Number(t.commission) || 0))}
                     </Td>
                     <Td align="center">
                       <ProgressDots
@@ -214,10 +220,10 @@ export default function TradesPage() {
                   )}`}
                 />
                 <Field
-                  label="P&L"
-                  value={formatCurrency(Number(t.unrealized_pnl))}
+                  label="P&L (Net)"
+                  value={formatCurrency(Number(t.unrealized_pnl) + (Number(t.swap) || 0) + (Number(t.commission) || 0))}
                   valueClass={
-                    Number(t.unrealized_pnl) >= 0 ? 'text-success' : 'text-danger'
+                    (Number(t.unrealized_pnl) + (Number(t.swap) || 0) + (Number(t.commission) || 0)) >= 0 ? 'text-success' : 'text-danger'
                   }
                 />
               </div>

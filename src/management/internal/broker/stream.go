@@ -99,6 +99,8 @@ func (s *Stream) GetPositions(ctx context.Context) ([]PositionInfo, error) {
 		TP           float64 `json:"tp"`
 		Volume       float64 `json:"volume"`
 		Profit       float64 `json:"profit"`
+		Commission   float64 `json:"commission"`
+		Swap         float64 `json:"swap"`
 		Ticket       int64   `json:"ticket"`
 		Comment      string  `json:"comment"`
 		TimeSetup    int64   `json:"time_setup"`
@@ -123,6 +125,8 @@ func (s *Stream) GetPositions(ctx context.Context) ([]PositionInfo, error) {
 			TakeProfit:   p.TP,
 			Volume:       p.Volume,
 			Profit:       p.Profit,
+			Commission:   p.Commission,
+			Swap:         p.Swap,
 			Ticket:       fmt.Sprintf("%d", p.Ticket),
 		})
 	}
@@ -259,6 +263,8 @@ func (s *Stream) StreamPositions(ctx context.Context, ch chan<- []PositionInfo) 
 			TP           float64 `json:"tp"`
 			Volume       float64 `json:"volume"`
 			Profit       float64 `json:"profit"`
+			Commission   float64 `json:"commission"`
+			Swap         float64 `json:"swap"`
 			Ticket       int64   `json:"ticket"`
 		}
 
@@ -295,6 +301,8 @@ func (s *Stream) StreamPositions(ctx context.Context, ch chan<- []PositionInfo) 
 				TakeProfit:   p.TP,
 				Volume:       p.Volume,
 				Profit:       p.Profit,
+				Commission:   p.Commission,
+				Swap:         p.Swap,
 				Ticket:       fmt.Sprintf("%d", p.Ticket),
 			})
 		}

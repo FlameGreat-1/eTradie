@@ -491,6 +491,8 @@ class ZmqClient(BrokerBase):
                     take_profit=float(p.get("tp", 0)),
                     volume=float(p.get("volume", 0)),
                     profit=float(p.get("profit", 0)),
+                    commission=float(p.get("commission", 0)),
+                    swap=float(p.get("swap", 0)),
                     ticket=str(p.get("ticket", "")),
                     comment=p.get("comment", ""),
                     open_time=int(p.get("time_setup", 0)),

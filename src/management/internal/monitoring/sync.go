@@ -312,7 +312,6 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			continue
 		}
 
-		// Check if SL or TP was manually modified on the broker.
 		if bPos.StopLoss != dbSL || bPos.TakeProfit != dbTP {
 			s.log.Info().
 				Str("ticket", ticket).
@@ -322,6 +321,8 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 
 			t.Lock()
 			t.StopLoss = bPos.StopLoss
+			t.Swap = bPos.Swap
+			t.Commission = bPos.Commission
 			if bPos.TakeProfit != 0 {
 				t.TP1Price = bPos.TakeProfit
 				// We don't overwrite TP2/TP3 as they are logical, but TP1 is the broker TP.
@@ -338,6 +339,12 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 				alert.SeverityInfo,
 				"Manual MT5 Modification Synced",
 			).WithUserID(s.userID).WithSymbol(symbol).WithDetail("new_sl", bPos.StopLoss).WithDetail("new_tp", bPos.TakeProfit))
+		} else {
+			// Even if SL/TP hasn't changed, continuously update Swap/Commission for dashboard
+			t.Lock()
+			t.Swap = bPos.Swap
+			t.Commission = bPos.Commission
+			t.Unlock()
 		}
 	}
 }

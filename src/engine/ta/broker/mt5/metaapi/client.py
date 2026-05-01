@@ -406,6 +406,8 @@ class MetaApiClient(BrokerBase):
                     take_profit=float(p.get("takeProfit", 0)),
                     volume=float(p.get("volume", 0)),
                     profit=float(p.get("profit", 0)),
+                    commission=float(p.get("commission", 0)),
+                    swap=float(p.get("swap", 0)),
                     ticket=str(p.get("id", "")),
                     comment=p.get("comment", ""),
                     open_time=int(p.get("time", 0)),

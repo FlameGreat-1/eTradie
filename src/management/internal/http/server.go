@@ -139,6 +139,8 @@ func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 			"remaining_lot_size": t.RemainingLotSize,
 			"unrealized_pnl":     t.UnrealizedPnL,
 			"realized_pnl":       t.RealizedPnL,
+			"swap":               t.Swap,
+			"commission":         t.Commission,
 			"trading_style":      string(t.TradingStyle),
 			"status":             string(t.Status),
 			"breakeven_set":      t.BreakevenSet,
