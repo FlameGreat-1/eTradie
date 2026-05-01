@@ -158,6 +158,7 @@ func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
 
 	tick, err := tc.bp.GetTickPrice(authCtx, symbol)
 	if err != nil {
+		tc.log.Error().Err(err).Str("symbol", symbol).Msg("tick_cache_fetch_failed")
 		observability.TickCacheFetchErrors.WithLabelValues(symbol).Inc()
 		return // Keep stale price in cache rather than removing it.
 	}

@@ -1,363 +1,1280 @@
-
-
-
-g_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:47304 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:47:56.096095Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.2:47304 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:47:56.144020Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
-etradie-engine  | INFO:     172.24.0.2:47304 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:47304 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:53288 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:04.870641Z [INFO     ] llm_response_parsed            [engine.processor.parsing.response_parser] extra={'analysis_id': 'analysis_Boom_1000_Index_20260425_2048_a4b1', 'pair': 'Boom 1000 Index', 'direction': 'SHORT', 'grade': 'A', 'score': 7.0, 'warnings_count': 0, 'trace_id': '4b1e86cd9bd1e9532cf10ad196a460c9'}
-etradie-engine  | 2026-04-25T20:48:04.879090Z [INFO     ] stream_subscriber_stopped      [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'channel': 'etradie:stream:user:f4d8853ca258f665b3d000b0097c2225'}
-etradie-engine  | 2026-04-25T20:48:04.910731Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 7.19, 'row_count': 1, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:46322 - "GET /api/analysis/latest?limit=1 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:04.939995Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 19.28, 'row_count': 50, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:47734 - "GET /api/analysis/latest?limit=50 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:04.951506Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'upsert', 'duration_ms': 77.97, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-25T20:48:04.952003Z [DEBUG    ] repository_upsert_executed     [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'index_elements': ['analysis_id'], 'update_fields': ['direction', 'setup_grade', 'confluence_score', 'confidence', 'proceed_to_module_b', 'status', 'error_message', 'duration_ms', 'raw_output'], 'idempotency_key': None, 'trace_id': None}
-etradie-engine  | 2026-04-25T20:48:04.970004Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_audit_log', 'operation': 'add', 'duration_ms': 16.35, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-25T20:48:04.993518Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 121.0}
-etradie-engine  | 2026-04-25T20:48:04.994316Z [INFO     ] processor_completed            [engine.processor.service] extra={'symbol': 'Boom 1000 Index', 'analysis_id': 'analysis_Boom_1000_Index_20260425_2048_a4b1', 'direction': 'SHORT', 'grade': 'A', 'score': 7.0, 'confidence': 'HIGH', 'proceed': 'YES', 'rr_ratio': 31.89, 'duration_ms': 135909.1, 'input_tokens': 267352, 'output_tokens': 4379, 'warnings': [], 'trace_id': '4b1e86cd9bd1e9532cf10ad196a460c9'}
-etradie-engine  | INFO:     172.24.0.9:37544 - "POST /internal/processor/process HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:05.793026Z [INFO     ] debug_output_saved             [engine.main] extra={'symbol': 'Boom 1000 Index', 'subdirectory': 'runcycle', 'directory': '/output/runcycle/Boom 1000 Index_20260425T204805Z', 'files': ['ta_snapshots', 'ta_smc_candidates', 'ta_snd_candidates', 'ta_metadata', 'macro_analysis', 'rag_knowledge', 'processor_result', 'execution_request']}
-etradie-engine  | INFO:     172.24.0.9:37544 - "POST /internal/debug/runcycle HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.3:41770 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.3:41770 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:13.220420Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:13.332702Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/symbol_info?symbol=Boom+1000+Index HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.2:43928 - "GET /internal/broker/symbol_info?symbol=Boom+1000+Index HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-25T20:48:13.636749Z [ERROR    ] broker_place_order_failed      [engine.main] extra={'symbol': 'Boom 1000 Index', 'direction': 'SELL', 'error': 'ZMQ EA error: OrderSend failed: 10031 - Request rejected due to absence of network connection', 'user_id': 'f4d8853ca258f665b3d000b0097c2225'}
-etradie-engine  | INFO:     172.24.0.2:43928 - "POST /internal/broker/place_order HTTP/1.1" 502 Bad Gateway
-etradie-engine  | INFO:     127.0.0.1:44470 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.3:44254 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.3:44254 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:44454 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.3:57926 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.3:57926 - "GET /metrics/ HTTP/1.1" 200 OK
-
-
-
-
-
-
-nt":"scheduler","user_id":"f4d8853ca258f665b3d000b0097c2225","username":"flamegreat","symbols":["Boom 1000 Index"],"timestamp":1777149073116,"event":"user_cycle_completed"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"api_handler","symbols":["Boom 1000 Index"],"trace_id":"","timestamp":1777149907786,"event":"dashboard_run_cycle_triggered"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"orchestrator","trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","cycle_id":"4da9a0df5d15363064e69d402cce3de1","symbols":["Boom 1000 Index"],"attempt":1,"timestamp":1777149907786,"event":"cycle_started"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"ta_collector","symbols_requested":["Boom 1000 Index"],"symbols_total":1,"symbols_success":1,"duration_ms":37982,"trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","timestamp":1777149944813,"event":"ta_collection_completed"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"macro_collector","datasets_available":["central_bank","economic","news","calendar","dxy","intermarket","sentiment"],"datasets_failed":["cot"],"duration_ms":40771,"trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","timestamp":1777149947602,"event":"macro_collection_completed"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"guard_evaluator","overall_verdict":"PASS","blocking_rules":[],"checks_total":5,"duration_ms":0.0135,"trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","timestamp":1777150085051,"event":"guard_evaluation_completed"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"execution_grpc_adapter","symbol":"Boom 1000 Index","direction":"SHORT","grade":"A","analysis_id":"BOOM 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_14464.993_c2de5b09","timestamp":1777150085056,"event":"calling_execution_service"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"execution_grpc_adapter","symbol":"Boom 1000 Index","accepted":false,"status":"REJECTED","order_id":"","timestamp":1777150093660,"event":"execution_response_received"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"decision_router","symbol":"Boom 1000 Index","direction":"SHORT","confidence":0.85,"grade":"A","guard_verdict":"PASS","trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","timestamp":1777150093660,"event":"route_trade_approved"}
-etradie-gateway  | {"level":"info","service":"etradie-gateway","component":"orchestrator","trace_id":"4b1e86cd9bd1e9532cf10ad196a460c9","cycle_id":"4da9a0df5d15363064e69d402cce3de1","status":"COMPLETED","outcome":"TRADE_APPROVED","duration_ms":187738,"outputs_count":1,"attempt":1,"will_retry":false,"timestamp":1777150093662,"event":"cycle_finished"}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-YOU HAVE FULL AND COMPLETE READ AND WRITE ACCESS TO THE REPO FROM MY OTHER ACCOUNT BECAUSE I HAVE ADDED YOU AS A GROUP MEMEBER WITH A DEVELOPER ROLE:
-
-https://gitlab.com/cotradee3/cotradeecode
-
-SO IT MEANS YOU CAN EXAMINE FILES, MODIFY, CREATE AND IMPLEMENT, COMMIT AND CREATE MERGE REQUEST ETC
-
-CRITICAL: EVERYTHING IS ON THE MAIN BRANCH. 
-
-DO NOT FOOLSIHLY START LISTING WHAT IS ON THE MASTER BRANCH
-
-HERE IS EXACTLY WHAT I WANT YOU TO DO:
-
-
-THERE ARE MANY THINGS WE NEED TO ADDRESS FOR PROPER AND HIGH PERFORMANCE IN THE FRONTEND:
-
-1.  ALL OF THESE SHOULD BE UPDATING DYNAMICALLY AND AUTOMATICALLY IN REAL-TIME WITHOUT ANY SINGLEDELAY: Chart Sync, Open & Closed Trades, P&L, Win Rate & Journal, Header (balance, equity etc)
-
-
-I MEAN ANY SINGLE ACTION OR ANYTHING THAT HAPPENS IN THE BACKEND SHOULD SYNC AND UPDATE DYNAMICALLY.
-
-CURRENTLY SOME OF THOSE THINGS DOESN'T SHOW SUCH AS ACTIVE MANAGED TRADE, JOURNAL ETC.
-
-THE TP, SL, ENTERY ETC SHOWING ON THE CHART ARE NOT FUNCTIONING PROPERLY AT ALL. IN FACT, WHEN A TRADE CLOSES IN THE BROKER IT DOESN'T CLOSE ON THE CHART AT ALL, PROFIT AND LOSS DOESN'T SHOW AT ALL ON THE CHART AS TRADES ARE MOVING AND MANY OTHER ISSUES
-
-2. EVERYTHING IN THE FRONTEND SHOULD BE ULTRA-FAST AND SHOULD WORK AT A BLAZING SPEED..
-
-3. SOMETIMES THE CHART LAGS WHEN I CHANGE INSTRUMENT OR OR TIMEFRAME.
-
-ITS' NOT TOO OBVIOUS BUT WHAT I NEED IS A BLAZING SPEED WITH UNNOTICEABLE DELAY OR ANYTHING AT ALL
-
-
-
-4. THE THEMING IN THE WHOLE DASHBOARD IS NOT WORKING AT ALL. WHEN I SWITCH TO LIGHT MODE EVERYTHING DISAPPEARS. I MEAN I LITERALLY SEE NOTHING.
-
-THAT IS NOT HOW AN ENTERPRISE APPLICATION SHOULD FUNCTION.
-
-
-5. THE ENTIRE DASHBOARD IS NOT RESPONSIVE.
-
-ACCORDING TO BEST PRACTICES AND ENTERPRISE GRADE, IT SHOULD WORK SEEMLY ACROSS ALL DEVICES (MOBILE SCREENS, TABLETS, DESKTOPS ETC) WITHOUT ANY ISSUES OR HINDERANCES AT ALL.
-
-
-6. THE STYLING OF THE ENTIRE UI HAS TO BE IMPROVED AND ELAVTED TO BEST PRACTICES, ENTERPRISE GRADE AND INDUSTRY STANDARD
-
-SO HAVE YOU SEE WE HAVE A LOT OF ISSUES TO ADDRESS NOW?
-
-
-SO I WANT YOU TO EXAMINE THE CODEBASE DEEPLY AND THOROUGHLY TO ADDRESS ALL THESE ISSUES.
-
-AVOID GUESSING
-
-AVOID ASSUMPTIONS
-
-YOU HAVE TO BE 100% CERTAIN AND SURE OF EVERYTHING.
-
-AS A SENIOR ENGINEER YOU MUST MAKE SURE EVERYTHING FOLLOWS BEST PRACTICES, ENTERPRISE GRADE AND INDUSTRY STANDARD FOR A PERFECT UI, HIGH PERFORMANCE, RESPONSIVENESS, BLAZING SPEED, DYNAMIC UPDATES
-
-
-YOU SHOULD EXAMINE THE PRACTICE.md ALSO THOROUGHLY FROM THE BEGINNING TO THE END SO THAT YOU WILL SEE ALL THE ENTERPRISE FRONTEND BEST PRACTICES YOU  MUST STRICTLY FOLLOW GIVEN THAT THIS IS TRADING ALGORITHM DASHBOARD THAT REQUIRES CAREFUL DESIGN.
-
-
-
-PLEAS NOTE: SINCE THIS IS VERY BIG YOU HAVE TO EXECUTE IT IN MULTIPLE COMMITS INSTEAD OF RUSHING EVERYTHING AT ONCE AND END UP DOING RUBBISH.
-
-YOU SHOULD NOT COMMIT MANY HEAVY FILES ONCE BECAUSE YOU WILL HIT LIMIT AND IT WILL FAIL
-
-
-LASTLY, YOU SHOULD COMMIT DIRECTLY TO THE MAIN BRANCH USING THE DIRECT URL
-
-DO YOU UNDERSTAND EVERYTHING I HAVE INSTRUCTED ?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-base_repository] extra={'repository': 'rag_citation_log', 'operation': 'add', 'duration_ms': 2.72, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:29:20.453203Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 1728.0}
-etradie-engine  | 2026-04-27T06:29:20.454032Z [INFO     ] citations_logged               [engine.rag.services.audit] count=31 retrieval_log_id=29d0abaf-28b6-4df1-851e-f6a972b0288f
-etradie-engine  | 2026-04-27T06:29:20.454703Z [INFO     ] rag_retrieval_completed        [engine.rag.orchestrator] chunks=31 chunks_from_gap_fill=0 chunks_from_primary=31 citations=31 coverage=partial elapsed_ms=9892.9 mandatory_doc_types=9 scenarios=0 strategy=scenario_first trace_id=031068d8681d0cf502453f94996e76ca
-etradie-engine  | INFO:     172.24.0.5:43056 - "POST /internal/rag/retrieve HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:20.501598Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'rag_citation_log', 'operation': 'add', 'duration_ms': 98.68, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:29:20.615249Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'rag_citation_log', 'operation': 'add', 'duration_ms': 113.03, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:29:20.617395Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'rag_citation_log', 'operation': 'add', 'duration_ms': 1.71, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:29:20.625970Z [INFO     ] loaded_active_llm_connection_from_db [engine.dependencies] extra={'provider': 'gemini', 'model': 'gemini-2.5-pro', 'connection_id': '7883e657-1010-4c4a-953f-b5fcf4076640'}
-etradie-engine  | 2026-04-27T06:29:26.513450Z [INFO     ] llm_client_created             [engine.processor.llm.factory] extra={'provider': 'gemini', 'model': 'gemini-2.5-pro', 'temperature': 0.0, 'max_output_tokens': 16384, 'timeout_seconds': 180}
-etradie-engine  | 2026-04-27T06:29:26.514032Z [INFO     ] user_processor_cached          [engine.dependencies] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'provider': 'gemini', 'model': 'gemini-2.5-pro'}
-etradie-engine  | 2026-04-27T06:29:26.514619Z [INFO     ] processor_started              [engine.processor.service] extra={'symbol': 'Crash 1000 Index', 'ta_keys': ['alignment', 'htf_timeframes', 'ltf_timeframes', 'overall_trend', 'smc_candidates', 'snapshots', 'snd_candidates', 'status', 'symbol'], 'macro_keys': [], 'rag_keys': ['citations', 'conflict_details', 'conflict_result', 'coverage_gaps', 'coverage_result', 'created_at', 'id', 'matched_scenarios', 'retrieved_chunks', 'strategy_used', 'total_chunks_considered', 'total_chunks_returned'], 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | 2026-04-27T06:29:26.544061Z [DEBUG    ] processor_prompt_built         [engine.processor.service] extra={'symbol': 'Crash 1000 Index', 'user_message_length': 681023, 'prompt_hash': '6cc54e1cc461c85cd98cd376c3f0e202', 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | 2026-04-27T06:29:26.553595Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 7981.0}
-etradie-engine  | Looking for jobs to run
-etradie-engine  | Next wakeup is due at 2026-04-27 06:39:23.563139+00:00 (in 596.996216 seconds)
-etradie-engine  | Running job "SchedulerManager._create_job_wrapper.<locals>._wrapper (trigger: interval[0:10:00], next run at: 2026-04-27 06:39:23 UTC)" (scheduled at 2026-04-27 06:29:23.563139+00:00)
-etradie-engine  | 2026-04-27T06:29:26.574985Z [INFO     ] scheduler_job_started          [engine.shared.scheduler.apscheduler] extra={'job_id': 'collect_central_bank', 'trace_id': 'af55ea8c97664ee199130d1b7bb0ea14'} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | INFO:     127.0.0.1:57630 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:26.580225Z [INFO     ] citations_logged               [engine.rag.services.audit] count=31 retrieval_log_id=1d254d9b-1081-46aa-ba66-eb48c3e4ed73
-etradie-engine  | 2026-04-27T06:29:26.580828Z [INFO     ] rag_retrieval_completed        [engine.rag.orchestrator] chunks=31 chunks_from_gap_fill=0 chunks_from_primary=31 citations=31 coverage=partial elapsed_ms=10066.9 mandatory_doc_types=9 scenarios=0 strategy=scenario_first trace_id=031068d8681d0cf502453f94996e76ca
-etradie-engine  | INFO:     172.24.0.5:33202 - "POST /internal/rag/retrieve HTTP/1.1" 200 OK
-etradie-engine  | AFC is enabled with max remote calls: 10.
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:26.690486Z [INFO     ] processor_started              [engine.processor.service] extra={'symbol': 'XAUUSD', 'ta_keys': ['alignment', 'htf_timeframes', 'ltf_timeframes', 'overall_trend', 'smc_candidates', 'snapshots', 'snd_candidates', 'status', 'symbol'], 'macro_keys': ['calendar', 'central_bank', 'collection_errors', 'cot', 'datasets_available', 'dxy', 'economic', 'intermarket', 'news', 'sentiment'], 'rag_keys': ['citations', 'conflict_details', 'conflict_result', 'coverage_gaps', 'coverage_result', 'created_at', 'id', 'matched_scenarios', 'retrieved_chunks', 'strategy_used', 'total_chunks_considered', 'total_chunks_returned'], 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | 2026-04-27T06:29:26.703553Z [DEBUG    ] processor_prompt_built         [engine.processor.service] extra={'symbol': 'XAUUSD', 'user_message_length': 496026, 'prompt_hash': 'edfa10cbc80630ba70df3e03229b74c9', 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | AFC is enabled with max remote calls: 10.
-etradie-engine  | INFO:     172.24.0.11:53492 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:26.864647Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:26.916463Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:27.468932Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'fed_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.federalreserve.gov/feeds/press_all.xml', 'status': 200, 'duration_ms': 892.04, 'attempt': 1, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:27.509223Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=20 trace_id=af55ea8c97664ee199130d1b7bb0ea14 url=https://www.federalreserve.gov/feeds/press_all.xml
-etradie-engine  | INFO:     172.24.0.6:48694 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:48694 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:29.758196Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'ecb_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.ecb.europa.eu/rss/press.html', 'status': 200, 'duration_ms': 2248.17, 'attempt': 1, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:29.777947Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=15 trace_id=af55ea8c97664ee199130d1b7bb0ea14 url=https://www.ecb.europa.eu/rss/press.html
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:30.127460Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:30.166945Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:33.432328Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:33.481539Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:35.048898Z [ERROR    ] http_non_retryable_error       [engine.shared.http.client] extra={'provider': 'boe_rss', 'url': 'https://www.bankofengland.co.uk/rss/news', 'status': 403, 'body_preview': '<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don\'t have permission to access "http&#58;&#47;&#47;www&#46;bankofengland&#46;co&#46;uk&#47;rss&#47;news" on this server.<P>\nReference&#32;&#35;18&#46;deb00f17&#46;1777271373&#46;a94320a2\n<P>https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;deb00f17&#46;1777271373&#46;a94320a2</P>\n</BODY>\n</HTML>\n', 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:35.049468Z [ERROR    ] cb_provider_fetch_failed       [engine.macro.providers.central_bank.base] error=boe_rss returned 403 provider=boe_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:35.050096Z [WARNING  ] cb_provider_skipped            [engine.macro.collectors.central_bank.collector] provider=boe_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:36.752225Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:36.863532Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:38730 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:38.556701Z [INFO     ] tick_stream_disconnected       [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'symbol': 'Crash 1000 Index'}
-etradie-engine  | INFO:     connection closed
-etradie-engine  | 2026-04-27T06:29:41.728852Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'boj_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.boj.or.jp/en/rss/whatsnew.xml', 'status': 200, 'duration_ms': 6664.42, 'attempt': 1, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:41.754764Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=49 trace_id=af55ea8c97664ee199130d1b7bb0ea14 url=https://www.boj.or.jp/en/rss/whatsnew.xml
-etradie-engine  | INFO:     127.0.0.1:35186 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:38950 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:38950 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:43.189698Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:43.245263Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:43.749647Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'rba_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.rba.gov.au/rss/rss-cb-media-releases.xml', 'status': 200, 'duration_ms': 1993.98, 'attempt': 1, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:43.755205Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=1 trace_id=af55ea8c97664ee199130d1b7bb0ea14 url=https://www.rba.gov.au/rss/rss-cb-media-releases.xml
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:46.504373Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:46.544266Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:46.786446Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 82.57, 'row_count': 50, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:43518 - "GET /api/analysis/latest?limit=50 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:47.876480Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'boc_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.bankofcanada.ca/content_type/press-releases/feed/', 'status': 200, 'duration_ms': 4120.58, 'attempt': 1, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:47.891706Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=10 trace_id=af55ea8c97664ee199130d1b7bb0ea14 url=https://www.bankofcanada.ca/content_type/press-releases/feed/
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:49.469577Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 7.15, 'row_count': 1, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:43518 - "GET /api/analysis/latest?limit=1 HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:49.888697Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:49.939626Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:50.735061Z [ERROR    ] http_non_retryable_error       [engine.shared.http.client] extra={'provider': 'rbnz_rss', 'url': 'https://www.rbnz.govt.nz/rss/news', 'status': 403, 'body_preview': '<!DOCTYPE html>\r\n<html lang="en">\r\n<head>\r\n<title>Website unavailable - Reserve Bank of New Zealand - Te Pūtea Matua</title>\r\n<meta charset="utf-8">\r\n<meta name="viewport" content="width=device-width, initial-scale=1">\r\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\r\n<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:16px}.header,body{background-color:#343434;color:#fff}.header{padding:15px;text-align:center;font-size:1.5em}a{text-decoration:underline;color:#fff}a:', 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:50.735518Z [ERROR    ] cb_provider_fetch_failed       [engine.macro.providers.central_bank.base] error=rbnz_rss returned 403 provider=rbnz_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:50.735862Z [WARNING  ] cb_provider_skipped            [engine.macro.collectors.central_bank.collector] provider=rbnz_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:51.676386Z [ERROR    ] http_non_retryable_error       [engine.shared.http.client] extra={'provider': 'snb_rss', 'url': 'https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss', 'status': 404, 'body_preview': '<!DOCTYPE html>\n<html lang="en" data-g-name="Page" class="c-page" data-setup=\'{ "authorMode": false, "gdpr": { "version": "2023-09-27T10:35:00.000+02:00", "categories": [ "essential", "analytics", "marketing" ], "tracking": "analytics" } }\'\n>\n\t<head>\n\t\t<meta charset="utf-8">\n\n\t<meta name="version" content="2.50.0">\n\t<meta name="environment" content="P1">\n\t<meta name="timestamp" content="2026-04-27T06:19:37.849550Z">\n\n<meta name="viewport" content="width=device-width, initial-scale=1">\n\n\n\n<title>', 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:51.676880Z [ERROR    ] cb_provider_fetch_failed       [engine.macro.providers.central_bank.base] error=snb_rss returned 404 provider=snb_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:51.677389Z [WARNING  ] cb_provider_skipped            [engine.macro.collectors.central_bank.collector] provider=snb_rss trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:51.678979Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 1.0} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | 2026-04-27T06:29:51.682263Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'cb', 'key': 'latest', 'size_bytes': 280, 'ttl_seconds': 600, 'trace_id': None} trace_id=af55ea8c97664ee199130d1b7bb0ea14
-etradie-engine  | Job "SchedulerManager._create_job_wrapper.<locals>._wrapper (trigger: interval[0:10:00], next run at: 2026-04-27 06:39:23 UTC)" executed successfully
-etradie-engine  | 2026-04-27T06:29:51.684699Z [DEBUG    ] scheduler_job_completed        [engine.shared.scheduler.apscheduler] extra={'job_id': 'collect_central_bank', 'duration_seconds': 26.44}
-etradie-engine  | INFO:     172.24.0.11:37468 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:52.507014Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 56.04, 'row_count': 68, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:43518 - "GET /api/analysis/latest?limit=200 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:29:55.213309Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 5.26, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:29:55.224136Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_audit_log', 'operation': 'execute_query', 'duration_ms': 9.71, 'row_count': 2, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:43518 - "GET /api/analysis/analysis_Crash_1000_Index_20260427_0448_a8b3 HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:52890 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:41124 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:41124 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:36376 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:03.446112Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 43.43, 'row_count': 50, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:03.447886Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.1:41616 - "GET /api/analysis/latest?limit=50 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:03.516271Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:06.786311Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:06.834972Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:35074 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:46046 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:46046 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:33476 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | INFO:     ('172.24.0.1', 56148) - "WebSocket /api/broker/stream-ticks" [accepted]
-etradie-engine  | INFO:     connection open
-etradie-engine  | 2026-04-27T06:30:16.648526Z [INFO     ] tick_stream_connected          [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'symbol': 'Crash 1000 Index'}
-etradie-engine  | 2026-04-27T06:30:16.691990Z [INFO     ] tick_stream_disconnected       [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'symbol': 'Crash 1000 Index'}
-etradie-engine  | INFO:     connection closed
-etradie-engine  | INFO:     ('172.24.0.1', 56158) - "WebSocket /api/broker/stream-ticks" [accepted]
-etradie-engine  | INFO:     connection open
-etradie-engine  | 2026-04-27T06:30:19.085331Z [INFO     ] tick_stream_connected          [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'symbol': 'Crash 1000 Index'}
-etradie-engine  | INFO:     172.24.0.6:59830 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:59830 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:40924 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:28.065844Z [INFO     ] zmq_candles_fetched            [engine.ta.broker.mt5.zmq.client] extra={'symbol': 'Crash 1000 Index', 'timeframe': <Timeframe.H1: 'H1'>, 'count': 500, 'duration_seconds': 0.9527776979994087}
-etradie-engine  | INFO:     172.24.0.1:50490 - "GET /api/broker/candles?symbol=Crash+1000+Index&timeframe=H1&count=500 HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:35296 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:55596 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:55612 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:58904 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:58904 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:33408 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:42.910750Z [INFO     ] llm_response_parsed            [engine.processor.parsing.response_parser] extra={'analysis_id': 'analysis_xauusd_20260427_0628_a4b1', 'pair': 'XAUUSD', 'direction': 'NO SETUP', 'grade': 'REJECT', 'score': 3.0, 'warnings_count': 0, 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | 2026-04-27T06:30:42.921472Z [INFO     ] stream_subscriber_stopped      [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'channel': 'etradie:stream:user:f4d8853ca258f665b3d000b0097c2225'}
-etradie-engine  | 2026-04-27T06:30:42.975549Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 21.83, 'row_count': 1, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:59674 - "GET /api/analysis/latest?limit=1 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:43.025530Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'upsert', 'duration_ms': 107.33, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:43.026001Z [DEBUG    ] repository_upsert_executed     [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'index_elements': ['analysis_id'], 'update_fields': ['direction', 'setup_grade', 'confluence_score', 'confidence', 'proceed_to_module_b', 'status', 'error_message', 'duration_ms', 'raw_output'], 'idempotency_key': None, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:43.040805Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 60.96, 'row_count': 50, 'trace_id': None}
-etradie-engine  | INFO:     172.24.0.1:60976 - "GET /api/analysis/latest?limit=50 HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:43.058323Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_audit_log', 'operation': 'add', 'duration_ms': 24.7, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:43.063416Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 146.0}
-etradie-engine  | 2026-04-27T06:30:43.064995Z [INFO     ] processor_completed            [engine.processor.service] extra={'symbol': 'XAUUSD', 'analysis_id': 'analysis_xauusd_20260427_0628_a4b1', 'direction': 'NO SETUP', 'grade': 'REJECT', 'score': 3.0, 'confidence': 'NO SETUP', 'proceed': 'NO', 'rr_ratio': None, 'duration_ms': 78992.5, 'input_tokens': 200072, 'output_tokens': 2942, 'warnings': [], 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | INFO:     172.24.0.5:33202 - "POST /internal/processor/process HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:43.138558Z [INFO     ] debug_output_saved             [engine.main] extra={'symbol': 'XAUUSD', 'subdirectory': 'runcycle', 'directory': '/output/runcycle/XAUUSD_20260427T063043Z', 'files': ['ta_snapshots', 'ta_smc_candidates', 'ta_snd_candidates', 'ta_metadata', 'macro_analysis', 'rag_knowledge', 'processor_result', 'execution_request']}
-etradie-engine  | INFO:     172.24.0.5:33202 - "POST /internal/debug/runcycle HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:49606 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     ('172.24.0.1', 60980) - "WebSocket /api/broker/stream-ticks" [accepted]
-etradie-engine  | INFO:     connection open
-etradie-engine  | 2026-04-27T06:30:47.639343Z [INFO     ] tick_stream_connected          [engine.main] extra={'user_id': 'f4d8853ca258f665b3d000b0097c2225', 'symbol': 'Crash 1000 Index'}
-etradie-engine  | INFO:     172.24.0.11:49608 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:60566 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
-etradie-engine  | INFO:     172.24.0.6:60566 - "GET /metrics/ HTTP/1.1" 200 OK
-etradie-engine  | INFO:     127.0.0.1:39588 - "GET /health HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:58.010118Z [INFO     ] llm_response_parsed            [engine.processor.parsing.response_parser] extra={'analysis_id': 'analysis_Crash_1000_Index_20260427_0628_a4b1', 'pair': 'Crash 1000 Index', 'direction': 'SHORT', 'grade': 'B', 'score': 6.0, 'warnings_count': 0, 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | 2026-04-27T06:30:58.027765Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'upsert', 'duration_ms': 16.17, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:58.028313Z [DEBUG    ] repository_upsert_executed     [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'index_elements': ['analysis_id'], 'update_fields': ['direction', 'setup_grade', 'confluence_score', 'confidence', 'proceed_to_module_b', 'status', 'error_message', 'duration_ms', 'raw_output'], 'idempotency_key': None, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:58.036927Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_audit_log', 'operation': 'add', 'duration_ms': 6.37, 'row_count': 1, 'trace_id': None}
-etradie-engine  | 2026-04-27T06:30:58.044706Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 33.0}
-etradie-engine  | 2026-04-27T06:30:58.045653Z [INFO     ] processor_completed            [engine.processor.service] extra={'symbol': 'Crash 1000 Index', 'analysis_id': 'analysis_Crash_1000_Index_20260427_0628_a4b1', 'direction': 'SHORT', 'grade': 'B', 'score': 6.0, 'confidence': 'MEDIUM', 'proceed': 'YES', 'rr_ratio': 4.15, 'duration_ms': 95637.6, 'input_tokens': 279118, 'output_tokens': 4321, 'warnings': [], 'trace_id': '031068d8681d0cf502453f94996e76ca'}
-etradie-engine  | INFO:     172.24.0.5:43056 - "POST /internal/processor/process HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:58.129068Z [INFO     ] debug_output_saved             [engine.main] extra={'symbol': 'Crash 1000 Index', 'subdirectory': 'runcycle', 'directory': '/output/runcycle/Crash 1000 Index_20260427T063058Z', 'files': ['ta_snapshots', 'ta_smc_candidates', 'ta_snd_candidates', 'ta_metadata', 'macro_analysis', 'rag_knowledge', 'processor_result', 'execution_request']}
-etradie-engine  | INFO:     172.24.0.5:43056 - "POST /internal/debug/runcycle HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:58.193000Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:30:58.254663Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:31:02.835459Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/positions HTTP/1.1" 200 OK
-etradie-engine  | 2026-04-27T06:31:02.886096Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 3}
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.11:42628 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
-etradie-engine  | INFO:     172.24.0.6:42784 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
+//+------------------------------------------------------------------+
+//| ZeroMQ_EA.mq5 - eTradie ZeroMQ Bridge Expert Advisor             |
+//|                                                                  |
+//| Production-Ready Enterprise-Grade MT5 Bridge                     |
+//|                                                                  |
+//| Serves as the REP socket endpoint for the Python ZmqClient.      |
+//| Receives JSON commands, executes MT5 API calls, returns JSON.    |
+//|                                                                  |
+//| Dependencies (MUST be installed manually):                       |
+//|   1. mql-zmq: https://github.com/dingmaotu/mql-zmq              |
+//|      - Copy Zmq folder to MQL5/Include/                          |
+//|      - Includes libzmq.dll for Windows                           |
+//|   2. JAson: https://github.com/sierkov/JAson                    |
+//|      - Copy JAson.mqh to MQL5/Include/                           |
+//|                                                                  |
+//| Installation:                                                    |
+//|   1. Install dependencies above                                  |
+//|   2. Copy this file to MQL5/Experts/ in your MT5 data folder     |
+//|   3. Attach to any chart (symbol doesn't matter)                 |
+//|   4. Enable "Allow DLL imports" in EA settings                   |
+//|   5. Configure parameters below (port, auth token, magic, etc.)  |
+//|                                                                  |
+//| Security:                                                        |
+//|   - Authentication token required (set AUTH_TOKEN parameter)     |
+//|   - No credentials sent over ZMQ                                 |
+//|   - You log into broker account manually in MT5 terminal         |
+//|   - Token must match Python client's MT5_ZMQ_AUTH_TOKEN          |
+//|                                                                  |
+//| Version History:                                                 |
+//|   1.00 - Initial release                                         |
+//|   2.00 - Production hardening: auth, validation, logging         |
+//+------------------------------------------------------------------+
+#property copyright "eTradie"
+#property version   "2.00"
+
+#include <Zmq/Zmq.mqh>
+#include <JAson.mqh>
+
+//+------------------------------------------------------------------+
+//| Input Parameters                                                 |
+//+------------------------------------------------------------------+
+input group "=== Network Configuration ==="
+input int    ZMQ_PORT        = 5555;     // ZeroMQ REP port
+input int    RECV_TIMEOUT_MS = 1000;     // ZMQ receive timeout (ms)
+input int    SEND_TIMEOUT_MS = 5000;     // ZMQ send timeout (ms)
+
+input group "=== Security ==="
+input string AUTH_TOKEN      = "etradie_secure_token_2026";  // Authentication token (must match Python client)
+
+input group "=== Trading Configuration ==="
+input long   MAGIC_NUMBER    = 20260321; // Magic number for eTradie orders
+input int    MAX_SLIPPAGE    = 10;       // Maximum slippage in points
+input double MAX_LOT_SIZE    = 10.0;     // Maximum lot size per order
+input double MAX_TOTAL_EXPOSURE = 50.0;  // Maximum total exposure (lots)
+input double MAX_DRAWDOWN_PCT = 20.0;    // Maximum drawdown % before blocking trades
+
+input group "=== Performance ==="
+input int    TIMER_MS        = 50;       // Timer interval (ms) - 50ms = 20 polls/sec
+
+input group "=== Logging ==="
+input bool   ENABLE_DEBUG_LOG = false;   // Enable debug logging
+input bool   LOG_COMMANDS     = true;    // Log all commands received
+
+//+------------------------------------------------------------------+
+//| Global Variables                                                 |
+//+------------------------------------------------------------------+
+Context g_context;
+Socket  g_socket(g_context, ZMQ_REP);
+bool    g_initialized = false;
+bool    g_authenticated = false;
+datetime g_start_time = 0;
+long    g_command_count = 0;
+string  g_last_error = "";
+
+//+------------------------------------------------------------------+
+//| Logging Levels                                                   |
+//+------------------------------------------------------------------+
+enum LOG_LEVEL
+{
+   LOG_DEBUG,
+   LOG_INFO,
+   LOG_WARN,
+   LOG_ERROR
+};
+
+//+------------------------------------------------------------------+
+//| Expert Initialization                                            |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   g_start_time = TimeCurrent();
+   string endpoint = "tcp://*:" + IntegerToString(ZMQ_PORT);
+
+   // Configure socket timeouts
+   g_socket.setReceiveTimeout(RECV_TIMEOUT_MS);
+   g_socket.setSendTimeout(SEND_TIMEOUT_MS);
+   g_socket.setLinger(0);
+
+   // Bind to endpoint
+   if(!g_socket.bind(endpoint))
+   {
+      Log(LOG_ERROR, "FATAL: Failed to bind to " + endpoint);
+      Alert("ZMQ_EA: Failed to bind to port " + IntegerToString(ZMQ_PORT));
+      return INIT_FAILED;
+   }
+
+   g_initialized = true;
+   EventSetMillisecondTimer(TIMER_MS);
+   
+   Log(LOG_INFO, "=== eTradie ZeroMQ Bridge Started ===");
+   Log(LOG_INFO, "Endpoint: " + endpoint);
+   Log(LOG_INFO, "Magic Number: " + IntegerToString(MAGIC_NUMBER));
+   Log(LOG_INFO, "Max Slippage: " + IntegerToString(MAX_SLIPPAGE) + " points");
+   Log(LOG_INFO, "Timer Interval: " + IntegerToString(TIMER_MS) + "ms");
+   Log(LOG_INFO, "Authentication: " + (AUTH_TOKEN != "" ? "ENABLED" : "DISABLED"));
+   Log(LOG_INFO, "Ready for commands");
+   
+   return INIT_SUCCEEDED;
+}
+
+//+------------------------------------------------------------------+
+//| Expert Deinitialization                                          |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+   
+   if(g_initialized)
+   {
+      // NOTE: REP socket must NOT send without a prior recv (ZMQ EFSM protocol).
+      // Python client detects disconnection via its own socket timeout.
+      g_socket.unbind("tcp://*:" + IntegerToString(ZMQ_PORT));
+      // g_socket.close() removed — socket closes automatically via ~Socket() destructor
+      g_initialized = false;
+      
+      Log(LOG_INFO, "=== eTradie ZeroMQ Bridge Stopped ===");
+      Log(LOG_INFO, "Reason: " + GetDeinitReason(reason));
+      Log(LOG_INFO, "Total commands processed: " + IntegerToString(g_command_count));
+      Log(LOG_INFO, "Uptime: " + IntegerToString((long)(TimeCurrent() - g_start_time)) + " seconds");
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Timer Event - Poll for Incoming ZMQ Messages                     |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+   if(!g_initialized) return;
+
+   ZmqMsg request;
+   if(!g_socket.recv(request, true))  // Non-blocking
+      return;
+
+   string raw = request.getData();
+   if(StringLen(raw) == 0) return;
+
+   // Parse JSON command
+   CJAVal cmd;
+   if(!cmd.Deserialize(raw))
+   {
+      SendError("Invalid JSON format");
+      Log(LOG_ERROR, "Invalid JSON received: " + raw);
+      return;
+   }
+
+   string command = cmd["command"].ToStr();
+   
+   // Log command if enabled
+   if(LOG_COMMANDS)
+      Log(LOG_INFO, "Command received: " + command);
+   
+   g_command_count++;
+   
+   // Route command to handler
+   string response = "";
+   
+   if(command == "PING")                         response = HandlePing(cmd);
+   else if(command == "HEALTH")                  response = HandleHealth();
+   else if(!g_authenticated)                     response = "{\"error\":\"Not authenticated. Send PING with valid auth_token first.\"}";
+   else if(command == "CANDLES")                 response = HandleCandles(cmd);
+   else if(command == "CANDLE_LATEST")           response = HandleCandleLatest(cmd);
+   else if(command == "SYMBOL_INFO")             response = HandleSymbolInfo(cmd);
+   else if(command == "ACCOUNT_INFO")            response = HandleAccountInfo();
+   else if(command == "POSITIONS")               response = HandlePositions();
+   else if(command == "PENDING_ORDERS")          response = HandlePendingOrders();
+   else if(command == "POSITION")                response = HandlePosition(cmd);
+   else if(command == "TICK_PRICE")              response = HandleTickPrice(cmd);
+   else if(command == "ORDER_SEND")              response = HandleOrderSend(cmd);
+   else if(command == "ORDER_CANCEL")            response = HandleOrderCancel(cmd);
+   else if(command == "POSITION_MODIFY")         response = HandlePositionModify(cmd);
+   else if(command == "POSITION_CLOSE_PARTIAL")  response = HandlePositionClosePartial(cmd);
+   else if(command == "POSITION_CLOSE")          response = HandlePositionClose(cmd);
+   else if(command == "GET_ALL_SYMBOLS")          response = HandleGetAllSymbols();
+   else                                          response = "{\"error\":\"Unknown command: " + command + "\"}";
+
+   // Send response
+   ZmqMsg reply(response);
+   g_socket.send(reply);
+}
+
+//+------------------------------------------------------------------+
+//| Send Error Response                                              |
+//+------------------------------------------------------------------+
+void SendError(string msg)
+{
+   g_last_error = msg;
+   ZmqMsg reply("{\"error\":\"" + msg + "\"}");
+   g_socket.send(reply);
+}
+
+//+------------------------------------------------------------------+
+//| Logging Function                                                 |
+//+------------------------------------------------------------------+
+void Log(LOG_LEVEL level, string message)
+{
+   // Skip debug logs if not enabled
+   if(level == LOG_DEBUG && !ENABLE_DEBUG_LOG)
+      return;
+   
+   string prefix;
+   switch(level)
+   {
+      case LOG_DEBUG: prefix = "[DEBUG]"; break;
+      case LOG_INFO:  prefix = "[INFO]";  break;
+      case LOG_WARN:  prefix = "[WARN]";  break;
+      case LOG_ERROR: prefix = "[ERROR]"; break;
+   }
+   
+   Print(prefix, " [ZMQ_EA] ", TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS), " - ", message);
+}
+
+//+------------------------------------------------------------------+
+//| Get Deinitialization Reason String                               |
+//+------------------------------------------------------------------+
+string GetDeinitReason(int reason)
+{
+   switch(reason)
+   {
+      case REASON_PROGRAM:      return "EA removed from chart";
+      case REASON_REMOVE:       return "EA removed from chart";
+      case REASON_RECOMPILE:    return "EA recompiled";
+      case REASON_CHARTCHANGE:  return "Chart symbol/period changed";
+      case REASON_CHARTCLOSE:   return "Chart closed";
+      case REASON_PARAMETERS:   return "Input parameters changed";
+      case REASON_ACCOUNT:      return "Account changed";
+      case REASON_TEMPLATE:     return "Template changed";
+      case REASON_INITFAILED:   return "Initialization failed";
+      case REASON_CLOSE:        return "Terminal closing";
+      default:                  return "Unknown reason (" + IntegerToString(reason) + ")";
+   }
+}
+
+//+------------------------------------------------------------------+
+//| PING - Authentication & Health Check                             |
+//+------------------------------------------------------------------+
+string HandlePing(CJAVal &cmd)
+{
+   // Validate authentication token
+   string token = cmd["auth_token"].ToStr();
+   
+   if(AUTH_TOKEN != "" && token != AUTH_TOKEN)
+   {
+      Log(LOG_WARN, "Authentication failed - invalid token");
+      return "{\"error\":\"Invalid authentication token\"}";
+   }
+   
+   g_authenticated = true;
+   Log(LOG_INFO, "Authentication successful");
+   
+   CJAVal j;
+   j["status"] = "ok";
+   j["authenticated"] = true;
+   j["magic_number"] = MAGIC_NUMBER;
+   j["server_time"] = (long)TimeCurrent();
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| HEALTH - System Health Check                                     |
+//+------------------------------------------------------------------+
+string HandleHealth()
+{
+   CJAVal j;
+   j["status"]            = "ok";
+   j["uptime_seconds"]    = (long)(TimeCurrent() - g_start_time);
+   j["commands_processed"] = g_command_count;
+   j["last_error"]        = g_last_error;
+   j["mt5_connected"]     = TerminalInfoInteger(TERMINAL_CONNECTED);
+   j["trade_allowed"]     = TerminalInfoInteger(TERMINAL_TRADE_ALLOWED);
+   j["authenticated"]     = g_authenticated;
+   j["account_number"]    = AccountInfoInteger(ACCOUNT_LOGIN);
+   j["account_server"]    = AccountInfoString(ACCOUNT_SERVER);
+   return j.Serialize();
+}
+
+
+//+------------------------------------------------------------------+
+//| ACCOUNT_INFO - Account Information                               |
+//+------------------------------------------------------------------+
+string HandleAccountInfo()
+{
+   CJAVal j;
+   j["balance"]     = AccountInfoDouble(ACCOUNT_BALANCE);
+   j["equity"]      = AccountInfoDouble(ACCOUNT_EQUITY);
+   j["margin"]      = AccountInfoDouble(ACCOUNT_MARGIN);
+   j["margin_free"] = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   j["margin_level"] = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
+   j["profit"]      = AccountInfoDouble(ACCOUNT_PROFIT);
+   j["currency"]    = AccountInfoString(ACCOUNT_CURRENCY);
+   j["leverage"]    = AccountInfoInteger(ACCOUNT_LEVERAGE);
+   j["trade_allowed"] = TerminalInfoInteger(TERMINAL_TRADE_ALLOWED);
+   j["trade_expert"] = AccountInfoInteger(ACCOUNT_TRADE_EXPERT);
+   
+   Log(LOG_DEBUG, "Account info retrieved - Balance: " + DoubleToString(j["balance"].ToDbl(), 2));
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| POSITIONS - All Open Positions                                   |
+//+------------------------------------------------------------------+
+string HandlePositions()
+{
+   CJAVal arr;
+   int total = PositionsTotal();
+   int count = 0;
+   
+   for(int i = 0; i < total; i++)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(!PositionSelectByTicket(ticket)) continue;
+
+      CJAVal p;
+      p["symbol"]        = PositionGetString(POSITION_SYMBOL);
+      p["type"]          = (int)PositionGetInteger(POSITION_TYPE);
+      p["type_str"]      = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+      p["price_open"]    = PositionGetDouble(POSITION_PRICE_OPEN);
+      p["price_current"] = PositionGetDouble(POSITION_PRICE_CURRENT);
+      p["sl"]            = PositionGetDouble(POSITION_SL);
+      p["tp"]            = PositionGetDouble(POSITION_TP);
+      p["volume"]        = PositionGetDouble(POSITION_VOLUME);
+      p["profit"]        = PositionGetDouble(POSITION_PROFIT);
+      p["swap"]          = PositionGetDouble(POSITION_SWAP);
+      p["commission"]    = PositionGetDouble(POSITION_COMMISSION);
+      p["ticket"]        = (long)ticket;
+      p["magic"]         = (long)PositionGetInteger(POSITION_MAGIC);
+      p["comment"]       = PositionGetString(POSITION_COMMENT);
+      p["time_setup"]    = (long)PositionGetInteger(POSITION_TIME);
+      p["identifier"]    = (long)PositionGetInteger(POSITION_IDENTIFIER);
+      
+      arr[count++] = p;
+   }
+   if(count == 0) return "[]";
+   
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " open positions");
+   return arr.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| PENDING_ORDERS - All Pending Orders                              |
+//+------------------------------------------------------------------+
+string HandlePendingOrders()
+{
+   CJAVal arr;
+   int total = OrdersTotal();
+   int count = 0;
+   
+   for(int i = 0; i < total; i++)
+   {
+      ulong ticket = OrderGetTicket(i);
+      if(ticket == 0) continue;
+
+      CJAVal o;
+      o["symbol"]       = OrderGetString(ORDER_SYMBOL);
+      o["type"]         = (int)OrderGetInteger(ORDER_TYPE);
+      o["type_str"]     = GetOrderTypeString((int)OrderGetInteger(ORDER_TYPE));
+      o["price_open"]   = OrderGetDouble(ORDER_PRICE_OPEN);
+      o["sl"]           = OrderGetDouble(ORDER_SL);
+      o["tp"]           = OrderGetDouble(ORDER_TP);
+      o["volume"]       = OrderGetDouble(ORDER_VOLUME_CURRENT);
+      o["ticket"]       = (long)ticket;
+      o["magic"]        = (long)OrderGetInteger(ORDER_MAGIC);
+      o["comment"]      = OrderGetString(ORDER_COMMENT);
+      o["time_setup"]   = (long)OrderGetInteger(ORDER_TIME_SETUP);
+      o["time_expiration"] = (long)OrderGetInteger(ORDER_TIME_EXPIRATION);
+      
+      arr[count++] = o;
+   }
+   if(count == 0) return "[]";
+   
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " pending orders");
+   return arr.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| POSITION - Single Position by Ticket                             |
+//+------------------------------------------------------------------+
+string HandlePosition(CJAVal &cmd)
+{
+   long ticket = (long)StringToInteger(cmd["ticket"].ToStr());
+   
+   if(ticket <= 0)
+   {
+      Log(LOG_ERROR, "Invalid ticket number: " + IntegerToString(ticket));
+      return "{\"error\":\"Invalid ticket number\"}";
+   }
+   
+   if(!PositionSelectByTicket((ulong)ticket))
+   {
+      Log(LOG_WARN, "Position not found: " + IntegerToString(ticket));
+      return "{\"error\":\"Position not found: " + IntegerToString(ticket) + "\"}";
+   }
+
+   CJAVal p;
+   p["symbol"]        = PositionGetString(POSITION_SYMBOL);
+   p["type"]          = (int)PositionGetInteger(POSITION_TYPE);
+   p["type_str"]      = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+   p["price_open"]    = PositionGetDouble(POSITION_PRICE_OPEN);
+   p["price_current"] = PositionGetDouble(POSITION_PRICE_CURRENT);
+   p["sl"]            = PositionGetDouble(POSITION_SL);
+   p["tp"]            = PositionGetDouble(POSITION_TP);
+   p["volume"]        = PositionGetDouble(POSITION_VOLUME);
+   p["profit"]        = PositionGetDouble(POSITION_PROFIT);
+   p["swap"]          = PositionGetDouble(POSITION_SWAP);
+   p["commission"]    = PositionGetDouble(POSITION_COMMISSION);
+   p["ticket"]        = ticket;
+   p["magic"]         = (long)PositionGetInteger(POSITION_MAGIC);
+   p["comment"]       = PositionGetString(POSITION_COMMENT);
+   p["time_setup"]    = (long)PositionGetInteger(POSITION_TIME);
+   
+   Log(LOG_DEBUG, "Position retrieved: " + IntegerToString(ticket));
+   return p.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| TICK_PRICE - Live Bid/Ask Price                                  |
+//+------------------------------------------------------------------+
+string HandleTickPrice(CJAVal &cmd)
+{
+   string symbol = cmd["symbol"].ToStr();
+   
+   // Validate symbol
+   if(!ValidateSymbol(symbol))
+   {
+      Log(LOG_ERROR, "Invalid or unavailable symbol: " + symbol);
+      return "{\"error\":\"Symbol not available: " + symbol + "\"}";
+   }
+   
+   MqlTick tick;
+   if(!SymbolInfoTick(symbol, tick))
+   {
+      Log(LOG_ERROR, "Failed to get tick for symbol: " + symbol);
+      return "{\"error\":\"Tick not available for " + symbol + "\"}";
+   }
+
+   CJAVal j;
+   j["symbol"] = symbol;
+   j["bid"]    = tick.bid;
+   j["ask"]    = tick.ask;
+   j["last"]   = tick.last;
+   j["volume"] = (long)tick.volume;
+   j["time"]   = (long)tick.time;
+   j["spread"] = (int)SymbolInfoInteger(symbol, SYMBOL_SPREAD);
+   
+   Log(LOG_DEBUG, "Tick price: " + symbol + " Bid=" + DoubleToString(tick.bid, 5) + " Ask=" + DoubleToString(tick.ask, 5));
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| SYMBOL_INFO - Symbol Specifications                              |
+//+------------------------------------------------------------------+
+string HandleSymbolInfo(CJAVal &cmd)
+{
+   string symbol = cmd["symbol"].ToStr();
+   
+   // Validate and select symbol
+   if(!ValidateSymbol(symbol))
+   {
+      Log(LOG_ERROR, "Symbol not found: " + symbol);
+      return "{\"error\":\"Symbol not found: " + symbol + "\"}";
+   }
+
+   CJAVal j;
+   j["symbol"]              = symbol;
+   j["description"]         = SymbolInfoString(symbol, SYMBOL_DESCRIPTION);
+   j["base_currency"]       = SymbolInfoString(symbol, SYMBOL_CURRENCY_BASE);
+   j["profit_currency"]     = SymbolInfoString(symbol, SYMBOL_CURRENCY_PROFIT);
+   j["point"]               = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   j["digits"]              = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   j["spread"]              = (int)SymbolInfoInteger(symbol, SYMBOL_SPREAD);
+   j["spread_float"]        = (bool)SymbolInfoInteger(symbol, SYMBOL_SPREAD_FLOAT);
+   j["trade_contract_size"] = SymbolInfoDouble(symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+   j["volume_min"]          = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   j["volume_max"]          = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   j["volume_step"]         = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+   j["volume_limit"]        = SymbolInfoDouble(symbol, SYMBOL_VOLUME_LIMIT);
+   j["trade_tick_value"]    = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+   j["trade_tick_size"]     = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+   j["trade_stops_level"]   = (int)SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   j["trade_freeze_level"]  = (int)SymbolInfoInteger(symbol, SYMBOL_TRADE_FREEZE_LEVEL);
+   j["trade_mode"]          = (int)SymbolInfoInteger(symbol, SYMBOL_TRADE_MODE);
+   j["swap_long"]           = SymbolInfoDouble(symbol, SYMBOL_SWAP_LONG);
+   j["swap_short"]          = SymbolInfoDouble(symbol, SYMBOL_SWAP_SHORT);
+   j["margin_initial"]      = SymbolInfoDouble(symbol, SYMBOL_MARGIN_INITIAL);
+   j["margin_maintenance"]  = SymbolInfoDouble(symbol, SYMBOL_MARGIN_MAINTENANCE);
+   
+   Log(LOG_DEBUG, "Symbol info retrieved: " + symbol);
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| CANDLES - Historical OHLCV Data                                  |
+//+------------------------------------------------------------------+
+string HandleCandles(CJAVal &cmd)
+{
+   string symbol    = cmd["symbol"].ToStr();
+   string tf_str    = cmd["timeframe"].ToStr();
+   int    count     = (int)StringToInteger(cmd["count"].ToStr());
+   
+   // Validate symbol
+   if(!ValidateSymbol(symbol))
+   {
+      Log(LOG_ERROR, "Invalid symbol for candles: " + symbol);
+      return "{\"error\":\"Symbol not available: " + symbol + "\"}";
+   }
+   
+   // Validate and convert timeframe
+   ENUM_TIMEFRAMES tf = StringToTimeframe(tf_str);
+   if(tf == PERIOD_CURRENT)
+   {
+      Log(LOG_ERROR, "Invalid timeframe: " + tf_str);
+      return "{\"error\":\"Invalid timeframe: " + tf_str + "\"}";
+   }
+   
+   // Validate count
+   if(count <= 0) count = 500;
+   if(count > 10000) count = 10000;
+
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, count, rates);
+   
+   if(copied <= 0)
+   {
+      int error = GetLastError();
+      Log(LOG_ERROR, "Failed to get candles for " + symbol + " " + tf_str + " - Error: " + IntegerToString(error));
+      return "{\"error\":\"No data for " + symbol + " " + tf_str + " (Error: " + IntegerToString(error) + ")\"}";
+   }
+
+   // Reverse to chronological order (oldest first)
+   CJAVal arr;
+   for(int i = copied - 1; i >= 0; i--)
+   {
+      CJAVal bar;
+      bar["time"]        = (long)rates[i].time;
+      bar["open"]        = rates[i].open;
+      bar["high"]        = rates[i].high;
+      bar["low"]         = rates[i].low;
+      bar["close"]       = rates[i].close;
+      bar["tick_volume"] = (long)rates[i].tick_volume;
+      bar["real_volume"] = (long)rates[i].real_volume;
+      bar["spread"]      = (int)rates[i].spread;
+      arr[copied - 1 - i] = bar;
+   }
+   
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(copied) + " candles for " + symbol + " " + tf_str);
+   return arr.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| CANDLE_LATEST - Most Recent Candle                               |
+//+------------------------------------------------------------------+
+string HandleCandleLatest(CJAVal &cmd)
+{
+   string symbol = cmd["symbol"].ToStr();
+   string tf_str = cmd["timeframe"].ToStr();
+   
+   // Validate symbol
+   if(!ValidateSymbol(symbol))
+   {
+      Log(LOG_ERROR, "Invalid symbol for latest candle: " + symbol);
+      return "{\"error\":\"Symbol not available: " + symbol + "\"}";
+   }
+   
+   // Validate and convert timeframe
+   ENUM_TIMEFRAMES tf = StringToTimeframe(tf_str);
+   if(tf == PERIOD_CURRENT)
+   {
+      Log(LOG_ERROR, "Invalid timeframe: " + tf_str);
+      return "{\"error\":\"Invalid timeframe: " + tf_str + "\"}";
+   }
+
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, 1, rates);
+   
+   if(copied <= 0)
+   {
+      int error = GetLastError();
+      Log(LOG_ERROR, "Failed to get latest candle for " + symbol + " " + tf_str + " - Error: " + IntegerToString(error));
+      return "{\"error\":\"No data for " + symbol + " " + tf_str + " (Error: " + IntegerToString(error) + ")\"}";
+   }
+
+   CJAVal bar;
+   bar["time"]        = (long)rates[0].time;
+   bar["open"]        = rates[0].open;
+   bar["high"]        = rates[0].high;
+   bar["low"]         = rates[0].low;
+   bar["close"]       = rates[0].close;
+   bar["tick_volume"] = (long)rates[0].tick_volume;
+   bar["real_volume"] = (long)rates[0].real_volume;
+   bar["spread"]      = (int)rates[0].spread;
+   
+   Log(LOG_DEBUG, "Latest candle: " + symbol + " " + tf_str + " Close=" + DoubleToString(rates[0].close, 5));
+   return bar.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| GET_ALL_SYMBOLS - All Symbols from Market Watch                  |
+//+------------------------------------------------------------------+
+string HandleGetAllSymbols()
+{
+   int total = SymbolsTotal(false);  // false = all symbols
+   int count = 0;
+   
+   string json = "{\"symbols\":[";
+   StringReserve(json, total * 100); // Pre-allocate memory for ~100 bytes per symbol
+   
+   for(int i = 0; i < total; i++)
+   {
+      string name = SymbolName(i, false);
+      if(StringLen(name) == 0) continue;
+
+      string desc = SymbolInfoString(name, SYMBOL_DESCRIPTION);
+      string path = SymbolInfoString(name, SYMBOL_PATH);
+      
+      // Safe JSON escaping: replace backslashes with forward slashes, and double quotes with single quotes.
+      // This guarantees no infinite replacement loops and perfectly valid JSON strings.
+      StringReplace(desc, "\\", "/");
+      StringReplace(desc, "\"", "'");
+      StringReplace(path, "\\", "/");
+      StringReplace(path, "\"", "'");
+      StringReplace(name, "\\", "/");
+      StringReplace(name, "\"", "'");
+      
+      if(count > 0) StringAdd(json, ",");
+      
+      StringAdd(json, "{\"name\":\"");
+      StringAdd(json, name);
+      StringAdd(json, "\",\"description\":\"");
+      StringAdd(json, desc);
+      StringAdd(json, "\",\"path\":\"");
+      StringAdd(json, path);
+      StringAdd(json, "\"}");
+      
+      count++;
+   }
+   
+   StringAdd(json, "],\"count\":");
+   StringAdd(json, IntegerToString(count));
+   StringAdd(json, "}");
+   
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " symbols directly from broker");
+   return json;
+}
+
+//+------------------------------------------------------------------+
+//| Validate Symbol - Check if symbol exists and is tradeable        |
+//+------------------------------------------------------------------+
+bool ValidateSymbol(string symbol)
+{
+   // Try to select symbol
+   if(!SymbolSelect(symbol, true))
+   {
+      Log(LOG_WARN, "Symbol not found in Market Watch: " + symbol);
+      return false;
+   }
+   
+   // Check if symbol info is available
+   if(SymbolInfoInteger(symbol, SYMBOL_SELECT) == 0)
+   {
+      Log(LOG_WARN, "Symbol not available: " + symbol);
+      return false;
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Get Order Type String                                            |
+//+------------------------------------------------------------------+
+string GetOrderTypeString(int type)
+{
+   switch(type)
+   {
+      case ORDER_TYPE_BUY:        return "BUY";
+      case ORDER_TYPE_SELL:       return "SELL";
+      case ORDER_TYPE_BUY_LIMIT:  return "BUY_LIMIT";
+      case ORDER_TYPE_SELL_LIMIT: return "SELL_LIMIT";
+      case ORDER_TYPE_BUY_STOP:   return "BUY_STOP";
+      case ORDER_TYPE_SELL_STOP:  return "SELL_STOP";
+      case ORDER_TYPE_BUY_STOP_LIMIT:  return "BUY_STOP_LIMIT";
+      case ORDER_TYPE_SELL_STOP_LIMIT: return "SELL_STOP_LIMIT";
+      default: return "UNKNOWN";
+   }
+}
+
+//+------------------------------------------------------------------+
+//| ORDER_SEND - Place Market or Limit Order                         |
+//+------------------------------------------------------------------+
+string HandleOrderSend(CJAVal &cmd)
+{
+   string symbol    = cmd["symbol"].ToStr();
+   string direction = cmd["direction"].ToStr();
+   string type_str  = cmd["order_type"].ToStr();
+   double price     = cmd["price"].ToDbl();
+   double sl        = cmd["stop_loss"].ToDbl();
+   double tp        = cmd["take_profit"].ToDbl();
+   double lots      = cmd["lot_size"].ToDbl();
+   string comment   = cmd["comment"].ToStr();
+
+   // Validate symbol
+   if(!ValidateSymbol(symbol))
+   {
+      Log(LOG_ERROR, "Order rejected - invalid symbol: " + symbol);
+      return "{\"error\":\"Symbol not available: " + symbol + "\",\"status\":\"REJECTED\"}";
+   }
+
+   // Check if trading is allowed
+   if((ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(symbol, SYMBOL_TRADE_MODE) == SYMBOL_TRADE_MODE_DISABLED)
+   {
+      Log(LOG_ERROR, "Order rejected - trading disabled for: " + symbol);
+      return "{\"error\":\"Trading disabled for symbol: " + symbol + "\",\"status\":\"REJECTED\"}";
+   }
+
+   // Validate and normalize lot size
+   double min_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   double max_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   double step    = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+   
+   if(lots < min_lot)
+   {
+      Log(LOG_ERROR, "Order rejected - lot size too small: " + DoubleToString(lots, 2) + " (min: " + DoubleToString(min_lot, 2) + ")");
+      return "{\"error\":\"Lot size below minimum: " + DoubleToString(min_lot, 2) + "\",\"status\":\"REJECTED\"}";
+   }
+   
+   if(lots > max_lot || lots > MAX_LOT_SIZE)
+   {
+      double limit = MathMin(max_lot, MAX_LOT_SIZE);
+      Log(LOG_ERROR, "Order rejected - lot size too large: " + DoubleToString(lots, 2) + " (max: " + DoubleToString(limit, 2) + ")");
+      return "{\"error\":\"Lot size exceeds maximum: " + DoubleToString(limit, 2) + "\",\"status\":\"REJECTED\"}";
+   }
+   
+   // Normalize to step - derive precision from step value
+   int lot_digits = (int)MathRound(-MathLog10(step));
+   if(lot_digits < 0) lot_digits = 0;
+   lots = NormalizeDouble(MathFloor(lots / step) * step, lot_digits);
+
+   // Check risk limits
+   if(!CheckRiskLimits(symbol, lots))
+   {
+      Log(LOG_ERROR, "Order rejected - risk limits exceeded");
+      return "{\"error\":\"Risk limits exceeded (max exposure or drawdown)\",\"status\":\"REJECTED\"}";
+   }
+
+   // Prepare trade request
+   MqlTradeRequest request = {};
+   MqlTradeResult  result  = {};
+
+   request.symbol    = symbol;
+   request.volume    = lots;
+   request.sl        = NormalizePrice(symbol, sl);
+   request.tp        = NormalizePrice(symbol, tp);
+   request.comment   = comment;
+   request.magic     = MAGIC_NUMBER;
+   request.deviation = MAX_SLIPPAGE;
+
+   if(type_str == "MARKET")
+   {
+      request.action = TRADE_ACTION_DEAL;
+      request.type   = (direction == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+      
+      // Get current price
+      MqlTick tick;
+      if(SymbolInfoTick(symbol, tick))
+         request.price = (direction == "BUY") ? tick.ask : tick.bid;
+      else
+         request.price = price;
+      
+      request.price = NormalizePrice(symbol, request.price);
+      request.type_filling = ORDER_FILLING_IOC;
+   }
+   else if(type_str == "LIMIT")
+   {
+      request.action = TRADE_ACTION_PENDING;
+      request.type   = (direction == "BUY") ? ORDER_TYPE_BUY_LIMIT : ORDER_TYPE_SELL_LIMIT;
+      request.price  = NormalizePrice(symbol, price);
+      request.type_filling = ORDER_FILLING_RETURN;
+   }
+   else if(type_str == "STOP")
+   {
+      request.action = TRADE_ACTION_PENDING;
+      request.type   = (direction == "BUY") ? ORDER_TYPE_BUY_STOP : ORDER_TYPE_SELL_STOP;
+      request.price  = NormalizePrice(symbol, price);
+      request.type_filling = ORDER_FILLING_RETURN;
+   }
+   else
+   {
+      Log(LOG_ERROR, "Order rejected - invalid order type: " + type_str);
+      return "{\"error\":\"Invalid order type: " + type_str + "\",\"status\":\"REJECTED\"}";
+   }
+
+   // Validate stop levels
+   if(!ValidateStopLevels(symbol, request.type, request.price, request.sl, request.tp))
+   {
+      Log(LOG_ERROR, "Order rejected - invalid stop levels");
+      return "{\"error\":\"Stop levels too close to market price\",\"status\":\"REJECTED\"}";
+   }
+
+   // Send order
+   if(!OrderSend(request, result))
+   {
+      string error_msg = "OrderSend failed: " + IntegerToString(result.retcode) + " - " + result.comment;
+      Log(LOG_ERROR, error_msg);
+      
+      CJAVal j;
+      j["order_id"] = 0;
+      j["price"]    = 0.0;
+      j["status"]   = "REJECTED";
+      j["error"]    = error_msg;
+      j["retcode"]  = (int)result.retcode;
+      return j.Serialize();
+   }
+
+   // Success
+   CJAVal j;
+   j["order_id"] = (long)result.order;
+   j["deal_id"]  = (long)result.deal;
+   j["price"]    = result.price;
+   j["volume"]   = result.volume;
+   j["status"]   = (type_str == "MARKET") ? "FILLED" : "PLACED";
+   j["error"]    = "";
+
+   Log(LOG_INFO, "Order placed: " + symbol + " " + direction + " " + type_str + 
+       " lots=" + DoubleToString(lots, 2) + " order=" + IntegerToString(result.order) + 
+       " price=" + DoubleToString(result.price, 5));
+   
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| ORDER_CANCEL - Cancel Pending Order                              |
+//+------------------------------------------------------------------+
+string HandleOrderCancel(CJAVal &cmd)
+{
+   long order_id = (long)StringToInteger(cmd["order_id"].ToStr());
+
+   if(order_id <= 0)
+   {
+      Log(LOG_ERROR, "Invalid order ID for cancel: " + IntegerToString(order_id));
+      return "{\"success\":false,\"error\":\"Invalid order ID\"}";
+   }
+
+   // Verify order exists
+   if(!OrderSelect(order_id))
+   {
+      Log(LOG_WARN, "Order not found for cancel: " + IntegerToString(order_id));
+      return "{\"success\":false,\"error\":\"Order not found: " + IntegerToString(order_id) + "\"}";
+   }
+
+   MqlTradeRequest request = {};
+   MqlTradeResult  result  = {};
+
+   request.action = TRADE_ACTION_REMOVE;
+   request.order  = (ulong)order_id;
+
+   if(!OrderSend(request, result))
+   {
+      string error_msg = "Cancel failed: " + IntegerToString(result.retcode) + " - " + result.comment;
+      Log(LOG_ERROR, error_msg);
+      
+      CJAVal j;
+      j["success"] = false;
+      j["error"]   = error_msg;
+      j["retcode"] = (int)result.retcode;
+      return j.Serialize();
+   }
+
+   CJAVal j;
+   j["success"] = true;
+   j["error"]   = "";
+   
+   Log(LOG_INFO, "Order cancelled: " + IntegerToString(order_id));
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| POSITION_MODIFY - Adjust SL/TP                                   |
+//+------------------------------------------------------------------+
+string HandlePositionModify(CJAVal &cmd)
+{
+   long   ticket = (long)StringToInteger(cmd["ticket"].ToStr());
+   double sl     = cmd["stop_loss"].ToDbl();
+   double tp     = cmd["take_profit"].ToDbl();
+
+   if(ticket <= 0)
+   {
+      Log(LOG_ERROR, "Invalid ticket for modify: " + IntegerToString(ticket));
+      return "{\"success\":false,\"error\":\"Invalid ticket number\"}";
+   }
+
+   if(!PositionSelectByTicket((ulong)ticket))
+   {
+      Log(LOG_WARN, "Position not found for modify: " + IntegerToString(ticket));
+      return "{\"success\":false,\"error\":\"Position not found: " + IntegerToString(ticket) + "\"}";
+   }
+
+   string symbol = PositionGetString(POSITION_SYMBOL);
+   long   type   = PositionGetInteger(POSITION_TYPE);
+   double price  = PositionGetDouble(POSITION_PRICE_CURRENT);
+
+   // Normalize prices
+   sl = NormalizePrice(symbol, sl);
+   tp = NormalizePrice(symbol, tp);
+
+   // Validate stop levels
+   ENUM_ORDER_TYPE order_type = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+   if(!ValidateStopLevels(symbol, order_type, price, sl, tp))
+   {
+      Log(LOG_ERROR, "Modify rejected - invalid stop levels for ticket: " + IntegerToString(ticket));
+      return "{\"success\":false,\"error\":\"Stop levels too close to market price\"}";
+   }
+
+   MqlTradeRequest request = {};
+   MqlTradeResult  result  = {};
+
+   request.action   = TRADE_ACTION_SLTP;
+   request.position = (ulong)ticket;
+   request.symbol   = symbol;
+   request.sl       = sl;
+   request.tp       = tp;
+
+   if(!OrderSend(request, result))
+   {
+      string error_msg = "Modify failed: " + IntegerToString(result.retcode) + " - " + result.comment;
+      Log(LOG_ERROR, error_msg);
+      
+      CJAVal j;
+      j["success"] = false;
+      j["error"]   = error_msg;
+      j["retcode"] = (int)result.retcode;
+      return j.Serialize();
+   }
+
+   CJAVal j;
+   j["success"] = true;
+   j["error"]   = "";
+   
+   Log(LOG_INFO, "Position modified: ticket=" + IntegerToString(ticket) + 
+       " SL=" + DoubleToString(sl, 5) + " TP=" + DoubleToString(tp, 5));
+   
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| POSITION_CLOSE_PARTIAL - Partial Position Close                  |
+//+------------------------------------------------------------------+
+string HandlePositionClosePartial(CJAVal &cmd)
+{
+   long   ticket = (long)StringToInteger(cmd["ticket"].ToStr());
+   double volume = cmd["volume"].ToDbl();
+
+   if(ticket <= 0)
+   {
+      Log(LOG_ERROR, "Invalid ticket for partial close: " + IntegerToString(ticket));
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Invalid ticket number\"}";
+   }
+
+   if(!PositionSelectByTicket((ulong)ticket))
+   {
+      Log(LOG_WARN, "Position not found for partial close: " + IntegerToString(ticket));
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Position not found: " + IntegerToString(ticket) + "\"}";
+   }
+
+   string symbol        = PositionGetString(POSITION_SYMBOL);
+   long   type          = PositionGetInteger(POSITION_TYPE);
+   double total_volume  = PositionGetDouble(POSITION_VOLUME);
+   double step          = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+
+   // Validate volume
+   if(volume <= 0 || volume >= total_volume)
+   {
+      Log(LOG_ERROR, "Invalid partial close volume: " + DoubleToString(volume, 2) + " (position: " + DoubleToString(total_volume, 2) + ")");
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Invalid volume for partial close\"}";
+   }
+
+   // Normalize volume
+   volume = NormalizeDouble(MathFloor(volume / step) * step, 2);
+
+   MqlTradeRequest request = {};
+   MqlTradeResult  result  = {};
+
+   request.action       = TRADE_ACTION_DEAL;
+   request.position     = (ulong)ticket;
+   request.symbol       = symbol;
+   request.volume       = volume;
+   request.type         = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
+   request.deviation    = MAX_SLIPPAGE;
+   request.type_filling = ORDER_FILLING_IOC;
+   request.magic        = MAGIC_NUMBER;
+
+   // Get current price
+   MqlTick tick;
+   if(SymbolInfoTick(symbol, tick))
+      request.price = (type == POSITION_TYPE_BUY) ? tick.bid : tick.ask;
+   else
+   {
+      Log(LOG_ERROR, "Failed to get tick for partial close");
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Failed to get current price\"}";
+   }
+
+   request.price = NormalizePrice(symbol, request.price);
+
+   if(!OrderSend(request, result))
+   {
+      string error_msg = "Partial close failed: " + IntegerToString(result.retcode) + " - " + result.comment;
+      Log(LOG_ERROR, error_msg);
+      
+      CJAVal j;
+      j["success"]     = false;
+      j["close_price"] = 0.0;
+      j["error"]       = error_msg;
+      j["retcode"]     = (int)result.retcode;
+      return j.Serialize();
+   }
+
+   CJAVal j;
+   j["success"]     = true;
+   j["close_price"] = result.price;
+   j["volume"]      = result.volume;
+   j["deal_id"]     = (long)result.deal;
+   j["error"]       = "";
+   
+   Log(LOG_INFO, "Partial close: ticket=" + IntegerToString(ticket) + 
+       " volume=" + DoubleToString(volume, 2) + " price=" + DoubleToString(result.price, 5));
+   
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| POSITION_CLOSE - Full Position Close                             |
+//+------------------------------------------------------------------+
+string HandlePositionClose(CJAVal &cmd)
+{
+   long ticket = (long)StringToInteger(cmd["ticket"].ToStr());
+
+   if(ticket <= 0)
+   {
+      Log(LOG_ERROR, "Invalid ticket for close: " + IntegerToString(ticket));
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Invalid ticket number\"}";
+   }
+
+   if(!PositionSelectByTicket((ulong)ticket))
+   {
+      Log(LOG_WARN, "Position not found for close: " + IntegerToString(ticket));
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Position not found: " + IntegerToString(ticket) + "\"}";
+   }
+
+   string symbol = PositionGetString(POSITION_SYMBOL);
+   double volume = PositionGetDouble(POSITION_VOLUME);
+   long   type   = PositionGetInteger(POSITION_TYPE);
+
+   MqlTradeRequest request = {};
+   MqlTradeResult  result  = {};
+
+   request.action       = TRADE_ACTION_DEAL;
+   request.position     = (ulong)ticket;
+   request.symbol       = symbol;
+   request.volume       = volume;
+   request.type         = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
+   request.deviation    = MAX_SLIPPAGE;
+   request.type_filling = ORDER_FILLING_IOC;
+   request.magic        = MAGIC_NUMBER;
+
+   // Get current price
+   MqlTick tick;
+   if(SymbolInfoTick(symbol, tick))
+      request.price = (type == POSITION_TYPE_BUY) ? tick.bid : tick.ask;
+   else
+   {
+      Log(LOG_ERROR, "Failed to get tick for close");
+      return "{\"success\":false,\"close_price\":0.0,\"error\":\"Failed to get current price\"}";
+   }
+
+   request.price = NormalizePrice(symbol, request.price);
+
+   if(!OrderSend(request, result))
+   {
+      string error_msg = "Close failed: " + IntegerToString(result.retcode) + " - " + result.comment;
+      Log(LOG_ERROR, error_msg);
+      
+      CJAVal j;
+      j["success"]     = false;
+      j["close_price"] = 0.0;
+      j["error"]       = error_msg;
+      j["retcode"]     = (int)result.retcode;
+      return j.Serialize();
+   }
+
+   CJAVal j;
+   j["success"]     = true;
+   j["close_price"] = result.price;
+   j["volume"]      = result.volume;
+   j["deal_id"]     = (long)result.deal;
+   j["error"]       = "";
+   
+   Log(LOG_INFO, "Position closed: ticket=" + IntegerToString(ticket) + 
+       " price=" + DoubleToString(result.price, 5));
+   
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| Helper Functions                                                 |
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| Check Risk Limits Before Opening Position                        |
+//+------------------------------------------------------------------+
+bool CheckRiskLimits(string symbol, double lots)
+{
+   // Check total exposure across all positions
+   double total_exposure = 0.0;
+   int total = PositionsTotal();
+   
+   for(int i = 0; i < total; i++)
+   {
+      ulong tk = PositionGetTicket(i);
+      if(tk == 0) continue;
+      if(!PositionSelectByTicket(tk)) continue;
+      total_exposure += PositionGetDouble(POSITION_VOLUME);
+   }
+   
+   if(total_exposure + lots > MAX_TOTAL_EXPOSURE)
+   {
+      Log(LOG_WARN, "Risk check failed - Total exposure would exceed limit: " + 
+          DoubleToString(total_exposure + lots, 2) + " > " + DoubleToString(MAX_TOTAL_EXPOSURE, 2));
+      return false;
+   }
+   
+   // Check drawdown percentage
+   double equity  = AccountInfoDouble(ACCOUNT_EQUITY);
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   
+   if(balance > 0)
+   {
+      double drawdown_pct = ((balance - equity) / balance) * 100.0;
+      
+      if(drawdown_pct > MAX_DRAWDOWN_PCT)
+      {
+         Log(LOG_WARN, "Risk check failed - Drawdown exceeds limit: " + 
+             DoubleToString(drawdown_pct, 2) + "% > " + DoubleToString(MAX_DRAWDOWN_PCT, 2) + "%");
+         return false;
+      }
+   }
+   
+   // Check free margin
+   double margin_required = 0.0;
+   if(!OrderCalcMargin(ORDER_TYPE_BUY, symbol, lots, SymbolInfoDouble(symbol, SYMBOL_ASK), margin_required))
+   {
+      Log(LOG_ERROR, "Failed to calculate margin requirement");
+      return false;
+   }
+   
+   double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   if(margin_required > free_margin)
+   {
+      Log(LOG_WARN, "Risk check failed - Insufficient free margin: " + 
+          DoubleToString(free_margin, 2) + " < " + DoubleToString(margin_required, 2));
+      return false;
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Validate Stop Loss and Take Profit Levels                        |
+//+------------------------------------------------------------------+
+bool ValidateStopLevels(string symbol, ENUM_ORDER_TYPE order_type, double price, double sl, double tp)
+{
+   int stops_level = (int)SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   
+   // If stops_level is 0, broker doesn't enforce minimum distance
+   if(stops_level == 0)
+      return true;
+   
+   double min_distance = stops_level * point;
+   
+   // Validate SL
+   if(sl > 0)
+   {
+      double sl_distance = 0;
+      
+      if(order_type == ORDER_TYPE_BUY || order_type == ORDER_TYPE_BUY_LIMIT || order_type == ORDER_TYPE_BUY_STOP)
+         sl_distance = price - sl;
+      else
+         sl_distance = sl - price;
+      
+      if(sl_distance < min_distance)
+      {
+         Log(LOG_WARN, "SL too close to price: " + DoubleToString(sl_distance / point, 1) + 
+             " points (min: " + IntegerToString(stops_level) + " points)");
+         return false;
+      }
+   }
+   
+   // Validate TP
+   if(tp > 0)
+   {
+      double tp_distance = 0;
+      
+      if(order_type == ORDER_TYPE_BUY || order_type == ORDER_TYPE_BUY_LIMIT || order_type == ORDER_TYPE_BUY_STOP)
+         tp_distance = tp - price;
+      else
+         tp_distance = price - tp;
+      
+      if(tp_distance < min_distance)
+      {
+         Log(LOG_WARN, "TP too close to price: " + DoubleToString(tp_distance / point, 1) + 
+             " points (min: " + IntegerToString(stops_level) + " points)");
+         return false;
+      }
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Normalize Price to Symbol's Tick Size                            |
+//+------------------------------------------------------------------+
+double NormalizePrice(string symbol, double price)
+{
+   if(price == 0) return 0;
+   
+   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   
+   if(tick_size > 0)
+      price = NormalizeDouble(MathRound(price / tick_size) * tick_size, digits);
+   else
+      price = NormalizeDouble(price, digits);
+   
+   return price;
+}
+
+//+------------------------------------------------------------------+
+//| Convert Timeframe String to ENUM_TIMEFRAMES......                |
+//+------------------------------------------------------------------+
+ENUM_TIMEFRAMES StringToTimeframe(string tf)
+{
+   if(tf == "M1" || tf == "1m")   return PERIOD_M1;
+   if(tf == "M5" || tf == "5m")   return PERIOD_M5;
+   if(tf == "M15" || tf == "15m") return PERIOD_M15;
+   if(tf == "M30" || tf == "30m") return PERIOD_M30;
+   if(tf == "H1" || tf == "1h")   return PERIOD_H1;
+   if(tf == "H3" || tf == "3h")   return PERIOD_H3;
+   if(tf == "H4" || tf == "4h")   return PERIOD_H4;
+   if(tf == "H6" || tf == "6h")   return PERIOD_H6;
+   if(tf == "H8" || tf == "8h")   return PERIOD_H8;
+   if(tf == "H12" || tf == "12h") return PERIOD_H12;
+   if(tf == "D1" || tf == "1d")   return PERIOD_D1;
+   if(tf == "W1" || tf == "1w")   return PERIOD_W1;
+   if(tf == "MN1" || tf == "1M")  return PERIOD_MN1;
+   
+   Log(LOG_WARN, "Unknown timeframe string: " + tf + " - using PERIOD_CURRENT");
+   return PERIOD_CURRENT;
+}
+
+//+------------------------------------------------------------------+

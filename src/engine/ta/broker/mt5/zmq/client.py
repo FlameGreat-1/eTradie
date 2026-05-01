@@ -43,6 +43,7 @@ from engine.ta.broker.base import (
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
+    HistoryDealInfo,
     TickPrice,
 )
 from engine.ta.broker.mt5.config import MT5Config
@@ -496,8 +497,41 @@ class ZmqClient(BrokerBase):
                 )
             )
 
-        logger.info("zmq_positions_fetched", extra={"count": len(positions)})
+        if positions:
+            logger.info("zmq_positions_fetched", extra={"count": len(positions)})
+        else:
+            logger.debug("zmq_positions_fetched", extra={"count": 0})
         return positions
+
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+
+        raw = await self._request({"command": "HISTORY", "days": days})
+        if not isinstance(raw, list):
+            raise ProviderResponseError(
+                "Invalid history response from ZMQ EA",
+                details={"raw_type": type(raw).__name__},
+            )
+
+        history = []
+        for h in raw:
+            history.append(
+                HistoryDealInfo(
+                    ticket=str(h.get("ticket", "")),
+                    position_id=str(h.get("position_id", "")),
+                    symbol=h.get("symbol", ""),
+                    direction=h.get("direction", "BUY"),
+                    volume=float(h.get("volume", 0)),
+                    price=float(h.get("price", 0)),
+                    profit=float(h.get("profit", 0)),
+                    commission=float(h.get("commission", 0)),
+                    swap=float(h.get("swap", 0)),
+                    time=int(h.get("time", 0)),
+                    comment=h.get("comment", ""),
+                )
+            )
+
+        logger.info("zmq_history_fetched", extra={"count": len(history)})
+        return history
 
     async def get_pending_orders(self) -> list[PendingOrderInfo]:
 

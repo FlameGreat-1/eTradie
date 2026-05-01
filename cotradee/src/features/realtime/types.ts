@@ -55,6 +55,7 @@ export type EventType =
   | 'BREAKEVEN_SET'
   | 'TRADE_CLOSED'
   | 'PERFORMANCE_REPORT'
+  | 'TRADE_SYNCED'
   /* System */
   | 'SERVICE_STARTED'
   | 'SERVICE_STOPPING'

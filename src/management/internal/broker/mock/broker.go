@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -64,6 +65,47 @@ func (b *Broker) GetPosition(_ context.Context, ticket string) (*broker.Position
 		return nil, fmt.Errorf("position %s not found", ticket)
 	}
 	return pos, nil
+}
+
+func (b *Broker) GetPositions(_ context.Context) ([]broker.PositionInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var list []broker.PositionInfo
+	for _, p := range b.positions {
+		list = append(list, *p)
+	}
+	return list, nil
+}
+
+func (b *Broker) GetHistory(_ context.Context, days int) ([]broker.HistoryDealInfo, error) {
+	return []broker.HistoryDealInfo{}, nil
+}
+
+func (b *Broker) StreamPositions(ctx context.Context, ch chan<- []broker.PositionInfo) error {
+	// For testing, just send the current state once, or loop periodically.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			pos, _ := b.GetPositions(ctx)
+			select {
+			case ch <- pos:
+			case <-ctx.Done():
+				return
+			}
+			// wait before sending again
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
+		}
+	}()
+	return nil
 }
 
 func (b *Broker) ModifyPosition(_ context.Context, ticket string, newSL, newTP float64) error {

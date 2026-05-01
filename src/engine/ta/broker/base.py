@@ -50,6 +50,22 @@ class PositionInfo(FrozenModel):
     open_time: int = Field(default=0)  # Unix timestamp
 
 
+class HistoryDealInfo(FrozenModel):
+    """Historical deal at the broker."""
+
+    ticket: str
+    position_id: str
+    symbol: str
+    direction: str
+    volume: float
+    price: float
+    profit: float
+    commission: float
+    swap: float
+    time: int
+    comment: str = Field(default="")
+
+
 class PendingOrderInfo(FrozenModel):
     """Pending limit/stop order at the broker."""
 
@@ -209,6 +225,10 @@ class BrokerBase(ABC):
     @abstractmethod
     async def get_positions(self) -> list[PositionInfo]:
         """Return all open positions at the broker."""
+
+    @abstractmethod
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+        """Return historical closed deals for the last N days."""
 
     @abstractmethod
     async def get_pending_orders(self) -> list[PendingOrderInfo]:

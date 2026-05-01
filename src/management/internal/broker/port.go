@@ -1,6 +1,16 @@
 package broker
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrNoBrokerConfigured is returned by StreamPositions when the Engine
+// indicates that the user has no active broker connection (WebSocket
+// close code 4004). Callers should apply exponential backoff rather
+// than retrying at a fixed interval, since the user must configure a
+// broker connection before streaming can succeed.
+var ErrNoBrokerConfigured = errors.New("no broker connection configured for user")
 
 // TickPrice holds the latest bid/ask for a symbol.
 type TickPrice struct {
@@ -21,6 +31,21 @@ type PositionInfo struct {
 	Ticket       string
 }
 
+// HistoryDealInfo holds a historical deal from the broker.
+type HistoryDealInfo struct {
+	Ticket      string
+	PositionID  string
+	Symbol      string
+	Direction   string
+	Volume      float64
+	Price       float64
+	Profit      float64
+	Commission  float64
+	Swap        float64
+	Time        int64
+	Comment     string
+}
+
 // Port is the abstraction layer for broker interactions needed by
 // the Trade Management Engine (Module C). It provides price feeds,
 // position modification (SL adjustments), and partial/full closes.
@@ -36,6 +61,19 @@ type Port interface {
 	// GetPosition returns the current broker state of a specific position.
 	// Used to verify position still exists and get current unrealized P&L.
 	GetPosition(ctx context.Context, ticket string) (*PositionInfo, error)
+
+	// GetPositions returns ALL open positions at the broker.
+	// Used by the startup reconciler to discover orphaned positions
+	// that the Management engine doesn't know about.
+	GetPositions(ctx context.Context) ([]PositionInfo, error)
+
+	// GetHistory returns historical closed deals from the broker.
+	// Used by the startup reconciler to backfill missing closed trades.
+	GetHistory(ctx context.Context, days int) ([]HistoryDealInfo, error)
+
+	// StreamPositions opens a persistent WebSocket connection to the broker bridge
+	// and streams real-time updates for all open positions.
+	StreamPositions(ctx context.Context, ch chan<- []PositionInfo) error
 
 	// ModifyPosition changes the SL and/or TP on an existing position.
 	// Called for break-even moves, trailing stop adjustments, and

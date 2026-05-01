@@ -2802,6 +2802,50 @@ def create_app() -> FastAPI:
             # Return empty list to prevent 502s from bubbling up to the dashboard UI
             return []
 
+    @app.get("/internal/broker/history")
+    async def broker_history(
+        request: Request,
+        days: int = 30,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> list:
+        """Return historical closed deals at the broker."""
+        import asyncio
+        container: Container = request.app.state.container
+        broker_client = await _resolve_user_broker(container, user.user_id)
+        cache_key = f"cache_failover:history:{user.user_id}:{days}"
+
+        try:
+            history = await asyncio.wait_for(broker_client.get_history(days=days), timeout=5.0)
+            result = [
+                {
+                    "ticket": h.ticket,
+                    "position_id": h.position_id,
+                    "symbol": h.symbol,
+                    "direction": h.direction,
+                    "volume": h.volume,
+                    "price": h.price,
+                    "profit": h.profit,
+                    "commission": h.commission,
+                    "swap": h.swap,
+                    "time": h.time,
+                    "comment": h.comment,
+                }
+                for h in history
+            ]
+            try:
+                await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            except Exception:
+                pass
+            return result
+        except (asyncio.TimeoutError, Exception) as exc:
+            try:
+                cached = await container.cache.get("internal", cache_key)
+                if cached:
+                    return cached
+            except Exception:
+                pass
+            return []
+
     @app.get("/internal/broker/pending_orders")
     async def broker_pending_orders(
         request: Request,
@@ -3382,6 +3426,114 @@ def create_app() -> FastAPI:
                 await websocket.close(code=1011, reason="Internal error")
             except Exception:
                 pass
+
+    @app.websocket("/api/broker/stream-positions")
+    async def stream_positions(websocket: WebSocket):
+        """WebSocket stream of live position updates.
+        
+        Protocol:
+          1. Client connects and sends an init message:
+             { "token": "<jwt>" }
+          2. Server authenticates, then polls positions every 1s and pushes changes:
+             [{ "ticket": 12345, "sl": 1.05, "tp": 1.10, ... }]
+        """
+        await websocket.accept()
+
+        try:
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+            init_msg = json.loads(raw)
+        except WebSocketDisconnect:
+            return
+        except Exception:
+            try:
+                await websocket.close(code=4001, reason="Expected init message with token")
+            except Exception:
+                pass
+            return
+
+        token = init_msg.get("token", "")
+        if not token:
+            try:
+                await websocket.close(code=4002, reason="token required")
+            except Exception:
+                pass
+            return
+
+        from engine.shared.auth import _verify_token
+        try:
+            user = _verify_token(token)
+            user_id = user.user_id
+        except Exception:
+            try:
+                await websocket.close(code=4003, reason="Invalid or expired token")
+            except Exception:
+                pass
+            return
+
+        container: Container = websocket.app.state.container
+        broker_client = await container.load_user_broker(user_id)
+        if broker_client is None:
+            try:
+                await websocket.close(code=4004, reason="No broker connection configured")
+            except Exception:
+                pass
+            return
+
+        logger.info("position_stream_connected", extra={"user_id": user_id})
+
+        # Cache last state to only push on diffs
+        last_state_hash = ""
+        import hashlib
+
+        try:
+            while True:
+                # Check for client disconnect
+                try:
+                    _ = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    pass # normal timeout, continue polling
+                except WebSocketDisconnect:
+                    break
+
+                try:
+                    positions = await asyncio.wait_for(broker_client.get_positions(), timeout=2.0)
+                    
+                    # Serialize
+                    result = [
+                        {
+                            "symbol": p.symbol,
+                            "type": 0 if p.direction == "BUY" else 1,
+                            "price_open": p.entry_price,
+                            "price_current": p.current_price,
+                            "sl": p.stop_loss,
+                            "tp": p.take_profit,
+                            "volume": p.volume,
+                            "profit": p.profit,
+                            "ticket": int(p.ticket) if p.ticket.isdigit() else 0,
+                        }
+                        for p in positions
+                    ]
+                    
+                    # Check for diff
+                    current_hash = hashlib.md5(json.dumps(result, sort_keys=True).encode()).hexdigest()
+                    if current_hash != last_state_hash:
+                        await websocket.send_json(result)
+                        last_state_hash = current_hash
+                        
+                except Exception as exc:
+                    logger.warning("position_stream_poll_error", extra={"error": str(exc), "user_id": user_id})
+                    await asyncio.sleep(2.0)
+
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:
+            logger.error("position_stream_error", extra={"error": str(exc), "user_id": user_id})
+            try:
+                await websocket.close(code=1011, reason="Internal error")
+            except Exception:
+                pass
+        finally:
+            logger.info("position_stream_disconnected", extra={"user_id": user_id})
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)

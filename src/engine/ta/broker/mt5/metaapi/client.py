@@ -34,6 +34,7 @@ from engine.ta.broker.base import (
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
+    HistoryDealInfo,
     TickPrice,
 )
 from engine.ta.broker.mt5.config import MT5Config
@@ -413,6 +414,67 @@ class MetaApiClient(BrokerBase):
 
         logger.info("metaapi_positions_fetched", extra={"count": len(positions)})
         return positions
+
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+        from datetime import timedelta
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(days=days)
+        start_str = start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        end_str = end_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        # MetaApi endpoint for historical deals
+        path = f"/history-deals/time/{start_str}/{end_str}"
+        
+        try:
+            raw = await self._api_get(path, category="history")
+        except Exception as e:
+            logger.error("metaapi_history_fetch_failed", extra={"error": str(e)})
+            return []
+
+        if not isinstance(raw, list):
+            return []
+
+        history = []
+        for h in raw:
+            # We only care about deals that close a position (DEAL_ENTRY_OUT)
+            entry_type = h.get("entryType", "")
+            if entry_type not in ["DEAL_ENTRY_OUT", "DEAL_ENTRY_INOUT"]:
+                continue
+
+            deal_type = h.get("type", "")
+            if deal_type not in ["DEAL_TYPE_BUY", "DEAL_TYPE_SELL"]:
+                continue
+
+            direction = "BUY" if deal_type == "DEAL_TYPE_SELL" else "SELL"
+            
+            # Parse time
+            time_str = h.get("time", "")
+            deal_time = 0
+            if time_str:
+                try:
+                    ts = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                    deal_time = int(ts.timestamp())
+                except:
+                    pass
+
+            history.append(
+                HistoryDealInfo(
+                    ticket=str(h.get("id", "")),
+                    position_id=str(h.get("positionId", "")),
+                    symbol=h.get("symbol", ""),
+                    direction=direction,
+                    volume=float(h.get("volume", 0)),
+                    price=float(h.get("price", 0)),
+                    profit=float(h.get("profit", 0)),
+                    commission=float(h.get("commission", 0)),
+                    swap=float(h.get("swap", 0)),
+                    time=deal_time,
+                    comment=h.get("comment", ""),
+                )
+            )
+
+        logger.info("metaapi_history_fetched", extra={"count": len(history)})
+        return history
 
     async def get_pending_orders(self) -> list[PendingOrderInfo]:
         raw = await self._api_get("/orders", category="orders")

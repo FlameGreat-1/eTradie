@@ -472,7 +472,7 @@ class Container:
                 row = await repo.get_active(user_id=user_id)
 
             if row is None:
-                _logger.info("no_active_broker_connection_in_db", extra={"user_id": user_id})
+                _logger.debug("no_active_broker_connection_in_db", extra={"user_id": user_id})
                 return None
 
             # Decrypt EA auth token if applicable.

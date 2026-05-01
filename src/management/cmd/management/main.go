@@ -343,15 +343,30 @@ func main() {
 	{
 		users, userErr := userStore.ListActiveUsers(ctx)
 		if userErr == nil && len(users) > 0 {
+			firstSet := false
 			for _, u := range users {
-				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role)
+				svcToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role)
 				if tokenErr == nil {
-					mgr.TickCache().SetAuthToken(startupToken)
-					log.Info().
-						Str("user_id", u.ID).
-						Str("username", u.Username).
-						Msg("startup_tick_cache_token_issued")
-					break
+					if !firstSet {
+						mgr.TickCache().SetAuthToken(svcToken)
+						log.Info().
+							Str("user_id", u.ID).
+							Str("username", u.Username).
+							Msg("startup_tick_cache_token_issued")
+						firstSet = true
+					}
+
+					// Start the state reconciler for this user to import orphaned trades
+					// and listen for real-time MT5 modifications.
+					reconciler := monitoring.NewStateReconciler(mgr, bp, journalRepo, alertTransport, u.ID, svcToken)
+
+					// Run startup sync asynchronously so it doesn't block boot
+					go func(r *monitoring.StateReconciler) {
+						// 1. Sync orphaned MT5 positions
+						_ = r.RunStartupSync(context.Background())
+						// 2. Fall into websocket listening loop
+						r.RunStreamListener(context.Background())
+					}(reconciler)
 				}
 			}
 		}

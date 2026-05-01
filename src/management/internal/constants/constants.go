@@ -50,6 +50,7 @@ const (
 	EventSLTightened           EventType = "SL_TIGHTENED"
 	EventNewsProtection        EventType = "NEWS_PROTECTION"
 	EventCorrelationProtection EventType = "CORRELATION_PROTECTION"
+	EventExternalClose         EventType = "EXTERNAL_CLOSE"
 )
 
 // Redis Pub/Sub channels from Rulebook Section 13.

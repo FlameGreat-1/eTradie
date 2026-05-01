@@ -191,6 +191,7 @@ void OnTimer()
    else if(command == "POSITION_CLOSE_PARTIAL")  response = HandlePositionClosePartial(cmd);
    else if(command == "POSITION_CLOSE")          response = HandlePositionClose(cmd);
    else if(command == "GET_ALL_SYMBOLS")          response = HandleGetAllSymbols();
+   else if(command == "HISTORY")                 response = HandleHistory(cmd);
    else                                          response = "{\"error\":\"Unknown command: " + command + "\"}";
 
    // Send response
@@ -662,6 +663,61 @@ string HandleGetAllSymbols()
    
    Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " symbols directly from broker");
    return json;
+}
+
+//+------------------------------------------------------------------+
+//| HISTORY - Fetch Historical Deals                                 |
+//+------------------------------------------------------------------+
+string HandleHistory(CJAVal &cmd)
+{
+   int days = (int)cmd["days"].ToInt();
+   if(days <= 0) days = 30;
+   
+   datetime end_time = TimeCurrent();
+   datetime start_time = end_time - (days * 24 * 60 * 60);
+   
+   if(!HistorySelect(start_time, end_time))
+   {
+      return "[]";
+   }
+   
+   int total = HistoryDealsTotal();
+   int count = 0;
+   CJAVal arr;
+   
+   for(int i = 0; i < total; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0) continue;
+      
+      long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      // We only care about deals that close a position (DEAL_ENTRY_OUT)
+      if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) continue;
+      
+      long type = HistoryDealGetInteger(ticket, DEAL_TYPE);
+      if(type != DEAL_TYPE_BUY && type != DEAL_TYPE_SELL) continue;
+      
+      CJAVal h;
+      h["ticket"]        = (long)ticket;
+      h["position_id"]   = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+      h["symbol"]        = HistoryDealGetString(ticket, DEAL_SYMBOL);
+      // If it's a SELL out deal, the original position was a BUY.
+      h["direction"]     = (type == DEAL_TYPE_SELL) ? "BUY" : "SELL";
+      h["volume"]        = HistoryDealGetDouble(ticket, DEAL_VOLUME);
+      h["price"]         = HistoryDealGetDouble(ticket, DEAL_PRICE);
+      h["profit"]        = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+      h["commission"]    = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+      h["swap"]          = HistoryDealGetDouble(ticket, DEAL_SWAP);
+      h["time"]          = (long)HistoryDealGetInteger(ticket, DEAL_TIME);
+      h["comment"]       = HistoryDealGetString(ticket, DEAL_COMMENT);
+      h["magic"]         = (long)HistoryDealGetInteger(ticket, DEAL_MAGIC);
+      
+      arr[count++] = h;
+   }
+   
+   if(count == 0) return "[]";
+   Log(LOG_DEBUG, "Retrieved " + IntegerToString(count) + " historical deals");
+   return arr.Serialize();
 }
 
 //+------------------------------------------------------------------+

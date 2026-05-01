@@ -74,6 +74,7 @@ const (
 	TypeBreakevenSet        = "BREAKEVEN_SET"
 	TypeTradeClosed         = "TRADE_CLOSED"
 	TypePerformanceReport   = "PERFORMANCE_REPORT"
+	TypeTradeSynced         = "TRADE_SYNCED"
 
 	// System events.
 	TypeServiceStarted   = "SERVICE_STARTED"

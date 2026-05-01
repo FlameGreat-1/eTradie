@@ -35,6 +35,7 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
   /* ── Trade manager lifecycle ── */
   BREAKEVEN_SET:       [['management', 'trades'], ['execution', 'state']],
   TRAILING_SL_MOVED:   [['management', 'trades'], ['execution', 'state']],
+  TRADE_SYNCED:        [['management', 'trades'], ['execution', 'state']],
   PARTIAL_CLOSE:       [
     ['management', 'trades'],
     ['management', 'journal'],
