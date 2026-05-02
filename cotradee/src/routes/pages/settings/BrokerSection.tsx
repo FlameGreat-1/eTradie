@@ -142,13 +142,19 @@ export default function BrokerSection() {
         {conns.map((c) => {
           const id = String(c.id);
           const isActive = c.is_active === true || String(active?.id) === id;
+          // Show the broker info the user actually recognises (server + login)
+          // instead of raw infrastructure values (ea_host or metaapi_account_id).
+          const subtitleParts = [String(c.connection_type)];
+          if (c.mt5_server) subtitleParts.push(String(c.mt5_server));
+          if (c.mt5_login) subtitleParts.push(String(c.mt5_login));
+          const subtitle = subtitleParts.join(' · ');
           return (
             <div key={id} className="flex items-center justify-between px-4 py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors">
               <div className="flex items-center gap-3">
                 {isActive && <span className="w-2 h-2 rounded-full bg-success" />}
                 <div>
                   <span className="text-xs font-bold text-content">{String(c.name)}</span>
-                  <span className="block text-[10px] text-content-muted">{String(c.connection_type)} · {String(c.ea_host ?? c.metaapi_account_id ?? '')}</span>
+                  <span className="block text-[10px] text-content-muted">{subtitle}</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
