@@ -73,10 +73,11 @@ class BrokerConnectionRow(ProcessorBase):
     )
 
     # -- MetaAPI credentials ---------------------------------------------------
-    metaapi_token_encrypted: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True,
-    )
+    # NOTE: There is intentionally no per-row MetaAPI token column. The
+    # platform-level developer token lives in the MT5_METAAPI_TOKEN env
+    # var and is fetched from there at request time by the broker
+    # factory. Each user only stores the cloud account_id provisioned
+    # by MetaApiProvisioner from their MT5 broker credentials.
     metaapi_account_id: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,

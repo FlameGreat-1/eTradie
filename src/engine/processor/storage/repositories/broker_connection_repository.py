@@ -251,7 +251,6 @@ class BrokerConnectionRepository:
             ea_host=ea_host,
             ea_port=ea_port,
             ea_auth_token_encrypted=encrypted_ea_token,
-            metaapi_token_encrypted=None,  # Platform token stays in env
             metaapi_account_id=metaapi_account_id,
             mt5_server=mt5_server,
             mt5_login=mt5_login,
