@@ -5,6 +5,22 @@ import {
 } from '@/features/broker/api/brokerConnections';
 import { Plus, Trash2, Zap, Check, AlertCircle } from 'lucide-react';
 
+type BrokerForm = {
+  connection_type: 'ea' | 'metaapi';
+  name: string;
+  mt5_server: string;
+  mt5_login: string;
+  mt5_password: string;
+};
+
+const INITIAL_FORM: BrokerForm = {
+  connection_type: 'ea',
+  name: '',
+  mt5_server: '',
+  mt5_login: '',
+  mt5_password: '',
+};
+
 export default function BrokerSection() {
   const { data: connections } = useBrokerConnections();
   const { data: active } = useActiveBrokerConnection();
@@ -14,14 +30,38 @@ export default function BrokerSection() {
   const deleteConn = useDeleteBrokerConnection();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ connection_type: 'ea', name: '', meta_api_token: '', meta_api_account_id: '', mt5_server: '', mt5_login: '', mt5_password: '' });
+  const [form, setForm] = useState<BrokerForm>(INITIAL_FORM);
 
   const conns: Record<string, unknown>[] = Array.isArray(connections) ? connections : [];
 
   const handleCreate = async () => {
-    await createConn.mutateAsync(form);
+    // Build the payload to match exactly what the backend's
+    // CreateBrokerConnectionRequest accepts. The backend ignores any
+    // extra keys, but we still keep the wire format clean and minimal.
+    //
+    // EA connections: name only is needed by the backend; host/port/auth
+    // come from server-side env vars. We forward MT5 server/login as
+    // metadata labels so the user can identify the broker account this
+    // connection corresponds to (these are stored in the DB row but do
+    // not affect the ZeroMQ runtime, which uses the EA already attached
+    // to the user's MT5 terminal).
+    //
+    // MetaAPI connections: mt5_server + mt5_login + mt5_password are the
+    // user's broker credentials. The backend uses them to call
+    // MetaApiProvisioner.provision_account() with the platform-level
+    // MT5_METAAPI_TOKEN, which provisions the cloud account and stores
+    // the returned metaapi_account_id automatically. The user never sees
+    // or supplies the MetaAPI developer token or the cloud account ID.
+    const payload: Record<string, unknown> = {
+      connection_type: form.connection_type,
+      name: form.name,
+      mt5_server: form.mt5_server,
+      mt5_login: form.mt5_login,
+      mt5_password: form.mt5_password,
+    };
+    await createConn.mutateAsync(payload);
     setShowForm(false);
-    setForm({ connection_type: 'ea', name: '', meta_api_token: '', meta_api_account_id: '', mt5_server: '', mt5_login: '', mt5_password: '' });
+    setForm(INITIAL_FORM);
   };
 
   return (
@@ -39,7 +79,9 @@ export default function BrokerSection() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-content-muted">Type</label>
-              <select value={form.connection_type} onChange={(e) => setForm((f) => ({ ...f, connection_type: e.target.value }))}
+              <select
+                value={form.connection_type}
+                onChange={(e) => setForm((f) => ({ ...f, connection_type: e.target.value as BrokerForm['connection_type'] }))}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand">
                 <option value="ea">ZeroMQ (MT5 EA)</option>
                 <option value="metaapi">MetaAPI Cloud</option>
@@ -67,14 +109,24 @@ export default function BrokerSection() {
             {form.connection_type === 'metaapi' && (
               <>
                 <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MetaAPI Token</label>
-                  <input type="password" autoComplete="off" value={form.meta_api_token} onChange={(e) => setForm((f) => ({ ...f, meta_api_token: e.target.value }))}
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                  <label className="text-xs text-content-muted">MT5 Server</label>
+                  <input type="text" value={form.mt5_server} onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
+                    placeholder="Exness-MT5Trial9" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-content-muted">Account ID</label>
-                  <input type="text" value={form.meta_api_account_id} onChange={(e) => setForm((f) => ({ ...f, meta_api_account_id: e.target.value }))}
+                  <label className="text-xs text-content-muted">MT5 Login</label>
+                  <input type="text" value={form.mt5_login} onChange={(e) => setForm((f) => ({ ...f, mt5_login: e.target.value }))}
+                    placeholder="12345678" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-content-muted">MT5 Password</label>
+                  <input type="password" autoComplete="new-password" value={form.mt5_password}
+                    onChange={(e) => setForm((f) => ({ ...f, mt5_password: e.target.value }))}
+                    placeholder="Trading password"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                </div>
+                <div className="col-span-2 text-[11px] text-content-muted leading-relaxed">
+                  The platform will provision your MetaAPI cloud account automatically using these MT5 credentials. You do not need a MetaAPI token or account ID.
                 </div>
               </>
             )}
