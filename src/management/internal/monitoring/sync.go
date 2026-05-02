@@ -283,10 +283,19 @@ func (s *StateReconciler) RunStreamListener(ctx context.Context) {
 func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions []broker.PositionInfo) {
 	managedTrades := s.mgr.GetAllTrades()
 	
-	// Create lookup map of current broker state
+	// Create lookup maps
 	brokerState := make(map[string]broker.PositionInfo)
 	for _, p := range positions {
 		brokerState[p.Ticket] = p
+	}
+
+	knownTickets := make(map[string]bool)
+	for _, t := range managedTrades {
+		t.RLock()
+		if t.UserID == s.userID && t.BrokerOrderID != "" {
+			knownTickets[t.BrokerOrderID] = true
+		}
+		t.RUnlock()
 	}
 
 	for _, t := range managedTrades {
@@ -346,5 +355,64 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			t.Commission = bPos.Commission
 			t.Unlock()
 		}
+	}
+
+	// Reconcile new orphaned positions (manually opened or triggered pending orders)
+	for _, pos := range positions {
+		if knownTickets[pos.Ticket] {
+			continue // We already manage this trade.
+		}
+
+		s.log.Info().Str("ticket", pos.Ticket).Str("symbol", pos.Symbol).Msg("discovered_new_position_in_stream_importing")
+
+		trade := &types.Trade{
+			TradeID:          GenerateTradeID(),
+			Symbol:           pos.Symbol,
+			Direction:        constants.Direction(pos.Direction),
+			BrokerOrderID:    pos.Ticket,
+			UserID:           s.userID,
+			AuthToken:        s.authToken,
+			TradingStyle:     constants.StyleIntraday,
+			Grade:            "MANUAL/RECONCILED",
+			EntryPrice:       pos.EntryPrice,
+			StopLoss:         pos.StopLoss,
+			InitialSL:        pos.StopLoss,
+			TP1Price:         pos.TakeProfit,
+			TotalLotSize:     pos.Volume,
+			RemainingLotSize: pos.Volume,
+			Status:           constants.StatusActive,
+			OpenedAt:         time.Now().UTC(),
+		}
+
+		dbRecord := &journal.TradeRecord{
+			UserID:           trade.UserID,
+			TradeID:          trade.TradeID,
+			Symbol:           trade.Symbol,
+			Direction:        string(trade.Direction),
+			BrokerOrderID:    trade.BrokerOrderID,
+			TradingStyle:     string(trade.TradingStyle),
+			Grade:            trade.Grade,
+			EntryPrice:       trade.EntryPrice,
+			StopLoss:         trade.StopLoss,
+			InitialSL:        trade.InitialSL,
+			TP1Price:         trade.TP1Price,
+			TotalLotSize:     trade.TotalLotSize,
+			Status:           string(trade.Status),
+			OpenedAt:         trade.OpenedAt,
+		}
+
+		if err := s.repo.InsertTrade(ctx, dbRecord); err != nil {
+			s.log.Error().Err(err).Str("ticket", pos.Ticket).Msg("failed_to_insert_new_reconciled_trade")
+			continue
+		}
+
+		s.mgr.RegisterTrade(trade)
+		
+		s.transport.Publish(ctx, alert.NewEvent(
+			alert.SourceTradeManager,
+			alert.TypeTradeSynced,
+			alert.SeverityInfo,
+			"External Trade Reconciled",
+		).WithUserID(s.userID).WithSymbol(trade.Symbol).WithDetail("ticket", pos.Ticket))
 	}
 }

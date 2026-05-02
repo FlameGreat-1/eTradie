@@ -151,15 +151,15 @@ func (s *ExecutionServer) isDuplicate(analysisID string) bool {
 }
 
 // resolveExecutionMode reads the current execution mode from the DB.
-// Falls back to the config default if the DB read fails.
+// Falls back to AUTO if the DB read fails or the value is invalid.
 func (s *ExecutionServer) resolveExecutionMode(ctx context.Context, userID string) constants.ExecutionMode {
 	val, err := s.settings.Get(ctx, userID, store.KeyExecutionMode)
 	if err != nil {
-		return s.cfg.ExecutionMode()
+		return constants.ModeAuto
 	}
 	mode := constants.ExecutionMode(strings.ToUpper(val))
-	if mode != constants.ModeLimit && mode != constants.ModeInstant {
-		return s.cfg.ExecutionMode()
+	if mode != constants.ModeLimit && mode != constants.ModeInstant && mode != constants.ModeAuto {
+		return constants.ModeAuto
 	}
 	return mode
 }
@@ -315,12 +315,16 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 
 	s.audit.LogLotSizeCalculated(ctx, tradeReq, sizingResult)
 
-	// Step 4: Resolve execution mode. Gateway override takes precedence over DB.
+	// Step 4: Resolve execution mode. User Setting is Law.
+	// If user sets LIMIT or INSTANT, force it. If AUTO, let LLM decide.
 	execMode := s.resolveExecutionMode(ctx, userID)
-	if tradeReq.ExecutionMode != "" {
-		m := constants.ExecutionMode(strings.ToUpper(tradeReq.ExecutionMode))
-		if m == constants.ModeLimit || m == constants.ModeInstant {
-			execMode = m
+	if execMode == constants.ModeAuto {
+		execMode = s.cfg.ExecutionMode() // Fallback to config default initially
+		if tradeReq.ExecutionMode != "" {
+			m := constants.ExecutionMode(strings.ToUpper(tradeReq.ExecutionMode))
+			if m == constants.ModeLimit || m == constants.ModeInstant {
+				execMode = m // LLM decision applied
+			}
 		}
 	}
 	order := builder.BuildWithMode(tradeReq, sizingResult, s.cfg, execMode)

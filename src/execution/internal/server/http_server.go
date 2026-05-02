@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -23,13 +24,20 @@ import (
 
 // HTTPServer serves the dashboard-facing REST API and WebSocket notifications.
 type HTTPServer struct {
-	server    *http.Server
-	state     *state.Manager
-	broker    broker.Port
-	settings  *store.SettingsStore
-	auditLog  *audit.Logger
-	transport *alertredis.Transport
-	log       zerolog.Logger
+	server         *http.Server
+	state          *state.Manager
+	broker         broker.Port
+	settings       *store.SettingsStore
+	auditLog       *audit.Logger
+	transport      *alertredis.Transport
+	log            zerolog.Logger
+	symbolMetaCache sync.Map // symbol -> symbolMeta (cached forever; digits/point never change)
+}
+
+// symbolMeta holds broker-sourced instrument metadata for the frontend.
+type symbolMeta struct {
+	Point  float64 `json:"point"`
+	Digits int32   `json:"digits"`
 }
 
 // NewHTTPServer creates the execution HTTP API server.
@@ -132,7 +140,7 @@ func (s *HTTPServer) handleSettings(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	defaults := store.Settings{
-		ExecutionMode:       "LIMIT",
+		ExecutionMode:       "AUTO",
 		MaxConcurrentTrades: 3,
 		DailyLossLimitPct:   3.0,
 		WeeklyDrawdownPct:   5.0,
@@ -213,6 +221,27 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		posMap[p.Symbol] = p
 	}
 
+	// Build symbol_meta from broker. Cached in-memory; digits/point
+	// are immutable properties of a symbol and never change at runtime.
+	meta := make(map[string]symbolMeta, len(positions))
+	for _, p := range positions {
+		if _, exists := meta[p.Symbol]; exists {
+			continue
+		}
+		if cached, ok := s.symbolMetaCache.Load(p.Symbol); ok {
+			meta[p.Symbol] = cached.(symbolMeta)
+			continue
+		}
+		info, err := s.broker.GetInstrumentInfo(r.Context(), p.Symbol)
+		if err != nil {
+			s.log.Warn().Err(err).Str("symbol", p.Symbol).Msg("symbol_meta_fetch_failed")
+			continue
+		}
+		sm := symbolMeta{Point: info.PipSize, Digits: info.Digits}
+		s.symbolMetaCache.Store(p.Symbol, sm)
+		meta[p.Symbol] = sm
+	}
+
 	resp := map[string]interface{}{
 		"open_position_count": len(positions),
 		"pending_order_count": len(pending),
@@ -222,6 +251,7 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		"account_equity":      equity,
 		"open_positions":      posMap,
 		"pending_orders":      pending,
+		"symbol_meta":         meta,
 	}
 
 	writeJSON(w, http.StatusOK, resp)

@@ -48,6 +48,7 @@ export interface TradingChartProps {
   timeframe: string;
   levels?: TradeLevels | null;
   activeTrades?: ActiveTrade[];
+  symbolMeta?: Record<string, { point: number; digits: number }>;
 }
 
 /* ── Helpers ───────────────────────────────────────────────────── */
@@ -115,9 +116,32 @@ function readThemeColors() {
   };
 }
 
-function pipDistance(symbol: string, a: number, b: number): number {
+function pipDistance(
+  symbol: string,
+  a: number,
+  b: number,
+  symbolMeta?: Record<string, { point: number; digits: number }>,
+): number {
   const diff = Math.abs(a - b);
-  if (/JPY/i.test(symbol)) return diff * 100;
+  const upper = symbol.toUpperCase();
+
+  // For Deriv Synthetics, professional traders ALWAYS treat 1 full index point (1.0) as 1 "pip".
+  // If we divide by the broker's raw point (e.g. 0.0001 for Crash), it displays millions of pips.
+  if (/VOLATILITY|V75|V10|V25|V50|V100|BOOM|CRASH|STEP|JUMP|RANGE|DEX/i.test(upper)) {
+    return diff;
+  }
+
+  // For other instruments, use broker-sourced point value if available.
+  const meta = symbolMeta?.[symbol];
+  if (meta && meta.point > 0) {
+    return diff / meta.point;
+  }
+
+  // Fallback heuristic if no broker data is loaded yet.
+  if (/JPY/i.test(upper)) return diff * 100;
+  if (/^X(AU|AG|PT|PD)/.test(upper)) return diff * 100;
+  if (/BTC|ETH|LTC|XRP|SOL/i.test(upper)) return diff;
+  if (/US30|NAS|SPX|GER|UK/i.test(upper)) return diff;
   return diff * 10000;
 }
 
@@ -133,6 +157,7 @@ function TradingChartInner({
   timeframe,
   levels,
   activeTrades,
+  symbolMeta,
 }: TradingChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -513,11 +538,11 @@ function TradingChartInner({
     const tone = directionTone(trade.direction);
     const price = latestPrice ?? trade.entryPrice;
     const pipsToTp =
-      trade.takeProfit > 0 ? pipDistance(symbol, price, trade.takeProfit) : null;
+      trade.takeProfit > 0 ? pipDistance(symbol, price, trade.takeProfit, symbolMeta) : null;
     const pipsToSl =
-      trade.stopLoss > 0 ? pipDistance(symbol, price, trade.stopLoss) : null;
+      trade.stopLoss > 0 ? pipDistance(symbol, price, trade.stopLoss, symbolMeta) : null;
     return { tone, price, pipsToTp, pipsToSl, profit: trade.profit };
-  }, [activeTrades, symbol, latestPrice]);
+  }, [activeTrades, symbol, latestPrice, symbolMeta]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;

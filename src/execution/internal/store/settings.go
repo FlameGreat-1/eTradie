@@ -177,8 +177,8 @@ func validateSetting(key, value string) error {
 	switch key {
 	case KeyExecutionMode:
 		v := strings.ToUpper(value)
-		if v != "LIMIT" && v != "INSTANT" {
-			return fmt.Errorf("settings: %s must be LIMIT or INSTANT, got %q", key, value)
+		if v != "LIMIT" && v != "INSTANT" && v != "AUTO" {
+			return fmt.Errorf("settings: %s must be LIMIT, INSTANT, or AUTO, got %q", key, value)
 		}
 	case KeyMaxConcurrentTrades:
 		n, err := strconv.Atoi(value)

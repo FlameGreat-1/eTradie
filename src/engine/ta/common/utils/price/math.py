@@ -98,12 +98,38 @@ _INDEX_PATTERNS: Final[tuple[str, ...]] = (
     "VIX",
 )
 
+_DERIV_P0001_PREFIXES: Final[tuple[str, ...]] = (
+    "CRASH",
+    "BOOM",
+    "RANGE",
+)
+
+_DERIV_P01_PREFIXES: Final[tuple[str, ...]] = (
+    "VOLATILITY",
+    "V10",
+    "V25",
+    "V50",
+    "V75",
+    "V100",
+    "V200",
+    "V300",
+    "STEP",
+)
+
+_DERIV_P1_PREFIXES: Final[tuple[str, ...]] = (
+    "JUMP",
+    "DEX",
+)
+
 _PIP_DECIMALS: Final[dict[str, int]] = {
     "JPY": 2,
     "METAL": 2,
     "OIL": 2,
     "INDEX": 0,
     "CRYPTO": 0,
+    "DERIV_P0001": 0,
+    "DERIV_P01": 0,
+    "DERIV_P1": 0,
     "STANDARD": 4,
 }
 
@@ -113,6 +139,9 @@ _POINT_MULTIPLIERS: Final[dict[str, int]] = {
     "OIL": 100,
     "INDEX": 1,
     "CRYPTO": 1,
+    "DERIV_P0001": 1,
+    "DERIV_P01": 1,
+    "DERIV_P1": 1,
     "STANDARD": 10000,
 }
 
@@ -159,6 +188,19 @@ def _get_pair_type(symbol: str) -> str:
         if symbol_upper == prefix or symbol_upper.startswith(prefix):
             return "CRYPTO"
 
+    # Deriv Synthetics
+    for prefix in _DERIV_P0001_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "DERIV_P0001"
+            
+    for prefix in _DERIV_P01_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "DERIV_P01"
+            
+    for prefix in _DERIV_P1_PREFIXES:
+        if symbol_upper == prefix or symbol_upper.startswith(prefix):
+            return "DERIV_P1"
+
     return "STANDARD"
 
 
@@ -174,6 +216,9 @@ def get_pip_value(symbol: str) -> Decimal:
     elif pair_type == "INDEX":
         return Decimal("1.0")
     elif pair_type == "CRYPTO":
+        return Decimal("1.0")
+    elif pair_type.startswith("DERIV_"):
+        # Professional discrete traders treat 1 full index point (1.0) as 1 "pip" for ALL synthetics
         return Decimal("1.0")
     else:
         return Decimal("0.0001")

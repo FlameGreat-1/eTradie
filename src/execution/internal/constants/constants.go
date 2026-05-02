@@ -32,6 +32,7 @@ type ExecutionMode string
 const (
 	ModeLimit   ExecutionMode = "LIMIT"
 	ModeInstant ExecutionMode = "INSTANT"
+	ModeAuto    ExecutionMode = "AUTO"
 )
 
 // OrderStatus tracks the lifecycle of an order.

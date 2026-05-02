@@ -167,13 +167,29 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 	}
 
 	// MT5 point = smallest price increment. Pip size depends on digits.
-	// For 5-digit pairs: pip = point * 10. For 3-digit (JPY): pip = point * 10.
-	// For 2-digit (metals): pip = point.
+	// For 5-digit Forex: pip = point * 10. For 3-digit JPY: pip = point * 10.
+	// For 2-digit metals and ALL Synthetic Indices/Cryptos: pip = point.
 	pipPointRatio := 10.0
-	if resp.Digits <= 2 {
+	upperSym := strings.ToUpper(resp.Symbol)
+	isSynthetic := strings.Contains(upperSym, "VOLATILITY") ||
+		strings.Contains(upperSym, "BOOM") ||
+		strings.Contains(upperSym, "CRASH") ||
+		strings.Contains(upperSym, "STEP") ||
+		strings.Contains(upperSym, "JUMP") ||
+		strings.Contains(upperSym, "V75") ||
+		strings.Contains(upperSym, "DEX") ||
+		strings.Contains(upperSym, "RANGE")
+
+	if resp.Digits <= 2 || isSynthetic {
 		pipPointRatio = 1.0
 	}
 	pipSize := resp.Point * pipPointRatio
+
+	// For Synthetics, professional discrete traders treat 1 full index point (1.0) as 1 "pip".
+	// The broker's raw point (e.g. 0.0001 for Crash 1000) causes calculations in the millions.
+	if isSynthetic {
+		pipSize = 1.0
+	}
 
 	// Spread in price units.
 	spreadPrice := float64(resp.Spread) * resp.Point
@@ -188,7 +204,7 @@ func (b *Bridge) GetInstrumentInfo(ctx context.Context, symbol string) (*models.
 		pipValue = resp.TickValue * (pipSize / resp.TickSize)
 	} else if resp.TickValue > 0 {
 		// TickSize not provided; assume tick = point.
-		pipValue = resp.TickValue * pipPointRatio
+		pipValue = resp.TickValue * (pipSize / resp.Point)
 	} else {
 		// Fallback: approximate. This is ONLY used if the Python bridge
 		// does not return trade_tick_value (old bridge version).

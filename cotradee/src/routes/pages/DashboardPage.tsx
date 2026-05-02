@@ -186,6 +186,12 @@ export default function DashboardPage() {
     // for a tick.
   }, [execState, managed, activeSymbol]);
 
+  // Broker-sourced symbol metadata (point, digits) for accurate pip
+  // calculations. Streamed from the broker, NOT hardcoded.
+  const symbolMeta = useMemo(() => {
+    return (execState as any)?.symbol_meta ?? {};
+  }, [execState]);
+
   // Planned levels projected from the most recent *valid* analysis for
   // this symbol. When no live position is open, these drive the chart.
   const plannedLevels = useMemo<TradeLevels | undefined>(() => {
@@ -228,6 +234,7 @@ export default function DashboardPage() {
               timeframe={timeframe}
               levels={levelsForChart}
               activeTrades={activeTrades}
+              symbolMeta={symbolMeta}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-content-muted">

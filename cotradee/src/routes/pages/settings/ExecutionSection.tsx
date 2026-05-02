@@ -7,23 +7,19 @@ export default function ExecutionSection() {
   const updateSettings = useUpdateExecutionSettings();
 
   const [form, setForm] = useState({
-    enabled: false,
-    max_positions: 10,
-    max_daily_trades: 20,
-    max_lot_size: 1.0,
-    risk_percent: 1.0,
-    allowed_symbols: [] as string[],
+    execution_mode: 'AUTO',
+    max_concurrent_trades: 3,
+    daily_loss_limit_pct: 3.0,
+    weekly_drawdown_pct: 5.0,
   });
 
   useEffect(() => {
     if (settings) {
       setForm({
-        enabled: settings.enabled ?? false,
-        max_positions: settings.max_positions ?? 10,
-        max_daily_trades: settings.max_daily_trades ?? 20,
-        max_lot_size: settings.max_lot_size ?? 1.0,
-        risk_percent: settings.risk_percent ?? 1.0,
-        allowed_symbols: settings.allowed_symbols ?? [],
+        execution_mode: settings.execution_mode || 'AUTO',
+        max_concurrent_trades: settings.max_concurrent_trades ?? 3,
+        daily_loss_limit_pct: settings.daily_loss_limit_pct ?? 3.0,
+        weekly_drawdown_pct: settings.weekly_drawdown_pct ?? 5.0,
       });
     }
   }, [settings]);
@@ -37,26 +33,33 @@ export default function ExecutionSection() {
       <h3 className="text-sm font-semibold text-content">Execution Settings</h3>
 
       <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4">
-        {/* Enable toggle */}
+        {/* Execution Mode Segmented Control */}
         <div className="flex items-center justify-between">
-          <span className="text-xs text-content">Execution Enabled</span>
-          <button
-            onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
-            className={`w-10 h-5 rounded-full transition-colors relative ${form.enabled ? 'bg-brand' : 'bg-border'}`}
-          >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${form.enabled ? 'left-5' : 'left-0.5'}`} />
-          </button>
+          <span className="text-xs text-content">Execution Mode</span>
+          <div className="flex items-center bg-surface-2 rounded-lg p-0.5 border border-border">
+            {['AUTO', 'LIMIT', 'INSTANT'].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setForm((f) => ({ ...f, execution_mode: mode }))}
+                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                  form.execution_mode === mode
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-content-muted hover:text-content hover:bg-surface-3'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Max Open Positions" type="number" value={form.max_positions}
-            onChange={(v) => setForm((f) => ({ ...f, max_positions: Number(v) }))} />
-          <Field label="Max Daily Trades" type="number" value={form.max_daily_trades}
-            onChange={(v) => setForm((f) => ({ ...f, max_daily_trades: Number(v) }))} />
-          <Field label="Max Lot Size" type="number" value={form.max_lot_size} step="0.01"
-            onChange={(v) => setForm((f) => ({ ...f, max_lot_size: parseFloat(String(v)) }))} />
-          <Field label="Risk %" type="number" value={form.risk_percent} step="0.1"
-            onChange={(v) => setForm((f) => ({ ...f, risk_percent: parseFloat(String(v)) }))} />
+          <Field label="Max Concurrent Trades" type="number" value={form.max_concurrent_trades}
+            onChange={(v) => setForm((f) => ({ ...f, max_concurrent_trades: Number(v) }))} />
+          <Field label="Daily Loss Limit %" type="number" value={form.daily_loss_limit_pct} step="0.1"
+            onChange={(v) => setForm((f) => ({ ...f, daily_loss_limit_pct: parseFloat(String(v)) }))} />
+          <Field label="Weekly Drawdown %" type="number" value={form.weekly_drawdown_pct} step="0.1"
+            onChange={(v) => setForm((f) => ({ ...f, weekly_drawdown_pct: parseFloat(String(v)) }))} />
         </div>
 
         <button onClick={handleSave} disabled={updateSettings.isPending}
