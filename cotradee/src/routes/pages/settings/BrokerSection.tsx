@@ -125,9 +125,6 @@ export default function BrokerSection() {
                     placeholder="Trading password"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
                 </div>
-                <div className="col-span-2 text-[11px] text-content-muted leading-relaxed">
-                  The platform will provision your MetaAPI cloud account automatically using these MT5 credentials. You do not need a MetaAPI token or account ID.
-                </div>
               </>
             )}
           </div>
