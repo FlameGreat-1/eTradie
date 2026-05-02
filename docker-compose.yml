@@ -86,6 +86,9 @@ services:
       dockerfile: Dockerfile
     container_name: etradie-migrator
     env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,6 +108,9 @@ services:
     user: "1000:1000"
     restart: unless-stopped
     env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "8000:8000"
     environment:
@@ -150,6 +156,9 @@ services:
     container_name: etradie-gateway
     restart: unless-stopped
     env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
       - GATEWAY_EXECUTION_ADDR=execution:50053
@@ -178,6 +187,9 @@ services:
     container_name: etradie-execution
     restart: unless-stopped
     env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - EXECUTION_BROKER_BRIDGE_URL=http://engine:8000
       - EXECUTION_GATEWAY_ADDR=gateway:50052
@@ -208,6 +220,9 @@ services:
     container_name: etradie-management
     restart: unless-stopped
     env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - MANAGEMENT_BROKER_BRIDGE_URL=http://engine:8000
     ports:

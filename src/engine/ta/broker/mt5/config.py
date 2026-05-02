@@ -63,6 +63,7 @@ class MT5Config(BaseSettings):
     connection_timeout_seconds: int = Field(default=30, ge=5, le=120)
     max_candles_per_request: int = Field(default=5000, ge=100, le=50000)
     enable_tick_data: bool = Field(default=False)
+    magic_number: int = Field(default=0, description="MT5 magic number for trade tracking.")
 
     @model_validator(mode="after")
     def _validate_provider_credentials(self) -> "MT5Config":

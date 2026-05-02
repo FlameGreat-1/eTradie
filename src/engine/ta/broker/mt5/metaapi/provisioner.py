@@ -164,8 +164,8 @@ class MetaApiProvisioner:
         if self._magic:
             payload["magic"] = self._magic
 
-        # Generate a unique transaction ID for idempotency.
-        transaction_id = str(uuid.uuid4())
+        # Generate a unique transaction ID for idempotency (32-char hex required).
+        transaction_id = uuid.uuid4().hex
         headers = {
             **self._auth_headers,
             "transaction-id": transaction_id,

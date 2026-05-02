@@ -134,6 +134,7 @@ def create_mt5_broker_from_connection(
             connection_timeout_seconds=30,
             max_candles_per_request=5000,
             enable_tick_data=False,
+            magic_number=0,
         )
 
         from engine.ta.broker.mt5.zmq.client import ZmqClient
@@ -184,6 +185,7 @@ def create_mt5_broker_from_connection(
             connection_timeout_seconds=30,
             max_candles_per_request=5000,
             enable_tick_data=False,
+            magic_number=0,
         )
 
         from engine.ta.broker.mt5.metaapi.client import MetaApiClient

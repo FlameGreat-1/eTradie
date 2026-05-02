@@ -2359,6 +2359,7 @@ def create_app() -> FastAPI:
                 provisioner = MetaApiProvisioner(
                     http_client=container.http_client,
                     platform_token=platform_token,
+                    magic_number=container.mt5_config.magic_number,
                 )
                 
                 try:
@@ -2693,6 +2694,7 @@ def create_app() -> FastAPI:
                     provisioner = MetaApiProvisioner(
                         http_client=container.http_client,
                         platform_token=platform_token,
+                        magic_number=container.mt5_config.magic_number,
                     )
                     # Background task to avoid blocking the user API response
                     asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))

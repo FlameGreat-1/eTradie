@@ -276,8 +276,10 @@ class Container:
 
     def _build_ta_configs(self) -> None:
         from engine.config import TAConfig
+        from engine.ta.broker.mt5.config import MT5Config
 
         self.ta_config = TAConfig()
+        self.mt5_config = MT5Config()
         self.smc_config = SMCConfig()
         self.snd_config = SnDConfig()
 
