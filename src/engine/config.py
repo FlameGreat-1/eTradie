@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
-from typing import Self
+from typing import Any, Optional, Self
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator, model_validator
+from pydantic import AliasChoices, Field, PostgresDsn, RedisDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from engine.ta.constants import Timeframe
@@ -171,6 +171,17 @@ class Settings(BaseSettings):
         default=60, ge=10, le=600, description="Seconds before half-open"
     )
     circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
+    
+    # SSL Configuration (Enterprise Proxy Support)
+    ssl_ca_bundle_path: Optional[str] = Field(
+        default=None,
+        description="Path to custom CA bundle (for enterprise proxies/security software)"
+    )
+    ssl_verify: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("HTTP_SSL_VERIFY", "ssl_verify"),
+        description="Whether to verify SSL certificates. Set to false for proxies with self-signed certs."
+    )
 
     # ── Observability ────────────────────────────────────────
     # Empty otel_exporter_otlp_endpoint disables tracing cleanly (no
@@ -587,3 +598,9 @@ def get_ta_config() -> TAConfig:
 def get_rag_config() -> RAGConfig:
     """Return the singleton RAG config instance, cached after first load."""
     return RAGConfig()
+ 
+ 
+# Ensure all models are fully defined for Pydantic.
+Settings.model_rebuild()
+TAConfig.model_rebuild()
+RAGConfig.model_rebuild()

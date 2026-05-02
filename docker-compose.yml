@@ -89,6 +89,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    dns_opt:
+      - ndots:0
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +113,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    dns_opt:
+      - ndots:0
     ports:
       - "8000:8000"
     environment:
@@ -134,6 +138,8 @@ services:
       - etradie-net
     extra_hosts:
       - "host.docker.internal:${WSL_HOST_IP:-host-gateway}"
+      - "mt-client-api-v1.agiliumtrade.ai:51.89.234.71"
+      - "mt-provisioning-api-v1.agiliumtrade.ai:51.89.234.71"
     deploy:
       resources:
         limits:
@@ -159,6 +165,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    dns_opt:
+      - ndots:0
     environment:
       - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
       - GATEWAY_EXECUTION_ADDR=execution:50053
@@ -190,6 +198,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    dns_opt:
+      - ndots:0
     environment:
       - EXECUTION_BROKER_BRIDGE_URL=http://engine:8000
       - EXECUTION_GATEWAY_ADDR=gateway:50052
@@ -223,6 +233,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    dns_opt:
+      - ndots:0
     environment:
       - MANAGEMENT_BROKER_BRIDGE_URL=http://engine:8000
     ports:

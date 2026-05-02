@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import random
+import ssl
 import time
 from asyncio import Lock
 from enum import StrEnum, unique
@@ -158,12 +160,16 @@ class HttpClient:
         cb_recovery_timeout: int = 60,
         cb_half_open_max: int = 3,
         max_response_size: int = MAX_RESPONSE_SIZE,
+        ssl_ca_bundle_path: Optional[str] = None,
+        ssl_verify: bool = True,
     ) -> None:
         self._timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         self._max_retries = max_retries
         self._backoff_base = backoff_base
         self._backoff_max = backoff_max
         self._max_response_size = max_response_size
+        self._ssl_ca_bundle_path = ssl_ca_bundle_path
+        self._ssl_verify = ssl_verify
         self._session: aiohttp.ClientSession | None = None
         self._circuit = _CircuitBreaker(
             failure_threshold=cb_failure_threshold,
@@ -235,9 +241,17 @@ class HttpClient:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
         if self._session is None or self._session.closed:
+            ssl_context: ssl.SSLContext | bool = self._ssl_verify
+            if self._ssl_ca_bundle_path:
+                ssl_context = ssl.create_default_context(cafile=self._ssl_ca_bundle_path)
+            
             self._session = aiohttp.ClientSession(
                 timeout=self._timeout,
-                connector=aiohttp.TCPConnector(limit=100, limit_per_host=30),
+                connector=aiohttp.TCPConnector(
+                    limit=100, 
+                    limit_per_host=30,
+                    ssl=ssl_context
+                ),
             )
         return self._session
 

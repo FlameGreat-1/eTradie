@@ -114,6 +114,8 @@ class Container:
             cb_failure_threshold=s.circuit_breaker_failure_threshold,
             cb_recovery_timeout=s.circuit_breaker_recovery_timeout,
             cb_half_open_max=s.circuit_breaker_half_open_max_calls,
+            ssl_ca_bundle_path=s.ssl_ca_bundle_path,
+            ssl_verify=s.ssl_verify,
         )
         self.rss_parser = RSSParser(self.http_client)
         self.scheduler = SchedulerManager()
