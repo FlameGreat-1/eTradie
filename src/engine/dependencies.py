@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from engine.config import get_settings
 from engine.shared.cache import RedisCache
+from engine.shared.concurrency import BackgroundTaskCoordinator
 from engine.shared.db import DatabaseManager
 from engine.shared.http import HttpClient
 from engine.shared.rss import RSSParser
@@ -119,6 +120,13 @@ class Container:
         )
         self.rss_parser = RSSParser(self.http_client)
         self.scheduler = SchedulerManager()
+
+        # Coordinator for opaque background work owned by the engine
+        # (chart pre-warm, stale-while-revalidate refreshes). Centralised
+        # so the FastAPI lifespan can cancel every spawned task on
+        # shutdown without each call site having to track its own task
+        # references. See engine.shared.concurrency for the contract.
+        self.background_tasks = BackgroundTaskCoordinator()
 
         self.registry = ProviderRegistry()
         self._build_providers()
@@ -781,6 +789,11 @@ class Container:
     # -- Shutdown --------------------------------------------------------------
 
     async def shutdown(self) -> None:
+        # Cancel pending background work BEFORE we tear down the resources
+        # those tasks may be holding (broker clients, http client, redis).
+        # The coordinator drains with a short bounded timeout so a wedged
+        # background task cannot stall process exit.
+        await self.background_tasks.shutdown(drain_timeout_s=2.0)
         self.scheduler.shutdown(wait=False)
         if hasattr(self, "rag_vector_store"):
             await self.rag_vector_store.close()
