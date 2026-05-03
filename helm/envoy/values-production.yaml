@@ -1,0 +1,103 @@
+replicaCount: 5
+
+podAnnotations:
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  requests:
+    cpu: 2
+    memory: 4Gi
+    ephemeral-storage: 1Gi
+  limits:
+    cpu: 4
+    memory: 8Gi
+    ephemeral-storage: 2Gi
+
+autoscaling:
+  minReplicas: 5
+  maxReplicas: 10
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+
+podDisruptionBudget:
+  minAvailable: 3
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: etradie-envoy
+        topologyKey: kubernetes.io/hostname
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: node.kubernetes.io/instance-type
+              operator: In
+              values:
+                - c5.2xlarge
+                - c5.4xlarge
+                - c6i.2xlarge
+                - c6i.4xlarge
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-envoy
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-envoy
+
+priorityClassName: system-cluster-critical
+terminationGracePeriodSeconds: 60
+
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: LOG_LEVEL
+    value: "info"
+
+volumes:
+  tmp:
+    enabled: true
+    sizeLimit: 200Mi
+    medium: Memory
+  cache:
+    enabled: true
+    sizeLimit: 1Gi
+
+serviceMonitor:
+  interval: 10s
+  scrapeTimeout: 8s
+  labels:
+    environment: production
+    tier: critical

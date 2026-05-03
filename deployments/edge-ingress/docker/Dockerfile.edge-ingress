@@ -1,0 +1,77 @@
+# -------- builder --------
+FROM rust:1.88-slim-bookworm AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Make builds stable + reduce flaky network issues with crates.io in Docker
+ENV CARGO_NET_RETRY=10 \
+    CARGO_HTTP_TIMEOUT=600 \
+    CARGO_HTTP_MULTIPLEXING=false
+
+# Defaults to avoid "UndefinedVar" + makes labels always valid
+ARG BUILD_DATE="unknown"
+ARG GIT_COMMIT="unknown"
+ENV BUILD_DATE=${BUILD_DATE}
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+# Copy manifests first for better layer caching
+COPY backend/rust/edge-ingress/Cargo.toml backend/rust/edge-ingress/Cargo.lock ./
+COPY backend/rust/edge-ingress/crates ./crates
+
+# Build in cache mount + copy out in SAME command (before unmount)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --locked --bin edge-ingress && \
+    cp /build/target/release/edge-ingress /build/edge-ingress
+
+RUN strip /build/edge-ingress
+
+# -------- runtime --------
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r edge-ingress --gid=1000 && \
+    useradd -r -g edge-ingress --uid=1000 --no-log-init --create-home edge-ingress
+
+WORKDIR /app
+
+COPY --from=builder /build/edge-ingress /usr/local/bin/edge-ingress
+
+RUN chown -R edge-ingress:edge-ingress /app && \
+    chmod +x /usr/local/bin/edge-ingress
+
+RUN mkdir -p /etc/edge-ingress/config /etc/edge-ingress/certs /data/geoip && \
+    chown -R edge-ingress:edge-ingress /etc/edge-ingress /data/geoip
+
+USER edge-ingress
+
+EXPOSE 443 9902
+
+ENV CONFIG_PATH=/etc/edge-ingress/config/edge-ingress.yaml
+ENV RUST_LOG=info,edge_ingress=debug
+ENV RUST_BACKTRACE=1
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:9902/healthz || exit 1
+
+ENTRYPOINT ["/usr/local/bin/edge-ingress"]
+
+LABEL org.opencontainers.image.title="ExOper Edge-Ingress" \
+      org.opencontainers.image.description="TLS termination and geo-routing edge proxy" \
+      org.opencontainers.image.vendor="ExOper" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}" \
+      org.opencontainers.image.source="https://github.com/exoper/edge-ingress"

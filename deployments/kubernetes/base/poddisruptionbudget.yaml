@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: exoper-envoy
+  namespace: envoy-system
+  labels:
+    app: exoper-envoy
+    component: availability
+  annotations:
+    description: "Ensures minimum availability during voluntary disruptions"
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: exoper-envoy
+  unhealthyPodEvictionPolicy: IfHealthyBudget

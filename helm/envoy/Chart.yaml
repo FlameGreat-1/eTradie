@@ -1,0 +1,30 @@
+apiVersion: v2
+name: etradie-envoy
+description: Exoper Envoy Proxy with WASM filters for request validation and rate limiting
+type: application
+version: 0.1.0
+appVersion: "1.28.0"
+kubeVersion: ">=1.24.0-0"
+
+keywords:
+  - envoy
+  - proxy
+  - wasm
+  - rate-limiting
+  - validation
+  - etradie
+
+home: https://github.com/etradie/etradie
+sources:
+  - https://github.com/etradie/etradie/tree/main/backend/rust/envoy
+  - https://github.com/etradie/etradie/tree/main/deployments/envoy
+
+maintainers:
+  - name: Exoper Team
+    email: team@etradie.com
+
+icon: https://www.envoyproxy.io/img/envoy-logo.svg
+
+annotations:
+  category: Infrastructure
+  licenses: MIT

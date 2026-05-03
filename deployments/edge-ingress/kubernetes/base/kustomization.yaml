@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: etradie-system
+
+commonLabels:
+  app.kubernetes.io/part-of: etradie
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - priorityclass.yaml
+  - configmap.yaml
+  - configmap-geoip.yaml
+  - externalsecret-tls.yaml
+  - externalsecret-maxmind.yaml
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+  - hpa.yaml
+  - poddisruptionbudget.yaml
+  - networkpolicy.yaml
+
+images:
+  - name: etradie/edge-ingress
+    newTag: latest

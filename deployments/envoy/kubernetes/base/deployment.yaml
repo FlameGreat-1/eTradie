@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etradie-envoy
+  namespace: envoy-system
+  labels:
+    app: etradie-envoy
+    app.kubernetes.io/name: etradie-envoy
+    app.kubernetes.io/component: proxy
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: etradie-envoy
+  template:
+    metadata:
+      labels:
+        app: etradie-envoy
+        app.kubernetes.io/name: etradie-envoy
+        app.kubernetes.io/component: proxy
+        app.kubernetes.io/part-of: etradie
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9901"
+        prometheus.io/path: "/stats/prometheus"
+    spec:
+      serviceAccountName: etradie-envoy
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: etradie-envoy
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: etradie-envoy
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.28-latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: admin
+              containerPort: 9901
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: "local"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+              ephemeral-storage: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+              ephemeral-storage: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 9901
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 9901
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: envoy-config
+              mountPath: /etc/envoy
+              readOnly: true
+            - name: wasm-filter
+              mountPath: /etc/envoy/wasm
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/envoy
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: etradie-envoy-config
+            items:
+              - key: envoy.yaml
+                path: envoy.yaml
+            defaultMode: 0444
+        - name: wasm-filter
+          configMap:
+            name: etradie-envoy-wasm
+            items:
+              - key: integration-filter.wasm
+                path: integration-filter.wasm
+            defaultMode: 0444
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: cache
+          emptyDir:
+            sizeLimit: 500Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always

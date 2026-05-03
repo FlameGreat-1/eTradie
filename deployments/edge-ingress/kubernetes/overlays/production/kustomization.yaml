@@ -1,0 +1,62 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: etradie-system
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: production
+
+configMapGenerator:
+  - name: edge-ingress-config
+    namespace: etradie-system
+    files:
+      - edge-ingress.yaml=../../../../../backend/rust/edge-ingress/config/production/edge-ingress-production.yaml
+    behavior: replace
+    options:
+      disableNameSuffixHash: true
+
+images:
+  - name: etradie/edge-ingress
+    newTag: v0.1.0
+
+patches:
+  - path: patches/replicas.yaml
+  - path: patches/resources.yaml
+  - target:
+      kind: Service
+      name: edge-ingress
+    patch: |-
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-ssl-cert
+        value: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/PRODUCTION_CERT_ID
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-access-log-enabled
+        value: "true"
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-access-log-s3-bucket-name
+        value: etradie-prod-nlb-logs
+  - target:
+      kind: PodDisruptionBudget
+      name: edge-ingress
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 5
+  - target:
+      kind: Deployment
+      name: edge-ingress
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/affinity/podAntiAffinity
+        value:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - edge-ingress
+              topologyKey: kubernetes.io/hostname

@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-ingress
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: edge-ingress
+    app.kubernetes.io/component: edge
+    app.kubernetes.io/part-of: etradie
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: edge-ingress
+      app.kubernetes.io/component: edge
+  unhealthyPodEvictionPolicy: AlwaysAllow

@@ -1,0 +1,139 @@
+version: '3.9'
+
+services:
+  envoy:
+    build:
+      context: ../../../backend/rust/envoy
+      dockerfile: ../../../deployments/envoy/docker/Dockerfile.envoy
+    image: exoper/envoy:latest
+    container_name: exoper-envoy
+    hostname: exoper-envoy
+    
+    ports:
+      - "8080:8080"   # HTTP listener (receives from edge-ingress)
+      - "9901:9901"   # Admin interface (Prometheus scrapes metrics/logs from the exposed port)
+    
+    environment:
+      - ENVIRONMENT=local
+      - LOG_LEVEL=debug
+    
+    volumes:
+      - ../../../backend/rust/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
+      - ../../../backend/rust/envoy/target/wasm32-wasi/release/exoper_envoy_integration_filter.wasm:/etc/envoy/wasm/integration-filter.wasm:ro
+      - envoy-cache:/var/cache/envoy
+      - envoy-tmp:/tmp
+    
+    networks:
+      - exoper-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q :26AD /proc/net/tcp || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    depends_on:
+      - mock-gateway  # TODO: Change to 'gateway' when real Gateway is built
+
+  # ============================================================================
+  # MOCK GATEWAY (TEMPORARY - COMMENT OUT WHEN REAL GATEWAY IS READY)
+  # ============================================================================
+  mock-gateway:
+    image: kennethreitz/httpbin
+    container_name: mock-gateway
+    hostname: gateway-service
+    
+    ports:
+      - "5000:80"  # Optional: expose for direct testing
+    
+    networks:
+      - exoper-network
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ============================================================================
+  # REAL GATEWAY (UNCOMMENT WHEN GATEWAY IS BUILT)
+  # ============================================================================
+  # gateway:
+  #   build:
+  #     context: ../../../backend/gateway
+  #     dockerfile: Dockerfile
+  #   image: exoper/gateway:latest
+  #   container_name: exoper-gateway
+  #   hostname: gateway-service
+  #   
+  #   ports:
+  #     - "8081:8081"
+  #   
+  #   environment:
+  #     - ENVIRONMENT=local
+  #     - PORT=8081
+  #     - LOG_LEVEL=debug
+  #   
+  #   networks:
+  #     - exoper-network
+  #   
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 10s
+  #   
+  #   restart: unless-stopped
+  #   
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2'
+  #         memory: 2G
+  #       reservations:
+  #         cpus: '1'
+  #         memory: 1G
+  #   
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+networks:
+  exoper-network:
+    name: exoper-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  envoy-cache:
+    driver: local
+  envoy-tmp:
+    driver: local

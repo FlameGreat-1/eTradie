@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: etradie-system
+
+bases:
+  - ../../base
+
+namePrefix: local-
+
+commonLabels:
+  environment: local
+
+configMapGenerator:
+  - name: edge-ingress-config
+    namespace: etradie-system
+    files:
+      - edge-ingress.yaml=../../../../../config/local/edge-ingress-local.yaml
+    behavior: replace
+    options:
+      disableNameSuffixHash: true
+
+images:
+  - name: etradie/edge-ingress
+    newTag: local-latest
+
+patches:
+  - target:
+      kind: Deployment
+      name: edge-ingress
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: edge-ingress
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+  - target:
+      kind: Service
+      name: edge-ingress
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: remove
+        path: /metadata/annotations

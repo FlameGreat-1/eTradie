@@ -1,0 +1,106 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: envoy-system
+
+commonLabels:
+  environment: production
+  app.kubernetes.io/instance: production
+
+commonAnnotations:
+  managed-by: kustomize
+  tier: production
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: etradie-envoy-config
+    namespace: envoy-system
+    behavior: replace
+    files:
+      - envoy.yaml=../../../config/production/envoy-production.yaml
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: patches/replicas.yaml
+  - path: patches/resources.yaml
+  - target:
+      kind: Deployment
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "production"
+      - op: add
+        path: /spec/template/metadata/annotations/cluster-autoscaler.kubernetes.io~1safe-to-evict
+        value: "false"
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 5
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: PodDisruptionBudget
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 3
+  - target:
+      kind: Service
+      name: etradie-envoy
+    patch: |-
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-type
+        value: "nlb"
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-internal
+        value: "true"
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-cross-zone-load-balancing-enabled
+        value: "true"
+  - target:
+      kind: ServiceMonitor
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/endpoints/0/interval
+        value: "10s"
+      - op: replace
+        path: /spec/endpoints/0/scrapeTimeout
+        value: "8s"
+  - target:
+      kind: ResourceQuota
+      name: envoy-resource-quota
+    patch: |-
+      - op: replace
+        path: /spec/hard/requests.cpu
+        value: "20"
+      - op: replace
+        path: /spec/hard/requests.memory
+        value: "40Gi"
+      - op: replace
+        path: /spec/hard/limits.cpu
+        value: "40"
+      - op: replace
+        path: /spec/hard/limits.memory
+        value: "80Gi"
+      - op: replace
+        path: /spec/hard/services.loadbalancers
+        value: "1"
+
+images:
+  - name: envoyproxy/envoy
+    newTag: v1.28.0
+    digest: sha256:placeholder
+
+replicas:
+  - name: etradie-envoy
+    count: 5

@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-ingress
+spec:
+  template:
+    spec:
+      containers:
+        - name: edge-ingress
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+              ephemeral-storage: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+              ephemeral-storage: 512Mi

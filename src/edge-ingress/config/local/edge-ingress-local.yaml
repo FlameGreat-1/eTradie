@@ -1,0 +1,44 @@
+server:
+  tls_bind_address: "127.0.0.1:8443"
+  metrics_bind_address: "127.0.0.1:9902"
+  idle_timeout_secs: 60
+
+tls:
+  min_tls_version: "1.2"
+  preferred_tls_version: "1.3"
+  handshake_timeout:
+    secs: 5
+    nanos: 0
+  enable_sni: true
+  cert_reload_interval:
+    secs: 300
+    nanos: 0
+  certificates:
+    - hostname: "localhost"
+      cert_path: "./certs/localhost.crt"
+      key_path: "./certs/localhost.key"
+      is_default: true
+
+upstream:
+  connect_timeout_secs: 2
+  request_timeout_secs: 30
+  endpoints:
+    - region: "us-east-1"
+      address: "127.0.0.1:8080"
+
+connection_limits:
+  max_global_connections: 1000
+  max_connections_per_ip: 100
+
+health_check:
+  interval_secs: 5
+  timeout_secs: 2
+  unhealthy_threshold: 2
+  healthy_threshold: 2
+
+retry:
+  max_attempts: 1
+  backoff_ms: 50
+
+geoip:
+  database_path: "./data/geoip/GeoLite2-City.mmdb"

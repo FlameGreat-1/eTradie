@@ -1,0 +1,32 @@
+[package]
+name = "etradie-envoy-integration-filter"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = ["Exoper Team"]
+description = "Integration filter for Exoper Envoy - orchestrates rate limiting, header validation, and request validation with circuit breaker protection"
+license = "MIT"
+repository = "https://github.com/etradie/etradie"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+etradie-envoy-common = { path = "../common" }
+etradie-envoy-rate-limiter = { path = "../rate-limiter" }
+etradie-envoy-header-validator = { path = "../header-validator" }
+etradie-envoy-request-validator = { path = "../request-validator" }
+proxy-wasm = "0.2.2"
+serde = { version = "1.0", features = ["derive"], default-features = false }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

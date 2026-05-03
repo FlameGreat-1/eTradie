@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: etradie-system
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: staging
+
+configMapGenerator:
+  - name: edge-ingress-config
+    namespace: etradie-system
+    files:
+      - edge-ingress.yaml=../../../../../backend/rust/edge-ingress/config/staging/edge-ingress-staging.yaml
+    behavior: replace
+    options:
+      disableNameSuffixHash: true
+
+images:
+  - name: etradie/edge-ingress
+    newTag: staging-v0.1.0
+
+patches:
+  - path: patches/replicas.yaml
+  - path: patches/resources.yaml
+  - path: patches/pdb.yaml
+  - target:
+      kind: Service
+      name: edge-ingress
+    patch: |-
+      - op: add
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-ssl-cert
+        value: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/STAGING_CERT_ID

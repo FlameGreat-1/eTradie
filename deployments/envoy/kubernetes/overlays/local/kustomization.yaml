@@ -1,0 +1,66 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: envoy-system
+
+commonLabels:
+  environment: local
+  app.kubernetes.io/instance: local
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: etradie-envoy-config
+    namespace: envoy-system
+    behavior: replace
+    files:
+      - envoy.yaml=../../../config/local/envoy-local.yaml
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - target:
+      kind: Deployment
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+  - target:
+      kind: PodDisruptionBudget
+      name: etradie-envoy
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 1
+
+images:
+  - name: envoyproxy/envoy
+    newTag: v1.28-latest
+
+replicas:
+  - name: etradie-envoy
+    count: 1

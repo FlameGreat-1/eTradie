@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/tls",
+    "crates/geo-router",
+    "crates/connection-limiter",
+    "crates/upstream",
+    "crates/edge-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88.0"
+authors = ["ExOper Team"]
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1.35", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "=0.3.18", features = ["json", "env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 1

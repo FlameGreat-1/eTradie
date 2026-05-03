@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-ingress-geoip-init
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: edge-ingress
+    app.kubernetes.io/component: edge
+    app.kubernetes.io/part-of: etradie
+data:
+  download-geoip.sh: |
+    #!/bin/sh
+    set -e
+    
+    GEOIP_DIR="/data/geoip"
+    GEOIP_DB="${GEOIP_DIR}/GeoLite2-City.mmdb"
+    
+    mkdir -p "${GEOIP_DIR}"
+    
+    if [ -z "${MAXMIND_LICENSE_KEY}" ]; then
+      echo "Error: MAXMIND_LICENSE_KEY not set"
+      exit 1
+    fi
+    
+    echo "Downloading GeoLite2-City database..."
+    DOWNLOAD_URL="https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+    
+    wget -q "${DOWNLOAD_URL}" -O /tmp/GeoLite2-City.tar.gz
+    
+    echo "Extracting database..."
+    tar -xzf /tmp/GeoLite2-City.tar.gz -C /tmp
+    
+    EXTRACTED_DB=$(find /tmp -name "GeoLite2-City.mmdb" -type f)
+    
+    if [ -z "${EXTRACTED_DB}" ]; then
+      echo "Error: GeoLite2-City.mmdb not found in archive"
+      exit 1
+    fi
+    
+    mv "${EXTRACTED_DB}" "${GEOIP_DB}"
+    
+    echo "GeoIP database ready at ${GEOIP_DB}"
+    ls -lh "${GEOIP_DB}"
