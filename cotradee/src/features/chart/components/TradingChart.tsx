@@ -320,26 +320,33 @@ function TradingChartInner({
     return () => observer.disconnect();
   }, [applyPalette]);
 
-  /* 3. Load historical candles. */
+  /* 3. Load historical candles.
+     With React-Query's keepPreviousData (see useChartCandles) the
+     `candleData` prop will briefly point at the previous symbol /
+     timeframe's payload while the new fetch is in flight. We must
+     therefore key the redraw on (candleData.symbol, candleData.timeframe,
+     candleData.candles.length, last-bar-time) and ONLY redraw when the
+     payload truly matches the currently selected (symbol, timeframe).
+     Crucially we never call setData([]) just because the user switched
+     instruments -- that would blank the chart and reintroduce the very
+     UX regression this commit set out to fix. The previous candles stay
+     on screen until the new ones are ready, exactly like TradingView. */
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
-
-    // Determine if we need to clear the chart due to a symbol/timeframe mismatch
-    // or if the data is just not ready yet.
-    if (!candleData?.candles || candleData.symbol !== symbol || candleData.timeframe !== timeframe) {
-      if (latestCandleRef.current !== null) {
-        seriesRef.current.setData([]);
-        latestCandleRef.current = null;
-        lastDataKeyRef.current = '';
-      }
+    if (!candleData?.candles) return;
+    if (candleData.symbol !== symbol || candleData.timeframe !== timeframe) {
+      // Stale payload from the previous selection; ignore. The new
+      // request is already in flight and will land in a subsequent run.
       return;
     }
 
-    const key = `${symbol}|${timeframe}|${candleData.candles.length}`;
+    const candles = candleData.candles;
+    const lastTime = candles.length > 0 ? candles[candles.length - 1].time : 0;
+    const key = `${symbol}|${timeframe}|${candles.length}|${lastTime}`;
     if (key === lastDataKeyRef.current) return;
     lastDataKeyRef.current = key;
 
-    const formatted: CandlestickData[] = candleData.candles
+    const formatted: CandlestickData[] = candles
       .map((c) => ({
         time: c.time as Time,
         open: c.open,
@@ -361,9 +368,9 @@ function TradingChartInner({
 
     try {
       seriesRef.current.setData(unique);
-      latestCandleRef.current = unique.length > 0 ? { ...unique[unique.length - 1] } : null;
+      latestCandleRef.current =
+        unique.length > 0 ? { ...unique[unique.length - 1] } : null;
       if (unique.length > 0) setLatestPrice(unique[unique.length - 1].close);
-
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Chart setData failed:', err);
