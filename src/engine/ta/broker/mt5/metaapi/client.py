@@ -92,6 +92,18 @@ class MetaApiClient(BrokerBase):
         self._auth_headers = {
             "auth-token": config.metaapi_token,
         }
+        # MetaAPI's per-account market-data REST endpoint enforces request
+        # rate limits (typically ~60 req/min depending on plan). The
+        # background pre-warm pipeline plus concurrent dashboard tabs can
+        # easily burst above that and starve trading calls (place_order,
+        # modify_position, get_tick_price) which share the same account.
+        # _candles_semaphore caps simultaneous historical fetches at a
+        # safe ceiling so a candles burst can never drown out trading.
+        # Trading calls do NOT acquire this semaphore -- they go through
+        # the unrestricted _api_get / _api_post path. This is the
+        # MetaAPI-side equivalent of the dedicated candles ZMQ socket
+        # introduced for the native EA bridge.
+        self._candles_semaphore = asyncio.Semaphore(4)
 
     @property
     def provider_name(self) -> str:
@@ -181,7 +193,13 @@ class MetaApiClient(BrokerBase):
             path = (
                 f"/historical-market-data/symbols/{urllib.parse.quote(symbol)}/timeframes/{ma_tf}/candles"
             )
-            raw = await self._api_get(path, params=params, category="candles")
+            # Bound concurrent historical fetches per MetaAPI account so a
+            # burst of pre-warm calls cannot starve trading endpoints
+            # (place_order / modify_position / get_tick_price) on the same
+            # account. The semaphore is the MetaAPI counterpart of the
+            # dedicated candles ZMQ socket for native EA accounts.
+            async with self._candles_semaphore:
+                raw = await self._api_get(path, params=params, category="candles")
 
             duration = _time.monotonic() - start_timer
 
