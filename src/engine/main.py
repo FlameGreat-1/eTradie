@@ -236,55 +236,94 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     symbol_reader = RedisSymbolReader(cache=container.cache)
     app.state.symbol_reader = symbol_reader
 
-    # Warm the macro cache before accepting HTTP traffic. APScheduler's
-    # first tick for each interval job fires only after one full
-    # interval has elapsed (up to one week for COT), so without this
-    # step the first analysis request after a restart would hit a cold
+    # Warm the macro cache asynchronously, NOT inline before yield.
+    #
+    # APScheduler's first tick for each interval job fires only after one
+    # full interval has elapsed (up to one week for COT), so without
+    # warm-up the first analysis request after a restart would hit a cold
     # Redis and pay the full provider-fetch latency on every namespace.
     # Running through .refresh() invokes the single-flight lock inside
     # BaseCollector, so if an incoming request somehow arrives during
-    # warm-up it will coalesce onto the same fetch rather than
-    # launching a duplicate.
-    macro_warmup_targets = {
-        "central_bank": container.cb_collector,
-        "cot": container.cot_collector,
-        "economic": container.economic_collector,
-        "news": container.news_collector,
-        "calendar": container.calendar_collector,
-        "dxy": container.dxy_collector,
-        "intermarket": container.intermarket_collector,
-        "sentiment": container.sentiment_collector,
-    }
-    logger.info(
-        "macro_cache_warmup_started",
-        extra={"namespaces": list(macro_warmup_targets.keys())},
-    )
-    warmup_start = asyncio.get_event_loop().time()
-    warmup_results = await asyncio.gather(
-        *(c.collect() for c in macro_warmup_targets.values()),
-        return_exceptions=True,
-    )
-    warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
-    warmup_summary: dict[str, str] = {}
-    for name, result in zip(macro_warmup_targets.keys(), warmup_results):
-        if isinstance(result, Exception):
-            warmup_summary[name] = f"failed: {type(result).__name__}: {result}"
-            logger.warning(
-                "macro_cache_warmup_namespace_failed",
-                extra={
-                    "namespace": name,
-                    "error": str(result),
-                    "error_type": type(result).__name__,
-                },
-            )
-        else:
-            warmup_summary[name] = "ok"
-    logger.info(
-        "macro_cache_warmup_completed",
-        extra={
-            "duration_seconds": round(warmup_duration_s, 2),
-            "results": warmup_summary,
-        },
+    # warm-up it will coalesce onto the same fetch rather than launching
+    # a duplicate.
+    #
+    # Why background, not inline:
+    #   The previous design awaited the warmup gather() before yielding
+    #   from lifespan(). uvicorn does not begin accepting HTTP traffic
+    #   until lifespan yields, so any slow upstream provider (Reuters
+    #   404s, FRED API throttling, OECD timeouts) would block startup
+    #   and surface as 'engine container not ready' for tens of seconds
+    #   in production. Worse, a permanently-broken provider could pin
+    #   the engine in 'starting' state long enough for the orchestrator
+    #   to mark the container unhealthy and restart-loop it.
+    #
+    #   We schedule the warmup through the BackgroundTaskCoordinator so
+    #   it is cancellable on shutdown and bounded by a generous wave
+    #   deadline. The cooldown is set high enough that no second warmup
+    #   can be scheduled accidentally; this is a single-shot lifespan
+    #   warmup, not a recurring background task.
+    #
+    #   Until the warmup completes, the first analysis request for an
+    #   un-warmed namespace pays a one-time full-fetch latency. That is
+    #   strictly better than blocking ALL HTTP traffic (analysis,
+    #   chart, account, positions) until every macro provider responds.
+    async def _macro_cache_warmup() -> None:
+        macro_warmup_targets = {
+            "central_bank": container.cb_collector,
+            "cot": container.cot_collector,
+            "economic": container.economic_collector,
+            "news": container.news_collector,
+            "calendar": container.calendar_collector,
+            "dxy": container.dxy_collector,
+            "intermarket": container.intermarket_collector,
+            "sentiment": container.sentiment_collector,
+        }
+        logger.info(
+            "macro_cache_warmup_started",
+            extra={
+                "namespaces": list(macro_warmup_targets.keys()),
+                "mode": "background",
+            },
+        )
+        warmup_start = asyncio.get_event_loop().time()
+        warmup_results = await asyncio.gather(
+            *(c.collect() for c in macro_warmup_targets.values()),
+            return_exceptions=True,
+        )
+        warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
+        warmup_summary: dict[str, str] = {}
+        for name, result in zip(macro_warmup_targets.keys(), warmup_results):
+            if isinstance(result, Exception):
+                warmup_summary[name] = f"failed: {type(result).__name__}: {result}"
+                logger.warning(
+                    "macro_cache_warmup_namespace_failed",
+                    extra={
+                        "namespace": name,
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    },
+                )
+            else:
+                warmup_summary[name] = "ok"
+        logger.info(
+            "macro_cache_warmup_completed",
+            extra={
+                "duration_seconds": round(warmup_duration_s, 2),
+                "results": warmup_summary,
+            },
+        )
+
+    # 1 hour cooldown is far longer than any possible warmup duration,
+    # so this is effectively a single-shot lifespan warmup. The 5-minute
+    # timeout is the hard ceiling: if a provider is so unresponsive
+    # that the whole gather() cannot complete inside 300 s, abandon the
+    # warmup wave -- the scheduled APScheduler ticks will eventually
+    # repair the cold namespaces.
+    await container.background_tasks.schedule_once(
+        "lifespan:macro_warmup",
+        _macro_cache_warmup,
+        cooldown_s=3600,
+        timeout_s=300,
     )
 
     container.scheduler.start()
