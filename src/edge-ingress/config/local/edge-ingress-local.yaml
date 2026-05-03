@@ -13,6 +13,12 @@ tls:
   cert_reload_interval:
     secs: 300
     nanos: 0
+  # Local dev exercises the same mTLS code path as production. The
+  # dev-aop-ca.pem is a self-signed CA committed under
+  # deployments/cloudflare/origin-pull/ specifically for local docker
+  # compose. It is not trusted anywhere except local containers.
+  client_auth:
+    ca_path: "./../../deployments/cloudflare/origin-pull/dev-aop-ca.pem"
   certificates:
     - hostname: "localhost"
       cert_path: "./certs/localhost.crt"
