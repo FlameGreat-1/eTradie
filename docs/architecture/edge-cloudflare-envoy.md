@@ -88,9 +88,13 @@ immediate peer (r.RemoteAddr) in trusted set?
 
 | Environment | AUTH_TRUSTED_PROXY_CIDRS | AUTH_TRUST_CLOUDFLARE |
 |-------------|--------------------------|------------------------|
-| local | (empty) | false |
-| staging | 10.42.0.0/16 | false |
-| production | 10.100.0.0/16 | true |
+| local | `172.28.0.0/16` (the docker-compose subnet) | `false` |
+| staging | `10.42.0.0/16` | `false` |
+| production | `10.100.0.0/16` | `true` |
+
+Local dev sets the trusted CIDR to the docker-compose `etradie-network`
+subnet so the trust-aware code path is exercised on every developer
+workstation. There is no "empty trust" shape anywhere.
 
 If `AUTH_TRUST_CLOUDFLARE=true`, the resolver additionally trusts the
 Cloudflare-published IPv4 + IPv6 ranges shipped under
@@ -145,19 +149,17 @@ docker compose up
 # gateway is reachable on http://localhost:8080
 ```
 
-Full chain locally:
+Full chain locally (with mTLS enforced):
 
 ```bash
-# 1. populate the AOP CA (once, per workstation)
-curl -fsSL \
-  https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem \
-  -o deployments/cloudflare/origin-pull/origin-pull-ca.pem
-
-# 2. set MAXMIND_LICENSE_KEY in .env (free key from MaxMind)
+# One-time: set MAXMIND_LICENSE_KEY in .env (free key from MaxMind).
 echo "MAXMIND_LICENSE_KEY=<your-key>" >> .env
 
-# 3. bring up the edge profile
-docker compose --profile edge up --build
+# Brings up the entire chain. Generates a self-signed dev AOP CA + a
+# client cert if they do not already exist (idempotent), then starts
+# the docker-compose `edge` profile. mTLS is enforced in dev exactly
+# as in production.
+make edge-up
 ```
 
 After the chain is up:
@@ -169,12 +171,22 @@ curl -fsS http://localhost:8080/health
 # Through envoy (bypasses edge-ingress)
 curl -fsS http://localhost:18080/livez
 
-# Through full chain (TLS, self-signed)
-curl -fsSk https://localhost:8443/auth/healthz
+# Unauthenticated request through the full chain MUST fail at TLS:
+curl -k https://localhost:8443/auth/healthz   # → handshake failure
+
+# Authenticated request through the full chain (mTLS):
+curl --cacert deployments/edge-ingress/docker/certs/localhost.crt \
+     --cert  deployments/cloudflare/origin-pull/dev-client.crt \
+     --key   deployments/cloudflare/origin-pull/dev-client.key \
+     https://localhost:8443/auth/healthz   # → 200
+
+# CI-friendly assertion of both:
+make edge-test
 ```
 
-Local `client_auth.enabled=false` so you do NOT need a Cloudflare-signed
-client cert to exercise the path. Staging / production both flip it on.
+The second curl failing locally is the proof that the mTLS code path
+is live in dev exactly as in production. There is no `enabled: false`
+dev-shortcut anywhere in the codebase.
 
 #### Production validation checklist
 
@@ -264,3 +276,21 @@ required.
 - Service-by-service deployment manifests:
   `deployments/{gateway,envoy,edge-ingress}/kubernetes/`.
 - Per-service Dockerfile internals: `deployments/*/docker/`.
+
+#### What does NOT exist anymore
+
+For anyone reviewing older designs or stale tickets, the following
+shapes were intentionally removed and **do not exist** anywhere in
+the codebase:
+
+- No `client_auth.enabled` field. mTLS is always enforced.
+- No `client_auth.mode` field with values `required` / `optional` /
+  `none`. There is one mode: required.
+- No "soft launch" or "AOP rollout" middle state.
+- No empty `AUTH_TRUSTED_PROXY_CIDRS` default. Every environment ships
+  the actual subnet.
+- No `EDGE_PROFILE_ENABLED` env var. The switch is `make edge-up`.
+- No `CLOUDFLARE_AOP_MODE` env var. Replaced by mandatory ca_path.
+- No committed AOP CA bytes in git. The CA lives in Vault
+  (`etradie/services/edge-ingress/cloudflare/aop_ca`); the dev CA is
+  generated on demand and gitignored.
