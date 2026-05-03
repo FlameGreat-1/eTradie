@@ -79,10 +79,23 @@ class ZmqClient(BrokerBase):
         self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
+        # The trading socket carries every command except CANDLES: ticks,
+        # account info, positions, order placement, modifications. It must
+        # remain responsive at all times.
         self._ctx: zmq_async.Context | None = None  # type: ignore[type-arg]
         self._socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._lock = asyncio.Lock()
         self._initialized = False
+        # The candles socket is a fully isolated REQ/REP pair used only by
+        # fetch_candles(). The MT5 EA binds a single REP socket but ZMQ
+        # serializes replies internally, so two REQ clients can submit work
+        # in parallel without corrupting each other's REQ/REP state machine.
+        # Isolating the historical-data path means a slow CopyRates() call
+        # for a fresh intraday symbol never blocks live tick polling, order
+        # placement, or position monitoring on the trading socket.
+        self._candles_socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
+        self._candles_lock = asyncio.Lock()
+        self._candles_initialized = False
     
     @property
     def provider_name(self) -> str:
@@ -94,11 +107,17 @@ class ZmqClient(BrokerBase):
 
     # -- Connection management -------------------------------------------------
 
+    def _ensure_context(self) -> None:
+        """Lazily create the shared ZMQ context."""
+        if self._ctx is None:
+            self._ctx = zmq_async.Context()
+
     def _connect_sync(self) -> None:
-        """Create ZMQ context and REQ socket."""
+        """Create the trading REQ socket (used by every non-CANDLES command)."""
         if self._initialized:
             return
-        self._ctx = zmq_async.Context()
+        self._ensure_context()
+        assert self._ctx is not None
         self._socket = self._ctx.socket(zmq.REQ)
         self._socket.setsockopt(zmq.RCVTIMEO, self.config.timeout_seconds * 1000)
         self._socket.setsockopt(zmq.SNDTIMEO, self.config.timeout_seconds * 1000)
@@ -107,42 +126,83 @@ class ZmqClient(BrokerBase):
         self._initialized = True
         logger.info(
             "zmq_connected",
-            extra={"endpoint": self._endpoint},
+            extra={"endpoint": self._endpoint, "socket": "trading"},
+        )
+
+    def _connect_candles_sync(self) -> None:
+        """Create the candles-only REQ socket."""
+        if self._candles_initialized:
+            return
+        self._ensure_context()
+        assert self._ctx is not None
+        self._candles_socket = self._ctx.socket(zmq.REQ)
+        self._candles_socket.setsockopt(
+            zmq.RCVTIMEO, self.config.timeout_seconds * 1000
+        )
+        self._candles_socket.setsockopt(
+            zmq.SNDTIMEO, self.config.timeout_seconds * 1000
+        )
+        self._candles_socket.setsockopt(zmq.LINGER, 0)
+        self._candles_socket.connect(self._endpoint)
+        self._candles_initialized = True
+        logger.info(
+            "zmq_connected",
+            extra={"endpoint": self._endpoint, "socket": "candles"},
         )
 
     async def _send_recv_async(
         self, request: dict[str, Any]
     ) -> dict[str, Any] | list[Any]:
-        """Send JSON request and receive JSON response asynchronously."""
+        """Send JSON request and receive JSON response on the trading socket."""
+        return await self._send_recv_on(self._socket, request, socket_label="trading")
+
+    async def _send_recv_candles_async(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Send JSON request and receive JSON response on the candles socket."""
+        return await self._send_recv_on(
+            self._candles_socket, request, socket_label="candles"
+        )
+
+    async def _send_recv_on(
+        self,
+        sock: "zmq_async.Socket | None",
+        request: dict[str, Any],
+        *,
+        socket_label: str,
+    ) -> dict[str, Any] | list[Any]:
+        """Shared send/recv implementation parameterised by socket."""
         import json
 
-        if self._socket is None:
+        if sock is None:
             raise ProviderUnavailableError(
                 "ZMQ socket not initialized",
-                details={"endpoint": self._endpoint},
+                details={"endpoint": self._endpoint, "socket": socket_label},
             )
 
         payload = json.dumps(request).encode("utf-8")
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
-                await self._socket.send(payload)
+                await sock.send(payload)
         except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
                 details={
                     "endpoint": self._endpoint,
+                    "socket": socket_label,
                     "timeout": self.config.timeout_seconds,
                 },
             )
 
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
-                raw_reply = await self._socket.recv()
+                raw_reply = await sock.recv()
         except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
                 details={
                     "endpoint": self._endpoint,
+                    "socket": socket_label,
                     "timeout": self.config.timeout_seconds,
                 },
             )
@@ -157,7 +217,7 @@ class ZmqClient(BrokerBase):
         if isinstance(reply, dict) and reply.get("error"):
             raise ProviderResponseError(
                 f"ZMQ EA error: {reply['error']}",
-                details={"reply": reply},
+                details={"reply": reply, "socket": socket_label},
             )
 
         from typing import cast
@@ -165,7 +225,7 @@ class ZmqClient(BrokerBase):
         return cast(dict[str, Any] | list[Any], reply)
 
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Thread-safe async wrapper around the ZMQ call."""
+        """Thread-safe async wrapper around the trading-socket ZMQ call."""
         async with self._lock:
             try:
                 was_initialized = self._initialized
@@ -217,6 +277,70 @@ class ZmqClient(BrokerBase):
                 self._initialized = False
                 raise
 
+    async def _request_candles(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Thread-safe async wrapper around the candles-socket ZMQ call.
+
+        Mirrors _request() but operates on the dedicated candles socket so a
+        slow CopyRates() call inside the EA cannot block the trading socket.
+        Recovery semantics are identical: on cancellation or any non-EA
+        exception the candles socket is destroyed and reconnected on the
+        next call to keep the REQ/REP state machine consistent.
+        """
+        async with self._candles_lock:
+            try:
+                was_initialized = self._candles_initialized
+                if not self._candles_initialized:
+                    self._connect_candles_sync()
+
+                # Each ZMQ socket is independently authenticated by the EA.
+                if not was_initialized:
+                    try:
+                        await self._send_recv_candles_async(
+                            {"command": "PING", "auth_token": self.auth_token}
+                        )
+                    except ProviderResponseError as e:
+                        logger.warning(
+                            "zmq_candles_initial_auth_failed",
+                            extra={"error": str(e)},
+                        )
+
+                try:
+                    return await self._send_recv_candles_async(request)
+                except ProviderResponseError as e:
+                    if "Not authenticated" in str(e):
+                        try:
+                            await self._send_recv_candles_async(
+                                {"command": "PING", "auth_token": self.auth_token}
+                            )
+                        except ProviderResponseError as ping_e:
+                            raise ping_e from e
+                        return await self._send_recv_candles_async(request)
+                    raise
+            except ProviderResponseError:
+                raise
+            except asyncio.CancelledError as e:
+                logger.warning(
+                    "zmq_candles_request_cancelled_resetting",
+                    extra={"error": str(e)},
+                )
+                if self._candles_socket:
+                    self._candles_socket.close(linger=0)
+                    self._candles_socket = None
+                self._candles_initialized = False
+                raise
+            except Exception as e:
+                logger.warning(
+                    "zmq_candles_socket_poisoned_resetting",
+                    extra={"error": str(e)},
+                )
+                if self._candles_socket:
+                    self._candles_socket.close(linger=0)
+                    self._candles_socket = None
+                self._candles_initialized = False
+                raise
+
     # -- BrokerBase implementation ---------------------------------------------
 
     async def get_capabilities(self) -> BrokerCapabilities:
@@ -265,7 +389,7 @@ class ZmqClient(BrokerBase):
             if end_time:
                 request["end_time"] = end_time.strftime("%Y.%m.%d %H:%M:%S")
 
-            raw = await self._request(request)
+            raw = await self._request_candles(request)
 
             duration = _time.monotonic() - start_timer
 
@@ -458,10 +582,17 @@ class ZmqClient(BrokerBase):
             if self._socket is not None:
                 self._socket.close(linger=0)
                 self._socket = None
-            if self._ctx is not None:
-                self._ctx.term()
-                self._ctx = None
             self._initialized = False
+        async with self._candles_lock:
+            if self._candles_socket is not None:
+                self._candles_socket.close(linger=0)
+                self._candles_socket = None
+            self._candles_initialized = False
+        # Tear down the shared context only after both sockets are gone so
+        # an in-flight close on either side cannot race the context term.
+        if self._ctx is not None:
+            self._ctx.term()
+            self._ctx = None
         logger.info("zmq_shutdown_complete")
 
     # -- Trading methods (Execution + Management bridge) -----------------------
