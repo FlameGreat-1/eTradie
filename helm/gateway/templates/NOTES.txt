@@ -1,0 +1,27 @@
+{{ include "gateway.fullname" . }} (gateway) installed.
+
+Namespace:        {{ include "gateway.namespace" . }}
+ClusterIP:        gateway-service:{{ .Values.service.ports.http.port | default 8080 }} (http)
+                  gateway-service:{{ .Values.service.ports.grpc.port | default 50052 }} (grpc)
+Headless:         gateway-headless
+Image:            {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas (HPA):   {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }}
+Trust chain:      AUTH_TRUSTED_PROXY_CIDRS={{ .Values.trustChain.trustedProxyCidrs | quote }}
+                  AUTH_TRUST_CLOUDFLARE={{ .Values.trustChain.trustCloudflare | quote }}
+
+Verification:
+
+  # 1) Pods Ready
+  kubectl -n {{ include "gateway.namespace" . }} rollout status \
+    deployment/{{ include "gateway.appName" . }} --timeout=5m
+
+  # 2) Trust-chain values reached the running pod
+  kubectl -n {{ include "gateway.namespace" . }} exec \
+    deploy/{{ include "gateway.appName" . }} -- \
+    printenv AUTH_TRUSTED_PROXY_CIDRS AUTH_TRUST_CLOUDFLARE
+
+  # 3) Readiness includes Redis + engine probes
+  kubectl -n {{ include "gateway.namespace" . }} get endpoints gateway-service
+
+If endpoints is empty after 60s, /readiness is failing. Check engine
+and Redis health before suspecting the gateway.

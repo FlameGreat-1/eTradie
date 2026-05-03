@@ -1,0 +1,29 @@
+{{ include "edge-ingress.fullname" . }} (edge-ingress) installed.
+
+Namespace:        {{ include "edge-ingress.namespace" . }}
+LoadBalancer:     {{ .Values.service.type }} :{{ .Values.service.ports.tls.port | default 443 }}
+Metrics:          ClusterIP :{{ .Values.metricsService.port | default 9902 }} (/metrics)
+Replicas (HPA):   {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }}
+mTLS (AOP CA):    {{ .Values.config.tls.clientAuth.caPath }}
+                  Sourced from Vault: {{ .Values.externalSecrets.aopCa.vaultPath }}
+
+Verification:
+
+  # 1) Pods Ready
+  kubectl -n {{ include "edge-ingress.namespace" . }} rollout status \
+    deployment/{{ include "edge-ingress.fullname" . }} --timeout=10m
+
+  # 2) AOP CA mounted (NOT empty)
+  kubectl -n {{ include "edge-ingress.namespace" . }} exec \
+    deploy/{{ include "edge-ingress.fullname" . }} -- \
+    sh -c 'wc -c {{ .Values.config.tls.clientAuth.caPath }}'
+
+  # 3) mTLS is genuinely enforced. From a host that can reach the
+  #    LoadBalancer, an unauthenticated curl MUST fail at TLS:
+  curl -k --max-time 5 https://<external-ip>/healthz
+  # → expected: "alert handshake failure" or similar TLS handshake error
+
+If the unauthenticated curl SUCCEEDS, mTLS is broken. Do not route
+public Cloudflare traffic at this endpoint until the failure is
+fixed. Check that the cloudflare-aop-ca Secret was synthesised by
+the ExternalSecret and mounted at the path above.
