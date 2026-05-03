@@ -212,10 +212,42 @@ impl ResolvesServerCert for CertResolver {
 pub fn build_server_config(
     cert_resolver: Arc<dyn ResolvesServerCert>,
     min_tls_version: &str,
+    client_auth: &Option<ClientAuthConfig>,
 ) -> Result<Arc<ServerConfig>> {
-    let mut config = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_cert_resolver(cert_resolver);
+    let builder = ServerConfig::builder();
+
+    let mut config = match client_auth {
+        Some(ca_cfg) if ca_cfg.is_active() => {
+            let roots = load_client_auth_roots(&ca_cfg.ca_path)?;
+            let verifier_builder =
+                rustls::server::WebPkiClientVerifier::builder(Arc::new(roots));
+            let verifier = if ca_cfg.is_required() {
+                verifier_builder.build()
+            } else {
+                verifier_builder.allow_unauthenticated().build()
+            }
+            .map_err(|e| {
+                EdgeError::Configuration(format!(
+                    "Failed to build WebPkiClientVerifier: {}",
+                    e
+                ))
+            })?;
+            tracing::info!(
+                mode = %ca_cfg.mode,
+                ca_path = %ca_cfg.ca_path.display(),
+                "client cert authentication (mTLS) enabled"
+            );
+            builder
+                .with_client_cert_verifier(verifier)
+                .with_cert_resolver(cert_resolver)
+        }
+        _ => {
+            tracing::debug!("client cert authentication (mTLS) disabled");
+            builder
+                .with_no_client_auth()
+                .with_cert_resolver(cert_resolver)
+        }
+    };
 
     match min_tls_version {
         "1.2" => {
@@ -233,6 +265,45 @@ pub fn build_server_config(
     }
 
     Ok(Arc::new(config))
+}
+
+/// Load a PEM-encoded CA bundle into a RootCertStore for use as the
+/// trust anchor in WebPkiClientVerifier. Used to enforce Cloudflare AOP
+/// at the rustls layer.
+fn load_client_auth_roots(path: &std::path::Path) -> Result<rustls::RootCertStore> {
+    let file = std::fs::File::open(path).map_err(|e| {
+        EdgeError::CertificateLoadFailed(format!(
+            "Cannot open client_auth.ca_path {}: {}",
+            path.display(),
+            e
+        ))
+    })?;
+    let mut reader = std::io::BufReader::new(file);
+    let certs = rustls_pemfile::certs(&mut reader)
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| {
+            EdgeError::CertificateLoadFailed(format!(
+                "Invalid PEM in client_auth.ca_path {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+    if certs.is_empty() {
+        return Err(EdgeError::CertificateLoadFailed(format!(
+            "client_auth.ca_path {} contained no certificates",
+            path.display()
+        )));
+    }
+    let mut roots = rustls::RootCertStore::empty();
+    for cert in certs {
+        roots.add(cert).map_err(|e| {
+            EdgeError::CertificateLoadFailed(format!(
+                "Failed to add CA cert to root store: {}",
+                e
+            ))
+        })?;
+    }
+    Ok(roots)
 }
 
 #[cfg(test)]
