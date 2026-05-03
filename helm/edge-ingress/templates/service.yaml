@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type | default "LoadBalancer" }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy | default "Local" }}
+  sessionAffinity: None
+  selector:
+    {{- include "edge-ingress.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: tls
+      port: {{ .Values.service.ports.tls.port | default 443 }}
+      targetPort: tls
+      protocol: TCP
+      appProtocol: tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}-metrics
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  type: {{ .Values.metricsService.type | default "ClusterIP" }}
+  {{- if eq (.Values.metricsService.type | default "ClusterIP") "ClusterIP" }}
+  clusterIP: None
+  {{- end }}
+  selector:
+    {{- include "edge-ingress.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.metricsService.port | default 9902 }}
+      targetPort: metrics
+      protocol: TCP
