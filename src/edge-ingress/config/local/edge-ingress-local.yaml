@@ -14,11 +14,12 @@ tls:
     secs: 300
     nanos: 0
   # Local dev exercises the same mTLS code path as production. The
-  # dev-aop-ca.pem is a self-signed CA committed under
-  # deployments/cloudflare/origin-pull/ specifically for local docker
-  # compose. It is not trusted anywhere except local containers.
+  # docker-compose mounts deployments/cloudflare/origin-pull at
+  # /etc/edge-ingress/cloudflare in the container, so this path is
+  # identical across all environments (only the bytes behind it
+  # differ: dev-aop-ca in dev, Cloudflare AOP CA in staging/prod).
   client_auth:
-    ca_path: "./../../deployments/cloudflare/origin-pull/dev-aop-ca.pem"
+    ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
     - hostname: "localhost"
       cert_path: "./certs/localhost.crt"
