@@ -19,7 +19,7 @@ configMapGenerator:
     namespace: envoy-system
     behavior: replace
     files:
-      - envoy.yaml=../../../config/production/envoy-production.yaml
+      - envoy.yaml=../../../../../src/envoy/config/production/envoy-production.yaml
     options:
       disableNameSuffixHash: true
 
