@@ -1,0 +1,24 @@
+{{- /*
+Materialise the Cloudflare published IPv4/IPv6 origin ranges as a
+ConfigMap consumed by src/auth/clientip.go (mounted at
+/etc/etradie/cloudflare/{ipv4,ipv6}.txt and read at process start when
+AUTH_TRUST_CLOUDFLARE=true). Gated on trustChain.trustCloudflare so
+staging / non-Cloudflare environments do not ship the ConfigMap.
+*/}}
+{{- if eq (.Values.trustChain.trustCloudflare | toString) "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gateway.fullname" . }}-cloudflare-ranges
+  namespace: {{ include "gateway.namespace" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cloudflare-trust
+  annotations:
+    description: "Cloudflare published IPv4/IPv6 origin ranges - read at gateway startup by src/auth/clientip.go"
+data:
+  ipv4.txt: |
+{{ .Files.Get "files/cloudflare/ipv4.txt" | indent 4 }}
+  ipv6.txt: |
+{{ .Files.Get "files/cloudflare/ipv6.txt" | indent 4 }}
+{{- end }}

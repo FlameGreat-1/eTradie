@@ -23,12 +23,22 @@ front of `edge-ingress` -> `envoy` -> `gateway` so that:
 
 | Path | Purpose |
 |------|---------|
-| `origin-pull/origin-pull-ca.pem` | Cloudflare's canonical AOP CA chain. `edge-ingress` accepts only client certs signed by this CA. |
-| `ip-ranges/ipv4.txt` | Cloudflare's published IPv4 origin ranges. |
-| `ip-ranges/ipv6.txt` | Cloudflare's published IPv6 origin ranges. |
-| `scripts/refresh-cloudflare-ips.sh` | Re-pulls the canonical ranges from Cloudflare and writes them to `ip-ranges/`. Designed for weekly CI execution. |
-| `kubernetes/configmap-aop-ca.yaml` | Materialises `origin-pull-ca.pem` as a ConfigMap mounted into `edge-ingress` pods. |
-| `kubernetes/configmap-cf-ranges.yaml` | Materialises `ipv4.txt`/`ipv6.txt` as a ConfigMap consumed by `gateway` (via `AUTH_TRUST_CLOUDFLARE`). |
+| `origin-pull/origin-pull-ca.pem` | Cloudflare's canonical AOP CA chain. **Not committed**: `edge-ingress` reads it at runtime from a Vault-backed Secret synthesised by the `cloudflare-aop-ca` ExternalSecret in `helm/edge-ingress/templates/externalsecret-aop-ca.yaml`. |
+| `origin-pull/generate-dev-certs.sh` | Generates a self-signed dev CA + client cert for the local docker-compose `edge` profile. |
+| `ip-ranges/ipv4.txt` | Cloudflare's published IPv4 origin ranges. **Source of truth**. |
+| `ip-ranges/ipv6.txt` | Cloudflare's published IPv6 origin ranges. **Source of truth**. |
+| `scripts/refresh-cloudflare-ips.sh` | Re-pulls the canonical ranges from Cloudflare and writes them to BOTH `ip-ranges/` AND `helm/gateway/files/cloudflare/`. Designed for weekly CI execution. |
+
+## Helm consumption
+
+* `helm/edge-ingress/templates/externalsecret-aop-ca.yaml` synthesises
+  the AOP CA Secret from Vault path
+  `etradie/services/edge-ingress/cloudflare/aop_ca` and mounts it into
+  edge-ingress at `/etc/edge-ingress/cloudflare/origin-pull-ca.pem`.
+* `helm/gateway/templates/configmap-cf-ranges.yaml` renders a ConfigMap
+  from the chart-local copy at `helm/gateway/files/cloudflare/`,
+  gated on `trustChain.trustCloudflare="true"`. Mounted into gateway
+  at `/etc/etradie/cloudflare/{ipv4,ipv6}.txt`.
 
 ## Operator runbook
 
