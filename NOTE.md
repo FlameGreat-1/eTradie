@@ -1,339 +1,176 @@
-REPOSITORY: https://gitlab.com/cotradee3/cotradeecode
-BRANCH: main (NOT master)
+I have a complete picture. Here is my honest, no-guessing audit.
 
-TASK: Complete the edge-ingress and envoy integration into eTradie
+# End-to-end audit findings
 
-CONTEXT:
-The edge-ingress and envoy components have been copied from EXOPER project and basic "exoper" → "etradie" replacements have been made. You need to complete the integration by:
+#### Critical issues that will break deployment
 
-1. EXAMINE the following directories in the main branch:
-   - src/edge-ingress/
-   - src/envoy/
-   - deployments/edge-ingress/
-   - deployments/envoy/
-   - helm/edge-ingress/
-   - helm/envoy/
-   - tests/rust/envoy/
+**1. Edge-ingress Deployment ↔ Cloudflare AOP namespace mismatch**
 
-2. UPDATE all configuration files to ensure they work with eTradie's architecture:
-   - Update Cargo.toml workspace members if needed
-   - Update all service endpoints and URLs
-   - Update Docker image names and tags
-   - Update Kubernetes namespaces, labels, and selectors
-   - Update environment variables
-   - Update certificate paths and domain names
-   - Update any hardcoded IPs or hostnames
+This is the single worst issue and it makes the entire mTLS chain non-functional in cluster.
 
-3. INTEGRATE with existing eTradie components:
-   - Ensure edge-ingress routes to eTradie's gateway/backend services
-   - Configure envoy filters to work with eTradie's auth system
-   - Update observability/metrics endpoints
-   - Ensure proper network configuration
+- `deployments/edge-ingress/kubernetes/base/deployment.yaml` puts edge-ingress in `etradie-system` (line 4), and mounts a Secret named `cloudflare-aop-ca`.
+- `deployments/cloudflare/kubernetes/externalsecret-aop-ca.yaml` materializes that Secret in `edge-ingress-system`.
+- A pod in namespace A cannot mount a Secret from namespace B. `kubectl apply` will leave edge-ingress pods in `ContainerCreating` forever with the event `MountVolume.SetUp failed for volume "cloudflare-aop-ca": secret "cloudflare-aop-ca" not found`.
+- Same break occurs for `cloudflare-ip-ranges` ConfigMap (the cloudflare kustomize creates it in both `etradie-system` and `edge-ingress-system`, but no consumer of `edge-ingress-system` exists today).
 
-4. CREATE/UPDATE build and deployment files:
-   - Add edge-ingress and envoy to root Makefile if it exists
-   - Update docker-compose.yml if present
-   - Ensure Dockerfiles are properly configured
-   - Update CI/CD pipelines if they exist
+**2. Edge-ingress NetworkPolicy egress will silently drop all upstream traffic**
 
-5. VERIFY end-to-end flow:
-   - Request → edge-ingress → envoy → eTradie backend
-   - Ensure all health checks work
-   - Verify metrics and logging integration
+`deployments/edge-ingress/kubernetes/base/networkpolicy.yaml` egress rule targets `app.kubernetes.io/name: envoy` in namespace `name: etradie-system`. But:
+- The envoy kustomize tree puts envoy in `envoy-system`, not `etradie-system`.
+- The envoy pods carry label `app.kubernetes.io/name: etradie-envoy` (per `commonLabels` in `deployments/envoy/kubernetes/base/kustomization.yaml`), not `envoy`.
 
-6. CREATE a merge request with:
-   - Clear description of changes
-   - List of all files modified/created
-   - Any breaking changes or migration notes
-   - Testing instructions
+Both selectors miss. CNI silently drops every edge-ingress → envoy connection at the network layer. The same bug exists in `helm/edge-ingress/values.yaml`.
 
-CRITICAL REQUIREMENTS:
-- Work ONLY on the main branch
-- Do NOT reference or check master branch
-- Maintain existing eTradie code structure
-- Document any new environment variables needed
+**3. Envoy NetworkPolicy ingress will silently drop all downstream traffic**
 
+`deployments/envoy/kubernetes/base/networkpolicy.yaml` ingress rule expects edge-ingress pods in namespace labeled `name: etradie-system`, with pod label `app.kubernetes.io/name: edge-ingress`.
 
+- Edge-ingress IS in `etradie-system` — that part lines up.
+- BUT the namespace `etradie-system` is created by `deployments/edge-ingress/kubernetes/base/namespace.yaml` with label `name: etradie-system`, while the gateway-owned namespace.yaml at `deployments/gateway/kubernetes/base/namespace.yaml` creates it with `name: etradie-system` too — so two manifests claim ownership of the same namespace.
+- More importantly, the envoy NetworkPolicy egress targets `app.kubernetes.io/name: etradie-gateway` in a namespace selected by `app.kubernetes.io/part-of: etradie`. The gateway namespace (`etradie-system`) has label `app.kubernetes.io/part-of: etradie` only when the gateway base owns it; if the edge-ingress base creates it first, that label is missing. Apply order determines whether traffic flows.
 
+**4. Two namespaces create the same `etradie-system`**
 
-## What We Did - Summary for GitLab Duo Agent Instructions:
+- `deployments/gateway/kubernetes/base/namespace.yaml` → creates `etradie-system` with PSS=restricted, ResourceQuota=4 cpu, label `app.kubernetes.io/part-of: etradie`.
+- `deployments/edge-ingress/kubernetes/base/namespace.yaml` → creates `etradie-system` with PSS=restricted, **ResourceQuota=50 cpu**, no `app.kubernetes.io/part-of` label.
 
-### **Phase 1: Copied Components from EXOPER to eTradie**
+Whichever applies last wins. ArgoCD will report drift forever because the two `kustomize build` outputs disagree on what the namespace looks like. This is a classic split-brain.
 
-We copied the following from the EXOPER application into eTradie:
+**5. Edge-ingress lives in the WRONG namespace**
 
-**Source Code:**
-- From: `exoper/backend/rust/edge-ingress/` 
-- To: `eTradie/src/edge-ingress/`
-- From: `exoper/backend/rust/envoy/`
-- To: `eTradie/src/envoy/`
+The original design intent (visible in `helm/edge-ingress/values.yaml` and `deployments/cloudflare/kubernetes/externalsecret-aop-ca.yaml`) is that edge-ingress runs in `edge-ingress-system`. The kustomize base puts it in `etradie-system`. The chain has three different opinions:
 
-**Deployments:**
-- From: `exoper/deployments/edge-ingress/`
-- To: `eTradie/deployments/edge-ingress/`
-- From: `exoper/deployments/envoy/`
-- To: `eTradie/deployments/envoy/`
-
-**Helm Charts:**
-- From: `exoper/helm/exoper/edge-ingress/`
-- To: `eTradie/helm/edge-ingress/`
-- From: `exoper/helm/exoper/envoy/`
-- To: `eTradie/helm/envoy/`
-
-**Tests:**
-- From: `exoper/backend/Test/backend/rust/envoy/`
-- To: `eTradie/tests/rust/envoy/`
-
-### **Phase 2: Updated All References**
-
-Replaced all instances of:
-- `exoper` → `etradie`
-- `EXOPER` → `ETRADIE`
-
-In all files: `*.rs`, `*.toml`, `*.yaml`, `*.yml`, `*.sh`, `*.md`
-
----
-
-
-
-
-
-
-
-
-
-Honest answer: **no issues were ignored or omitted from the rebrand-cleanup audit**, but there are issues *outside that scope* that I deliberately did **not** touch — and you should know about them so nothing surprises you.
-
-#### What the audit covered exhaustively (zero issues remaining after !6)
-
-I inspected every file under `src/edge-ingress/`, `src/envoy/`, `deployments/{edge-ingress,envoy}/`, `helm/`, and `tests/rust/envoy/` — Cargo manifests, Cargo.lock files (both projects), all `.rs` files, all YAML configs, all Dockerfiles, all kustomize bases/overlays/patches, all helm charts, all build/verify scripts, the toolchain files, and the geoip downloader. Every `exoper`/`Exoper`/`EXOPER`/`ExOper` string and every `backend/rust/` path that I encountered is fixed in either !5 or !6.
-
-#### What I deliberately did NOT change (out of scope by your instruction, not omissions)
-
-You explicitly said earlier — *"WE ARE NOT YET SURE IF IT WILL BE FROM ENVOY TO GATEWAY AS IT WAS IN EXOPER... WE WILL HAVE TO TRACE THE EXACT FLOW IT SHOULD BE BEFORE DOING THAT"*. So the following were left alone on purpose, awaiting your flow decision:
-
-- **Envoy upstream routes to `gateway-service`** in every envoy config (`src/envoy/config/{envoy,local,staging,production}/*.yaml` and `deployments/envoy/kubernetes/base/configmap.yaml`). Production points to `gateway-service.production.svc.cluster.local:8081`, staging to `gateway-service.staging.svc.cluster.local:8081`, local to `gateway-service:80`.
-- **Envoy NetworkPolicy egress** in `deployments/envoy/kubernetes/base/networkpolicy.yaml` and `helm/envoy/values.yaml` allows traffic to a pod labeled `app.kubernetes.io/name: gateway-orchestrator` on port `8081` — this label doesn't match any pod in eTradie's actual `src/gateway` deployment yet.
-- **Edge-ingress upstream endpoints** in all configs/values point to `envoy.etradie-system.svc.cluster.local:8080` (and per-region variants). The k8s `etradie-system` namespace + envoy service in that namespace haven't been verified to actually exist in your cluster — but the strings are now internally consistent.
-- **WASM build is required before Docker build**. The `deployments/envoy/docker/Dockerfile.envoy` does `COPY --chown=envoy:envoy target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm`, which means `cargo build --release --target wasm32-wasi` must be run inside `src/envoy/` *before* `docker build` is invoked. This is the same constraint that existed in EXOPER; not a regression, but a footgun for first-time builders.
-- **Pre-built WASM blob** at `deployments/envoy/docker/exoper_envoy_integration_filter.wasm` was already deleted in !5 commit 7. There's no replacement blob — the pipeline must build the WASM from source.
-- **`tests/rust/envoy/`** contains 30+ empty placeholder files (all 0 bytes). Not broken, but not actually testing anything either. Out of scope for rebrand-cleanup.
-- **Local dev cert** at `deployments/edge-ingress/docker/certs/localhost.crt` and `localhost.key` — committed self-signed cert; fine for local but worth knowing it's checked into the repo.
-
-#### What I'm 100% certain of
-
-For the rebrand/integration scope of your original task, after !5 merges and !6 merges:
-
-- Zero `exoper`/`Exoper`/`EXOPER`/`ExOper` strings remain in any file under `src/edge-ingress/`, `src/envoy/`, `deployments/{edge-ingress,envoy}/`, `helm/`, `tests/rust/envoy/`.
-- Zero `backend/rust/` EXOPER-layout paths remain in any file in those scopes.
-- All Cargo.lock files are consistent with their Cargo.toml manifests (no `--locked` build failures).
-- All kustomize overlay relative paths point at locations that actually exist in the eTradie tree.
-- All Dockerfile build contexts and COPY paths point at locations that actually exist.
-- All docker-compose volume mounts point at locations that actually exist.
-
-If you want me to also tackle the deferred items (envoy → backend flow, networkpolicy label fix, k8s namespace verification), say the word and I'll trace the actual eTradie request flow and propose a concrete wiring in a separate MR.
-
-
-
-
-
-
-
-
-
-
-WE ARE GOING TO DO THE COMPLETE THING END TO END NOW WITH THE CLOUDLARE TOO.
-
-SO WE HAVE THE 3 : EDGE INGRESS, ENVOY, CLOUDFLARE COMPLETELY WIRED END TO END AND WORKING PERFECTLY
-
-IF YOU NEED TO CREATE NEW FILE THEN YOU SHOULD TO AVOID COMPOUNDING EVERYTHING IN ONE PLACE
-
-
-YOU SHOULD COMMIT TO ALREADY EXISTING MR
-
-
-Option B: edge-ingress + envoy in front of gateway (full EXOPER pattern)
-
-
-Insert at cursor
-Internet → edge-ingress:443 (TLS) → envoy:8080 → gateway:8080 → engine/execution/management
-                ↓                       ↓
-       [geo-route, conn limit]    [WASM filters: rate limit,
-                                   header validation, request
-                                   validation, circuit breaker]
-
-
-envoy gateway_cluster upstream points at gateway (already does — gateway-service:8081 in prod, :80 in local).
-envoy WASM filter does its protections before the request hits gateway.
-gateway still handles auth — envoy doesn't validate JWTs (it doesn't know your secret).
-envoy adds traceparent, x-trace-id, x-request-id headers, which gateway can read for tracing.
-Action needed: 4 changes (listed below).
-
-
-
-Internet
-    ↓
-Cloudflare Free  ← absorbs network-layer attacks, hides origin IP
-    ↓
-edge-ingress (your origin)  ← TLS re-termination, geo-routing, conn limits
-    ↓
-envoy  ← per-request filters: rate limit, header/method/size validation, circuit breaker
-    ↓
-gateway (auth + business logic)
-    ↓
-engine / execution / management
-
-
-
-SO YOU SHOULD START NOW
-
-
-
-
-
-
-
-
-
-That's actually a defensible choice for a trading platform, and it's how serious financial infrastructure is typically layered. Let me give you the honest tradeoffs and what the architecture would look like.
-
-## Yes, this is a real production pattern
-
-The defense-in-depth model is exactly:
-
-```
-Internet
-    ↓
-Cloudflare Free  ← absorbs network-layer attacks, hides origin IP
-    ↓
-edge-ingress (your origin)  ← TLS re-termination, geo-routing, conn limits
-    ↓
-envoy  ← per-request filters: rate limit, header/method/size validation, circuit breaker
-    ↓
-gateway (auth + business logic)
-    ↓
-engine / execution / management
-```
-
-Each layer kills different attacks. Cloudflare can't see inside encrypted traffic to enforce per-user rate limits on `/api/trades/place`. Envoy can't absorb a 1Tbps DDoS. Gateway can't drop connections from misbehaving IPs before they consume server resources. Each layer pulls weight.
-
-Banks, exchanges, and large fintechs run roughly this stack (often with HAProxy or NGINX instead of edge-ingress, and Envoy or Istio for the mesh layer). For a trading platform handling real money, this is **not** over-engineering — it's appropriate engineering.
-
-## The honest tradeoffs
-
-**What you get:**
-
-| Layer | Protects against |
+| Source | edge-ingress namespace |
 |---|---|
-| Cloudflare Free | L3/L4 DDoS, origin IP exposure, known-bad IPs, basic WAF, TLS 1.0 downgrades, bot floods |
-| edge-ingress | TLS re-termination behind Cloudflare, per-region routing, global/per-IP connection limits, certificate hot-reload |
-| envoy + WASM | Per-request rate limits, header injection, path traversal, oversized payloads, malformed methods, circuit breaker on backend failures |
-| gateway | JWT validation, CORS, business-level rate limits, role-based authorization |
+| `deployments/edge-ingress/kubernetes/base/` | `etradie-system` |
+| `helm/edge-ingress/values.yaml` (`namespace.name`) | `edge-ingress-system` |
+| `deployments/cloudflare/kubernetes/externalsecret-aop-ca.yaml` | `edge-ingress-system` |
+| `deployments/envoy/kubernetes/base/networkpolicy.yaml` ingress rule | expects `edge-ingress-system` (it uses label-matching, not name, but the comment in the file says edge-ingress is elsewhere) |
 
-That's four defensive layers. An attacker has to defeat all four to reach your trading logic.
+This isn't end-to-end wired. It's three half-wirings.
 
-**What it costs:**
+**6. Helm edge-ingress chart is internally inconsistent**
 
-1. **Operational complexity** — five running services (Cloudflare excluded since it's just DNS). You'll have more logs to correlate, more dashboards, more alerts, more places to debug a production issue at 3am when a trade fails.
+In the helm/edge-ingress `values.yaml` I just wrote:
+- `serviceAccount.name: ""` (empty)
+- The `_helpers.tpl` defaults to `include "edge-ingress.fullname" .` when `name` is empty
+- But the Deployment template says `serviceAccountName: {{ include "edge-ingress.serviceAccountName" . }}`, which (if Release name is `edge-ingress`) renders as `edge-ingress`, but if the release name is `my-release`, renders as `my-release-edge-ingress`.
 
-2. **Latency** — each hop adds 1-5ms. Cloudflare → your region → edge-ingress → envoy → gateway is realistically 10-25ms of added latency vs. Cloudflare → gateway directly. For HFT this matters; for a normal algo platform it usually doesn't.
+The `automountServiceAccountToken` field was set on both the SA and the pod spec. But the `serviceAccount` block in `values.yaml` mixes `automountServiceAccountToken: false` with the (intended) production SA name being `"edge-ingress"`. If a release is named anything other than `edge-ingress`, the SA created and the SA referenced disagree.
 
-3. **Compute cost** — edge-ingress + envoy together are ~2-4 GB RAM, ~1-2 CPU cores in production. On AWS/GCP that's ~$30-60/month at minimum reasonable replica counts (2 replicas of each for HA).
+**7. WASM filter delivery is broken in cluster**
 
-4. **Engineering time** — when something breaks, you're debugging across four layers. WASM filters need to be rebuilt and redeployed when you change rules. Cert renewals at edge-ingress need to be coordinated with Cloudflare's behavior.
+- `deployments/envoy/kubernetes/base/configmap-wasm.yaml` ships placeholder text in `data: integration-filter.wasm: |` — that's text, not binary. Envoy will try to load a "WASM" file containing the comment "PLACEHOLDER - This file is generated by..." and crash on startup.
+- The kustomize tree references this placeholder directly. There is no CI hook that actually base64-encodes the WASM and substitutes it.
+- The helm/envoy chart fixed this with `binaryData` + a `fail` template — but the kustomize tree still ships the broken stub.
 
-5. **Cloudflare-specific gotcha** — when Cloudflare proxies traffic, it sets `CF-Connecting-IP` with the real client IP. Your `edge-ingress` and `envoy` and `gateway` all need to know to read that header (and trust it **only** when traffic comes from Cloudflare's published IP ranges, otherwise it's a spoofing vector). This is a real bug you have to actively avoid.
+**8. Helm `helm/values.yaml`, `helm/Chart.yaml`, `helm/values-staging.yaml`, `helm/values-production.yaml` at the repo root**
 
-## What needs to change in the current code
+The repo has a top-level `helm/Chart.yaml` (named `edge-ingress`!) and three values files at `helm/` root. Listing shows:
+```
+helm/Chart.yaml          <- duplicate of helm/edge-ingress/Chart.yaml
+helm/values.yaml         <- duplicate of helm/edge-ingress/values.yaml
+helm/values-staging.yaml
+helm/values-production.yaml
+```
+These are leftover orphans from the original "values-only" pattern. They aren't referenced by anything but they'll confuse anyone who finds them.
 
-If you commit to this layered architecture, four concrete changes are required so the layers actually compose correctly. The current code has each layer assuming it's the front door.
+**9. Local docker-compose `edge` profile mTLS path is broken**
 
-#### 1. Trust chain for `X-Forwarded-For` / `CF-Connecting-IP`
+- `docker-compose.yml` mounts `./deployments/cloudflare/origin-pull` to `/etc/edge-ingress/cloudflare` in the edge-ingress container.
+- The local edge-ingress YAML config (`src/edge-ingress/config/local/edge-ingress-local.yaml`) sets `client_auth.ca_path: /etc/edge-ingress/cloudflare/origin-pull-ca.pem`.
+- The compose stack uses `deployments/edge-ingress/docker/config/edge-ingress.yaml` — which I updated to also point at `/etc/edge-ingress/cloudflare/origin-pull-ca.pem`. Good.
+- BUT the local edge-ingress `read_only: true` filesystem combined with `tmpfs: /tmp` means the geoip-data path the rust code reads (`/data/geoip/GeoLite2-City.mmdb`) is unwritable AND not mounted from the host. There's no init container in compose. The local container will fail at startup the first time the geo-router tries to open the .mmdb.
 
-Right now:
-- Cloudflare adds: `CF-Connecting-IP: <real-user-ip>` and `X-Forwarded-For: <real-user-ip>`
-- edge-ingress passes through (currently doesn't read or validate these)
-- envoy adds another XFF entry: `X-Forwarded-For: <real-user-ip>, <cloudflare-edge-ip>`
-- gateway reads `X-Forwarded-For` first match (`src/auth/handlers.go:clientIP()`)
+**10. `helm/values-staging.yaml` overlay for envoy upstream points at non-existent service**
 
-**Problem**: gateway will currently read whatever XFF header it sees. An attacker who finds your origin's IP and bypasses Cloudflare can spoof XFF and impersonate any IP for rate-limiting purposes. Your per-IP rate limiter becomes useless.
+- `helm/edge-ingress/values.yaml` upstream endpoints: `etradie-envoy.envoy-system.svc.cluster.local:8080` (correct)
+- `helm/edge-ingress/values-staging.yaml` upstream endpoints (overrides): `etradie-envoy.envoy-system.svc.cluster.local:8080` (correct)
+- `deployments/edge-ingress/kubernetes/base/configmap.yaml` upstream endpoints: `envoy.etradie-system.svc.cluster.local:8080` ← **wrong service, wrong namespace**
 
-**Fix**: gateway must:
-- Only trust XFF when the immediate connection peer is in Cloudflare's published IP range OR is your edge-ingress pod IP
-- Prefer `CF-Connecting-IP` (set by Cloudflare, not user-controllable through Cloudflare)
-- Have an explicit allowlist of trusted upstream proxies
+The kustomize base config and the helm values disagree. Whichever is applied to a cluster, edge-ingress will not find envoy.
 
-This is ~30 lines of Go in `src/auth/handlers.go` plus a config field.
+**11. The orphan `deployments/docker/Dockerfile.envoy` + `exoper_envoy_integration_filter.wasm`**
 
-#### 2. Cloudflare → edge-ingress origin authentication
+The repo still has `deployments/docker/exoper_envoy_integration_filter.wasm` (note: **exoper**, not etradie — leftover from the EXOPER rebrand) and `deployments/docker/docker-compose.yml`. These were called out as orphans in the AUDIT.md from `!7` and were supposed to be removed. They're still there.
 
-Without this, an attacker who finds your origin IP can hit `edge-ingress:443` directly and bypass Cloudflare entirely.
+#### Issues with infrastructure/
 
-**Two options:**
+**12. `infrastructure/gateway/main.tf` calls a binary the runner may not have**
 
-- **Cloudflare Authenticated Origin Pulls** (free): Cloudflare presents a client certificate to your origin; edge-ingress only accepts connections that present this cert. Configure once, free.
-- **Origin firewall**: Configure your cloud provider's firewall to only accept TCP/443 from Cloudflare's published IP ranges (which they update; you'd need a cron to refresh).
+The Terraform module shells out to `kustomize edit set image` and `kustomize build` via `local-exec`. There's no version pin, no preflight check, no fallback. If CI doesn't have kustomize installed, `terraform apply` produces an opaque shell error. A real IaC module would either use the `kubectl` provider's `kustomization` resource (which has built-in kustomize) or use a `null_resource` with a clear precondition.
 
-I'd do both — defense in depth.
+**13. There is NO `infrastructure/envoy/`, NO `infrastructure/edge-ingress/`, NO `infrastructure/cloudflare/`**
 
-This is config-only, no code changes, but you'd want to document it.
+The MR description claims a full IaC tree. There's only `infrastructure/gateway/`. The runbook references "the cloudflare module in infrastructure/cloudflare/" — it doesn't exist.
 
-#### 3. Health check pass-through
+#### Plumbing inconsistencies
 
-Currently:
-- Cloudflare doesn't health-check origins on the free plan
-- edge-ingress health-checks envoy
-- envoy health-checks gateway via active HTTP probes to `/health`
-- gateway exposes `/health` (no auth, returns `{"status":"ok"}`)
+**14. Edge-ingress production overlay HARDCODES `arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/PRODUCTION_CERT_ID`**
 
-This chain works, but **none of the layers above gateway know if the engine or execution backends are sick**. Gateway's `/readiness` does check engine, but envoy is hitting `/health`, not `/readiness`. So envoy thinks gateway is fine even when engine is down, and routes traffic that will then 503.
+This is committed in `deployments/edge-ingress/kubernetes/overlays/production/kustomization.yaml`. It will fail to attach a certificate to the NLB at apply time because `ACCOUNT_ID` and `PRODUCTION_CERT_ID` are not real ARN parts.
 
-**Fix**: envoy should health-check `/readiness`, not `/health`. One-line change in `src/envoy/config/*/envoy*.yaml`.
+**15. Two ServiceMonitor selector strategies conflict**
 
-#### 4. Rate limit thresholds across layers
+- The kustomize base for edge-ingress puts edge-ingress in namespace `etradie-system` and the ServiceMonitor at `deployments/edge-ingress/kubernetes/base/servicemonitor.yaml` selects `namespaceSelector: matchNames: [etradie-system]`.
+- The helm chart puts edge-ingress in `edge-ingress-system` and the ServiceMonitor template selects on `app.kubernetes.io/component: metrics`.
+- Prometheus operator can't reconcile both.
 
-The current values are inherited from EXOPER and are **not** tuned for trading:
+**16. `make edge-test` won't actually validate AOP**
 
-- envoy WASM: `GLOBAL_RATE_LIMIT_REQUESTS = 10_000/sec`, `IP_RATE_LIMIT_REQUESTS = 100/sec`
-- gateway auth: `10 logins/min/IP, 5 registrations/min/IP, 20 refreshes/min/IP`
-- Cloudflare Free: 10k requests/month for the rate-limiting feature (basically nothing for production)
+I wrote `make edge-test` to assert that an unauthenticated curl FAILS at TLS. But the local edge-ingress config uses a self-signed dev CA that mTLS-validates a dev client. If geoip init fails (per #9), edge-ingress doesn't start, both curls fail, and `make edge-test` reports "ok" because the unauthenticated one was supposed to fail. False green.
 
-For a trading platform you probably want:
-- **Per-user rate limit** on order placement (e.g., 10 orders/sec per authenticated user) — this needs to live in **gateway** because envoy doesn't know who the user is
-- **Per-IP burst limit** on `/auth/login` (5/min/IP) — already in gateway, fine
-- **Global cap** on the API surface (e.g., 5000 req/sec across all clients) — envoy is the right place
-- **TradingView webhook handling** — these can burst legitimately, so they need a separate path with a higher limit, ideally IP-allowlisted to TradingView's published ranges
+**17. Cloudflare AOP CA is mounted but the `--read-only` filesystem is wrong for write-back tests**
 
-You'll need to decide these numbers, but the architecture supports it.
+Edge-ingress production deployment has `readOnlyRootFilesystem: true`. The Rust binary embeds a hot-reload that periodically re-reads the CA file. That's fine — it doesn't write. But the `/tmp` mount only has 64Mi. If the process tries to spool a large request body it will OOM-tmpfs silently. Needs to be at least 256Mi for any realistic POST traffic.
 
-#### 5. envoy ALLOWED_HTTP_METHODS
+#### Summary table
 
-Already flagged this earlier. Current value `["GET", "POST"]` will **break** gateway endpoints like `PUT /auth/me/password` and any future `DELETE /api/...`. Must extend to `["GET", "POST", "PUT", "DELETE", "PATCH"]`.
+| # | Severity | Where | What |
+|---|----------|-------|------|
+| 1 | **CRITICAL** | edge-ingress deployment ↔ cloudflare AOP secret | Wrong namespace; pods stuck in ContainerCreating |
+| 2 | **CRITICAL** | edge-ingress NetworkPolicy egress | Wrong label + namespace; all traffic to envoy dropped |
+| 3 | **HIGH** | envoy NetworkPolicy | Namespace label / app label mismatch potential |
+| 4 | **HIGH** | namespace ownership | Two manifests own `etradie-system` |
+| 5 | **HIGH** | edge-ingress namespace | Three files disagree on which namespace |
+| 6 | **MEDIUM** | helm/edge-ingress | SA name inconsistency for non-default releases |
+| 7 | **CRITICAL** | envoy WASM ConfigMap | Ships placeholder text, not WASM bytes |
+| 8 | **MEDIUM** | helm/ root files | Orphan duplicates of `helm/edge-ingress/` |
+| 9 | **CRITICAL** | docker-compose edge profile | Geoip path missing → edge-ingress crashes |
+| 10 | **CRITICAL** | edge-ingress kustomize configmap | Upstream points to non-existent service |
+| 11 | **MEDIUM** | deployments/docker/ | EXOPER orphans still committed |
+| 12 | **LOW** | infrastructure/gateway/main.tf | Shells out to kustomize without preflight |
+| 13 | **HIGH** | infrastructure/ | Only gateway module exists; envoy/edge-ingress/cloudflare missing |
+| 14 | **HIGH** | edge-ingress prod overlay | Placeholder ACM ARN baked into kustomize patch |
+| 15 | **MEDIUM** | ServiceMonitor selectors | Helm and kustomize disagree |
+| 16 | **HIGH** | `make edge-test` | False-green if edge-ingress crashes |
+| 17 | **LOW** | edge-ingress /tmp size | 64Mi too small for real POST bodies |
 
-## What this looks like operationally
+# Direct answer to your second question
 
-**Local development**: You don't need the full stack. `docker-compose up` runs gateway + engine + databases. edge-ingress + envoy stay off unless explicitly enabled (e.g., `docker-compose --profile edge up`). This keeps dev fast.
+#### Did you build technical debt?
 
-**Staging**: Full stack. edge-ingress + envoy + gateway + engine + everything. This is where you catch trust-chain bugs before production.
+**For this MR, in this state: yes, partially.** Not the work itself — the chain of contracts is real and matters — but it isn't ready. As shown above, six of these issues will block any cluster apply (#1, #2, #7, #9, #10, plus the namespace split-brain). It's "right concept, broken plumbing" — which is the worst possible state to deploy money-handling code from.
 
-**Production**: Full stack behind Cloudflare. Cloudflare Free DNS-points at your edge-ingress LoadBalancer. edge-ingress accepts only Cloudflare-authenticated connections. envoy + gateway behind it.
+#### Do `helm/`, `deployments/`, `infrastructure/` actually serve different purposes, or are two of them debt?
 
-## My recommendation if you go this way
+For an enterprise-grade financial system, **the three serve genuinely different consumers and you need them — but the way they currently overlap is debt.** Honest breakdown:
 
-Do it in three phases, not all at once:
+**`deployments/<svc>/kubernetes/`** (kustomize) — **necessary**. This is the source of truth that ArgoCD/Flux GitOps points at. Kustomize overlays are the standard way to express per-environment deltas without templating, and any real GitOps workflow consumes raw manifests. Removing this means giving up GitOps.
 
-**Phase 1 (now)**: Cloudflare Free + gateway only. Get to production with this. Free, simple, secure enough to start.
+**`helm/<svc>/`** (Helm chart) — **necessary, but only if it's the *primary* deployment path**. Helm is what platform teams expect for `helm upgrade` rollbacks, what Argo CD sees in `Chart.yaml` releases, what dependency-management trees (sub-charts) require. **Right now both kustomize and helm exist in parallel and they disagree.** That's debt. Pick one as the source of truth and have the other be derived (e.g., `helm template` writes the kustomize base; or kustomize is the source and helm just packages it).
 
-**Phase 2 (when you have ~10 paying users)**: Add envoy in front of gateway. Cloudflare → gateway becomes Cloudflare → envoy → gateway. The WASM filters, circuit breaker, and request validation give you defense in depth at the application layer.
+**`infrastructure/<svc>/`** (Terraform) — **necessary for cloud resources, NOT for k8s manifests**. Terraform's job is the AWS account, the EKS cluster, IAM roles, the Cloudflare zone, the Vault paths, the NLB. Using Terraform to apply Kubernetes manifests is an anti-pattern (resource ownership wars with Argo). My current `infrastructure/gateway/main.tf` does exactly that wrong thing. It should be replaced with: `infrastructure/cloudflare/` (the Cloudflare zone + AOP setup + R53 records) and `infrastructure/cluster/` (EKS + node groups + IAM for ESO + the Vault path schema).
 
-**Phase 3 (when you have multi-region traffic)**: Add edge-ingress in front of envoy for geo-routing and TLS re-termination. Cloudflare → edge-ingress → envoy → gateway.
+**Verdict on tech debt:** as written, **`helm/` AND `deployments/` together = duplication = debt**. You need to decide which is the source of truth and reduce the other. `infrastructure/` is fine in *concept* but the only module shipped is solving the wrong problem.
 
-This phasing matters because:
-- Each phase delivers value on its own
-- You debug one new layer at a time, not three
-- You don't pay infrastructure cost for capacity you don't need yet
-- If you hit a wall in phase 2 and decide envoy is overkill, you've only invested two weeks of ops work, not three
+#### What I recommend (no guessing — this is what production-grade looks like)
 
-## The bottom line
+1. **Pick kustomize OR helm as the deployment source of truth. Not both.**
+   - For a small/mid platform (this is one): **kustomize is simpler and fits ArgoCD natively**. Drop `helm/`. The values-only charts are pure debt.
+   - For a multi-team platform with versioned releases: **keep helm**, generate kustomize bases from `helm template` in CI, drop the hand-rolled `deployments/*/kubernetes/base/`.
+2. **Remove `infrastructure/gateway/`**. K8s manifests don't belong in Terraform.
+3. **Keep `infrastructure/` for what it's actually for:** cloud accounts, EKS, Cloudflare zones, Vault path bootstrap. Build those modules properly.
+4. **Fix the 17 issues above**, in order of severity, before any production traffic.
 
-**Yes, keep edge-ingress + envoy and use Cloudflare in front. It's a legitimate, defensible architecture for a trading platform.** It's also more than you need on day one. Start with Cloudflare + gateway, add envoy when traffic justifies it, add edge-ingress when geo-routing justifies it.
+Want me to (a) execute the consolidation (delete `helm/`, fix kustomize as source of truth, fix all 17), (b) execute the inverse (keep helm, derive kustomize, fix all 17), or (c) just fix the 17 critical issues and leave the dual-source for later? My recommendation is **(a)** — kustomize wins, helm goes away, fix everything in one pass. Tell me which and I will execute.
