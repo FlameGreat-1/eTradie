@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/version: "0.1.0"
+  annotations:
+    description: "eTradie gateway HTTP + gRPC service (ClusterIP)"
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      appProtocol: http
+    - name: grpc
+      port: 50052
+      targetPort: 50052
+      protocol: TCP
+      appProtocol: grpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-headless
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/version: "0.1.0"
+  annotations:
+    description: "eTradie gateway headless service (per-pod gRPC dialling)"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      appProtocol: http
+    - name: grpc
+      port: 50052
+      targetPort: 50052
+      protocol: TCP
+      appProtocol: grpc
