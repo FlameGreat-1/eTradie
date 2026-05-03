@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etradie-gateway
+  namespace: etradie-system
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 90
+      containers:
+        - name: gateway
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+              ephemeral-storage: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+              ephemeral-storage: "1Gi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 2
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 60
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: etradie-gateway-limit-range
+  namespace: etradie-system
+spec:
+  limits:
+    - max:
+        cpu: "2"
+        memory: 2Gi
+        ephemeral-storage: 1Gi
+      min:
+        cpu: 250m
+        memory: 512Mi
+        ephemeral-storage: 256Mi
+      default:
+        cpu: "2"
+        memory: 2Gi
+        ephemeral-storage: 1Gi
+      defaultRequest:
+        cpu: "1"
+        memory: 1Gi
+        ephemeral-storage: 512Mi
+      type: Container
