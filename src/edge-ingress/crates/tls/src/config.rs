@@ -23,6 +23,14 @@ pub struct TlsConfig {
     pub certificates: Vec<CertificateConfig>,
     pub enable_sni: bool,
     pub cert_reload_interval: Duration,
+    /// Optional Cloudflare Authenticated Origin Pulls (mTLS) configuration.
+    /// When None or `enabled = false`, edge-ingress accepts any TLS client
+    /// (relying on Cloudflare DNS + origin firewall for upstream identity).
+    /// When `enabled = true`, the rustls ServerConfig is built with a client
+    /// certificate verifier that requires (or, in `optional` mode, accepts)
+    /// a client cert signed by the CA bundle at `ca_path`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_auth: Option<ClientAuthConfig>,
 }
 
 impl Default for TlsConfig {
@@ -34,7 +42,50 @@ impl Default for TlsConfig {
             certificates: Vec::new(),
             enable_sni: true,
             cert_reload_interval: Duration::from_secs(CERT_RELOAD_INTERVAL_SECS),
+            client_auth: None,
         }
+    }
+}
+
+/// Configuration for TLS client certificate authentication. Used to enforce
+/// Cloudflare Authenticated Origin Pulls (AOP) so only TLS clients presenting
+/// a cert signed by the configured CA bundle can terminate TLS on edge-ingress.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientAuthConfig {
+    /// Master switch. When false, this entire block is a no-op and the
+    /// ServerConfig is built with `with_no_client_auth`.
+    pub enabled: bool,
+
+    /// Verification mode. One of:
+    /// - "required": rustls rejects any client that does not present a
+    ///   cert signed by `ca_path`.
+    /// - "optional": rustls accepts both authenticated and unauthenticated
+    ///   clients; used during AOP rollout before flipping to `required`.
+    /// - "none": equivalent to `enabled: false`.
+    #[serde(default = "ClientAuthConfig::default_mode")]
+    pub mode: String,
+
+    /// Path to a PEM-encoded CA bundle that signs valid client certs.
+    /// For Cloudflare AOP this is
+    /// /etc/edge-ingress/cloudflare/origin-pull-ca.pem mounted from the
+    /// `cloudflare-aop-ca` Secret.
+    pub ca_path: PathBuf,
+}
+
+impl ClientAuthConfig {
+    fn default_mode() -> String {
+        "required".to_string()
+    }
+
+    /// Whether the verifier should be built. False when the block is
+    /// disabled or mode is explicitly "none".
+    pub fn is_active(&self) -> bool {
+        self.enabled && self.mode != "none"
+    }
+
+    /// Whether the verifier should reject unauthenticated clients.
+    pub fn is_required(&self) -> bool {
+        self.is_active() && self.mode == "required"
     }
 }
 
@@ -96,6 +147,22 @@ impl TlsConfig {
             return Err(EdgeError::Configuration(
                 "handshake_timeout cannot exceed 60 seconds".to_string(),
             ));
+        }
+
+        if let Some(client_auth) = &self.client_auth {
+            const VALID_MODES: &[&str] = &["required", "optional", "none"];
+            if !VALID_MODES.contains(&client_auth.mode.as_str()) {
+                return Err(EdgeError::Configuration(format!(
+                    "Invalid client_auth.mode: {}. Must be one of: required, optional, none",
+                    client_auth.mode
+                )));
+            }
+            if client_auth.is_active() && client_auth.ca_path.as_os_str().is_empty() {
+                return Err(EdgeError::Configuration(
+                    "client_auth.ca_path must be set when mode is required or optional"
+                        .to_string(),
+                ));
+            }
         }
 
         Ok(())
