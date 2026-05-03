@@ -21,15 +21,15 @@ thread_local! {
 pub fn _start() {
     proxy_wasm::set_log_level(LogLevel::Info);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
-        Box::new(ExoperRootContext)
+        Box::new(ETradieRootContext)
     });
 }
 
-struct ExoperRootContext;
+struct ETradieRootContext;
 
-impl Context for ExoperRootContext {}
+impl Context for ETradieRootContext {}
 
-impl RootContext for ExoperRootContext {
+impl RootContext for ETradieRootContext {
     fn on_vm_start(&mut self, _vm_configuration_size: usize) -> bool {
         let environment = self
             .get_vm_configuration()
@@ -44,7 +44,7 @@ impl RootContext for ExoperRootContext {
                 ORCHESTRATOR.with(|o| {
                     *o.borrow_mut() = Some(orchestrator);
                 });
-                proxy_wasm::hostcalls::log(LogLevel::Info, "Exoper integration filter initialized").ok();
+                proxy_wasm::hostcalls::log(LogLevel::Info, "eTradie integration filter initialized").ok();
                 true
             }
             Err(e) => {
@@ -58,7 +58,7 @@ impl RootContext for ExoperRootContext {
     }
 
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        Some(Box::new(ExoperHttpContext {
+        Some(Box::new(ETradieHttpContext {
             context: None,
             response_status: 0,
         }))
@@ -69,14 +69,14 @@ impl RootContext for ExoperRootContext {
     }
 }
 
-struct ExoperHttpContext {
+struct ETradieHttpContext {
     context: Option<RequestContext>,
     response_status: u32,
 }
 
-impl Context for ExoperHttpContext {}
+impl Context for ETradieHttpContext {}
 
-impl HttpContext for ExoperHttpContext {
+impl HttpContext for ETradieHttpContext {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
         let method = self.get_http_request_header(":method").unwrap_or_else(|| "GET".to_string());
         let path = self.get_http_request_header(":path").unwrap_or_else(|| "/".to_string());
@@ -161,13 +161,13 @@ mod tests {
 
     #[test]
     fn test_root_context_creation() {
-        let root = ExoperRootContext;
+        let root = ETradieRootContext;
         assert!(root.get_type().is_some());
     }
 
     #[test]
     fn test_http_context_creation() {
-        let root = ExoperRootContext;
+        let root = ETradieRootContext;
         let http_context = root.create_http_context(1);
         assert!(http_context.is_some());
     }
