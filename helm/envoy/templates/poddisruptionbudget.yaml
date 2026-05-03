@@ -1,0 +1,18 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "envoy.fullname" . }}
+  namespace: {{ include "envoy.namespace" . }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: availability
+  annotations:
+    description: "Ensures minimum envoy availability during voluntary disruptions"
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "envoy.selectorLabels" . | nindent 6 }}
+  unhealthyPodEvictionPolicy: {{ .Values.podDisruptionBudget.unhealthyPodEvictionPolicy | default "IfHealthyBudget" }}
+{{- end }}

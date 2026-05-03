@@ -1,0 +1,51 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "envoy.fullname" . }}
+  namespace: {{ include "envoy.namespace" . }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "envoy.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "envoy.namespace" . }}
+  endpoints:
+    - port: admin
+      path: /stats/prometheus
+      interval: {{ .Values.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'envoy_cluster_.*'
+          action: keep
+        - sourceLabels: [__name__]
+          regex: 'envoy_http_.*'
+          action: keep
+        - sourceLabels: [__name__]
+          regex: 'envoy_listener_.*'
+          action: keep
+        - sourceLabels: [__name__]
+          regex: 'envoy_server_.*'
+          action: keep
+        - sourceLabels: [__name__]
+          regex: 'etradie_.*'
+          action: keep
+{{- end }}
