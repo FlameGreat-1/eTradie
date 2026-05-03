@@ -575,6 +575,130 @@ class RedisCache:
         """
         return self._client.pubsub()
 
+    # -- Stale-While-Revalidate primitives -----------------------------------
+    #
+    # set_with_meta / get_with_meta wrap the cached payload in a small JSON
+    # envelope { "v": <value>, "t": <unix_seconds> } so callers can compute
+    # the entry's age in a single Redis round-trip and decide whether to
+    # serve-and-revalidate or serve-only. The envelope is intentionally
+    # short-keyed to keep the on-wire size minimal.
+
+    async def set_with_meta(
+        self,
+        namespace: str,
+        key: str,
+        value: Any,
+        ttl_seconds: int,
+        *,
+        trace_id: Optional[str] = None,
+    ) -> bool:
+        """Store value with an embedded stored-at timestamp.
+
+        The value is wrapped in {"v": value, "t": unix_seconds}. Use
+        get_with_meta() to retrieve both the value and its age.
+        """
+        envelope = {"v": value, "t": int(time.time())}
+        return await self.set(
+            namespace, key, envelope, ttl_seconds, trace_id=trace_id
+        )
+
+    async def get_with_meta(
+        self,
+        namespace: str,
+        key: str,
+        *,
+        trace_id: Optional[str] = None,
+    ) -> tuple[Any | None, int | None]:
+        """Return (value, age_seconds) for an entry written by set_with_meta.
+
+        Returns (None, None) on miss. Returns (value, age) on hit. If the
+        stored payload is not in envelope format (legacy writes), returns
+        (raw_value, None) so existing callers still function.
+        """
+        raw = await self.get(namespace, key, trace_id=trace_id)
+        if raw is None:
+            return None, None
+        if isinstance(raw, dict) and "v" in raw and "t" in raw:
+            try:
+                age = max(0, int(time.time()) - int(raw["t"]))
+            except (TypeError, ValueError):
+                age = None
+            return raw["v"], age
+        # Legacy / non-envelope payload: return as-is, no age available.
+        return raw, None
+
+    # -- Distributed lock (single-flight) ------------------------------------
+    #
+    # try_acquire_lock implements the canonical SET key value NX EX <ttl>
+    # pattern. The caller passes a unique token (e.g. uuid4) so release_lock
+    # only deletes the lock if the caller still owns it. This prevents a
+    # slow caller from deleting a lock that has since been re-acquired by
+    # a different caller after TTL expiry.
+
+    async def try_acquire_lock(
+        self,
+        namespace: str,
+        key: str,
+        token: str,
+        ttl_seconds: int,
+    ) -> bool:
+        """Attempt to atomically acquire a Redis-based mutex.
+
+        Returns True if this caller now owns the lock, False if another
+        holder has it. The lock auto-releases after ttl_seconds.
+        """
+        full_key = self._make_key(namespace, key)
+        if not token:
+            raise CacheValidationError("Lock token must not be empty")
+        if ttl_seconds <= 0:
+            raise CacheValidationError("Lock TTL must be positive")
+        try:
+            result = await self._execute_with_retry(
+                "set_nx",
+                self._client.set,
+                full_key,
+                token.encode("utf-8"),
+                ex=ttl_seconds,
+                nx=True,
+            )
+            return bool(result)
+        except (CacheTimeoutError, CacheConnectionError, CacheError):
+            # Fail-open: if Redis is unavailable, callers should fall back
+            # to executing the protected work themselves rather than block.
+            return False
+
+    async def release_lock(
+        self,
+        namespace: str,
+        key: str,
+        token: str,
+    ) -> bool:
+        """Release a lock only if the supplied token matches the holder.
+
+        Implemented via a small Lua script so the compare-and-delete is
+        atomic on the Redis server. Returns True if released, False if
+        the lock had already expired or was held by another token.
+        """
+        full_key = self._make_key(namespace, key)
+        if not token:
+            return False
+        script = (
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+            "return redis.call('del', KEYS[1]) else return 0 end"
+        )
+        try:
+            result = await self._execute_with_retry(
+                "release_lock",
+                self._client.eval,
+                script,
+                1,
+                full_key,
+                token.encode("utf-8"),
+            )
+            return bool(result)
+        except (CacheTimeoutError, CacheConnectionError, CacheError):
+            return False
+
     async def close(self) -> None:
         """Gracefully close Redis connections."""
         try:
