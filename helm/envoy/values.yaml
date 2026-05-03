@@ -1,4 +1,12 @@
-replicaCount: 3
+# helm/envoy - default values.
+#
+# These defaults reflect the PRODUCTION posture of
+# deployments/envoy/kubernetes/base + overlays/production. Operators
+# render staging by layering values-staging.yaml on top; local dev does
+# not use this chart (kustomize-only).
+
+replicaCount: 5
+revisionHistoryLimit: 10
 
 image:
   repository: envoyproxy/envoy
@@ -7,59 +15,58 @@ image:
 
 imagePullSecrets: []
 nameOverride: ""
-fullnameOverride: ""
+fullnameOverride: "etradie-envoy"
+
+environment: "production"
+
+namespace:
+  create: true
+  name: "envoy-system"
+  podSecurityStandard: "restricted"
 
 serviceAccount:
   create: true
+  name: ""
   annotations: {}
-  name: "etradie-envoy"
   automountServiceAccountToken: false
 
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "9901"
-  prometheus.io/path: "/stats/prometheus"
+podAnnotations: {}
 
 podSecurityContext:
-  runAsNonRoot: true
   runAsUser: 1000
   runAsGroup: 1000
   fsGroup: 1000
-  seccompProfile:
-    type: RuntimeDefault
 
 securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  runAsNonRoot: true
   runAsUser: 1000
-  capabilities:
-    drop:
-      - ALL
+
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
 
 service:
   type: ClusterIP
-  port: 8080
-  targetPort: 8080
-  adminPort: 9901
   annotations: {}
+  ports:
+    http: 8080
+    admin: 9901
 
 headlessService:
   enabled: true
 
 resources:
   requests:
-    cpu: 1
-    memory: 2Gi
-    ephemeral-storage: 512Mi
-  limits:
-    cpu: 2
+    cpu: "2"
     memory: 4Gi
     ephemeral-storage: 1Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+    ephemeral-storage: 2Gi
 
 autoscaling:
   enabled: true
-  minReplicas: 3
+  minReplicas: 5
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
@@ -84,152 +91,145 @@ autoscaling:
           value: 2
           periodSeconds: 30
       selectPolicy: Max
+  customMetrics:
+    - type: Pods
+      pods:
+        metric:
+          name: envoy_http_downstream_rq_active
+        target:
+          type: AverageValue
+          averageValue: "1500"
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 2
+  minAvailable: 3
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+resourceQuota:
+  enabled: true
+  hard:
+    requestsCpu: "20"
+    requestsMemory: "40Gi"
+    limitsCpu: "40"
+    limitsMemory: "80Gi"
+    persistentvolumeclaims: "0"
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"
+
+limitRange:
+  enabled: true
+  container:
+    max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "4"
+      memory: "8Gi"
+    defaultRequest:
+      cpu: "2"
+      memory: "4Gi"
+
+networkPolicy:
+  enabled: true
+  edgeIngressNamespace: "edge-ingress-system"
+  monitoringNamespace: "monitoring"
+  gatewayNamespace: "etradie-system"
+  extraIngress: []
+  extraEgress: []
+
+serviceMonitor:
+  enabled: true
+  interval: 10s
+  scrapeTimeout: 8s
+  labels:
+    prometheus: kube-prometheus
 
 affinity:
   podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-envoy
-          topologyKey: kubernetes.io/hostname
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: etradie-envoy
+        topologyKey: kubernetes.io/hostname
 
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
+    whenUnsatisfiable: DoNotSchedule
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: etradie-envoy
 
-priorityClassName: ""
-terminationGracePeriodSeconds: 30
+nodeSelector: {}
+tolerations: []
+priorityClassName: "system-cluster-critical"
+terminationGracePeriodSeconds: 60
 
-livenessProbe:
-  httpGet:
-    path: /ready
-    port: 9901
-    scheme: HTTP
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 9901
-    scheme: HTTP
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  timeoutSeconds: 3
-  successThreshold: 1
-  failureThreshold: 3
-
-startupProbe:
-  httpGet:
-    path: /ready
-    port: 9901
-    scheme: HTTP
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  timeoutSeconds: 3
-  successThreshold: 1
-  failureThreshold: 30
-
-env:
-  - name: ENVIRONMENT
-    value: "local"
-  - name: LOG_LEVEL
-    value: "info"
-
-wasmConfig:
-  enabled: true
-  name: etradie-envoy-wasm
-  data: {}
+extraEnv: []
 
 volumes:
   tmp:
-    enabled: true
-    sizeLimit: 100Mi
+    sizeLimit: "200Mi"
+    medium: "Memory"
   cache:
-    enabled: true
-    sizeLimit: 500Mi
+    sizeLimit: "1Gi"
 
-networkPolicy:
-  enabled: true
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: etradie-system
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: edge-ingress
-      ports:
-        - protocol: TCP
-          port: 8080
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: monitoring
-          podSelector:
-            matchLabels:
-              app: prometheus
-      ports:
-        - protocol: TCP
-          port: 9901
-  egress:
-    # Allow connections to the eTradie gateway HTTP listener.
-    # See deployments/gateway/kubernetes/base for the canonical label
-    # and port definition (app.kubernetes.io/name=etradie-gateway, :8080).
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              app.kubernetes.io/part-of: etradie
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-gateway
-      ports:
-        - protocol: TCP
-          port: 8080
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+# Envoy listener / cluster / circuit-breaker / overload knobs. The
+# template at templates/configmap.yaml renders these into envoy.yaml.
+config:
+  envoy:
+    admin:
+      port: 9901
+    listener:
+      port: 8080
+      useRemoteAddress: true
+      xffNumTrustedHops: 1
+    route:
+      timeout: "30s"
+      idleTimeout: "60s"
+      numRetries: 2
+      perTryTimeout: "10s"
+    cluster:
+      connectTimeout: "5s"
+      circuitBreaker:
+        maxConnections: 1024
+        maxPendingRequests: 1024
+        maxRequests: 1024
+        maxRetries: 3
+      outlierDetection:
+        consecutive5xx: 5
+        interval: "10s"
+        baseEjectionTime: "30s"
+        maxEjectionPercent: 50
+      upstream:
+        # Production gateway-service FQDN, port 8080.
+        address: "gateway-service.etradie-system.svc.cluster.local"
+        port: 8080
+      healthCheck:
+        path: "/readiness"
+        timeout: "1s"
+        interval: "10s"
+        unhealthyThreshold: 3
+        healthyThreshold: 2
+    overload:
+      maxHeapSizeBytes: 2147483648
+      globalMaxConnections: 50000
 
-serviceMonitor:
-  enabled: true
-  interval: 30s
-  scrapeTimeout: 10s
-  path: /stats/prometheus
-  labels: {}
-  relabelings: []
-  metricRelabelings: []
-
-rbac:
-  create: true
-  rules:
-    - apiGroups: [""]
-      resources: ["configmaps"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: [""]
-      resources: ["endpoints"]
-      verbs: ["get", "list", "watch"]
+# WASM filter binary. Chart REQUIRES this to be set; rendering fails
+# without it.
+#
+# CI provisioning:
+#   helm upgrade ... \
+#     --set-file wasm.base64=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm \
+#     --set wasm.sha256=$(sha256sum ...) \
+#     --set wasm.builtAt=$(date -u +%FT%TZ)
+#
+# (Helm's --set-file injects the file's bytes; in this chart we
+# additionally pre-encode them via the binaryData ConfigMap field.)
+wasm:
+  base64: ""
+  sha256: ""
+  builtAt: ""

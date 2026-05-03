@@ -1,14 +1,22 @@
+# helm/envoy values-staging.yaml
+# Layered on top of values.yaml. Only fields that genuinely differ in
+# staging are listed.
+
 replicaCount: 3
+environment: "staging"
+
+image:
+  tag: "v1.28.0"
 
 resources:
   requests:
-    cpu: 1
+    cpu: "1"
     memory: 2Gi
-    ephemeral-storage: 1Gi
+    ephemeral-storage: 512Mi
   limits:
-    cpu: 2
+    cpu: "2"
     memory: 4Gi
-    ephemeral-storage: 2Gi
+    ephemeral-storage: 1Gi
 
 autoscaling:
   minReplicas: 3
@@ -16,34 +24,27 @@ autoscaling:
   targetCPUUtilizationPercentage: 65
   targetMemoryUtilizationPercentage: 75
 
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-envoy
-          topologyKey: kubernetes.io/hostname
+podDisruptionBudget:
+  minAvailable: 2
 
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-envoy
-
-terminationGracePeriodSeconds: 45
-
-env:
-  - name: ENVIRONMENT
-    value: "staging"
-  - name: LOG_LEVEL
-    value: "info"
+resourceQuota:
+  hard:
+    requestsCpu: "10"
+    requestsMemory: "20Gi"
+    limitsCpu: "20"
+    limitsMemory: "40Gi"
 
 serviceMonitor:
   interval: 15s
   scrapeTimeout: 10s
   labels:
+    prometheus: kube-prometheus
     environment: staging
+
+terminationGracePeriodSeconds: 45
+
+volumes:
+  tmp:
+    sizeLimit: "100Mi"
+  cache:
+    sizeLimit: "500Mi"
