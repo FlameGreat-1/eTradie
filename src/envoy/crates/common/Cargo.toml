@@ -3,8 +3,8 @@ name = "etradie-envoy-common"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
-authors = ["Exoper Team"]
-description = "Common library for Exoper Envoy WASM filters - core types, errors, and utilities"
+authors = ["eTradie Team"]
+description = "Common library for eTradie Envoy WASM filters - core types, errors, and utilities"
 license = "MIT"
 repository = "https://github.com/etradie/etradie"
 
