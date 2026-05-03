@@ -119,7 +119,7 @@ verify_wasm() {
 }
 
 main() {
-    log_info "Starting Exoper Envoy WASM build..."
+    log_info "Starting eTradie Envoy WASM build..."
     log_info "Build mode: ${BUILD_MODE}"
     log_info "Target: ${TARGET}"
     
