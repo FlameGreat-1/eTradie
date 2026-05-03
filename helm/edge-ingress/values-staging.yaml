@@ -84,6 +84,12 @@ config:
   retry:
     backoffMs: 75
 
+service:
+  # ACM cert ARN for the staging NLB. Provided by CI; rendering fails
+  # when empty (see templates/service.yaml).
+  # tlsCertificateArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<staging-cert-id>"
+  accessLogS3Bucket: ""
+
 serviceMonitor:
   interval: "15s"
   scrapeTimeout: "10s"
