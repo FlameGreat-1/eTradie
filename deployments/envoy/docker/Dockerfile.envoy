@@ -12,8 +12,8 @@ RUN apt-get update && \
 
 FROM base AS runtime
 
-LABEL maintainer="Exoper Team"
-LABEL description="Exoper Envoy Proxy with WASM filters"
+LABEL maintainer="eTradie Team"
+LABEL description="eTradie Envoy Proxy with WASM filters"
 LABEL version="0.1.0"
 
 USER root
@@ -28,7 +28,7 @@ RUN apt-get update && \
     && chmod 755 /etc/envoy/wasm
 
 COPY --chown=envoy:envoy config/envoy.yaml /etc/envoy/envoy.yaml
-COPY --chown=envoy:envoy target/wasm32-wasi/release/exoper_envoy_integration_filter.wasm /etc/envoy/wasm/integration-filter.wasm
+COPY --chown=envoy:envoy target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm /etc/envoy/wasm/integration-filter.wasm
 
 RUN chmod 644 /etc/envoy/envoy.yaml && \
     chmod 644 /etc/envoy/wasm/integration-filter.wasm
@@ -41,4 +41,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:9901/ready || exit 1
 
 ENTRYPOINT ["/usr/local/bin/envoy"]
-CMD ["-c", "/etc/envoy/envoy.yaml", "--service-cluster", "exoper-envoy", "--service-node", "exoper-envoy-node"]
+CMD ["-c", "/etc/envoy/envoy.yaml", "--service-cluster", "etradie-envoy", "--service-node", "etradie-envoy-node"]

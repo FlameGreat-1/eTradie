@@ -21,8 +21,8 @@ ENV BUILD_DATE=${BUILD_DATE}
 ENV GIT_COMMIT=${GIT_COMMIT}
 
 # Copy manifests first for better layer caching
-COPY backend/rust/edge-ingress/Cargo.toml backend/rust/edge-ingress/Cargo.lock ./
-COPY backend/rust/edge-ingress/crates ./crates
+COPY src/edge-ingress/Cargo.toml src/edge-ingress/Cargo.lock ./
+COPY src/edge-ingress/crates ./crates
 
 # Build in cache mount + copy out in SAME command (before unmount)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -68,10 +68,10 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
 
 ENTRYPOINT ["/usr/local/bin/edge-ingress"]
 
-LABEL org.opencontainers.image.title="ExOper Edge-Ingress" \
+LABEL org.opencontainers.image.title="eTradie Edge-Ingress" \
       org.opencontainers.image.description="TLS termination and geo-routing edge proxy" \
-      org.opencontainers.image.vendor="ExOper" \
+      org.opencontainers.image.vendor="eTradie" \
       org.opencontainers.image.version="0.1.0" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${GIT_COMMIT}" \
-      org.opencontainers.image.source="https://github.com/exoper/edge-ingress"
+      org.opencontainers.image.source="https://github.com/etradie/etradie"

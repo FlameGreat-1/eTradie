@@ -13,7 +13,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88.0"
-authors = ["ExOper Team"]
+authors = ["eTradie Team"]
 license = "MIT"
 
 [workspace.dependencies]

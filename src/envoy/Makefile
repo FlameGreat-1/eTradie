@@ -4,13 +4,13 @@ CARGO := cargo
 WASM_TARGET := wasm32-wasi
 WASM_OPT := wasm-opt
 BUILD_DIR := target/$(WASM_TARGET)/release
-WASM_FILE := $(BUILD_DIR)/exoper_envoy_integration_filter.wasm
-OPTIMIZED_WASM := $(BUILD_DIR)/exoper_envoy_integration_filter_optimized.wasm
+WASM_FILE := $(BUILD_DIR)/etradie_envoy_integration_filter.wasm
+OPTIMIZED_WASM := $(BUILD_DIR)/etradie_envoy_integration_filter_optimized.wasm
 
 all: build-release
 
 help:
-	@echo "Exoper Envoy WASM Filter - Build Targets"
+	@echo "eTradie Envoy WASM Filter - Build Targets"
 	@echo "=========================================="
 	@echo "  make build          - Build debug version"
 	@echo "  make build-release  - Build optimized release version"
