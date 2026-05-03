@@ -3,8 +3,8 @@ name = "etradie-envoy-header-validator"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
-authors = ["Exoper Team"]
-description = "Header validation filter for Exoper Envoy - validates headers, User-Agent, Content-Type with strict allowlists"
+authors = ["eTradie Team"]
+description = "Header validation filter for eTradie Envoy - validates headers, User-Agent, Content-Type with strict allowlists"
 license = "MIT"
 repository = "https://github.com/etradie/etradie"
 
