@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gateway.configMapName" . }}
+  namespace: {{ include "gateway.namespace" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  # Gateway core
+  GATEWAY_ENABLED: {{ .Values.config.gateway.enabled | quote }}
+  GATEWAY_HTTP_PORT: {{ .Values.config.gateway.httpPort | quote }}
+  GATEWAY_GRPC_PORT: {{ .Values.config.gateway.grpcPort | quote }}
+  GATEWAY_DEFAULT_SYMBOLS: {{ .Values.config.gateway.defaultSymbols | quote }}
+  GATEWAY_CYCLE_INTERVAL_SECONDS: {{ .Values.config.gateway.cycleIntervalSeconds | quote }}
+  GATEWAY_CYCLE_TIMEOUT_SECONDS: {{ .Values.config.gateway.cycleTimeoutSeconds | quote }}
+  GATEWAY_MAX_CONCURRENT_SYMBOLS: {{ .Values.config.gateway.maxConcurrentSymbols | quote }}
+  GATEWAY_TA_MACRO_PARALLEL_TIMEOUT_SECONDS: {{ .Values.config.gateway.taMacroParallelTimeoutSeconds | quote }}
+  GATEWAY_RAG_TIMEOUT_SECONDS: {{ .Values.config.gateway.ragTimeoutSeconds | quote }}
+  GATEWAY_PROCESSOR_TIMEOUT_SECONDS: {{ .Values.config.gateway.processorTimeoutSeconds | quote }}
+  GATEWAY_GUARD_TIMEOUT_SECONDS: {{ .Values.config.gateway.guardTimeoutSeconds | quote }}
+  GATEWAY_TA_CACHE_TTL_SECONDS: {{ .Values.config.gateway.taCacheTtlSeconds | quote }}
+  GATEWAY_MACRO_CACHE_TTL_SECONDS: {{ .Values.config.gateway.macroCacheTtlSeconds | quote }}
+  GATEWAY_MAX_CYCLE_RETRIES: {{ .Values.config.gateway.maxCycleRetries | quote }}
+  GATEWAY_RETRY_BACKOFF_BASE_SECONDS: {{ .Values.config.gateway.retryBackoffBaseSeconds | quote }}
+  GATEWAY_LOG_LEVEL: {{ .Values.config.gateway.logLevel | quote }}
+  GATEWAY_LOG_JSON: {{ .Values.config.gateway.logJson | quote }}
+  GATEWAY_LOG_FULL_CONTEXT_PAYLOAD: {{ .Values.config.gateway.logFullContextPayload | quote }}
+  GATEWAY_OTEL_SERVICE_NAME: {{ .Values.config.gateway.otelServiceName | quote }}
+  GATEWAY_OTEL_ENDPOINT: {{ .Values.config.gateway.otelEndpoint | quote }}
+  GATEWAY_ENGINE_HTTP_URL: {{ .Values.config.gateway.engineHttpUrl | quote }}
+  GATEWAY_EXECUTION_ENABLED: {{ .Values.config.gateway.executionEnabled | quote }}
+  GATEWAY_EXECUTION_ADDR: {{ .Values.config.gateway.executionAddr | quote }}
+  GATEWAY_EXECUTION_TIMEOUT_MS: {{ .Values.config.gateway.executionTimeoutMs | quote }}
+  GATEWAY_MANAGEMENT_ENABLED: {{ .Values.config.gateway.managementEnabled | quote }}
+  GATEWAY_MANAGEMENT_ADDR: {{ .Values.config.gateway.managementAddr | quote }}
+  GATEWAY_MANAGEMENT_TIMEOUT_MS: {{ .Values.config.gateway.managementTimeoutMs | quote }}
+  GATEWAY_REDIS_MAX_CONNECTIONS: {{ .Values.config.gateway.redisMaxConnections | quote }}
+  GATEWAY_ALLOWED_ORIGINS: {{ .Values.config.gateway.allowedOrigins | quote }}
+
+  # Auth
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: {{ .Values.config.auth.accessTokenTtlSeconds | quote }}
+  AUTH_REFRESH_TOKEN_TTL_SECONDS: {{ .Values.config.auth.refreshTokenTtlSeconds | quote }}
+  AUTH_SERVICE_TOKEN_TTL_SECONDS: {{ .Values.config.auth.serviceTokenTtlSeconds | quote }}
+  AUTH_BCRYPT_COST: {{ .Values.config.auth.bcryptCost | quote }}
+  AUTH_MAX_SESSIONS_PER_USER: {{ .Values.config.auth.maxSessionsPerUser | quote }}
+  AUTH_ISSUER: {{ .Values.config.auth.issuer | quote }}
+  AUTH_ADMIN_USERNAME: {{ .Values.config.auth.adminUsername | quote }}
+  AUTH_ADMIN_EMAIL: {{ .Values.config.auth.adminEmail | quote }}
+
+  # Trust chain (Cloudflare → edge-ingress → envoy → gateway)
+  AUTH_TRUSTED_PROXY_CIDRS: {{ .Values.trustChain.trustedProxyCidrs | quote }}
+  AUTH_TRUST_CLOUDFLARE: {{ .Values.trustChain.trustCloudflare | quote }}
