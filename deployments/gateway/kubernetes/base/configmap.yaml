@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etradie-gateway-config
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/version: "0.1.0"
+  annotations:
+    description: "eTradie gateway non-secret runtime configuration"
+data:
+  # ── Gateway core ──────────────────────────────────────────────────
+  GATEWAY_ENABLED: "true"
+  GATEWAY_HTTP_PORT: "8080"
+  GATEWAY_GRPC_PORT: "50052"
+
+  GATEWAY_DEFAULT_SYMBOLS: "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,NZDUSD,USDCAD,XAUUSD"
+
+  # Cycle scheduling.
+  GATEWAY_CYCLE_INTERVAL_SECONDS: "14400"
+  GATEWAY_CYCLE_TIMEOUT_SECONDS: "450"
+
+  # Per-symbol parallelism + per-phase timeouts.
+  GATEWAY_MAX_CONCURRENT_SYMBOLS: "4"
+  GATEWAY_TA_MACRO_PARALLEL_TIMEOUT_SECONDS: "120"
+  GATEWAY_RAG_TIMEOUT_SECONDS: "30"
+  GATEWAY_PROCESSOR_TIMEOUT_SECONDS: "180"
+  GATEWAY_GUARD_TIMEOUT_SECONDS: "10"
+
+  # Result caching.
+  GATEWAY_TA_CACHE_TTL_SECONDS: "300"
+  GATEWAY_MACRO_CACHE_TTL_SECONDS: "600"
+
+  # Retry policy.
+  GATEWAY_MAX_CYCLE_RETRIES: "1"
+  GATEWAY_RETRY_BACKOFF_BASE_SECONDS: "2.0"
+
+  # Observability.
+  GATEWAY_LOG_LEVEL: "INFO"
+  GATEWAY_LOG_JSON: "true"
+  GATEWAY_LOG_FULL_CONTEXT_PAYLOAD: "false"
+  GATEWAY_OTEL_SERVICE_NAME: "etradie-gateway"
+  GATEWAY_OTEL_ENDPOINT: "otel-collector.etradie-observability.svc.cluster.local:4317"
+
+  # ── Downstream services ───────────────────────────────────────────
+  GATEWAY_ENGINE_HTTP_URL: "http://engine.etradie-system.svc.cluster.local:8000"
+  GATEWAY_EXECUTION_ENABLED: "true"
+  GATEWAY_EXECUTION_ADDR: "execution.etradie-system.svc.cluster.local:50053"
+  GATEWAY_EXECUTION_TIMEOUT_MS: "5000"
+  GATEWAY_MANAGEMENT_ENABLED: "true"
+  GATEWAY_MANAGEMENT_ADDR: "management.etradie-system.svc.cluster.local:50054"
+  GATEWAY_MANAGEMENT_TIMEOUT_MS: "5000"
+
+  # Redis lives in the same namespace; secret carries the password.
+  GATEWAY_REDIS_MAX_CONNECTIONS: "20"
+
+  # CORS allowlist for the dashboard. Overlays replace this for
+  # staging.etradie.com and app.etradie.com.
+  GATEWAY_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173"
+
+  # ── Auth ──────────────────────────────────────────────────────────
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
+  AUTH_REFRESH_TOKEN_TTL_SECONDS: "604800"
+  AUTH_SERVICE_TOKEN_TTL_SECONDS: "2592000"
+  AUTH_BCRYPT_COST: "12"
+  AUTH_MAX_SESSIONS_PER_USER: "5"
+  AUTH_ISSUER: "etradie"
+  AUTH_ADMIN_USERNAME: "admin"
+  AUTH_ADMIN_EMAIL: "admin@etradie.local"
+
+  # Trust-chain configuration. envoy + edge-ingress run in adjacent
+  # namespaces with pod IPs in the cluster pod CIDR. Operators
+  # narrow this in overlays to match their CNI's actual pod CIDR.
+  AUTH_TRUSTED_PROXY_CIDRS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  # Cloudflare is opt-in per environment (overlays/production sets true).
+  AUTH_TRUST_CLOUDFLARE: "false"
