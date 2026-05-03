@@ -21,6 +21,7 @@ impl TlsAcceptor {
         let cert_loader = CertificateLoader::new(config.clone())?;
         let cert_resolver = cert_loader.load_all_certificates()?;
 
+        // mTLS is mandatory; client_auth is a required field on TlsConfig.
         let server_config = build_server_config(
             cert_resolver,
             &config.min_tls_version,
