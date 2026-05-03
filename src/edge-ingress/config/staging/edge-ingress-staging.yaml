@@ -13,6 +13,15 @@ tls:
   cert_reload_interval:
     secs: 1800
     nanos: 0
+  # Cloudflare Authenticated Origin Pulls (mTLS).
+  # Soft-launch in staging: optional mode means unauthenticated
+  # handshakes still complete, but get logged so we can validate
+  # zero unauthenticated traffic before flipping production to
+  # required.
+  client_auth:
+    enabled: true
+    mode: "optional"
+    ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
     - hostname: "staging-api.etradie.com"
       cert_path: "/etc/edge-ingress/certs/staging-api.etradie.com.crt"

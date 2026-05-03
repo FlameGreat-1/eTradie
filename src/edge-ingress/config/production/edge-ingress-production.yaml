@@ -13,6 +13,17 @@ tls:
   cert_reload_interval:
     secs: 3600
     nanos: 0
+  # Cloudflare Authenticated Origin Pulls (mTLS).
+  # Required in production: any TLS connection that does not present
+  # a client certificate signed by the Cloudflare AOP CA fails at
+  # ServerHello, before any HTTP byte is parsed. This is the primary
+  # origin-spoofing defence and pairs with the origin firewall (which
+  # restricts TCP/443 to Cloudflare's published IP ranges) to give
+  # two independent layers of upstream-identity proof.
+  client_auth:
+    enabled: true
+    mode: "required"
+    ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
     - hostname: "api.etradie.com"
       cert_path: "/etc/edge-ingress/certs/api.etradie.com.crt"
