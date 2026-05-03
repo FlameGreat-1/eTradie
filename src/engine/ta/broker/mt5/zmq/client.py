@@ -389,7 +389,7 @@ class ZmqClient(BrokerBase):
             if end_time:
                 request["end_time"] = end_time.strftime("%Y.%m.%d %H:%M:%S")
 
-            raw = await self._request(request)
+            raw = await self._request_candles(request)
 
             duration = _time.monotonic() - start_timer
 
@@ -582,10 +582,17 @@ class ZmqClient(BrokerBase):
             if self._socket is not None:
                 self._socket.close(linger=0)
                 self._socket = None
-            if self._ctx is not None:
-                self._ctx.term()
-                self._ctx = None
             self._initialized = False
+        async with self._candles_lock:
+            if self._candles_socket is not None:
+                self._candles_socket.close(linger=0)
+                self._candles_socket = None
+            self._candles_initialized = False
+        # Tear down the shared context only after both sockets are gone so
+        # an in-flight close on either side cannot race the context term.
+        if self._ctx is not None:
+            self._ctx.term()
+            self._ctx = None
         logger.info("zmq_shutdown_complete")
 
     # -- Trading methods (Execution + Management bridge) -----------------------
