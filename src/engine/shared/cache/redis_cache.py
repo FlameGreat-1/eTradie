@@ -627,6 +627,59 @@ class RedisCache:
         # Legacy / non-envelope payload: return as-is, no age available.
         return raw, None
 
+    async def get_meta_only(
+        self,
+        namespace: str,
+        key: str,
+        *,
+        trace_id: Optional[str] = None,
+    ) -> tuple[bool, int | None]:
+        """Return (exists, age_seconds) without materialising the payload.
+
+        Lightweight companion to get_with_meta() for background coordination
+        loops (pre-warm scheduler, freshness pollers) that only need to know
+        whether an entry exists and how old it is, never its content. The
+        envelope's `v` (which for chart candles can be ~150 KB of JSON) is
+        never reified into Python objects, only the small `t` integer is
+        parsed. Saves significant CPU and allocation churn under the burst
+        loads typical of dashboard chart switching.
+
+        Returns (False, None) on miss.
+        Returns (True, age) on hit when the stored entry is in envelope
+        format. Returns (True, None) for legacy non-envelope payloads.
+        """
+        full_key = self._make_key(namespace, key)
+        try:
+            raw_bytes: bytes | None = await self._execute_with_retry(
+                "get_meta_only",
+                self._client.get,
+                full_key,
+            )
+        except (CacheTimeoutError, CacheConnectionError, CacheError):
+            # Fail-open: callers using this for *coordination* should treat
+            # transient cache errors as 'no information', never as a hard
+            # error. Returning (False, None) makes them re-fetch, which is
+            # the safe behaviour.
+            return False, None
+
+        if raw_bytes is None:
+            return False, None
+
+        try:
+            parsed = orjson.loads(raw_bytes)
+        except Exception:
+            # Non-JSON or corrupt envelope: treat as legacy.
+            return True, None
+
+        if isinstance(parsed, dict) and "t" in parsed and "v" in parsed:
+            try:
+                age = max(0, int(time.time()) - int(parsed["t"]))
+            except (TypeError, ValueError):
+                age = None
+            return True, age
+
+        return True, None
+
     # -- Distributed lock (single-flight) ------------------------------------
     #
     # try_acquire_lock implements the canonical SET key value NX EX <ttl>
