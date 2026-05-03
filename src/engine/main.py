@@ -3303,7 +3303,7 @@ def create_app() -> FastAPI:
         request: Request,
         symbol: str = Query(..., description="Broker symbol, e.g. USDJPYm"),
         timeframe: str = Query("H1", description="Timeframe: M1,M5,M15,M30,H1,H4,D1,W1"),
-        count: int = Query(300, ge=10, le=5000, description="Number of candles"),
+        count: int = Query(2000, ge=10, le=5000, description="Number of candles"),
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
         """Return historical OHLCV candles for the dashboard chart.
@@ -3362,8 +3362,8 @@ def create_app() -> FastAPI:
         # changing the call signature. All durations are in seconds.
         REVALIDATE_AFTER_S = 30        # serve cached if younger than this
         TOTAL_TTL_S = 1800             # 30-min hard expiry on the cache entry
-        COLD_FETCH_DEADLINE_S = 12     # cap on synchronous broker wait
-        LOCK_TTL_S = 20                # max time the SET-NX lock is held
+        COLD_FETCH_DEADLINE_S = 60     # cap on synchronous broker wait
+        LOCK_TTL_S = 90                # max time the SET-NX lock is held
         LOCK_WAIT_POLL_S = 0.15        # cadence for waiting-on-lock readers
         # Per-symbol pre-warm cooldown: the same (user, symbol) cannot
         # produce a second pre-warm wave within this window, no matter
@@ -3379,12 +3379,12 @@ def create_app() -> FastAPI:
         # ceiling on the wave itself is the safety net that guarantees
         # the coordinator releases its in-flight slot for the (user,
         # symbol) key in bounded time even if a sibling fetch wedges.
-        PREWARM_WAVE_DEADLINE_S = 90
+        PREWARM_WAVE_DEADLINE_S = 300
         # Per-fetch ceiling for any background broker call. A real
         # MetaAPI candles request completes in 200-800ms; this ceiling
         # exists only to prevent a hung socket from holding the
         # background semaphore slot indefinitely.
-        BACKGROUND_FETCH_DEADLINE_S = 10
+        BACKGROUND_FETCH_DEADLINE_S = 25
         # Spacing between consecutive pre-warm calls. Combined with the
         # MetaAPI per-account background semaphore tier and the dedicated
         # ZMQ candles socket, this keeps the broker comfortably below
@@ -3468,6 +3468,7 @@ def create_app() -> FastAPI:
                     timeframe=target_tf,
                     count=count,
                 )
+
             candles_out = [
                 {
                     "time": int(c.timestamp.timestamp()),
@@ -3564,7 +3565,10 @@ def create_app() -> FastAPI:
             for other_tf in PREWARM_TIMEFRAMES:
                 if other_tf == tf_norm:
                     continue
-                other_key = f"{user.user_id}:{safe_symbol}:{other_tf}:{count}"
+                # Use a smaller count for pre-warming to reduce broker load.
+                # 500 candles is sufficient for background readiness.
+                bg_count = 500
+                other_key = f"{user.user_id}:{safe_symbol}:{other_tf}:{bg_count}"
 
                 # Cheap freshness check: parse only the envelope's `t`,
                 # never the candles array. Skips both broker work and
@@ -3599,7 +3603,7 @@ def create_app() -> FastAPI:
                             client.fetch_candles(
                                 symbol=symbol,
                                 timeframe=other_tf_enum,
-                                count=count,
+                                count=bg_count,
                             ),
                             timeout=BACKGROUND_FETCH_DEADLINE_S,
                         )

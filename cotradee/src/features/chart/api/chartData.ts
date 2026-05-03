@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -47,19 +48,39 @@ export interface ChartCandlesResponse {
 
 export function useChartCandles(symbol: string, timeframe: string) {
   const { isAuthenticated } = useAuth();
+  const [requestedCount, setRequestedCount] = useState(500);
+
+  // Reset count to 500 whenever symbol or timeframe changes to ensure
+  // the next view also starts with an instant cache hit from the pre-warm.
+  useEffect(() => {
+    setRequestedCount(500);
+  }, [symbol, timeframe]);
+
   return useQuery<ChartCandlesResponse>({
-    queryKey: ['chart', 'candles', symbol, timeframe],
+    // Include requestedCount in queryKey so the second stage triggers a new fetch.
+    queryKey: ['chart', 'candles', symbol, timeframe, requestedCount],
     queryFn: async () => {
       const { data } = await api.engine.get<ChartCandlesResponse>(
         '/api/broker/candles',
-        { params: { symbol, timeframe, count: 2000 } },
+        { params: { symbol, timeframe, count: requestedCount } },
       );
+
+      // 3-Stage Progressive Upgrade Path:
+      // Stage 1 (500) -> Stage 2 (1000) -> Stage 3 (2000)
+      if (requestedCount === 500) {
+        setTimeout(() => setRequestedCount(1000), 100);
+      } else if (requestedCount === 1000) {
+        setTimeout(() => setRequestedCount(2000), 100);
+      }
+
       return data;
     },
     enabled: !!symbol && isAuthenticated,
     staleTime: 30_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
+    // CRITICAL: keepPreviousData ensures the 500 candles stay visible 
+    // while the 2000-candle request is in flight.
     placeholderData: keepPreviousData,
     retry: (failureCount, error: unknown) => {
       const status = (error as { response?: { status?: number } })?.response
