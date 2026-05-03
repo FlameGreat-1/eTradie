@@ -1,34 +1,35 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: envoy-system
+  name: etradie-system
   labels:
-    name: envoy-system
-    app.kubernetes.io/name: exoper-envoy
-    app.kubernetes.io/component: proxy
-    app.kubernetes.io/part-of: exoper
+    name: etradie-system
+    app.kubernetes.io/name: etradie-gateway
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: etradie
     app.kubernetes.io/managed-by: kustomize
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
   annotations:
-    description: "Exoper Envoy proxy namespace"
+    description: "eTradie gateway namespace (Go API + gRPC)"
 ---
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: envoy-resource-quota
-  namespace: envoy-system
+  name: etradie-gateway-resource-quota
+  namespace: etradie-system
   labels:
-    app.kubernetes.io/name: exoper-envoy
+    app.kubernetes.io/name: etradie-gateway
     app.kubernetes.io/component: resource-quota
+    app.kubernetes.io/part-of: etradie
 spec:
   hard:
-    requests.cpu: "8"
-    requests.memory: 16Gi
-    limits.cpu: "16"
-    limits.memory: 32Gi
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
     persistentvolumeclaims: "0"
     services.loadbalancers: "0"
     services.nodeports: "0"
@@ -36,29 +37,30 @@ spec:
 apiVersion: v1
 kind: LimitRange
 metadata:
-  name: envoy-limit-range
-  namespace: envoy-system
+  name: etradie-gateway-limit-range
+  namespace: etradie-system
   labels:
-    app.kubernetes.io/name: exoper-envoy
+    app.kubernetes.io/name: etradie-gateway
     app.kubernetes.io/component: limit-range
+    app.kubernetes.io/part-of: etradie
 spec:
   limits:
     - max:
-        cpu: "4"
-        memory: 8Gi
+        cpu: "2"
+        memory: 4Gi
       min:
         cpu: 100m
         memory: 128Mi
       default:
-        cpu: "2"
-        memory: 4Gi
-      defaultRequest:
         cpu: "1"
         memory: 2Gi
+      defaultRequest:
+        cpu: 250m
+        memory: 512Mi
       type: Container
     - max:
-        cpu: "8"
-        memory: 16Gi
+        cpu: "4"
+        memory: 8Gi
       min:
         cpu: 100m
         memory: 128Mi

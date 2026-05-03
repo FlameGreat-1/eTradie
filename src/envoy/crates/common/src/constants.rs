@@ -26,6 +26,14 @@ pub const HEADER_CONTENT_TYPE: &str = "content-type";
 pub const HEADER_CONTENT_LENGTH: &str = "content-length";
 pub const HEADER_RETRY_AFTER: &str = "retry-after";
 
+// Cloudflare-set headers honoured by the trust-chain resolver. Envoy
+// itself does NOT validate these; trust enforcement lives in the gateway
+// auth/clientip resolver, which gates them on the immediate peer being
+// in the configured trusted-proxy CIDR list.
+pub const HEADER_CF_CONNECTING_IP: &str = "cf-connecting-ip";
+pub const HEADER_X_FORWARDED_FOR: &str = "x-forwarded-for";
+pub const HEADER_X_REAL_IP: &str = "x-real-ip";
+
 pub const W3C_TRACEPARENT_VERSION: &str = "00";
 pub const W3C_TRACE_FLAGS_SAMPLED: &str = "01";
 
@@ -37,7 +45,14 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
     "text/plain",
 ];
 
-pub const ALLOWED_HTTP_METHODS: &[&str] = &["GET", "POST"];
+// Full HTTP method set the gateway exposes. The previous {GET,POST}
+// default rejected PUT (password change, admin user actions),
+// DELETE (planned admin endpoints), PATCH (partial updates), and
+// OPTIONS (CORS preflight from dashboard). HEAD is included for
+// uptime probes that prefer header-only responses.
+pub const ALLOWED_HTTP_METHODS: &[&str] = &[
+    "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS",
+];
 
 pub const HTTP_STATUS_BAD_REQUEST: u32 = 400;
 pub const HTTP_STATUS_PAYLOAD_TOO_LARGE: u32 = 413;

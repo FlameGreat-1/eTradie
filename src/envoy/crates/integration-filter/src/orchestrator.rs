@@ -257,8 +257,10 @@ mod tests {
             ("user-agent".to_string(), "test-agent".to_string()),
         ];
 
+        // TRACE is deliberately excluded from ALLOWED_HTTP_METHODS
+        // (debug/proxy semantics not needed in front of the gateway).
         let context = crate::context::RequestContext::new(
-            "DELETE".to_string(),
+            "TRACE".to_string(),
             "/api/v1/users".to_string(),
             &headers,
         );

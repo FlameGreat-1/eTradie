@@ -63,7 +63,8 @@ mod tests {
     #[test]
     fn test_validator_creation() {
         let validator = MethodValidator::with_default_methods();
-        assert_eq!(validator.allowed_methods().len(), 2);
+        // Default set covers the full gateway surface plus CORS preflight.
+        assert_eq!(validator.allowed_methods().len(), ALLOWED_HTTP_METHODS.len());
     }
 
     #[test]
@@ -71,16 +72,23 @@ mod tests {
         let validator = MethodValidator::with_default_methods();
         assert!(validator.validate("GET").is_ok());
         assert!(validator.validate("POST").is_ok());
+        assert!(validator.validate("PUT").is_ok());
+        assert!(validator.validate("DELETE").is_ok());
+        assert!(validator.validate("PATCH").is_ok());
+        assert!(validator.validate("HEAD").is_ok());
+        assert!(validator.validate("OPTIONS").is_ok());
         assert!(validator.validate("get").is_ok());
         assert!(validator.validate("post").is_ok());
+        assert!(validator.validate("put").is_ok());
     }
 
     #[test]
     fn test_disallowed_methods() {
         let validator = MethodValidator::with_default_methods();
-        assert!(validator.validate("PUT").is_err());
-        assert!(validator.validate("DELETE").is_err());
-        assert!(validator.validate("PATCH").is_err());
+        // Methods we deliberately do NOT allow (debug/proxy semantics).
+        assert!(validator.validate("TRACE").is_err());
+        assert!(validator.validate("CONNECT").is_err());
+        assert!(validator.validate("PROPFIND").is_err());
     }
 
     #[test]
@@ -88,7 +96,9 @@ mod tests {
         let validator = MethodValidator::with_default_methods();
         assert!(validator.is_method_allowed("GET"));
         assert!(validator.is_method_allowed("get"));
-        assert!(!validator.is_method_allowed("PUT"));
+        assert!(validator.is_method_allowed("PUT"));
+        assert!(validator.is_method_allowed("DELETE"));
+        assert!(!validator.is_method_allowed("TRACE"));
     }
 
     #[test]

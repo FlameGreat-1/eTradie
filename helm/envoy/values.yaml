@@ -189,16 +189,19 @@ networkPolicy:
         - protocol: TCP
           port: 9901
   egress:
+    # Allow connections to the eTradie gateway HTTP listener.
+    # See deployments/gateway/kubernetes/base for the canonical label
+    # and port definition (app.kubernetes.io/name=etradie-gateway, :8080).
     - to:
         - namespaceSelector:
             matchLabels:
               app.kubernetes.io/part-of: etradie
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: gateway-orchestrator
+              app.kubernetes.io/name: etradie-gateway
       ports:
         - protocol: TCP
-          port: 8081
+          port: 8080
     - to:
         - namespaceSelector:
             matchLabels:
