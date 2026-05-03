@@ -37,8 +37,6 @@ config:
       secs: 3600
       nanos: 0
     client_auth:
-      enabled: true
-      mode: "required"
       ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
     certificates:
       - hostname: "api.etradie.com"
