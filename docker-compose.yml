@@ -308,6 +308,109 @@ services:
         limits:
           memory: 256M
 
+  # ─────────────────────────────────────────────────────────────────
+  # EDGE PROFILE (opt-in)
+  # Activate with: docker compose --profile edge up
+  # Adds envoy + edge-ingress in front of gateway so the full
+  # Cloudflare → edge-ingress → envoy → gateway chain can be exercised
+  # locally. Without --profile edge these services stay off and the
+  # gateway is reachable directly on :8080 as before.
+  # ─────────────────────────────────────────────────────────────────
+  envoy:
+    profiles: ["edge"]
+    build:
+      context: ./src/envoy
+      dockerfile: ../../deployments/envoy/docker/Dockerfile.envoy
+    image: etradie/envoy:local
+    container_name: etradie-envoy
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=local
+      - LOG_LEVEL=debug
+    volumes:
+      - ./src/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "18080:8080"  # HTTP listener (also receives from edge-ingress in-network)
+      - "19901:9901"  # Admin / Prometheus
+    depends_on:
+      gateway:
+        condition: service_started
+    networks:
+      - etradie-net
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q :26AD /proc/net/tcp || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  edge-ingress:
+    profiles: ["edge"]
+    build:
+      context: .
+      dockerfile: deployments/edge-ingress/docker/Dockerfile.edge-ingress
+      args:
+        BUILD_DATE: ${BUILD_DATE:-2024-01-01T00:00:00Z}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    image: etradie/edge-ingress:local
+    container_name: etradie-edge-ingress
+    restart: unless-stopped
+    environment:
+      - CONFIG_PATH=/etc/edge-ingress/config/edge-ingress.yaml
+      - RUST_LOG=info,edge_ingress=debug
+      - RUST_BACKTRACE=1
+    volumes:
+      - ./deployments/edge-ingress/docker/config:/etc/edge-ingress/config:ro
+      - ./deployments/edge-ingress/docker/certs:/etc/edge-ingress/certs:ro
+      # Local AOP CA placeholder. The committed file is a comment-only
+      # placeholder; populate with `curl -fsSL
+      # https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem`
+      # to exercise mTLS locally. Disabled in the local config by default.
+      - ./deployments/cloudflare/origin-pull:/etc/edge-ingress/cloudflare:ro
+    ports:
+      - "8443:443"   # TLS listener (host-side: https://localhost:8443)
+      - "19902:9902" # Metrics / health
+    depends_on:
+      envoy:
+        condition: service_healthy
+    networks:
+      - etradie-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9902/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
 volumes:
   postgres_data:
     driver: local
