@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -51,9 +52,37 @@ type Config struct {
 	// Issuer claim for JWT tokens.
 	Issuer string `envconfig:"ISSUER" default:"etradie"`
 
+	// TrustedProxyCIDRs is the list of CIDR blocks whose peer addresses
+	// are treated as trusted proxies for client-IP resolution. When the
+	// HTTP request's immediate peer is in one of these ranges, the
+	// resolver honours CF-Connecting-IP / X-Forwarded-For / X-Real-IP.
+	// Otherwise, those headers are ignored and the peer address is
+	// returned as the client IP. This makes header spoofing impossible
+	// from outside the trusted edge.
+	//
+	// Default: empty. With no trusted proxies, the resolver always
+	// returns the immediate peer, which is the safe default for any
+	// deployment where the edge has not been explicitly configured.
+	//
+	// Production deployment behind edge-ingress + envoy should list the
+	// pod CIDR of edge-ingress (and, if applicable, the envoy pod CIDR
+	// when envoy is co-located with gateway). Production deployment
+	// behind Cloudflare should additionally set AUTH_TRUST_CLOUDFLARE.
+	TrustedProxyCIDRs []string `envconfig:"TRUSTED_PROXY_CIDRS"`
+
+	// TrustCloudflare extends the trusted-proxy set with the published
+	// Cloudflare IPv4 + IPv6 ranges. Set to true when Cloudflare is
+	// the front door of the deployment. Default: false.
+	TrustCloudflare bool `envconfig:"TRUST_CLOUDFLARE" default:"false"`
+
 	// jwtSecretBytes is the parsed secret used for signing.
 	// Not loaded from env; derived from JWTSecret during validation.
 	jwtSecretBytes []byte
+
+	// ipResolver is the lazily-built ClientIPResolver. Constructed once
+	// after validation and cached for the lifetime of the Config.
+	ipResolverOnce sync.Once
+	ipResolver     *ClientIPResolver
 }
 
 // LoadConfig reads configuration from AUTH_ prefixed environment
@@ -121,12 +150,26 @@ func (c *Config) validate() error {
 		return fmt.Errorf("MAX_SESSIONS_PER_USER must be 1..20, got %d", c.MaxSessionsPerUser)
 	}
 
+	// Trusted-proxy CIDR validation: surface bad values at startup.
+	if _, bad := ParseTrustedCIDRs(c.TrustedProxyCIDRs); len(bad) > 0 {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS contains malformed entries: %v", bad)
+	}
+
 	return nil
 }
 
 // JWTSecretBytes returns the parsed JWT signing key.
 func (c *Config) JWTSecretBytes() []byte {
 	return c.jwtSecretBytes
+}
+
+// IPResolver returns the lazily-initialised ClientIPResolver built from
+// TrustedProxyCIDRs and TrustCloudflare. Safe for concurrent use.
+func (c *Config) IPResolver() *ClientIPResolver {
+	c.ipResolverOnce.Do(func() {
+		c.ipResolver = NewClientIPResolver(c.TrustedProxyCIDRs, c.TrustCloudflare)
+	})
+	return c.ipResolver
 }
 
 // SetTestSecret configures the Config with a known JWT secret for use
