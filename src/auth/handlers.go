@@ -31,16 +31,23 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 // Protected routes (require valid token): logout, me, password change.
 // Admin routes (require admin role): user management.
 // Public endpoints are rate-limited per IP to prevent brute-force attacks.
+//
+// The per-IP rate-limit identity is resolved via h.cfg.IPResolver(),
+// which honours forwarding headers only from trusted proxies. This
+// prevents an attacker who reaches the origin directly from spoofing
+// X-Forwarded-For to impersonate other source IPs.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	// Rate limiters for public auth endpoints (per IP).
-	loginLimiter := NewRateLimiter(10, 1*time.Minute)    // 10 login attempts/min/IP
-	registerLimiter := NewRateLimiter(5, 1*time.Minute)  // 5 registrations/min/IP
-	refreshLimiter := NewRateLimiter(20, 1*time.Minute)  // 20 refresh attempts/min/IP
+	loginLimiter := NewRateLimiter(10, 1*time.Minute)   // 10 login attempts/min/IP
+	registerLimiter := NewRateLimiter(5, 1*time.Minute) // 5 registrations/min/IP
+	refreshLimiter := NewRateLimiter(20, 1*time.Minute) // 20 refresh attempts/min/IP
+
+	resolver := h.cfg.IPResolver()
 
 	// Public endpoints (no auth, rate-limited).
-	mux.HandleFunc("/auth/login", loginLimiter.RateLimitMiddleware(h.handleLogin))
-	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddleware(h.handleRegister))
-	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddleware(h.handleRefresh))
+	mux.HandleFunc("/auth/login", loginLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleLogin))
+	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRegister))
+	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRefresh))
 
 	// Protected endpoints (any authenticated user).
 	mux.Handle("/auth/logout", RequireAuthFunc(ts, h.handleLogout))
@@ -123,7 +130,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		UserID:       user.ID,
 		RefreshToken: rawRefresh,
 		UserAgent:    r.UserAgent(),
-		ClientIP:     clientIP(r),
+		ClientIP:     h.cfg.IPResolver().Resolve(r),
 		ExpiresAt:    now.Add(h.tokens.RefreshTokenTTL()),
 		CreatedAt:    now,
 		Revoked:      false,
@@ -214,7 +221,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		UserID:       user.ID,
 		RefreshToken: rawRefresh,
 		UserAgent:    r.UserAgent(),
-		ClientIP:     clientIP(r),
+		ClientIP:     h.cfg.IPResolver().Resolve(r),
 		ExpiresAt:    now.Add(h.tokens.RefreshTokenTTL()),
 		CreatedAt:    now,
 		Revoked:      false,
@@ -302,7 +309,7 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		UserID:       user.ID,
 		RefreshToken: rawRefresh,
 		UserAgent:    r.UserAgent(),
-		ClientIP:     clientIP(r),
+		ClientIP:     h.cfg.IPResolver().Resolve(r),
 		ExpiresAt:    now.Add(h.tokens.RefreshTokenTTL()),
 		CreatedAt:    now,
 		Revoked:      false,
@@ -598,23 +605,10 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	_ = json.NewEncoder(w).Encode(data)
 }
 
-func clientIP(r *http.Request) string {
-	// Check X-Forwarded-For first (reverse proxy).
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.SplitN(xff, ",", 2)
-		return strings.TrimSpace(parts[0])
-	}
-	// Check X-Real-IP.
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	// Fall back to RemoteAddr.
-	addr := r.RemoteAddr
-	if idx := strings.LastIndex(addr, ":"); idx != -1 {
-		return addr[:idx]
-	}
-	return addr
-}
+// clientIP() was removed in favour of the trust-aware ClientIPResolver
+// in clientip.go, exposed via Config.IPResolver(). The legacy helper
+// trusted X-Forwarded-For from any peer and was therefore vulnerable
+// to header spoofing once an attacker reached the origin directly.
 
 func formatOptionalTime(t *time.Time) interface{} {
 	if t == nil {
