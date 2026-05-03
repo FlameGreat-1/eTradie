@@ -3393,6 +3393,7 @@ def create_app() -> FastAPI:
 
         async def _fetch_from_broker(
             target_tf: "TF",
+            target_tf_label: str,
             *,
             background: bool,
         ) -> dict:
@@ -3403,6 +3404,16 @@ def create_app() -> FastAPI:
             tier of the MetaAPI candles semaphore; background acquires
             the background tier and is therefore always queued behind
             any waiting foreground request.
+
+            ``target_tf_label`` is the canonical uppercase string the
+            frontend matches against in TradingChart.tsx
+            (``candleData.timeframe !== timeframe``). It is passed in
+            explicitly rather than derived from ``target_tf.value`` so
+            that any future change to the Timeframe enum's string values
+            (e.g. someone switching to lowercase to match an upstream
+            convention) cannot silently break the frontend payload
+            match. The label is the source of truth from the HTTP
+            request layer; the enum is an internal type.
             """
             client = await _resolve_user_broker(container, user.user_id)
             if background:
@@ -3418,11 +3429,6 @@ def create_app() -> FastAPI:
                     timeframe=target_tf,
                     count=count,
                 )
-            tf_label = (
-                target_tf.value
-                if hasattr(target_tf, "value")
-                else str(target_tf)
-            )
             candles_out = [
                 {
                     "time": int(c.timestamp.timestamp()),
@@ -3436,7 +3442,7 @@ def create_app() -> FastAPI:
             ]
             return {
                 "symbol": symbol,
-                "timeframe": tf_label,
+                "timeframe": target_tf_label,
                 "candles": candles_out,
             }
 
@@ -3465,7 +3471,9 @@ def create_app() -> FastAPI:
             if not acquired:
                 return None
             try:
-                payload = await _fetch_from_broker(tf, background=background)
+                payload = await _fetch_from_broker(
+                    tf, tf_norm, background=background
+                )
                 await _store(cache_key, payload)
                 return payload
             finally:
