@@ -260,7 +260,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     warmup_start = asyncio.get_event_loop().time()
     warmup_results = await asyncio.gather(
-        *(c.refresh() for c in macro_warmup_targets.values()),
+        *(c.collect() for c in macro_warmup_targets.values()),
         return_exceptions=True,
     )
     warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
@@ -2287,6 +2287,7 @@ def create_app() -> FastAPI:
             "ea_host": row.ea_host,
             "ea_port": row.ea_port,
             "metaapi_account_id": row.metaapi_account_id,
+            "metaapi_region": row.metaapi_region,
             "mt5_server": row.mt5_server,
             "mt5_login": row.mt5_login,
             "is_active": row.is_active,
@@ -2331,6 +2332,7 @@ def create_app() -> FastAPI:
             ea_port = None
             ea_auth_token = None
             metaapi_account_id = None
+            metaapi_region = None
             
             if body.connection_type == "ea":
                 # Pull server-side EA config
@@ -2360,6 +2362,7 @@ def create_app() -> FastAPI:
                     http_client=container.http_client,
                     platform_token=platform_token,
                     magic_number=container.mt5_config.magic_number,
+                    region=container.mt5_config.metaapi_region,
                 )
                 
                 try:
@@ -2370,6 +2373,7 @@ def create_app() -> FastAPI:
                         name=body.name,
                     )
                     metaapi_account_id = metaapi_result["account_id"]
+                    metaapi_region = metaapi_result.get("region")
                 except Exception as exc:
                     logger.error(
                         "metaapi_provisioning_error_in_api",
@@ -2390,6 +2394,7 @@ def create_app() -> FastAPI:
                     ea_port=ea_port,
                     ea_auth_token=ea_auth_token,
                     metaapi_account_id=metaapi_account_id,
+                    metaapi_region=metaapi_region,
                     mt5_server=body.mt5_server,
                     mt5_login=body.mt5_login,
                     mt5_password=body.mt5_password,
@@ -2695,6 +2700,7 @@ def create_app() -> FastAPI:
                         http_client=container.http_client,
                         platform_token=platform_token,
                         magic_number=container.mt5_config.magic_number,
+                        region=container.mt5_config.metaapi_region,
                     )
                     # Background task to avoid blocking the user API response
                     asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))

@@ -13,6 +13,7 @@ import asyncio
 import time as _time
 from datetime import datetime, timezone
 from typing import Any, Optional
+import urllib.parse
 
 from engine.shared.exceptions import (
     ProviderAuthenticationError,
@@ -65,7 +66,8 @@ _METAAPI_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class MetaApiClient(BrokerBase):
     """Cloud-based MT5 data provider via MetaApi.cloud REST API."""
 
-    _DEFAULT_BASE_URL = "https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai"
+    _BASE_URL_TEMPLATE = "https://mt-client-api-v1.{region}.agiliumtrade.ai"
+    _MARKET_DATA_URL_TEMPLATE = "https://mt-market-data-client-api-v1.{region}.agiliumtrade.ai"
 
     def __init__(
         self,
@@ -80,7 +82,12 @@ class MetaApiClient(BrokerBase):
         self._base_url = (
             config.metaapi_base_url
             if config.metaapi_base_url
-            else self._DEFAULT_BASE_URL
+            else self._BASE_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
+        )
+        self._market_data_base_url = (
+            config.metaapi_base_url.replace("mt-client-api-v1", "mt-market-data-client-api-v1")
+            if config.metaapi_base_url
+            else self._MARKET_DATA_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
         )
         self._auth_headers = {
             "auth-token": config.metaapi_token,
@@ -88,8 +95,9 @@ class MetaApiClient(BrokerBase):
 
     # -- Helpers ---------------------------------------------------------------
 
-    def _url(self, path: str) -> str:
-        return f"{self._base_url}/users/current/accounts/{self._account_id}{path}"
+    def _url(self, path: str, category: str = "candles") -> str:
+        base = self._market_data_base_url if category == "candles" else self._base_url
+        return f"{base}/users/current/accounts/{self._account_id}{path}"
 
     async def _api_get(
         self,
@@ -99,7 +107,7 @@ class MetaApiClient(BrokerBase):
     ) -> Any:
         """Execute authenticated GET against MetaApi."""
         return await self._http.get(
-            self._url(path),
+            self._url(path, category=category),
             provider_name="metaapi",
             category=category,
             headers=self._auth_headers,
@@ -150,7 +158,7 @@ class MetaApiClient(BrokerBase):
                 params["limit"] = 500
 
             path = (
-                f"/historical-market-data/symbols/{symbol}/timeframes/{ma_tf}/candles"
+                f"/historical-market-data/symbols/{urllib.parse.quote(symbol)}/timeframes/{ma_tf}/candles"
             )
             raw = await self._api_get(path, params=params, category="candles")
 
@@ -255,7 +263,7 @@ class MetaApiClient(BrokerBase):
         return sequence.candles[-1]
 
     async def get_symbol_info(self, symbol: str) -> dict:
-        path = f"/symbols/{symbol}/specification"
+        path = f"/symbols/{urllib.parse.quote(symbol)}/specification"
         try:
             info = await self._api_get(path, category="symbol_info")
         except Exception as e:
@@ -306,16 +314,27 @@ class MetaApiClient(BrokerBase):
 
         symbols: list[dict] = []
         for s in raw:
-            if not isinstance(s, dict):
+            if isinstance(s, str):
+                name = s
+                desc = s
+                path = name
+            elif isinstance(s, dict):
+                name = s.get("symbol", "")
+                desc = s.get("description", name)
+                path = s.get("path", name)
+            else:
                 continue
-            name = s.get("symbol", "")
+
             if not name:
                 continue
-            symbols.append({
-                "name": name,
-                "description": s.get("description", ""),
-                "path": s.get("path", s.get("type", "")),
-            })
+
+            symbols.append(
+                {
+                    "name": name,
+                    "description": desc,
+                    "path": path,
+                }
+            )
 
         logger.info(
             "metaapi_all_symbols_fetched",
@@ -542,7 +561,7 @@ class MetaApiClient(BrokerBase):
 
     async def get_tick_price(self, symbol: str) -> TickPrice:
         raw = await self._api_get(
-            f"/symbols/{symbol}/current-price",
+            f"/symbols/{urllib.parse.quote(symbol)}/current-price",
             category="tick",
         )
         if not isinstance(raw, dict):

@@ -197,8 +197,9 @@ class BrokerConnectionRepository:
         ea_host: Optional[str] = None,
         ea_port: Optional[int] = None,
         ea_auth_token: Optional[str] = None,
-        # MetaAPI: account_id comes from provisioning, not user input
+        # MetaAPI: account_id and region come from provisioning, not user input
         metaapi_account_id: Optional[str] = None,
+        metaapi_region: Optional[str] = None,
         # Common MT5 info
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
@@ -252,6 +253,7 @@ class BrokerConnectionRepository:
             ea_port=ea_port,
             ea_auth_token_encrypted=encrypted_ea_token,
             metaapi_account_id=metaapi_account_id,
+            metaapi_region=metaapi_region,
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
@@ -341,6 +343,7 @@ class BrokerConnectionRepository:
         ea_port: Optional[int] = None,
         ea_auth_token: Optional[str] = None,
         metaapi_account_id: Optional[str] = None,
+        metaapi_region: Optional[str] = None,
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
@@ -365,6 +368,8 @@ class BrokerConnectionRepository:
             values["ea_auth_token_encrypted"] = _encrypt(ea_auth_token)
         if metaapi_account_id is not None:
             values["metaapi_account_id"] = metaapi_account_id
+        if metaapi_region is not None:
+            values["metaapi_region"] = metaapi_region
         if mt5_server is not None:
             values["mt5_server"] = mt5_server
         if mt5_login is not None:

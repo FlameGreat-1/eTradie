@@ -35,9 +35,9 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# MetaAPI Provisioning API base URL.
-_PROVISIONING_BASE_URL = (
-    "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"
+# MetaAPI Provisioning API base URL template (region-specific).
+_PROVISIONING_BASE_URL_TEMPLATE = (
+    "https://mt-provisioning-api-v1.{region}.agiliumtrade.ai"
 )
 
 # Maximum number of polling attempts when MetaAPI returns 202 (async).
@@ -102,6 +102,7 @@ class MetaApiProvisioner:
         http_client: HttpClient,
         platform_token: str,
         magic_number: int = 0,
+        region: str = "new-york",
     ) -> None:
         """Initialize the provisioner.
 
@@ -109,6 +110,7 @@ class MetaApiProvisioner:
             http_client: Shared HTTP client with circuit breaker / retries.
             platform_token: MetaAPI developer API token (platform-level).
             magic_number: MT5 magic number for all provisioned accounts.
+            region: MetaAPI deployment region (e.g., 'new-york', 'london').
         """
         if not platform_token:
             raise ConfigurationError(
@@ -118,6 +120,8 @@ class MetaApiProvisioner:
         self._http = http_client
         self._token = platform_token
         self._magic = magic_number
+        self._region = region
+        self._base_url = _PROVISIONING_BASE_URL_TEMPLATE.format(region=region)
         self._auth_headers = {"auth-token": platform_token}
 
     # -- Public API -----------------------------------------------------------
@@ -212,7 +216,7 @@ class MetaApiProvisioner:
         Returns:
             Dict with account details including 'state' and 'connectionStatus'.
         """
-        url = f"{_PROVISIONING_BASE_URL}/users/current/accounts/{account_id}"
+        url = f"{self._base_url}/users/current/accounts/{account_id}"
         try:
             result = await self._http.get(
                 url,
@@ -245,7 +249,7 @@ class MetaApiProvisioner:
             True if the deploy request was accepted.
         """
         url = (
-            f"{_PROVISIONING_BASE_URL}"
+            f"{self._base_url}"
             f"/users/current/accounts/{account_id}/deploy"
         )
         try:
@@ -282,7 +286,7 @@ class MetaApiProvisioner:
             True if the undeploy request was accepted.
         """
         url = (
-            f"{_PROVISIONING_BASE_URL}"
+            f"{self._base_url}"
             f"/users/current/accounts/{account_id}/undeploy"
         )
         try:
@@ -320,7 +324,7 @@ class MetaApiProvisioner:
             True if deletion was successful.
         """
         url = (
-            f"{_PROVISIONING_BASE_URL}"
+            f"{self._base_url}"
             f"/users/current/accounts/{account_id}"
         )
         try:
@@ -375,7 +379,7 @@ class MetaApiProvisioner:
           - 202: Async processing; poll with same transaction-id
           - 4xx: Validation/auth error
         """
-        url = f"{_PROVISIONING_BASE_URL}/users/current/accounts"
+        url = f"{self._base_url}/users/current/accounts"
 
         for attempt in range(1, _MAX_POLL_ATTEMPTS + 1):
             try:
@@ -402,11 +406,13 @@ class MetaApiProvisioner:
             account_id = result.get("id")
             if account_id:
                 state = result.get("state", "UNKNOWN")
+                region = result.get("region", "new-york")
                 logger.info(
                     "metaapi_provisioning_success",
                     extra={
                         "account_id": account_id,
                         "state": state,
+                        "region": region,
                         "attempt": attempt,
                         "login": payload.get("login"),
                         "server": payload.get("server"),
@@ -415,6 +421,7 @@ class MetaApiProvisioner:
                 return {
                     "account_id": account_id,
                     "state": state,
+                    "region": region,
                 }
 
             # If we get a message but no id, it's likely a 202 async response.

@@ -171,11 +171,20 @@ class HttpClient:
         self._ssl_ca_bundle_path = ssl_ca_bundle_path
         self._ssl_verify = ssl_verify
         self._session: aiohttp.ClientSession | None = None
-        self._circuit = _CircuitBreaker(
-            failure_threshold=cb_failure_threshold,
-            recovery_timeout=cb_recovery_timeout,
-            half_open_max_calls=cb_half_open_max,
-        )
+        self._circuits: dict[str, _CircuitBreaker] = {}
+        self._circuit_kwargs = {
+            "failure_threshold": cb_failure_threshold,
+            "recovery_timeout": cb_recovery_timeout,
+            "half_open_max_calls": cb_half_open_max,
+        }
+        self._circuits_lock = Lock()
+
+    async def _get_circuit(self, provider_name: str) -> _CircuitBreaker:
+        """Get or create a circuit breaker for the specific provider."""
+        async with self._circuits_lock:
+            if provider_name not in self._circuits:
+                self._circuits[provider_name] = _CircuitBreaker(**self._circuit_kwargs)
+            return self._circuits[provider_name]
 
         logger.info(
             "http_client_initialized",
@@ -309,7 +318,8 @@ class HttpClient:
         self._validate_url(url)
 
         # Check circuit breaker state
-        circuit_state = await self._circuit.state
+        circuit = await self._get_circuit(provider_name)
+        circuit_state = await circuit.state
         if circuit_state == CircuitState.OPEN:
             PROVIDER_ERRORS_TOTAL.labels(
                 provider=provider_name,
@@ -428,7 +438,7 @@ class HttpClient:
                         status="success",
                     ).inc()
 
-                    await self._circuit.record_success()
+                    await circuit.record_success()
 
                     logger.debug(
                         "http_request_success",
@@ -460,7 +470,7 @@ class HttpClient:
                     error_type="timeout",
                 ).inc()
 
-                await self._circuit.record_failure()
+                await circuit.record_failure()
 
                 logger.warning(
                     "http_request_timeout",
@@ -496,7 +506,7 @@ class HttpClient:
                     error_type="connection",
                 ).inc()
 
-                await self._circuit.record_failure()
+                await circuit.record_failure()
 
                 logger.warning(
                     "http_connection_error",
@@ -532,7 +542,7 @@ class HttpClient:
                     error_type="unexpected",
                 ).inc()
 
-                await self._circuit.record_failure()
+                await circuit.record_failure()
 
                 logger.exception(
                     "http_unexpected_error",
@@ -638,8 +648,6 @@ class HttpClient:
             status="error",
         ).inc()
 
-        await self._circuit.record_failure()
-
         body = await resp.text()
 
         logger.error(
@@ -672,7 +680,8 @@ class HttpClient:
         trace_id: Optional[str],
     ) -> None:
         """Handle 5xx server errors."""
-        await self._circuit.record_failure()
+        circuit = await self._get_circuit(provider_name)
+        await circuit.record_failure()
 
         body = await resp.text()
 
@@ -874,7 +883,7 @@ class HttpClient:
             logger.exception("http_client_close_failed")
             raise
 
-    @property
-    async def circuit_state(self) -> CircuitState:
-        """Get current circuit breaker state."""
-        return await self._circuit.state
+    async def get_circuit_state(self, provider_name: str) -> CircuitState:
+        """Get current circuit breaker state for a provider."""
+        circuit = await self._get_circuit(provider_name)
+        return await circuit.state

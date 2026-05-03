@@ -82,6 +82,10 @@ class BrokerConnectionRow(ProcessorBase):
         String(100),
         nullable=True,
     )
+    metaapi_region: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+    )
 
     # -- MT5 account info (common to both types) ------------------------------
     mt5_server: Mapped[Optional[str]] = mapped_column(

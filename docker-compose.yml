@@ -138,8 +138,6 @@ services:
       - etradie-net
     extra_hosts:
       - "host.docker.internal:${WSL_HOST_IP:-host-gateway}"
-      - "mt-client-api-v1.agiliumtrade.ai:51.89.234.71"
-      - "mt-provisioning-api-v1.agiliumtrade.ai:51.89.234.71"
     deploy:
       resources:
         limits:

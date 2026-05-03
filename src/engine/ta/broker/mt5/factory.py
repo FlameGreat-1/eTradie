@@ -167,12 +167,14 @@ def create_mt5_broker_from_connection(
 
         # Build MT5Config for MetaAPI cloud provider.
         # Uses the platform-level token (from env), NOT a per-user token.
+        mt5_settings = MT5Config()
         config = MT5Config.model_construct(
             enabled=True,
             provider="metaapi",
             metaapi_token=platform_token,
             metaapi_account_id=row.metaapi_account_id,
-            metaapi_base_url="https://mt-client-api-v1.agiliumtrade.agiliumtrade.ai",
+            metaapi_region=row.metaapi_region or mt5_settings.metaapi_region,
+            metaapi_base_url="",
             zmq_host="",
             zmq_port=5555,
             terminal_path=None,
