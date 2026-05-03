@@ -1,0 +1,68 @@
+{{- /*
+TLS client authentication is mandatory. Fail rendering when ca_path is
+empty rather than producing an edge-ingress that fails at boot with an
+opaque error.
+*/}}
+{{- if not .Values.config.tls.clientAuth.caPath }}
+{{- fail "helm/edge-ingress: .Values.config.tls.clientAuth.caPath is required (mTLS is mandatory). Set it to the in-pod path of the Cloudflare AOP CA bundle, e.g. /etc/edge-ingress/cloudflare/origin-pull-ca.pem." -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}-config
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  edge-ingress.yaml: |
+    server:
+      tls_bind_address: {{ .Values.config.server.tlsBindAddress | default "0.0.0.0:443" | quote }}
+      metrics_bind_address: {{ .Values.config.server.metricsBindAddress | default "0.0.0.0:9902" | quote }}
+      idle_timeout_secs: {{ .Values.config.server.idleTimeoutSecs | default 300 }}
+
+    tls:
+      min_tls_version: {{ .Values.config.tls.minTlsVersion | default "1.2" | quote }}
+      preferred_tls_version: {{ .Values.config.tls.preferredTlsVersion | default "1.3" | quote }}
+      handshake_timeout:
+        secs: {{ .Values.config.tls.handshakeTimeoutSecs | default 10 }}
+        nanos: 0
+      enable_sni: {{ .Values.config.tls.enableSni | default true }}
+      cert_reload_interval:
+        secs: {{ .Values.config.tls.certReloadIntervalSecs | default 3600 }}
+        nanos: 0
+      client_auth:
+        ca_path: {{ .Values.config.tls.clientAuth.caPath | quote }}
+      certificates:
+        {{- range .Values.config.tls.certificates }}
+        - hostname: {{ .hostname | quote }}
+          cert_path: {{ .certPath | quote }}
+          key_path: {{ .keyPath | quote }}
+          is_default: {{ .isDefault | default false }}
+        {{- end }}
+
+    upstream:
+      connect_timeout_secs: {{ .Values.config.upstream.connectTimeoutSecs | default 5 }}
+      request_timeout_secs: {{ .Values.config.upstream.requestTimeoutSecs | default 60 }}
+      endpoints:
+        {{- range .Values.config.upstream.endpoints }}
+        - region: {{ .region | quote }}
+          address: {{ .address | quote }}
+        {{- end }}
+
+    connection_limits:
+      max_global_connections: {{ .Values.config.connectionLimits.maxGlobalConnections | default 100000 }}
+      max_connections_per_ip: {{ .Values.config.connectionLimits.maxConnectionsPerIp | default 1000 }}
+
+    health_check:
+      interval_secs: {{ .Values.config.healthCheck.intervalSecs | default 10 }}
+      timeout_secs: {{ .Values.config.healthCheck.timeoutSecs | default 3 }}
+      unhealthy_threshold: {{ .Values.config.healthCheck.unhealthyThreshold | default 3 }}
+      healthy_threshold: {{ .Values.config.healthCheck.healthyThreshold | default 2 }}
+
+    retry:
+      max_attempts: {{ .Values.config.retry.maxAttempts | default 1 }}
+      backoff_ms: {{ .Values.config.retry.backoffMs | default 100 }}
+
+    geoip:
+      database_path: {{ .Values.config.geoip.databasePath | default "/data/geoip/GeoLite2-City.mmdb" | quote }}

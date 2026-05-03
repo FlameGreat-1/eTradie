@@ -1,0 +1,34 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "edge-ingress.namespace" . }}
+  labels:
+    name: {{ include "edge-ingress.namespace" . }}
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+  annotations:
+    description: "eTradie edge-ingress (TLS termination + Cloudflare AOP) namespace"
+{{- end }}
+{{- if .Values.resourceQuota.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: edge-ingress-resource-quota
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-quota
+spec:
+  hard:
+    requests.cpu: {{ .Values.resourceQuota.hard.requestsCpu | quote }}
+    requests.memory: {{ .Values.resourceQuota.hard.requestsMemory | quote }}
+    limits.cpu: {{ .Values.resourceQuota.hard.limitsCpu | quote }}
+    limits.memory: {{ .Values.resourceQuota.hard.limitsMemory | quote }}
+    services.loadbalancers: {{ .Values.resourceQuota.hard.servicesLoadbalancers | default "1" | quote }}
+    services.nodeports: {{ .Values.resourceQuota.hard.servicesNodeports | default "0" | quote }}
+{{- end }}
