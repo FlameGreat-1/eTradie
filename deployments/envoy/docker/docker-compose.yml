@@ -1,9 +1,7 @@
-version: '3.9'
-
 services:
   envoy:
     build:
-      context: ../../../backend/rust/envoy
+      context: ../../../src/envoy
       dockerfile: ../../../deployments/envoy/docker/Dockerfile.envoy
     image: etradie/envoy:latest
     container_name: etradie-envoy
@@ -18,8 +16,8 @@ services:
       - LOG_LEVEL=debug
     
     volumes:
-      - ../../../backend/rust/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
-      - ../../../backend/rust/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm:/etc/envoy/wasm/integration-filter.wasm:ro
+      - ../../../src/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
+      - ../../../src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm:/etc/envoy/wasm/integration-filter.wasm:ro
       - envoy-cache:/var/cache/envoy
       - envoy-tmp:/tmp
     
@@ -51,10 +49,10 @@ services:
         max-file: "3"
     
     depends_on:
-      - mock-gateway  # TODO: Change to 'gateway' when real Gateway is built
+      - mock-gateway  # TODO: switch to the real eTradie upstream once envoy->backend flow is finalized
 
   # ============================================================================
-  # MOCK GATEWAY (TEMPORARY - COMMENT OUT WHEN REAL GATEWAY IS READY)
+  # MOCK GATEWAY (TEMPORARY - placeholder until eTradie upstream flow is finalized)
   # ============================================================================
   mock-gateway:
     image: kennethreitz/httpbin
@@ -79,12 +77,12 @@ services:
           memory: 256M
 
   # ============================================================================
-  # REAL GATEWAY (UNCOMMENT WHEN GATEWAY IS BUILT)
+  # REAL UPSTREAM (UNCOMMENT AFTER ENVOY->BACKEND FLOW IS FINALIZED)
   # ============================================================================
   # gateway:
   #   build:
-  #     context: ../../../backend/gateway
-  #     dockerfile: Dockerfile
+  #     context: ../../..
+  #     dockerfile: src/gateway/Dockerfile
   #   image: etradie/gateway:latest
   #   container_name: etradie-gateway
   #   hostname: gateway-service
@@ -108,21 +106,6 @@ services:
   #     start_period: 10s
   #   
   #   restart: unless-stopped
-  #   
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '2'
-  #         memory: 2G
-  #       reservations:
-  #         cpus: '1'
-  #         memory: 1G
-  #   
-  #   logging:
-  #     driver: json-file
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
 
 networks:
   etradie-network:
