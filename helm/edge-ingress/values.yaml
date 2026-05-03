@@ -84,6 +84,15 @@ config:
     cert_reload_interval:
       secs: 3600
       nanos: 0
+    # Cloudflare Authenticated Origin Pulls (mTLS). Disabled in the
+    # base values for backward compatibility with operators that have
+    # not yet enabled AOP in their Cloudflare zone. Staging values flip
+    # mode=optional for the soft-launch window, production flips
+    # mode=required for full enforcement.
+    client_auth:
+      enabled: false
+      mode: "none"
+      ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
     certificates:
       - hostname: "api.etradie.com"
         cert_path: "/etc/edge-ingress/certs/api.etradie.com.crt"

@@ -34,6 +34,10 @@ config:
     cert_reload_interval:
       secs: 1800
       nanos: 0
+    client_auth:
+      enabled: true
+      mode: "optional"
+      ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
     certificates:
       - hostname: "staging-api.etradie.com"
         cert_path: "/etc/edge-ingress/certs/staging-api.etradie.com.crt"
