@@ -1,7 +1,7 @@
 replicaCount: 3
 
 image:
-  repository: exoper/edge-ingress
+  repository: etradie/edge-ingress
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 
@@ -85,13 +85,13 @@ config:
       secs: 3600
       nanos: 0
     certificates:
-      - hostname: "api.exoper.com"
-        cert_path: "/etc/edge-ingress/certs/api.exoper.com.crt"
-        key_path: "/etc/edge-ingress/certs/api.exoper.com.key"
+      - hostname: "api.etradie.com"
+        cert_path: "/etc/edge-ingress/certs/api.etradie.com.crt"
+        key_path: "/etc/edge-ingress/certs/api.etradie.com.key"
         is_default: true
-      - hostname: "*.exoper.com"
-        cert_path: "/etc/edge-ingress/certs/wildcard.exoper.com.crt"
-        key_path: "/etc/edge-ingress/certs/wildcard.exoper.com.key"
+      - hostname: "*.etradie.com"
+        cert_path: "/etc/edge-ingress/certs/wildcard.etradie.com.crt"
+        key_path: "/etc/edge-ingress/certs/wildcard.etradie.com.key"
         is_default: false
 
   upstream:
@@ -99,13 +99,13 @@ config:
     request_timeout_secs: 60
     endpoints:
       - region: "us-east-1"
-        address: "envoy.exoper-system.svc.cluster.local:8080"
+        address: "envoy.etradie-system.svc.cluster.local:8080"
       - region: "us-west-2"
-        address: "envoy-us-west-2.exoper-system.svc.cluster.local:8080"
+        address: "envoy-us-west-2.etradie-system.svc.cluster.local:8080"
       - region: "eu-west-1"
-        address: "envoy-eu-west-1.exoper-system.svc.cluster.local:8080"
+        address: "envoy-eu-west-1.etradie-system.svc.cluster.local:8080"
       - region: "ap-southeast-1"
-        address: "envoy-ap-southeast-1.exoper-system.svc.cluster.local:8080"
+        address: "envoy-ap-southeast-1.etradie-system.svc.cluster.local:8080"
 
   connection_limits:
     max_global_connections: 100000
@@ -130,12 +130,12 @@ externalSecrets:
     secretStoreName: vault-backend
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
-    vaultPath: exoper/services/edge-ingress/tls
+    vaultPath: etradie/services/edge-ingress/tls
   maxmind:
     secretStoreName: vault-backend
     secretStoreKind: ClusterSecretStore
     refreshInterval: 24h
-    vaultPath: exoper/services/edge-ingress/maxmind
+    vaultPath: etradie/services/edge-ingress/maxmind
 
 geoip:
   initContainer:
@@ -209,7 +209,7 @@ networkPolicy:
               name: monitoring
         - namespaceSelector:
             matchLabels:
-              name: exoper-system
+              name: etradie-system
       ports:
         - protocol: TCP
           port: 9902
@@ -217,7 +217,7 @@ networkPolicy:
     - to:
         - namespaceSelector:
             matchLabels:
-              name: exoper-system
+              name: etradie-system
           podSelector:
             matchLabels:
               app.kubernetes.io/name: envoy
