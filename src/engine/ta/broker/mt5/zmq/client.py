@@ -79,10 +79,23 @@ class ZmqClient(BrokerBase):
         self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
+        # The trading socket carries every command except CANDLES: ticks,
+        # account info, positions, order placement, modifications. It must
+        # remain responsive at all times.
         self._ctx: zmq_async.Context | None = None  # type: ignore[type-arg]
         self._socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._lock = asyncio.Lock()
         self._initialized = False
+        # The candles socket is a fully isolated REQ/REP pair used only by
+        # fetch_candles(). The MT5 EA binds a single REP socket but ZMQ
+        # serializes replies internally, so two REQ clients can submit work
+        # in parallel without corrupting each other's REQ/REP state machine.
+        # Isolating the historical-data path means a slow CopyRates() call
+        # for a fresh intraday symbol never blocks live tick polling, order
+        # placement, or position monitoring on the trading socket.
+        self._candles_socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
+        self._candles_lock = asyncio.Lock()
+        self._candles_initialized = False
     
     @property
     def provider_name(self) -> str:
@@ -94,11 +107,17 @@ class ZmqClient(BrokerBase):
 
     # -- Connection management -------------------------------------------------
 
+    def _ensure_context(self) -> None:
+        """Lazily create the shared ZMQ context."""
+        if self._ctx is None:
+            self._ctx = zmq_async.Context()
+
     def _connect_sync(self) -> None:
-        """Create ZMQ context and REQ socket."""
+        """Create the trading REQ socket (used by every non-CANDLES command)."""
         if self._initialized:
             return
-        self._ctx = zmq_async.Context()
+        self._ensure_context()
+        assert self._ctx is not None
         self._socket = self._ctx.socket(zmq.REQ)
         self._socket.setsockopt(zmq.RCVTIMEO, self.config.timeout_seconds * 1000)
         self._socket.setsockopt(zmq.SNDTIMEO, self.config.timeout_seconds * 1000)
@@ -107,7 +126,28 @@ class ZmqClient(BrokerBase):
         self._initialized = True
         logger.info(
             "zmq_connected",
-            extra={"endpoint": self._endpoint},
+            extra={"endpoint": self._endpoint, "socket": "trading"},
+        )
+
+    def _connect_candles_sync(self) -> None:
+        """Create the candles-only REQ socket."""
+        if self._candles_initialized:
+            return
+        self._ensure_context()
+        assert self._ctx is not None
+        self._candles_socket = self._ctx.socket(zmq.REQ)
+        self._candles_socket.setsockopt(
+            zmq.RCVTIMEO, self.config.timeout_seconds * 1000
+        )
+        self._candles_socket.setsockopt(
+            zmq.SNDTIMEO, self.config.timeout_seconds * 1000
+        )
+        self._candles_socket.setsockopt(zmq.LINGER, 0)
+        self._candles_socket.connect(self._endpoint)
+        self._candles_initialized = True
+        logger.info(
+            "zmq_connected",
+            extra={"endpoint": self._endpoint, "socket": "candles"},
         )
 
     async def _send_recv_async(
