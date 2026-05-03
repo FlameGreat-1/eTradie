@@ -21,7 +21,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
-name = "exoper-envoy-common"
+name = "etradie-envoy-common"
 version = "0.1.0"
 dependencies = [
  "getrandom",
@@ -32,41 +32,41 @@ dependencies = [
 ]
 
 [[package]]
-name = "exoper-envoy-header-validator"
+name = "etradie-envoy-header-validator"
 version = "0.1.0"
 dependencies = [
- "exoper-envoy-common",
+ "etradie-envoy-common",
  "proxy-wasm",
  "serde",
 ]
 
 [[package]]
-name = "exoper-envoy-integration-filter"
+name = "etradie-envoy-integration-filter"
 version = "0.1.0"
 dependencies = [
- "exoper-envoy-common",
- "exoper-envoy-header-validator",
- "exoper-envoy-rate-limiter",
- "exoper-envoy-request-validator",
+ "etradie-envoy-common",
+ "etradie-envoy-header-validator",
+ "etradie-envoy-rate-limiter",
+ "etradie-envoy-request-validator",
  "proxy-wasm",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "exoper-envoy-rate-limiter"
+name = "etradie-envoy-rate-limiter"
 version = "0.1.0"
 dependencies = [
- "exoper-envoy-common",
+ "etradie-envoy-common",
  "proxy-wasm",
  "serde",
 ]
 
 [[package]]
-name = "exoper-envoy-request-validator"
+name = "etradie-envoy-request-validator"
 version = "0.1.0"
 dependencies = [
- "exoper-envoy-common",
+ "etradie-envoy-common",
  "proxy-wasm",
  "serde",
 ]
