@@ -225,7 +225,7 @@ class ZmqClient(BrokerBase):
         return cast(dict[str, Any] | list[Any], reply)
 
     async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Thread-safe async wrapper around the ZMQ call."""
+        """Thread-safe async wrapper around the trading-socket ZMQ call."""
         async with self._lock:
             try:
                 was_initialized = self._initialized
@@ -275,6 +275,70 @@ class ZmqClient(BrokerBase):
                     self._socket.close(linger=0)
                     self._socket = None
                 self._initialized = False
+                raise
+
+    async def _request_candles(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Thread-safe async wrapper around the candles-socket ZMQ call.
+
+        Mirrors _request() but operates on the dedicated candles socket so a
+        slow CopyRates() call inside the EA cannot block the trading socket.
+        Recovery semantics are identical: on cancellation or any non-EA
+        exception the candles socket is destroyed and reconnected on the
+        next call to keep the REQ/REP state machine consistent.
+        """
+        async with self._candles_lock:
+            try:
+                was_initialized = self._candles_initialized
+                if not self._candles_initialized:
+                    self._connect_candles_sync()
+
+                # Each ZMQ socket is independently authenticated by the EA.
+                if not was_initialized:
+                    try:
+                        await self._send_recv_candles_async(
+                            {"command": "PING", "auth_token": self.auth_token}
+                        )
+                    except ProviderResponseError as e:
+                        logger.warning(
+                            "zmq_candles_initial_auth_failed",
+                            extra={"error": str(e)},
+                        )
+
+                try:
+                    return await self._send_recv_candles_async(request)
+                except ProviderResponseError as e:
+                    if "Not authenticated" in str(e):
+                        try:
+                            await self._send_recv_candles_async(
+                                {"command": "PING", "auth_token": self.auth_token}
+                            )
+                        except ProviderResponseError as ping_e:
+                            raise ping_e from e
+                        return await self._send_recv_candles_async(request)
+                    raise
+            except ProviderResponseError:
+                raise
+            except asyncio.CancelledError as e:
+                logger.warning(
+                    "zmq_candles_request_cancelled_resetting",
+                    extra={"error": str(e)},
+                )
+                if self._candles_socket:
+                    self._candles_socket.close(linger=0)
+                    self._candles_socket = None
+                self._candles_initialized = False
+                raise
+            except Exception as e:
+                logger.warning(
+                    "zmq_candles_socket_poisoned_resetting",
+                    extra={"error": str(e)},
+                )
+                if self._candles_socket:
+                    self._candles_socket.close(linger=0)
+                    self._candles_socket = None
+                self._candles_initialized = False
                 raise
 
     # -- BrokerBase implementation ---------------------------------------------
