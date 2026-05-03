@@ -153,36 +153,56 @@ class ZmqClient(BrokerBase):
     async def _send_recv_async(
         self, request: dict[str, Any]
     ) -> dict[str, Any] | list[Any]:
-        """Send JSON request and receive JSON response asynchronously."""
+        """Send JSON request and receive JSON response on the trading socket."""
+        return await self._send_recv_on(self._socket, request, socket_label="trading")
+
+    async def _send_recv_candles_async(
+        self, request: dict[str, Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Send JSON request and receive JSON response on the candles socket."""
+        return await self._send_recv_on(
+            self._candles_socket, request, socket_label="candles"
+        )
+
+    async def _send_recv_on(
+        self,
+        sock: "zmq_async.Socket | None",
+        request: dict[str, Any],
+        *,
+        socket_label: str,
+    ) -> dict[str, Any] | list[Any]:
+        """Shared send/recv implementation parameterised by socket."""
         import json
 
-        if self._socket is None:
+        if sock is None:
             raise ProviderUnavailableError(
                 "ZMQ socket not initialized",
-                details={"endpoint": self._endpoint},
+                details={"endpoint": self._endpoint, "socket": socket_label},
             )
 
         payload = json.dumps(request).encode("utf-8")
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
-                await self._socket.send(payload)
+                await sock.send(payload)
         except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
                 details={
                     "endpoint": self._endpoint,
+                    "socket": socket_label,
                     "timeout": self.config.timeout_seconds,
                 },
             )
 
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
-                raw_reply = await self._socket.recv()
+                raw_reply = await sock.recv()
         except asyncio.TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
                 details={
                     "endpoint": self._endpoint,
+                    "socket": socket_label,
                     "timeout": self.config.timeout_seconds,
                 },
             )
@@ -197,7 +217,7 @@ class ZmqClient(BrokerBase):
         if isinstance(reply, dict) and reply.get("error"):
             raise ProviderResponseError(
                 f"ZMQ EA error: {reply['error']}",
-                details={"reply": reply},
+                details={"reply": reply, "socket": socket_label},
             )
 
         from typing import cast
