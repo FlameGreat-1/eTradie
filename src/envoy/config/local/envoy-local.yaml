@@ -137,8 +137,11 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: gateway-service
-                      port_value: 80
+                      # Local docker-compose service is named `gateway`
+                      # (see root docker-compose.yml). Port 8080 matches
+                      # the gateway HTTP listener.
+                      address: gateway
+                      port_value: 8080
       
       # Active health checks - Envoy checks Gateway health
       # This does NOT affect Envoy's own health status

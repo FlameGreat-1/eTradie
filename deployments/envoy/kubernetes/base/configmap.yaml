@@ -119,8 +119,12 @@ data:
                   - endpoint:
                       address:
                         socket_address:
-                          address: gateway-service.gateway-system.svc.cluster.local
-                          port_value: 8081
+                          # gateway-service Service lives in the
+                          # etradie-system namespace alongside envoy.
+                          # Port 8080 is the gateway HTTP listener.
+                          # See deployments/gateway/kubernetes/base.
+                          address: gateway-service.etradie-system.svc.cluster.local
+                          port_value: 8080
           
           health_checks:
             - timeout: 1s
