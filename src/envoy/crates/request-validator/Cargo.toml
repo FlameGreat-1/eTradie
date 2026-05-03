@@ -3,8 +3,8 @@ name = "etradie-envoy-request-validator"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
-authors = ["Exoper Team"]
-description = "Request validation filter for Exoper Envoy - validates HTTP methods, body size, and request structure"
+authors = ["eTradie Team"]
+description = "Request validation filter for eTradie Envoy - validates HTTP methods, body size, and request structure"
 license = "MIT"
 repository = "https://github.com/etradie/etradie"
 

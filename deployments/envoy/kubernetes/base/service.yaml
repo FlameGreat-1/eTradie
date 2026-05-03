@@ -8,7 +8,7 @@ metadata:
     component: proxy
     version: v0.1.0
   annotations:
-    description: "Exoper Envoy proxy service - HTTP traffic endpoint"
+    description: "eTradie Envoy proxy service - HTTP traffic endpoint"
 spec:
   type: ClusterIP
   sessionAffinity: None
@@ -34,7 +34,7 @@ metadata:
     component: proxy
     version: v0.1.0
   annotations:
-    description: "Exoper Envoy headless service - for direct pod access"
+    description: "eTradie Envoy headless service - for direct pod access"
 spec:
   type: ClusterIP
   clusterIP: None

@@ -65,7 +65,7 @@ metadata:
     component: wasm-filter
     version: v0.1.0
   annotations:
-    description: "Exoper Envoy WASM filter binary"
+    description: "eTradie Envoy WASM filter binary"
     build-mode: "${BUILD_MODE}"
     file-size: "${human_size}"
     sha256: "${checksum}"

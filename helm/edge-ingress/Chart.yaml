@@ -1,6 +1,6 @@
 apiVersion: v2
 name: edge-ingress
-description: TLS termination and geo-routing edge proxy for ExOper platform
+description: TLS termination and geo-routing edge proxy for eTradie platform
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
@@ -11,7 +11,7 @@ keywords:
   - geo-routing
   - ingress
 maintainers:
-  - name: ExOper Platform Team
+  - name: eTradie Platform Team
     email: platform@etradie.com
 sources:
   - https://github.com/etradie/edge-ingress

@@ -13,7 +13,7 @@ configMapGenerator:
   - name: edge-ingress-config
     namespace: etradie-system
     files:
-      - edge-ingress.yaml=../../../../../backend/rust/edge-ingress/config/staging/edge-ingress-staging.yaml
+      - edge-ingress.yaml=../../../../../src/edge-ingress/config/staging/edge-ingress-staging.yaml
     behavior: replace
     options:
       disableNameSuffixHash: true

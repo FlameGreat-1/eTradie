@@ -15,7 +15,7 @@ configMapGenerator:
     namespace: envoy-system
     behavior: replace
     files:
-      - envoy.yaml=../../../config/staging/envoy-staging.yaml
+      - envoy.yaml=../../../../../src/envoy/config/staging/envoy-staging.yaml
     options:
       disableNameSuffixHash: true
 

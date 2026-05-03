@@ -15,7 +15,7 @@ configMapGenerator:
   - name: edge-ingress-config
     namespace: etradie-system
     files:
-      - edge-ingress.yaml=../../../../../config/local/edge-ingress-local.yaml
+      - edge-ingress.yaml=../../../../../src/edge-ingress/config/local/edge-ingress-local.yaml
     behavior: replace
     options:
       disableNameSuffixHash: true
