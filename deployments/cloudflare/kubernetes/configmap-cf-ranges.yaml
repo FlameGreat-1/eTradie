@@ -1,0 +1,87 @@
+# Cloudflare published IPv4 + IPv6 origin ranges, materialised as a
+# ConfigMap. The ranges file format is one CIDR per line, deterministic
+# sort, no comments. The refresh script
+# (deployments/cloudflare/scripts/refresh-cloudflare-ips.sh) keeps the
+# committed ranges in sync with Cloudflare's published lists.
+#
+# Consumed by:
+#   - gateway pods, mounted at /etc/etradie/cloudflare/ipv4.txt and
+#     /etc/etradie/cloudflare/ipv6.txt. Read at process startup by
+#     src/auth/clientip.go and merged into the trusted-proxy CIDR set
+#     when AUTH_TRUST_CLOUDFLARE=true.
+#   - operations dashboards (read-only) that visualise the active edge
+#     trust chain.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-ip-ranges
+  namespace: etradie-system
+  labels:
+    app.kubernetes.io/name: cloudflare-ip-ranges
+    app.kubernetes.io/component: edge-trust
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    description: "Cloudflare published IPv4/IPv6 ranges - keep in sync via deployments/cloudflare/scripts/refresh-cloudflare-ips.sh"
+data:
+  ipv4.txt: |
+    173.245.48.0/20
+    103.21.244.0/22
+    103.22.200.0/22
+    103.31.4.0/22
+    141.101.64.0/18
+    108.162.192.0/18
+    190.93.240.0/20
+    188.114.96.0/20
+    197.234.240.0/22
+    198.41.128.0/17
+    162.158.0.0/15
+    104.16.0.0/13
+    104.24.0.0/14
+    172.64.0.0/13
+    131.0.72.0/22
+  ipv6.txt: |
+    2400:cb00::/32
+    2606:4700::/32
+    2803:f800::/32
+    2405:b500::/32
+    2405:8100::/32
+    2a06:98c0::/29
+    2c0f:f248::/32
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-ip-ranges
+  namespace: edge-ingress-system
+  labels:
+    app.kubernetes.io/name: cloudflare-ip-ranges
+    app.kubernetes.io/component: edge-trust
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: kustomize
+data:
+  ipv4.txt: |
+    173.245.48.0/20
+    103.21.244.0/22
+    103.22.200.0/22
+    103.31.4.0/22
+    141.101.64.0/18
+    108.162.192.0/18
+    190.93.240.0/20
+    188.114.96.0/20
+    197.234.240.0/22
+    198.41.128.0/17
+    162.158.0.0/15
+    104.16.0.0/13
+    104.24.0.0/14
+    172.64.0.0/13
+    131.0.72.0/22
+  ipv6.txt: |
+    2400:cb00::/32
+    2606:4700::/32
+    2803:f800::/32
+    2405:b500::/32
+    2405:8100::/32
+    2a06:98c0::/29
+    2c0f:f248::/32
