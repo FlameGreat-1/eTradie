@@ -51,6 +51,7 @@ from engine.shared.exceptions import ProcessorInsufficientDataError
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
+from engine.ta.broker.priority import BrokerRequestPriority, broker_priority
 
 
 async def _rate_limit(
@@ -3277,7 +3278,10 @@ def create_app() -> FastAPI:
         Behaviour
         ---------
           * Warm + fresh (age < REVALIDATE_AFTER_S):  return cache.
-          * Warm + stale: return cache *and* fire a background revalidation.
+          * Warm + stale: return cache *and* fire a background revalidation
+            (single-flighted via the BackgroundTaskCoordinator so concurrent
+            cache hits coalesce onto one wave; cooldown-suppressed so a
+            burst of clicks does not stack waves).
           * Cold miss: single-flight via a Redis SET-NX lock so concurrent
             requests for the same key coalesce onto one broker fetch; the
             broker call is bounded by COLD_FETCH_DEADLINE_S and converts to
@@ -3285,7 +3289,25 @@ def create_app() -> FastAPI:
             instead of hanging on the upstream broker.
           * On any successful fetch we additionally schedule pre-warming
             of the symbol's other commonly used intraday timeframes so
-            subsequent timeframe switches are instant cache hits.
+            subsequent timeframe switches are instant cache hits. The
+            pre-warm wave runs at BACKGROUND priority so its broker calls
+            cannot starve the foreground chart click that triggered it.
+
+        Concurrency contract
+        --------------------
+        Background pre-warm and stale revalidation are scheduled through
+        ``container.background_tasks`` (BackgroundTaskCoordinator). Each
+        scheduling call is suppressed if a wave for the same key was
+        scheduled within the cooldown window OR if a wave is currently
+        in flight. This makes the endpoint safe to call at any rate -- a
+        user mashing the timeframe dropdown produces ONE pre-warm wave
+        per symbol per cooldown window, not one wave per click.
+
+        Every background broker call runs inside
+        ``broker_priority(BACKGROUND)`` so the MetaAPI candles semaphore
+        routes it through the background tier (which cannot consume the
+        foreground reservation) and inside ``asyncio.wait_for`` so it
+        cannot hang past BACKGROUND_FETCH_DEADLINE_S.
 
         The Redis key includes user_id so per-user broker connections do
         not cross-pollute. The TTL is generous (TOTAL_TTL_S) because
@@ -3296,13 +3318,39 @@ def create_app() -> FastAPI:
         import asyncio
         import uuid
 
-        # Tunables. Kept module-local so they can be lifted to settings
-        # later without changing the call signature.
-        REVALIDATE_AFTER_S = 30   # serve cached if younger than this
-        TOTAL_TTL_S = 1800        # 30-min hard expiry
-        COLD_FETCH_DEADLINE_S = 12  # cap synchronous broker wait
-        LOCK_TTL_S = 20           # max time we hold the single-flight lock
-        LOCK_WAIT_POLL_S = 0.15   # cadence for waiting-on-lock readers
+        # -- Tunables -------------------------------------------------------
+        # Kept module-local so they can be lifted to settings later without
+        # changing the call signature. All durations are in seconds.
+        REVALIDATE_AFTER_S = 30        # serve cached if younger than this
+        TOTAL_TTL_S = 1800             # 30-min hard expiry on the cache entry
+        COLD_FETCH_DEADLINE_S = 12     # cap on synchronous broker wait
+        LOCK_TTL_S = 20                # max time the SET-NX lock is held
+        LOCK_WAIT_POLL_S = 0.15        # cadence for waiting-on-lock readers
+        # Per-symbol pre-warm cooldown: the same (user, symbol) cannot
+        # produce a second pre-warm wave within this window, no matter
+        # how many cache hits occur. Combined with the per-key in-flight
+        # check inside the coordinator, this guarantees at most one
+        # active wave per (user, symbol) regardless of click rate.
+        PREWARM_COOLDOWN_S = 300       # 5 minutes
+        # Per-symbol stale-revalidate cooldown. Independent of the pre-warm
+        # cooldown because revalidation is much lighter (1 timeframe vs 13).
+        REVALIDATE_COOLDOWN_S = 20
+        # Hard ceiling on a background wave. Each pre-warm wave is at
+        # most 13 fetches × (BACKGROUND_FETCH_DEADLINE_S + spacing); this
+        # ceiling on the wave itself is the safety net that guarantees
+        # the coordinator releases its in-flight slot for the (user,
+        # symbol) key in bounded time even if a sibling fetch wedges.
+        PREWARM_WAVE_DEADLINE_S = 90
+        # Per-fetch ceiling for any background broker call. A real
+        # MetaAPI candles request completes in 200-800ms; this ceiling
+        # exists only to prevent a hung socket from holding the
+        # background semaphore slot indefinitely.
+        BACKGROUND_FETCH_DEADLINE_S = 10
+        # Spacing between consecutive pre-warm calls. Combined with the
+        # MetaAPI per-account background semaphore tier and the dedicated
+        # ZMQ candles socket, this keeps the broker comfortably below
+        # its rate ceiling regardless of how many users / tabs are active.
+        PREWARM_SPACING_S = 0.25
         # Full timeframe coverage. Pre-warm runs sequentially in the
         # background after the user's response is already returned, so
         # this list does NOT contribute to user-visible latency. The
@@ -3313,11 +3361,6 @@ def create_app() -> FastAPI:
             "H1", "H3", "H4", "H6", "H8", "H12",
             "D1", "W1", "MN1",
         )
-        # Spacing between consecutive pre-warm calls. Combined with the
-        # MetaAPI per-account semaphore (limit=4) and the dedicated ZMQ
-        # candles socket, this keeps the broker comfortably below its
-        # rate ceiling regardless of how many users / tabs are active.
-        PREWARM_SPACING_S = 0.25
 
         tf_map = {
             "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
@@ -3340,14 +3383,45 @@ def create_app() -> FastAPI:
         safe_symbol = symbol.replace(" ", "_")
         cache_key = f"{user.user_id}:{safe_symbol}:{tf_norm}:{count}"
         lock_key = f"lock:{cache_key}"
+        # Coordinator keys are coarser than cache keys: pre-warm waves
+        # are deduplicated per (user, symbol, count) across timeframes,
+        # because one wave already covers all 13. Revalidation waves
+        # are per cache key because each one only refreshes a single
+        # (symbol, timeframe) pair.
+        prewarm_coord_key = f"prewarm:{user.user_id}:{safe_symbol}:{count}"
+        revalidate_coord_key = f"revalidate:{cache_key}"
 
-        async def _fetch_from_broker() -> dict:
-            """Authoritative broker fetch -> normalized payload."""
+        async def _fetch_from_broker(
+            target_tf: "TF",
+            *,
+            background: bool,
+        ) -> dict:
+            """Authoritative broker fetch -> normalized payload.
+
+            ``background`` toggles the priority context the broker call
+            runs under. Foreground (the default) acquires the foreground
+            tier of the MetaAPI candles semaphore; background acquires
+            the background tier and is therefore always queued behind
+            any waiting foreground request.
+            """
             client = await _resolve_user_broker(container, user.user_id)
-            seq = await client.fetch_candles(
-                symbol=symbol,
-                timeframe=tf,
-                count=count,
+            if background:
+                with broker_priority(BrokerRequestPriority.BACKGROUND):
+                    seq = await client.fetch_candles(
+                        symbol=symbol,
+                        timeframe=target_tf,
+                        count=count,
+                    )
+            else:
+                seq = await client.fetch_candles(
+                    symbol=symbol,
+                    timeframe=target_tf,
+                    count=count,
+                )
+            tf_label = (
+                target_tf.value
+                if hasattr(target_tf, "value")
+                else str(target_tf)
             )
             candles_out = [
                 {
@@ -3362,26 +3436,27 @@ def create_app() -> FastAPI:
             ]
             return {
                 "symbol": symbol,
-                "timeframe": tf_norm,
+                "timeframe": tf_label,
                 "candles": candles_out,
             }
 
-        async def _store(payload: dict) -> None:
+        async def _store(key: str, payload: dict) -> None:
             try:
                 await container.cache.set_with_meta(
-                    "candles", cache_key, payload, ttl_seconds=TOTAL_TTL_S
+                    "candles", key, payload, ttl_seconds=TOTAL_TTL_S
                 )
             except Exception as e:
                 logger.warning(
                     "candles_cache_set_failed",
-                    extra={"key": cache_key, "error": str(e)},
+                    extra={"key": key, "error": str(e)},
                 )
 
-        async def _refresh_under_lock() -> dict | None:
+        async def _refresh_under_lock(*, background: bool) -> dict | None:
             """Acquire the single-flight lock and refresh the cache.
 
             Returns the freshly fetched payload on success, None if the
             lock could not be acquired (another caller is refreshing).
+            ``background`` selects the broker priority tier.
             """
             token = uuid.uuid4().hex
             acquired = await container.cache.try_acquire_lock(
@@ -3390,15 +3465,34 @@ def create_app() -> FastAPI:
             if not acquired:
                 return None
             try:
-                payload = await _fetch_from_broker()
-                await _store(payload)
+                payload = await _fetch_from_broker(tf, background=background)
+                await _store(cache_key, payload)
                 return payload
             finally:
-                await container.cache.release_lock("candles", lock_key, token)
+                await container.cache.release_lock(
+                    "candles", lock_key, token
+                )
 
         async def _background_revalidate() -> None:
+            """Coordinator-friendly revalidation factory.
+
+            Runs inside the BackgroundTaskCoordinator's bounded wrapper so
+            the per-fetch deadline below is the second line of defence;
+            the coordinator's wait_for is the first.
+            """
             try:
-                await _refresh_under_lock()
+                await asyncio.wait_for(
+                    _refresh_under_lock(background=True),
+                    timeout=BACKGROUND_FETCH_DEADLINE_S,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "candles_background_revalidate_timeout",
+                    extra={
+                        "key": cache_key,
+                        "timeout": BACKGROUND_FETCH_DEADLINE_S,
+                    },
+                )
             except Exception as e:
                 logger.warning(
                     "candles_background_revalidate_failed",
@@ -3409,33 +3503,42 @@ def create_app() -> FastAPI:
             """Warm every other timeframe for this symbol in the background.
 
             Runs sequentially with a small spacing between calls so the
-            broker is never burst-loaded. Trading calls (which use a
-            different ZMQ socket on native MT5 and bypass the candles
-            semaphore on MetaAPI) are unaffected by this pre-warm wave.
+            broker is never burst-loaded. Trading calls bypass the candles
+            semaphore on MetaAPI and use a different ZMQ socket on native
+            MT5, so they are unaffected by this pre-warm wave.
 
-            On the first sign of a rate-limit / circuit-breaker style
-            error we abort the rest of the wave to avoid making things
-            worse for the broker. The next user request will retry the
-            missing timeframes naturally through the same SWR pipeline.
+            Each individual fetch is bounded by BACKGROUND_FETCH_DEADLINE_S
+            so a single hung sibling cannot freeze the whole wave. On the
+            first sign of a rate-limit / circuit-breaker style error we
+            abort the rest of the wave to avoid making things worse for
+            the broker. Missing timeframes fall through the same SWR
+            pipeline on the user's next click.
             """
             for other_tf in PREWARM_TIMEFRAMES:
                 if other_tf == tf_norm:
                     continue
                 other_key = f"{user.user_id}:{safe_symbol}:{other_tf}:{count}"
+
+                # Cheap freshness check: parse only the envelope's `t`,
+                # never the candles array. Skips both broker work and
+                # JSON deserialisation if Redis already has fresh data.
                 try:
-                    cached, _age = await container.cache.get_with_meta(
+                    exists, age = await container.cache.get_meta_only(
                         "candles", other_key
                     )
                 except Exception:
-                    cached = None
-                if cached is not None:
+                    exists, age = False, None
+                if exists and (age is None or age < REVALIDATE_AFTER_S):
                     continue
+
                 token = uuid.uuid4().hex
                 lk = f"lock:{other_key}"
                 acquired = await container.cache.try_acquire_lock(
                     "candles", lk, token, ttl_seconds=LOCK_TTL_S
                 )
                 if not acquired:
+                    # Another foreground caller (or another wave) is
+                    # already refreshing this key. Skip and move on.
                     continue
                 try:
                     other_tf_enum = tf_map.get(other_tf)
@@ -3444,9 +3547,15 @@ def create_app() -> FastAPI:
                     client = await _resolve_user_broker(
                         container, user.user_id
                     )
-                    seq = await client.fetch_candles(
-                        symbol=symbol, timeframe=other_tf_enum, count=count
-                    )
+                    with broker_priority(BrokerRequestPriority.BACKGROUND):
+                        seq = await asyncio.wait_for(
+                            client.fetch_candles(
+                                symbol=symbol,
+                                timeframe=other_tf_enum,
+                                count=count,
+                            ),
+                            timeout=BACKGROUND_FETCH_DEADLINE_S,
+                        )
                     payload = {
                         "symbol": symbol,
                         "timeframe": other_tf,
@@ -3462,16 +3571,16 @@ def create_app() -> FastAPI:
                             for c in seq.candles
                         ],
                     }
-                    await container.cache.set_with_meta(
-                        "candles", other_key, payload, ttl_seconds=TOTAL_TTL_S
-                    )
+                    await _store(other_key, payload)
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     msg = str(e).lower()
                     # Abort the rest of the wave if the broker signals
-                    # rate limiting, throttling, or circuit-breaker open.
-                    # The signal vocabulary covers MetaAPI HTTP 429,
-                    # generic upstream throttling, and our own circuit
-                    # breaker emitting "open" / "unavailable".
+                    # rate limiting, throttling, circuit-breaker open, or
+                    # an explicit per-fetch timeout. A timeout here is
+                    # itself a load signal -- the broker is slow enough
+                    # that hammering it further is counter-productive.
                     rate_limited = (
                         "429" in msg
                         or "too many requests" in msg
@@ -3479,6 +3588,7 @@ def create_app() -> FastAPI:
                         or "throttl" in msg
                         or "circuit" in msg
                         or "unavailable" in msg
+                        or isinstance(e, asyncio.TimeoutError)
                     )
                     logger.debug(
                         "candles_prewarm_failed",
@@ -3490,9 +3600,6 @@ def create_app() -> FastAPI:
                         },
                     )
                     if rate_limited:
-                        await container.cache.release_lock(
-                            "candles", lk, token
-                        )
                         return
                 finally:
                     await container.cache.release_lock("candles", lk, token)
@@ -3500,6 +3607,24 @@ def create_app() -> FastAPI:
                 # delay runs in the background; the user's request was
                 # returned long before the first iteration started.
                 await asyncio.sleep(PREWARM_SPACING_S)
+
+        async def _schedule_revalidate() -> None:
+            """Schedule a single-flighted, cooldown-suppressed revalidate."""
+            await container.background_tasks.schedule_once(
+                revalidate_coord_key,
+                _background_revalidate,
+                cooldown_s=REVALIDATE_COOLDOWN_S,
+                timeout_s=BACKGROUND_FETCH_DEADLINE_S + 5,
+            )
+
+        async def _schedule_prewarm() -> None:
+            """Schedule a single-flighted, cooldown-suppressed pre-warm wave."""
+            await container.background_tasks.schedule_once(
+                prewarm_coord_key,
+                _prewarm_other_timeframes,
+                cooldown_s=PREWARM_COOLDOWN_S,
+                timeout_s=PREWARM_WAVE_DEADLINE_S,
+            )
 
         # 1. Fast path: read cache and decide on freshness.
         try:
@@ -3516,20 +3641,34 @@ def create_app() -> FastAPI:
         if cached is not None:
             if age is not None and age >= REVALIDATE_AFTER_S:
                 # Stale-while-revalidate: serve immediately, refresh async.
-                asyncio.create_task(_background_revalidate())
-            # Opportunistically pre-warm sibling timeframes once we have a
-            # confirmed working broker connection for this symbol.
-            asyncio.create_task(_prewarm_other_timeframes())
+                # Coordinator coalesces concurrent stale reads onto one
+                # refresh and suppresses repeats within the cooldown.
+                await _schedule_revalidate()
+            # Opportunistically pre-warm sibling timeframes once we have
+            # a confirmed working broker connection for this symbol.
+            # Coordinator suppresses if a wave already ran recently.
+            await _schedule_prewarm()
             return cached
 
         # 2. Cold-miss path: single-flight under a deadline.
         #    Acquire-or-wait: the first caller fetches; concurrent callers
         #    poll the cache until the lock holder publishes the result or
         #    the deadline elapses.
-        deadline = asyncio.get_event_loop().time() + COLD_FETCH_DEADLINE_S
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + COLD_FETCH_DEADLINE_S
         try:
+            # asyncio.shield prevents a client disconnect (which
+            # cancels the request task) from cascading into the
+            # _refresh_under_lock coroutine. If the user navigates
+            # away mid-fetch, the broker call still completes and
+            # populates the cache for the next caller, and the lock
+            # is released cleanly via the finally block. Without
+            # shield the lock would be released by the cancelled
+            # task without the cache being written, and the next
+            # caller would re-do the broker work uselessly.
             payload = await asyncio.wait_for(
-                _refresh_under_lock(), timeout=COLD_FETCH_DEADLINE_S
+                asyncio.shield(_refresh_under_lock(background=False)),
+                timeout=COLD_FETCH_DEADLINE_S,
             )
         except asyncio.TimeoutError:
             payload = None
@@ -3550,25 +3689,34 @@ def create_app() -> FastAPI:
             )
 
         if payload is not None:
-            asyncio.create_task(_prewarm_other_timeframes())
+            await _schedule_prewarm()
             return payload
 
         # 3. We did not acquire the lock or our fetch deadlined out.
         #    Wait briefly for whichever caller did acquire it to publish
         #    the result, then return that. If nothing arrives, fall back
         #    to a deterministic 504 instead of holding the request open.
-        loop = asyncio.get_event_loop()
+        #    The poll uses get_meta_only() so a 150 KB payload is not
+        #    deserialized on every 150 ms tick -- only when the entry
+        #    finally appears do we materialise it.
         while loop.time() < deadline:
             await asyncio.sleep(LOCK_WAIT_POLL_S)
             try:
-                cached, _ = await container.cache.get_with_meta(
+                exists, _ = await container.cache.get_meta_only(
                     "candles", cache_key
                 )
             except Exception:
-                cached = None
-            if cached is not None:
-                asyncio.create_task(_prewarm_other_timeframes())
-                return cached
+                exists = False
+            if exists:
+                try:
+                    cached, _ = await container.cache.get_with_meta(
+                        "candles", cache_key
+                    )
+                except Exception:
+                    cached = None
+                if cached is not None:
+                    await _schedule_prewarm()
+                    return cached
 
         logger.warning(
             "chart_candles_cold_deadline_exceeded",
