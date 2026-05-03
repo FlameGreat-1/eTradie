@@ -3268,12 +3268,42 @@ def create_app() -> FastAPI:
     ) -> dict:
         """Return historical OHLCV candles for the dashboard chart.
 
-        Implements an Enterprise-Grade asynchronous cache using Redis.
-        If data is cached, returns instantly and syncs with MT5 in the background
-        to avoid locking the ZMQ socket.
+        Implements an enterprise-grade Stale-While-Revalidate cache backed
+        by Redis with single-flight upstream fetches, a hard deadline on
+        the cold-miss path, and adjacent-timeframe pre-warming. The goal
+        is sub-millisecond response on warm reads and bounded latency on
+        cold misses regardless of broker behaviour.
+
+        Behaviour
+        ---------
+          * Warm + fresh (age < REVALIDATE_AFTER_S):  return cache.
+          * Warm + stale: return cache *and* fire a background revalidation.
+          * Cold miss: single-flight via a Redis SET-NX lock so concurrent
+            requests for the same key coalesce onto one broker fetch; the
+            broker call is bounded by COLD_FETCH_DEADLINE_S and converts to
+            HTTP 504 on overrun so the UI shows a deterministic state
+            instead of hanging on the upstream broker.
+          * On any successful fetch we additionally schedule pre-warming
+            of the symbol's other commonly used intraday timeframes so
+            subsequent timeframe switches are instant cache hits.
+
+        The Redis key includes user_id so per-user broker connections do
+        not cross-pollute. The TTL is generous (TOTAL_TTL_S) because
+        closed bars are immutable; the in-progress bar is corrected by
+        the WebSocket tick stream on the client.
         """
         from engine.ta.constants import Timeframe as TF
         import asyncio
+        import uuid
+
+        # Tunables. Kept module-local so they can be lifted to settings
+        # later without changing the call signature.
+        REVALIDATE_AFTER_S = 30   # serve cached if younger than this
+        TOTAL_TTL_S = 1800        # 30-min hard expiry
+        COLD_FETCH_DEADLINE_S = 12  # cap synchronous broker wait
+        LOCK_TTL_S = 20           # max time we hold the single-flight lock
+        LOCK_WAIT_POLL_S = 0.15   # cadence for waiting-on-lock readers
+        PREWARM_TIMEFRAMES = ("M5", "M15", "M30", "H1", "H4", "D1")
 
         tf_map = {
             "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
@@ -3281,95 +3311,237 @@ def create_app() -> FastAPI:
             "H6": TF.H6, "H8": TF.H8, "H12": TF.H12,
             "D1": TF.D1, "W1": TF.W1, "MN1": TF.MN1,
         }
-        tf = tf_map.get(timeframe.upper())
+        tf_norm = timeframe.upper()
+        tf = tf_map.get(tf_norm)
         if tf is None:
-            raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid timeframe: {timeframe}"
+            )
 
         container: Container = request.app.state.container
 
-        # 1. Try to fetch from Redis Cache
-        # Normalize symbol for Redis key (e.g. "Boom 500 Index" -> "Boom_500_Index")
+        # Cache + lock keys are namespaced by user so per-user broker
+        # connections never cross-pollute. The symbol is sanitised so
+        # exotic instruments ("Boom 500 Index") yield a valid Redis key.
         safe_symbol = symbol.replace(" ", "_")
-        cache_key = f"{user.user_id}:{safe_symbol}:{timeframe.upper()}:{count}"
-        cached_raw = None
-        try:
-            cached_raw = await container.cache.get("candles", cache_key)
-        except Exception as e:
-            logger.warning("redis_cache_get_failed", extra={"error": str(e)})
+        cache_key = f"{user.user_id}:{safe_symbol}:{tf_norm}:{count}"
+        lock_key = f"lock:{cache_key}"
 
-        # 2. Define the background sync worker
-        async def sync_candles_to_cache():
-            try:
-                bg_client = await _resolve_user_broker(container, user.user_id)
-                seq = await bg_client.fetch_candles(
-                    symbol=symbol,
-                    timeframe=tf,
-                    count=count,
-                )
-                candles_out = []
-                for c in seq.candles:
-                    candles_out.append({
-                        "time": int(c.timestamp.timestamp()),
-                        "open": c.open,
-                        "high": c.high,
-                        "low": c.low,
-                        "close": c.close,
-                        "volume": c.volume,
-                    })
-                result = {
-                    "symbol": symbol,
-                    "timeframe": timeframe.upper(),
-                    "candles": candles_out,
-                }
-                # Store in Redis (10 minute TTL to keep it fresh enough, but rely on WebSocket for true realtime)
-                await container.cache.set("candles", cache_key, result, ttl_seconds=600)
-            except Exception as e:
-                logger.error("background_sync_candles_failed", extra={"error": str(e)})
-
-        # 3. If cache hit, return instantly and fire background sync
-        if cached_raw:
-            asyncio.create_task(sync_candles_to_cache())
-            return cached_raw
-
-        # 4. If cache miss, we must fetch synchronously the very first time so the UI gets data
-        broker_client = await _resolve_user_broker(container, user.user_id)
-
-        try:
-            seq = await broker_client.fetch_candles(
+        async def _fetch_from_broker() -> dict:
+            """Authoritative broker fetch -> normalized payload."""
+            client = await _resolve_user_broker(container, user.user_id)
+            seq = await client.fetch_candles(
                 symbol=symbol,
                 timeframe=tf,
                 count=count,
             )
-            # Return in Lightweight Charts format: { time, open, high, low, close, volume }
-            candles_out = []
-            for c in seq.candles:
-                candles_out.append({
+            candles_out = [
+                {
                     "time": int(c.timestamp.timestamp()),
                     "open": c.open,
                     "high": c.high,
                     "low": c.low,
                     "close": c.close,
                     "volume": c.volume,
-                })
-            result = {
+                }
+                for c in seq.candles
+            ]
+            return {
                 "symbol": symbol,
-                "timeframe": timeframe.upper(),
+                "timeframe": tf_norm,
                 "candles": candles_out,
             }
-            
-            # Save to cache before returning
+
+        async def _store(payload: dict) -> None:
             try:
-                await container.cache.set("candles", cache_key, result, ttl_seconds=600)
+                await container.cache.set_with_meta(
+                    "candles", cache_key, payload, ttl_seconds=TOTAL_TTL_S
+                )
             except Exception as e:
-                logger.warning("redis_cache_set_failed", extra={"error": str(e)})
-                
-            return result
+                logger.warning(
+                    "candles_cache_set_failed",
+                    extra={"key": cache_key, "error": str(e)},
+                )
+
+        async def _refresh_under_lock() -> dict | None:
+            """Acquire the single-flight lock and refresh the cache.
+
+            Returns the freshly fetched payload on success, None if the
+            lock could not be acquired (another caller is refreshing).
+            """
+            token = uuid.uuid4().hex
+            acquired = await container.cache.try_acquire_lock(
+                "candles", lock_key, token, ttl_seconds=LOCK_TTL_S
+            )
+            if not acquired:
+                return None
+            try:
+                payload = await _fetch_from_broker()
+                await _store(payload)
+                return payload
+            finally:
+                await container.cache.release_lock("candles", lock_key, token)
+
+        async def _background_revalidate() -> None:
+            try:
+                await _refresh_under_lock()
+            except Exception as e:
+                logger.warning(
+                    "candles_background_revalidate_failed",
+                    extra={"key": cache_key, "error": str(e)},
+                )
+
+        async def _prewarm_other_timeframes() -> None:
+            """Warm adjacent timeframes for this symbol in the background.
+
+            Each prewarm runs through the same SWR + single-flight path
+            so a busy user clicking quickly through timeframes never
+            triggers duplicate broker fetches.
+            """
+            for other_tf in PREWARM_TIMEFRAMES:
+                if other_tf == tf_norm:
+                    continue
+                other_key = f"{user.user_id}:{safe_symbol}:{other_tf}:{count}"
+                try:
+                    cached, _age = await container.cache.get_with_meta(
+                        "candles", other_key
+                    )
+                except Exception:
+                    cached = None
+                if cached is not None:
+                    continue
+                token = uuid.uuid4().hex
+                lk = f"lock:{other_key}"
+                acquired = await container.cache.try_acquire_lock(
+                    "candles", lk, token, ttl_seconds=LOCK_TTL_S
+                )
+                if not acquired:
+                    continue
+                try:
+                    other_tf_enum = tf_map.get(other_tf)
+                    if other_tf_enum is None:
+                        continue
+                    client = await _resolve_user_broker(
+                        container, user.user_id
+                    )
+                    seq = await client.fetch_candles(
+                        symbol=symbol, timeframe=other_tf_enum, count=count
+                    )
+                    payload = {
+                        "symbol": symbol,
+                        "timeframe": other_tf,
+                        "candles": [
+                            {
+                                "time": int(c.timestamp.timestamp()),
+                                "open": c.open,
+                                "high": c.high,
+                                "low": c.low,
+                                "close": c.close,
+                                "volume": c.volume,
+                            }
+                            for c in seq.candles
+                        ],
+                    }
+                    await container.cache.set_with_meta(
+                        "candles", other_key, payload, ttl_seconds=TOTAL_TTL_S
+                    )
+                except Exception as e:
+                    logger.debug(
+                        "candles_prewarm_failed",
+                        extra={
+                            "symbol": symbol,
+                            "timeframe": other_tf,
+                            "error": str(e),
+                        },
+                    )
+                finally:
+                    await container.cache.release_lock("candles", lk, token)
+
+        # 1. Fast path: read cache and decide on freshness.
+        try:
+            cached, age = await container.cache.get_with_meta(
+                "candles", cache_key
+            )
+        except Exception as e:
+            logger.warning(
+                "candles_cache_get_failed",
+                extra={"key": cache_key, "error": str(e)},
+            )
+            cached, age = None, None
+
+        if cached is not None:
+            if age is not None and age >= REVALIDATE_AFTER_S:
+                # Stale-while-revalidate: serve immediately, refresh async.
+                asyncio.create_task(_background_revalidate())
+            # Opportunistically pre-warm sibling timeframes once we have a
+            # confirmed working broker connection for this symbol.
+            asyncio.create_task(_prewarm_other_timeframes())
+            return cached
+
+        # 2. Cold-miss path: single-flight under a deadline.
+        #    Acquire-or-wait: the first caller fetches; concurrent callers
+        #    poll the cache until the lock holder publishes the result or
+        #    the deadline elapses.
+        deadline = asyncio.get_event_loop().time() + COLD_FETCH_DEADLINE_S
+        try:
+            payload = await asyncio.wait_for(
+                _refresh_under_lock(), timeout=COLD_FETCH_DEADLINE_S
+            )
+        except asyncio.TimeoutError:
+            payload = None
+        except HTTPException:
+            raise
         except Exception as exc:
             logger.error(
                 "chart_candles_failed",
-                extra={"symbol": symbol, "timeframe": timeframe, "error": str(exc), "user_id": user.user_id},
+                extra={
+                    "symbol": symbol,
+                    "timeframe": tf_norm,
+                    "error": str(exc),
+                    "user_id": user.user_id,
+                },
             )
-            raise HTTPException(status_code=502, detail=f"Failed to fetch candles: {exc}")
+            raise HTTPException(
+                status_code=502, detail=f"Failed to fetch candles: {exc}"
+            )
+
+        if payload is not None:
+            asyncio.create_task(_prewarm_other_timeframes())
+            return payload
+
+        # 3. We did not acquire the lock or our fetch deadlined out.
+        #    Wait briefly for whichever caller did acquire it to publish
+        #    the result, then return that. If nothing arrives, fall back
+        #    to a deterministic 504 instead of holding the request open.
+        loop = asyncio.get_event_loop()
+        while loop.time() < deadline:
+            await asyncio.sleep(LOCK_WAIT_POLL_S)
+            try:
+                cached, _ = await container.cache.get_with_meta(
+                    "candles", cache_key
+                )
+            except Exception:
+                cached = None
+            if cached is not None:
+                asyncio.create_task(_prewarm_other_timeframes())
+                return cached
+
+        logger.warning(
+            "chart_candles_cold_deadline_exceeded",
+            extra={
+                "symbol": symbol,
+                "timeframe": tf_norm,
+                "deadline_seconds": COLD_FETCH_DEADLINE_S,
+                "user_id": user.user_id,
+            },
+        )
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "Chart data is warming up from the broker. "
+                "Please retry in a moment."
+            ),
+        )
 
     @app.websocket("/api/broker/stream-ticks")
     async def stream_ticks(websocket: WebSocket):
