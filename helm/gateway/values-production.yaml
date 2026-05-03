@@ -1,0 +1,129 @@
+replicaCount: 5
+
+image:
+  repository: registry.gitlab.com/cotradee3/cotradeecode/gateway
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  tier: production
+
+config:
+  gateway:
+    logLevel: "INFO"
+    logJson: "true"
+    logFullContextPayload: "false"
+    allowedOrigins: "https://app.etradie.com,https://etradie.com"
+
+trustChain:
+  trustedProxyCidrs: "10.100.0.0/16"
+  trustCloudflare: "true"
+
+externalSecrets:
+  enabled: true
+  gateway:
+    vaultPath: etradie/services/gateway/production
+    refreshInterval: 1h
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+    ephemeral-storage: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+    ephemeral-storage: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 5
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+      selectPolicy: Max
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 3
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+serviceMonitor:
+  enabled: true
+  interval: 10s
+  scrapeTimeout: 8s
+
+resourceQuota:
+  enabled: true
+  hard:
+    requestsCpu: "24"
+    requestsMemory: "48Gi"
+    limitsCpu: "48"
+    limitsMemory: "96Gi"
+    persistentvolumeclaims: "0"
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: etradie-gateway
+        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-gateway
+          topologyKey: topology.kubernetes.io/zone
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-gateway
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-gateway
+
+nodeSelector:
+  node.kubernetes.io/instance-type: c6i.2xlarge
+
+tolerations:
+  - key: "workload"
+    operator: "Equal"
+    value: "etradie-system"
+    effect: "NoSchedule"
+
+terminationGracePeriodSeconds: 90

@@ -13,6 +13,12 @@ tls:
   cert_reload_interval:
     secs: 1800
     nanos: 0
+  # Cloudflare Authenticated Origin Pulls (mTLS). Mandatory.
+  # Staging mirrors production enforcement: there is no soft-launch
+  # state. Either upstream identity is proven by a Cloudflare-signed
+  # client cert or the handshake fails.
+  client_auth:
+    ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
     - hostname: "staging-api.etradie.com"
       cert_path: "/etc/edge-ingress/certs/staging-api.etradie.com.crt"

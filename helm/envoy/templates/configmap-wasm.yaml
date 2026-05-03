@@ -1,0 +1,29 @@
+{{- /*
+WASM filter ConfigMap. The base64-encoded binary lives at .Values.wasm.base64.
+CI builds the binary, base64-encodes it, and passes the result via
+--set-file wasm.base64=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+(helm's --set-file injects raw bytes; we then base64-encode in the template).
+If neither value nor file is provided the template fails fast with a clear
+message rather than producing an envoy that boots into a broken WASM filter.
+*/}}
+{{- if not .Values.wasm.base64 }}
+{{- fail "helm/envoy: .Values.wasm.base64 is required. CI must inject the base64-encoded WASM binary via --set-file or by setting wasm.base64 directly. The chart will not produce a working envoy without it." -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "envoy.fullname" . }}-wasm
+  namespace: {{ include "envoy.namespace" . }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wasm-filter
+  annotations:
+    description: "eTradie Envoy WASM integration filter"
+    {{- with .Values.wasm.sha256 }}
+    sha256: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.wasm.builtAt }}
+    built-at: {{ . | quote }}
+    {{- end }}
+binaryData:
+  integration-filter.wasm: {{ .Values.wasm.base64 | quote }}

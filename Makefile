@@ -148,6 +148,38 @@ menu: ## Start the interactive guided menu
 		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
 	esac;
 
+##@ Edge profile (Cloudflare → edge-ingress → envoy → gateway, local mTLS)
+dev-certs: ## Generate (or refresh) the local Cloudflare AOP dev CA + client cert
+	echo -e "$(BLUE)Generating local Cloudflare AOP dev CA + client cert...$(NC)"
+	bash deployments/cloudflare/origin-pull/generate-dev-certs.sh
+	echo -e "$(GREEN)✓ Dev certs ready (deployments/cloudflare/origin-pull/)$(NC)"
+
+edge-up: dev-certs ## Bring up the full edge chain locally (mTLS enforced)
+	echo -e "$(BLUE)Starting full edge chain (Cloudflare-emulating dev mTLS)...$(NC)"
+	docker compose --profile edge up -d --build
+	echo -e "$(GREEN)✓ Edge chain running. https://localhost:8443 requires --cert/--key$(NC)"
+
+edge-down: ## Tear down the edge chain (gateway + everything else stays up)
+	echo -e "$(BLUE)Stopping edge chain...$(NC)"
+	docker compose --profile edge stop edge-ingress envoy
+	docker compose --profile edge rm -f edge-ingress envoy
+	echo -e "$(GREEN)✓ Edge chain stopped$(NC)"
+
+edge-test: ## Validate the local edge chain enforces mTLS (CI-friendly)
+	echo -e "$(BLUE)Validating local mTLS enforcement...$(NC)"
+	@echo -n "  unauthenticated curl must FAIL: " && \
+		( ! curl -sk --max-time 5 https://localhost:8443/auth/healthz >/dev/null 2>&1 ) \
+		&& echo -e "$(GREEN)ok (handshake rejected)$(NC)" \
+		|| { echo -e "$(RED)FAIL: unauthenticated request succeeded - mTLS broken$(NC)"; exit 1; }
+	@echo -n "  authenticated   curl must SUCCEED: " && \
+		curl -sk --max-time 10 \
+		  --cert deployments/cloudflare/origin-pull/dev-client.crt \
+		  --key  deployments/cloudflare/origin-pull/dev-client.key \
+		  https://localhost:8443/auth/healthz >/dev/null \
+		&& echo -e "$(GREEN)ok$(NC)" \
+		|| { echo -e "$(RED)FAIL: authenticated request rejected$(NC)"; exit 1; }
+	echo -e "$(GREEN)✓ Local edge chain mTLS posture matches production$(NC)"
+
 ##@ Docker Commands
 up: ## Start all Docker containers in background
 	@echo -e "$(BLUE)Starting eTradie infrastructure...$(NC)"

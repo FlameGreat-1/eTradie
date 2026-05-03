@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "envoy.fullname" . }}
+  namespace: {{ include "envoy.namespace" . }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  sessionAffinity: None
+  selector:
+    {{- include "envoy.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http | default 8080 }}
+      targetPort: http
+      protocol: TCP
+      appProtocol: http
+    - name: admin
+      port: {{ .Values.service.ports.admin | default 9901 }}
+      targetPort: admin
+      protocol: TCP
+      appProtocol: http
+{{- if .Values.headlessService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "envoy.fullname" . }}-headless
+  namespace: {{ include "envoy.namespace" . }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+  annotations:
+    description: "eTradie envoy headless service - direct pod access"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "envoy.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http | default 8080 }}
+      targetPort: http
+      protocol: TCP
+    - name: admin
+      port: {{ .Values.service.ports.admin | default 9901 }}
+      targetPort: admin
+      protocol: TCP
+{{- end }}

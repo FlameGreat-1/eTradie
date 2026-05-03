@@ -124,6 +124,9 @@ spec:
             - name: tls-certs
               mountPath: /etc/edge-ingress/certs
               readOnly: true
+            - name: cloudflare-aop-ca
+              mountPath: /etc/edge-ingress/cloudflare
+              readOnly: true
             - name: geoip-data
               mountPath: /data/geoip
               readOnly: true
@@ -174,6 +177,17 @@ spec:
         - name: tls-certs
           secret:
             secretName: edge-ingress-tls-certs
+            defaultMode: 0400
+        # Cloudflare Authenticated Origin Pulls CA bundle. Synthesised
+        # by the ExternalSecret at
+        # deployments/cloudflare/kubernetes/externalsecret-aop-ca.yaml
+        # which resolves the PEM from Vault and writes it into the
+        # `cloudflare-aop-ca` Secret. Mounted into the container at
+        # /etc/edge-ingress/cloudflare/origin-pull-ca.pem to match the
+        # `tls.client_auth.ca_path` in the staging/production configs.
+        - name: cloudflare-aop-ca
+          secret:
+            secretName: cloudflare-aop-ca
             defaultMode: 0400
         - name: geoip-data
           emptyDir:

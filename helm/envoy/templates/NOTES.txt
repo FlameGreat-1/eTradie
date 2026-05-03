@@ -1,0 +1,28 @@
+{{ include "envoy.fullname" . }} (envoy) installed.
+
+Namespace:        {{ include "envoy.namespace" . }}
+Upstream:         {{ .Values.config.envoy.cluster.upstream.address }}:{{ .Values.config.envoy.cluster.upstream.port | default 8080 }}
+HealthCheck path: {{ .Values.config.envoy.cluster.healthCheck.path | default "/readiness" }}
+Replicas (HPA):   {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }}
+WASM SHA-256:     {{ .Values.wasm.sha256 | default "(not set)" }}
+WASM built at:    {{ .Values.wasm.builtAt | default "(not set)" }}
+
+Verification:
+
+  # 1) Pods Ready
+  kubectl -n {{ include "envoy.namespace" . }} rollout status \
+    deployment/{{ include "envoy.fullname" . }} --timeout=5m
+
+  # 2) Envoy is sending traffic to a healthy gateway endpoint
+  kubectl -n {{ include "envoy.namespace" . }} exec \
+    deploy/{{ include "envoy.fullname" . }} -- \
+    sh -c "wget -qO- http://localhost:9901/clusters | grep -E 'gateway_cluster::.*health_flags'"
+
+  # 3) Active health-check is hitting /readiness, not /health (that
+  #    distinction is what causes envoy to eject a sick gateway).
+  kubectl -n {{ include "envoy.namespace" . }} exec \
+    deploy/{{ include "envoy.fullname" . }} -- \
+    sh -c "wget -qO- http://localhost:9901/config_dump | grep -A2 health_check | head -20"
+
+If gateway_cluster shows `failed_active_hc` for any endpoint, gateway
+/readiness is failing. Investigate the gateway, not envoy.

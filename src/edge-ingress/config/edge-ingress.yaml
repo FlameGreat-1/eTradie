@@ -13,6 +13,11 @@ tls:
   cert_reload_interval:
     secs: 3600
     nanos: 0
+  # Cloudflare Authenticated Origin Pulls (mTLS). Mandatory.
+  # edge-ingress rejects every TLS handshake whose client cert is not
+  # signed by this CA, before any HTTP byte is read.
+  client_auth:
+    ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
     - hostname: "api.etradie.com"
       cert_path: "/etc/edge-ingress/certs/api.etradie.com.crt"

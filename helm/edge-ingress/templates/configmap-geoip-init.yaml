@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}-geoip-init
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: geoip-init
+data:
+  download-geoip.sh: |
+    #!/bin/sh
+    set -eu
+
+    GEOIP_DIR="/data/geoip"
+    GEOIP_DB="${GEOIP_DIR}/GeoLite2-City.mmdb"
+
+    mkdir -p "${GEOIP_DIR}"
+
+    if [ -z "${MAXMIND_LICENSE_KEY:-}" ]; then
+      echo "FATAL: MAXMIND_LICENSE_KEY is not set"
+      exit 1
+    fi
+
+    echo "Downloading GeoLite2-City..."
+    DOWNLOAD_URL="https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+    wget -q --inet4-only -O /tmp/GeoLite2-City.tar.gz "${DOWNLOAD_URL}"
+
+    echo "Extracting..."
+    tar -xzf /tmp/GeoLite2-City.tar.gz -C /tmp
+    EXTRACTED=$(find /tmp -name 'GeoLite2-City.mmdb' -type f | head -n1)
+    if [ -z "${EXTRACTED}" ]; then
+      echo "FATAL: GeoLite2-City.mmdb missing from MaxMind archive"
+      exit 1
+    fi
+    mv "${EXTRACTED}" "${GEOIP_DB}"
+    echo "GeoIP database ready at ${GEOIP_DB}"

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: gateway
+description: eTradie API gateway (Go HTTP + gRPC) with auth, rate limiting, cycle orchestration, and trust-aware client-IP resolution behind Cloudflare/edge-ingress/envoy.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - gateway
+  - api
+  - auth
+  - go
+  - grpc
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@etradie.com
+sources:
+  - https://gitlab.com/cotradee3/cotradeecode
+icon: https://etradie.com/icon.png
+dependencies: []

@@ -1,0 +1,16 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gateway.appName" . }}
+  namespace: {{ include "gateway.namespace" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: availability
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
+  unhealthyPodEvictionPolicy: {{ .Values.podDisruptionBudget.unhealthyPodEvictionPolicy | default "IfHealthyBudget" }}
+{{- end }}

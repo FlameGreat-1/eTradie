@@ -1,0 +1,45 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: metrics
+      app.kubernetes.io/name: edge-ingress
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "edge-ingress.namespace" . }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval | default "15s" }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+          action: replace
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+          action: replace
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+          action: replace
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+          action: replace
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'edge_ingress_.*'
+          action: keep
+{{- end }}
