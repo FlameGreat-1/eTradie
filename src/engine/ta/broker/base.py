@@ -100,6 +100,19 @@ class OrderResult(FrozenModel):
 
 
 class BrokerBase(ABC):
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        """Return the name of the broker provider (e.g., 'metaapi', 'zmq')."""
+
+    @property
+    @abstractmethod
+    def account_id(self) -> str:
+        """Return the broker account ID."""
+
+    @abstractmethod
+    async def get_all_symbol_names(self) -> list[str]:
+        """Return a simple list of all available symbol names."""
 
     def __init__(self, broker_id: str) -> None:
         self.broker_id = broker_id

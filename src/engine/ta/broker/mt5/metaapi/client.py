@@ -93,6 +93,27 @@ class MetaApiClient(BrokerBase):
             "auth-token": config.metaapi_token,
         }
 
+    @property
+    def provider_name(self) -> str:
+        return "metaapi"
+
+    @property
+    def account_id(self) -> str:
+        return self._account_id
+        self._base_url = (
+            config.metaapi_base_url
+            if config.metaapi_base_url
+            else self._BASE_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
+        )
+        self._market_data_base_url = (
+            config.metaapi_base_url.replace("mt-client-api-v1", "mt-market-data-client-api-v1")
+            if config.metaapi_base_url
+            else self._MARKET_DATA_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
+        )
+        self._auth_headers = {
+            "auth-token": config.metaapi_token,
+        }
+
     # -- Helpers ---------------------------------------------------------------
 
     def _url(self, path: str, category: str = "candles") -> str:
@@ -281,6 +302,7 @@ class MetaApiClient(BrokerBase):
         return {
             "symbol": info.get("symbol", symbol),
             "description": info.get("description", ""),
+            "path": info.get("path", ""),
             "point": info.get("point", 0.0),
             "digits": info.get("digits", 5),
             "spread": info.get("spread", 0),
@@ -298,6 +320,13 @@ class MetaApiClient(BrokerBase):
             return True
         except ProviderResponseError:
             return False
+
+    async def get_all_symbol_names(self) -> list[str]:
+        """Fetch all symbol names from MetaApi (fast strings-only call)."""
+        raw = await self._api_get("/symbols", category="symbols")
+        if not isinstance(raw, list):
+            return []
+        return [str(s) for s in raw]
 
     async def get_all_symbols(self) -> list[dict]:
         """Fetch all symbols from MetaApi account."""

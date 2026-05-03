@@ -7,6 +7,7 @@ from engine.shared.logging import get_logger
 from engine.ta.storage.repositories.candle import CandleRepository
 from engine.ta.storage.repositories.candidate import CandidateRepository
 from engine.ta.storage.repositories.snapshot import SnapshotRepository
+from engine.ta.storage.repositories.broker_symbol import BrokerSymbolRepository
 
 logger = get_logger(__name__)
 
@@ -34,6 +35,7 @@ class TAUnitOfWork:
         self.candle_repo: Optional[CandleRepository] = None
         self.snapshot_repo: Optional[SnapshotRepository] = None
         self.candidate_repo: Optional[CandidateRepository] = None
+        self.broker_symbol_repo: Optional[BrokerSymbolRepository] = None
 
     async def __aenter__(self) -> TAUnitOfWork:
         self._ctx = self._db.session()
@@ -42,6 +44,7 @@ class TAUnitOfWork:
         self.candle_repo = CandleRepository(self._session)
         self.snapshot_repo = SnapshotRepository(self._session)
         self.candidate_repo = CandidateRepository(self._session)
+        self.broker_symbol_repo = BrokerSymbolRepository(self._session)
 
         return self
 
@@ -70,6 +73,7 @@ class TAReadUnitOfWork:
         self.candle_repo: Optional[CandleRepository] = None
         self.snapshot_repo: Optional[SnapshotRepository] = None
         self.candidate_repo: Optional[CandidateRepository] = None
+        self.broker_symbol_repo: Optional[BrokerSymbolRepository] = None
 
     async def __aenter__(self) -> TAReadUnitOfWork:
         self._ctx = self._db.read_session()
@@ -78,6 +82,7 @@ class TAReadUnitOfWork:
         self.candle_repo = CandleRepository(self._session)
         self.snapshot_repo = SnapshotRepository(self._session)
         self.candidate_repo = CandidateRepository(self._session)
+        self.broker_symbol_repo = BrokerSymbolRepository(self._session)
 
         return self
 

@@ -8,23 +8,24 @@ import { useSymbols, useBrokerSymbols, useUpdateSymbols, type BrokerSymbol } fro
  */
 function categorizeSymbol(sym: BrokerSymbol): string {
   const path = (sym.path || '').toLowerCase();
+  const name = (sym.name || '').toLowerCase();
   
-  if (path.includes('crypto') || path.includes('bitcoin') || path.includes('coin'))
+  if (path.includes('crypto') || path.includes('bitcoin') || path.includes('coin') || name.includes('usd') && (name.includes('btc') || name.includes('eth')))
     return 'Crypto';
   if (path.includes('metal') || path.includes('gold') || path.includes('silver') || path.includes('xau') || path.includes('xag'))
     return 'Metals';
   if (path.includes('ind') || path.includes('index'))
     return 'Indices';
-  if (path.includes('commodit') || path.includes('energy') || path.includes('oil'))
+  if (path.includes('commodit') || path.includes('energy') || path.includes('energies') || path.includes('oil') || name.includes('xng') || name.includes('gas'))
     return 'Commodities';
-  if (path.includes('stock') || path.includes('equit'))
+  if (path.includes('stock') || path.includes('equit') || path.includes('shares'))
     return 'Stocks';
     
   return 'Forex'; // Default fallback
 }
 
 const CATEGORIES = ['All', 'Forex', 'Crypto', 'Indices', 'Commodities', 'Stocks', 'Metals'];
-const MAX_DISPLAY = 100;
+const MAX_DISPLAY = 500;
 
 interface SymbolSearchModalProps {
   isOpen: boolean;

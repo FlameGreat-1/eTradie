@@ -83,6 +83,14 @@ class ZmqClient(BrokerBase):
         self._socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._lock = asyncio.Lock()
         self._initialized = False
+    
+    @property
+    def provider_name(self) -> str:
+        return "zmq"
+
+    @property
+    def account_id(self) -> str:
+        return f"{self.config.zmq_host}:{self.config.zmq_port}"
 
     # -- Connection management -------------------------------------------------
 
@@ -375,6 +383,7 @@ class ZmqClient(BrokerBase):
         return {
             "symbol": reply.get("symbol", symbol),
             "description": reply.get("description", ""),
+            "path": reply.get("path", ""),
             "point": reply.get("point", 0.0),
             "digits": reply.get("digits", 5),
             "spread": reply.get("spread", 0),
@@ -392,6 +401,11 @@ class ZmqClient(BrokerBase):
             return True
         except ProviderResponseError:
             return False
+
+    async def get_all_symbol_names(self) -> list[str]:
+        """Fetch all symbol names (fast call)."""
+        symbols = await self.get_all_symbols()
+        return [s["name"] for s in symbols]
 
     async def get_all_symbols(self) -> list[dict]:
         """Fetch all symbols from the MT5 Market Watch via ZMQ EA."""

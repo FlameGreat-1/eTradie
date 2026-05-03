@@ -3186,22 +3186,71 @@ def create_app() -> FastAPI:
         request: Request,
         user: AuthenticatedUser = Depends(get_current_user),
     ) -> dict:
-        """Return all available broker instruments with name, description, and path."""
+        """Return all available broker instruments with name, description, and path.
+        
+        Reads from the persistent BrokerSymbolRegistry for maximum performance
+        and full metadata. Triggers background sync if registry is empty.
+        """
         import time as _time
+        import asyncio
+        from engine.ta.broker.sync import BrokerSyncService
+
         container = request.app.state.container
 
-        # Return cached data if still fresh (5 minute TTL).
+        # Return cached data if still fresh (1 minute TTL for DB reads).
         now = _time.time()
         if _broker_symbols_cache["data"] is not None and now < _broker_symbols_cache["expires"]:
             return _broker_symbols_cache["data"]
 
         broker_client = await _resolve_user_broker(container, user.user_id)
+        if not broker_client:
+             raise HTTPException(status_code=503, detail="No active broker connection")
+
+        ta_uow_factory = container.ta_uow_factory
+        
         try:
-            symbols = await broker_client.get_all_symbols()
+            async with ta_uow_factory() as uow:
+                # 1. Fetch from persistent registry (Ordered by name for UI consistency)
+                db_symbols = await uow.broker_symbol_repo.get_all_by_account(
+                    provider=broker_client.provider_name,
+                    account_id=broker_client.account_id
+                )
+
+                # 2. If registry is empty, trigger an immediate sync and return names as fallback
+                if not db_symbols:
+                    logger.info(
+                        "broker_registry_empty_triggering_initial_sync",
+                        extra={"user_id": user.user_id}
+                    )
+                    sync_service = BrokerSyncService(broker_client, ta_uow_factory)
+                    # Dispatch background task
+                    asyncio.create_task(sync_service.sync_all_symbols())
+
+                    # Fallback to fast broker call (names only) for initial display
+                    try:
+                        raw_names = await broker_client.get_all_symbol_names()
+                        symbols = [{"name": n, "description": n, "path": n} for n in raw_names]
+                    except Exception:
+                        # If even the fallback fails, return an empty list instead of crashing the UI
+                        symbols = []
+                else:
+                    # Map DB records to the frontend schema, sorted by name
+                    symbols = [
+                        {
+                            "name": s.name,
+                            "description": s.description or s.name,
+                            "path": s.path or s.name,
+                            "digits": s.digits,
+                            "point": s.point
+                        }
+                        for s in sorted(db_symbols, key=lambda x: x.name)
+                    ]
+
             result = {"symbols": symbols, "count": len(symbols)}
             _broker_symbols_cache["data"] = result
-            _broker_symbols_cache["expires"] = now + 300.0  # 5 min TTL
+            _broker_symbols_cache["expires"] = now + 10.0  # Short TTL while syncing
             return result
+
         except Exception as exc:
             logger.error(
                 "broker_symbols_failed",
