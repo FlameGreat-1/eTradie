@@ -3303,7 +3303,21 @@ def create_app() -> FastAPI:
         COLD_FETCH_DEADLINE_S = 12  # cap synchronous broker wait
         LOCK_TTL_S = 20           # max time we hold the single-flight lock
         LOCK_WAIT_POLL_S = 0.15   # cadence for waiting-on-lock readers
-        PREWARM_TIMEFRAMES = ("M5", "M15", "M30", "H1", "H4", "D1")
+        # Full timeframe coverage. Pre-warm runs sequentially in the
+        # background after the user's response is already returned, so
+        # this list does NOT contribute to user-visible latency. The
+        # ordering matches the dropdown so the most likely next click
+        # warms first.
+        PREWARM_TIMEFRAMES = (
+            "M1", "M5", "M15", "M30",
+            "H1", "H3", "H4", "H6", "H8", "H12",
+            "D1", "W1", "MN1",
+        )
+        # Spacing between consecutive pre-warm calls. Combined with the
+        # MetaAPI per-account semaphore (limit=4) and the dedicated ZMQ
+        # candles socket, this keeps the broker comfortably below its
+        # rate ceiling regardless of how many users / tabs are active.
+        PREWARM_SPACING_S = 0.25
 
         tf_map = {
             "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
@@ -3392,11 +3406,17 @@ def create_app() -> FastAPI:
                 )
 
         async def _prewarm_other_timeframes() -> None:
-            """Warm adjacent timeframes for this symbol in the background.
+            """Warm every other timeframe for this symbol in the background.
 
-            Each prewarm runs through the same SWR + single-flight path
-            so a busy user clicking quickly through timeframes never
-            triggers duplicate broker fetches.
+            Runs sequentially with a small spacing between calls so the
+            broker is never burst-loaded. Trading calls (which use a
+            different ZMQ socket on native MT5 and bypass the candles
+            semaphore on MetaAPI) are unaffected by this pre-warm wave.
+
+            On the first sign of a rate-limit / circuit-breaker style
+            error we abort the rest of the wave to avoid making things
+            worse for the broker. The next user request will retry the
+            missing timeframes naturally through the same SWR pipeline.
             """
             for other_tf in PREWARM_TIMEFRAMES:
                 if other_tf == tf_norm:
@@ -3446,16 +3466,40 @@ def create_app() -> FastAPI:
                         "candles", other_key, payload, ttl_seconds=TOTAL_TTL_S
                     )
                 except Exception as e:
+                    msg = str(e).lower()
+                    # Abort the rest of the wave if the broker signals
+                    # rate limiting, throttling, or circuit-breaker open.
+                    # The signal vocabulary covers MetaAPI HTTP 429,
+                    # generic upstream throttling, and our own circuit
+                    # breaker emitting "open" / "unavailable".
+                    rate_limited = (
+                        "429" in msg
+                        or "too many requests" in msg
+                        or "rate limit" in msg
+                        or "throttl" in msg
+                        or "circuit" in msg
+                        or "unavailable" in msg
+                    )
                     logger.debug(
                         "candles_prewarm_failed",
                         extra={
                             "symbol": symbol,
                             "timeframe": other_tf,
                             "error": str(e),
+                            "aborting_wave": rate_limited,
                         },
                     )
+                    if rate_limited:
+                        await container.cache.release_lock(
+                            "candles", lk, token
+                        )
+                        return
                 finally:
                     await container.cache.release_lock("candles", lk, token)
+                # Pace the wave so we never burst-load the broker. This
+                # delay runs in the background; the user's request was
+                # returned long before the first iteration started.
+                await asyncio.sleep(PREWARM_SPACING_S)
 
         # 1. Fast path: read cache and decide on freshness.
         try:
