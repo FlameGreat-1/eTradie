@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
 #
-# Refresh the Cloudflare published IPv4/IPv6 origin ranges and the AOP
-# CA bundle.
+# Refresh the Cloudflare published IPv4/IPv6 origin ranges, and verify
+# the Cloudflare AOP CA fingerprint has not changed. The committed
+# range files are the source of truth for the gateway's trust-aware
+# client-IP resolver and for the origin firewall Terraform module;
+# the AOP CA itself lives in Vault, NOT in git, so this script never
+# writes the CA bytes back to the repo.
 #
-# Designed for weekly CI execution. Writes:
+# Designed for weekly CI execution.
+#
+# Writes:
 #   deployments/cloudflare/ip-ranges/ipv4.txt
 #   deployments/cloudflare/ip-ranges/ipv6.txt
-# and validates the SHA-256 fingerprint of
-#   deployments/cloudflare/origin-pull/origin-pull-ca.pem
-# against the pinned value below. Any mismatch fails the run.
 #
-# Cloudflare URLs (canonical, authoritative):
-#   https://www.cloudflare.com/ips-v4
-#   https://www.cloudflare.com/ips-v6
+# Verifies (does NOT write):
+#   SHA-256 fingerprint of
 #   https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
+#   matches EXPECTED_AOP_CA_SHA256 below.
 #
 # Exit codes:
-#   0 - success, no diff
-#   1 - script failure (network, validation, SHA mismatch)
-#   2 - success, ranges or CA changed (CI uses this to open a PR)
+#   0 - success, no diff (ranges unchanged, CA fingerprint matches)
+#   1 - script failure (network, validation, CA fingerprint mismatch).
+#       CA mismatch is exit 1 not 2 because a CA rotation cannot be
+#       fixed by opening a PR: an operator MUST update Vault first.
+#   2 - success, IP ranges changed (CI uses this to open a PR with the
+#       updated ip-ranges files).
 #
 set -euo pipefail
 
@@ -26,15 +32,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CF_DIR="${REPO_ROOT}/deployments/cloudflare"
 IPV4_FILE="${CF_DIR}/ip-ranges/ipv4.txt"
 IPV6_FILE="${CF_DIR}/ip-ranges/ipv6.txt"
-AOP_CA_FILE="${CF_DIR}/origin-pull/origin-pull-ca.pem"
 
 # Pinned fingerprint of the current Cloudflare AOP CA. When Cloudflare
-# rotates, this changes and the script fails loudly so a human reviews
-# the new chain before it is trusted by edge-ingress.
+# rotates this changes, the script fails with exit 1, and an operator
+# must perform the rotation procedure documented in
+# docs/architecture/edge-cloudflare-envoy.md before updating this pin.
 #
 # To find the live fingerprint:
 #   curl -fsSL https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem | \
-#     openssl x509 -noout -fingerprint -sha256
+#     openssl x509 -noout -fingerprint -sha256 | awk -F= '{print $2}' | tr -d ':' | tr A-Z a-z
 EXPECTED_AOP_CA_SHA256=""
 
 log() {
@@ -71,7 +77,7 @@ validate_cidrs() {
   [[ "${ok}" -eq 1 ]]
 }
 
-mkdir -p "${CF_DIR}/ip-ranges" "${CF_DIR}/origin-pull"
+mkdir -p "${CF_DIR}/ip-ranges"
 
 tmp_ipv4="$(mktemp)"
 tmp_ipv6="$(mktemp)"
@@ -93,14 +99,21 @@ actual_ca_sha256="$(openssl x509 -in "${tmp_ca}" -noout -fingerprint -sha256 \
   | awk -F= '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
 log "fetched AOP CA SHA-256: ${actual_ca_sha256}"
 
-if [[ -n "${EXPECTED_AOP_CA_SHA256}" ]] \
-   && [[ "${actual_ca_sha256}" != "${EXPECTED_AOP_CA_SHA256}" ]]; then
+if [[ -z "${EXPECTED_AOP_CA_SHA256}" ]]; then
+  log "FATAL: EXPECTED_AOP_CA_SHA256 is unset."
+  log "Pin the current Cloudflare AOP CA fingerprint at the top of"
+  log "this script before running it; an empty pin is not a valid"
+  log "baseline."
+  exit 1
+fi
+
+if [[ "${actual_ca_sha256}" != "${EXPECTED_AOP_CA_SHA256}" ]]; then
   log "FATAL: Cloudflare AOP CA fingerprint changed."
   log "  expected: ${EXPECTED_AOP_CA_SHA256}"
   log "  actual:   ${actual_ca_sha256}"
-  log "This is a Cloudflare CA rotation. Review the new chain manually"
-  log "per the runbook in deployments/cloudflare/README.md before"
-  log "updating EXPECTED_AOP_CA_SHA256 in this script."
+  log "This is a Cloudflare CA rotation. Follow the rotation runbook"
+  log "in docs/architecture/edge-cloudflare-envoy.md (\"Rotation"
+  log "procedures > Cloudflare AOP CA\") BEFORE updating the pin."
   exit 1
 fi
 
@@ -118,14 +131,8 @@ if ! cmp -s "${tmp_ipv6}" "${IPV6_FILE}"; then
   changed=1
 fi
 
-if ! cmp -s "${tmp_ca}" "${AOP_CA_FILE}"; then
-  log "AOP CA bytes changed; writing ${AOP_CA_FILE}"
-  cp "${tmp_ca}" "${AOP_CA_FILE}"
-  changed=1
-fi
-
 if [[ "${changed}" -eq 1 ]]; then
-  log "Cloudflare ranges or CA changed. CI should open a PR."
+  log "Cloudflare IP ranges changed. CI should open a PR."
   exit 2
 fi
 

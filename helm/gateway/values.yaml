@@ -111,14 +111,14 @@ config:
     adminUsername: "admin"
     adminEmail: "admin@etradie.local"
 
-# Trust-chain (read by src/auth/clientip.go via
-# AUTH_TRUSTED_PROXY_CIDRS / AUTH_TRUST_CLOUDFLARE). values.yaml is
-# safe-by-default: trust nothing. values-production.yaml flips
-# trustCloudflare=true and narrows trustedProxyCidrs to the actual
-# pod CIDR.
+# Trust-chain (read by src/auth/clientip.go via AUTH_TRUSTED_PROXY_CIDRS
+# and AUTH_TRUST_CLOUDFLARE). Base values match the PRODUCTION posture
+# - the eTradie production pod CIDR with Cloudflare in front. Staging
+# overrides this to 10.42.0.0/16 + trustCloudflare=false. Local dev
+# does not use this chart (kustomize-only).
 trustChain:
-  trustedProxyCidrs: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-  trustCloudflare: "false"
+  trustedProxyCidrs: "10.100.0.0/16"
+  trustCloudflare: "true"
 
 externalSecrets:
   enabled: true
