@@ -10,6 +10,7 @@ No local MT5 terminal or Windows dependency required.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time as _time
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -39,6 +40,7 @@ from engine.ta.broker.base import (
     TickPrice,
 )
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.priority import BrokerRequestPriority, get_priority
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
@@ -93,17 +95,37 @@ class MetaApiClient(BrokerBase):
             "auth-token": config.metaapi_token,
         }
         # MetaAPI's per-account market-data REST endpoint enforces request
-        # rate limits (typically ~60 req/min depending on plan). The
-        # background pre-warm pipeline plus concurrent dashboard tabs can
-        # easily burst above that and starve trading calls (place_order,
-        # modify_position, get_tick_price) which share the same account.
-        # _candles_semaphore caps simultaneous historical fetches at a
-        # safe ceiling so a candles burst can never drown out trading.
-        # Trading calls do NOT acquire this semaphore -- they go through
-        # the unrestricted _api_get / _api_post path. This is the
-        # MetaAPI-side equivalent of the dedicated candles ZMQ socket
-        # introduced for the native EA bridge.
-        self._candles_semaphore = asyncio.Semaphore(4)
+        # rate limits (typically ~60 req/min depending on plan). Historical
+        # candles fetches are by far the heaviest call we make against that
+        # endpoint -- a single dashboard chart open with the 13-timeframe
+        # pre-warm wave fires up to 13 requests for one symbol.
+        #
+        # We split the candles capacity into two tiers so that opportunistic
+        # background work (pre-warm, stale-while-revalidate) can never
+        # starve user-visible foreground work (the chart click currently
+        # rendering on screen):
+        #
+        #   * Foreground requests acquire ``_candles_foreground_sem`` only.
+        #     Slots: 2. These slots are NEVER held by background pre-warm,
+        #     so a foreground click is at most queued behind one other
+        #     foreground click of the same account.
+        #
+        #   * Background requests must acquire BOTH ``_candles_background_sem``
+        #     AND ``_candles_global_sem`` in that order. _global_sem is
+        #     shared with foreground and caps total concurrency against the
+        #     account; _background_sem (slots: 2) caps how much of that
+        #     global budget background work can ever consume.
+        #
+        # Net effect: at any instant the broker sees at most 4 concurrent
+        # candles requests (the original ceiling), of which at least 2 slots
+        # are always reserved for foreground if a foreground request is
+        # waiting. Trading calls bypass all of these semaphores entirely.
+        #
+        # This is the MetaAPI-side equivalent of the dedicated candles ZMQ
+        # socket introduced for the native EA bridge.
+        self._candles_global_sem = asyncio.Semaphore(4)
+        self._candles_foreground_sem = asyncio.Semaphore(2)
+        self._candles_background_sem = asyncio.Semaphore(2)
 
     @property
     def provider_name(self) -> str:
@@ -112,21 +134,32 @@ class MetaApiClient(BrokerBase):
     @property
     def account_id(self) -> str:
         return self._account_id
-        self._base_url = (
-            config.metaapi_base_url
-            if config.metaapi_base_url
-            else self._BASE_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
-        )
-        self._market_data_base_url = (
-            config.metaapi_base_url.replace("mt-client-api-v1", "mt-market-data-client-api-v1")
-            if config.metaapi_base_url
-            else self._MARKET_DATA_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
-        )
-        self._auth_headers = {
-            "auth-token": config.metaapi_token,
-        }
 
     # -- Helpers ---------------------------------------------------------------
+
+    @contextlib.asynccontextmanager
+    async def _acquire_candles_slot(self):
+        """Acquire the correct candles semaphore pair for the current request.
+
+        Reads the priority tier from the active broker_priority context. The
+        global semaphore is always acquired so the total per-account broker
+        load remains bounded; the tier-specific semaphore enforces the
+        background-cannot-starve-foreground guarantee.
+
+        Acquisition order is fixed (tier-specific first, then global) to
+        prevent the classic deadlock pattern where two callers grab the
+        semaphores in opposite order. asyncio semaphores are FIFO so this
+        order is also fair.
+        """
+        priority = get_priority()
+        tier_sem = (
+            self._candles_background_sem
+            if priority == BrokerRequestPriority.BACKGROUND
+            else self._candles_foreground_sem
+        )
+        async with tier_sem:
+            async with self._candles_global_sem:
+                yield
 
     def _url(self, path: str, category: str = "candles") -> str:
         base = self._market_data_base_url if category == "candles" else self._base_url
@@ -193,12 +226,13 @@ class MetaApiClient(BrokerBase):
             path = (
                 f"/historical-market-data/symbols/{urllib.parse.quote(symbol)}/timeframes/{ma_tf}/candles"
             )
-            # Bound concurrent historical fetches per MetaAPI account so a
-            # burst of pre-warm calls cannot starve trading endpoints
-            # (place_order / modify_position / get_tick_price) on the same
-            # account. The semaphore is the MetaAPI counterpart of the
-            # dedicated candles ZMQ socket for native EA accounts.
-            async with self._candles_semaphore:
+            # Acquire the right semaphore tier for this request. Foreground
+            # work (default) takes one foreground slot AND one global slot;
+            # background work (pre-warm, revalidate) takes one background
+            # slot AND one global slot. Background can therefore never
+            # consume the foreground reservation. Trading calls bypass
+            # this gate entirely via the unrestricted _api_post path.
+            async with self._acquire_candles_slot():
                 raw = await self._api_get(path, params=params, category="candles")
 
             duration = _time.monotonic() - start_timer
