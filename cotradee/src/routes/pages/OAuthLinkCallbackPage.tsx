@@ -68,9 +68,6 @@ export default function OAuthLinkCallbackPage() {
           className="w-10 h-10"
           style={{ animation: 'logoZoom 1.2s ease-in-out infinite' }}
         />
-        <p className="text-sm text-content-muted">
-          Linking your Google account…
-        </p>
         <style>{`
           @keyframes logoZoom {
             0%, 100% { transform: scale(0.9); opacity: 0.7; }
