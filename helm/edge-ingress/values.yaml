@@ -176,14 +176,13 @@ affinity:
 
 topologySpreadConstraints: []
 
-nodeSelector:
-  node.kubernetes.io/instance-type: c6i.2xlarge
+# Scheduling constraints. Empty by default so the chart deploys on any
+# EKS cluster. Production layers values-production.yaml on top and pins
+# the instance type + adds the matching toleration for the dedicated
+# `edge` node taint applied by infrastructure/cluster/.
+nodeSelector: {}
 
-tolerations:
-  - key: "workload"
-    operator: "Equal"
-    value: "edge"
-    effect: "NoSchedule"
+tolerations: []
 
 terminationGracePeriodSeconds: 30
 

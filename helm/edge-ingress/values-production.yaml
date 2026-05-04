@@ -10,6 +10,19 @@ podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: "production"
 
+# Production schedules edge-ingress on a dedicated `edge` node group
+# with a `workload=edge:NoSchedule` taint applied by
+# infrastructure/cluster/. The toleration here matches the taint;
+# the nodeSelector pins the dedicated instance type.
+nodeSelector:
+  node.kubernetes.io/instance-type: c6i.2xlarge
+
+tolerations:
+  - key: "workload"
+    operator: "Equal"
+    value: "edge"
+    effect: "NoSchedule"
+
 service:
   # ACM cert ARN is provided by CI from Vault / AWS Secrets Manager.
   # tlsCertificateArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<cert-id>"
