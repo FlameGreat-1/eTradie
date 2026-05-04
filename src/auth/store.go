@@ -257,6 +257,26 @@ func (s *UserStore) UpdateProfileFromOAuth(ctx context.Context, userID string, a
 	return nil
 }
 
+// UpdateProfileFromOAuthLink is the link-flow counterpart of
+// UpdateProfileFromOAuth. It refreshes the provider-managed avatar
+// and email_verified fields but deliberately does NOT touch
+// last_login_at, because linking is not a sign-in event and recording
+// it as one would corrupt session and audit telemetry.
+func (s *UserStore) UpdateProfileFromOAuthLink(ctx context.Context, userID string, avatarURL string, emailVerified bool) error {
+	now := time.Now().UTC()
+	_, err := s.pool.Exec(ctx,
+		`UPDATE auth_users
+		    SET avatar_url     = $1,
+		        email_verified = $2,
+		        updated_at     = $3
+		  WHERE id = $4`,
+		avatarURL, emailVerified, now, userID)
+	if err != nil {
+		return fmt.Errorf("update profile from oauth link: %w", err)
+	}
+	return nil
+}
+
 
 // UpdateLastLogin sets the last_login_at timestamp for a user.
 func (s *UserStore) UpdateLastLogin(ctx context.Context, userID string) error {
