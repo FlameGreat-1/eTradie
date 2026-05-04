@@ -15,6 +15,6 @@ maintainers:
   - name: eTradie Platform Team
     email: platform@etradie.com
 sources:
-  - https://gitlab.com/cotradee3/cotradeecode
+  - https://github.com/FlameGreat-1/eTradie
 icon: https://etradie.com/icon.png
 dependencies: []
