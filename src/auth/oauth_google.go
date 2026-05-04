@@ -70,6 +70,7 @@ type GoogleOAuthProvider struct {
 	clientID            string
 	clientSecret        string
 	redirectURI         string
+	linkRedirectURI     string
 	allowedHostedDomain map[string]struct{}
 	http                *http.Client
 
@@ -92,6 +93,7 @@ func NewGoogleOAuthProvider(cfg *Config) *GoogleOAuthProvider {
 		clientID:            cfg.GoogleClientID,
 		clientSecret:        cfg.GoogleClientSecret,
 		redirectURI:         cfg.GoogleRedirectURI,
+		linkRedirectURI:     cfg.GoogleLinkRedirectURI,
 		allowedHostedDomain: allowed,
 		http: &http.Client{
 			Timeout: time.Duration(cfg.OAuthHTTPTimeoutSeconds) * time.Second,
@@ -100,11 +102,17 @@ func NewGoogleOAuthProvider(cfg *Config) *GoogleOAuthProvider {
 	}
 }
 
-// RedirectURI returns the configured redirect URI. Used by handlers
-// to record the URI in the auth_oauth_flows row so the callback can
-// confirm the round-trip is consistent.
+// RedirectURI returns the sign-in flow's redirect URI. Used by
+// handlers to record the URI in the auth_oauth_flows row so the
+// callback can confirm the round-trip is consistent.
 func (p *GoogleOAuthProvider) RedirectURI() string {
 	return p.redirectURI
+}
+
+// LinkRedirectURI returns the link flow's redirect URI. Distinct
+// from RedirectURI by design (see Config.GoogleLinkRedirectURI).
+func (p *GoogleOAuthProvider) LinkRedirectURI() string {
+	return p.linkRedirectURI
 }
 
 // ---------------------------------------------------------------------------
@@ -112,16 +120,32 @@ func (p *GoogleOAuthProvider) RedirectURI() string {
 // ---------------------------------------------------------------------------
 
 // BuildAuthorizeURL composes the URL the browser must be redirected to
-// in order to start the Google consent step. Caller supplies state,
-// the PKCE verifier, and a nonce; this method derives the S256
-// challenge from the verifier so the verifier never leaves the gateway.
+// in order to start the Google consent step for the SIGN-IN flow.
+// Caller supplies state, the PKCE verifier, and a nonce; this method
+// derives the S256 challenge from the verifier so the verifier never
+// leaves the gateway.
 func (p *GoogleOAuthProvider) BuildAuthorizeURL(state, codeVerifier, nonce string) (string, error) {
+	return p.buildAuthorizeURL(state, codeVerifier, nonce, p.redirectURI)
+}
+
+// BuildLinkAuthorizeURL is the link-flow counterpart of
+// BuildAuthorizeURL. It pins the link redirect URI so Google sends
+// the browser back to the authenticated callback path, and is
+// otherwise identical.
+func (p *GoogleOAuthProvider) BuildLinkAuthorizeURL(state, codeVerifier, nonce string) (string, error) {
+	return p.buildAuthorizeURL(state, codeVerifier, nonce, p.linkRedirectURI)
+}
+
+func (p *GoogleOAuthProvider) buildAuthorizeURL(state, codeVerifier, nonce, redirectURI string) (string, error) {
 	if state == "" || codeVerifier == "" || nonce == "" {
 		return "", fmt.Errorf("google oauth: state, code_verifier, and nonce are required")
 	}
+	if redirectURI == "" {
+		return "", fmt.Errorf("google oauth: redirect_uri is required")
+	}
 	q := url.Values{}
 	q.Set("client_id", p.clientID)
-	q.Set("redirect_uri", p.redirectURI)
+	q.Set("redirect_uri", redirectURI)
 	q.Set("response_type", "code")
 	q.Set("scope", "openid email profile")
 	q.Set("state", state)
@@ -163,6 +187,13 @@ type googleTokenResponse struct {
 // exchanges the authorization code for an id_token, verifies it
 // against Google's JWKS, and returns the trusted claims.
 //
+// redirectURI MUST be the same URI that was sent to Google's
+// /authorize endpoint at the start of the flow; Google's /token
+// endpoint compares the two byte-for-byte and refuses the exchange
+// otherwise. Callers supply the URI explicitly (rather than the
+// provider picking it) so the link path and the sign-in path cannot
+// accidentally use each other's URI.
+//
 // expectedNonce is the nonce that was sent to Google during the
 // authorize step; the ID token's nonce claim must match it exactly.
 func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
@@ -170,9 +201,13 @@ func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
 	code string,
 	codeVerifier string,
 	expectedNonce string,
+	redirectURI string,
 ) (*OAuthClaims, error) {
 	if code == "" || codeVerifier == "" || expectedNonce == "" {
 		return nil, fmt.Errorf("google oauth: code, code_verifier, and expected nonce are required")
+	}
+	if redirectURI == "" {
+		return nil, fmt.Errorf("google oauth: redirect_uri is required")
 	}
 
 	form := url.Values{}
@@ -180,7 +215,7 @@ func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
 	form.Set("code", code)
 	form.Set("client_id", p.clientID)
 	form.Set("client_secret", p.clientSecret)
-	form.Set("redirect_uri", p.redirectURI)
+	form.Set("redirect_uri", redirectURI)
 	form.Set("code_verifier", codeVerifier)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenEndpoint,

@@ -174,7 +174,7 @@ func (h *Handler) handleOAuthGoogleCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	claims, err := h.googleProvider.ExchangeCodeAndVerify(r.Context(), req.Code, flow.CodeVerifier, flow.Nonce)
+	claims, err := h.googleProvider.ExchangeCodeAndVerify(r.Context(), req.Code, flow.CodeVerifier, flow.Nonce, flow.RedirectURI)
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, err.Error())
 		return
