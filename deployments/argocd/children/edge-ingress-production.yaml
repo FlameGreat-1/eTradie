@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: edge-ingress-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    etradie.com/component: edge-ingress
+    etradie.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    # Production pins to a tag, not HEAD. CI rewrites this on each
+    # release tag (e.g. v0.1.0).
+    targetRevision: v0.1.0
+    path: helm/edge-ingress
+    helm:
+      releaseName: edge-ingress
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edge-ingress-system
+
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  # Production REQUIRES manual sync. The AppProject sync window allows
+  # automated sync only inside business hours, but we additionally
+  # disable selfHeal so a misconfigured commit cannot auto-roll out.
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

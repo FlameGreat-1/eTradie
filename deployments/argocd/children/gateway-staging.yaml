@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    etradie.com/component: gateway
+    etradie.com/environment: staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    targetRevision: HEAD
+    path: helm/gateway
+    helm:
+      releaseName: etradie-gateway
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: etradie-system
+
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  revisionHistoryLimit: 10
