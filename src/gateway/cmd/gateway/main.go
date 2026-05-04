@@ -79,8 +79,21 @@ func main() {
 	oauthIdentityStore := auth.NewOAuthIdentityStore(authPool)
 	tokenService := auth.NewTokenService(authCfg)
 	authHandler := auth.NewHandler(userStore, sessionStore, tokenService, authCfg)
-	_ = oauthFlowStore
-	_ = oauthIdentityStore
+
+	// Wire Google OAuth only when explicitly enabled. The provider
+	// builds an HTTP client with a bounded timeout and an empty JWKS
+	// cache; the first sign-in attempt populates the cache.
+	if authCfg.GoogleOAuthEnabled {
+		googleProvider := auth.NewGoogleOAuthProvider(authCfg)
+		authHandler.WithOAuth(oauthFlowStore, oauthIdentityStore, googleProvider)
+		log.Info().
+			Str("redirect_uri", authCfg.GoogleRedirectURI).
+			Int("flow_ttl_seconds", authCfg.OAuthFlowTTLSeconds).
+			Int("hosted_domains", len(authCfg.GoogleAllowedHostedDomains)).
+			Msg("auth_google_oauth_enabled")
+	} else {
+		log.Info().Msg("auth_google_oauth_disabled")
+	}
 
 	// Seed admin user on first startup.
 	if err := auth.SeedAdminUser(ctx, userStore, authCfg); err != nil {

@@ -9,11 +9,20 @@ import (
 )
 
 // Handler serves the authentication REST API endpoints.
+//
+// OAuth dependencies are optional and attached at startup via
+// Handler.WithOAuth (see oauth_handlers.go). When oauthEnabled is
+// false the OAuth routes return 404 and no Google client is built.
 type Handler struct {
 	users    *UserStore
 	sessions *SessionStore
 	tokens   *TokenService
 	cfg      *Config
+
+	oauthEnabled    bool
+	oauthFlows      *OAuthFlowStore
+	oauthIdentities *OAuthIdentityStore
+	googleProvider  *GoogleOAuthProvider
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -38,9 +47,11 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 // X-Forwarded-For to impersonate other source IPs.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	// Rate limiters for public auth endpoints (per IP).
-	loginLimiter := NewRateLimiter(10, 1*time.Minute)   // 10 login attempts/min/IP
-	registerLimiter := NewRateLimiter(5, 1*time.Minute) // 5 registrations/min/IP
-	refreshLimiter := NewRateLimiter(20, 1*time.Minute) // 20 refresh attempts/min/IP
+	loginLimiter := NewRateLimiter(10, 1*time.Minute)        // 10 login attempts/min/IP
+	registerLimiter := NewRateLimiter(5, 1*time.Minute)      // 5 registrations/min/IP
+	refreshLimiter := NewRateLimiter(20, 1*time.Minute)      // 20 refresh attempts/min/IP
+	oauthStartLimiter := NewRateLimiter(20, 1*time.Minute)   // 20 oauth-start/min/IP
+	oauthCallbackLimiter := NewRateLimiter(20, 1*time.Minute) // 20 oauth-callback/min/IP
 
 	resolver := h.cfg.IPResolver()
 
@@ -48,6 +59,13 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	mux.HandleFunc("/auth/login", loginLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleLogin))
 	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRegister))
 	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRefresh))
+
+	// OAuth 2.0 endpoints. Mounted unconditionally; when OAuth is not
+	// configured the handlers return 404 and the routes are effectively
+	// no-ops. This keeps the route table identical across environments
+	// for ops simplicity.
+	mux.HandleFunc("/auth/oauth/google/start", oauthStartLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleStart))
+	mux.HandleFunc("/auth/oauth/google/callback", oauthCallbackLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleCallback))
 
 	// Protected endpoints (any authenticated user).
 	mux.Handle("/auth/logout", RequireAuthFunc(ts, h.handleLogout))
@@ -383,15 +401,7 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":            user.ID,
-		"username":      user.Username,
-		"email":         user.Email,
-		"role":          string(user.Role),
-		"active":        user.Active,
-		"created_at":    user.CreatedAt.Format(time.RFC3339),
-		"last_login_at": formatOptionalTime(user.LastLoginAt),
-	})
+	writeJSON(w, http.StatusOK, userPublicView(user))
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +434,13 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	user, err := h.users.GetUserByID(r.Context(), userID)
 	if err != nil || user == nil {
 		writeAuthError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	// Federated accounts have no local password to change. Surface a
+	// clear 400 instead of letting CheckPassword return a generic error.
+	if user.AuthProvider != "" && user.AuthProvider != AuthProviderLocal {
+		writeAuthError(w, http.StatusBadRequest, "this account signs in with "+user.AuthProvider+"; password change is not applicable")
 		return
 	}
 
