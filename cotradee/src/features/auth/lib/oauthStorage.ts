@@ -78,15 +78,33 @@ export function clearPendingOAuthFlow(): void {
 
 /**
  * Coerce a raw user-supplied path into a same-origin path or fall
- * back to '/'. Mirrors the gateway's sanitiseReturnTo logic so the
- * frontend behaves identically when the user arrives via a direct
- * link or a bookmarked URL.
+ * back to '/'. Mirrors the gateway's sanitiseReturnTo logic byte for
+ * byte so the frontend and the server agree on what is acceptable;
+ * any value the gateway would reject is rejected here too, and vice
+ * versa.
+ *
+ * Rejects, in addition to obvious cross-origin URLs:
+ *   - control characters and CR/LF (header-splitting / log-injection)
+ *   - percent-encoded slashes / backslashes that the browser would
+ *     decode at navigate time and turn into a schemaless URL
+ *   - anything longer than 512 bytes
  */
 export function sanitiseReturnTo(raw: string | null | undefined): string {
   if (!raw) return '/';
   const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > 512) return '/';
   if (!trimmed.startsWith('/')) return '/';
   if (trimmed.startsWith('//') || trimmed.startsWith('/\\')) return '/';
-  if (trimmed.length > 512) return '/';
+  // Reject control characters anywhere in the path (NUL through 0x1f,
+  // and 0x7f).
+  for (let i = 0; i < trimmed.length; i++) {
+    const code = trimmed.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return '/';
+  }
+  // Reject percent-encoded slash/backslash, which the browser would
+  // decode and which can otherwise produce '//evil.com' after the
+  // leading-slash check has passed.
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('/%2f') || lower.startsWith('/%5c')) return '/';
   return trimmed;
 }
