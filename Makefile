@@ -167,17 +167,50 @@ edge-down: ## Tear down the edge chain (gateway + everything else stays up)
 
 edge-test: ## Validate the local edge chain enforces mTLS (CI-friendly)
 	echo -e "$(BLUE)Validating local mTLS enforcement...$(NC)"
-	@echo -n "  unauthenticated curl must FAIL: " && \
-		( ! curl -sk --max-time 5 https://localhost:8443/auth/healthz >/dev/null 2>&1 ) \
-		&& echo -e "$(GREEN)ok (handshake rejected)$(NC)" \
-		|| { echo -e "$(RED)FAIL: unauthenticated request succeeded - mTLS broken$(NC)"; exit 1; }
+	@# 1) The edge-ingress process must be alive BEFORE we trust any
+	@#    handshake-rejection result. A crashed process also "rejects"
+	@#    handshakes (Connection refused), so without this check the
+	@#    test would false-green any time edge-ingress fails to boot.
+	@echo -n "  edge-ingress process is alive: " && \
+		curl -sf --max-time 3 http://localhost:19902/healthz >/dev/null \
+		&& echo -e "$(GREEN)ok$(NC)" \
+		|| { echo -e "$(RED)FAIL: edge-ingress not responding on :19902/healthz - process is down$(NC)"; exit 1; }
+	@# 2) The TLS listener must accept at least the TCP handshake. If
+	@#    we cannot connect, anything further is meaningless.
+	@echo -n "  edge-ingress TLS listener is open: " && \
+		timeout 3 bash -c 'cat </dev/tcp/localhost/8443' >/dev/null 2>&1 \
+		&& echo -e "$(GREEN)ok$(NC)" \
+		|| { echo -e "$(RED)FAIL: localhost:8443 is not accepting TCP connections$(NC)"; exit 1; }
+	@# 3) Authenticated curl must SUCCEED. Otherwise a passing #4 below
+	@#    is meaningless because the chain might be rejecting EVERY
+	@#    request, not just unauthenticated ones.
 	@echo -n "  authenticated   curl must SUCCEED: " && \
 		curl -sk --max-time 10 \
 		  --cert deployments/cloudflare/origin-pull/dev-client.crt \
 		  --key  deployments/cloudflare/origin-pull/dev-client.key \
 		  https://localhost:8443/auth/healthz >/dev/null \
 		&& echo -e "$(GREEN)ok$(NC)" \
-		|| { echo -e "$(RED)FAIL: authenticated request rejected$(NC)"; exit 1; }
+		|| { echo -e "$(RED)FAIL: authenticated request rejected (mTLS misconfigured or upstream broken)$(NC)"; exit 1; }
+	@# 4) Unauthenticated curl MUST fail at TLS, specifically. Test for
+	@#    "alert bad_certificate" / "alert handshake_failure" /
+	@#    "alert certificate_required" in the output - NOT just
+	@#    non-zero exit (which would also be true if the process
+	@#    crashed between #3 and #4).
+	@echo -n "  unauthenticated curl must FAIL at TLS: " && \
+		unauth_err=$$(curl -sk --max-time 5 https://localhost:8443/auth/healthz 2>&1 1>/dev/null) || true; \
+		if echo "$$unauth_err" | grep -qE 'alert (bad_certificate|handshake_failure|certificate_required)'; then \
+			echo -e "$(GREEN)ok (TLS handshake rejected)$(NC)"; \
+		elif echo "$$unauth_err" | grep -qiE 'connection refused|recv failure|connection reset'; then \
+			echo -e "$(RED)FAIL: connection refused / reset - edge-ingress crashed mid-test$(NC)"; exit 1; \
+		else \
+			echo -e "$(RED)FAIL: unauthenticated request did not fail at TLS layer (got: $$unauth_err)$(NC)"; exit 1; \
+		fi
+	@# 5) Process must STILL be alive after the test (the unauthenticated
+	@#    request must not have crashed the daemon).
+	@echo -n "  edge-ingress process still alive: " && \
+		curl -sf --max-time 3 http://localhost:19902/healthz >/dev/null \
+		&& echo -e "$(GREEN)ok$(NC)" \
+		|| { echo -e "$(RED)FAIL: edge-ingress crashed during validation$(NC)"; exit 1; }
 	echo -e "$(GREEN)✓ Local edge chain mTLS posture matches production$(NC)"
 
 ##@ Docker Commands
