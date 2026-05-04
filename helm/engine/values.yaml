@@ -155,7 +155,11 @@ config:
     persistAuditLogs: "true"
   observability:
     otelServiceName: "etradie-engine"
-    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
+    # OTel tracing is opt-in. Empty endpoint means the OTel SDK
+    # exporter is a no-op (no retries, no log spam). Production
+    # overlay sets this once an OTel collector is actually deployed.
+    # Audit ref: NOTE.md S2-C.
+    otelEndpoint: ""
     prometheusPort: "9090"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
