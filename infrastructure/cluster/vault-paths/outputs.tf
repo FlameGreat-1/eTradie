@@ -9,5 +9,8 @@ output "vault_paths" {
     engine               = vault_kv_secret_v2.engine.path
     execution            = vault_kv_secret_v2.execution.path
     management           = vault_kv_secret_v2.management.path
+    data_layer_postgres  = vault_kv_secret_v2.data_layer_postgres.path
+    data_layer_redis     = vault_kv_secret_v2.data_layer_redis.path
+    data_layer_chromadb  = vault_kv_secret_v2.data_layer_chromadb.path
   }
 }
