@@ -35,29 +35,6 @@ creates a real exploitation path.
 | envoy + WASM | Per-request rate limits, header injection, path traversal, oversized payloads, malformed methods, circuit breaker on backend failures | JWT validation (envoy does not know the secret) |
 | gateway | JWT validation, CORS, business-level rate limits, role-based authorisation, trust-aware client-IP for per-IP / per-user limits | Network-layer attacks |
 
-#### Deployment order (must be exact)
-
-Apply the kustomize / helm trees in this order. Reversing it leaves pods
-stuck in `ContainerCreating` waiting for ExternalSecret-synthesised Secrets
-that have not been resolved yet.
-
-1. **Namespaces and ClusterSecretStore**
-   - `etradie-system`, `envoy-system`, `edge-ingress-system`,
-     `etradie-observability`, `monitoring`
-   - `vault-backend` ClusterSecretStore wired to your Vault instance
-2. **Cloudflare integration objects** -
-   `kustomize build deployments/cloudflare/kubernetes/ | kubectl apply -f -`
-   - Materialises `cloudflare-aop-ca` Secret and `cloudflare-ip-ranges`
-     ConfigMap.
-3. **Gateway** -
-   `kustomize build deployments/gateway/kubernetes/overlays/<env> | kubectl apply -f -`
-4. **Envoy** -
-   `kustomize build deployments/envoy/kubernetes/overlays/<env> | kubectl apply -f -`
-5. **Edge-Ingress** -
-   `kustomize build deployments/edge-ingress/kubernetes/overlays/<env> | kubectl apply -f -`
-6. **Cloudflare zone** - DNS CNAME the public hostname at Cloudflare's
-   anycast IPs, enable AOP per `deployments/cloudflare/README.md`.
-
 #### Trust chain for client-IP
 
 This is the single most important correctness property of the chain. If it
