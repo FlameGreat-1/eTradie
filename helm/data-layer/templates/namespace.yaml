@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "data-layer.commonLabels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
+  annotations:
+    description: "eTradie platform namespace - engine, gateway, execution, management, data-layer all live here."

@@ -1,0 +1,122 @@
+# Production overlay for the etradie-engine chart.
+# Applied AFTER values.yaml by the ArgoCD child Application.
+#
+# IMPORTANT: this file is intentionally cloud-agnostic. It does NOT
+# pin any AWS-specific instance type via nodeSelector; the same chart
+# renders correctly on Contabo K3s, OCI OKE, Talos, or any vanilla
+# Kubernetes cluster. Cluster-specific scheduling hints (taints, GPU
+# pools, etc.) belong on the cluster, not in the chart.
+
+replicaCount: 3
+
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  tier: production
+
+config:
+  app:
+    env: "production"
+    debug: "false"
+    logLevel: "INFO"
+  rag:
+    ingestOnStartup: "true"
+  processor:
+    strictSchemaValidation: "true"
+    requireCitations: "true"
+    persistAuditLogs: "true"
+
+externalSecrets:
+  enabled: true
+  engine:
+    vaultPath: etradie/services/engine/production
+    refreshInterval: 1h
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+    ephemeral-storage: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+    ephemeral-storage: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+      selectPolicy: Max
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: etradie-engine
+        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-engine
+          topologyKey: topology.kubernetes.io/zone
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-engine
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-engine
+
+nodeSelector: {}
+
+tolerations: []
+
+terminationGracePeriodSeconds: 60

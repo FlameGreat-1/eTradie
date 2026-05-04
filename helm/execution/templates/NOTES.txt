@@ -1,0 +1,23 @@
+etradie-execution has been deployed.
+
+Namespace:    {{ include "execution.namespace" . }}
+Release:      {{ .Release.Name }}
+Image:        {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas:     {{ .Values.replicaCount }}
+Broker mode:  {{ .Values.config.execution.brokerMode }}
+
+In-cluster URLs:
+  gRPC (gateway -> execution): execution.{{ include "execution.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.grpc.port }}
+  HTTP API (gateway -> execution): execution.{{ include "execution.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.http.port }}
+
+Execution dials, in turn:
+  - engine on :8000  (broker bridge, EXECUTION_BROKER_BRIDGE_URL)
+  - gateway on :50052 (instant-mode callback, EXECUTION_GATEWAY_ADDR)
+
+Probes:
+  startup/liveness/readiness: GET /health on port {{ .Values.service.ports.http.port }}
+
+Metrics:
+  GET /metrics on port {{ .Values.service.ports.http.port }} (Prometheus annotations attached).
+
+Secrets are resolved from Vault path: {{ .Values.externalSecrets.execution.vaultPath }}

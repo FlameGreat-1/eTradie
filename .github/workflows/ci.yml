@@ -185,6 +185,94 @@ jobs:
             echo "FATAL: gateway initContainers block was rendered with empty dependencies list"
             exit 1
           fi
+      - name: helm lint - engine
+        run: helm lint helm/engine
+      - name: helm template + kubeconform - engine staging
+        run: |
+          helm template etradie-engine helm/engine \
+            -f helm/engine/values.yaml \
+            -f helm/engine/values-staging.yaml \
+            > /tmp/engine-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/engine-staging.yaml
+      - name: helm template + kubeconform - engine production
+        run: |
+          helm template etradie-engine helm/engine \
+            -f helm/engine/values.yaml \
+            -f helm/engine/values-production.yaml \
+            > /tmp/engine-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/engine-production.yaml
+      - name: helm lint - execution
+        run: helm lint helm/execution
+      - name: helm template + kubeconform - execution staging
+        run: |
+          helm template etradie-execution helm/execution \
+            -f helm/execution/values.yaml \
+            -f helm/execution/values-staging.yaml \
+            > /tmp/execution-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/execution-staging.yaml
+      - name: helm template + kubeconform - execution production
+        run: |
+          helm template etradie-execution helm/execution \
+            -f helm/execution/values.yaml \
+            -f helm/execution/values-production.yaml \
+            > /tmp/execution-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/execution-production.yaml
+      - name: helm lint - management
+        run: helm lint helm/management
+      - name: helm template + kubeconform - management staging
+        run: |
+          helm template etradie-management helm/management \
+            -f helm/management/values.yaml \
+            -f helm/management/values-staging.yaml \
+            > /tmp/management-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/management-staging.yaml
+      - name: helm template + kubeconform - management production
+        run: |
+          helm template etradie-management helm/management \
+            -f helm/management/values.yaml \
+            -f helm/management/values-production.yaml \
+            > /tmp/management-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/management-production.yaml
+      - name: helm lint - data-layer
+        run: helm lint helm/data-layer
+      - name: helm template + kubeconform - data-layer staging
+        run: |
+          helm template etradie-data-layer helm/data-layer \
+            -f helm/data-layer/values.yaml \
+            -f helm/data-layer/values-staging.yaml \
+            > /tmp/data-layer-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/data-layer-staging.yaml
+      - name: helm template + kubeconform - data-layer production
+        run: |
+          helm template etradie-data-layer helm/data-layer \
+            -f helm/data-layer/values.yaml \
+            -f helm/data-layer/values-production.yaml \
+            > /tmp/data-layer-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/data-layer-production.yaml
       - name: argocd manifests parse
         run: |
           # ArgoCD CRDs are schema-checked separately. We only confirm
@@ -304,11 +392,75 @@ jobs:
         run: go test ./src/gateway/e2etest/... -v -count=1 -timeout 300s
 
   build:
+    name: Build (and push on main) all four service images
     runs-on: ubuntu-latest
     needs: [test, test-go, helm]
+    # GHCR push requires packages: write. contents: read is the
+    # workflow's read-only access to the repo for actions/checkout.
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: engine
+            dockerfile: Dockerfile
+            context: .
+          - service: gateway
+            dockerfile: src/gateway/Dockerfile
+            context: .
+          - service: execution
+            dockerfile: src/execution/Dockerfile
+            context: .
+          - service: management
+            dockerfile: src/management/Dockerfile
+            context: .
+    env:
+      # Image registry path that helm/<service>/values.yaml encodes.
+      # GHCR is case-sensitive: owner + repo must be lowercase.
+      REGISTRY: ghcr.io
+      IMAGE_BASE: ghcr.io/flamegreat-1/etradie
+      # Chart version that the new ArgoCD production children pin to.
+      RELEASE_TAG: "0.2.0"
     steps:
       - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -f Dockerfile -t etradie-engine:${{ github.sha }} .
-      - name: Verify image
-        run: docker run --rm etradie-engine:${{ github.sha }} python -c "import engine; print('OK')"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login is only needed when we actually push (push event on main).
+      # Pull-request runs build-only to keep the registry clean.
+      # GHCR honours the built-in GITHUB_TOKEN when the job has
+      # packages: write permission, so no operator secret is needed.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && ' and push' || '' }} ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          # Push only on main branch pushes; PRs verify-build only.
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ env.RELEASE_TAG }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          provenance: false
+          sbom: false
+
+      # Smoke-verify the engine image only (it is the one we used to
+      # verify before this commit; the Go images are statically linked
+      # binaries and do not need an `import`-style smoke test).
+      - name: Verify engine image (engine only)
+        if: matrix.service == 'engine' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker pull ${{ env.IMAGE_BASE }}/engine:${{ github.sha }}
+          docker run --rm ${{ env.IMAGE_BASE }}/engine:${{ github.sha }} python -c "import engine; print('OK')"

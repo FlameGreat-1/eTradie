@@ -1,0 +1,24 @@
+etradie-management has been deployed.
+
+Namespace:    {{ include "management.namespace" . }}
+Release:      {{ .Release.Name }}
+Image:        {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas:     {{ .Values.replicaCount }}
+Broker mode:  {{ .Values.config.management.brokerMode }}
+
+In-cluster URLs (consumed by gateway):
+  gRPC: management.{{ include "management.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.grpc.port }}
+  HTTP: management.{{ include "management.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.http.port }}
+
+Management dials, in turn:
+  - engine on :8000   (broker bridge, MANAGEMENT_BROKER_BRIDGE_URL)
+  - postgres on :5432 (journal + analytics, MANAGEMENT_DATABASE_URL)
+  - redis on :6379    (alert hub,           MANAGEMENT_REDIS_URL)
+
+Probes:
+  startup/liveness/readiness: GET /health on port {{ .Values.service.ports.http.port }}
+
+Metrics:
+  GET /metrics on port {{ .Values.service.ports.http.port }} (Prometheus annotations attached).
+
+Secrets are resolved from Vault path: {{ .Values.externalSecrets.management.vaultPath }}

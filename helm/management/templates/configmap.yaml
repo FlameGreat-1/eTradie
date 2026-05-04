@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "management.configMapName" . }}
+  namespace: {{ include "management.namespace" . }}
+  labels:
+    {{- include "management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  # Management core (envconfig prefix MANAGEMENT_).
+  # Source of truth: src/management/internal/config/config.go.
+  MANAGEMENT_GRPC_PORT: {{ .Values.config.management.grpcPort | quote }}
+  MANAGEMENT_HTTP_PORT: {{ .Values.config.management.httpPort | quote }}
+  MANAGEMENT_BROKER_MODE: {{ .Values.config.management.brokerMode | quote }}
+  MANAGEMENT_BROKER_BRIDGE_URL: {{ .Values.config.management.brokerBridgeURL | quote }}
+  MANAGEMENT_BROKER_TIMEOUT_MS: {{ .Values.config.management.brokerTimeoutMs | quote }}
+  MANAGEMENT_MOCK_BROKER_BALANCE: {{ .Values.config.management.mockBrokerBalance | quote }}
+  MANAGEMENT_TICK_POLL_INTERVAL_MS: {{ .Values.config.management.tickPollIntervalMs | quote }}
+  MANAGEMENT_CANDLE_POLL_INTERVAL_SECS: {{ .Values.config.management.candlePollIntervalSecs | quote }}
+  MANAGEMENT_DATABASE_MAX_CONNS: {{ .Values.config.management.databaseMaxConns | quote }}
+  MANAGEMENT_DATABASE_MIN_CONNS: {{ .Values.config.management.databaseMinConns | quote }}
+  MANAGEMENT_DATABASE_MAX_IDLE_MS: {{ .Values.config.management.databaseMaxIdleMs | quote }}
+  MANAGEMENT_DATABASE_CONN_MAX_LIFE_SECONDS: {{ .Values.config.management.databaseConnMaxLifeSeconds | quote }}
+  MANAGEMENT_LOG_LEVEL: {{ .Values.config.management.logLevel | quote }}
+  MANAGEMENT_LOG_JSON: {{ .Values.config.management.logJson | quote }}
+  MANAGEMENT_OTEL_ENDPOINT: {{ .Values.config.management.otelEndpoint | quote }}
+  MANAGEMENT_OTEL_SERVICE_NAME: {{ .Values.config.management.otelServiceName | quote }}
+
+  # Auth (shared with gateway + execution; same JWT secret).
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: {{ .Values.config.auth.accessTokenTtlSeconds | quote }}
+  AUTH_REFRESH_TOKEN_TTL_SECONDS: {{ .Values.config.auth.refreshTokenTtlSeconds | quote }}
+  AUTH_SERVICE_TOKEN_TTL_SECONDS: {{ .Values.config.auth.serviceTokenTtlSeconds | quote }}
+  AUTH_BCRYPT_COST: {{ .Values.config.auth.bcryptCost | quote }}
+  AUTH_MAX_SESSIONS_PER_USER: {{ .Values.config.auth.maxSessionsPerUser | quote }}
+  AUTH_ISSUER: {{ .Values.config.auth.issuer | quote }}

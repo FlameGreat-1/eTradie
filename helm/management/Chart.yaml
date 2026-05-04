@@ -1,0 +1,21 @@
+apiVersion: v2
+name: management
+description: eTradie trade management engine (Go gRPC + HTTP) - monitors live trades, advances stop-loss, executes partial take-profits, evaluates structural/macro/news/exposure invalidation, runs EOD scheduler, computes analytics, and emits journal + alert events.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - management
+  - go
+  - grpc
+  - trades
+  - stoploss
+  - takeprofit
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@etradie.com
+sources:
+  - https://github.com/FlameGreat-1/eTradie
+icon: https://etradie.com/icon.png
+dependencies: []

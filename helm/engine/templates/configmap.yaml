@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "engine.configMapName" . }}
+  namespace: {{ include "engine.namespace" . }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  # Application identity (read by engine.config + observability bootstrap).
+  APP_NAME: {{ .Values.config.app.name | quote }}
+  APP_ENV: {{ .Values.config.app.env | quote }}
+  APP_DEBUG: {{ .Values.config.app.debug | quote }}
+  APP_LOG_LEVEL: {{ .Values.config.app.logLevel | quote }}
+
+  # PostgreSQL non-secret connection pieces. Password + DATABASE_URL
+  # come from the ExternalSecret.
+  POSTGRES_HOST: {{ .Values.config.postgres.host | quote }}
+  POSTGRES_PORT: {{ .Values.config.postgres.port | quote }}
+  POSTGRES_DB: {{ .Values.config.postgres.db | quote }}
+
+  # Redis non-secret pieces. Password + REDIS_URL come from the
+  # ExternalSecret.
+  REDIS_HOST: {{ .Values.config.redis.host | quote }}
+  REDIS_PORT: {{ .Values.config.redis.port | quote }}
+  REDIS_DB: {{ .Values.config.redis.db | quote }}
+
+  # HTTP client defaults.
+  HTTP_TIMEOUT_SECONDS: {{ .Values.config.http.timeoutSeconds | quote }}
+  HTTP_MAX_RETRIES: {{ .Values.config.http.maxRetries | quote }}
+  HTTP_RETRY_BACKOFF_BASE: {{ .Values.config.http.retryBackoffBase | quote }}
+  HTTP_RETRY_BACKOFF_MAX: {{ .Values.config.http.retryBackoffMax | quote }}
+
+  # Rate limiting.
+  RATE_LIMIT_REQUESTS_PER_MINUTE: {{ .Values.config.rateLimit.requestsPerMinute | quote }}
+  RATE_LIMIT_BURST_SIZE: {{ .Values.config.rateLimit.burstSize | quote }}
+
+  # Polling intervals (seconds).
+  POLL_INTERVAL_CENTRAL_BANK_RSS: {{ .Values.config.poll.centralBankRSS | quote }}
+  POLL_INTERVAL_NEWS: {{ .Values.config.poll.news | quote }}
+  POLL_INTERVAL_CALENDAR: {{ .Values.config.poll.calendar | quote }}
+  POLL_INTERVAL_COT: {{ .Values.config.poll.cot | quote }}
+  POLL_INTERVAL_DXY: {{ .Values.config.poll.dxy | quote }}
+  POLL_INTERVAL_INTERMARKET: {{ .Values.config.poll.intermarket | quote }}
+  POLL_INTERVAL_SENTIMENT: {{ .Values.config.poll.sentiment | quote }}
+  POLL_INTERVAL_ECONOMIC_DATA: {{ .Values.config.poll.economicData | quote }}
+  ANALYSIS_CYCLE_INTERVAL: {{ .Values.config.cycle.analysisCycleInterval | quote }}
+
+  # Cache TTLs (seconds).
+  CACHE_TTL_CENTRAL_BANK: {{ .Values.config.cache.centralBank | quote }}
+  CACHE_TTL_NEWS: {{ .Values.config.cache.news | quote }}
+  CACHE_TTL_CALENDAR: {{ .Values.config.cache.calendar | quote }}
+  CACHE_TTL_COT: {{ .Values.config.cache.cot | quote }}
+  CACHE_TTL_DXY: {{ .Values.config.cache.dxy | quote }}
+  CACHE_TTL_INTERMARKET: {{ .Values.config.cache.intermarket | quote }}
+  CACHE_TTL_SENTIMENT: {{ .Values.config.cache.sentiment | quote }}
+  CACHE_TTL_ECONOMIC_DATA: {{ .Values.config.cache.economicData | quote }}
+
+  # Technical Analysis module.
+  TA_ENABLED: {{ .Values.config.ta.enabled | quote }}
+  TA_SMC_ENABLED: {{ .Values.config.ta.smcEnabled | quote }}
+  TA_SND_ENABLED: {{ .Values.config.ta.sndEnabled | quote }}
+  TA_PRIMARY_BROKER: {{ .Values.config.ta.primaryBroker | quote }}
+  TA_FALLBACK_BROKER: {{ .Values.config.ta.fallbackBroker | quote }}
+  TA_ANALYSIS_INTERVAL_SECONDS: {{ .Values.config.ta.analysisIntervalSeconds | quote }}
+  TA_BACKFILL_ON_STARTUP: {{ .Values.config.ta.backfillOnStartup | quote }}
+  TA_MAX_CONCURRENT_SYMBOL_ANALYSIS: {{ .Values.config.ta.maxConcurrentSymbolAnalysis | quote }}
+
+  # RAG / Vector store.
+  RAG_ENABLED: {{ .Values.config.rag.enabled | quote }}
+  RAG_EMBEDDING_PROVIDER: {{ .Values.config.rag.embeddingProvider | quote }}
+  RAG_EMBEDDING_MODEL: {{ .Values.config.rag.embeddingModel | quote }}
+  RAG_EMBEDDING_DIMENSIONS: {{ .Values.config.rag.embeddingDimensions | quote }}
+  RAG_EMBEDDING_BATCH_SIZE: {{ .Values.config.rag.embeddingBatchSize | quote }}
+  RAG_VECTORSTORE_PROVIDER: {{ .Values.config.rag.vectorstoreProvider | quote }}
+  RAG_CHROMA_HOST: {{ .Values.config.rag.chromaHost | quote }}
+  RAG_CHROMA_PORT: {{ .Values.config.rag.chromaPort | quote }}
+  RAG_CHROMA_SSL: {{ .Values.config.rag.chromaSSL | quote }}
+  RAG_COLLECTION_DOCUMENTS: {{ .Values.config.rag.collectionDocuments | quote }}
+  RAG_COLLECTION_SCENARIOS: {{ .Values.config.rag.collectionScenarios | quote }}
+  RAG_CHUNK_SIZE: {{ .Values.config.rag.chunkSize | quote }}
+  RAG_CHUNK_OVERLAP: {{ .Values.config.rag.chunkOverlap | quote }}
+  RAG_RETRIEVAL_TOP_K: {{ .Values.config.rag.retrievalTopK | quote }}
+  RAG_RERANK_ENABLED: {{ .Values.config.rag.rerankEnabled | quote }}
+  RAG_RERANK_TOP_K: {{ .Values.config.rag.rerankTopK | quote }}
+  RAG_RERANK_MODEL: {{ .Values.config.rag.rerankModel | quote }}
+  RAG_KNOWLEDGE_BASE_DIR: {{ .Values.config.rag.knowledgeBaseDir | quote }}
+  RAG_SCENARIO_ASSETS_DIR: {{ .Values.config.rag.scenarioAssetsDir | quote }}
+  RAG_INGEST_ON_STARTUP: {{ .Values.config.rag.ingestOnStartup | quote }}
+
+  # Processor / LLM.
+  PROCESSOR_LLM_PROVIDER: {{ .Values.config.processor.llmProvider | quote }}
+  PROCESSOR_TEMPERATURE: {{ .Values.config.processor.temperature | quote }}
+  PROCESSOR_MAX_OUTPUT_TOKENS: {{ .Values.config.processor.maxOutputTokens | quote }}
+  PROCESSOR_LLM_TIMEOUT_SECONDS: {{ .Values.config.processor.timeoutSeconds | quote }}
+  PROCESSOR_TOTAL_TIMEOUT_SECONDS: {{ .Values.config.processor.totalTimeoutSeconds | quote }}
+  PROCESSOR_MAX_RETRIES: {{ .Values.config.processor.maxRetries | quote }}
+  PROCESSOR_STRICT_SCHEMA_VALIDATION: {{ .Values.config.processor.strictSchemaValidation | quote }}
+  PROCESSOR_REQUIRE_CITATIONS: {{ .Values.config.processor.requireCitations | quote }}
+  PROCESSOR_PERSIST_AUDIT_LOGS: {{ .Values.config.processor.persistAuditLogs | quote }}
+
+  # Observability.
+  OTEL_SERVICE_NAME: {{ .Values.config.observability.otelServiceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.observability.otelEndpoint | quote }}
+  PROMETHEUS_METRICS_PORT: {{ .Values.config.observability.prometheusPort | quote }}

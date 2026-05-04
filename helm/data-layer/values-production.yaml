@@ -1,0 +1,63 @@
+# Production overlay for the etradie-data-layer chart.
+# Cloud-agnostic: relies only on the cluster's default StorageClass.
+#
+# To use a specific StorageClass (e.g. Longhorn on Contabo K3s,
+# OCI Block Volume on OKE, or Local Path Provisioner) override
+# postgres.storage.storageClassName / redis.storage.storageClassName /
+# chromadb.storage.storageClassName here.
+
+postgres:
+  storage:
+    size: 32Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  externalSecret:
+    vaultPath: etradie/data-layer/postgres/production
+    refreshInterval: 1h
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"
+    retentionDays: 30
+    storage:
+      size: 64Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+
+redis:
+  storage:
+    size: 8Gi
+  maxmemory: "1gb"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
+  externalSecret:
+    vaultPath: etradie/data-layer/redis/production
+    refreshInterval: 1h
+
+chromadb:
+  storage:
+    size: 32Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  externalSecret:
+    vaultPath: etradie/data-layer/chromadb/production
+    refreshInterval: 1h

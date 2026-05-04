@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data-layer-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    etradie.com/component: data-layer
+    etradie.com/environment: production
+  annotations:
+    # Sync wave -2: data layer must reach Ready before engine and
+    # the rest of the platform.
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
+    # Production tracks an immutable git tag. Bump this in lockstep
+    # with `helm/data-layer/Chart.yaml` `appVersion` whenever a new
+    # release is cut.
+    targetRevision: v0.2.0
+    path: helm/data-layer
+    helm:
+      releaseName: etradie-data-layer
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: etradie-system
+
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: PersistentVolumeClaim
+      jsonPointers:
+        - /spec/resources/requests/storage
+
+  syncPolicy:
+    # Production: NO automated prune, NO automated selfHeal.
+    # Operators promote with an explicit "Sync" click in the
+    # AppProject's allow window (etradie AppProject:
+    # syncWindows[*-production], 13:00 UTC Mon-Fri, 8h).
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

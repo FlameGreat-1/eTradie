@@ -1,0 +1,123 @@
+{{- if .Values.chromadb.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: chromadb
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "chromadb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.chromadb.service.headlessName | default "chromadb-headless" }}
+  replicas: {{ .Values.chromadb.replicaCount | default 1 }}
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "chromadb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chromadb.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/chromadb-externalsecret.yaml") . | sha256sum }}
+        {{- with .Values.chromadb.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        # ChromaDB official image runs as uid:gid 1000:1000.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: chromadb
+          image: "{{ .Values.chromadb.image.repository }}:{{ .Values.chromadb.image.tag }}"
+          imagePullPolicy: {{ .Values.chromadb.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            # ChromaDB writes a small SQLite metadata file in /tmp at
+            # startup; readOnlyRootFilesystem stays true and we mount
+            # an emptyDir at /tmp.
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.chromadb.service.port | default 8000 }}
+              protocol: TCP
+          env:
+            - name: IS_PERSISTENT
+              value: "TRUE"
+            - name: PERSIST_DIRECTORY
+              value: /chroma/chroma
+            - name: CHROMA_SERVER_AUTHN_PROVIDER
+              value: chromadb.auth.token_authn.TokenAuthenticationServerProvider
+            - name: CHROMA_SERVER_AUTHN_TOKEN_TRANSPORT_HEADER
+              value: Authorization
+            - name: CHROMA_SERVER_HOST
+              value: "0.0.0.0"
+            - name: CHROMA_SERVER_HTTP_PORT
+              value: {{ .Values.chromadb.service.port | default 8000 | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ include "chromadb.secretName" . }}
+                optional: false
+          resources:
+            {{- toYaml .Values.chromadb.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/v2/heartbeat
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/v2/heartbeat
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /api/v2/heartbeat
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /chroma/chroma
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "chromadb.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.chromadb.storage.accessModes | nindent 10 }}
+        {{- if .Values.chromadb.storage.storageClassName }}
+        storageClassName: {{ .Values.chromadb.storage.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.chromadb.storage.size }}
+{{- end }}

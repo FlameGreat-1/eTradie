@@ -1,0 +1,118 @@
+{{- if and .Values.postgres.enabled .Values.postgres.backup.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "postgres.backupPVC" . }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-backup
+spec:
+  accessModes:
+    {{- toYaml .Values.postgres.backup.storage.accessModes | nindent 4 }}
+  {{- if .Values.postgres.backup.storage.storageClassName }}
+  storageClassName: {{ .Values.postgres.backup.storage.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.backup.storage.size }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "postgres.backupName" . }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: postgres-backup
+spec:
+  schedule: {{ .Values.postgres.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            {{- include "postgres.labels" . | nindent 12 }}
+            app.kubernetes.io/name: postgres-backup
+            app.kubernetes.io/component: postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: "{{ .Values.postgres.backup.image.repository }}:{{ .Values.postgres.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.postgres.backup.image.pullPolicy | default "IfNotPresent" }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 70
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: PGHOST
+                  value: {{ .Values.postgres.service.name | default "postgres" }}
+                - name: PGPORT
+                  value: {{ .Values.postgres.service.port | default 5432 | quote }}
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_PASSWORD
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_DB
+                - name: RETENTION_DAYS
+                  value: {{ .Values.postgres.backup.retentionDays | default 7 | quote }}
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+                  TARGET=/backups/etradie-${STAMP}.dump
+                  echo "[backup] writing ${TARGET}"
+                  pg_dump --format=custom --no-owner --no-privileges "${PGDATABASE}" > "${TARGET}.tmp"
+                  mv "${TARGET}.tmp" "${TARGET}"
+                  echo "[backup] pg_dump complete: $(ls -lh "${TARGET}")"
+                  echo "[backup] retention prune (>${RETENTION_DAYS} days)"
+                  find /backups -maxdepth 1 -type f -name 'etradie-*.dump' -mtime "+${RETENTION_DAYS}" -print -delete
+                  echo "[backup] done"
+              resources:
+                {{- toYaml .Values.postgres.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ include "postgres.backupPVC" . }}
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+{{- end }}

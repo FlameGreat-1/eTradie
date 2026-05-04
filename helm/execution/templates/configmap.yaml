@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "execution.configMapName" . }}
+  namespace: {{ include "execution.namespace" . }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  # Execution core (envconfig prefix EXECUTION_).
+  # Source of truth: src/execution/internal/config/config.go.
+  EXECUTION_GRPC_PORT: {{ .Values.config.execution.grpcPort | quote }}
+  EXECUTION_HTTP_PORT: {{ .Values.config.execution.httpPort | quote }}
+  EXECUTION_BROKER_MODE: {{ .Values.config.execution.brokerMode | quote }}
+  EXECUTION_BROKER_BRIDGE_URL: {{ .Values.config.execution.brokerBridgeURL | quote }}
+  EXECUTION_BROKER_TIMEOUT_MS: {{ .Values.config.execution.brokerTimeoutMs | quote }}
+  EXECUTION_MOCK_BROKER_BALANCE: {{ .Values.config.execution.mockBrokerBalance | quote }}
+  EXECUTION_GATEWAY_ADDR: {{ .Values.config.execution.gatewayAddr | quote }}
+  EXECUTION_DEFAULT_EXECUTION_MODE: {{ .Values.config.execution.defaultExecutionMode | quote }}
+  EXECUTION_MIN_LOT_SIZE: {{ .Values.config.execution.minLotSize | quote }}
+  EXECUTION_MAX_LOT_SIZE: {{ .Values.config.execution.maxLotSize | quote }}
+  EXECUTION_MAX_CONCURRENT_TRADES: {{ .Values.config.execution.maxConcurrentTrades | quote }}
+  EXECUTION_DAILY_LOSS_LIMIT_PCT: {{ .Values.config.execution.dailyLossLimitPct | quote }}
+  EXECUTION_WEEKLY_DRAWDOWN_PCT: {{ .Values.config.execution.weeklyDrawdownPct | quote }}
+  EXECUTION_SPREAD_MULTIPLIER_NORMAL: {{ .Values.config.execution.spreadMultiplierNormal | quote }}
+  EXECUTION_SPREAD_MULTIPLIER_SCALPING: {{ .Values.config.execution.spreadMultiplierScalping | quote }}
+  EXECUTION_NEWS_LOCKOUT_MINUTES: {{ .Values.config.execution.newsLockoutMinutes | quote }}
+  EXECUTION_NEWS_LOCKOUT_MINUTES_SCALPING: {{ .Values.config.execution.newsLockoutMinutesScalping | quote }}
+  EXECUTION_ENABLED_SESSIONS: {{ .Values.config.execution.enabledSessions | quote }}
+  EXECUTION_OVERSHOOT_TOLERANCE_MULTIPLIER: {{ .Values.config.execution.overshootToleranceMultiplier | quote }}
+  EXECUTION_WATCHER_POLL_INTERVAL_MS: {{ .Values.config.execution.watcherPollIntervalMs | quote }}
+  EXECUTION_WATCHER_TIMEOUT_MINUTES: {{ .Values.config.execution.watcherTimeoutMinutes | quote }}
+  EXECUTION_WATCHER_CONFIRM_POLL_INTERVAL_SECS: {{ .Values.config.execution.watcherConfirmPollIntervalSecs | quote }}
+  EXECUTION_DATABASE_MAX_CONNS: {{ .Values.config.execution.databaseMaxConns | quote }}
+  EXECUTION_DATABASE_MIN_CONNS: {{ .Values.config.execution.databaseMinConns | quote }}
+  EXECUTION_DATABASE_MAX_IDLE_MS: {{ .Values.config.execution.databaseMaxIdleMs | quote }}
+  EXECUTION_DATABASE_CONN_MAX_LIFE_SECONDS: {{ .Values.config.execution.databaseConnMaxLifeSeconds | quote }}
+  EXECUTION_LOG_LEVEL: {{ .Values.config.execution.logLevel | quote }}
+  EXECUTION_LOG_JSON: {{ .Values.config.execution.logJson | quote }}
+  EXECUTION_OTEL_ENDPOINT: {{ .Values.config.execution.otelEndpoint | quote }}
+  EXECUTION_OTEL_SERVICE_NAME: {{ .Values.config.execution.otelServiceName | quote }}
+
+  # Auth (the same auth package gateway/management use - shared JWT secret).
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: {{ .Values.config.auth.accessTokenTtlSeconds | quote }}
+  AUTH_REFRESH_TOKEN_TTL_SECONDS: {{ .Values.config.auth.refreshTokenTtlSeconds | quote }}
+  AUTH_SERVICE_TOKEN_TTL_SECONDS: {{ .Values.config.auth.serviceTokenTtlSeconds | quote }}
+  AUTH_BCRYPT_COST: {{ .Values.config.auth.bcryptCost | quote }}
+  AUTH_MAX_SESSIONS_PER_USER: {{ .Values.config.auth.maxSessionsPerUser | quote }}
+  AUTH_ISSUER: {{ .Values.config.auth.issuer | quote }}
