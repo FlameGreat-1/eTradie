@@ -125,10 +125,17 @@ config:
 #
 # When trustCloudflare="true" the chart also mounts the published
 # Cloudflare IPv4/IPv6 ranges (helm/gateway/files/cloudflare/*) at
-# /etc/etradie/cloudflare/{ipv4,ipv6}.txt so clientip.go can identify
-# Cloudflare edge nodes regardless of operator-set CIDRs.
+# /etc/etradie/cloudflare/{ipv4,ipv6}.txt and the gateway binary reads
+# them at startup via AUTH_CLOUDFLARE_RANGES_DIR (wired by
+# templates/configmap.yaml).
+#
+# trustedProxyCidrs accepts EITHER a YAML list (preferred) OR a single
+# comma-joined scalar string. The list form is preferred because each
+# entry is validated at gateway startup by ParseTrustedCIDRs, and a
+# malformed entry surfaces a clear error pointing at the bad CIDR.
 trustChain:
-  trustedProxyCidrs: "10.100.0.0/16"
+  trustedProxyCidrs:
+    - "10.100.0.0/16"
   trustCloudflare: "true"
   cloudflareRangesMountPath: "/etc/etradie/cloudflare"
 

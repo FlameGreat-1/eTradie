@@ -23,7 +23,8 @@ config:
     allowedOrigins: "https://app.etradie.com,https://etradie.com"
 
 trustChain:
-  trustedProxyCidrs: "10.100.0.0/16"
+  trustedProxyCidrs:
+    - "10.100.0.0/16"
   trustCloudflare: "true"
 
 externalSecrets:
