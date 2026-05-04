@@ -56,6 +56,14 @@ postgres:
 
   podAnnotations: {}
 
+  # Scheduling. Empty defaults so the chart deploys on any cluster.
+  # Production overlay layers a `workload=etradie-system` toleration on
+  # top to land postgres on the dedicated etradie-system node group.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
   # Use the same init.sql committed at docker/postgres/init.sql.
   # The chart mounts it from a ConfigMap so the same SQL runs in
   # docker-compose AND in cluster.
@@ -135,6 +143,13 @@ redis:
 
   podAnnotations: {}
 
+  # Scheduling. Empty defaults; production overlay sets a toleration
+  # for the etradie-system taint.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
   externalSecret:
     enabled: true
     secretStoreName: vault-backend
@@ -174,6 +189,13 @@ chromadb:
       memory: 1Gi
 
   podAnnotations: {}
+
+  # Scheduling. Empty defaults; production overlay sets a toleration
+  # for the etradie-system taint.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
 
   externalSecret:
     enabled: true
