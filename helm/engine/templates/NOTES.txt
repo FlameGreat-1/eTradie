@@ -1,0 +1,26 @@
+etradie-engine has been deployed.
+
+Namespace:    {{ include "engine.namespace" . }}
+Release:      {{ .Release.Name }}
+Image:        {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas:     {{ .Values.replicaCount }}
+HPA enabled:  {{ .Values.autoscaling.enabled }}
+
+In-cluster URL (consumed by gateway / execution / management):
+  http://engine.{{ include "engine.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.http.port }}
+
+Verify:
+  kubectl -n {{ include "engine.namespace" . }} get pods -l app.kubernetes.io/name=etradie-engine
+  kubectl -n {{ include "engine.namespace" . }} port-forward svc/engine 8000:8000
+  curl -fsS http://localhost:8000/health
+
+Probes:
+  startup:    GET /health (initialDelay {{ .Values.startupProbe.initialDelaySeconds }}s, up to {{ mul .Values.startupProbe.periodSeconds .Values.startupProbe.failureThreshold }}s budget)
+  liveness:   GET /health
+  readiness:  GET /health
+
+Metrics:
+  GET /metrics on port {{ .Values.service.ports.http.port }} (Prometheus annotations attached).
+
+Secrets are resolved from Vault path: {{ .Values.externalSecrets.engine.vaultPath }}
+The ExternalSecret refresh interval is {{ .Values.externalSecrets.engine.refreshInterval }}.
