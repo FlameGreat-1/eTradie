@@ -77,6 +77,10 @@ spec:
       kind: ExternalSecret
     - group: external-secrets.io
       kind: SecretStore
+    # Required so the root-app (App-of-Apps) can create / update / prune
+    # the child Applications under deployments/argocd/children/.
+    - group: argoproj.io
+      kind: Application
 
   # Roles the project grants. Maintainers can sync; readers cannot.
   roles:
