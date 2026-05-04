@@ -410,17 +410,26 @@ services:
     volumes:
       - ./deployments/edge-ingress/docker/config:/etc/edge-ingress/config:ro
       - ./deployments/edge-ingress/docker/certs:/etc/edge-ingress/certs:ro
-      # Local AOP CA placeholder. The committed file is a comment-only
-      # placeholder; populate with `curl -fsSL
-      # https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem`
-      # to exercise mTLS locally. Disabled in the local config by default.
+      # Local Cloudflare AOP CA + dev client cert produced by
+      # `make dev-certs`
+      # (deployments/cloudflare/origin-pull/generate-dev-certs.sh).
+      # The generator script is committed; the resulting PEMs are
+      # gitignored. Mounted at the same in-pod path used in staging
+      # and production so there is one TLS code path everywhere.
       - ./deployments/cloudflare/origin-pull:/etc/edge-ingress/cloudflare:ro
+      # GeoLite2-City.mmdb populated by edge-geoip-init.
+      # Mounted read-only because the edge-ingress container runs
+      # with read_only=true and only mmap reads happen here at
+      # runtime; refresh writes are owned by the geoip-init service.
+      - geoip-data:/data/geoip:ro
     ports:
       - "8443:443"   # TLS listener (host-side: https://localhost:8443)
       - "19902:9902" # Metrics / health
     depends_on:
       envoy:
         condition: service_healthy
+      edge-geoip-init:
+        condition: service_completed_successfully
     networks:
       - etradie-net
     healthcheck:
@@ -436,8 +445,15 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     read_only: true
+    # Bounded tmpfs. Matches helm/edge-ingress values.yaml
+    # (volumes.tmp.sizeLimit) so OOM behaviour is identical across
+    # local / staging / production. 256Mi is enough headroom for any
+    # realistic POST body the Rust spooler writes here; the previous
+    # unbounded `tmpfs: - /tmp` defaulted to 50% of host RAM, which
+    # is both inconsistent with cluster posture and a denial-of-
+    # service vector on a developer workstation.
     tmpfs:
-      - /tmp
+      - /tmp:size=256m,mode=1777
     deploy:
       resources:
         limits:
