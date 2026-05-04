@@ -442,8 +442,11 @@ terraform apply \
   -var vault_address=http://127.0.0.1:8200
 ```
 
-Expected output: 8 `vault_kv_secret_v2` paths created. Each path is
-seeded with `bootstrap=placeholder`; you overwrite them next.
+Expected output: 11 `vault_kv_secret_v2` paths created
+(edge-ingress: tls + cloudflare/aop_ca + cloudflare/tunnel + maxmind;
+services: gateway + engine + execution + management;
+data-layer: postgres + redis + chromadb). Each path is seeded with
+`bootstrap=placeholder`; you overwrite them next.
 
 ### 6.2 Populate the secrets
 
