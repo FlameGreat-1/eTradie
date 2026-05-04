@@ -31,6 +31,109 @@ jobs:
       - name: Contract check (Go/Python ProcessorOutput parity)
         run: python scripts/validate_processor_contract.py
 
+  helm:
+    name: Helm chart lint + render + schema validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+      - name: Drift gate - chart-local cloudflare ranges match canonical files
+        run: |
+          diff -q deployments/cloudflare/ip-ranges/ipv4.txt helm/gateway/files/cloudflare/ipv4.txt
+          diff -q deployments/cloudflare/ip-ranges/ipv6.txt helm/gateway/files/cloudflare/ipv6.txt
+      - name: helm lint - edge-ingress
+        run: helm lint helm/edge-ingress
+      - name: helm lint - envoy
+        run: helm lint helm/envoy
+      - name: helm lint - gateway
+        run: helm lint helm/gateway
+      - name: helm template + kubeconform - edge-ingress staging
+        run: |
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-staging.yaml \
+            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+            > /tmp/edge-ingress-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-staging.yaml
+      - name: helm template + kubeconform - edge-ingress production
+        run: |
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-production.yaml \
+            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+            > /tmp/edge-ingress-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-production.yaml
+      - name: helm template + kubeconform - envoy staging
+        run: |
+          # Inject 1 byte of valid base64 ("AA==" = 0x00) so the chart
+          # template renders for CI; production must inject the real
+          # WASM via --set-file at promotion time.
+          helm template etradie-envoy helm/envoy \
+            -f helm/envoy/values.yaml \
+            -f helm/envoy/values-staging.yaml \
+            --set wasm.base64=AA== \
+            --set wasm.sha256=ci-placeholder \
+            > /tmp/envoy-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/envoy-staging.yaml
+      - name: helm template + kubeconform - envoy production
+        run: |
+          helm template etradie-envoy helm/envoy \
+            -f helm/envoy/values.yaml \
+            -f helm/envoy/values-production.yaml \
+            --set wasm.base64=AA== \
+            --set wasm.sha256=ci-placeholder \
+            > /tmp/envoy-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/envoy-production.yaml
+      - name: helm template + kubeconform - gateway staging
+        run: |
+          helm template etradie-gateway helm/gateway \
+            -f helm/gateway/values.yaml \
+            -f helm/gateway/values-staging.yaml \
+            > /tmp/gateway-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/gateway-staging.yaml
+      - name: helm template + kubeconform - gateway production
+        run: |
+          helm template etradie-gateway helm/gateway \
+            -f helm/gateway/values.yaml \
+            -f helm/gateway/values-production.yaml \
+            > /tmp/gateway-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/gateway-production.yaml
+      - name: argocd manifests parse
+        run: |
+          # ArgoCD CRDs are schema-checked separately. We only confirm
+          # the YAML parses and the AppProject + Application docs are
+          # syntactically valid Kubernetes manifests.
+          for f in deployments/argocd/appproject.yaml \
+                   deployments/argocd/root-app.yaml \
+                   deployments/argocd/children/*.yaml; do
+            python3 -c "import yaml,sys; list(yaml.safe_load_all(open('$f')))"
+          done
+
   test:
     runs-on: ubuntu-latest
     needs: lint
@@ -58,7 +161,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+asyncpg://etradie_test:test_password@localhost:5432/etradie_test
+      DATABASE_URL: postgresql+asyncpg[REDACTED]localhost:5432/etradie_test
       REDIS_URL: redis://localhost:6379/0
       APP_ENV: testing
     steps:
@@ -106,9 +209,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
-      EXECUTION_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
-      MANAGEMENT_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      EXECUTION_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      MANAGEMENT_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
       POSTGRES_HOST: localhost
       POSTGRES_USER: etradie
       POSTGRES_PASSWORD: etradie_dev
@@ -140,7 +243,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [test, test-go]
+    needs: [test, test-go, helm]
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image

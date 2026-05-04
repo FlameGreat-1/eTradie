@@ -174,3 +174,389 @@ For an enterprise-grade financial system, **the three serve genuinely different 
 4. **Fix the 17 issues above**, in order of severity, before any production traffic.
 
 Want me to (a) execute the consolidation (delete `helm/`, fix kustomize as source of truth, fix all 17), (b) execute the inverse (keep helm, derive kustomize, fix all 17), or (c) just fix the 17 critical issues and leave the dual-source for later? My recommendation is **(a)** — kustomize wins, helm goes away, fix everything in one pass. Tell me which and I will execute.
+
+
+
+
+
+
+
+
+
+THIS IS EXACTLY WHERE WE STOPPED AND THE SESSION END WITHOUT COMMITING THIS TO THE REPO:
+
+
+
+--- docker-compose.yml
++++ docker-compose.yml
+@@ -1,5 +1,33 @@
++  # ─────────────────────────────────────────────────────────────────
++  # GEOIP INIT (opt-in, edge profile only)
++  # Populates the geoip-data named volume with GeoLite2-City.mmdb so the
++  # read-only edge-ingress container can mmap it. Runs once on `up` and
++  # exits 0; subsequent refreshes are handled by the production helm
++  # chart's init-container, not by this local-only service.
++  # ─────────────────────────────────────────────────────────────────
++  edge-geoip-init:
++    profiles: ["edge"]
++    image: maxmindinc/geoipupdate:v6.0
++    container_name: etradie-edge-geoip-init
++    environment:
++      - GEOIPUPDATE_ACCOUNT_ID=${MAXMIND_ACCOUNT_ID:?MAXMIND_ACCOUNT_ID must be set in .env to run the edge profile}
++      - GEOIPUPDATE_LICENSE_KEY=${MAXMIND_LICENSE_KEY:?MAXMIND_LICENSE_KEY must be set in .env to run the edge profile}
++      - GEOIPUPDATE_EDITION_IDS=GeoLite2-City
++      - GEOIPUPDATE_FREQUENCY=0
++    entrypoint: ["/usr/bin/geoipupdate"]
++    command: ["-d", "/data/geoip"]
++    volumes:
++      - geoip-data:/data/geoip
++    networks:
++      - etradie-net
++    deploy:
++      resources:
++        limits:
++          cpus: '0.5'
++          memory: 256M
++
+   envoy:
+     profiles: ["edge"]
+     build:
+       context: ./src/envoy
+       dockerfile: ../../deployments/envoy/docker/Dockerfile.envoy
+--- docker-compose.yml
++++ docker-compose.yml
+@@ -1,14 +1,19 @@
+     volumes:
+       - ./deployments/edge-ingress/docker/config:/etc/edge-ingress/config:ro
+       - ./deployments/edge-ingress/docker/certs:/etc/edge-ingress/certs:ro
+-      # Local AOP CA placeholder. The committed file is a comment-only
+-      # placeholder; populate with `curl -fsSL
+-      # https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem`
+-      # to exercise mTLS locally. Disabled in the local config by default.
++      # Local AOP CA + dev client cert produced by
++      # `make dev-certs` (deployments/cloudflare/origin-pull/generate-dev-certs.sh).
++      # The script is committed; the generated PEMs are gitignored.
+       - ./deployments/cloudflare/origin-pull:/etc/edge-ingress/cloudflare:ro
++      # GeoLite2 mmdb populated by the edge-geoip-init service above.
++      # Mounted read-only because the edge-ingress container runs with
++      # read_only=true and only mmap reads happen here at runtime.
++      - geoip-data:/data/geoip:ro
+     ports:
+       - "8443:443"   # TLS listener (host-side: https://localhost:8443)
+       - "19902:9902" # Metrics / health
+     depends_on:
+       envoy:
+-        condition: service_healthy
++        condition: service_healthy
++      edge-geoip-init:
++        condition: service_completed_successfully
+--- docker-compose.yml
++++ docker-compose.yml
+@@ -1,9 +1,11 @@
+ volumes:
+   postgres_data:
+     driver: local
+   prometheus_data:
+     driver: local
+   chromadb_data:
+     driver: local
+   grafana_data:
++    driver: local
++  geoip-data:
+     driver: local
+--- Makefile
++++ Makefile
+@@ -1,14 +1,46 @@
+ edge-test: ## Validate the local edge chain enforces mTLS (CI-friendly)
+ 	echo -e "$(BLUE)Validating local mTLS enforcement...$(NC)"
+-	@echo -n "  unauthenticated curl must FAIL: " && \
+-		( ! curl -sk --max-time 5 https://localhost:8443/auth/healthz >/dev/null 2>&1 ) \
+-		&& echo -e "$(GREEN)ok (handshake rejected)$(NC)" \
+-		|| { echo -e "$(RED)FAIL: unauthenticated request succeeded - mTLS broken$(NC)"; exit 1; }
++	@# 1) The edge-ingress process must be alive BEFORE we trust any
++	@#    handshake-rejection result. A crashed process also "rejects"
++	@#    handshakes (Connection refused), so without this check the
++	@#    test would false-green any time edge-ingress fails to boot.
++	@echo -n "  edge-ingress process is alive: " && \
++		curl -sf --max-time 3 http://localhost:19902/healthz >/dev/null \
++		&& echo -e "$(GREEN)ok$(NC)" \
++		|| { echo -e "$(RED)FAIL: edge-ingress not responding on :19902/healthz - process is down$(NC)"; exit 1; }
++	@# 2) The TLS listener must accept at least the TCP handshake. If
++	@#    we cannot connect, anything further is meaningless.
++	@echo -n "  edge-ingress TLS listener is open: " && \
++		timeout 3 bash -c 'cat </dev/tcp/localhost/8443' >/dev/null 2>&1 \
++		&& echo -e "$(GREEN)ok$(NC)" \
++		|| { echo -e "$(RED)FAIL: localhost:8443 is not accepting TCP connections$(NC)"; exit 1; }
++	@# 3) Authenticated curl must SUCCEED. Otherwise a passing #4 below
++	@#    is meaningless because the chain might be rejecting EVERY
++	@#    request, not just unauthenticated ones.
+ 	@echo -n "  authenticated   curl must SUCCEED: " && \
+ 		curl -sk --max-time 10 \
+ 		  --cert deployments/cloudflare/origin-pull/dev-client.crt \
+ 		  --key  deployments/cloudflare/origin-pull/dev-client.key \
+ 		  https://localhost:8443/auth/healthz >/dev/null \
+ 		&& echo -e "$(GREEN)ok$(NC)" \
+-		|| { echo -e "$(RED)FAIL: authenticated request rejected$(NC)"; exit 1; }
++		|| { echo -e "$(RED)FAIL: authenticated request rejected (mTLS misconfigured or upstream broken)$(NC)"; exit 1; }
++	@# 4) Unauthenticated curl MUST fail at TLS, specifically. Test for
++	@#    "alert bad_certificate" / "alert handshake_failure" in the
++	@#    output - NOT just non-zero exit (which would also be true if
++	@#    the process crashed between #3 and #4).
++	@echo -n "  unauthenticated curl must FAIL at TLS: " && \
++		unauth_err=$$(curl -sk --max-time 5 https://localhost:8443/auth/healthz 2>&1 1>/dev/null) || true; \
++		if echo "$$unauth_err" | grep -qE 'alert (bad_certificate|handshake_failure|certificate_required)'; then \
++			echo -e "$(GREEN)ok (TLS handshake rejected)$(NC)"; \
++		elif echo "$$unauth_err" | grep -qiE 'connection refused|recv failure'; then \
++			echo -e "$(RED)FAIL: connection refused - edge-ingress crashed mid-test$(NC)"; exit 1; \
++		else \
++			echo -e "$(RED)FAIL: unauthenticated request did not fail at TLS layer (got: $$unauth_err)$(NC)"; exit 1; \
++		fi
++	@# 5) Process must STILL be alive after the test (the unauthenticated
++	@#    request must not have crashed the daemon).
++	@echo -n "  edge-ingress process still alive: " && \
++		curl -sf --max-time 3 http://localhost:19902/healthz >/dev/null \
++		&& echo -e "$(GREEN)ok$(NC)" \
++		|| { echo -e "$(RED)FAIL: edge-ingress crashed during validation$(NC)"; exit 1; }
+ 	echo -e "$(GREEN)✓ Local edge chain mTLS posture matches production$(NC)"
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install dependencies
+        run: pip install -r requirements/dev.txt
+      - name: Ruff lint
+        run: ruff check src/ tests/
+      - name: Ruff format check
+        run: ruff format --check src/ tests/
+      - name: Mypy type check
+        run: mypy src/
+      - name: Contract check (Go/Python ProcessorOutput parity)
+        run: python scripts/validate_processor_contract.py
+
+  helm:
+    name: Helm chart lint + render + schema validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+      - name: Drift gate - chart-local cloudflare ranges match canonical files
+        run: |
+          diff -q deployments/cloudflare/ip-ranges/ipv4.txt helm/gateway/files/cloudflare/ipv4.txt
+          diff -q deployments/cloudflare/ip-ranges/ipv6.txt helm/gateway/files/cloudflare/ipv6.txt
+      - name: helm lint - edge-ingress
+        run: helm lint helm/edge-ingress
+      - name: helm lint - envoy
+        run: helm lint helm/envoy
+      - name: helm lint - gateway
+        run: helm lint helm/gateway
+      - name: helm template + kubeconform - edge-ingress staging
+        run: |
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-staging.yaml \
+            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+            > /tmp/edge-ingress-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-staging.yaml
+      - name: helm template + kubeconform - edge-ingress production
+        run: |
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-production.yaml \
+            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+            > /tmp/edge-ingress-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-production.yaml
+      - name: helm template + kubeconform - envoy staging
+        run: |
+          # Inject 1 byte of valid base64 ("AA==" = 0x00) so the chart
+          # template renders for CI; production must inject the real
+          # WASM via --set-file at promotion time.
+          helm template etradie-envoy helm/envoy \
+            -f helm/envoy/values.yaml \
+            -f helm/envoy/values-staging.yaml \
+            --set wasm.base64=AA== \
+            --set wasm.sha256=ci-placeholder \
+            > /tmp/envoy-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/envoy-staging.yaml
+      - name: helm template + kubeconform - envoy production
+        run: |
+          helm template etradie-envoy helm/envoy \
+            -f helm/envoy/values.yaml \
+            -f helm/envoy/values-production.yaml \
+            --set wasm.base64=AA== \
+            --set wasm.sha256=ci-placeholder \
+            > /tmp/envoy-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/envoy-production.yaml
+      - name: helm template + kubeconform - gateway staging
+        run: |
+          helm template etradie-gateway helm/gateway \
+            -f helm/gateway/values.yaml \
+            -f helm/gateway/values-staging.yaml \
+            > /tmp/gateway-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/gateway-staging.yaml
+      - name: helm template + kubeconform - gateway production
+        run: |
+          helm template etradie-gateway helm/gateway \
+            -f helm/gateway/values.yaml \
+            -f helm/gateway/values-production.yaml \
+            > /tmp/gateway-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/gateway-production.yaml
+      - name: argocd manifests parse
+        run: |
+          # ArgoCD CRDs are schema-checked separately. We only confirm
+          # the YAML parses and the AppProject + Application docs are
+          # syntactically valid Kubernetes manifests.
+          for f in deployments/argocd/appproject.yaml \
+                   deployments/argocd/root-app.yaml \
+                   deployments/argocd/children/*.yaml; do
+            python3 -c "import yaml,sys; list(yaml.safe_load_all(open('$f')))"
+          done
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: etradie_test
+          POSTGRES_USER: etradie_test
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etradie_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg[REDACTED]localhost:5432/etradie_test
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: testing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install dependencies
+        run: pip install -r requirements/dev.txt
+      - name: Run tests
+        run: pytest --timeout=60
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 7
+
+  test-go:
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: etradie
+          POSTGRES_USER: etradie
+          POSTGRES_PASSWORD: etradie_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etradie"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      EXECUTION_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      MANAGEMENT_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: etradie
+      POSTGRES_PASSWORD: etradie_dev
+      POSTGRES_DB: etradie
+      REDIS_URL: redis://localhost:6379/0
+      REDIS_HOST: localhost
+      EXECUTION_REDIS_URL: redis://localhost:6379/1
+      GATEWAY_REDIS_URL: redis://localhost:6379/0
+      MANAGEMENT_REDIS_URL: redis://localhost:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+      - name: Run Go unit and integration tests
+        run: |
+          go test ./src/gateway/... -v -count=1 -timeout 120s
+          go test ./src/execution/... -v -count=1 -timeout 120s
+          go test ./src/management/... -v -count=1 -timeout 120s
+      - name: Run Gateway gRPC integration tests
+        run: go test ./src/gateway/grpctest/... -v -count=1 -timeout 120s
+      - name: Run Execution broker integration tests
+        run: go test ./src/execution/brokertest/... -v -count=1 -timeout 60s
+      - name: Run Management broker integration tests
+        run: go test ./src/management/brokertest/... -v -count=1 -timeout 60s
+      - name: Run E2E pipeline tests
+        run: go test ./src/gateway/e2etest/... -v -count=1 -time
