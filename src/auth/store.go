@@ -93,6 +93,17 @@ CREATE TABLE IF NOT EXISTS auth_oauth_flows (
 CREATE INDEX IF NOT EXISTS idx_auth_oauth_flows_state      ON auth_oauth_flows (state);
 CREATE INDEX IF NOT EXISTS idx_auth_oauth_flows_expires_at ON auth_oauth_flows (expires_at);
 
+-- Account-linking additive columns. flow_kind discriminates between
+-- 'signin' (unauthenticated, mints a TokenPair) and 'link'
+-- (authenticated, binds a verified Google identity to user_id).
+-- user_id is NULL for sign-in flows and NOT NULL for link flows; the
+-- link callback handler enforces this invariant and refuses to
+-- complete a link flow against any user other than user_id.
+ALTER TABLE auth_oauth_flows ADD COLUMN IF NOT EXISTS flow_kind TEXT NOT NULL DEFAULT 'signin';
+ALTER TABLE auth_oauth_flows ADD COLUMN IF NOT EXISTS user_id   TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_auth_oauth_flows_user_id ON auth_oauth_flows (user_id);
+
 CREATE TABLE IF NOT EXISTS auth_oauth_identities (
     id                 TEXT PRIMARY KEY,
     user_id            TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
