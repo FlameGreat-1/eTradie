@@ -13,12 +13,12 @@ variable "zone_id" {
 }
 
 variable "hostnames" {
-  description = "Map of hostname -> NLB hostname (CNAME target). Example: { \"api.etradie.com\" = \"k8s-eks-...elb.amazonaws.com\" }"
+  description = "Map of hostname -> CNAME target. With Cloudflare Tunnel the target is `<tunnel-id>.cfargotunnel.com`. Example: { \"api.etradie.com\" = \"abcd1234-....cfargotunnel.com\" }"
   type        = map(string)
 }
 
 variable "enable_authenticated_origin_pulls" {
-  description = "Whether to enable Authenticated Origin Pulls at the zone level. Production = true; staging = optional."
+  description = "Whether to enable Authenticated Origin Pulls at the zone level. Recommended ON in all environments as defence-in-depth alongside Cloudflare Tunnel."
   type        = bool
   default     = true
 }
@@ -33,25 +33,4 @@ variable "always_use_https" {
   description = "Force redirects from http -> https at the Cloudflare edge."
   type        = bool
   default     = true
-}
-
-variable "origin_security_group_id" {
-  description = "AWS security group ID that fronts the NLB. Cloudflare published ranges will be the only ingress allowed on TCP/443 once the rules are applied."
-  type        = string
-}
-
-variable "cloudflare_ipv4_ranges" {
-  description = "Cloudflare published IPv4 origin ranges (one CIDR per element). Sourced from deployments/cloudflare/ip-ranges/ipv4.txt."
-  type        = list(string)
-}
-
-variable "cloudflare_ipv6_ranges" {
-  description = "Cloudflare published IPv6 origin ranges (one CIDR per element)."
-  type        = list(string)
-}
-
-variable "tags" {
-  description = "Tags for AWS resources created by this module."
-  type        = map(string)
-  default     = {}
 }
