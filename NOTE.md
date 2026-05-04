@@ -186,6 +186,16 @@ Want me to (a) execute the consolidation (delete `helm/`, fix kustomize as sourc
 THIS IS EXACTLY WHERE WE STOPPED AND THE SESSION END WITHOUT COMMITING THIS TO THE REPO:
 
 
+Now I need to verify what makes the local edge profile geoip path work. Looking at `deployments/edge-ingress/docker/config/edge-ingress.yaml` (read earlier), `geoip.database_path: "/data/geoip/GeoLite2-City.mmdb"`. The Dockerfile creates `/data/geoip` owned by user 1000. The top-level `docker-compose.yml` sets `read_only: true` and `tmpfs: /tmp`. The `/data/geoip` directory will be empty (no .mmdb file). The config file has no way to disable geoip.
+
+There are two clean fixes:
+
+1. **Add a geoip-data named volume** in docker-compose with a small init container or sidecar that downloads the .mmdb (mirrors what helm does).
+2. **Make geoip optional in the local config** by removing the `geoip:` section — but this requires Rust code support.
+
+Looking at the local config, the cleanest path is to add a geoip-init service to the compose stack (mirroring the helm init container) and a named volume. Let me read the edge-ingress.yaml once more — it's in `deployments/edge-ingress/docker/config/edge-ingress.yaml` and has `geoip.database_path` mandatory. So I will use option 1.
+
+Now executing the final commit:
 
 --- docker-compose.yml
 +++ docker-compose.yml
