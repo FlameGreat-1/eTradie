@@ -450,10 +450,50 @@ data-layer: postgres + redis + chromadb). Each path is seeded with
 
 ### 6.2 Populate the secrets
 
+Generate strong random values once at the top of the block; every
+`vault kv put` below references the same variables so connection
+strings are consistent across the call chain (gateway, engine,
+execution, management all dial the same Postgres / Redis with
+identical credentials).
+
 ```bash
-# Cloudflare Tunnel token from step 5.2
+# ---------------------------------------------------------------
+# 1. Generate strong random secrets (use ONCE; reuse below).
+# ---------------------------------------------------------------
+DB_PASS=$(openssl rand -base64 32      | tr -d '/+=' | head -c 32)
+REDIS_PASS=$(openssl rand -base64 32   | tr -d '/+=' | head -c 32)
+JWT_SECRET=$(openssl rand -base64 64   | tr -d '/+=' | head -c 64)
+BROKER_KEY=$(openssl rand -base64 32   | tr -d '/+=' | head -c 32)
+LLM_KEY=$(openssl rand -base64 32      | tr -d '/+=' | head -c 32)
+ADMIN_PASS=$(openssl rand -base64 24   | tr -d '/+=' | head -c 24)
+CHROMA_TOKEN=$(openssl rand -base64 48 | tr -d '/+=' | head -c 48)
+
+DB_URL_GO="postgres://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable"
+DB_URL_PY="postgresql+asyncpg://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie"
+REDIS_URL_DB0="redis://:${REDIS_PASS}@redis.etradie-system.svc.cluster.local:6379/0"
+REDIS_URL_DB1="redis://:${REDIS_PASS}@redis.etradie-system.svc.cluster.local:6379/1"
+
+# ---------------------------------------------------------------
+# 2. Data-layer secrets (write FIRST: postgres / redis / chromadb
+#    StatefulSets cannot start without these).
+# ---------------------------------------------------------------
+vault kv put secret/etradie/data-layer/postgres/production \
+  postgres_user='etradie' \
+  postgres_db='etradie' \
+  postgres_password="${DB_PASS}"
+
+vault kv put secret/etradie/data-layer/redis/production \
+  redis_password="${REDIS_PASS}"
+
+vault kv put secret/etradie/data-layer/chromadb/production \
+  chroma_auth_token="${CHROMA_TOKEN}"
+
+# ---------------------------------------------------------------
+# 3. Edge-ingress secrets.
+# ---------------------------------------------------------------
+# Cloudflare Tunnel token from step 5.2.
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/tunnel \
-  tunnel_token='eyJhIjoi...your-token...'
+  tunnel_token='eyJhIjoi...PASTE_YOUR_TOKEN_HERE...'
 
 # Cloudflare Authenticated Origin Pulls CA. Public, fixed bytes.
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/aop_ca \
