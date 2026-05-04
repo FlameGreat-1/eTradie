@@ -61,3 +61,19 @@ chromadb:
   externalSecret:
     vaultPath: etradie/data-layer/chromadb/production
     refreshInterval: 1h
+
+# Production schedules data-layer pods on the dedicated etradie-system
+# node group (taint workload=etradie-system:NoSchedule, applied by
+# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system).
+# Without this toleration, pods land on the untainted `system` add-on
+# pool which is sized only for cluster controllers and cannot fit the
+# data-plane.
+#
+# Cloud-agnostic: a toleration without a matching taint is a no-op,
+# so this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that
+# does not taint nodes.
+tolerations:
+  - key: workload
+    operator: Equal
+    value: etradie-system
+    effect: NoSchedule

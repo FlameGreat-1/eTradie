@@ -105,6 +105,14 @@ topologySpreadConstraints:
 
 nodeSelector: {}
 
-tolerations: []
+# Toleration for the dedicated etradie-system node group taint applied
+# by infrastructure/cluster/main.tf. A toleration without a matching
+# taint is a no-op, so this stays cloud-agnostic: clusters that do
+# not taint their nodes are unaffected.
+tolerations:
+  - key: workload
+    operator: Equal
+    value: etradie-system
+    effect: NoSchedule
 
 terminationGracePeriodSeconds: 90

@@ -132,11 +132,18 @@ topologySpreadConstraints:
 # spot/on-demand) belong on the cluster (taints, custom labels), not
 # in the chart. The chart now deploys identically on Contabo K3s,
 # OCI OKE, Talos, EKS, GKE, AKS, or kubeadm.
-#
-# To pin to specific node pools at the cluster level, override
-# nodeSelector / tolerations in a cluster-local values overlay.
 nodeSelector: {}
 
-tolerations: []
+# Toleration for the dedicated etradie-system node group taint applied
+# by infrastructure/cluster/main.tf. A toleration without a matching
+# taint is a no-op, so this stays cloud-agnostic: clusters that do
+# not taint their nodes are unaffected. Without this, gateway pods
+# cannot schedule onto the etradie-system pool and would compete with
+# cluster add-ons on the untainted system pool.
+tolerations:
+  - key: workload
+    operator: Equal
+    value: etradie-system
+    effect: NoSchedule
 
 terminationGracePeriodSeconds: 90
