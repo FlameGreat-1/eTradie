@@ -16,9 +16,13 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    # Production pins to a tag, not HEAD. CI rewrites this on each
-    # release tag (e.g. v0.1.0).
-    targetRevision: v0.1.0
+    # Default-tracks `main` (no tag exists yet). Production gating is
+    # enforced via syncPolicy.automated.{prune:false,selfHeal:false}
+    # below + the AppProject sync window. To pin to an immutable tag
+    # once one is cut, see the procedure documented in
+    # deployments/argocd/children/data-layer-production.yaml.
+    # Audit ref: NOTE.md S1-F.
+    targetRevision: main
     path: helm/edge-ingress
     helm:
       releaseName: edge-ingress

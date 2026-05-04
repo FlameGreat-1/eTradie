@@ -16,7 +16,9 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    targetRevision: v0.2.0
+    # Default-tracks `main`. See data-layer-production.yaml for the
+    # immutable-tag pin procedure. Audit ref: NOTE.md S1-F.
+    targetRevision: main
     path: helm/management
     helm:
       releaseName: etradie-management

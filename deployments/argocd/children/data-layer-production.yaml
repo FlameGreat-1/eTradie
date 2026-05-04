@@ -18,10 +18,18 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    # Production tracks an immutable git tag. Bump this in lockstep
-    # with `helm/data-layer/Chart.yaml` `appVersion` whenever a new
-    # release is cut.
-    targetRevision: v0.2.0
+    # Default-tracks `main`. Production change-control is enforced by
+    # `syncPolicy.automated.{prune: false, selfHeal: false}` plus the
+    # AppProject's business-hours sync window, so commits land on
+    # `main` but require an explicit operator click to roll out.
+    #
+    # To pin to an immutable tag (industry-standard once a release is
+    # actually cut):
+    #   git tag vX.Y.Z <merge-sha> && git push --tags
+    #   then change `targetRevision: main` -> `vX.Y.Z` in a follow-up
+    #   commit. Bump `helm/data-layer/Chart.yaml` appVersion in lockstep.
+    # Audit ref: NOTE.md S1-F.
+    targetRevision: main
     path: helm/data-layer
     helm:
       releaseName: etradie-data-layer
