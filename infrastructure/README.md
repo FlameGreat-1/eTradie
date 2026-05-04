@@ -1,44 +1,74 @@
 # infrastructure/
 
-Terraform modules that own **cloud** resources only. Kubernetes
-manifests live in `helm/<svc>/`; ArgoCD applications under
-`deployments/argocd/` reconcile them onto the cluster these modules
-provision.
+Terraform modules that own **cloud-side primitives** (Cloudflare zone
+settings, Cloudflare Tunnel DNS, Vault path schema). Kubernetes
+manifests live under `helm/<svc>/`; ArgoCD applications under
+`deployments/argocd/` reconcile them onto whichever cluster the
+operator brings up.
 
 ## Module layout
 
 | Module | Owns | Does NOT own |
 |--------|------|--------------|
-| `cluster/` | EKS cluster, node groups, IAM roles for ESO / cluster-autoscaler / AWS Load Balancer Controller, Vault path schema bootstrap. | Any Kubernetes manifest, any helm release. |
-| `cloudflare/` | Cloudflare zone, AOP enablement, R53 records, origin-firewall security groups. | Any Kubernetes manifest, the AOP CA bytes themselves (those live in Vault). |
+| `cloudflare/` | Cloudflare zone TLS posture, Authenticated Origin Pulls, DNS records that CNAME to the Tunnel UUID. | The Tunnel itself, the Tunnel token, any K8s manifest. |
+| `cluster/vault-paths/` | KV-v2 path schema in Vault (cloud-agnostic; only requires Vault provider). | Any cluster, any K8s manifest. |
+| `cluster/oci/` | OCI OKE cluster bootstrap **skeleton**. Variable surface only; main.tf is a placeholder. | Vault paths, K8s manifests. |
+| `cluster/bootstrap/` | Manual bootstrap procedure for Contabo K3s, kubeadm, kind, k3d, or any conformant K8s. | (it's a README, not a module). |
+
+## Edge strategy
+
+The platform publishes via **Cloudflare Tunnel** — there is no public
+LoadBalancer Service, no AWS NLB, no OCI LB, and no cert-manager
+dependency. The cloudflared daemon runs as a pod in the
+`edge-ingress-system` namespace and forwards inbound traffic to
+edge-ingress on `:443` over the cluster network. Public DNS records
+CNAME to `<tunnel-id>.cfargotunnel.com`.
+
+This means:
+  * No port is exposed from any cluster node to the internet.
+  * No cloud LoadBalancer controller is required (works identically
+    on Contabo K3s, OCI OKE, GKE, AKS, kubeadm, kind).
+  * TLS termination at the edge is Cloudflare's job; mTLS between
+    Cloudflare and the origin is automatic via the Tunnel; AOP at the
+    zone level is enabled as belt-and-braces.
+
+The edge-ingress chart's `service.cloudProvider` defaults to
+`cloudflare-tunnel`. A `generic` mode (vanilla LoadBalancer Service,
+no cloud-specific annotations) is also available for operators who
+prefer a public LB; AWS-specific annotations and ACM ARNs were
+deliberately removed in this revision.
 
 ## Apply order
 
 ```text
-cluster/         (creates EKS, OIDC provider, IAM roles, Vault paths)
-        ↓
-cloudflare/      (creates DNS records that point at the EKS NLB)
-        ↓
-ArgoCD bootstrap (apply the root Application from deployments/argocd/)
-        ↓
-ArgoCD reconciles helm/edge-ingress + helm/envoy + helm/gateway
+1. Cluster bootstrap
+   - OCI:           cluster/oci/        (when implemented)
+   - Contabo / K3s: follow cluster/bootstrap/README.md
+2. Install Vault (HCP, vault chart, or external VM)
+3. Install ESO (helm chart `external-secrets/external-secrets`)
+4. Apply cluster/vault-paths/  (creates KV path schema)
+5. Operator populates Vault paths with real bytes
+6. Create Cloudflare Tunnel in Zero Trust UI; copy UUID + token
+7. Write the Tunnel token to
+   secret/etradie/services/edge-ingress/<env>/cloudflare/tunnel
+8. Apply cloudflare/ with hostnames={ ... = "<id>.cfargotunnel.com" }
+9. Install ArgoCD; apply deployments/argocd/appproject.yaml + root-app.yaml
+10. ArgoCD reconciles helm/edge-ingress (cloudflared + edge-ingress)
+    + helm/envoy + helm/gateway + helm/{engine,execution,management,data-layer}
 ```
-
-Applying out of order leaves Cloudflare records pointing at NLBs that
-do not exist yet, or ArgoCD trying to mount Secrets that ESO has not
-yet had IAM permissions to synthesise.
 
 ## Why no infrastructure/<svc>/ modules
 
 The deleted `infrastructure/gateway/` module shelled out to
 `kustomize build` and applied the rendered manifests via the
-`gavinbunney/kubectl` provider. This made Terraform an unwitting
-competitor with ArgoCD for ownership of Deployments, NetworkPolicies,
-and HPAs. Removing it and giving ArgoCD exclusive ownership of every
-Kubernetes resource eliminates the reconciliation conflict by
-construction.
+`gavinbunney/kubectl` provider. That made Terraform an unwitting
+competitor with ArgoCD for ownership of Deployments,
+NetworkPolicies, and HPAs. Removing it and giving ArgoCD exclusive
+ownership of every Kubernetes resource eliminates the reconciliation
+conflict by construction.
 
-If a future service needs cloud-side primitives (an SQS queue, an S3
-bucket, an additional IAM role), those go in a new module under
-`infrastructure/<svc>-cloud/` - never `infrastructure/<svc>/` (which
-implies the module owns the running service).
+If a future service needs cloud-side primitives (e.g. an OCI Object
+Storage bucket, a Cloudflare R2 bucket, a Tunnel rotation), those
+go in a new module under `infrastructure/<svc>-cloud/` — never
+`infrastructure/<svc>/` (which implies the module owns the running
+service).
