@@ -173,7 +173,25 @@ topologySpreadConstraints:
 
 nodeSelector: {}
 tolerations: []
-priorityClassName: "system-cluster-critical"
+
+# Chart-owned PriorityClass. The previous chart pinned
+# `system-cluster-critical`, which is reserved by Kubernetes for
+# cluster components (kubelet, kube-proxy, CoreDNS) and rejected by
+# common hardened-admission policies (Kyverno, OPA Gatekeeper) when
+# used outside kube-system. envoy is data-plane, so it owns its own
+# class.
+#
+# value 900000 ranks envoy above default workloads (0) and below
+# edge-ingress-critical (1_000_000) so the public TLS terminator wins
+# the rare case where capacity is tight enough to preempt.
+priorityClass:
+  enabled: true
+  name: "etradie-envoy-critical"
+  value: 900000
+  globalDefault: false
+  preemptionPolicy: "PreemptLowerPriority"
+  description: "Critical priority for envoy data-plane proxy. Ranks below edge-ingress-critical (1_000_000) and above default workloads."
+
 terminationGracePeriodSeconds: 60
 
 extraEnv: []
