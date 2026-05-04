@@ -23,7 +23,11 @@ namespace:
 serviceAccount:
   create: true
   annotations: {}
-  name: "etradie-gateway"
+  # Empty so the helper computes from Release.Name; multi-release
+  # deployments (e.g. blue/green) get distinct SA names. Production
+  # ArgoCD application uses releaseName=etradie-gateway, so the
+  # rendered SA name remains `etradie-gateway` in cluster.
+  name: ""
   automountServiceAccountToken: false
 
 podAnnotations:
