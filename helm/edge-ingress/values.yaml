@@ -200,8 +200,17 @@ volumes:
     sizeLimit: "64Mi"
 
 geoip:
+  # Editions to download. GeoLite2-City is sufficient for the
+  # geo-router's country / region resolution. Adding GeoLite2-Country
+  # or GeoLite2-ASN here is supported by the upstream image
+  # (space-separated list).
+  editionIds: "GeoLite2-City"
   initContainer:
-    image: "alpine:3.19"
+    # Official MaxMind geoipupdate image. Same image as the local
+    # docker-compose `edge-geoip-init` service (docker-compose.yml).
+    # v6+ is required because MaxMind deprecated the legacy
+    # license-key-only download URL alongside the v6 client release.
+    image: "maxmindinc/geoipupdate:v6.0"
     pullPolicy: IfNotPresent
 
 externalSecrets:

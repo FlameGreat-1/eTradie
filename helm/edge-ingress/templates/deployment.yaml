@@ -67,20 +67,36 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+        # GeoIP database downloader. Uses the official MaxMind
+        # geoipupdate v6 image, identical to the local docker-compose
+        # `edge-geoip-init` service so cluster + local share one
+        # credential model and one binary. Reads BOTH account_id and
+        # license_key from the maxmind-credentials Secret synthesised
+        # by templates/externalsecret-maxmind.yaml. Runs once
+        # (GEOIPUPDATE_FREQUENCY=0) and exits 0; the main container
+        # then mmaps the .mmdb at the same in-pod path the Rust
+        # binary expects (/data/geoip/GeoLite2-City.mmdb).
         - name: geoip-downloader
           image: "{{ .Values.geoip.initContainer.image }}"
           imagePullPolicy: {{ .Values.geoip.initContainer.pullPolicy | default "IfNotPresent" }}
-          command: ["/bin/sh", "/scripts/download-geoip.sh"]
           env:
-            - name: MAXMIND_LICENSE_KEY
+            - name: GEOIPUPDATE_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecrets.maxmind.targetSecretName | default "maxmind-credentials" }}
+                  key: account-id
+            - name: GEOIPUPDATE_LICENSE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.externalSecrets.maxmind.targetSecretName | default "maxmind-credentials" }}
                   key: license-key
+            - name: GEOIPUPDATE_EDITION_IDS
+              value: {{ .Values.geoip.editionIds | default "GeoLite2-City" | quote }}
+            - name: GEOIPUPDATE_FREQUENCY
+              value: "0"
+            - name: GEOIPUPDATE_DB_DIR
+              value: "/data/geoip"
           volumeMounts:
-            - name: geoip-init-script
-              mountPath: /scripts
-              readOnly: true
             - name: geoip-data
               mountPath: /data/geoip
           securityContext:
@@ -88,9 +104,11 @@ spec:
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               cpu: 100m
@@ -200,10 +218,6 @@ spec:
         - name: geoip-data
           emptyDir:
             sizeLimit: {{ .Values.volumes.geoipData.sizeLimit | default "200Mi" }}
-        - name: geoip-init-script
-          configMap:
-            name: {{ include "edge-ingress.fullname" . }}-geoip-init
-            defaultMode: 0555
         - name: tmp
           emptyDir:
             sizeLimit: {{ .Values.volumes.tmp.sizeLimit | default "64Mi" }}
