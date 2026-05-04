@@ -266,11 +266,20 @@ spec:
         - name: tls-certs
           secret:
             secretName: {{ .Values.externalSecrets.tlsCerts.targetSecretName | default "edge-ingress-tls-certs" }}
-            defaultMode: 0400
+            # 0440 (owner+group read) is required when the pod uses
+            # fsGroup. With 0400, files are root:<fsGroup> mode 0400
+            # which strips group bits, so a non-root container cannot
+            # read them. 0440 keeps the file world-unreadable while
+            # giving the runtime UID (1000, member of fsGroup 1000)
+            # read access. See N-C3 in audit NOTE.md.
+            defaultMode: 0440
         - name: cloudflare-aop-ca
           secret:
             secretName: {{ .Values.externalSecrets.aopCa.targetSecretName | default "cloudflare-aop-ca" }}
-            defaultMode: 0400
+            # Same rationale as tls-certs above (N-C2). The aop-ca
+            # preflight init container also runs as uid 1000 and
+            # needs to read the PEM through openssl.
+            defaultMode: 0440
         - name: geoip-data
           emptyDir:
             sizeLimit: {{ .Values.volumes.geoipData.sizeLimit | default "200Mi" }}
