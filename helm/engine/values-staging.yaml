@@ -1,0 +1,61 @@
+# Staging overlay for the etradie-engine chart.
+# Applied AFTER values.yaml by the ArgoCD child Application.
+
+replicaCount: 1
+
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+  tier: staging
+
+config:
+  app:
+    env: "staging"
+    debug: "false"
+    logLevel: "DEBUG"
+  rag:
+    ingestOnStartup: "true"
+  processor:
+    strictSchemaValidation: "true"
+
+externalSecrets:
+  enabled: true
+  engine:
+    vaultPath: etradie/services/engine/staging
+    refreshInterval: 5m
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+    ephemeral-storage: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1536Mi
+    ephemeral-storage: 1Gi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+
+# A single-replica staging deployment cannot satisfy minAvailable=1
+# while a rolling update is in progress, so the PDB would block
+# every roll. Drop minAvailable to 0 here; staging accepts the
+# downtime trade-off in exchange for being able to deploy.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 0
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+terminationGracePeriodSeconds: 30

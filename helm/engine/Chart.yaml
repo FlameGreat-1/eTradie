@@ -1,0 +1,21 @@
+apiVersion: v2
+name: engine
+description: eTradie Python intelligence engine (FastAPI + uvicorn) serving macro collectors, RAG, processor LLM, and the broker-bridge endpoints consumed by gateway/execution/management.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - engine
+  - python
+  - fastapi
+  - rag
+  - processor
+  - macro
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@etradie.com
+sources:
+  - https://gitlab.com/cotradee3/cotradeecode
+icon: https://etradie.com/icon.png
+dependencies: []

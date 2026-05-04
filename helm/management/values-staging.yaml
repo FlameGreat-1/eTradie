@@ -1,0 +1,52 @@
+# Staging overlay for the etradie-management chart.
+
+replicaCount: 1
+
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8083"
+  prometheus.io/path: "/metrics"
+  tier: staging
+
+config:
+  management:
+    brokerMode: "mock"
+    logLevel: "DEBUG"
+    logJson: "true"
+
+externalSecrets:
+  enabled: true
+  management:
+    vaultPath: etradie/services/management/staging
+    refreshInterval: 5m
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+    ephemeral-storage: 64Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+    ephemeral-storage: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 0
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+terminationGracePeriodSeconds: 30

@@ -1,0 +1,47 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  # Name MUST stay `postgres` so the in-cluster URL is
+  # postgres.etradie-system.svc.cluster.local:5432 - exactly the
+  # FQDN engine/execution/management/gateway already encode in their
+  # values.yaml (configmap.postgres.host, EXECUTION_DATABASE_URL, etc.).
+  name: {{ .Values.postgres.service.name | default "postgres" }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+  annotations:
+    description: "PostgreSQL ClusterIP. Consumed by engine, gateway, execution, management."
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "postgres.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.service.port | default 5432 }}
+      targetPort: postgres
+      protocol: TCP
+      appProtocol: postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.postgres.service.headlessName | default "postgres-headless" }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+  annotations:
+    description: "PostgreSQL headless service for stable per-pod DNS (postgres-0.postgres-headless.<ns>.svc.cluster.local)."
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "postgres.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.service.port | default 5432 }}
+      targetPort: postgres
+      protocol: TCP
+      appProtocol: postgresql
+{{- end }}

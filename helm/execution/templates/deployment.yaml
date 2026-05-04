@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "execution.appName" . }}
+  namespace: {{ include "execution.namespace" . }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "execution.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "execution.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/part-of: etradie
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.ports.http.port | default 8080 | quote }}
+        prometheus.io/path: "/metrics"
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "execution.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 60 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.podSecurityContext.runAsUser | default 65532 }}
+        runAsGroup: {{ .Values.podSecurityContext.runAsGroup | default 65532 }}
+        fsGroup: {{ .Values.podSecurityContext.fsGroup | default 65532 }}
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.initContainer.enabled .Values.initContainer.dependencies }}
+      initContainers:
+        - name: wait-for-deps
+          image: "{{ .Values.initContainer.image }}"
+          imagePullPolicy: {{ .Values.initContainer.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 65532 }}
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WAIT_FOR_DEPS_TIMEOUT_SECS
+              value: {{ .Values.initContainer.timeoutSeconds | default 180 | quote }}
+            - name: WAIT_FOR_DEPS_INTERVAL_SECS
+              value: {{ .Values.initContainer.intervalSeconds | default 2 | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              deadline=$(( $(date +%s) + ${WAIT_FOR_DEPS_TIMEOUT_SECS} ))
+              {{- range $i, $dep := .Values.initContainer.dependencies }}
+              echo "[wait-for-deps] checking {{ $dep.host }}:{{ $dep.port }}"
+              while ! nc -z -w 2 {{ $dep.host | quote }} {{ $dep.port }}; do
+                if [ "$(date +%s)" -ge "${deadline}" ]; then
+                  echo "[wait-for-deps] FATAL: timed out waiting for {{ $dep.host }}:{{ $dep.port }}"
+                  exit 1
+                fi
+                echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+                sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
+              done
+              echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} reachable"
+              {{- end }}
+              echo "[wait-for-deps] all dependencies reachable"
+          resources:
+            {{- toYaml .Values.initContainer.resources | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: execution
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.securityContext.runAsUser | default 65532 }}
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.ports.http.port | default 8080 }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.service.ports.grpc.port | default 50053 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "execution.configMapName" . }}
+                optional: false
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "execution.secretName" . }}
+                optional: false
+            {{- end }}
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.lifecycle | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.volumes.tmp.emptyDir.sizeLimit | default "64Mi" }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
