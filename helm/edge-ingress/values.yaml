@@ -289,7 +289,10 @@ externalSecrets:
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "1h"
     targetSecretName: "edge-ingress-tls-certs"
-    vaultPath: "etradie/services/edge-ingress/tls"
+    # Production Vault path. Aligns with infrastructure/cluster/main.tf
+    # which creates etradie/services/edge-ingress/${environment}/tls.
+    # values-staging.yaml overrides this to the staging-segmented path.
+    vaultPath: "etradie/services/edge-ingress/production/tls"
     entries:
       - secretKey: "api.etradie.com.crt"
         property: "api_cert"
@@ -312,13 +315,17 @@ externalSecrets:
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "24h"
     targetSecretName: "maxmind-credentials"
-    vaultPath: "etradie/services/edge-ingress/maxmind"
+    # Production Vault path; staging/production overlays override.
+    vaultPath: "etradie/services/edge-ingress/production/maxmind"
   aopCa:
     secretStoreName: "vault-backend"
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "1h"
     targetSecretName: "cloudflare-aop-ca"
-    vaultPath: "etradie/services/edge-ingress/cloudflare/aop_ca"
+    # Production Vault path. Aligns with
+    # infrastructure/cluster/main.tf::vault_kv_secret_v2.edge_ingress_aop_ca
+    # (etradie/services/edge-ingress/${environment}/cloudflare/aop_ca).
+    vaultPath: "etradie/services/edge-ingress/production/cloudflare/aop_ca"
 
 # Edge-ingress YAML config rendered by templates/configmap.yaml.
 config:
