@@ -3,7 +3,7 @@ import { setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/lib/a
 import { login as loginApi } from '../api/login';
 import { register as registerApi } from '../api/register';
 import { fetchProfile, logout as logoutApi } from '../api/profile';
-import type { AuthUser, LoginRequest, RegisterRequest } from '../types';
+import type { AuthUser, LoginRequest, RegisterRequest, TokenPair } from '../types';
 
 interface AuthState {
   user: AuthUser | null;
@@ -11,6 +11,14 @@ interface AuthState {
   isLoading: boolean;
   login: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
+  /**
+   * Hydrate the session from a TokenPair obtained out-of-band
+   * (currently: the Google OAuth callback). Behaves observably the
+   * same as a successful password login: tokens are persisted, the
+   * profile is fetched (or used directly if supplied), and the
+   * AuthContext switches to authenticated.
+   */
+  loginWithTokenPair: (tokens: TokenPair, user?: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -55,6 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const loginWithTokenPair = useCallback(async (tokens: TokenPair, presetUser?: AuthUser) => {
+    setTokens(tokens.access_token, tokens.refresh_token);
+    if (presetUser) {
+      setUser(presetUser);
+      return;
+    }
+    const profile = await fetchProfile();
+    setUser(profile);
+  }, []);
+
   const logout = useCallback(async () => {
     const refresh = getRefreshToken();
     try {
@@ -73,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         register,
+        loginWithTokenPair,
         logout,
         refreshUser: loadUser,
       }}
