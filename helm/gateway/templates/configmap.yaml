@@ -51,3 +51,11 @@ data:
   # Trust chain (Cloudflare → edge-ingress → envoy → gateway)
   AUTH_TRUSTED_PROXY_CIDRS: {{ .Values.trustChain.trustedProxyCidrs | quote }}
   AUTH_TRUST_CLOUDFLARE: {{ .Values.trustChain.trustCloudflare | quote }}
+  {{- if eq (.Values.trustChain.trustCloudflare | toString) "true" }}
+  # When Cloudflare trust is enabled, point the gateway at the
+  # ConfigMap-mounted ipv4.txt / ipv6.txt files so the binary picks
+  # up live-refreshed ranges instead of its compile-time fallback.
+  # The path matches the volumeMount configured in deployment.yaml
+  # and the ConfigMap rendered by configmap-cf-ranges.yaml.
+  AUTH_CLOUDFLARE_RANGES_DIR: {{ .Values.trustChain.cloudflareRangesMountPath | default "/etc/etradie/cloudflare" | quote }}
+  {{- end }}

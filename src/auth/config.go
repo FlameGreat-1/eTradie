@@ -76,6 +76,23 @@ type Config struct {
 	// the front door of the deployment. Default: false.
 	TrustCloudflare bool `envconfig:"TRUST_CLOUDFLARE" default:"false"`
 
+	// CloudflareRangesDir is an optional directory containing
+	// `ipv4.txt` and `ipv6.txt` files with one CIDR per line. When set
+	// AND TrustCloudflare is true, the resolver reads the file contents
+	// at startup INSTEAD of the in-binary embedded list. This lets the
+	// platform pick up live-refreshed Cloudflare ranges (chart-mounted
+	// from helm/gateway/files/cloudflare/) without requiring a binary
+	// rebuild every time Cloudflare publishes a new range.
+	//
+	// The chart sets this to /etc/etradie/cloudflare in production via
+	// the gateway ConfigMap when trustChain.trustCloudflare is true.
+	// On read error or missing dir, the resolver falls back to the
+	// embedded list with a single warning to stderr - no panic, no
+	// startup failure.
+	//
+	// Default: empty (use embedded list only).
+	CloudflareRangesDir string `envconfig:"CLOUDFLARE_RANGES_DIR" default:""`
+
 	// ----------------------------------------------------------------
 	// Google OAuth 2.0
 	//
@@ -285,10 +302,15 @@ func (c *Config) JWTSecretBytes() []byte {
 }
 
 // IPResolver returns the lazily-initialised ClientIPResolver built from
-// TrustedProxyCIDRs and TrustCloudflare. Safe for concurrent use.
+// TrustedProxyCIDRs, TrustCloudflare, and (when set) the contents of
+// CloudflareRangesDir. Safe for concurrent use.
 func (c *Config) IPResolver() *ClientIPResolver {
 	c.ipResolverOnce.Do(func() {
-		c.ipResolver = NewClientIPResolver(c.TrustedProxyCIDRs, c.TrustCloudflare)
+		c.ipResolver = NewClientIPResolverWithRangesDir(
+			c.TrustedProxyCIDRs,
+			c.TrustCloudflare,
+			c.CloudflareRangesDir,
+		)
 	})
 	return c.ipResolver
 }
