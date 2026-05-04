@@ -17,7 +17,7 @@ spec:
   project: etradie
 
   source:
-    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
     # Production tracks an immutable git tag. Bump this in lockstep
     # with `helm/data-layer/Chart.yaml` `appVersion` whenever a new
     # release is cut.
