@@ -168,7 +168,7 @@ func (h *Handler) handleOAuthGoogleCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	flow, err := h.oauthFlows.ConsumeByState(r.Context(), OAuthProviderGoogle, req.State)
+	flow, err := h.oauthFlows.ConsumeByState(r.Context(), OAuthProviderGoogle, OAuthFlowKindSignIn, req.State)
 	if err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
