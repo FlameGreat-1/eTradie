@@ -160,10 +160,13 @@ affinity:
             app.kubernetes.io/name: etradie-envoy
         topologyKey: kubernetes.io/hostname
 
+# Best-effort zone spread; pod anti-affinity above already enforces
+# one envoy per node. ScheduleAnyway lets the HPA scale up during an
+# AZ outage (DoNotSchedule would block exactly when we need scale).
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: DoNotSchedule
+    whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: etradie-envoy
