@@ -1,0 +1,20 @@
+apiVersion: v2
+name: execution
+description: eTradie execution engine (Go gRPC + HTTP) - validates orders, sizes positions, dispatches to broker bridge, manages instant-mode watchers, and emits audit + alert events.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - execution
+  - go
+  - grpc
+  - broker
+  - mt5
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@etradie.com
+sources:
+  - https://gitlab.com/cotradee3/cotradeecode
+icon: https://etradie.com/icon.png
+dependencies: []
