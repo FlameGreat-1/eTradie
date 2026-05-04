@@ -7,7 +7,9 @@
 replicaCount: 3
 
 image:
-  repository: registry.gitlab.com/cotradee3/cotradeecode/gateway
+  # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  # Owner + repo lowercased per GHCR case-sensitivity.
+  repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 

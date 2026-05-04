@@ -1,7 +1,10 @@
 replicaCount: 5
 
 image:
-  repository: registry.gitlab.com/cotradee3/cotradeecode/gateway
+  # CI publishes to GHCR. Path is duplicated here (vs values.yaml)
+  # only because the production overlay historically pinned the same
+  # value; keep them in lockstep.
+  repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 
