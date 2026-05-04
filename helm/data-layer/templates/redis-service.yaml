@@ -1,0 +1,45 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  # Name MUST stay `redis`. Engine, gateway, execution, management
+  # all dial redis.etradie-system.svc.cluster.local:6379.
+  name: {{ .Values.redis.service.name | default "redis" }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  annotations:
+    description: "Redis ClusterIP. Consumed by engine + alert hub in execution + management."
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: redis
+      port: {{ .Values.redis.service.port | default 6379 }}
+      targetPort: redis
+      protocol: TCP
+      appProtocol: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.redis.service.headlessName | default "redis-headless" }}
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  annotations:
+    description: "Redis headless service for stable per-pod DNS."
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: redis
+      port: {{ .Values.redis.service.port | default 6379 }}
+      targetPort: redis
+      protocol: TCP
+      appProtocol: redis
+{{- end }}
