@@ -323,7 +323,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+asyncpg[REDACTED]localhost:5432/etradie_test
+      # Connection string targets the in-job postgres service container
+      # (credentials: etradie_test / test_password / etradie_test).
+      DATABASE_URL: postgresql+asyncpg://etradie_test:test_password@localhost:5432/etradie_test
       REDIS_URL: redis://localhost:6379/0
       APP_ENV: testing
     steps:
