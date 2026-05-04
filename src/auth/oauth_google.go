@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/sync/singleflight"
 )
 
 // ---------------------------------------------------------------------------
@@ -60,7 +61,11 @@ const (
 // Authorization Code + PKCE flow against Google.
 //
 // Concurrency: every method is safe for use by many goroutines. The
-// JWKS cache is guarded internally.
+// JWKS cache is guarded internally; refreshes are coalesced through a
+// singleflight.Group so that under heavy concurrent verification load
+// (or right after Google rotates a key) only one goroutine hits
+// Google's JWKS endpoint while the rest wait for that single result.
+// This eliminates the thundering-herd risk that the audit flagged.
 type GoogleOAuthProvider struct {
 	clientID            string
 	clientSecret        string
@@ -72,6 +77,7 @@ type GoogleOAuthProvider struct {
 	jwksKeys    map[string]*rsa.PublicKey
 	jwksFetched time.Time
 	jwksTTL     time.Duration
+	jwksGroup   singleflight.Group
 }
 
 // NewGoogleOAuthProvider constructs a provider from validated config.
@@ -255,9 +261,33 @@ func (p *GoogleOAuthProvider) VerifyIDToken(ctx context.Context, idToken, expect
 		return nil, fmt.Errorf("google oauth: id token issuer %q is not Google", iss)
 	}
 
-	aud, ok := mc["aud"].(string)
-	if !ok || aud != p.clientID {
-		return nil, fmt.Errorf("google oauth: id token audience does not match configured client_id")
+	// `aud` may legitimately be a string OR a JSON array of strings
+	// (RFC 7519 §4.1.3, OIDC Core §3.1.3.7). Accept either form, but
+	// when it's an array also require the OIDC `azp` (Authorized
+	// Party) claim to equal our client_id, per OIDC §3.1.3.7
+	//   "If the ID Token contains multiple audiences, the Client SHOULD
+	//    verify that an azp Claim is present."
+	aud, audArray, audIsArray := extractAudClaim(mc)
+	if !audIsArray {
+		if aud != p.clientID {
+			return nil, fmt.Errorf("google oauth: id token audience does not match configured client_id")
+		}
+	} else {
+		matched := false
+		for _, a := range audArray {
+			if a == p.clientID {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, fmt.Errorf("google oauth: id token audience array does not contain configured client_id")
+		}
+		azp, _ := mc["azp"].(string)
+		if azp != p.clientID {
+			return nil, fmt.Errorf("google oauth: id token has multiple audiences and azp does not match client_id")
+		}
+		aud = p.clientID
 	}
 
 	now := time.Now().UTC()
@@ -334,11 +364,17 @@ type jwksDocument struct {
 // the JWKS document on cache miss or expiry. A second miss after a
 // successful refresh is a hard error: it means Google rotated to a key
 // we still can't see.
+//
+// Concurrent refreshes are coalesced via singleflight under the static
+// key "jwks": only one HTTP call to Google's certs endpoint runs at a
+// time, and any other goroutines waiting on a refresh share its result.
 func (p *GoogleOAuthProvider) publicKeyForKID(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 	if key := p.cachedKey(kid); key != nil {
 		return key, nil
 	}
-	if err := p.refreshJWKS(ctx); err != nil {
+	if _, err, _ := p.jwksGroup.Do("jwks", func() (interface{}, error) {
+		return nil, p.refreshJWKS(ctx)
+	}); err != nil {
 		return nil, err
 	}
 	if key := p.cachedKey(kid); key != nil {
@@ -496,5 +532,30 @@ func claimAsBool(v interface{}) bool {
 		return err == nil && b
 	default:
 		return false
+	}
+}
+
+// extractAudClaim normalises the `aud` claim into either a single
+// string or a slice of strings, per RFC 7519 §4.1.3. Returns:
+//   - (single, nil, false) when `aud` is a string
+//   - ("", arr,  true)     when `aud` is an array (possibly empty)
+//   - ("", nil,  false)    when `aud` is missing or has an unexpected
+//                          type — callers treat this as a mismatch
+func extractAudClaim(mc jwt.MapClaims) (single string, arr []string, isArray bool) {
+	switch v := mc["aud"].(type) {
+	case string:
+		return v, nil, false
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return "", out, true
+	case []string:
+		return "", append([]string(nil), v...), true
+	default:
+		return "", nil, false
 	}
 }

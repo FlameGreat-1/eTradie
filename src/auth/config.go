@@ -211,6 +211,10 @@ func (c *Config) validate() error {
 
 	// Google OAuth: only validate when explicitly enabled. Validation
 	// is strict so a half-configured production deployment fails fast.
+	// All OAuth-only knobs (TTL, HTTP timeout) are also bounded only
+	// when OAuth is enabled, so an operator who never plans to use
+	// federated login does not pay startup cost or hit confusing
+	// errors about unused fields.
 	if c.GoogleOAuthEnabled {
 		c.GoogleClientID = strings.TrimSpace(c.GoogleClientID)
 		c.GoogleClientSecret = strings.TrimSpace(c.GoogleClientSecret)
@@ -237,13 +241,13 @@ func (c *Config) validate() error {
 			}
 		}
 		c.GoogleAllowedHostedDomains = normalised
-	}
 
-	if c.OAuthFlowTTLSeconds < 60 || c.OAuthFlowTTLSeconds > 1800 {
-		return fmt.Errorf("OAUTH_FLOW_TTL_SECONDS must be 60..1800, got %d", c.OAuthFlowTTLSeconds)
-	}
-	if c.OAuthHTTPTimeoutSeconds < 1 || c.OAuthHTTPTimeoutSeconds > 30 {
-		return fmt.Errorf("OAUTH_HTTP_TIMEOUT_SECONDS must be 1..30, got %d", c.OAuthHTTPTimeoutSeconds)
+		if c.OAuthFlowTTLSeconds < 60 || c.OAuthFlowTTLSeconds > 1800 {
+			return fmt.Errorf("OAUTH_FLOW_TTL_SECONDS must be 60..1800, got %d", c.OAuthFlowTTLSeconds)
+		}
+		if c.OAuthHTTPTimeoutSeconds < 1 || c.OAuthHTTPTimeoutSeconds > 30 {
+			return fmt.Errorf("OAUTH_HTTP_TIMEOUT_SECONDS must be 1..30, got %d", c.OAuthHTTPTimeoutSeconds)
+		}
 	}
 
 	return nil

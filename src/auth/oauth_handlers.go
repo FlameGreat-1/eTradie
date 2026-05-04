@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -75,9 +76,14 @@ func (h *Handler) handleOAuthGoogleStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Decode the JSON body unconditionally. Browsers + proxies (envoy,
+	// Cloudflare) can re-chunk the upload and present a request with
+	// ContentLength = -1 even when the body is non-empty, so checking
+	// ContentLength > 0 was unsound. io.EOF is treated as "no body",
+	// which means "no return_to".
 	var req oauthStartRequest
-	if r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 			return
 		}
@@ -255,12 +261,17 @@ var errOAuthEmailConflict = errors.New("an account with this email already exist
 //
 //  1. If an OAuthIdentity already exists for (google, sub), use its user.
 //  2. Else if a local user exists with the same email AND that local
-//     user's auth_provider is already "google", attach by email.
-//  3. Else if a local user exists with the same email AND that local
-//     user's email is verified AND auth_provider is "local", we refuse
-//     to silently merge. Returning ErrOAuthEmailConflict surfaces an
-//     actionable 409 to the UI; the user must sign in with their
-//     password first and link Google from settings.
+//     user's auth_provider is already "google", attach by email. This
+//     covers the recovery case where the auth_oauth_identities row was
+//     manually deleted (admin SQL, restore from backup) but the
+//     auth_users row still has auth_provider=google. The Upsert call
+//     in the caller then re-creates the identity row idempotently;
+//     because Google subjects are stable per email, no spoofing risk.
+//  3. Else if a local user exists with the same email AND auth_provider
+//     is "local", we refuse to silently merge. Returning
+//     ErrOAuthEmailConflict surfaces an actionable 409 to the UI; the
+//     user must sign in with their password first and link Google from
+//     settings.
 //  4. Otherwise create a fresh "etradie" user with auth_provider=google.
 func (h *Handler) resolveOrCreateUserForOAuth(ctx context.Context, claims *OAuthClaims) (*User, bool, error) {
 	// Step 1: existing identity link.
@@ -381,9 +392,18 @@ func (h *Handler) allocateUsernameFromEmail(ctx context.Context, email string) (
 // paths are accepted. Anything else is replaced with the safe default
 // "/". This is enforced even though the frontend stores return_to in
 // sessionStorage, because the field round-trips through the server.
+//
+// Rejects, in addition to obvious cross-origin URLs:
+//   - control characters and CR/LF (header-splitting / log-injection)
+//   - percent-encoded slashes / backslashes that the browser would
+//     decode at navigate time and turn into a schemaless URL
+//   - anything longer than 512 bytes
 func sanitiseReturnTo(p string) string {
 	p = strings.TrimSpace(p)
 	if p == "" {
+		return "/"
+	}
+	if len(p) > 512 {
 		return "/"
 	}
 	if !strings.HasPrefix(p, "/") {
@@ -392,7 +412,19 @@ func sanitiseReturnTo(p string) string {
 	if strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") {
 		return "/"
 	}
-	if len(p) > 512 {
+	// Reject control characters anywhere in the path; this blocks CR,
+	// LF, NUL, tab, and similar.
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f {
+			return "/"
+		}
+	}
+	// Reject percent-encoded slashes/backslashes which the browser
+	// will decode and which can otherwise produce "//evil.com" after
+	// the leading-slash check has passed.
+	lower := strings.ToLower(p)
+	if strings.HasPrefix(lower, "/%2f") ||
+		strings.HasPrefix(lower, "/%5c") {
 		return "/"
 	}
 	return p

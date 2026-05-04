@@ -107,6 +107,16 @@ export function useGoogleOAuth(): UseGoogleOAuthResult {
       }
       completeInFlight.current = true;
       setIsCompleting(true);
+
+      // Tracks whether the local state check has passed for this
+      // attempt. Once it has, the gateway-side flow row will be (or
+      // has been) consumed atomically by the callback POST, so the
+      // browser-side pending record must be cleared on ANY subsequent
+      // failure path; otherwise a transient backend error would leave
+      // a stale state in sessionStorage that causes the next attempt
+      // to fail with "state did not match".
+      let stateConsumed = false;
+
       try {
         if (error && error.trim() !== '') {
           throw new Error(
@@ -130,6 +140,7 @@ export function useGoogleOAuth(): UseGoogleOAuthResult {
             'Sign-in state did not match. Please start again from the login page.',
           );
         }
+        stateConsumed = true;
 
         const res = await completeGoogleOAuth({ code, state });
         if (!res?.tokens?.access_token || !res?.tokens?.refresh_token) {
@@ -141,6 +152,13 @@ export function useGoogleOAuth(): UseGoogleOAuthResult {
         clearPendingOAuthFlow();
         return res;
       } catch (err) {
+        if (stateConsumed) {
+          // The server-side flow row has been consumed (or is about to
+          // be); the locally-cached state is now useless. Clear it so
+          // the user can immediately retry from /login without hitting
+          // a phantom "state did not match".
+          clearPendingOAuthFlow();
+        }
         throw new Error(
           normaliseError(err, 'Could not finish Google sign-in'),
         );

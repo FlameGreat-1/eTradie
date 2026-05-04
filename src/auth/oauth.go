@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -85,14 +84,4 @@ func GenerateOAuthSecret() (string, error) {
 func PKCEChallengeS256(verifier string) string {
 	sum := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
-
-// hashOAuthSecretHex returns a hex SHA-256 of s. Reserved for any
-// future at-rest hashing of OAuth-flow material; the schema currently
-// stores verifier/nonce in plaintext because rows are short-lived,
-// single-use, and indexed only by state. Kept here so call sites that
-// later opt into hashing have one canonical implementation.
-func hashOAuthSecretHex(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
 }

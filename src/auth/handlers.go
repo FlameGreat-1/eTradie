@@ -247,12 +247,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	_ = h.sessions.CreateSession(r.Context(), sess)
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":       user.ID,
-			"username": user.Username,
-			"email":    user.Email,
-			"role":     string(user.Role),
-		},
+		"user":   userPublicView(user),
 		"tokens": pair,
 	})
 }
