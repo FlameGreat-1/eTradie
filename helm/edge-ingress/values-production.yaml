@@ -23,12 +23,16 @@ autoscaling:
 podDisruptionBudget:
   minAvailable: 3
 
-# Production schedules edge-ingress on a dedicated `edge` node group
-# with a `workload=edge:NoSchedule` taint applied by
-# infrastructure/cluster/. The toleration here matches the taint;
-# the nodeSelector pins the dedicated instance type.
-nodeSelector:
-  node.kubernetes.io/instance-type: c6i.2xlarge
+# Production schedules edge-ingress on the dedicated `edge` node
+# group with a `workload=edge:NoSchedule` taint applied by
+# infrastructure/cluster/. The toleration here matches the taint.
+#
+# Cloud-agnostic: instance-type pinning lives in the cluster
+# Terraform (edge_node_group.instance_types default c6i.2xlarge),
+# not in the chart. The toleration is a no-op on clusters that do
+# not taint nodes, so the chart deploys identically on Contabo K3s,
+# OCI OKE, Talos, GKE, AKS, kubeadm, etc.
+nodeSelector: {}
 
 tolerations:
   - key: "workload"
