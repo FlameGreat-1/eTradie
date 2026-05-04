@@ -65,43 +65,24 @@ service:
   #     edge-ingress on :443 in-cluster. Service.type=ClusterIP.
   #     This is the default because Cloudflare is already part of
   #     the trust chain (AOP CA, CF-Connecting-IP, IP ranges).
-  #   - "aws": LoadBalancer Service with AWS NLB annotations + ACM.
   #   - "generic": LoadBalancer Service with no cloud-specific
   #     annotations (works on OCI OKE, GKE, AKS, MetalLB on bare
-  #     metal). TLS terminates inside edge-ingress; no LB-level ACM.
+  #     metal). TLS terminates inside edge-ingress.
+  #
+  # AWS is intentionally NOT a supported mode — the platform does
+  # not deploy on AWS.
   cloudProvider: "cloudflare-tunnel"
   # type is auto-selected from cloudProvider above. This value is
   # honoured only as an explicit override; leave empty to let the
   # template choose ClusterIP (cloudflare-tunnel) or LoadBalancer
-  # (aws / generic).
+  # (generic).
   type: ""
   externalTrafficPolicy: Local
   ports:
     tls:
       port: 443
-  # AWS-only. ACM cert ARN that the NLB terminates TLS with. The
-  # chart fails rendering when cloudProvider=aws and this is empty.
-  # Ignored for cloudflare-tunnel and generic modes (TLS terminates
-  # inside edge-ingress in those modes).
-  tlsCertificateArn: ""
-  # AWS-only. NLB access-log S3 bucket. Empty disables access
-  # logging; non-empty enables and points at the bucket.
-  accessLogS3Bucket: ""
-  # Only rendered when cloudProvider=aws.
-  awsAnnotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "http"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "9902"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/healthz"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "3"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "3"
   # Extra annotations applied regardless of cloudProvider. Keep this
-  # empty unless you genuinely need a vendor-specific knob; cloud-
-  # specific bits belong in cloudProvider-aware blocks above.
+  # empty unless you genuinely need a vendor-specific knob.
   annotations: {}
 
 # Cloudflare Tunnel (cloudflared) configuration. Only rendered when

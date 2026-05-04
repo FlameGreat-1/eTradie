@@ -1,23 +1,20 @@
 {{- /*
 Cloud-LB strategy. Resolves service.type from service.cloudProvider:
   - cloudflare-tunnel -> ClusterIP   (no public LB; cloudflared forwards)
-  - aws               -> LoadBalancer + AWS NLB annotations + ACM ARN
   - generic           -> LoadBalancer (cluster's default LB controller)
 
-An explicit service.type wins over the inferred default so power
-users can override (e.g. NodePort for local kind clusters).
+AWS is deliberately NOT a supported value; the platform does not
+deploy on AWS. An explicit service.type wins over the inferred
+default so power users can override (e.g. NodePort for local kind).
 Audit ref: NOTE.md S1-C, S3-C.
 */}}
 {{- $cp := .Values.service.cloudProvider | default "cloudflare-tunnel" -}}
-{{- $validProviders := list "cloudflare-tunnel" "aws" "generic" -}}
+{{- $validProviders := list "cloudflare-tunnel" "generic" -}}
 {{- if not (has $cp $validProviders) -}}
-{{- fail (printf "helm/edge-ingress: .Values.service.cloudProvider must be one of %v, got %q" $validProviders $cp) -}}
+{{- fail (printf "helm/edge-ingress: .Values.service.cloudProvider must be one of %v, got %q. AWS mode was removed; the platform does not deploy on AWS." $validProviders $cp) -}}
 {{- end -}}
 {{- $defaultType := ternary "ClusterIP" "LoadBalancer" (eq $cp "cloudflare-tunnel") -}}
 {{- $svcType := default $defaultType .Values.service.type -}}
-{{- if and (eq $cp "aws") (not .Values.service.tlsCertificateArn) -}}
-{{- fail "helm/edge-ingress: .Values.service.tlsCertificateArn is required when service.cloudProvider=aws. Inject the ACM ARN from CI: --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>" -}}
-{{- end -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -25,24 +22,10 @@ metadata:
   namespace: {{ include "edge-ingress.namespace" . }}
   labels:
     {{- include "edge-ingress.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
   annotations:
-    {{- with .Values.service.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if eq $cp "aws" }}
-    {{- with .Values.service.awsAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- with .Values.service.tlsCertificateArn }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ . | quote }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "tls"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
-    {{- end }}
-    {{- with .Values.service.accessLogS3Bucket }}
-    service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: {{ . | quote }}
-    {{- end }}
-    {{- end }}
+  {{- end }}
 spec:
   type: {{ $svcType }}
   {{- if eq $svcType "LoadBalancer" }}
