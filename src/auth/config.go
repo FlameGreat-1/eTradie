@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -74,6 +75,59 @@ type Config struct {
 	// Cloudflare IPv4 + IPv6 ranges. Set to true when Cloudflare is
 	// the front door of the deployment. Default: false.
 	TrustCloudflare bool `envconfig:"TRUST_CLOUDFLARE" default:"false"`
+
+	// ----------------------------------------------------------------
+	// Google OAuth 2.0
+	//
+	// Authorization Code with PKCE, server-mediated. The browser never
+	// holds the Google client secret or a Google access/ID token; only
+	// the gateway exchanges the authorization code at Google's token
+	// endpoint and verifies the returned ID token via Google's JWKS.
+	//
+	// All AUTH_GOOGLE_* fields are optional and ignored unless
+	// AUTH_GOOGLE_OAUTH_ENABLED=true. When enabled, ClientID,
+	// ClientSecret, and RedirectURI are mandatory and validated at
+	// startup so misconfiguration fails fast and never silently.
+	// ----------------------------------------------------------------
+
+	// GoogleOAuthEnabled toggles the Google sign-in endpoints.
+	// When false (default), no OAuth routes are mounted and no
+	// AUTH_GOOGLE_* validation is performed.
+	GoogleOAuthEnabled bool `envconfig:"GOOGLE_OAUTH_ENABLED" default:"false"`
+
+	// GoogleClientID is the OAuth 2.0 client ID issued by Google Cloud
+	// Console for this application. Used as the `client_id` query
+	// parameter on the authorize URL and as the audience claim that
+	// Google's ID token must match.
+	GoogleClientID string `envconfig:"GOOGLE_CLIENT_ID" default:""`
+
+	// GoogleClientSecret is the OAuth 2.0 client secret. Used only on
+	// the server-side token-exchange request to oauth2.googleapis.com
+	// /token. Never exposed to the browser.
+	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
+
+	// GoogleRedirectURI is the absolute URL Google redirects the
+	// browser to after consent. Must exactly match one of the
+	// "Authorized redirect URIs" registered in Google Cloud Console.
+	// Convention: https://<frontend-host>/auth/callback/google.
+	GoogleRedirectURI string `envconfig:"GOOGLE_REDIRECT_URI" default:""`
+
+	// GoogleAllowedHostedDomains, if non-empty, restricts sign-in to
+	// Google Workspace tenants whose `hd` claim matches one of the
+	// listed domains (e.g. "etradie.com"). Empty means any Google
+	// account is accepted (consumer + workspace). Comparison is
+	// case-insensitive.
+	GoogleAllowedHostedDomains []string `envconfig:"GOOGLE_ALLOWED_HOSTED_DOMAINS"`
+
+	// OAuthFlowTTLSeconds is how long an authorize-step record is
+	// valid before its state/code_verifier/nonce are discarded.
+	// Bounds: 60..1800 (1 min..30 min). Default: 600 (10 min).
+	OAuthFlowTTLSeconds int `envconfig:"OAUTH_FLOW_TTL_SECONDS" default:"600"`
+
+	// OAuthHTTPTimeoutSeconds caps every outbound HTTP request the
+	// gateway makes to Google's token endpoint and JWKS endpoint.
+	// Bounds: 1..30. Default: 10.
+	OAuthHTTPTimeoutSeconds int `envconfig:"OAUTH_HTTP_TIMEOUT_SECONDS" default:"10"`
 
 	// jwtSecretBytes is the parsed secret used for signing.
 	// Not loaded from env; derived from JWTSecret during validation.
@@ -153,6 +207,43 @@ func (c *Config) validate() error {
 	// Trusted-proxy CIDR validation: surface bad values at startup.
 	if _, bad := ParseTrustedCIDRs(c.TrustedProxyCIDRs); len(bad) > 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS contains malformed entries: %v", bad)
+	}
+
+	// Google OAuth: only validate when explicitly enabled. Validation
+	// is strict so a half-configured production deployment fails fast.
+	if c.GoogleOAuthEnabled {
+		c.GoogleClientID = strings.TrimSpace(c.GoogleClientID)
+		c.GoogleClientSecret = strings.TrimSpace(c.GoogleClientSecret)
+		c.GoogleRedirectURI = strings.TrimSpace(c.GoogleRedirectURI)
+
+		if c.GoogleClientID == "" {
+			return fmt.Errorf("GOOGLE_CLIENT_ID must be set when GOOGLE_OAUTH_ENABLED=true")
+		}
+		if c.GoogleClientSecret == "" {
+			return fmt.Errorf("GOOGLE_CLIENT_SECRET must be set when GOOGLE_OAUTH_ENABLED=true")
+		}
+		if c.GoogleRedirectURI == "" {
+			return fmt.Errorf("GOOGLE_REDIRECT_URI must be set when GOOGLE_OAUTH_ENABLED=true")
+		}
+		u, err := url.Parse(c.GoogleRedirectURI)
+		if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return fmt.Errorf("GOOGLE_REDIRECT_URI must be an absolute http(s) URL, got %q", c.GoogleRedirectURI)
+		}
+		normalised := make([]string, 0, len(c.GoogleAllowedHostedDomains))
+		for _, d := range c.GoogleAllowedHostedDomains {
+			d = strings.ToLower(strings.TrimSpace(d))
+			if d != "" {
+				normalised = append(normalised, d)
+			}
+		}
+		c.GoogleAllowedHostedDomains = normalised
+	}
+
+	if c.OAuthFlowTTLSeconds < 60 || c.OAuthFlowTTLSeconds > 1800 {
+		return fmt.Errorf("OAUTH_FLOW_TTL_SECONDS must be 60..1800, got %d", c.OAuthFlowTTLSeconds)
+	}
+	if c.OAuthHTTPTimeoutSeconds < 1 || c.OAuthHTTPTimeoutSeconds > 30 {
+		return fmt.Errorf("OAUTH_HTTP_TIMEOUT_SECONDS must be 1..30, got %d", c.OAuthHTTPTimeoutSeconds)
 	}
 
 	return nil

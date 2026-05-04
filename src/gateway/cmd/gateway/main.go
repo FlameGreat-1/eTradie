@@ -75,8 +75,25 @@ func main() {
 	// Build auth components.
 	userStore := auth.NewUserStore(authPool)
 	sessionStore := auth.NewSessionStore(authPool)
+	oauthFlowStore := auth.NewOAuthFlowStore(authPool)
+	oauthIdentityStore := auth.NewOAuthIdentityStore(authPool)
 	tokenService := auth.NewTokenService(authCfg)
 	authHandler := auth.NewHandler(userStore, sessionStore, tokenService, authCfg)
+
+	// Wire Google OAuth only when explicitly enabled. The provider
+	// builds an HTTP client with a bounded timeout and an empty JWKS
+	// cache; the first sign-in attempt populates the cache.
+	if authCfg.GoogleOAuthEnabled {
+		googleProvider := auth.NewGoogleOAuthProvider(authCfg)
+		authHandler.WithOAuth(oauthFlowStore, oauthIdentityStore, googleProvider)
+		log.Info().
+			Str("redirect_uri", authCfg.GoogleRedirectURI).
+			Int("flow_ttl_seconds", authCfg.OAuthFlowTTLSeconds).
+			Int("hosted_domains", len(authCfg.GoogleAllowedHostedDomains)).
+			Msg("auth_google_oauth_enabled")
+	} else {
+		log.Info().Msg("auth_google_oauth_disabled")
+	}
 
 	// Seed admin user on first startup.
 	if err := auth.SeedAdminUser(ctx, userStore, authCfg); err != nil {
@@ -153,7 +170,10 @@ func main() {
 		c.Scheduler.Start(schedulerCtx)
 	}()
 
-	// Periodic session cleanup (every hour).
+	// Periodic janitor (every hour) for expired auth state. Runs in a
+	// single goroutine so the schedule and shutdown semantics stay
+	// simple; each cleanup is independent and a failure in one path
+	// does not block the other.
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
@@ -162,12 +182,20 @@ func main() {
 			case <-schedulerCtx.Done():
 				return
 			case <-ticker.C:
-				deleted, err := sessionStore.CleanupExpiredSessions(context.Background())
+				cleanupCtx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+				deleted, err := sessionStore.CleanupExpiredSessions(cleanupCtx)
 				if err != nil {
 					log.Error().Err(err).Msg("auth_session_cleanup_failed")
 				} else if deleted > 0 {
 					log.Info().Int64("deleted", deleted).Msg("auth_expired_sessions_cleaned")
 				}
+				oauthDeleted, err := oauthFlowStore.CleanupExpiredOAuthFlows(cleanupCtx)
+				if err != nil {
+					log.Error().Err(err).Msg("auth_oauth_flows_cleanup_failed")
+				} else if oauthDeleted > 0 {
+					log.Info().Int64("deleted", oauthDeleted).Msg("auth_expired_oauth_flows_cleaned")
+				}
+				cancel()
 			}
 		}
 	}()

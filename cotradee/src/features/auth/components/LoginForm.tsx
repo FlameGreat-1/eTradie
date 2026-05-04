@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
+import GoogleSignInButton from './GoogleSignInButton';
+import SocialAuthDivider from './SocialAuthDivider';
+import { env } from '@/config/env';
 
 export default function LoginForm() {
   const { login } = useAuth();
@@ -78,6 +81,13 @@ export default function LoginForm() {
       >
         {loading ? 'Signing in…' : 'Sign In'}
       </button>
+
+      {env.googleOAuthEnabled && (
+        <>
+          <SocialAuthDivider />
+          <GoogleSignInButton label="Sign in with Google" />
+        </>
+      )}
     </form>
   );
 }

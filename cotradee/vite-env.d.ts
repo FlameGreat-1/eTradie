@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_GATEWAY_WS_URL: string;
   readonly VITE_EXECUTION_URL: string;
   readonly VITE_MANAGEMENT_URL: string;
+  readonly VITE_GOOGLE_OAUTH_ENABLED?: string;
+  readonly VITE_OAUTH_CALLBACK_PATH?: string;
 }
 
 interface ImportMeta {
