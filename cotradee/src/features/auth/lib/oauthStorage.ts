@@ -23,10 +23,29 @@
 const KEY = 'etradie_oauth_pending';
 const MAX_LIFETIME_MS = 30 * 60 * 1000; // hard cap; gateway TTL is the real authority
 
+/**
+ * Discriminates the two OAuth flows the dashboard supports:
+ *   - 'signin' : unauthenticated; gateway returns a TokenPair.
+ *   - 'link'   : authenticated; gateway binds the verified Google
+ *                identity to the current user and returns 204.
+ *
+ * The two flows hit different gateway endpoints, land on different
+ * callback routes, and have different success contracts; conflating
+ * them on the client is exactly the class of bug that produces
+ * account-linking CSRF, so they are kept strictly separate.
+ */
+export type OAuthFlowMode = 'signin' | 'link';
+
 export interface PendingOAuthFlow {
   state: string;
   returnTo: string;
   startedAt: number;
+  /**
+   * Optional for backward compatibility with sessionStorage records
+   * written by builds that predate the link feature. Consumers MUST
+   * default to 'signin' when this field is absent.
+   */
+  mode?: OAuthFlowMode;
 }
 
 export function savePendingOAuthFlow(flow: PendingOAuthFlow): void {
@@ -61,11 +80,31 @@ export function readPendingOAuthFlow(): PendingOAuthFlow | null {
       clearPendingOAuthFlow();
       return null;
     }
+    // Defensive: reject any unrecognised mode value rather than
+    // silently coercing it. Older records without the field at all
+    // are accepted and treated as 'signin' by callers.
+    if (
+      parsed.mode !== undefined &&
+      parsed.mode !== 'signin' &&
+      parsed.mode !== 'link'
+    ) {
+      clearPendingOAuthFlow();
+      return null;
+    }
     return parsed;
   } catch {
     clearPendingOAuthFlow();
     return null;
   }
+}
+
+/**
+ * Returns the mode of the pending flow, defaulting to 'signin' for
+ * records written by older builds. Centralised so every caller agrees
+ * on the default.
+ */
+export function pendingFlowMode(flow: PendingOAuthFlow): OAuthFlowMode {
+  return flow.mode ?? 'signin';
 }
 
 export function clearPendingOAuthFlow(): void {
@@ -78,15 +117,33 @@ export function clearPendingOAuthFlow(): void {
 
 /**
  * Coerce a raw user-supplied path into a same-origin path or fall
- * back to '/'. Mirrors the gateway's sanitiseReturnTo logic so the
- * frontend behaves identically when the user arrives via a direct
- * link or a bookmarked URL.
+ * back to '/'. Mirrors the gateway's sanitiseReturnTo logic byte for
+ * byte so the frontend and the server agree on what is acceptable;
+ * any value the gateway would reject is rejected here too, and vice
+ * versa.
+ *
+ * Rejects, in addition to obvious cross-origin URLs:
+ *   - control characters and CR/LF (header-splitting / log-injection)
+ *   - percent-encoded slashes / backslashes that the browser would
+ *     decode at navigate time and turn into a schemaless URL
+ *   - anything longer than 512 bytes
  */
 export function sanitiseReturnTo(raw: string | null | undefined): string {
   if (!raw) return '/';
   const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > 512) return '/';
   if (!trimmed.startsWith('/')) return '/';
   if (trimmed.startsWith('//') || trimmed.startsWith('/\\')) return '/';
-  if (trimmed.length > 512) return '/';
+  // Reject control characters anywhere in the path (NUL through 0x1f,
+  // and 0x7f).
+  for (let i = 0; i < trimmed.length; i++) {
+    const code = trimmed.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return '/';
+  }
+  // Reject percent-encoded slash/backslash, which the browser would
+  // decode and which can otherwise produce '//evil.com' after the
+  // leading-slash check has passed.
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('/%2f') || lower.startsWith('/%5c')) return '/';
   return trimmed;
 }

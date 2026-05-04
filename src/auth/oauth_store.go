@@ -31,16 +31,38 @@ func NewOAuthFlowStore(pool *pgxpool.Pool) *OAuthFlowStore {
 // Create persists a new authorize-step record. The caller is
 // responsible for generating cryptographically-random state, nonce,
 // flow_id, and PKCE verifier values via GenerateOAuthSecret.
+//
+// FlowKind defaults to 'signin' when left empty so existing call
+// sites that predate the link feature keep working unchanged. UserID
+// is required when FlowKind == 'link' and rejected otherwise; this
+// is the source-of-truth invariant the callback handlers rely on.
 func (s *OAuthFlowStore) Create(ctx context.Context, f *OAuthFlow) error {
 	if f.Provider == "" || f.State == "" || f.FlowID == "" || f.CodeVerifier == "" || f.Nonce == "" {
 		return fmt.Errorf("oauth flow: required fields missing")
 	}
+	kind := f.FlowKind
+	if kind == "" {
+		kind = OAuthFlowKindSignIn
+	}
+	if kind != OAuthFlowKindSignIn && kind != OAuthFlowKindLink {
+		return fmt.Errorf("oauth flow: unknown flow_kind %q", kind)
+	}
+	if kind == OAuthFlowKindLink && f.UserID == "" {
+		return fmt.Errorf("oauth flow: user_id is required for link flows")
+	}
+	if kind == OAuthFlowKindSignIn && f.UserID != "" {
+		return fmt.Errorf("oauth flow: user_id must be empty for sign-in flows")
+	}
+	var userID interface{}
+	if f.UserID != "" {
+		userID = f.UserID
+	}
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO auth_oauth_flows (
-		        flow_id, provider, state, code_verifier, nonce,
+		        flow_id, provider, flow_kind, user_id, state, code_verifier, nonce,
 		        redirect_uri, return_to, created_at, expires_at, consumed
-		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,FALSE)`,
-		f.FlowID, f.Provider, f.State, f.CodeVerifier, f.Nonce,
+		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,FALSE)`,
+		f.FlowID, f.Provider, kind, userID, f.State, f.CodeVerifier, f.Nonce,
 		f.RedirectURI, f.ReturnTo, f.CreatedAt, f.ExpiresAt,
 	)
 	if err != nil {
@@ -49,42 +71,61 @@ func (s *OAuthFlowStore) Create(ctx context.Context, f *OAuthFlow) error {
 		}
 		return fmt.Errorf("oauth flow: insert: %w", err)
 	}
+	f.FlowKind = kind
 	return nil
 }
 
 // ConsumeByState atomically marks the row identified by state as
 // consumed and returns the original record. If the row does not exist,
 // has already been consumed, or has expired, an error is returned and
-// no state is mutated. The provider parameter is matched too so a
-// state value minted for one provider cannot be replayed against
-// another.
-func (s *OAuthFlowStore) ConsumeByState(ctx context.Context, provider, state string) (*OAuthFlow, error) {
+// no state is mutated. The provider AND kind parameters are matched
+// too so:
+//
+//   - a state value minted for one provider cannot be replayed
+//     against another;
+//   - a sign-in flow row cannot be consumed at the link callback,
+//     and vice versa.
+//
+// The kind check is defence-in-depth on top of the per-flow redirect
+// URI which is already a separate value registered with Google.
+func (s *OAuthFlowStore) ConsumeByState(ctx context.Context, provider, kind, state string) (*OAuthFlow, error) {
 	if state == "" || provider == "" {
 		return nil, fmt.Errorf("oauth flow: state and provider are required")
+	}
+	if kind == "" {
+		kind = OAuthFlowKindSignIn
+	}
+	if kind != OAuthFlowKindSignIn && kind != OAuthFlowKindLink {
+		return nil, fmt.Errorf("oauth flow: unknown flow_kind %q", kind)
 	}
 	now := time.Now().UTC()
 	row := s.pool.QueryRow(ctx,
 		`UPDATE auth_oauth_flows
 		    SET consumed    = TRUE,
-		        consumed_at = $3
+		        consumed_at = $4
 		  WHERE state      = $1
 		    AND provider   = $2
+		    AND flow_kind  = $3
 		    AND consumed   = FALSE
-		    AND expires_at > $3
-		 RETURNING flow_id, provider, state, code_verifier, nonce,
+		    AND expires_at > $4
+		 RETURNING flow_id, provider, flow_kind, user_id, state, code_verifier, nonce,
 		          redirect_uri, return_to, created_at, expires_at, TRUE`,
-		state, provider, now)
+		state, provider, kind, now)
 
 	f := &OAuthFlow{}
 	var consumed bool
+	var userID *string
 	if err := row.Scan(
-		&f.FlowID, &f.Provider, &f.State, &f.CodeVerifier, &f.Nonce,
+		&f.FlowID, &f.Provider, &f.FlowKind, &userID, &f.State, &f.CodeVerifier, &f.Nonce,
 		&f.RedirectURI, &f.ReturnTo, &f.CreatedAt, &f.ExpiresAt, &consumed,
 	); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("oauth flow: state is unknown, expired, or already consumed")
 		}
 		return nil, fmt.Errorf("oauth flow: consume: %w", err)
+	}
+	if userID != nil {
+		f.UserID = *userID
 	}
 	f.Consumed = consumed
 	return f, nil
@@ -165,6 +206,23 @@ func (s *OAuthIdentityStore) Upsert(ctx context.Context, ident *OAuthIdentity) e
 		return fmt.Errorf("oauth identity: upsert: %w", err)
 	}
 	return nil
+}
+
+// DeleteByUserAndProvider removes the OAuth identity binding for a
+// user. Returns the number of rows deleted so the unlink handler can
+// distinguish "nothing was linked" (0) from "successfully unlinked"
+// (>=1) without a separate lookup. Idempotent: a second call returns 0.
+func (s *OAuthIdentityStore) DeleteByUserAndProvider(ctx context.Context, userID, provider string) (int64, error) {
+	if userID == "" || provider == "" {
+		return 0, fmt.Errorf("oauth identity: user_id and provider are required")
+	}
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM auth_oauth_identities WHERE user_id = $1 AND provider = $2`,
+		userID, provider)
+	if err != nil {
+		return 0, fmt.Errorf("oauth identity: delete: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // ListByUserID returns every identity linked to a given user.

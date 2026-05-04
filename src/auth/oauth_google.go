@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/sync/singleflight"
 )
 
 // ---------------------------------------------------------------------------
@@ -60,11 +61,16 @@ const (
 // Authorization Code + PKCE flow against Google.
 //
 // Concurrency: every method is safe for use by many goroutines. The
-// JWKS cache is guarded internally.
+// JWKS cache is guarded internally; refreshes are coalesced through a
+// singleflight.Group so that under heavy concurrent verification load
+// (or right after Google rotates a key) only one goroutine hits
+// Google's JWKS endpoint while the rest wait for that single result.
+// This eliminates the thundering-herd risk that the audit flagged.
 type GoogleOAuthProvider struct {
 	clientID            string
 	clientSecret        string
 	redirectURI         string
+	linkRedirectURI     string
 	allowedHostedDomain map[string]struct{}
 	http                *http.Client
 
@@ -72,6 +78,7 @@ type GoogleOAuthProvider struct {
 	jwksKeys    map[string]*rsa.PublicKey
 	jwksFetched time.Time
 	jwksTTL     time.Duration
+	jwksGroup   singleflight.Group
 }
 
 // NewGoogleOAuthProvider constructs a provider from validated config.
@@ -86,6 +93,7 @@ func NewGoogleOAuthProvider(cfg *Config) *GoogleOAuthProvider {
 		clientID:            cfg.GoogleClientID,
 		clientSecret:        cfg.GoogleClientSecret,
 		redirectURI:         cfg.GoogleRedirectURI,
+		linkRedirectURI:     cfg.GoogleLinkRedirectURI,
 		allowedHostedDomain: allowed,
 		http: &http.Client{
 			Timeout: time.Duration(cfg.OAuthHTTPTimeoutSeconds) * time.Second,
@@ -94,11 +102,17 @@ func NewGoogleOAuthProvider(cfg *Config) *GoogleOAuthProvider {
 	}
 }
 
-// RedirectURI returns the configured redirect URI. Used by handlers
-// to record the URI in the auth_oauth_flows row so the callback can
-// confirm the round-trip is consistent.
+// RedirectURI returns the sign-in flow's redirect URI. Used by
+// handlers to record the URI in the auth_oauth_flows row so the
+// callback can confirm the round-trip is consistent.
 func (p *GoogleOAuthProvider) RedirectURI() string {
 	return p.redirectURI
+}
+
+// LinkRedirectURI returns the link flow's redirect URI. Distinct
+// from RedirectURI by design (see Config.GoogleLinkRedirectURI).
+func (p *GoogleOAuthProvider) LinkRedirectURI() string {
+	return p.linkRedirectURI
 }
 
 // ---------------------------------------------------------------------------
@@ -106,16 +120,32 @@ func (p *GoogleOAuthProvider) RedirectURI() string {
 // ---------------------------------------------------------------------------
 
 // BuildAuthorizeURL composes the URL the browser must be redirected to
-// in order to start the Google consent step. Caller supplies state,
-// the PKCE verifier, and a nonce; this method derives the S256
-// challenge from the verifier so the verifier never leaves the gateway.
+// in order to start the Google consent step for the SIGN-IN flow.
+// Caller supplies state, the PKCE verifier, and a nonce; this method
+// derives the S256 challenge from the verifier so the verifier never
+// leaves the gateway.
 func (p *GoogleOAuthProvider) BuildAuthorizeURL(state, codeVerifier, nonce string) (string, error) {
+	return p.buildAuthorizeURL(state, codeVerifier, nonce, p.redirectURI)
+}
+
+// BuildLinkAuthorizeURL is the link-flow counterpart of
+// BuildAuthorizeURL. It pins the link redirect URI so Google sends
+// the browser back to the authenticated callback path, and is
+// otherwise identical.
+func (p *GoogleOAuthProvider) BuildLinkAuthorizeURL(state, codeVerifier, nonce string) (string, error) {
+	return p.buildAuthorizeURL(state, codeVerifier, nonce, p.linkRedirectURI)
+}
+
+func (p *GoogleOAuthProvider) buildAuthorizeURL(state, codeVerifier, nonce, redirectURI string) (string, error) {
 	if state == "" || codeVerifier == "" || nonce == "" {
 		return "", fmt.Errorf("google oauth: state, code_verifier, and nonce are required")
 	}
+	if redirectURI == "" {
+		return "", fmt.Errorf("google oauth: redirect_uri is required")
+	}
 	q := url.Values{}
 	q.Set("client_id", p.clientID)
-	q.Set("redirect_uri", p.redirectURI)
+	q.Set("redirect_uri", redirectURI)
 	q.Set("response_type", "code")
 	q.Set("scope", "openid email profile")
 	q.Set("state", state)
@@ -157,6 +187,13 @@ type googleTokenResponse struct {
 // exchanges the authorization code for an id_token, verifies it
 // against Google's JWKS, and returns the trusted claims.
 //
+// redirectURI MUST be the same URI that was sent to Google's
+// /authorize endpoint at the start of the flow; Google's /token
+// endpoint compares the two byte-for-byte and refuses the exchange
+// otherwise. Callers supply the URI explicitly (rather than the
+// provider picking it) so the link path and the sign-in path cannot
+// accidentally use each other's URI.
+//
 // expectedNonce is the nonce that was sent to Google during the
 // authorize step; the ID token's nonce claim must match it exactly.
 func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
@@ -164,9 +201,13 @@ func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
 	code string,
 	codeVerifier string,
 	expectedNonce string,
+	redirectURI string,
 ) (*OAuthClaims, error) {
 	if code == "" || codeVerifier == "" || expectedNonce == "" {
 		return nil, fmt.Errorf("google oauth: code, code_verifier, and expected nonce are required")
+	}
+	if redirectURI == "" {
+		return nil, fmt.Errorf("google oauth: redirect_uri is required")
 	}
 
 	form := url.Values{}
@@ -174,7 +215,7 @@ func (p *GoogleOAuthProvider) ExchangeCodeAndVerify(
 	form.Set("code", code)
 	form.Set("client_id", p.clientID)
 	form.Set("client_secret", p.clientSecret)
-	form.Set("redirect_uri", p.redirectURI)
+	form.Set("redirect_uri", redirectURI)
 	form.Set("code_verifier", codeVerifier)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenEndpoint,
@@ -255,9 +296,33 @@ func (p *GoogleOAuthProvider) VerifyIDToken(ctx context.Context, idToken, expect
 		return nil, fmt.Errorf("google oauth: id token issuer %q is not Google", iss)
 	}
 
-	aud, ok := mc["aud"].(string)
-	if !ok || aud != p.clientID {
-		return nil, fmt.Errorf("google oauth: id token audience does not match configured client_id")
+	// `aud` may legitimately be a string OR a JSON array of strings
+	// (RFC 7519 §4.1.3, OIDC Core §3.1.3.7). Accept either form, but
+	// when it's an array also require the OIDC `azp` (Authorized
+	// Party) claim to equal our client_id, per OIDC §3.1.3.7
+	//   "If the ID Token contains multiple audiences, the Client SHOULD
+	//    verify that an azp Claim is present."
+	aud, audArray, audIsArray := extractAudClaim(mc)
+	if !audIsArray {
+		if aud != p.clientID {
+			return nil, fmt.Errorf("google oauth: id token audience does not match configured client_id")
+		}
+	} else {
+		matched := false
+		for _, a := range audArray {
+			if a == p.clientID {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, fmt.Errorf("google oauth: id token audience array does not contain configured client_id")
+		}
+		azp, _ := mc["azp"].(string)
+		if azp != p.clientID {
+			return nil, fmt.Errorf("google oauth: id token has multiple audiences and azp does not match client_id")
+		}
+		aud = p.clientID
 	}
 
 	now := time.Now().UTC()
@@ -334,11 +399,17 @@ type jwksDocument struct {
 // the JWKS document on cache miss or expiry. A second miss after a
 // successful refresh is a hard error: it means Google rotated to a key
 // we still can't see.
+//
+// Concurrent refreshes are coalesced via singleflight under the static
+// key "jwks": only one HTTP call to Google's certs endpoint runs at a
+// time, and any other goroutines waiting on a refresh share its result.
 func (p *GoogleOAuthProvider) publicKeyForKID(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 	if key := p.cachedKey(kid); key != nil {
 		return key, nil
 	}
-	if err := p.refreshJWKS(ctx); err != nil {
+	if _, err, _ := p.jwksGroup.Do("jwks", func() (interface{}, error) {
+		return nil, p.refreshJWKS(ctx)
+	}); err != nil {
 		return nil, err
 	}
 	if key := p.cachedKey(kid); key != nil {
@@ -496,5 +567,30 @@ func claimAsBool(v interface{}) bool {
 		return err == nil && b
 	default:
 		return false
+	}
+}
+
+// extractAudClaim normalises the `aud` claim into either a single
+// string or a slice of strings, per RFC 7519 §4.1.3. Returns:
+//   - (single, nil, false) when `aud` is a string
+//   - ("", arr,  true)     when `aud` is an array (possibly empty)
+//   - ("", nil,  false)    when `aud` is missing or has an unexpected
+//                          type — callers treat this as a mismatch
+func extractAudClaim(mc jwt.MapClaims) (single string, arr []string, isArray bool) {
+	switch v := mc["aud"].(type) {
+	case string:
+		return v, nil, false
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return "", out, true
+	case []string:
+		return "", append([]string(nil), v...), true
+	default:
+		return "", nil, false
 	}
 }

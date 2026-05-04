@@ -107,10 +107,25 @@ type Config struct {
 	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
 
 	// GoogleRedirectURI is the absolute URL Google redirects the
-	// browser to after consent. Must exactly match one of the
-	// "Authorized redirect URIs" registered in Google Cloud Console.
-	// Convention: https://<frontend-host>/auth/callback/google.
+	// browser to after consent for the SIGN-IN flow. Must exactly
+	// match one of the "Authorized redirect URIs" registered in
+	// Google Cloud Console. Convention:
+	//   https://<frontend-host>/auth/callback/google.
 	GoogleRedirectURI string `envconfig:"GOOGLE_REDIRECT_URI" default:""`
+
+	// GoogleLinkRedirectURI is the absolute URL Google redirects the
+	// browser to after consent for the ACCOUNT-LINK flow. Must be
+	// distinct from GoogleRedirectURI and registered as a second
+	// entry in Google Cloud Console's "Authorized redirect URIs"
+	// list. Convention:
+	//   https://<frontend-host>/settings/oauth/callback/google.
+	//
+	// Keeping the link callback on its own URI is the standard
+	// defence against cross-flow confusion: even if flow_kind or
+	// state leaked between the two paths, a sign-in flow could
+	// never complete through the link handler because Google would
+	// have redirected the browser to the wrong URL.
+	GoogleLinkRedirectURI string `envconfig:"GOOGLE_LINK_REDIRECT_URI" default:""`
 
 	// GoogleAllowedHostedDomains, if non-empty, restricts sign-in to
 	// Google Workspace tenants whose `hd` claim matches one of the
@@ -211,6 +226,10 @@ func (c *Config) validate() error {
 
 	// Google OAuth: only validate when explicitly enabled. Validation
 	// is strict so a half-configured production deployment fails fast.
+	// All OAuth-only knobs (TTL, HTTP timeout) are also bounded only
+	// when OAuth is enabled, so an operator who never plans to use
+	// federated login does not pay startup cost or hit confusing
+	// errors about unused fields.
 	if c.GoogleOAuthEnabled {
 		c.GoogleClientID = strings.TrimSpace(c.GoogleClientID)
 		c.GoogleClientSecret = strings.TrimSpace(c.GoogleClientSecret)
@@ -225,9 +244,20 @@ func (c *Config) validate() error {
 		if c.GoogleRedirectURI == "" {
 			return fmt.Errorf("GOOGLE_REDIRECT_URI must be set when GOOGLE_OAUTH_ENABLED=true")
 		}
-		u, err := url.Parse(c.GoogleRedirectURI)
+	u, err := url.Parse(c.GoogleRedirectURI)
 		if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 			return fmt.Errorf("GOOGLE_REDIRECT_URI must be an absolute http(s) URL, got %q", c.GoogleRedirectURI)
+		}
+		c.GoogleLinkRedirectURI = strings.TrimSpace(c.GoogleLinkRedirectURI)
+		if c.GoogleLinkRedirectURI == "" {
+			return fmt.Errorf("GOOGLE_LINK_REDIRECT_URI must be set when GOOGLE_OAUTH_ENABLED=true")
+		}
+		lu, err := url.Parse(c.GoogleLinkRedirectURI)
+		if err != nil || lu.Scheme == "" || lu.Host == "" || (lu.Scheme != "http" && lu.Scheme != "https") {
+			return fmt.Errorf("GOOGLE_LINK_REDIRECT_URI must be an absolute http(s) URL, got %q", c.GoogleLinkRedirectURI)
+		}
+		if strings.EqualFold(c.GoogleRedirectURI, c.GoogleLinkRedirectURI) {
+			return fmt.Errorf("GOOGLE_REDIRECT_URI and GOOGLE_LINK_REDIRECT_URI must differ; register both in Google Cloud Console")
 		}
 		normalised := make([]string, 0, len(c.GoogleAllowedHostedDomains))
 		for _, d := range c.GoogleAllowedHostedDomains {
@@ -237,13 +267,13 @@ func (c *Config) validate() error {
 			}
 		}
 		c.GoogleAllowedHostedDomains = normalised
-	}
 
-	if c.OAuthFlowTTLSeconds < 60 || c.OAuthFlowTTLSeconds > 1800 {
-		return fmt.Errorf("OAUTH_FLOW_TTL_SECONDS must be 60..1800, got %d", c.OAuthFlowTTLSeconds)
-	}
-	if c.OAuthHTTPTimeoutSeconds < 1 || c.OAuthHTTPTimeoutSeconds > 30 {
-		return fmt.Errorf("OAUTH_HTTP_TIMEOUT_SECONDS must be 1..30, got %d", c.OAuthHTTPTimeoutSeconds)
+		if c.OAuthFlowTTLSeconds < 60 || c.OAuthFlowTTLSeconds > 1800 {
+			return fmt.Errorf("OAUTH_FLOW_TTL_SECONDS must be 60..1800, got %d", c.OAuthFlowTTLSeconds)
+		}
+		if c.OAuthHTTPTimeoutSeconds < 1 || c.OAuthHTTPTimeoutSeconds > 30 {
+			return fmt.Errorf("OAUTH_HTTP_TIMEOUT_SECONDS must be 1..30, got %d", c.OAuthHTTPTimeoutSeconds)
+		}
 	}
 
 	return nil

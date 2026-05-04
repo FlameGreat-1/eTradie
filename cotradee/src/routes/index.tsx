@@ -8,6 +8,7 @@ import AuthLayout from '@/components/layout/AuthLayout';
 const LoginPage    = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
+const OAuthLinkCallbackPage = lazy(() => import('./pages/OAuthLinkCallbackPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const AnalysisPage  = lazy(() => import('./pages/AnalysisPage'));
 const TradesPage    = lazy(() => import('./pages/TradesPage'));
@@ -89,6 +90,18 @@ export default function AppRoutes() {
                     <Route path="analysis"  element={<AnalysisPage />} />
                     <Route path="trades"    element={<TradesPage />} />
                     <Route path="journal"   element={<JournalPage />} />
+                    {/*
+                      Authenticated Google-link callback. Must live
+                      inside ProtectedRoute so the bearer token is
+                      attached when the gateway resolves which user
+                      the verified Google identity should bind to.
+                      Declared before the catch-all settings/* route
+                      so it wins the match.
+                    */}
+                    <Route
+                      path="settings/oauth/callback/google"
+                      element={<OAuthLinkCallbackPage />}
+                    />
                     <Route path="settings/*" element={<SettingsPage />} />
                     <Route path="support"    element={<SupportPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />

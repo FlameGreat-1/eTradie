@@ -60,10 +60,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRegister))
 	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRefresh))
 
-	// OAuth 2.0 endpoints. Mounted unconditionally; when OAuth is not
-	// configured the handlers return 404 and the routes are effectively
-	// no-ops. This keeps the route table identical across environments
-	// for ops simplicity.
+	// OAuth 2.0 sign-in endpoints (public, rate-limited). Mounted
+	// unconditionally; when OAuth is not configured the handlers
+	// return 404 and the routes are effectively no-ops. This keeps
+	// the route table identical across environments for ops
+	// simplicity.
 	mux.HandleFunc("/auth/oauth/google/start", oauthStartLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleStart))
 	mux.HandleFunc("/auth/oauth/google/callback", oauthCallbackLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleCallback))
 
@@ -72,6 +73,15 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	mux.Handle("/auth/logout-all", RequireAuthFunc(ts, h.handleLogoutAll))
 	mux.Handle("/auth/me", RequireAuthFunc(ts, h.handleMe))
 	mux.Handle("/auth/me/password", RequireAuthFunc(ts, h.handleChangePassword))
+
+	// OAuth 2.0 account-link endpoints (authenticated). The auth
+	// middleware itself is the gate, so no per-IP rate-limiter is
+	// added here; an attacker who already holds a valid bearer token
+	// is not in the threat model these limiters protect against, and
+	// the upstream gateway already throttles per-token traffic.
+	mux.Handle("/auth/oauth/google/link/start", RequireAuthFunc(ts, h.handleOAuthGoogleLinkStart))
+	mux.Handle("/auth/oauth/google/link/callback", RequireAuthFunc(ts, h.handleOAuthGoogleLinkCallback))
+	mux.Handle("/auth/oauth/google/link", RequireAuthFunc(ts, h.handleOAuthGoogleUnlink))
 
 	// Admin endpoints.
 	mux.Handle("/auth/admin/users", RequireAdminFunc(ts, h.handleAdminUsers))
@@ -247,12 +257,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	_ = h.sessions.CreateSession(r.Context(), sess)
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":       user.ID,
-			"username": user.Username,
-			"email":    user.Email,
-			"role":     string(user.Role),
-		},
+		"user":   userPublicView(user),
 		"tokens": pair,
 	})
 }
