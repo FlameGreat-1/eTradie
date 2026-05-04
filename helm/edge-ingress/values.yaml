@@ -1,9 +1,27 @@
-# helm/edge-ingress - default values (production posture).
+# helm/edge-ingress - default values.
 #
 # Local dev does not use this chart (kustomize-only).
-# values-staging.yaml overrides what genuinely differs in staging.
+# values-staging.yaml and values-production.yaml override what
+# genuinely differs per environment.
+#
+# Baseline sizing rationale:
+#   - replicaCount/minReplicas: 3 satisfies single-node loss
+#     resilience (>=2 healthy after one drains) AND single-AZ loss
+#     resilience (chart spreads across >=2 zones via
+#     topologySpreadConstraints + pod anti-affinity).
+#   - Required hostname-level pod anti-affinity stays in place
+#     (affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+#     below) so the cluster needs at least replicaCount distinct
+#     nodes in the edge pool. With replicaCount=3 that is the same
+#     order as gateway/engine baseline elsewhere in this repo.
+#   - HPA bursts up to maxReplicas=50 at 60% CPU in under 30s, so
+#     baseline = sustainable + emergency-resilience floor, not
+#     peak-traffic floor.
+#   - PDB.minAvailable: 2 keeps service available during voluntary
+#     evictions (one node drain) while leaving room for a pod to
+#     restart.
 
-replicaCount: 10
+replicaCount: 3
 revisionHistoryLimit: 10
 
 image:
@@ -88,7 +106,7 @@ resources:
 
 autoscaling:
   enabled: true
-  minReplicas: 10
+  minReplicas: 3
   maxReplicas: 50
   targetCPUUtilizationPercentage: 60
   targetMemoryUtilizationPercentage: 70
@@ -130,7 +148,7 @@ autoscaling:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 5
+  minAvailable: 2
   unhealthyPodEvictionPolicy: AlwaysAllow
 
 resourceQuota:
