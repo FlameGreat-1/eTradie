@@ -554,31 +554,40 @@ vault kv put secret/etradie/services/engine/production \
   processor_gemini_api_key='REPLACE_WITH_REAL_KEY' \
   mt5_metaapi_token='REPLACE_WITH_REAL_KEY_OR_LEAVE_IF_NOT_USING_METAAPI'
 
-# (Old engine block is replaced by the lines above; the obsolete
-# placeholder lines that followed are removed.)
-_OLD_REMOVED_engine: \
-  anthropic_api_key='sk-ant-...' \
-  openai_api_key='sk-...' \
-  twelvedata_api_key='...' \
-  fred_api_key='...' \
-  database_url="postgres://etradie:${GATEWAY_DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable" \
-  redis_url='redis://redis.etradie-system.svc.cluster.local:6379/0'
-
-# Execution + Management: same DB + Redis
+# ---------------------------------------------------------------
+# 6. Execution + Management: shared DB; separate Redis DB index 1.
+# ---------------------------------------------------------------
 vault kv put secret/etradie/services/execution/production \
-  execution_database_url="postgres://etradie:${GATEWAY_DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable" \
-  execution_redis_url='redis://redis.etradie-system.svc.cluster.local:6379/1'
+  execution_database_url="${DB_URL_GO}" \
+  execution_redis_url="${REDIS_URL_DB1}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}"
 
 vault kv put secret/etradie/services/management/production \
-  management_database_url="postgres://etradie:${GATEWAY_DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable" \
-  management_redis_url='redis://redis.etradie-system.svc.cluster.local:6379/1'
+  management_database_url="${DB_URL_GO}" \
+  management_redis_url="${REDIS_URL_DB1}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}"
 
-# Save GATEWAY_DB_PASS / JWT_SECRET / ADMIN_PASS securely — you may need
-# them for direct DB access or first admin login.
-echo "Gateway DB password: $GATEWAY_DB_PASS" >> ~/etradie-prod-creds.txt
-echo "JWT secret:          $JWT_SECRET"      >> ~/etradie-prod-creds.txt
-echo "Admin password:      $ADMIN_PASS"      >> ~/etradie-prod-creds.txt
-chmod 600 ~/etradie-prod-creds.txt
+# ---------------------------------------------------------------
+# 7. Save the generated secrets securely (umask 077 = file mode 0600).
+#    These are the values you may need later for direct DB access,
+#    first admin login, or rotation. DO NOT commit this file.
+# ---------------------------------------------------------------
+umask 077
+cat > ~/etradie-prod-creds.txt <<EOF
+# eTradie production secrets (generated $(date -u +%FT%TZ))
+# Treat as Vault-equivalent. Encrypted at rest, never copied.
+DB password (postgres / engine / gateway / execution / management): ${DB_PASS}
+Redis password:                                                     ${REDIS_PASS}
+ChromaDB auth token:                                                ${CHROMA_TOKEN}
+JWT signing secret:                                                 ${JWT_SECRET}
+Admin password (first login as admin@etradie.local):                ${ADMIN_PASS}
+Broker encryption key:                                              ${BROKER_KEY}
+LLM encryption key:                                                 ${LLM_KEY}
+EOF
 ```
 
 ---
