@@ -13,12 +13,40 @@ const (
 	OAuthProviderGoogle = "google"
 )
 
+// OAuthFlowKind discriminates the two flows the gateway supports:
+//
+//   - OAuthFlowKindSignIn : unauthenticated; gateway returns a TokenPair.
+//   - OAuthFlowKindLink   : authenticated; gateway binds a verified
+//                           Google identity to the originating user
+//                           and returns the updated profile.
+//
+// The two flows hit different gateway endpoints, use different
+// redirect URIs, and have different success contracts. The kind is
+// persisted on the auth_oauth_flows row so the callback handler can
+// refuse to complete a sign-in flow at the link callback (and
+// vice versa) even if the state value were ever to leak between them.
+const (
+	OAuthFlowKindSignIn = "signin"
+	OAuthFlowKindLink   = "link"
+)
+
 // OAuthFlow is the server-side record created at the authorize step
 // and consumed at the callback step. It binds the browser's redirect
 // to the gateway-issued state, PKCE verifier, and OIDC nonce.
+//
+// FlowKind defaults to 'signin' for any caller that leaves it empty,
+// which preserves the historical sign-in path's behaviour byte for
+// byte.
+//
+// UserID is non-empty only for link flows. The link callback handler
+// enforces that the authenticated request belongs to UserID before
+// upserting the OAuth identity, which is the standard mitigation
+// against OAuth account-linking CSRF.
 type OAuthFlow struct {
 	FlowID       string
 	Provider     string
+	FlowKind     string
+	UserID       string
 	State        string
 	CodeVerifier string
 	Nonce        string
