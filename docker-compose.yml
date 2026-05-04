@@ -354,10 +354,15 @@ services:
 
   envoy:
     profiles: ["edge"]
-    build:
-      context: ./src/envoy
-      dockerfile: ../../deployments/envoy/docker/Dockerfile.envoy
-    image: etradie/envoy:local
+    # Use the same upstream image as the helm chart
+    # (helm/envoy/values.yaml `image.repository`). The WASM filter is
+    # mounted from the host build output, mirroring the cluster's
+    # ConfigMap-mounted contract. Developers must build the WASM
+    # before `make edge-up`:
+    #   cd src/envoy && bash scripts/build-wasm.sh
+    # CI does the same thing and injects bytes via
+    # `helm --set-file wasm.base64=...` at promotion time.
+    image: envoyproxy/envoy:v1.28.0
     container_name: etradie-envoy
     restart: unless-stopped
     environment:
@@ -365,6 +370,20 @@ services:
       - LOG_LEVEL=debug
     volumes:
       - ./src/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
+      # WASM filter built by src/envoy/scripts/build-wasm.sh.
+      # The path is required; ${VAR:?...} aborts compose-up with a
+      # clear message when the .wasm is missing rather than letting
+      # envoy boot into a missing-WASM crash loop.
+      - ${EDGE_ENVOY_WASM_PATH:?EDGE_ENVOY_WASM_PATH must point at the built integration-filter.wasm; run "cd src/envoy && bash scripts/build-wasm.sh" first}:/etc/envoy/wasm/integration-filter.wasm:ro
+    command:
+      - "-c"
+      - "/etc/envoy/envoy.yaml"
+      - "--service-cluster"
+      - "etradie-envoy"
+      - "--service-node"
+      - "etradie-envoy-local"
+      - "--log-level"
+      - "info"
     ports:
       - "18080:8080"  # HTTP listener (also receives from edge-ingress in-network)
       - "19901:9901"  # Admin / Prometheus
@@ -374,9 +393,9 @@ services:
     networks:
       - etradie-net
     healthcheck:
-      test: ["CMD-SHELL", "grep -q :26AD /proc/net/tcp || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9901/ready || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 3
       start_period: 15s
     security_opt:
