@@ -95,17 +95,24 @@ spec:
       groups:
         - etradie:engineering
 
-  # Production sync window. ArgoCD will refuse to auto-sync production
-  # outside this window; staging is unrestricted.
+  # Production sync window. Automated sync for `*-production`
+  # Applications can only fire during this window; outside the window,
+  # automated sync is paused. Manual sync by a maintainer is allowed
+  # at any time INSIDE the window (manualSync: true).
+  #
+  # An additional `deny` window is intentionally NOT used here: an
+  # `* * * * *` deny would override the allow window 24/7
+  # (ArgoCD evaluates deny with higher precedence than allow), which
+  # would brick production. Production is gated instead by:
+  #   - `syncPolicy.automated.{prune: false, selfHeal: false}` on every
+  #     `*-production` Application;
+  #   - this single allow window, which restricts AUTOMATED sync to
+  #     business hours and requires an explicit operator click for
+  #     manual sync inside the window.
   syncWindows:
     - kind: allow
       schedule: "0 13 * * 1-5"   # 13:00 UTC Mon-Fri (business hours)
       duration: 8h
-      applications:
-        - "*-production"
-      manualSync: true
-    - kind: deny
-      schedule: "* * * * *"
       applications:
         - "*-production"
       manualSync: true
