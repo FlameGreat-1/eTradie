@@ -1,7 +1,7 @@
 services:
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # INFRASTRUCTURE DATABASES
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: etradie-postgres
@@ -77,9 +77,9 @@ services:
       retries: 5
       start_period: 10s
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # MIGRATIONS
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   migrator:
     build:
       context: .
@@ -99,9 +99,9 @@ services:
     # Runs alembic upgrade, then shuts itself down automatically
     command: ["alembic", "upgrade", "head"]
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # PYTHON INTELLIGENCE ENGINE
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   engine:
     build:
       context: .
@@ -150,9 +150,9 @@ services:
       retries: 10
       start_period: 60s
     
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # GO GATEWAY API
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   gateway:
     build:
       context: .
@@ -183,9 +183,9 @@ services:
         limits:
           memory: 256M
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # GO STATELESS EXECUTION ENGINE
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   execution:
     build:
       context: .
@@ -218,9 +218,9 @@ services:
         limits:
           memory: 256M
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # GO TRADE MANAGEMENT ENGINE (MODULE C)
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   management:
     build:
       context: .
@@ -252,9 +252,9 @@ services:
         limits:
           memory: 256M
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # OBSERVABILITY
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: etradie-prometheus
@@ -308,14 +308,50 @@ services:
         limits:
           memory: 256M
 
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
   # EDGE PROFILE (opt-in)
   # Activate with: docker compose --profile edge up
   # Adds envoy + edge-ingress in front of gateway so the full
   # Cloudflare → edge-ingress → envoy → gateway chain can be exercised
   # locally. Without --profile edge these services stay off and the
   # gateway is reachable directly on :8080 as before.
-  # ─────────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────────
+
+  # ──────────────────────────────────────────────────────────────────
+  # GEOIP INIT (edge profile only, run-once)
+  # Populates the geoip-data named volume with GeoLite2-City.mmdb so
+  # the read-only edge-ingress container can mmap it at the path the
+  # Rust binary requires (/data/geoip/GeoLite2-City.mmdb).
+  #
+  # Mirrors the helm/edge-ingress init-container contract
+  # (helm/edge-ingress/templates/configmap-geoip-init.yaml +
+  # deployment.yaml initContainers[geoip-downloader]) so the local
+  # stack reproduces the same wiring as staging / production.
+  #
+  # Runs once per `up` and exits 0; subsequent refreshes are handled
+  # by the helm init-container in cluster, not by this local-only
+  # service. GEOIPUPDATE_FREQUENCY=0 disables daemon mode.
+  # ──────────────────────────────────────────────────────────────────
+  edge-geoip-init:
+    profiles: ["edge"]
+    image: maxmindinc/geoipupdate:v6.0
+    container_name: etradie-edge-geoip-init
+    environment:
+      - GEOIPUPDATE_ACCOUNT_ID=${MAXMIND_ACCOUNT_ID:?MAXMIND_ACCOUNT_ID must be set in .env to run the edge profile}
+      - GEOIPUPDATE_LICENSE_KEY=${MAXMIND_LICENSE_KEY:?MAXMIND_LICENSE_KEY must be set in .env to run the edge profile}
+      - GEOIPUPDATE_EDITION_IDS=GeoLite2-City
+      - GEOIPUPDATE_FREQUENCY=0
+    volumes:
+      - geoip-data:/usr/share/GeoIP
+    networks:
+      - etradie-net
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
   envoy:
     profiles: ["edge"]
     build:
@@ -419,6 +455,10 @@ volumes:
   chromadb_data:
     driver: local
   grafana_data:
+    driver: local
+  # GeoLite2-City.mmdb populated by edge-geoip-init (edge profile).
+  # Mounted read-only into edge-ingress at /data/geoip.
+  geoip-data:
     driver: local
 
 networks:
