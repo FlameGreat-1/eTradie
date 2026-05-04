@@ -113,7 +113,13 @@ autoscaling:
           value: 5
           periodSeconds: 15
       selectPolicy: Max
-  customMetrics:
+  # Custom metrics require an external adapter (prometheus-adapter or
+  # KEDA) installed in the cluster. Default-OFF so the chart works on
+  # any cluster; the operator flips this to true in
+  # values-production.yaml once the adapter is installed and
+  # configured to serve `edge_ingress_active_connections`.
+  customMetricsEnabled: false
+  customMetricsList:
     - type: Pods
       pods:
         metric:

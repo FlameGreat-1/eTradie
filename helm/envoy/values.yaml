@@ -91,7 +91,12 @@ autoscaling:
           value: 2
           periodSeconds: 30
       selectPolicy: Max
-  customMetrics:
+  # Custom metrics require an external adapter (prometheus-adapter or
+  # KEDA) configured to serve `envoy_http_downstream_rq_active`.
+  # Default-OFF; flip to true in values-production.yaml once the
+  # adapter is installed.
+  customMetricsEnabled: false
+  customMetricsList:
     - type: Pods
       pods:
         metric:
