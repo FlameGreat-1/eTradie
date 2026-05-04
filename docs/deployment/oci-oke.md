@@ -381,9 +381,58 @@ Vault, then `vault kv put` every secret from the same command list.
 
 ---
 
+## 7.5 Verify container images, build envoy WASM
+
+*Identical to Contabo guide sections 6.5 and 6.6.* The image tags
+and WASM build steps are cluster-agnostic.
+
+Run:
+
+```bash
+# 6.5 Verify ghcr.io/flamegreat-1/etradie/{engine,gateway,execution,management}:0.2.0 exist
+for svc in engine gateway execution management; do
+  curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.2.0" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+    -H "Authorization: Bearer $(echo -n null | base64)" \
+    -o /dev/null -w "$svc: HTTP %{http_code}\n"
+done
+
+# 6.6 Build envoy WASM and prepare values overlay
+cd ~/eTradie/src/envoy
+rustup target add wasm32-wasi
+cargo build --release --target wasm32-wasi
+WASM=target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+cat > /tmp/values-production-wasm.yaml <<EOF
+wasm:
+  base64: "$(base64 -w0 "$WASM")"
+  sha256: "$(sha256sum "$WASM" | awk '{print $1}')"
+  builtAt: "$(date -u +%FT%TZ)"
+EOF
+```
+
+Reference the WASM overlay from
+`deployments/argocd/children/envoy-production.yaml` (add to
+`spec.source.helm.valueFiles`).
+
 ## 8. ArgoCD
 
 *Identical to Contabo guide section 7.* Sync waves apply unchanged.
+
+### 8.5 Run database migrations
+
+*Identical to Contabo guide section 7.5.* Run once after the
+data-layer + engine Applications reach Healthy:
+
+```bash
+DB_PASS=$(vault kv get -field=postgres_password \
+  secret/etradie/services/gateway/production)
+DB_URL="postgresql+asyncpg://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie"
+kubectl -n etradie-system run alembic-upgrade \
+  --image=ghcr.io/flamegreat-1/etradie/engine:0.2.0 \
+  --rm -ti --restart=Never \
+  --env="DATABASE_URL=${DB_URL}" \
+  -- bash -lc 'cd /app && alembic upgrade head'
+```
 
 ---
 

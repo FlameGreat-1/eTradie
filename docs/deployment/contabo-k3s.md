@@ -517,6 +517,95 @@ chmod 600 ~/etradie-prod-creds.txt
 
 ---
 
+## 6.5 Verify container images exist in GHCR
+
+The charts pin the production image tag to **`0.2.0`** (set in
+`.github/workflows/ci.yml::env.RELEASE_TAG`):
+
+* `ghcr.io/flamegreat-1/etradie/engine:0.2.0`
+* `ghcr.io/flamegreat-1/etradie/gateway:0.2.0`
+* `ghcr.io/flamegreat-1/etradie/execution:0.2.0`
+* `ghcr.io/flamegreat-1/etradie/management:0.2.0`
+
+These are pushed by the GitHub Actions `build` job on every push to
+`main`. Verify they exist before syncing ArgoCD or pods will
+`ImagePullBackOff`:
+
+```bash
+for svc in engine gateway execution management; do
+  curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.2.0" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+    -H "Authorization: Bearer $(echo -n null | base64)" \
+    -o /dev/null -w "$svc: HTTP %{http_code}\n"
+done
+# Expected: HTTP 200 for each (or HTTP 401 if your token isn't anonymous-readable;
+# in that case check the GitHub Packages UI directly).
+```
+
+If any tag is missing, push a commit to `main` to trigger CI, or
+build + push manually:
+
+```bash
+git clone https://github.com/FlameGreat-1/eTradie.git && cd eTradie
+echo "$GHCR_PAT" | docker login ghcr.io -u flamegreat-1 --password-stdin
+docker build -t ghcr.io/flamegreat-1/etradie/engine:0.2.0 -f Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/gateway:0.2.0 -f src/gateway/Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/execution:0.2.0 -f src/execution/Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/management:0.2.0 -f src/management/Dockerfile .
+for svc in engine gateway execution management; do
+  docker push ghcr.io/flamegreat-1/etradie/$svc:0.2.0
+done
+```
+
+## 6.6 Build and inject the envoy WASM filter
+
+`helm/envoy/values.yaml` has `wasm.base64: ""` by default; the chart
+fails render until the WASM binary's base64-encoded bytes are
+supplied. ArgoCD cannot run `--set-file` at sync time, so the bytes
+must live in a values file ArgoCD reads.
+
+Build the WASM (one time per release):
+
+```bash
+cd ~/eTradie/src/envoy
+rustup target add wasm32-wasi
+cargo build --release --target wasm32-wasi
+
+WASM=target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+WASM_B64=$(base64 -w0 "$WASM")
+WASM_SHA=$(sha256sum "$WASM" | awk '{print $1}')
+WASM_TS=$(date -u +%FT%TZ)
+```
+
+Write a Helm values overlay that ArgoCD will read:
+
+```bash
+cat > /tmp/values-production-wasm.yaml <<EOF
+wasm:
+  base64: "${WASM_B64}"
+  sha256: "${WASM_SHA}"
+  builtAt: "${WASM_TS}"
+EOF
+```
+
+Production-grade pattern: commit this overlay to a private branch
+(or a separate "release artifacts" repo), then reference it from
+`deployments/argocd/children/envoy-production.yaml`:
+
+```yaml
+spec:
+  source:
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+        - values-production-wasm.yaml   # new
+```
+
+For the first deploy, you can also create the values overlay as a
+ConfigMap and use ArgoCD's `valuesFromConfigMap` (less common; commit
+is simpler).
+
 ## 7. Install ArgoCD and bootstrap the platform
 
 ### 7.1 Install ArgoCD
@@ -576,6 +665,50 @@ annotations on the children):
 Watch each application reach `Synced + Healthy` before moving on.
 
 ---
+
+## 7.5 Run database migrations
+
+The engine ships Alembic migrations at
+`src/engine/shared/db/migrations/`. Gateway, execution, and
+management all read tables created by these migrations. The
+data-layer chart creates the empty database; nothing else runs
+migrations automatically.
+
+Run once, against the freshly-synced Postgres pod, using the same
+engine image ArgoCD just deployed:
+
+```bash
+# Pull the gateway DB password from Vault (set in section 6.2)
+DB_PASS=$(vault kv get -field=postgres_password \
+  secret/etradie/services/gateway/production)
+DB_URL="postgresql+asyncpg://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie"
+
+kubectl -n etradie-system run alembic-upgrade \
+  --image=ghcr.io/flamegreat-1/etradie/engine:0.2.0 \
+  --rm -ti --restart=Never \
+  --env="DATABASE_URL=${DB_URL}" \
+  -- bash -lc 'cd /app && alembic upgrade head'
+```
+
+Expected output (last few lines):
+
+```text
+INFO  [alembic.runtime.migration] Running upgrade ... -> <head-revision>
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgreSQLImpl.
+```
+
+Verify the schema:
+
+```bash
+kubectl -n etradie-system exec -ti postgres-0 -- \
+  psql -U etradie -d etradie -c '\dt'
+# Expected: dozens of tables (users, sessions, trades, signals, ...)
+```
+
+Re-run after every release that ships a new migration. The command
+is idempotent; on a clean DB it applies all migrations, on an
+up-to-date DB it is a no-op.
 
 ## 8. End-to-end verification
 
