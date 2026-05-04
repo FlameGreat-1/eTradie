@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -34,7 +37,7 @@ const (
 
 // ClientIPResolver resolves the real client IP for an http.Request.
 //
-// Concurrent use is safe: trustedNets is immutable after New().
+// Concurrent use is safe: trustedNets is immutable after construction.
 type ClientIPResolver struct {
 	trustedNets []*net.IPNet
 }
@@ -46,12 +49,130 @@ type ClientIPResolver struct {
 // uses for validation). When trustWellKnownCloudflare is true, the
 // resolver additionally trusts the published Cloudflare IPv4 and
 // IPv6 ranges as if they had been listed explicitly.
+//
+// This constructor uses ONLY the in-binary embedded Cloudflare list.
+// To pick up live-refreshed Cloudflare ranges from a mounted ConfigMap,
+// use NewClientIPResolverWithRangesDir. The two-argument form is kept
+// for backward compatibility with existing call sites and tests.
 func NewClientIPResolver(cidrs []string, trustWellKnownCloudflare bool) *ClientIPResolver {
+	return NewClientIPResolverWithRangesDir(cidrs, trustWellKnownCloudflare, "")
+}
+
+// NewClientIPResolverWithRangesDir builds a resolver and, when both
+// trustWellKnownCloudflare is true AND cloudflareRangesDir is non-empty,
+// reads the live-refreshable Cloudflare IPv4 / IPv6 published ranges
+// from <cloudflareRangesDir>/ipv4.txt and <cloudflareRangesDir>/ipv6.txt.
+//
+// Behaviour matrix:
+//
+//	trustCF=false:                            embedded list ignored, dir ignored.
+//	trustCF=true,  dir="":                    embedded list used.
+//	trustCF=true,  dir="/etc/.../cloudflare": file ranges used; on read error,
+//	                                          falls back to embedded list.
+//
+// File ranges REPLACE the embedded list when both could apply, so a
+// freshly-published Cloudflare range that is only in the file is
+// honoured immediately and a stale entry only in the embedded list
+// does not silently leak through. This matches the chart's documented
+// contract that the mounted ConfigMap is the source of truth at runtime.
+func NewClientIPResolverWithRangesDir(cidrs []string, trustWellKnownCloudflare bool, cloudflareRangesDir string) *ClientIPResolver {
 	nets := parseCIDRs(cidrs)
 	if trustWellKnownCloudflare {
-		nets = append(nets, cloudflareNetworks()...)
+		cfNets := loadCloudflareNetsForResolver(cloudflareRangesDir)
+		nets = append(nets, cfNets...)
 	}
 	return &ClientIPResolver{trustedNets: nets}
+}
+
+// loadCloudflareNetsForResolver returns the *net.IPNet list to trust
+// for Cloudflare. When dir is set and readable, file contents are used.
+// On any error (missing dir, unreadable, all entries malformed) it
+// falls back to the in-binary embedded list. The fallback is what makes
+// this change safe to roll out before every cluster has the ConfigMap
+// mounted: existing deployments keep working with the embedded list.
+func loadCloudflareNetsForResolver(dir string) []*net.IPNet {
+	if dir == "" {
+		return cloudflareNetworks()
+	}
+	nets, bad, err := LoadCloudflareNetworksFromDir(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"auth/clientip: cloudflare ranges dir %q unreadable (%v); falling back to embedded list\n",
+			dir, err)
+		return cloudflareNetworks()
+	}
+	if len(nets) == 0 {
+		fmt.Fprintf(os.Stderr,
+			"auth/clientip: cloudflare ranges dir %q produced 0 valid networks (bad=%d); falling back to embedded list\n",
+			dir, len(bad))
+		return cloudflareNetworks()
+	}
+	if len(bad) > 0 {
+		fmt.Fprintf(os.Stderr,
+			"auth/clientip: cloudflare ranges dir %q had %d malformed entries (using %d valid)\n",
+			dir, len(bad), len(nets))
+	}
+	return nets
+}
+
+// LoadCloudflareNetworksFromDir reads ipv4.txt and ipv6.txt from dir
+// and returns parsed networks plus any malformed lines for surface-up
+// validation by callers (config validators, tests). Comment lines
+// starting with '#' and blank lines are skipped, matching the format
+// produced by deployments/cloudflare/scripts/refresh-cloudflare-ips.sh
+// and the chart at helm/gateway/files/cloudflare/.
+//
+// If neither file exists, returns (nil, nil, os.ErrNotExist) so the
+// caller can distinguish "deliberately not configured" from a real
+// I/O error.
+func LoadCloudflareNetworksFromDir(dir string) ([]*net.IPNet, []string, error) {
+	if dir == "" {
+		return nil, nil, fmt.Errorf("empty cloudflare ranges dir")
+	}
+	ipv4Path := filepath.Join(dir, "ipv4.txt")
+	ipv6Path := filepath.Join(dir, "ipv6.txt")
+
+	ipv4Lines, err4 := readCIDRFile(ipv4Path)
+	ipv6Lines, err6 := readCIDRFile(ipv6Path)
+
+	// If both files are missing, surface ErrNotExist so callers can
+	// fall back without treating it as a hard error.
+	if err4 != nil && os.IsNotExist(err4) && err6 != nil && os.IsNotExist(err6) {
+		return nil, nil, os.ErrNotExist
+	}
+	// Any other error on either file is propagated.
+	if err4 != nil && !os.IsNotExist(err4) {
+		return nil, nil, fmt.Errorf("read %s: %w", ipv4Path, err4)
+	}
+	if err6 != nil && !os.IsNotExist(err6) {
+		return nil, nil, fmt.Errorf("read %s: %w", ipv6Path, err6)
+	}
+
+	all := append([]string{}, ipv4Lines...)
+	all = append(all, ipv6Lines...)
+	nets, bad := ParseTrustedCIDRs(all)
+	return nets, bad, nil
+}
+
+// readCIDRFile reads a CIDR-per-line text file. Returns the non-empty,
+// non-comment lines verbatim (validation happens in the caller).
+func readCIDRFile(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out, nil
 }
 
 // Resolve returns the best-known client IP for r.
@@ -190,9 +311,9 @@ func parseCIDRs(cidrs []string) []*net.IPNet {
 }
 
 // ---------------------------------------------------------------------------
-// Cloudflare published IP ranges
+// Cloudflare published IP ranges (embedded fallback)
 //
-// Source of truth:
+// Source of truth at build time:
 //   IPv4: https://www.cloudflare.com/ips-v4
 //   IPv6: https://www.cloudflare.com/ips-v6
 //
@@ -202,9 +323,15 @@ func parseCIDRs(cidrs []string) []*net.IPNet {
 // match here is a strong signal that the immediate peer is a
 // Cloudflare edge node.
 //
-// Operators MUST refresh these lists periodically; Cloudflare
-// publishes changes on their status page. A future commit will add
-// a refresh script under deployments/cloudflare/.
+// At runtime, the file-loader path above (LoadCloudflareNetworksFromDir)
+// is preferred when AUTH_CLOUDFLARE_RANGES_DIR points at a directory
+// containing fresh ipv4.txt / ipv6.txt files. The embedded list is the
+// fallback for clusters that have not yet mounted the chart-published
+// ConfigMap.
+//
+// deployments/cloudflare/scripts/refresh-cloudflare-ips.sh updates the
+// chart-published files weekly via CI; this embedded list only needs
+// to be refreshed when the binary is rebuilt.
 // ---------------------------------------------------------------------------
 
 var cloudflareIPv4CIDRs = []string{
