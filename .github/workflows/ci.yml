@@ -323,7 +323,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+asyncpg[REDACTED]localhost:5432/etradie_test
+      # Connection string targets the in-job postgres service container
+      # (credentials: etradie_test / test_password / etradie_test).
+      DATABASE_URL: postgresql+asyncpg://etradie_test:test_password@localhost:5432/etradie_test
       REDIS_URL: redis://localhost:6379/0
       APP_ENV: testing
     steps:
@@ -371,9 +373,12 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
-      EXECUTION_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
-      MANAGEMENT_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      # Connection strings target the in-job postgres service container
+      # (credentials: etradie / etradie_dev / etradie). sslmode=disable
+      # is correct for the GitHub Actions service network.
+      DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      EXECUTION_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      MANAGEMENT_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
       POSTGRES_HOST: localhost
       POSTGRES_USER: etradie
       POSTGRES_PASSWORD: etradie_dev
@@ -427,6 +432,13 @@ jobs:
             context: .
           - service: management
             dockerfile: src/management/Dockerfile
+            context: .
+          # Rust edge-ingress binary. Dockerfile lives under
+          # deployments/edge-ingress/docker/ so the rendered Helm
+          # chart can pull a real image from GHCR (matches
+          # helm/edge-ingress/values.yaml::image.repository).
+          - service: edge-ingress
+            dockerfile: deployments/edge-ingress/docker/Dockerfile.edge-ingress
             context: .
     env:
       # Image registry path that helm/<service>/values.yaml encodes.

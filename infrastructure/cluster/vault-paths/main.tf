@@ -115,3 +115,45 @@ resource "vault_kv_secret_v2" "management" {
     ignore_changes = [data_json]
   }
 }
+
+# Data-layer paths. The data-layer chart's ExternalSecrets
+# (helm/data-layer/templates/{postgres,redis,chromadb}-externalsecret.yaml)
+# read from these paths. Without them, the StatefulSets are stuck in
+# Init: indefinitely waiting for ESO to materialise an empty Secret
+# whose Vault source does not exist.
+
+resource "vault_kv_secret_v2" "data_layer_postgres" {
+  mount               = var.vault_mount
+  name                = "etradie/data-layer/postgres/${var.environment}"
+  delete_all_versions = false
+  data_json = jsonencode({
+    bootstrap = "placeholder; populate with postgres_user, postgres_db, postgres_password BEFORE the data-layer chart is reconciled (postgres pod blocks otherwise)"
+  })
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}
+
+resource "vault_kv_secret_v2" "data_layer_redis" {
+  mount               = var.vault_mount
+  name                = "etradie/data-layer/redis/${var.environment}"
+  delete_all_versions = false
+  data_json = jsonencode({
+    bootstrap = "placeholder; populate with redis_password"
+  })
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}
+
+resource "vault_kv_secret_v2" "data_layer_chromadb" {
+  mount               = var.vault_mount
+  name                = "etradie/data-layer/chromadb/${var.environment}"
+  delete_all_versions = false
+  data_json = jsonencode({
+    bootstrap = "placeholder; populate with chroma_auth_token (must equal engine's RAG_CHROMA_AUTH_TOKEN value)"
+  })
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}

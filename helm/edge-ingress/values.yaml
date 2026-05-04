@@ -1,8 +1,9 @@
 # helm/edge-ingress - default values.
 #
-# Local dev does not use this chart (kustomize-only).
-# values-staging.yaml and values-production.yaml override what
-# genuinely differs per environment.
+# Local dev runs the docker-compose stack against
+# deployments/edge-ingress/docker/. This chart is for cluster
+# deployment only. values-staging.yaml and values-production.yaml
+# override what genuinely differs per environment.
 #
 # Baseline sizing rationale:
 #   - replicaCount/minReplicas: 3 satisfies single-node loss
@@ -25,9 +26,12 @@ replicaCount: 3
 revisionHistoryLimit: 10
 
 image:
-  repository: etradie/edge-ingress
+  # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  # Owner + repo lowercased per GHCR case-sensitivity. Matches the
+  # IMAGE_BASE in .github/workflows/ci.yml.
+  repository: ghcr.io/flamegreat-1/etradie/edge-ingress
   pullPolicy: IfNotPresent
-  tag: "v0.1.0"
+  tag: "0.2.0"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -262,10 +266,13 @@ affinity:
 
 topologySpreadConstraints: []
 
-# Scheduling constraints. Empty by default so the chart deploys on any
-# EKS cluster. Production layers values-production.yaml on top and pins
-# the instance type + adds the matching toleration for the dedicated
-# `edge` node taint applied by infrastructure/cluster/.
+# Scheduling constraints. Empty by default so the chart deploys on
+# any conformant Kubernetes cluster (Contabo K3s, OCI OKE, GKE, AKS,
+# kubeadm, kind). Production layers values-production.yaml on top
+# and adds a toleration for the dedicated `edge` node taint when
+# the cluster operator chooses to taint a node pool for edge
+# workloads. A toleration without a matching taint is a no-op so
+# the chart stays portable.
 nodeSelector: {}
 
 tolerations: []
@@ -331,6 +338,16 @@ externalSecrets:
     # which creates etradie/services/edge-ingress/${environment}/tls.
     # values-staging.yaml overrides this to the staging-segmented path.
     vaultPath: "etradie/services/edge-ingress/production/tls"
+    # Default: single-region (api + wildcard). The chart's
+    # config.tls.certificates list below references exactly these two
+    # cert pairs by default, so the ExternalSecret resolves cleanly
+    # on a single-region Vault.
+    #
+    # Multi-region operators add api-eu / api-ap entries here in
+    # values-production.yaml AND extend config.tls.certificates to
+    # match. Both lists must stay in lockstep, otherwise edge-ingress
+    # fails at startup (cert path referenced but file does not exist)
+    # OR ESO blocks indefinitely (Vault key referenced but absent).
     entries:
       - secretKey: "api.etradie.com.crt"
         property: "api_cert"
@@ -340,14 +357,18 @@ externalSecrets:
         property: "wildcard_cert"
       - secretKey: "wildcard.etradie.com.key"
         property: "wildcard_key"
-      - secretKey: "api-eu.etradie.com.crt"
-        property: "api_eu_cert"
-      - secretKey: "api-eu.etradie.com.key"
-        property: "api_eu_key"
-      - secretKey: "api-ap.etradie.com.crt"
-        property: "api_ap_cert"
-      - secretKey: "api-ap.etradie.com.key"
-        property: "api_ap_key"
+      # Multi-region. Uncomment and populate the corresponding Vault
+      # keys (api_eu_cert / api_eu_key / api_ap_cert / api_ap_key)
+      # before enabling. Adding a region also requires adding the
+      # hostname to config.tls.certificates below.
+      # - secretKey: "api-eu.etradie.com.crt"
+      #   property: "api_eu_cert"
+      # - secretKey: "api-eu.etradie.com.key"
+      #   property: "api_eu_key"
+      # - secretKey: "api-ap.etradie.com.crt"
+      #   property: "api_ap_cert"
+      # - secretKey: "api-ap.etradie.com.key"
+      #   property: "api_ap_key"
   maxmind:
     secretStoreName: "vault-backend"
     secretStoreKind: "ClusterSecretStore"
@@ -381,6 +402,9 @@ config:
     # rendering if empty.
     clientAuth:
       caPath: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+    # Default: single-region (api + wildcard). Add api-eu / api-ap
+    # entries below AND the matching ExternalSecret entries above
+    # when bringing additional regions online.
     certificates:
       - hostname: "api.etradie.com"
         certPath: "/etc/edge-ingress/certs/api.etradie.com.crt"
@@ -390,14 +414,16 @@ config:
         certPath: "/etc/edge-ingress/certs/wildcard.etradie.com.crt"
         keyPath: "/etc/edge-ingress/certs/wildcard.etradie.com.key"
         isDefault: false
-      - hostname: "api-eu.etradie.com"
-        certPath: "/etc/edge-ingress/certs/api-eu.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/api-eu.etradie.com.key"
-        isDefault: false
-      - hostname: "api-ap.etradie.com"
-        certPath: "/etc/edge-ingress/certs/api-ap.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/api-ap.etradie.com.key"
-        isDefault: false
+      # Multi-region. Uncomment when externalSecrets.tlsCerts.entries
+      # also contains api_eu / api_ap and Vault is populated.
+      # - hostname: "api-eu.etradie.com"
+      #   certPath: "/etc/edge-ingress/certs/api-eu.etradie.com.crt"
+      #   keyPath: "/etc/edge-ingress/certs/api-eu.etradie.com.key"
+      #   isDefault: false
+      # - hostname: "api-ap.etradie.com"
+      #   certPath: "/etc/edge-ingress/certs/api-ap.etradie.com.crt"
+      #   keyPath: "/etc/edge-ingress/certs/api-ap.etradie.com.key"
+      #   isDefault: false
   upstream:
     connectTimeoutSecs: 5
     requestTimeoutSecs: 60

@@ -442,15 +442,58 @@ terraform apply \
   -var vault_address=http://127.0.0.1:8200
 ```
 
-Expected output: 8 `vault_kv_secret_v2` paths created. Each path is
-seeded with `bootstrap=placeholder`; you overwrite them next.
+Expected output: 11 `vault_kv_secret_v2` paths created
+(edge-ingress: tls + cloudflare/aop_ca + cloudflare/tunnel + maxmind;
+services: gateway + engine + execution + management;
+data-layer: postgres + redis + chromadb). Each path is seeded with
+`bootstrap=placeholder`; you overwrite them next.
 
 ### 6.2 Populate the secrets
 
+Generate strong random values once at the top of the block; every
+`vault kv put` below references the same variables so connection
+strings are consistent across the call chain (gateway, engine,
+execution, management all dial the same Postgres / Redis with
+identical credentials).
+
 ```bash
-# Cloudflare Tunnel token from step 5.2
+# ---------------------------------------------------------------
+# 1. Generate strong random secrets (use ONCE; reuse below).
+# ---------------------------------------------------------------
+DB_PASS=$(openssl rand -base64 32      | tr -d '/+=' | head -c 32)
+REDIS_PASS=$(openssl rand -base64 32   | tr -d '/+=' | head -c 32)
+JWT_SECRET=$(openssl rand -base64 64   | tr -d '/+=' | head -c 64)
+BROKER_KEY=$(openssl rand -base64 32   | tr -d '/+=' | head -c 32)
+LLM_KEY=$(openssl rand -base64 32      | tr -d '/+=' | head -c 32)
+ADMIN_PASS=$(openssl rand -base64 24   | tr -d '/+=' | head -c 24)
+CHROMA_TOKEN=$(openssl rand -base64 48 | tr -d '/+=' | head -c 48)
+
+DB_URL_GO="postgres://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable"
+DB_URL_PY="postgresql+asyncpg://etradie:${DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie"
+REDIS_URL_DB0="redis://:${REDIS_PASS}@redis.etradie-system.svc.cluster.local:6379/0"
+REDIS_URL_DB1="redis://:${REDIS_PASS}@redis.etradie-system.svc.cluster.local:6379/1"
+
+# ---------------------------------------------------------------
+# 2. Data-layer secrets (write FIRST: postgres / redis / chromadb
+#    StatefulSets cannot start without these).
+# ---------------------------------------------------------------
+vault kv put secret/etradie/data-layer/postgres/production \
+  postgres_user='etradie' \
+  postgres_db='etradie' \
+  postgres_password="${DB_PASS}"
+
+vault kv put secret/etradie/data-layer/redis/production \
+  redis_password="${REDIS_PASS}"
+
+vault kv put secret/etradie/data-layer/chromadb/production \
+  chroma_auth_token="${CHROMA_TOKEN}"
+
+# ---------------------------------------------------------------
+# 3. Edge-ingress secrets.
+# ---------------------------------------------------------------
+# Cloudflare Tunnel token from step 5.2.
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/tunnel \
-  tunnel_token='eyJhIjoi...your-token...'
+  tunnel_token='eyJhIjoi...PASTE_YOUR_TOKEN_HERE...'
 
 # Cloudflare Authenticated Origin Pulls CA. Public, fixed bytes.
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/aop_ca \
@@ -461,36 +504,59 @@ vault kv put secret/etradie/services/edge-ingress/production/maxmind \
   account-id='1234567' \
   license-key='your-maxmind-license-key'
 
-# Per-host TLS certs are NOT NEEDED in Cloudflare Tunnel mode
-# (Cloudflare terminates public TLS; edge-ingress only needs the AOP CA).
-# Seed the path with empty values so ESO does not error:
+# Per-host TLS certs are NOT used in Cloudflare Tunnel mode
+# (Cloudflare terminates public TLS at the edge; edge-ingress only
+# needs the AOP CA). Seed with empty values so ESO does not error.
+# Add real cert bytes only if you switch to cloudProvider=generic
+# AND set up cert-manager.
 vault kv put secret/etradie/services/edge-ingress/production/tls \
   api_cert='' api_key='' \
   wildcard_cert='' wildcard_key=''
 
-# Gateway: DB, JWT, encryption keys.
-# Generate strong random values; do NOT reuse from anywhere else.
-GATEWAY_DB_PASS=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-JWT_SECRET=$(openssl rand -base64 64 | tr -d '/+=' | head -c 64)
-BROKER_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-LLM_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-
+# ---------------------------------------------------------------
+# 4. Gateway: shared DB + Redis with engine; owns JWT + admin pwd.
+# ---------------------------------------------------------------
 vault kv put secret/etradie/services/gateway/production \
   postgres_user='etradie' \
-  postgres_password="$GATEWAY_DB_PASS" \
+  postgres_password="${DB_PASS}" \
   postgres_host='postgres.etradie-system.svc.cluster.local' \
   postgres_port='5432' \
   postgres_db='etradie' \
-  auth_database_url="postgres://etradie:${GATEWAY_DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable" \
-  gateway_redis_url='redis://redis.etradie-system.svc.cluster.local:6379/0' \
-  auth_jwt_secret="$JWT_SECRET" \
-  auth_admin_password="$ADMIN_PASS" \
-  broker_encryption_key="$BROKER_KEY" \
-  llm_encryption_key="$LLM_KEY"
+  auth_database_url="${DB_URL_GO}" \
+  gateway_redis_url="${REDIS_URL_DB0}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  auth_admin_password="${ADMIN_PASS}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}"
 
-# Engine: LLM + data-provider keys (replace with real values)
+# ---------------------------------------------------------------
+# 5. Engine: full LLM + data-provider keys + same DB/Redis/JWT.
+#    REPLACE the LLM and data-provider placeholders with real keys
+#    from your Anthropic / OpenAI / Gemini / TwelveData / FRED /
+#    CFTC accounts before running this. Engine fails fast on the
+#    LLM provider currently selected by PROCESSOR_LLM_PROVIDER.
+# ---------------------------------------------------------------
 vault kv put secret/etradie/services/engine/production \
+  database_url="${DB_URL_PY}" \
+  postgres_user='etradie' \
+  postgres_password="${DB_PASS}" \
+  redis_url="${REDIS_URL_DB0}" \
+  redis_password="${REDIS_PASS}" \
+  rag_chroma_auth_token="${CHROMA_TOKEN}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  cftc_app_token='REPLACE_WITH_REAL_KEY' \
+  fred_api_key='REPLACE_WITH_REAL_KEY' \
+  twelvedata_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_anthropic_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_openai_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_gemini_api_key='REPLACE_WITH_REAL_KEY' \
+  mt5_metaapi_token='REPLACE_WITH_REAL_KEY_OR_LEAVE_IF_NOT_USING_METAAPI'
+
+# (Old engine block is replaced by the lines above; the obsolete
+# placeholder lines that followed are removed.)
+_OLD_REMOVED_engine: \
   anthropic_api_key='sk-ant-...' \
   openai_api_key='sk-...' \
   twelvedata_api_key='...' \

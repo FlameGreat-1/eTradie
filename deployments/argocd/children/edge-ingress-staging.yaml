@@ -23,10 +23,11 @@ spec:
       valueFiles:
         - values.yaml
         - values-staging.yaml
-      # CI overrides the image tag and ACM ARN at promotion time:
-      #   argocd app set edge-ingress-staging \
-      #     --helm-set image.tag=$CI_COMMIT_SHORT_SHA \
-      #     --helm-set service.tlsCertificateArn=$STAGING_ACM_ARN
+      # Image tag is pinned in values-staging.yaml. Cloud-LB strategy
+      # is `cloudflare-tunnel` (default) so no per-promotion ARN or
+      # cloud-specific override is needed. CI rewrites this file's
+      # targetRevision to the new SHA on each merge to main; ArgoCD
+      # reconciles from there.
       parameters: []
 
   destination:

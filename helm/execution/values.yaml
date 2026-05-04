@@ -124,7 +124,10 @@ externalSecrets:
     secretStoreName: vault-backend
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
-    vaultPath: etradie/services/execution
+    # Production Vault path. Aligns with
+    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.execution
+    # (etradie/services/execution/${environment}).
+    vaultPath: etradie/services/execution/production
     creationPolicy: Owner
 
 resources:
