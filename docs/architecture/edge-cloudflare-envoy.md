@@ -1,11 +1,19 @@
 # eTradie Edge Defence Chain - Cloudflare → edge-ingress → envoy → gateway
 
-This document is the canonical operator runbook for the four-layer defence
+> **Note on apply commands below:** the kustomize `kubectl apply`
+> snippets in the "Deployment order" section are historical (from
+> when the repo shipped both kustomize overlays and Helm charts).
+> The current deployment path uses Helm + ArgoCD exclusively; see
+> [`../deployment/README.md`](../deployment/README.md) for the
+> authoritative end-to-end runbooks. The defence-chain rationale
+> and the per-layer protection table below remain accurate.
+
+This document is the canonical reference for the four-layer defence
 chain that fronts the eTradie gateway in staging and production.
 
 It assumes you have already deployed the eTradie data-plane services (gateway,
-engine, execution, management) per `deployments/gateway/`, `helm/gateway/`,
-etc. The chain described here puts a hardened public edge in front of those
+engine, execution, management) per `helm/gateway/`, `helm/engine/`, etc.
+The chain described here puts a hardened public edge in front of those
 services.
 
 #### High-level chain
