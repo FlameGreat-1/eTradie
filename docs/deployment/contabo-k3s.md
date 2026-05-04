@@ -529,8 +529,34 @@ vault kv put secret/etradie/services/gateway/production \
   broker_encryption_key="${BROKER_KEY}" \
   llm_encryption_key="${LLM_KEY}"
 
-# Engine: LLM + data-provider keys (replace with real values)
+# ---------------------------------------------------------------
+# 5. Engine: full LLM + data-provider keys + same DB/Redis/JWT.
+#    REPLACE the LLM and data-provider placeholders with real keys
+#    from your Anthropic / OpenAI / Gemini / TwelveData / FRED /
+#    CFTC accounts before running this. Engine fails fast on the
+#    LLM provider currently selected by PROCESSOR_LLM_PROVIDER.
+# ---------------------------------------------------------------
 vault kv put secret/etradie/services/engine/production \
+  database_url="${DB_URL_PY}" \
+  postgres_user='etradie' \
+  postgres_password="${DB_PASS}" \
+  redis_url="${REDIS_URL_DB0}" \
+  redis_password="${REDIS_PASS}" \
+  rag_chroma_auth_token="${CHROMA_TOKEN}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  cftc_app_token='REPLACE_WITH_REAL_KEY' \
+  fred_api_key='REPLACE_WITH_REAL_KEY' \
+  twelvedata_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_anthropic_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_openai_api_key='REPLACE_WITH_REAL_KEY' \
+  processor_gemini_api_key='REPLACE_WITH_REAL_KEY' \
+  mt5_metaapi_token='REPLACE_WITH_REAL_KEY_OR_LEAVE_IF_NOT_USING_METAAPI'
+
+# (Old engine block is replaced by the lines above; the obsolete
+# placeholder lines that followed are removed.)
+_OLD_REMOVED_engine: \
   anthropic_api_key='sk-ant-...' \
   openai_api_key='sk-...' \
   twelvedata_api_key='...' \
