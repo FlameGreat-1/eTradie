@@ -79,3 +79,38 @@ export interface OAuthCallbackResponse {
   /** Echoed back from the start-step record; safe to navigate to. */
   return_to: string;
 }
+
+/* ── Google account-linking (authenticated) ─────────────────────── */
+
+/**
+ * Begin a Google account-link from the settings page. The gateway
+ * binds the minted state to the authenticated user server-side, so a
+ * stolen state cannot be redeemed against a different account.
+ */
+export interface OAuthLinkStartRequest {
+  /** Same-origin path the user should land on after a successful link. */
+  return_to?: string;
+}
+
+export interface OAuthLinkStartResponse {
+  authorize_url: string;
+  state: string;
+  /** Server-side TTL of the in-flight link record, in seconds. */
+  expires_in: number;
+}
+
+export interface OAuthLinkCallbackRequest {
+  code: string;
+  state: string;
+}
+
+/**
+ * Finish a Google account-link. The gateway returns the updated
+ * profile so the dashboard can refresh AuthContext without a separate
+ * /auth/me round-trip.
+ */
+export interface OAuthLinkCallbackResponse {
+  user: AuthUser;
+  /** Echoed back from the start-step record; safe to navigate to. */
+  return_to: string;
+}
