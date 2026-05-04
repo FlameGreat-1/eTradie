@@ -1,20 +1,30 @@
 # helm/envoy values-production.yaml
 # Layered on top of values.yaml. Production already drives the base
-# values, so this file only adds production-only annotations / node
-# pinning that should NOT bleed into staging or future environments.
+# values, so this file only adds production-only annotations and node
+# scheduling that should NOT bleed into staging or future environments.
 
 podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: "production"
 
-nodeSelector:
-  node.kubernetes.io/instance-type: c6i.2xlarge
+# Cloud-agnostic: do NOT pin AWS-specific instance types here. Envoy
+# tolerates the etradie-system taint (set by
+# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system)
+# so it lands on the dedicated internal-data-plane node group with
+# gateway/engine/execution/management. The previous overlay tolerated
+# the `edge` taint, which is reserved for edge-ingress; that was wrong
+# and caused envoy to compete with edge-ingress for capacity on the
+# public-facing pool.
+#
+# A toleration without a matching taint is a no-op, so this stays
+# cloud-agnostic.
+nodeSelector: {}
 
 tolerations:
-  - key: "workload"
-    operator: "Equal"
-    value: "edge"
-    effect: "NoSchedule"
+  - key: workload
+    operator: Equal
+    value: etradie-system
+    effect: NoSchedule
 
 serviceMonitor:
   labels:
