@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -283,7 +282,10 @@ func TestCloudflareRangesFallbackMetric_IncrementsOnUnreadable(t *testing.T) {
 func getCounterValue(t *testing.T, reason string) float64 {
 	t.Helper()
 	m := &dto.Metric{}
-	if err := CloudflareRangesFallbackTotal.WithLabelValues(reason).(prometheus.Counter).Write(m); err != nil {
+	// CounterVec.WithLabelValues already returns prometheus.Counter
+	// (an interface). No type assertion needed; asserting a
+	// non-interface on the right would be a compile error.
+	if err := CloudflareRangesFallbackTotal.WithLabelValues(reason).Write(m); err != nil {
 		t.Fatalf("read counter: %v", err)
 	}
 	if m.Counter == nil || m.Counter.Value == nil {
