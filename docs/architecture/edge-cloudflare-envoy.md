@@ -1,12 +1,9 @@
 # eTradie Edge Defence Chain - Cloudflare → edge-ingress → envoy → gateway
 
-This document is the canonical operator runbook for the four-layer defence
-chain that fronts the eTradie gateway in staging and production.
-
-It assumes you have already deployed the eTradie data-plane services (gateway,
-engine, execution, management) per `deployments/gateway/`, `helm/gateway/`,
-etc. The chain described here puts a hardened public edge in front of those
-services.
+This document is the canonical reference for the four-layer defence
+chain that fronts the eTradie gateway in staging and production. It
+describes WHY each layer exists and WHAT it protects against. For
+HOW to deploy the platform, see [`../deployment/README.md`](../deployment/README.md).
 
 #### High-level chain
 
@@ -37,29 +34,6 @@ creates a real exploitation path.
 | edge-ingress | TLS re-termination behind Cloudflare, per-region routing, global / per-IP connection limits, cert hot-reload, **origin spoofing via AOP mTLS** | Application-level rate limits |
 | envoy + WASM | Per-request rate limits, header injection, path traversal, oversized payloads, malformed methods, circuit breaker on backend failures | JWT validation (envoy does not know the secret) |
 | gateway | JWT validation, CORS, business-level rate limits, role-based authorisation, trust-aware client-IP for per-IP / per-user limits | Network-layer attacks |
-
-#### Deployment order (must be exact)
-
-Apply the kustomize / helm trees in this order. Reversing it leaves pods
-stuck in `ContainerCreating` waiting for ExternalSecret-synthesised Secrets
-that have not been resolved yet.
-
-1. **Namespaces and ClusterSecretStore**
-   - `etradie-system`, `envoy-system`, `edge-ingress-system`,
-     `etradie-observability`, `monitoring`
-   - `vault-backend` ClusterSecretStore wired to your Vault instance
-2. **Cloudflare integration objects** -
-   `kustomize build deployments/cloudflare/kubernetes/ | kubectl apply -f -`
-   - Materialises `cloudflare-aop-ca` Secret and `cloudflare-ip-ranges`
-     ConfigMap.
-3. **Gateway** -
-   `kustomize build deployments/gateway/kubernetes/overlays/<env> | kubectl apply -f -`
-4. **Envoy** -
-   `kustomize build deployments/envoy/kubernetes/overlays/<env> | kubectl apply -f -`
-5. **Edge-Ingress** -
-   `kustomize build deployments/edge-ingress/kubernetes/overlays/<env> | kubectl apply -f -`
-6. **Cloudflare zone** - DNS CNAME the public hostname at Cloudflare's
-   anycast IPs, enable AOP per `deployments/cloudflare/README.md`.
 
 #### Trust chain for client-IP
 

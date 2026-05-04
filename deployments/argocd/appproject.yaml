@@ -18,8 +18,8 @@ spec:
     - https://github.com/FlameGreat-1/eTradie
 
   # Allowed destinations. Limited to the namespaces this platform
-  # actually owns. Bootstrap of new namespaces requires an explicit
-  # AppProject change.
+  # actually owns or integrates with. Bootstrap of new namespaces
+  # requires an explicit AppProject change.
   destinations:
     - name: in-cluster
       namespace: etradie-system
@@ -27,6 +27,22 @@ spec:
       namespace: envoy-system
     - name: in-cluster
       namespace: edge-ingress-system
+    # `monitoring` is referenced by every chart's NetworkPolicy as
+    # the source for Prometheus scrape ingress. Allowlisting it here
+    # lets a future monitoring-stack Application target this project.
+    # The namespace label `kubernetes.io/metadata.name: monitoring`
+    # used in selectors is set automatically by the kube-apiserver
+    # (NamespaceDefaultLabelName admission, GA in K8s 1.22+).
+    # Audit ref: NOTE.md S2-B.
+    - name: in-cluster
+      namespace: monitoring
+    # `etradie-observability` is referenced by NetworkPolicy egress
+    # rules pointing at an OTel collector. The collector itself is
+    # operator-installed; allowlisting the namespace here allows a
+    # future observability Application to be project-scoped without
+    # an AppProject diff at deploy time.
+    - name: in-cluster
+      namespace: etradie-observability
 
   # Cluster-scoped resources the Applications are allowed to manage.
   # PriorityClass and ClusterSecretStore are needed; everything else

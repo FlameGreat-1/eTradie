@@ -105,7 +105,10 @@ config:
     databaseConnMaxLifeSeconds: "3600"
     logLevel: "INFO"
     logJson: "true"
-    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
+    # OTel tracing is opt-in. Empty endpoint means the OTel SDK
+    # exporter is a no-op. Production overlay sets this once an
+    # OTel collector is actually deployed. Audit ref: NOTE.md S2-C.
+    otelEndpoint: ""
     otelServiceName: "etradie-execution"
   auth:
     accessTokenTtlSeconds: "900"

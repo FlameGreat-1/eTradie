@@ -1,5 +1,5 @@
 output "hostnames" {
-  description = "Hostnames managed by this module and their NLB targets."
+  description = "Hostnames managed by this module and their CNAME targets (Cloudflare Tunnel UUIDs)."
   value       = var.hostnames
 }
 

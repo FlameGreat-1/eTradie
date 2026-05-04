@@ -253,8 +253,14 @@ config:
         baseEjectionTime: "30s"
         maxEjectionPercent: 50
       upstream:
-        # Production gateway-service FQDN, port 8080.
-        address: "gateway-service.etradie-system.svc.cluster.local"
+        # Gateway HEADLESS service FQDN. STRICT_DNS against a regular
+        # ClusterIP Service collapses to a single VIP, defeating
+        # Envoy's per-pod outlier detection, circuit breakers, and
+        # active health checks. The gateway chart publishes
+        # `gateway-headless` (clusterIP: None) so DNS returns one A
+        # record per ready pod and Envoy load-balances per-pod.
+        # Audit ref: NOTE.md N-C4.
+        address: "gateway-headless.etradie-system.svc.cluster.local"
         port: 8080
       healthCheck:
         path: "/readiness"

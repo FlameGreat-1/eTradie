@@ -97,7 +97,10 @@ config:
     logJson: "true"
     logFullContextPayload: "false"
     otelServiceName: "etradie-gateway"
-    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
+    # OTel tracing is opt-in. Empty endpoint means the OTel SDK
+    # exporter is a no-op. Production overlay sets this once an
+    # OTel collector is actually deployed. Audit ref: NOTE.md S2-C.
+    otelEndpoint: ""
     engineHttpUrl: "http://engine.etradie-system.svc.cluster.local:8000"
     executionEnabled: "true"
     executionAddr: "execution.etradie-system.svc.cluster.local:50053"

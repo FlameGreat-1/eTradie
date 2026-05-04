@@ -1,14 +1,20 @@
 {{- /*
-The ACM cert ARN is mandatory in any environment that publishes a
-LoadBalancer Service. Fail rendering early rather than producing a
-Service that attaches a non-existent certificate to the NLB at apply
-time.
+Cloud-LB strategy. Resolves service.type from service.cloudProvider:
+  - cloudflare-tunnel -> ClusterIP   (no public LB; cloudflared forwards)
+  - generic           -> LoadBalancer (cluster's default LB controller)
+
+AWS is deliberately NOT a supported value; the platform does not
+deploy on AWS. An explicit service.type wins over the inferred
+default so power users can override (e.g. NodePort for local kind).
+Audit ref: NOTE.md S1-C, S3-C.
 */}}
-{{- if eq (.Values.service.type | default "LoadBalancer") "LoadBalancer" }}
-{{- if not .Values.service.tlsCertificateArn }}
-{{- fail "helm/edge-ingress: .Values.service.tlsCertificateArn is required when service.type=LoadBalancer. Inject the ACM ARN from CI: --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>" -}}
-{{- end }}
-{{- end }}
+{{- $cp := .Values.service.cloudProvider | default "cloudflare-tunnel" -}}
+{{- $validProviders := list "cloudflare-tunnel" "generic" -}}
+{{- if not (has $cp $validProviders) -}}
+{{- fail (printf "helm/edge-ingress: .Values.service.cloudProvider must be one of %v, got %q. AWS mode was removed; the platform does not deploy on AWS." $validProviders $cp) -}}
+{{- end -}}
+{{- $defaultType := ternary "ClusterIP" "LoadBalancer" (eq $cp "cloudflare-tunnel") -}}
+{{- $svcType := default $defaultType .Values.service.type -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -16,22 +22,15 @@ metadata:
   namespace: {{ include "edge-ingress.namespace" . }}
   labels:
     {{- include "edge-ingress.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
   annotations:
-    {{- with .Values.service.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- with .Values.service.tlsCertificateArn }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ . | quote }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "tls"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
-    {{- end }}
-    {{- with .Values.service.accessLogS3Bucket }}
-    service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: {{ . | quote }}
-    {{- end }}
+  {{- end }}
 spec:
-  type: {{ .Values.service.type | default "LoadBalancer" }}
+  type: {{ $svcType }}
+  {{- if eq $svcType "LoadBalancer" }}
   externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy | default "Local" }}
+  {{- end }}
   sessionAffinity: None
   selector:
     {{- include "edge-ingress.selectorLabels" . | nindent 4 }}

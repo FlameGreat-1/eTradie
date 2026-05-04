@@ -1,0 +1,130 @@
+{{- if eq (.Values.service.cloudProvider | default "cloudflare-tunnel") "cloudflare-tunnel" }}
+{{- if .Values.cloudflareTunnel.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: edge-tunnel
+spec:
+  replicas: {{ .Values.cloudflareTunnel.replicaCount | default 2 }}
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "edge-ingress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/component: edge-tunnel
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cloudflared
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cloudflared
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.cloudflareTunnel.image.repository }}:{{ .Values.cloudflareTunnel.image.tag }}"
+          imagePullPolicy: {{ .Values.cloudflareTunnel.image.pullPolicy | default "IfNotPresent" }}
+          # `tunnel --no-autoupdate run` reads TUNNEL_TOKEN from env
+          # and connects outbound to Cloudflare's edge. --metrics
+          # exposes /metrics + /ready on :2000 for probes and
+          # Prometheus scraping.
+          args:
+            - "tunnel"
+            - "--no-autoupdate"
+            - "--metrics"
+            - "0.0.0.0:2000"
+            {{- if .Values.cloudflareTunnel.noTlsVerify }}
+            - "--no-tls-verify"
+            {{- end }}
+            - "run"
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cloudflareTunnel.externalSecret.targetSecretName | default "cloudflared-tunnel-token" }}
+                  key: TUNNEL_TOKEN
+            - name: TUNNEL_URL
+              value: {{ .Values.cloudflareTunnel.upstreamUrl | quote }}
+            - name: TUNNEL_METRICS
+              value: "0.0.0.0:2000"
+            - name: TUNNEL_TRANSPORT_PROTOCOL
+              value: "auto"
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.cloudflareTunnel.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+{{- end }}
+{{- end }}

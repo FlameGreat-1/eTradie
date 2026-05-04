@@ -1,10 +1,8 @@
 # helm/edge-ingress values-production.yaml
 #
-# The base values.yaml already represents production posture, so this
-# file only adds production-only annotations and selects the NLB access
-# log bucket. The ACM cert ARN is NOT committed; CI must inject it via
-#   --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>
-# Empty values force a chart render failure (see templates/service.yaml).
+# The base values.yaml already represents production posture. This
+# file only adds production-only annotations, and is cloud-LB-agnostic
+# (Cloudflare Tunnel is the default; no AWS coupling anywhere).
 
 podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
@@ -23,15 +21,11 @@ autoscaling:
 podDisruptionBudget:
   minAvailable: 3
 
-# Production schedules edge-ingress on the dedicated `edge` node
-# group with a `workload=edge:NoSchedule` taint applied by
-# infrastructure/cluster/. The toleration here matches the taint.
-#
-# Cloud-agnostic: instance-type pinning lives in the cluster
-# Terraform (edge_node_group.instance_types default c6i.2xlarge),
-# not in the chart. The toleration is a no-op on clusters that do
-# not taint nodes, so the chart deploys identically on Contabo K3s,
-# OCI OKE, Talos, GKE, AKS, kubeadm, etc.
+# Cloud-agnostic. A toleration without a matching taint is a no-op,
+# so this stays portable across Contabo K3s, OCI OKE, GKE, AKS,
+# kubeadm, kind. Cluster operators that taint their edge node pool
+# with `workload=edge:NoSchedule` get the intended scheduling; those
+# who do not are unaffected.
 nodeSelector: {}
 
 tolerations:
@@ -39,11 +33,6 @@ tolerations:
     operator: "Equal"
     value: "edge"
     effect: "NoSchedule"
-
-service:
-  # ACM cert ARN is provided by CI from Vault / AWS Secrets Manager.
-  # tlsCertificateArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<cert-id>"
-  accessLogS3Bucket: "etradie-prod-nlb-logs"
 
 serviceMonitor:
   labels:

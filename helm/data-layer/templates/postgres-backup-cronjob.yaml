@@ -61,6 +61,14 @@ spec:
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.postgres.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.postgres.topologySpreadConstraints }}
+          topologySpreadConstraints:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: backup
               image: "{{ .Values.postgres.backup.image.repository }}:{{ .Values.postgres.backup.image.tag }}"
