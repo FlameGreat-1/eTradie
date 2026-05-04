@@ -13,5 +13,17 @@ export type {
 // `@/features/auth/types` and is intentionally NOT re-exported here
 // to avoid name-shadowing with the React component of the same name
 // also exported above.
-export { startGoogleOAuth, completeGoogleOAuth } from './api/oauth';
+export {
+  startGoogleOAuth,
+  completeGoogleOAuth,
+  startGoogleLink,
+  completeGoogleLink,
+  unlinkGoogle,
+} from './api/oauth';
 export { useGoogleOAuth } from './hooks/useGoogleOAuth';
+export type {
+  OAuthLinkStartRequest,
+  OAuthLinkStartResponse,
+  OAuthLinkCallbackRequest,
+  OAuthLinkCallbackResponse,
+} from './types';
