@@ -116,6 +116,62 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+        {{- if .Values.aopCaPreflight.enabled }}
+        # AOP CA preflight: validates the Cloudflare AOP CA bundle is
+        # present, non-empty, and parseable as PEM before the main
+        # edge-ingress container boots. Catches the failure mode where
+        # the Vault path etradie/services/edge-ingress/cloudflare/aop_ca
+        # is bootstrapped (placeholder by Terraform) but the operator
+        # has not yet populated the real CA bytes; in that case ESO
+        # synthesises an empty Secret and the Rust binary would panic
+        # at first TLS handshake. Failing here keeps the pod out of
+        # Ready and surfaces a clear operator action in the log.
+        - name: aop-ca-preflight
+          image: "{{ .Values.aopCaPreflight.image }}"
+          imagePullPolicy: {{ .Values.aopCaPreflight.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              CA=/aop-ca/origin-pull-ca.pem
+              if [ ! -s "$CA" ]; then
+                echo "[aop-ca-preflight] FATAL: $CA is missing or empty." >&2
+                echo "[aop-ca-preflight] The Vault path" >&2
+                echo "[aop-ca-preflight]   etradie/services/edge-ingress/cloudflare/aop_ca" >&2
+                echo "[aop-ca-preflight] resolved by the cloudflare-aop-ca ExternalSecret has" >&2
+                echo "[aop-ca-preflight] no bytes. Populate it with the live Cloudflare AOP CA" >&2
+                echo "[aop-ca-preflight] bundle (run" >&2
+                echo "[aop-ca-preflight]   bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh --bootstrap" >&2
+                echo "[aop-ca-preflight] for the canonical bytes), then push them into Vault." >&2
+                exit 1
+              fi
+              if ! openssl x509 -in "$CA" -noout >/dev/null 2>&1; then
+                echo "[aop-ca-preflight] FATAL: $CA is not a parseable PEM certificate." >&2
+                echo "[aop-ca-preflight] Check the Vault payload at" >&2
+                echo "[aop-ca-preflight]   etradie/services/edge-ingress/cloudflare/aop_ca" >&2
+                echo "[aop-ca-preflight] - the value MUST be the literal PEM-encoded CA bundle," >&2
+                echo "[aop-ca-preflight] not base64-encoded, not double-quoted JSON." >&2
+                exit 1
+              fi
+              echo "[aop-ca-preflight] AOP CA bundle present and parseable"
+          volumeMounts:
+            - name: cloudflare-aop-ca
+              mountPath: /aop-ca
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            {{- toYaml .Values.aopCaPreflight.resources | nindent 12 }}
+        {{- end }}
       containers:
         - name: edge-ingress
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

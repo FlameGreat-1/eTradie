@@ -223,6 +223,28 @@ geoip:
     image: "maxmindinc/geoipupdate:v6.0"
     pullPolicy: IfNotPresent
 
+# Preflight init-container that validates the Cloudflare AOP CA Secret
+# is present, non-empty, and parseable as PEM before the main
+# edge-ingress container starts. Without this, an empty Vault path
+# (operator has not yet populated `aop_ca`) produces a Rust panic at
+# TLS handshake; with this, pods stay in Init: with a clear error
+# message, traffic is never routed, and the operator gets a precise
+# pointer to the Vault path that needs populating.
+aopCaPreflight:
+  enabled: true
+  # Tiny alpine image with the openssl CLI. Pinned by tag (no
+  # :latest). Air-gapped clusters can mirror this and override the
+  # repository here.
+  image: "alpine/openssl:3.3"
+  pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
 externalSecrets:
   enabled: true
   tlsCerts:
