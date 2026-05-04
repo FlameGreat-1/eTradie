@@ -1,135 +1,117 @@
-.PHONY: all build build-release clean test check fmt lint verify help
+# ============================================================================
+# envoy per-service Makefile (THIN REDIRECT)
+# ============================================================================
+#
+# Platform-shared targets (build / test / fmt / clippy / verify / clean / ci /
+# install-tools) now live in the top-level Makefile.platform so a single
+# `make help` at the repo root prints every contributor-facing target across
+# the polyglot tree.
+#
+# This file delegates to those top-level targets. Targets that are genuinely
+# envoy-WASM-specific (bench / doc / size-report / watch / lint-fix /
+# test-verbose) remain implemented here.
+#
+# Run `make help` from the repo root to see the unified menu.
+# ============================================================================
 
-CARGO := cargo
+.PHONY: all build build-release test test-verbose fmt fmt-check lint lint-fix \
+        clippy verify check clean ci install-tools help \
+        bench doc doc-open size-report watch
+
+REPO_ROOT   := $(shell git rev-parse --show-toplevel 2>/dev/null || cd ../.. && pwd)
+CARGO       := cargo
 WASM_TARGET := wasm32-wasi
-WASM_OPT := wasm-opt
-BUILD_DIR := target/$(WASM_TARGET)/release
-WASM_FILE := $(BUILD_DIR)/etradie_envoy_integration_filter.wasm
+BUILD_DIR   := target/$(WASM_TARGET)/release
+WASM_FILE   := $(BUILD_DIR)/etradie_envoy_integration_filter.wasm
 OPTIMIZED_WASM := $(BUILD_DIR)/etradie_envoy_integration_filter_optimized.wasm
+
+# ----------------------------------------------------------------------------
+# Redirected targets (delegate to top-level Makefile.platform).
+# ----------------------------------------------------------------------------
 
 all: build-release
 
-help:
-	@echo "eTradie Envoy WASM Filter - Build Targets"
-	@echo "=========================================="
-	@echo "  make build          - Build debug version"
-	@echo "  make build-release  - Build optimized release version"
-	@echo "  make test           - Run all tests"
-	@echo "  make check          - Run cargo check"
-	@echo "  make fmt            - Format code"
-	@echo "  make lint           - Run clippy linter"
-	@echo "  make verify         - Verify WASM binary"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make all            - Build release (default)"
+build: ## (redirect) -> make envoy-build-debug at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-build-debug"
+	@$(MAKE) -C $(REPO_ROOT) envoy-build-debug
 
-build:
-	@echo "Building debug version..."
-	$(CARGO) build --workspace --target $(WASM_TARGET)
+build-release: ## (redirect) -> make envoy-build at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-build"
+	@$(MAKE) -C $(REPO_ROOT) envoy-build
 
-build-release:
-	@echo "Building release version..."
-	$(CARGO) build --workspace --target $(WASM_TARGET) --release
-	@echo "Optimizing WASM binary..."
-	@if command -v $(WASM_OPT) >/dev/null 2>&1; then \
-		$(WASM_OPT) -Oz --strip-debug --strip-producers \
-			$(WASM_FILE) -o $(OPTIMIZED_WASM); \
-		echo "Optimized WASM: $(OPTIMIZED_WASM)"; \
-		ls -lh $(OPTIMIZED_WASM); \
-	else \
-		echo "wasm-opt not found, skipping optimization"; \
-		echo "Install with: cargo install wasm-opt"; \
-	fi
+test: ## (redirect) -> make envoy-test at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-test"
+	@$(MAKE) -C $(REPO_ROOT) envoy-test
 
-test:
-	@echo "Running tests..."
-	$(CARGO) test --workspace
+fmt: ## (redirect) -> make envoy-fmt at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-fmt"
+	@$(MAKE) -C $(REPO_ROOT) envoy-fmt
 
-test-verbose:
-	@echo "Running tests (verbose)..."
-	$(CARGO) test --workspace -- --nocapture
+fmt-check: ## (redirect) -> make envoy-fmt-check at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-fmt-check"
+	@$(MAKE) -C $(REPO_ROOT) envoy-fmt-check
 
-check:
-	@echo "Running cargo check..."
+lint: ## (redirect) -> make envoy-clippy at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-clippy"
+	@$(MAKE) -C $(REPO_ROOT) envoy-clippy
+
+clippy: lint
+
+verify: ## (redirect) -> make envoy-verify at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-verify"
+	@$(MAKE) -C $(REPO_ROOT) envoy-verify
+
+check: ## cargo check --workspace --target wasm32-wasi (no unified equivalent today)
 	$(CARGO) check --workspace --target $(WASM_TARGET)
 
-fmt:
-	@echo "Formatting code..."
-	$(CARGO) fmt --all
+clean: ## (redirect) -> make envoy-clean at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-clean"
+	@$(MAKE) -C $(REPO_ROOT) envoy-clean
 
-fmt-check:
-	@echo "Checking code formatting..."
-	$(CARGO) fmt --all -- --check
+ci: ## (redirect) -> make envoy-ci at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-ci"
+	@$(MAKE) -C $(REPO_ROOT) envoy-ci
 
-lint:
-	@echo "Running clippy..."
-	$(CARGO) clippy --workspace --target $(WASM_TARGET) -- -D warnings
+install-tools: ## (redirect) -> make envoy-install-tools at repo root
+	@echo "[envoy/Makefile] redirecting to top-level: make envoy-install-tools"
+	@$(MAKE) -C $(REPO_ROOT) envoy-install-tools
 
-lint-fix:
-	@echo "Running clippy with auto-fix..."
+# ----------------------------------------------------------------------------
+# Service-local targets (no unified equivalent - run from this directory).
+# ----------------------------------------------------------------------------
+
+test-verbose: ## Run tests with --nocapture
+	$(CARGO) test --workspace -- --nocapture
+
+lint-fix: ## clippy with auto-fix
 	$(CARGO) clippy --workspace --target $(WASM_TARGET) --fix --allow-dirty
 
-verify: build-release
-	@echo "Verifying WASM binary..."
-	@if [ -f $(OPTIMIZED_WASM) ]; then \
-		echo "Checking magic bytes..."; \
-		hexdump -C $(OPTIMIZED_WASM) | head -n 1 | grep -q "00 61 73 6d" && \
-			echo "✓ Valid WASM magic bytes" || \
-			echo "✗ Invalid WASM magic bytes"; \
-		echo "File size:"; \
-		ls -lh $(OPTIMIZED_WASM); \
-	elif [ -f $(WASM_FILE) ]; then \
-		echo "Checking magic bytes..."; \
-		hexdump -C $(WASM_FILE) | head -n 1 | grep -q "00 61 73 6d" && \
-			echo "✓ Valid WASM magic bytes" || \
-			echo "✗ Invalid WASM magic bytes"; \
-		echo "File size:"; \
-		ls -lh $(WASM_FILE); \
-	else \
-		echo "✗ WASM binary not found"; \
-		exit 1; \
-	fi
+bench: ## Run cargo bench --workspace
+	$(CARGO) bench --workspace
 
-clean:
-	@echo "Cleaning build artifacts..."
-	$(CARGO) clean
-	@rm -f $(OPTIMIZED_WASM)
+doc: ## Generate cargo doc (no open)
+	$(CARGO) doc --workspace --no-deps --target $(WASM_TARGET)
 
-install-tools:
-	@echo "Installing required tools..."
-	@command -v rustup >/dev/null 2>&1 || { echo "rustup not found. Install from https://rustup.rs/"; exit 1; }
-	rustup target add $(WASM_TARGET)
-	rustup component add rustfmt clippy
-	@echo "Installing wasm-opt..."
-	@cargo install wasm-opt || echo "Failed to install wasm-opt"
+doc-open: ## Generate and open cargo doc
+	$(CARGO) doc --workspace --no-deps --target $(WASM_TARGET) --open
 
-ci: fmt-check lint test build-release verify
-	@echo "✓ All CI checks passed"
+size-report: build-release ## Print WASM binary size report
+	@echo "WASM Binary Size Report"
+	@echo "======================="
+	@if [ -f $(OPTIMIZED_WASM) ]; then echo "Optimized:"; ls -lh $(OPTIMIZED_WASM) | awk '{print $$5 " " $$9}'; fi
+	@if [ -f $(WASM_FILE) ]; then echo "Unoptimized:"; ls -lh $(WASM_FILE) | awk '{print $$5 " " $$9}'; fi
 
-watch:
-	@echo "Watching for changes..."
+watch: ## cargo watch auto-rebuild
 	@command -v cargo-watch >/dev/null 2>&1 || { echo "cargo-watch not found. Install with: cargo install cargo-watch"; exit 1; }
 	cargo watch -x 'build --target $(WASM_TARGET)'
 
-size-report: build-release
-	@echo "WASM Binary Size Report"
-	@echo "======================="
-	@if [ -f $(OPTIMIZED_WASM) ]; then \
-		echo "Optimized:"; \
-		ls -lh $(OPTIMIZED_WASM) | awk '{print $$5 " " $$9}'; \
-	fi
-	@if [ -f $(WASM_FILE) ]; then \
-		echo "Unoptimized:"; \
-		ls -lh $(WASM_FILE) | awk '{print $$5 " " $$9}'; \
-	fi
-
-bench:
-	@echo "Running benchmarks..."
-	$(CARGO) bench --workspace
-
-doc:
-	@echo "Generating documentation..."
-	$(CARGO) doc --workspace --no-deps --target $(WASM_TARGET)
-
-doc-open:
-	@echo "Generating and opening documentation..."
-	$(CARGO) doc --workspace --no-deps --target $(WASM_TARGET) --open
+help: ## Show this file's redirect targets (run `make help` at repo root for the full menu)
+	@echo ""
+	@echo "envoy per-service Makefile (thin redirect)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Most targets are redirects to the unified Makefile at the repo root."
+	@echo "Run 'make help' from the repo root for the canonical menu."
+	@echo ""
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  %-20s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
