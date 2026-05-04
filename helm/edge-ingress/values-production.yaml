@@ -1,27 +1,19 @@
 # helm/edge-ingress values-production.yaml
 #
 # The base values.yaml already represents production posture, so this
-# file only adds production-only annotations / NLB access logs / labels
-# that should NOT bleed into other environments.
+# file only adds production-only annotations and selects the NLB access
+# log bucket. The ACM cert ARN is NOT committed; CI must inject it via
+#   --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>
+# Empty values force a chart render failure (see templates/service.yaml).
 
 podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: "production"
 
 service:
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "http"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "9902"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/healthz"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "3"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "3"
-    service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: "etradie-prod-nlb-logs"
+  # ACM cert ARN is provided by CI from Vault / AWS Secrets Manager.
+  # tlsCertificateArn: "arn:aws:acm:us-east-1:<account-id>:certificate/<cert-id>"
+  accessLogS3Bucket: "etradie-prod-nlb-logs"
 
 serviceMonitor:
   labels:

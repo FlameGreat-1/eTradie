@@ -46,6 +46,15 @@ service:
   ports:
     tls:
       port: 443
+  # ACM cert ARN that the NLB terminates TLS with. REQUIRED in any
+  # environment that wants public TLS termination at the NLB layer
+  # (i.e. staging + production). The chart fails rendering when this
+  # is empty, so CI must inject it explicitly:
+  #   --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>
+  tlsCertificateArn: ""
+  # NLB access-log S3 bucket (production only). Empty disables access
+  # logging; non-empty enables and points at the bucket.
+  accessLogS3Bucket: ""
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"

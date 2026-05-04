@@ -1,0 +1,111 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: etradie
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    description: "eTradie platform AppProject - scopes the sources, destinations, and resource kinds the platform Applications may touch."
+spec:
+  description: "eTradie platform (gateway + envoy + edge-ingress)"
+
+  # Allowed git sources. Adding any other repo requires a deliberate
+  # AppProject change reviewed by platform owners.
+  sourceRepos:
+    - https://gitlab.com/cotradee3/cotradeecode.git
+    - https://gitlab.com/cotradee3/cotradeecode
+
+  # Allowed destinations. Limited to the namespaces this platform
+  # actually owns. Bootstrap of new namespaces requires an explicit
+  # AppProject change.
+  destinations:
+    - name: in-cluster
+      namespace: etradie-system
+    - name: in-cluster
+      namespace: envoy-system
+    - name: in-cluster
+      namespace: edge-ingress-system
+
+  # Cluster-scoped resources the Applications are allowed to manage.
+  # PriorityClass and ClusterSecretStore are needed; everything else
+  # is rejected.
+  clusterResourceWhitelist:
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+    - group: ""
+      kind: Namespace
+
+  # Namespace-scoped resources the Applications are allowed to manage.
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: monitoring.coreos.com
+      kind: PodMonitor
+    - group: monitoring.coreos.com
+      kind: PrometheusRule
+    - group: external-secrets.io
+      kind: ExternalSecret
+    - group: external-secrets.io
+      kind: SecretStore
+
+  # Roles the project grants. Maintainers can sync; readers cannot.
+  roles:
+    - name: maintainers
+      description: "Platform maintainers - can sync any Application in this project."
+      policies:
+        - p, proj:etradie:maintainers, applications, get, etradie/*, allow
+        - p, proj:etradie:maintainers, applications, sync, etradie/*, allow
+        - p, proj:etradie:maintainers, applications, action/*, etradie/*, allow
+      groups:
+        - etradie:platform-maintainers
+    - name: readers
+      description: "Read-only access to Application status and history."
+      policies:
+        - p, proj:etradie:readers, applications, get, etradie/*, allow
+      groups:
+        - etradie:engineering
+
+  # Production sync window. ArgoCD will refuse to auto-sync production
+  # outside this window; staging is unrestricted.
+  syncWindows:
+    - kind: allow
+      schedule: "0 13 * * 1-5"   # 13:00 UTC Mon-Fri (business hours)
+      duration: 8h
+      applications:
+        - "*-production"
+      manualSync: true
+    - kind: deny
+      schedule: "* * * * *"
+      applications:
+        - "*-production"
+      manualSync: true

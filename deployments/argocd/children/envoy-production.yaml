@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    etradie.com/component: envoy
+    etradie.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    targetRevision: v0.1.0
+    path: helm/envoy
+    helm:
+      releaseName: etradie-envoy
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-system
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

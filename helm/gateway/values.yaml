@@ -114,11 +114,17 @@ config:
 # Trust-chain (read by src/auth/clientip.go via AUTH_TRUSTED_PROXY_CIDRS
 # and AUTH_TRUST_CLOUDFLARE). Base values match the PRODUCTION posture
 # - the eTradie production pod CIDR with Cloudflare in front. Staging
-# overrides this to 10.42.0.0/16 + trustCloudflare=false. Local dev
-# does not use this chart (kustomize-only).
+# overrides this to 10.42.0.0/16 + trustCloudflare="false". Local dev
+# does not use this chart.
+#
+# When trustCloudflare="true" the chart also mounts the published
+# Cloudflare IPv4/IPv6 ranges (helm/gateway/files/cloudflare/*) at
+# /etc/etradie/cloudflare/{ipv4,ipv6}.txt so clientip.go can identify
+# Cloudflare edge nodes regardless of operator-set CIDRs.
 trustChain:
   trustedProxyCidrs: "10.100.0.0/16"
   trustCloudflare: "true"
+  cloudflareRangesMountPath: "/etc/etradie/cloudflare"
 
 externalSecrets:
   enabled: true

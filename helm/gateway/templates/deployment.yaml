@@ -149,6 +149,11 @@ spec:
               mountPath: /tmp
             - name: cache
               mountPath: /var/cache/etradie-gateway
+            {{- if eq (.Values.trustChain.trustCloudflare | toString) "true" }}
+            - name: cloudflare-ranges
+              mountPath: {{ .Values.trustChain.cloudflareRangesMountPath | default "/etc/etradie/cloudflare" }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
@@ -156,5 +161,11 @@ spec:
         - name: cache
           emptyDir:
             sizeLimit: {{ .Values.volumes.cache.emptyDir.sizeLimit | default "256Mi" }}
+        {{- if eq (.Values.trustChain.trustCloudflare | toString) "true" }}
+        - name: cloudflare-ranges
+          configMap:
+            name: {{ include "gateway.fullname" . }}-cloudflare-ranges
+            defaultMode: 0444
+        {{- end }}
       dnsPolicy: ClusterFirst
       restartPolicy: Always
