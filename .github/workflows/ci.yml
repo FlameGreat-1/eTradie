@@ -48,6 +48,22 @@ jobs:
         run: |
           diff -q deployments/cloudflare/ip-ranges/ipv4.txt helm/gateway/files/cloudflare/ipv4.txt
           diff -q deployments/cloudflare/ip-ranges/ipv6.txt helm/gateway/files/cloudflare/ipv6.txt
+      - name: Cloudflare AOP CA pin file is present
+        run: |
+          # The pin file is committed at
+          # deployments/cloudflare/origin-pull/aop-ca.sha256 and is the
+          # source of truth for the AOP CA fingerprint. The weekly
+          # refresh-cloudflare-ips.sh job exits 1 if it is empty; we
+          # surface a presence-check at PR-time so an accidental wipe
+          # fails the build immediately.
+          PIN_FILE=deployments/cloudflare/origin-pull/aop-ca.sha256
+          test -f "${PIN_FILE}" || { echo "FATAL: ${PIN_FILE} missing"; exit 1; }
+          PIN="$(grep -v -E '^[[:space:]]*(#|$)' "${PIN_FILE}" | head -n1 | tr -d '[:space:]')"
+          if [ -z "${PIN}" ]; then
+            echo "WARN: ${PIN_FILE} is empty (bootstrap pending)."
+            echo "Run: bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh --bootstrap"
+            echo "and commit the result. The weekly refresh job will fail until populated."
+          fi
       - name: helm lint - edge-ingress
         run: helm lint helm/edge-ingress
       - name: helm lint - envoy
@@ -76,6 +92,21 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/edge-ingress-production.yaml
+      - name: helm template + kubeconform - edge-ingress production with customMetricsEnabled
+        run: |
+          # Exercise the autoscaling.customMetricsEnabled gate so a
+          # future template change cannot silently break the
+          # adapter-served metrics path.
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-production.yaml \
+            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+            --set autoscaling.customMetricsEnabled=true \
+            > /tmp/edge-ingress-production-cm.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-production-cm.yaml
       - name: helm template + kubeconform - envoy staging
         run: |
           # Inject 1 byte of valid base64 ("AA==" = 0x00) so the chart
@@ -103,6 +134,19 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/envoy-production.yaml
+      - name: helm template + kubeconform - envoy production with customMetricsEnabled
+        run: |
+          helm template etradie-envoy helm/envoy \
+            -f helm/envoy/values.yaml \
+            -f helm/envoy/values-production.yaml \
+            --set wasm.base64=AA== \
+            --set wasm.sha256=ci-placeholder \
+            --set autoscaling.customMetricsEnabled=true \
+            > /tmp/envoy-production-cm.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/envoy-production-cm.yaml
       - name: helm template + kubeconform - gateway staging
         run: |
           helm template etradie-gateway helm/gateway \
@@ -123,6 +167,24 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/gateway-production.yaml
+      - name: helm template + kubeconform - gateway with empty initContainer.dependencies
+        run: |
+          # Exercise the init-container gate: when dependencies is an
+          # empty list, the init-container must not be rendered at all
+          # (and the rest of the chart must still render cleanly).
+          helm template etradie-gateway helm/gateway \
+            -f helm/gateway/values.yaml \
+            -f helm/gateway/values-production.yaml \
+            --set initContainer.dependencies=null \
+            > /tmp/gateway-no-init.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/gateway-no-init.yaml
+          if grep -q 'initContainers:' /tmp/gateway-no-init.yaml; then
+            echo "FATAL: gateway initContainers block was rendered with empty dependencies list"
+            exit 1
+          fi
       - name: argocd manifests parse
         run: |
           # ArgoCD CRDs are schema-checked separately. We only confirm

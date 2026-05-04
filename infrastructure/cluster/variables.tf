@@ -50,28 +50,58 @@ variable "public_subnet_ids" {
   }
 }
 
-variable "node_group_instance_types" {
-  description = "EC2 instance types for the default node group."
-  type        = list(string)
-  default     = ["c6i.2xlarge"]
+# Per-group node sizing. Each group is independently tunable so
+# operators can scale edge vs internal vs system pools without
+# changing the others. The defaults reflect the production posture
+# documented in helm/<svc>/values-production.yaml (edge-ingress
+# HPA maxReplicas=10, gateway HPA maxReplicas=10).
+
+variable "edge_node_group" {
+  description = "Sizing for the dedicated edge node group (taint workload=edge:NoSchedule). Hosts edge-ingress only."
+  type = object({
+    instance_types = list(string)
+    min_size       = number
+    max_size       = number
+    desired_size   = number
+  })
+  default = {
+    instance_types = ["c6i.2xlarge"]
+    min_size       = 2
+    max_size       = 10
+    desired_size   = 3
+  }
 }
 
-variable "node_group_min_size" {
-  description = "Minimum node count."
-  type        = number
-  default     = 3
+variable "etradie_system_node_group" {
+  description = "Sizing for the dedicated etradie-system node group (taint workload=etradie-system:NoSchedule). Hosts gateway, engine, execution, management."
+  type = object({
+    instance_types = list(string)
+    min_size       = number
+    max_size       = number
+    desired_size   = number
+  })
+  default = {
+    instance_types = ["c6i.2xlarge"]
+    min_size       = 3
+    max_size       = 20
+    desired_size   = 3
+  }
 }
 
-variable "node_group_max_size" {
-  description = "Maximum node count."
-  type        = number
-  default     = 12
-}
-
-variable "node_group_desired_size" {
-  description = "Initial node count."
-  type        = number
-  default     = 3
+variable "system_node_group" {
+  description = "Sizing for the untainted add-ons node group. Hosts cluster-autoscaler, metrics-server, prometheus-adapter, ESO, ALB controller, ArgoCD."
+  type = object({
+    instance_types = list(string)
+    min_size       = number
+    max_size       = number
+    desired_size   = number
+  })
+  default = {
+    instance_types = ["c5.large"]
+    min_size       = 2
+    max_size       = 4
+    desired_size   = 2
+  }
 }
 
 variable "vault_address" {

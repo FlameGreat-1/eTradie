@@ -23,7 +23,11 @@ namespace:
 serviceAccount:
   create: true
   annotations: {}
-  name: "etradie-gateway"
+  # Empty so the helper computes from Release.Name; multi-release
+  # deployments (e.g. blue/green) get distinct SA names. Production
+  # ArgoCD application uses releaseName=etradie-gateway, so the
+  # rendered SA name remains `etradie-gateway` in cluster.
+  name: ""
   automountServiceAccountToken: false
 
 podAnnotations:
@@ -146,9 +150,29 @@ resources:
     ephemeral-storage: 512Mi
 
 initContainer:
+  # Set to false to skip the wait-for-deps init-container entirely
+  # (e.g. when the cluster's CNI handles ordering through some
+  # external mechanism, or in pure-test renders).
   enabled: true
   image: busybox:1.36
   pullPolicy: IfNotPresent
+  # Total wall-clock budget across ALL dependencies. 120s is enough
+  # for an EKS node cold-start to bring up its CoreDNS forwarder.
+  timeoutSeconds: 120
+  # Sleep between consecutive `nc -z` retries against the same dep.
+  intervalSeconds: 2
+  # Hostnames + ports the init-container probes before the main
+  # container starts. MUST match the endpoints the gateway dials at
+  # runtime, otherwise the chart will pass init-checks then crash on
+  # first request. Production / staging overlays override the host
+  # values when datastores are off-cluster (RDS / ElastiCache).
+  dependencies:
+    - host: "postgres.etradie-system.svc.cluster.local"
+      port: 5432
+    - host: "redis.etradie-system.svc.cluster.local"
+      port: 6379
+    - host: "engine.etradie-system.svc.cluster.local"
+      port: 8000
   resources:
     requests:
       cpu: 10m

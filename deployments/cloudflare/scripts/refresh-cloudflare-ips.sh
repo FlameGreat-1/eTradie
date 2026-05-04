@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
 #
 # Refresh the Cloudflare published IPv4/IPv6 origin ranges, and verify
-# the Cloudflare AOP CA fingerprint has not changed. The committed
-# range files are the source of truth for the gateway's trust-aware
-# client-IP resolver and for the origin firewall Terraform module;
-# the AOP CA itself lives in Vault, NOT in git, so this script never
-# writes the CA bytes back to the repo.
+# the Cloudflare AOP CA fingerprint has not changed against the pin
+# committed at deployments/cloudflare/origin-pull/aop-ca.sha256.
 #
 # Designed for weekly CI execution.
+#
+# Two modes:
+#
+#   normal:    Default. Reads the pin from aop-ca.sha256, fetches the
+#              live CA, exits 1 on mismatch. Updates ip-ranges/*.txt
+#              if Cloudflare published new ranges; exits 2 in that
+#              case so CI can open a PR.
+#
+#   --bootstrap: First-run mode. Run once on a fresh repo to capture
+#              the current live AOP CA fingerprint into
+#              aop-ca.sha256 AND the PEM bytes into
+#              origin-pull/origin-pull-ca.pem. Both files are then
+#              committed by the operator. Subsequent runs treat them
+#              as the immutable pinned baseline.
 #
 # Writes:
 #   deployments/cloudflare/ip-ranges/ipv4.txt
 #   deployments/cloudflare/ip-ranges/ipv6.txt
-#
-# Verifies (does NOT write):
-#   SHA-256 fingerprint of
-#   https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
-#   matches EXPECTED_AOP_CA_SHA256 below.
+#   (--bootstrap only) deployments/cloudflare/origin-pull/aop-ca.sha256
+#   (--bootstrap only) deployments/cloudflare/origin-pull/origin-pull-ca.pem
 #
 # Exit codes:
 #   0 - success, no diff (ranges unchanged, CA fingerprint matches)
@@ -32,19 +40,37 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CF_DIR="${REPO_ROOT}/deployments/cloudflare"
 IPV4_FILE="${CF_DIR}/ip-ranges/ipv4.txt"
 IPV6_FILE="${CF_DIR}/ip-ranges/ipv6.txt"
+AOP_CA_PIN_FILE="${CF_DIR}/origin-pull/aop-ca.sha256"
+AOP_CA_PEM_FILE="${CF_DIR}/origin-pull/origin-pull-ca.pem"
 
-# Pinned fingerprint of the current Cloudflare AOP CA. When Cloudflare
-# rotates this changes, the script fails with exit 1, and an operator
-# must perform the rotation procedure documented in
-# docs/architecture/edge-cloudflare-envoy.md before updating this pin.
-#
-# To find the live fingerprint:
-#   curl -fsSL https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem | \
-#     openssl x509 -noout -fingerprint -sha256 | awk -F= '{print $2}' | tr -d ':' | tr A-Z a-z
-EXPECTED_AOP_CA_SHA256=""
+MODE="normal"
+if [[ "${1:-}" == "--bootstrap" ]]; then
+  MODE="bootstrap"
+fi
 
 log() {
   printf '[refresh-cloudflare-ips] %s\n' "$*" >&2
+}
+
+# Read the pinned fingerprint from the committed pin file. Strips
+# comments (lines starting with #) and blank lines, takes the first
+# non-empty result.
+read_pin() {
+  if [[ ! -f "${AOP_CA_PIN_FILE}" ]]; then
+    log "FATAL: pin file not found: ${AOP_CA_PIN_FILE}"
+    log "Run this script with --bootstrap once to capture the current"
+    log "Cloudflare AOP CA fingerprint, then commit the result."
+    exit 1
+  fi
+  local pin
+  pin="$(grep -v -E '^[[:space:]]*(#|$)' "${AOP_CA_PIN_FILE}" | head -n1 | tr -d '[:space:]')"
+  if [[ -z "${pin}" ]]; then
+    log "FATAL: pin file is empty: ${AOP_CA_PIN_FILE}"
+    log "Run this script with --bootstrap once to capture the current"
+    log "Cloudflare AOP CA fingerprint, then commit the result."
+    exit 1
+  fi
+  printf '%s' "${pin}"
 }
 
 fetch() {
@@ -99,22 +125,40 @@ actual_ca_sha256="$(openssl x509 -in "${tmp_ca}" -noout -fingerprint -sha256 \
   | awk -F= '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
 log "fetched AOP CA SHA-256: ${actual_ca_sha256}"
 
-if [[ -z "${EXPECTED_AOP_CA_SHA256}" ]]; then
-  log "FATAL: EXPECTED_AOP_CA_SHA256 is unset."
-  log "Pin the current Cloudflare AOP CA fingerprint at the top of"
-  log "this script before running it; an empty pin is not a valid"
-  log "baseline."
-  exit 1
-fi
-
-if [[ "${actual_ca_sha256}" != "${EXPECTED_AOP_CA_SHA256}" ]]; then
-  log "FATAL: Cloudflare AOP CA fingerprint changed."
-  log "  expected: ${EXPECTED_AOP_CA_SHA256}"
-  log "  actual:   ${actual_ca_sha256}"
-  log "This is a Cloudflare CA rotation. Follow the rotation runbook"
-  log "in docs/architecture/edge-cloudflare-envoy.md (\"Rotation"
-  log "procedures > Cloudflare AOP CA\") BEFORE updating the pin."
-  exit 1
+if [[ "${MODE}" == "bootstrap" ]]; then
+  log "--bootstrap mode: writing pin file and PEM"
+  mkdir -p "$(dirname "${AOP_CA_PIN_FILE}")"
+  cat > "${AOP_CA_PIN_FILE}" <<EOF
+# Cloudflare Authenticated Origin Pulls (AOP) CA pinned fingerprint.
+#
+# Source of truth for the AOP CA bytes that edge-ingress trusts at
+# /etc/edge-ingress/cloudflare/origin-pull-ca.pem. Captured once via
+# \`refresh-cloudflare-ips.sh --bootstrap\` and committed; thereafter
+# every weekly CI run verifies the live Cloudflare-published bytes
+# still hash to this value. A mismatch means Cloudflare rotated the
+# CA and an operator must follow the rotation runbook in
+# docs/architecture/edge-cloudflare-envoy.md.
+#
+# Format: single line, lowercase hex SHA-256, no colons.
+${actual_ca_sha256}
+EOF
+  cp "${tmp_ca}" "${AOP_CA_PEM_FILE}"
+  log "wrote ${AOP_CA_PIN_FILE}"
+  log "wrote ${AOP_CA_PEM_FILE}"
+  log "Commit BOTH files. Subsequent runs will verify against this baseline."
+  # Fall through to the IP-range refresh logic below; bootstrap is
+  # additive, not exclusive.
+else
+  expected_pin="$(read_pin)"
+  if [[ "${actual_ca_sha256}" != "${expected_pin}" ]]; then
+    log "FATAL: Cloudflare AOP CA fingerprint changed."
+    log "  expected (pin file): ${expected_pin}"
+    log "  actual   (live):     ${actual_ca_sha256}"
+    log "This is a Cloudflare CA rotation. Follow the rotation runbook"
+    log "in docs/architecture/edge-cloudflare-envoy.md (\"Rotation"
+    log "procedures > Cloudflare AOP CA\") BEFORE updating the pin."
+    exit 1
+  fi
 fi
 
 changed=0

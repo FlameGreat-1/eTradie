@@ -1,0 +1,18 @@
+# Cloudflare Authenticated Origin Pulls (AOP) CA pinned fingerprint.
+#
+# Source of truth for the AOP CA bytes that edge-ingress trusts at
+# /etc/edge-ingress/cloudflare/origin-pull-ca.pem. Captured once via
+# `refresh-cloudflare-ips.sh --bootstrap` and committed; thereafter
+# every weekly CI run verifies the live Cloudflare-published bytes
+# still hash to this value. A mismatch means Cloudflare rotated the
+# CA and an operator must follow the rotation runbook in
+# docs/architecture/edge-cloudflare-envoy.md.
+#
+# Format: single line, lowercase hex SHA-256, no colons.
+#
+# To populate:
+#   bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh --bootstrap
+#
+# Then `git add` both this file and origin-pull/origin-pull-ca.pem and
+# commit. Until populated, the weekly refresh CI job exits 1 with a
+# clear bootstrap-required error.

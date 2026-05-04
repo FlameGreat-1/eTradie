@@ -46,15 +46,37 @@ front of `edge-ingress` -> `envoy` -> `gateway` so that:
 
 1. Cloudflare dashboard -> **SSL/TLS** -> **Origin Server** -> **Authenticated Origin Pulls**.
 2. Set **Authenticated Origin Pulls** to **On (zone-level)**.
-3. Verify the cert at
-    https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
-    matches the bytes of `origin-pull/origin-pull-ca.pem` shipped here:
+3. Bootstrap the AOP CA pin in this repo (one-time, per repo):
     ```
-    openssl x509 -in deployments/cloudflare/origin-pull/origin-pull-ca.pem -noout -fingerprint -sha256
+    bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh --bootstrap
     ```
-    The expected fingerprint is documented in Cloudflare's docs and is
-    pinned by the Rust TLS layer (`src/edge-ingress/crates/tls/src/`).
+    This fetches the live Cloudflare AOP CA, computes its SHA-256
+    fingerprint, writes BOTH:
+      - `deployments/cloudflare/origin-pull/aop-ca.sha256` (the pin)
+      - `deployments/cloudflare/origin-pull/origin-pull-ca.pem`
+        (the canonical bytes; this is the bootstrap-only commit
+        case where origin-pull-ca.pem IS committed despite the
+        directory's .gitignore -- use `git add -f`).
+    Commit both files. Every subsequent weekly CI run of
+    `refresh-cloudflare-ips.sh` verifies the live CA still hashes
+    to the committed pin; any mismatch is a CA rotation event.
 4. Cloudflare dashboard -> **SSL/TLS** -> **Edge Certificates** -> **Always Use HTTPS** = **On**, **Minimum TLS Version** = **1.2**, **TLS 1.3** = **On**.
+
+> **AOP CA bytes vs dev cert bytes**
+>
+> `origin-pull-ca.pem` has two different lifecycles in this repo:
+>
+> - **Dev** (the `make dev-certs` workflow): produced by
+>   `generate-dev-certs.sh`, gitignored, only trusted by the local
+>   docker-compose `edge` profile.
+> - **Production baseline** (this bootstrap workflow): produced by
+>   `refresh-cloudflare-ips.sh --bootstrap`, force-committed once
+>   so the repo carries a verifiable copy of the canonical Cloudflare
+>   AOP CA at the time of bootstrap. The bytes that edge-ingress
+>   *actually* uses in cluster come from Vault via the
+>   `cloudflare-aop-ca` ExternalSecret; the committed PEM is purely
+>   a verification artefact (CI compares the live download against
+>   it on every refresh).
 
 ### 2. Origin firewall (defence-in-depth pair with AOP)
 

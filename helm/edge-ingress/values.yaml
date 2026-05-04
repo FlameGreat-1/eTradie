@@ -71,14 +71,19 @@ metricsService:
   type: ClusterIP
   port: 9902
 
+# Resource envelope sized so HPA peak (maxReplicas × limits.cpu) fits
+# under namespace ResourceQuota.hard.limitsCpu with headroom for
+# platform overhead. 2:1 limits-to-requests ratio is enough burst for
+# TLS handshake spikes; the Rust binary's RSS under 5k sustained
+# connections is ~400 MiB so memory limits=2Gi is a 5x safety margin.
 resources:
   requests:
     cpu: 1000m
     memory: 1Gi
     ephemeral-storage: 256Mi
   limits:
-    cpu: 4000m
-    memory: 4Gi
+    cpu: 2000m
+    memory: 2Gi
     ephemeral-storage: 512Mi
 
 autoscaling:
@@ -108,7 +113,13 @@ autoscaling:
           value: 5
           periodSeconds: 15
       selectPolicy: Max
-  customMetrics:
+  # Custom metrics require an external adapter (prometheus-adapter or
+  # KEDA) installed in the cluster. Default-OFF so the chart works on
+  # any cluster; the operator flips this to true in
+  # values-production.yaml once the adapter is installed and
+  # configured to serve `edge_ingress_active_connections`.
+  customMetricsEnabled: false
+  customMetricsList:
     - type: Pods
       pods:
         metric:
@@ -176,14 +187,13 @@ affinity:
 
 topologySpreadConstraints: []
 
-nodeSelector:
-  node.kubernetes.io/instance-type: c6i.2xlarge
+# Scheduling constraints. Empty by default so the chart deploys on any
+# EKS cluster. Production layers values-production.yaml on top and pins
+# the instance type + adds the matching toleration for the dedicated
+# `edge` node taint applied by infrastructure/cluster/.
+nodeSelector: {}
 
-tolerations:
-  - key: "workload"
-    operator: "Equal"
-    value: "edge"
-    effect: "NoSchedule"
+tolerations: []
 
 terminationGracePeriodSeconds: 30
 
@@ -200,8 +210,17 @@ volumes:
     sizeLimit: "64Mi"
 
 geoip:
+  # Editions to download. GeoLite2-City is sufficient for the
+  # geo-router's country / region resolution. Adding GeoLite2-Country
+  # or GeoLite2-ASN here is supported by the upstream image
+  # (space-separated list).
+  editionIds: "GeoLite2-City"
   initContainer:
-    image: "alpine:3.19"
+    # Official MaxMind geoipupdate image. Same image as the local
+    # docker-compose `edge-geoip-init` service (docker-compose.yml).
+    # v6+ is required because MaxMind deprecated the legacy
+    # license-key-only download URL alongside the v6 client release.
+    image: "maxmindinc/geoipupdate:v6.0"
     pullPolicy: IfNotPresent
 
 externalSecrets:
