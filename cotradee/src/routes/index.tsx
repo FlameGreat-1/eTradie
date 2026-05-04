@@ -7,6 +7,7 @@ import AuthLayout from '@/components/layout/AuthLayout';
 /* ─── Lazy-loaded pages ──────────────────────────────────── */
 const LoginPage    = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const AnalysisPage  = lazy(() => import('./pages/AnalysisPage'));
 const TradesPage    = lazy(() => import('./pages/TradesPage'));
@@ -66,6 +67,14 @@ export default function AppRoutes() {
           element={
             <GuestRoute>
               <AuthLayout><RegisterPage /></AuthLayout>
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/auth/callback/google"
+          element={
+            <GuestRoute>
+              <AuthLayout><OAuthCallbackPage /></AuthLayout>
             </GuestRoute>
           }
         />

@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
+import GoogleSignInButton from './GoogleSignInButton';
+import SocialAuthDivider from './SocialAuthDivider';
+import { env } from '@/config/env';
 
 export default function RegisterForm() {
   const { register } = useAuth();
@@ -69,6 +72,13 @@ export default function RegisterForm() {
                    hover:bg-brand-dark disabled:opacity-50 transition-colors">
         {loading ? 'Creating…' : 'Create Account'}
       </button>
+
+      {env.googleOAuthEnabled && (
+        <>
+          <SocialAuthDivider />
+          <GoogleSignInButton label="Sign up with Google" />
+        </>
+      )}
     </form>
   );
 }
