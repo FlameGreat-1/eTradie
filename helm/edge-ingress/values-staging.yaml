@@ -75,11 +75,13 @@ config:
   upstream:
     connectTimeoutSecs: 4
     requestTimeoutSecs: 45
+    # Single envoy release in staging; do not list non-existent
+    # us-west-2 FQDN here (it produces NXDOMAIN noise with no
+    # functional benefit; geo-router's region fallback already
+    # tolerates an unreachable secondary).
     endpoints:
       - region: "us-east-1"
         address: "etradie-envoy.envoy-system.svc.cluster.local:8080"
-      - region: "us-west-2"
-        address: "etradie-envoy-us-west-2.envoy-system.svc.cluster.local:8080"
   connectionLimits:
     maxGlobalConnections: 50000
     maxConnectionsPerIp: 500

@@ -356,15 +356,17 @@ config:
   upstream:
     connectTimeoutSecs: 5
     requestTimeoutSecs: 60
+    # Only list regions that actually have an envoy Service deployed.
+    # Each entry triggers a periodic DNS + TCP health probe; entries
+    # whose FQDN does not resolve produce noisy NXDOMAIN traffic and
+    # spurious upstream-unhealthy metrics with no functional value
+    # (the geo-router fallback policy steers everything to a healthy
+    # region anyway). When a new region is brought online, deploy an
+    # envoy chart instance with fullnameOverride matching the FQDN
+    # below and add the entry here in the same MR.
     endpoints:
       - region: "us-east-1"
         address: "etradie-envoy.envoy-system.svc.cluster.local:8080"
-      - region: "us-west-2"
-        address: "etradie-envoy-us-west-2.envoy-system.svc.cluster.local:8080"
-      - region: "eu-west-1"
-        address: "etradie-envoy-eu-west-1.envoy-system.svc.cluster.local:8080"
-      - region: "ap-southeast-1"
-        address: "etradie-envoy-ap-southeast-1.envoy-system.svc.cluster.local:8080"
   connectionLimits:
     maxGlobalConnections: 100000
     maxConnectionsPerIp: 1000
