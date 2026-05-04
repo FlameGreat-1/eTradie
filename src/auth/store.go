@@ -17,6 +17,23 @@ import (
 // ---------------------------------------------------------------------------
 
 // SchemaSQL returns the DDL for auth tables. Called once at startup.
+//
+// All statements are idempotent (CREATE ... IF NOT EXISTS,
+// ADD COLUMN IF NOT EXISTS) so this can be re-run safely on every
+// startup against a populated production database.
+//
+// password_hash is nullable to support federated identity providers
+// (Google OAuth 2.0). Local accounts always have a non-empty hash;
+// federated accounts have NULL and are rejected by CheckPassword.
+//
+// auth_oauth_flows holds the short-lived PKCE/state/nonce records used
+// during the Authorization Code redirect dance. Single-use enforcement
+// is via the consumed flag plus an expires_at TTL; a periodic janitor
+// (CleanupExpiredOAuthFlows) deletes stale rows.
+//
+// auth_oauth_identities maps a (provider, provider_subject) pair to a
+// platform user. The unique index makes account-linking idempotent and
+// guarantees one Google account cannot be claimed by two local users.
 func SchemaSQL() string {
 	return `
 CREATE TABLE IF NOT EXISTS auth_users (
@@ -35,6 +52,15 @@ CREATE INDEX IF NOT EXISTS idx_auth_users_username ON auth_users (username);
 CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users (email);
 CREATE INDEX IF NOT EXISTS idx_auth_users_role ON auth_users (role);
 
+-- Federated-identity additive columns. Defaults keep existing rows valid.
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS auth_provider  TEXT NOT NULL DEFAULT 'local';
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS avatar_url     TEXT NOT NULL DEFAULT '';
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Allow federated accounts to have no local password.
+ALTER TABLE auth_users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE auth_users ALTER COLUMN password_hash SET DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS auth_sessions (
     id              TEXT PRIMARY KEY,
     user_id         TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -49,6 +75,42 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token ON auth_sessions (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at);
+
+CREATE TABLE IF NOT EXISTS auth_oauth_flows (
+    flow_id         TEXT PRIMARY KEY,
+    provider        TEXT NOT NULL,
+    state           TEXT NOT NULL UNIQUE,
+    code_verifier   TEXT NOT NULL,
+    nonce           TEXT NOT NULL,
+    redirect_uri    TEXT NOT NULL,
+    return_to       TEXT NOT NULL DEFAULT '/',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at      TIMESTAMPTZ NOT NULL,
+    consumed        BOOLEAN NOT NULL DEFAULT FALSE,
+    consumed_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_oauth_flows_state      ON auth_oauth_flows (state);
+CREATE INDEX IF NOT EXISTS idx_auth_oauth_flows_expires_at ON auth_oauth_flows (expires_at);
+
+CREATE TABLE IF NOT EXISTS auth_oauth_identities (
+    id                 TEXT PRIMARY KEY,
+    user_id            TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    provider           TEXT NOT NULL,
+    provider_subject   TEXT NOT NULL,
+    email              TEXT NOT NULL,
+    email_verified     BOOLEAN NOT NULL,
+    name               TEXT NOT NULL DEFAULT '',
+    picture            TEXT NOT NULL DEFAULT '',
+    hosted_domain      TEXT NOT NULL DEFAULT '',
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login_at      TIMESTAMPTZ,
+    UNIQUE (provider, provider_subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_oauth_identities_user_id  ON auth_oauth_identities (user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_oauth_identities_provider ON auth_oauth_identities (provider);
 `
 }
 
@@ -67,12 +129,27 @@ func NewUserStore(pool *pgxpool.Pool) *UserStore {
 }
 
 // CreateUser inserts a new user into the database.
+//
+// The auth_provider, avatar_url, and email_verified columns are
+// populated explicitly so federated accounts created via Google get
+// the correct values and existing local-account call sites that
+// leave AuthProvider blank still default to "local".
 func (s *UserStore) CreateUser(ctx context.Context, user *User) error {
+	provider := user.AuthProvider
+	if provider == "" {
+		provider = AuthProviderLocal
+		user.AuthProvider = provider
+	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO auth_users (id, username, email, password_hash, role, active, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO auth_users (
+		        id, username, email, password_hash, role, active,
+		        auth_provider, avatar_url, email_verified,
+		        created_at, updated_at
+		 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		user.ID, user.Username, user.Email, user.PasswordHash,
-		string(user.Role), user.Active, user.CreatedAt, user.UpdatedAt,
+		string(user.Role), user.Active,
+		provider, user.AvatarURL, user.EmailVerified,
+		user.CreatedAt, user.UpdatedAt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
@@ -92,29 +169,25 @@ func (s *UserStore) CreateUser(ctx context.Context, user *User) error {
 // GetUserByID retrieves a user by their ID.
 func (s *UserStore) GetUserByID(ctx context.Context, id string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
-		 FROM auth_users WHERE id = $1`, id))
+		`SELECT `+userColumns+` FROM auth_users WHERE id = $1`, id))
 }
 
 // GetUserByUsername retrieves a user by their username (case-insensitive).
 func (s *UserStore) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
-		 FROM auth_users WHERE LOWER(username) = LOWER($1)`, username))
+		`SELECT `+userColumns+` FROM auth_users WHERE LOWER(username) = LOWER($1)`, username))
 }
 
 // GetUserByEmail retrieves a user by their email (case-insensitive).
 func (s *UserStore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
-		 FROM auth_users WHERE LOWER(email) = LOWER($1)`, email))
+		`SELECT `+userColumns+` FROM auth_users WHERE LOWER(email) = LOWER($1)`, email))
 }
 
 // ListUsers returns all users. Admin only.
 func (s *UserStore) ListUsers(ctx context.Context) ([]*User, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
-		 FROM auth_users ORDER BY created_at ASC`)
+		`SELECT `+userColumns+` FROM auth_users ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
@@ -134,8 +207,7 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]*User, error) {
 // ListActiveUsers returns all users where active=true.
 func (s *UserStore) ListActiveUsers(ctx context.Context) ([]*User, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, username, email, password_hash, role, active, created_at, updated_at, last_login_at
-		 FROM auth_users WHERE active = TRUE ORDER BY created_at ASC`)
+		`SELECT `+userColumns+` FROM auth_users WHERE active = TRUE ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list active users: %w", err)
 	}
@@ -150,6 +222,28 @@ func (s *UserStore) ListActiveUsers(ctx context.Context) ([]*User, error) {
 		users = append(users, u)
 	}
 	return users, rows.Err()
+}
+
+// UpdateProfileFromOAuth refreshes the auth-provider-managed fields
+// (avatar URL, email verification flag, last_login_at) for an existing
+// user. Used by the Google OAuth callback so a user who updates their
+// Google profile picture sees the change reflected in eTradie on next
+// sign-in. Username and email are deliberately left untouched here:
+// rotating the email of a federated account is handled separately.
+func (s *UserStore) UpdateProfileFromOAuth(ctx context.Context, userID string, avatarURL string, emailVerified bool) error {
+	now := time.Now().UTC()
+	_, err := s.pool.Exec(ctx,
+		`UPDATE auth_users
+		    SET avatar_url     = $1,
+		        email_verified = $2,
+		        last_login_at  = $3,
+		        updated_at     = $3
+		  WHERE id = $4`,
+		avatarURL, emailVerified, now, userID)
+	if err != nil {
+		return fmt.Errorf("update profile from oauth: %w", err)
+	}
+	return nil
 }
 
 
@@ -212,11 +306,20 @@ func (s *UserStore) CountAdmins(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// userColumns is the canonical SELECT list for auth_users. Centralised
+// so every read path scans the same columns in the same order.
+const userColumns = `id, username, email, password_hash, role, active,
+        auth_provider, avatar_url, email_verified,
+        created_at, updated_at, last_login_at`
+
 func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
+	var passwordHash *string
 	err := row.Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash,
-		&u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.ID, &u.Username, &u.Email, &passwordHash,
+		&u.Role, &u.Active,
+		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
+		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -224,17 +327,26 @@ func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 		}
 		return nil, fmt.Errorf("scan user: %w", err)
 	}
+	if passwordHash != nil {
+		u.PasswordHash = *passwordHash
+	}
 	return u, nil
 }
 
 func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 	u := &User{}
+	var passwordHash *string
 	err := rows.Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash,
-		&u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.ID, &u.Username, &u.Email, &passwordHash,
+		&u.Role, &u.Active,
+		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
+		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan user row: %w", err)
+	}
+	if passwordHash != nil {
+		u.PasswordHash = *passwordHash
 	}
 	return u, nil
 }

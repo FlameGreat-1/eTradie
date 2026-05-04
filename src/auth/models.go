@@ -59,17 +59,37 @@ func ParseRole(s string) (Role, error) {
 // ---------------------------------------------------------------------------
 
 // User represents a registered platform user stored in PostgreSQL.
+//
+// AuthProvider identifies how the account was created and authenticates:
+//   - "local": traditional username/password (bcrypt hash in PasswordHash).
+//   - "google": federated identity via Google OAuth 2.0. Local password
+//     login is disabled for these accounts; PasswordHash is empty and
+//     CheckPassword always returns an error so a leaked password reset
+//     against a Google-only account cannot create a local credential.
+//
+// AvatarURL is an optional profile picture URL supplied by the identity
+// provider. EmailVerified mirrors the provider's verification claim and
+// is required to be true for any account created via Google.
 type User struct {
-	ID             string    `json:"id"`
-	Username       string    `json:"username"`
-	Email          string    `json:"email"`
-	PasswordHash   string    `json:"-"` // never serialised to JSON
-	Role           Role      `json:"role"`
-	Active         bool      `json:"active"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             string     `json:"id"`
+	Username       string     `json:"username"`
+	Email          string     `json:"email"`
+	PasswordHash   string     `json:"-"` // never serialised to JSON
+	Role           Role       `json:"role"`
+	Active         bool       `json:"active"`
+	AuthProvider   string     `json:"auth_provider"`
+	AvatarURL      string     `json:"avatar_url,omitempty"`
+	EmailVerified  bool       `json:"email_verified"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 	LastLoginAt    *time.Time `json:"last_login_at,omitempty"`
 }
+
+// Auth provider identifiers persisted in auth_users.auth_provider.
+const (
+	AuthProviderLocal  = "local"
+	AuthProviderGoogle = "google"
+)
 
 // SetPassword hashes the plaintext password with bcrypt (cost 12)
 // and stores the result in PasswordHash.
@@ -90,7 +110,18 @@ func (u *User) SetPassword(plaintext string) error {
 
 // CheckPassword compares a plaintext password against the stored hash.
 // Returns nil on match, error otherwise.
+//
+// For accounts whose AuthProvider is not "local" (e.g. "google"),
+// password login is disabled by design: PasswordHash is empty and
+// any password compare is rejected. This prevents an attacker who
+// knows a federated user's email from attempting password guesses.
 func (u *User) CheckPassword(plaintext string) error {
+	if u.AuthProvider != "" && u.AuthProvider != AuthProviderLocal {
+		return fmt.Errorf("password login is disabled for %s accounts", u.AuthProvider)
+	}
+	if u.PasswordHash == "" {
+		return fmt.Errorf("password login is not configured for this account")
+	}
 	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(plaintext))
 }
 
