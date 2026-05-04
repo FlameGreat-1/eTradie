@@ -61,20 +61,83 @@ module "eks" {
     }
   }
 
+  # Three purpose-tainted node groups so production scheduling
+  # actually segregates workloads. The taints here MUST match the
+  # tolerations declared in helm/edge-ingress/values-production.yaml
+  # and helm/gateway/values-production.yaml.
   eks_managed_node_groups = {
-    default = {
-      instance_types = var.node_group_instance_types
-      min_size       = var.node_group_min_size
-      max_size       = var.node_group_max_size
-      desired_size   = var.node_group_desired_size
+    # Dedicated edge group: only edge-ingress pods (which carry the
+    # matching toleration) can schedule here. Hosts the public NLB
+    # backends; isolated from internal traffic.
+    edge = {
+      instance_types = var.edge_node_group.instance_types
+      min_size       = var.edge_node_group.min_size
+      max_size       = var.edge_node_group.max_size
+      desired_size   = var.edge_node_group.desired_size
+
+      labels = {
+        "workload" = "edge"
+      }
+
+      taints = [
+        {
+          key    = "workload"
+          value  = "edge"
+          effect = "NO_SCHEDULE"
+        },
+      ]
+
+      metadata_options = {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 1
+      }
+    }
+
+    # Dedicated etradie-system group: gateway / engine / execution /
+    # management pods (which carry the matching toleration). Isolated
+    # from edge ingress and from cluster add-ons.
+    etradie_system = {
+      instance_types = var.etradie_system_node_group.instance_types
+      min_size       = var.etradie_system_node_group.min_size
+      max_size       = var.etradie_system_node_group.max_size
+      desired_size   = var.etradie_system_node_group.desired_size
 
       labels = {
         "workload" = "etradie-system"
       }
 
+      taints = [
+        {
+          key    = "workload"
+          value  = "etradie-system"
+          effect = "NO_SCHEDULE"
+        },
+      ]
+
+      metadata_options = {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 1
+      }
+    }
+
+    # Untainted group for cluster add-ons (cluster-autoscaler,
+    # metrics-server, prometheus-adapter, ESO, ALB controller, ArgoCD
+    # itself). Add-ons must schedule somewhere even when both
+    # workload-tainted groups are at capacity.
+    system = {
+      instance_types = var.system_node_group.instance_types
+      min_size       = var.system_node_group.min_size
+      max_size       = var.system_node_group.max_size
+      desired_size   = var.system_node_group.desired_size
+
+      labels = {
+        "workload" = "system"
+      }
+
       taints = []
 
-      # Force IMDSv2 (security baseline).
       metadata_options = {
         http_endpoint               = "enabled"
         http_tokens                 = "required"
