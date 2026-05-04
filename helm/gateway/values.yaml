@@ -7,7 +7,7 @@
 replicaCount: 3
 
 image:
-  repository: registry.gitlab.com/cotradee3/cotradeecode/gateway
+  repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 

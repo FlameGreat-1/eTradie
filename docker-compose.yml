@@ -370,11 +370,11 @@ services:
       - LOG_LEVEL=debug
     volumes:
       - ./src/envoy/config/local/envoy-local.yaml:/etc/envoy/envoy.yaml:ro
-      # WASM filter built by src/envoy/scripts/build-wasm.sh.
+      # WASM filter built by 'make envoy-build'.
       # The path is required; ${VAR:?...} aborts compose-up with a
       # clear message when the .wasm is missing rather than letting
       # envoy boot into a missing-WASM crash loop.
-      - ${EDGE_ENVOY_WASM_PATH:?EDGE_ENVOY_WASM_PATH must point at the built integration-filter.wasm; run "cd src/envoy && bash scripts/build-wasm.sh" first}:/etc/envoy/wasm/integration-filter.wasm:ro
+      - ${EDGE_ENVOY_WASM_PATH:?EDGE_ENVOY_WASM_PATH must point at the built integration-filter.wasm; run "make envoy-build" first}:/etc/envoy/wasm/integration-filter.wasm:ro
     command:
       - "-c"
       - "/etc/envoy/envoy.yaml"

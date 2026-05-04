@@ -1,0 +1,14 @@
+/home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/deps/libserde-bc89d50cffcfc54b.rmeta: /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/build/serde-0a715132ead5ae0f/out/private.rs
+
+/home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/deps/libserde-bc89d50cffcfc54b.rlib: /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/build/serde-0a715132ead5ae0f/out/private.rs
+
+/home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/deps/serde-bc89d50cffcfc54b.d: /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/build/serde-0a715132ead5ae0f/out/private.rs
+
+/home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs:
+/home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs:
+/home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs:
+/home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs:
+/home/softverse/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs:
+/home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/build/serde-0a715132ead5ae0f/out/private.rs:
+
+# env-dep:OUT_DIR=/home/softverse/eTradie/src/envoy/target/wasm32-wasi/release/build/serde-0a715132ead5ae0f/out

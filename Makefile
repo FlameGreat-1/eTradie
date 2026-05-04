@@ -10,19 +10,32 @@
 .SILENT:
 MAKEFLAGS += --no-print-directory
 
+# ============================================================================
+# DIRECTORY STRUCTURE
+# ============================================================================
+PROJECT_ROOT := $(shell pwd)
+GATEWAY_DIR := $(PROJECT_ROOT)/src/gateway
+EXECUTION_DIR := $(PROJECT_ROOT)/src/execution
+ENGINE_DIR := $(PROJECT_ROOT)
+PROTO_DIR := $(PROJECT_ROOT)/proto
+
+GATEWAY_BIN := bin/gateway
+EXECUTION_BIN := bin/execution
+MANAGEMENT_BIN := bin/management
+GATEWAY_CMD := ./src/gateway/cmd/gateway
+EXECUTION_CMD := ./src/execution/cmd/execution
+MANAGEMENT_CMD := ./src/management/cmd/management
+
 # ----------------------------------------------------------------------------
 # Platform Makefile fragment. Sourced unconditionally with `-include`
-# so a missing fragment does not break the build (the platform-layer
-# targets simply will not be available). All edge-ingress / envoy /
-# helm / argocd / terraform / cloudflare targets live there to keep
-# this top-level file readable.
+# so a missing fragment does not break the build.
 # ----------------------------------------------------------------------------
 -include Makefile.platform
 
 # Dynamically extract Windows Host IP for WSL traffic routing
 export WSL_HOST_IP ?= $(shell ip route show default | awk '{print $$3}')
 
-# Force bash shell instead of Ubuntu's default dash shell for 'echo -e' support
+# Force bash shell
 SHELL := /bin/bash
 
 # ============================================================================
@@ -46,22 +59,6 @@ NC := \033[0m
 	@echo -e "       $(MAGENTA)███████╗   ██║   ██║  ██║██║  ██║██████╔╝██║███████╗$(NC)"
 	@echo -e "       $(MAGENTA)╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝╚══════╝$(NC)"
 	@echo ""
-
-# ============================================================================
-# DIRECTORY STRUCTURE
-# ============================================================================
-PROJECT_ROOT := $(shell pwd)
-GATEWAY_DIR := $(PROJECT_ROOT)/src/gateway
-EXECUTION_DIR := $(PROJECT_ROOT)/src/execution
-ENGINE_DIR := $(PROJECT_ROOT)
-PROTO_DIR := $(PROJECT_ROOT)/proto
-
-GATEWAY_BIN := bin/gateway
-EXECUTION_BIN := bin/execution
-MANAGEMENT_BIN := bin/management
-GATEWAY_CMD := ./src/gateway/cmd/gateway
-EXECUTION_CMD := ./src/execution/cmd/execution
-MANAGEMENT_CMD := ./src/management/cmd/management
 
 # ============================================================================
 # GO CONFIGURATION

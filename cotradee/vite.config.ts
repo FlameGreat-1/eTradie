@@ -85,7 +85,6 @@ export default defineConfig(({ mode }) => {
       // fs watcher is fine for our project size and runs in <50 ms.
       hmr: {
         protocol: 'ws',
-        host: 'localhost',
         clientPort: 5173,
         overlay: false,
       },
