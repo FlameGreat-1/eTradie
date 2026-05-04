@@ -1,0 +1,20 @@
+apiVersion: v2
+name: data-layer
+description: eTradie self-hosted data plane (PostgreSQL 16, Redis 7, ChromaDB) deployed as in-cluster StatefulSets with persistent volumes, password/token auth, network policies, and daily pg_dump backups. Cheapest production-ready setup for Contabo K3s, OCI OKE, or any Kubernetes cluster with a default StorageClass.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - postgres
+  - redis
+  - chromadb
+  - data-layer
+  - statefulset
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@etradie.com
+sources:
+  - https://gitlab.com/cotradee3/cotradeecode
+icon: https://etradie.com/icon.png
+dependencies: []

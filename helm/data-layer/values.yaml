@@ -1,0 +1,202 @@
+# Default values for the etradie-data-layer chart.
+#
+# This chart deploys ONE replica each of Postgres, Redis, ChromaDB as
+# StatefulSets backed by PersistentVolumeClaims. It is the cheapest
+# production-ready data plane.
+#
+# Service names are HARD-PINNED to `postgres`, `redis`, `chromadb`
+# so consumers (engine, gateway, execution, management) reach them at
+# their existing FQDNs without any cross-chart override.
+#
+# Each datastore can be disabled (enabled: false) when you migrate
+# off-cluster to a managed offering (e.g. Neon for Postgres).
+# Other charts continue to dial the same FQDN, so an external
+# replacement only requires a CoreDNS ExternalName Service or an
+# updated values.yaml in the consumer.
+
+namespace:
+  name: etradie-system
+  podSecurityStandard: restricted
+
+# ----------------------------------------------------------------------
+# PostgreSQL 16 (audit + journal + analytics + auth + watcher state).
+# Image and major version match docker-compose.yml exactly.
+# ----------------------------------------------------------------------
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+
+  # Postgres user/db are non-secrets; the password lives in the Vault
+  # ExternalSecret at templates/postgres-externalsecret.yaml.
+  user: "etradie"
+  database: "etradie"
+
+  service:
+    name: postgres        # FQDN used by every consumer chart
+    headlessName: postgres-headless
+    port: 5432
+
+  storage:
+    storageClassName: ""  # Empty = use cluster default StorageClass
+    size: 8Gi
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  podAnnotations: {}
+
+  # Use the same init.sql committed at docker/postgres/init.sql.
+  # The chart mounts it from a ConfigMap so the same SQL runs in
+  # docker-compose AND in cluster.
+  initSQL:
+    enabled: true
+
+  externalSecret:
+    enabled: true
+    secretStoreName: vault-backend
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    vaultPath: etradie/data-layer/postgres
+    creationPolicy: Owner
+
+  # Daily logical backup via pg_dump. Backups land on a separate
+  # PVC (`postgres-backups`), retained 7 days. For off-cluster
+  # storage (S3/B2/MinIO) replace the CronJob's command with the
+  # appropriate copy step, or set backup.enabled=false and run
+  # backups externally.
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # 02:00 UTC daily
+    retentionDays: 7
+    image:
+      repository: postgres
+      tag: "16-alpine"
+      pullPolicy: IfNotPresent
+    storage:
+      storageClassName: ""
+      size: 16Gi
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+# ----------------------------------------------------------------------
+# Redis 7 (shared alert hub + execution/management transport).
+# Single replica with AOF disabled (matches docker-compose.yml command).
+# ----------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+
+  service:
+    name: redis
+    headlessName: redis-headless
+    port: 6379
+
+  storage:
+    storageClassName: ""
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+
+  # Redis runtime tuning (matches docker-compose.yml).
+  maxmemory: "512mb"
+  maxmemoryPolicy: "allkeys-lru"
+  appendOnly: "no"   # No AOF persistence; LRU cache + RDB snapshots
+  saveSchedule: ""   # Empty = no RDB schedule; matches compose --save ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+  podAnnotations: {}
+
+  externalSecret:
+    enabled: true
+    secretStoreName: vault-backend
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    vaultPath: etradie/data-layer/redis
+    creationPolicy: Owner
+
+# ----------------------------------------------------------------------
+# ChromaDB (RAG vector store).
+# ----------------------------------------------------------------------
+chromadb:
+  enabled: true
+  image:
+    repository: chromadb/chroma
+    tag: "0.5.20"        # Pin a real version for reproducibility;
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+
+  service:
+    name: chromadb
+    headlessName: chromadb-headless
+    port: 8000
+
+  storage:
+    storageClassName: ""
+    size: 8Gi
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  podAnnotations: {}
+
+  externalSecret:
+    enabled: true
+    secretStoreName: vault-backend
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    vaultPath: etradie/data-layer/chromadb
+    creationPolicy: Owner
+
+# ----------------------------------------------------------------------
+# NetworkPolicy: every datastore here only accepts ingress from the
+# pods that actually need it (selected by app.kubernetes.io/name) and
+# only emits cluster-DNS egress. The chart's per-datastore NetworkPolicy
+# is rendered in templates/networkpolicy.yaml.
+# ----------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+
+# ----------------------------------------------------------------------
+# PodDisruptionBudgets are NOT useful at single-replica scale (they
+# would block voluntary evictions and keep a node draining forever).
+# Scale-out scenarios should use replicated Postgres / Redis Sentinel
+# / ChromaDB sharding which is out of scope for this chart.
+# ----------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: false
