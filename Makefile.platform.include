@@ -1,0 +1,7 @@
+# Sentinel file. The top-level Makefile sources Makefile.platform via:
+#     -include Makefile.platform
+# The leading dash is intentional: even on a checkout that somehow
+# lacks the include file, `make` will not abort; the platform targets
+# simply will not be available. This file exists so the ordering
+# contract is explicit and discoverable from `git log` if anyone
+# wonders why the include is there.
