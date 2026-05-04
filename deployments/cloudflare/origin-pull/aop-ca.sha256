@@ -10,9 +10,38 @@
 #
 # Format: single line, lowercase hex SHA-256, no colons.
 #
-# To populate:
-#   bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh --bootstrap
+# ============================================================================
+# TODO: BOOTSTRAP REQUIRED. This file currently contains no fingerprint.
+# ============================================================================
 #
-# Then `git add` both this file and origin-pull/origin-pull-ca.pem and
-# commit. Until populated, the weekly refresh CI job exits 1 with a
-# clear bootstrap-required error.
+# Until populated:
+#   - the weekly CI refresh job (`make cf-refresh-ips`) exits 1 with a
+#     clear bootstrap-required message,
+#   - the AOP CA preflight init-container on edge-ingress
+#     (helm/edge-ingress/templates/deployment.yaml) refuses to start
+#     edge-ingress pods if the Vault-resolved CA is empty.
+#
+# To populate (run once on a workstation with Cloudflare network access
+# and credentials to push a Vault payload):
+#
+#   make cf-bootstrap-aop-ca
+#
+# That command runs `refresh-cloudflare-ips.sh --bootstrap`, which:
+#   1. Fetches the live Cloudflare AOP CA from
+#      https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
+#   2. Writes its SHA-256 fingerprint into THIS file (overwriting this
+#      placeholder).
+#   3. Writes the PEM bytes to ./origin-pull-ca.pem in this directory.
+#
+# Then commit both files in the same change:
+#
+#   git add deployments/cloudflare/origin-pull/aop-ca.sha256
+#   git add -f deployments/cloudflare/origin-pull/origin-pull-ca.pem
+#   git commit -m "chore(cloudflare): bootstrap AOP CA pin"
+#
+# Separately, push the same PEM bytes to Vault at the path read by
+# the cloudflare-aop-ca ExternalSecret:
+#   etradie/services/edge-ingress/<env>/cloudflare/aop_ca
+# with key `aop_ca` set to the literal PEM content. After that, the
+# preflight init-container on edge-ingress will validate the bytes
+# at pod start and the platform can roll out.
