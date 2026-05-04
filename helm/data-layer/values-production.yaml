@@ -5,6 +5,18 @@
 # OCI Block Volume on OKE, or Local Path Provisioner) override
 # postgres.storage.storageClassName / redis.storage.storageClassName /
 # chromadb.storage.storageClassName here.
+#
+# Production schedules every data-layer pod on the dedicated
+# etradie-system node group (taint workload=etradie-system:NoSchedule,
+# applied by
+# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system).
+# Without the per-datastore toleration below, pods land on the untainted
+# `system` add-on pool which is sized for cluster controllers only and
+# cannot fit the data-plane.
+#
+# Cloud-agnostic: a toleration without a matching taint is a no-op, so
+# this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that does
+# not taint nodes.
 
 postgres:
   storage:
@@ -32,6 +44,11 @@ postgres:
       limits:
         cpu: "1"
         memory: 512Mi
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
 
 redis:
   storage:
@@ -47,6 +64,11 @@ redis:
   externalSecret:
     vaultPath: etradie/data-layer/redis/production
     refreshInterval: 1h
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
 
 chromadb:
   storage:
@@ -61,19 +83,8 @@ chromadb:
   externalSecret:
     vaultPath: etradie/data-layer/chromadb/production
     refreshInterval: 1h
-
-# Production schedules data-layer pods on the dedicated etradie-system
-# node group (taint workload=etradie-system:NoSchedule, applied by
-# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system).
-# Without this toleration, pods land on the untainted `system` add-on
-# pool which is sized only for cluster controllers and cannot fit the
-# data-plane.
-#
-# Cloud-agnostic: a toleration without a matching taint is a no-op,
-# so this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that
-# does not taint nodes.
-tolerations:
-  - key: workload
-    operator: Equal
-    value: etradie-system
-    effect: NoSchedule
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
