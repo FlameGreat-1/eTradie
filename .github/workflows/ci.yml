@@ -72,10 +72,10 @@ jobs:
         run: helm lint helm/gateway
       - name: helm template + kubeconform - edge-ingress staging
         run: |
+          # Default cloudProvider=cloudflare-tunnel; no LB, no ACM.
           helm template edge-ingress helm/edge-ingress \
             -f helm/edge-ingress/values.yaml \
             -f helm/edge-ingress/values-staging.yaml \
-            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
             > /tmp/edge-ingress-staging.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \
             -schema-location default \
@@ -86,12 +86,25 @@ jobs:
           helm template edge-ingress helm/edge-ingress \
             -f helm/edge-ingress/values.yaml \
             -f helm/edge-ingress/values-production.yaml \
-            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
             > /tmp/edge-ingress-production.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/edge-ingress-production.yaml
+      - name: helm template + kubeconform - edge-ingress production with generic LB
+        run: |
+          # Exercise the alternative cloud provider so a future
+          # template change cannot silently break the LoadBalancer
+          # render path.
+          helm template edge-ingress helm/edge-ingress \
+            -f helm/edge-ingress/values.yaml \
+            -f helm/edge-ingress/values-production.yaml \
+            --set service.cloudProvider=generic \
+            > /tmp/edge-ingress-production-generic.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/edge-ingress-production-generic.yaml
       - name: helm template + kubeconform - edge-ingress production with customMetricsEnabled
         run: |
           # Exercise the autoscaling.customMetricsEnabled gate so a
@@ -100,7 +113,6 @@ jobs:
           helm template edge-ingress helm/edge-ingress \
             -f helm/edge-ingress/values.yaml \
             -f helm/edge-ingress/values-production.yaml \
-            --set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
             --set autoscaling.customMetricsEnabled=true \
             > /tmp/edge-ingress-production-cm.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \
