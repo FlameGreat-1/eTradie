@@ -6,13 +6,17 @@ replicaCount: 5
 image:
   tag: "staging-v0.1.0"
 
+# Staging mirrors production's 2:1 limits-to-requests ratio so
+# load tests in staging produce the same scheduler behaviour as
+# production. Smaller absolute numbers because staging traffic is
+# bounded.
 resources:
   requests:
-    cpu: 750m
-    memory: 768Mi
+    cpu: 500m
+    memory: 512Mi
   limits:
-    cpu: 3000m
-    memory: 3Gi
+    cpu: 1000m
+    memory: 1Gi
 
 autoscaling:
   minReplicas: 5

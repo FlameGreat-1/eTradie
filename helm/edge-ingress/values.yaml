@@ -71,14 +71,19 @@ metricsService:
   type: ClusterIP
   port: 9902
 
+# Resource envelope sized so HPA peak (maxReplicas × limits.cpu) fits
+# under namespace ResourceQuota.hard.limitsCpu with headroom for
+# platform overhead. 2:1 limits-to-requests ratio is enough burst for
+# TLS handshake spikes; the Rust binary's RSS under 5k sustained
+# connections is ~400 MiB so memory limits=2Gi is a 5x safety margin.
 resources:
   requests:
     cpu: 1000m
     memory: 1Gi
     ephemeral-storage: 256Mi
   limits:
-    cpu: 4000m
-    memory: 4Gi
+    cpu: 2000m
+    memory: 2Gi
     ephemeral-storage: 512Mi
 
 autoscaling:
