@@ -64,8 +64,15 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.initContainer.enabled }}
+      {{- if and .Values.initContainer.enabled .Values.initContainer.dependencies }}
       initContainers:
+        # Wait for every entry in initContainer.dependencies to accept
+        # a TCP connection before the main container starts. The
+        # dependency list is provided by values; do NOT hard-code
+        # hostnames here. The default list in values.yaml mirrors the
+        # endpoints the gateway dials at runtime
+        # (config.gateway.engineHttpUrl etc.) so the init-container
+        # checks the actual runtime contract.
         - name: wait-for-deps
           image: "{{ .Values.initContainer.image }}"
           imagePullPolicy: {{ .Values.initContainer.pullPolicy | default "IfNotPresent" }}
@@ -77,21 +84,32 @@ spec:
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WAIT_FOR_DEPS_TIMEOUT_SECS
+              value: {{ .Values.initContainer.timeoutSeconds | default 120 | quote }}
+            - name: WAIT_FOR_DEPS_INTERVAL_SECS
+              value: {{ .Values.initContainer.intervalSeconds | default 2 | quote }}
           command:
             - /bin/sh
             - -c
             - |
               set -eu
-              for i in $(seq 1 60); do
-                if nc -z postgres-service 5432 && nc -z redis-service 6379; then
-                  echo "postgres + redis reachable"
-                  exit 0
+              deadline=$(( $(date +%s) + ${WAIT_FOR_DEPS_TIMEOUT_SECS} ))
+              {{- range $i, $dep := .Values.initContainer.dependencies }}
+              echo "[wait-for-deps] checking {{ $dep.host }}:{{ $dep.port }}"
+              while ! nc -z -w 2 {{ $dep.host | quote }} {{ $dep.port }}; do
+                if [ "$(date +%s)" -ge "${deadline}" ]; then
+                  echo "[wait-for-deps] FATAL: timed out waiting for {{ $dep.host }}:{{ $dep.port }}"
+                  exit 1
                 fi
-                echo "[$i/60] waiting for postgres:5432 and redis:6379"
-                sleep 2
+                echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+                sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
               done
-              echo "timed out waiting for postgres / redis"
-              exit 1
+              echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} reachable"
+              {{- end }}
+              echo "[wait-for-deps] all dependencies reachable"
           resources:
             {{- toYaml .Values.initContainer.resources | nindent 12 }}
       {{- end }}
