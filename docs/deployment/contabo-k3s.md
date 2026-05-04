@@ -504,33 +504,30 @@ vault kv put secret/etradie/services/edge-ingress/production/maxmind \
   account-id='1234567' \
   license-key='your-maxmind-license-key'
 
-# Per-host TLS certs are NOT NEEDED in Cloudflare Tunnel mode
-# (Cloudflare terminates public TLS; edge-ingress only needs the AOP CA).
-# Seed the path with empty values so ESO does not error:
+# Per-host TLS certs are NOT used in Cloudflare Tunnel mode
+# (Cloudflare terminates public TLS at the edge; edge-ingress only
+# needs the AOP CA). Seed with empty values so ESO does not error.
+# Add real cert bytes only if you switch to cloudProvider=generic
+# AND set up cert-manager.
 vault kv put secret/etradie/services/edge-ingress/production/tls \
   api_cert='' api_key='' \
   wildcard_cert='' wildcard_key=''
 
-# Gateway: DB, JWT, encryption keys.
-# Generate strong random values; do NOT reuse from anywhere else.
-GATEWAY_DB_PASS=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-JWT_SECRET=$(openssl rand -base64 64 | tr -d '/+=' | head -c 64)
-BROKER_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-LLM_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-
+# ---------------------------------------------------------------
+# 4. Gateway: shared DB + Redis with engine; owns JWT + admin pwd.
+# ---------------------------------------------------------------
 vault kv put secret/etradie/services/gateway/production \
   postgres_user='etradie' \
-  postgres_password="$GATEWAY_DB_PASS" \
+  postgres_password="${DB_PASS}" \
   postgres_host='postgres.etradie-system.svc.cluster.local' \
   postgres_port='5432' \
   postgres_db='etradie' \
-  auth_database_url="postgres://etradie:${GATEWAY_DB_PASS}@postgres.etradie-system.svc.cluster.local:5432/etradie?sslmode=disable" \
-  gateway_redis_url='redis://redis.etradie-system.svc.cluster.local:6379/0' \
-  auth_jwt_secret="$JWT_SECRET" \
-  auth_admin_password="$ADMIN_PASS" \
-  broker_encryption_key="$BROKER_KEY" \
-  llm_encryption_key="$LLM_KEY"
+  auth_database_url="${DB_URL_GO}" \
+  gateway_redis_url="${REDIS_URL_DB0}" \
+  auth_jwt_secret="${JWT_SECRET}" \
+  auth_admin_password="${ADMIN_PASS}" \
+  broker_encryption_key="${BROKER_KEY}" \
+  llm_encryption_key="${LLM_KEY}"
 
 # Engine: LLM + data-provider keys (replace with real values)
 vault kv put secret/etradie/services/engine/production \
