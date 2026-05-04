@@ -103,10 +103,17 @@ affinity:
               app.kubernetes.io/name: etradie-gateway
           topologyKey: topology.kubernetes.io/zone
 
+# Topology spread constraints: prefer balanced zone distribution
+# but DO schedule when the cluster has only 2 AZs or when an AZ is
+# degraded. The hostname-level pod anti-affinity
+# (requiredDuringSchedulingIgnoredDuringExecution above) already
+# guarantees no two pods land on the same node, which is the
+# blast-radius property we actually need; the zone constraint here
+# is best-effort balance, not a hard requirement.
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: DoNotSchedule
+    whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: etradie-gateway
