@@ -87,11 +87,15 @@ func NewClientIPResolverWithRangesDir(cidrs []string, trustWellKnownCloudflare b
 // loadCloudflareNetsForResolver returns the *net.IPNet list to trust
 // for Cloudflare. When dir is set and readable, file contents are used.
 // On any error (missing dir, unreadable, all entries malformed) it
-// falls back to the in-binary embedded list. The fallback is what makes
-// this change safe to roll out before every cluster has the ConfigMap
-// mounted: existing deployments keep working with the embedded list.
+// falls back to the in-binary embedded list AND increments the
+// auth_cloudflare_ranges_fallback_total counter so monitoring can
+// detect silent degradation. The fallback is what makes this change
+// safe to roll out before every cluster has the ConfigMap mounted:
+// existing deployments keep working with the embedded list.
 func loadCloudflareNetsForResolver(dir string) []*net.IPNet {
 	if dir == "" {
+		// Empty dir is the explicit "do not use file path" signal,
+		// not a fallback. No metric increment.
 		return cloudflareNetworks()
 	}
 	nets, bad, err := LoadCloudflareNetworksFromDir(dir)
@@ -99,15 +103,24 @@ func loadCloudflareNetsForResolver(dir string) []*net.IPNet {
 		fmt.Fprintf(os.Stderr,
 			"auth/clientip: cloudflare ranges dir %q unreadable (%v); falling back to embedded list\n",
 			dir, err)
+		CloudflareRangesFallbackTotal.WithLabelValues("unreadable").Inc()
 		return cloudflareNetworks()
 	}
 	if len(nets) == 0 {
+		reason := "empty"
+		if len(bad) > 0 {
+			reason = "malformed_only"
+		}
 		fmt.Fprintf(os.Stderr,
 			"auth/clientip: cloudflare ranges dir %q produced 0 valid networks (bad=%d); falling back to embedded list\n",
 			dir, len(bad))
+		CloudflareRangesFallbackTotal.WithLabelValues(reason).Inc()
 		return cloudflareNetworks()
 	}
 	if len(bad) > 0 {
+		// Partial-malformed is NOT a fallback: we still use the file
+		// data. Surface the warning so operators can fix bad lines
+		// but do not page on it (no metric increment).
 		fmt.Fprintf(os.Stderr,
 			"auth/clientip: cloudflare ranges dir %q had %d malformed entries (using %d valid)\n",
 			dir, len(bad), len(nets))

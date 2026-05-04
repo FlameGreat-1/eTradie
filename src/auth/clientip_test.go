@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func newReq(remoteAddr string, headers map[string]string) *http.Request {
@@ -263,4 +266,28 @@ func TestLoadCloudflareNetworksFromDir_CommentsAndBlankLines(t *testing.T) {
 	if len(nets) != 1 {
 		t.Fatalf("want 1 net, got %d", len(nets))
 	}
+}
+
+func TestCloudflareRangesFallbackMetric_IncrementsOnUnreadable(t *testing.T) {
+	// dir is set but does not exist -> unreadable fallback path.
+	// We can't reset a Prometheus counter, so we read its value
+	// before and after and assert a delta of >= 1.
+	dtoBefore := getCounterValue(t, "unreadable")
+	_ = NewClientIPResolverWithRangesDir(nil, true, filepath.Join(t.TempDir(), "absent"))
+	dtoAfter := getCounterValue(t, "unreadable")
+	if dtoAfter <= dtoBefore {
+		t.Fatalf("unreadable counter should have incremented: before=%v after=%v", dtoBefore, dtoAfter)
+	}
+}
+
+func getCounterValue(t *testing.T, reason string) float64 {
+	t.Helper()
+	m := &dto.Metric{}
+	if err := CloudflareRangesFallbackTotal.WithLabelValues(reason).(prometheus.Counter).Write(m); err != nil {
+		t.Fatalf("read counter: %v", err)
+	}
+	if m.Counter == nil || m.Counter.Value == nil {
+		return 0
+	}
+	return *m.Counter.Value
 }
