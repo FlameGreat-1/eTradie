@@ -25,9 +25,12 @@ replicaCount: 3
 revisionHistoryLimit: 10
 
 image:
-  repository: etradie/edge-ingress
+  # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  # Owner + repo lowercased per GHCR case-sensitivity. Matches the
+  # IMAGE_BASE in .github/workflows/ci.yml.
+  repository: ghcr.io/flamegreat-1/etradie/edge-ingress
   pullPolicy: IfNotPresent
-  tag: "v0.1.0"
+  tag: "0.2.0"
 
 imagePullSecrets: []
 nameOverride: ""

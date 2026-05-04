@@ -428,6 +428,13 @@ jobs:
           - service: management
             dockerfile: src/management/Dockerfile
             context: .
+          # Rust edge-ingress binary. Dockerfile lives under
+          # deployments/edge-ingress/docker/ so the rendered Helm
+          # chart can pull a real image from GHCR (matches
+          # helm/edge-ingress/values.yaml::image.repository).
+          - service: edge-ingress
+            dockerfile: deployments/edge-ingress/docker/Dockerfile.edge-ingress
+            context: .
     env:
       # Image registry path that helm/<service>/values.yaml encodes.
       # GHCR is case-sensitive: owner + repo must be lowercase.
