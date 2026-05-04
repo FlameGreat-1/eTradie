@@ -15,7 +15,7 @@ spec:
   project: etradie
 
   source:
-    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
     # Production pins to a tag, not HEAD. CI rewrites this on each
     # release tag (e.g. v0.1.0).
     targetRevision: v0.1.0

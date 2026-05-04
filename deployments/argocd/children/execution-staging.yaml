@@ -15,7 +15,7 @@ spec:
   project: etradie
 
   source:
-    repoURL: https://gitlab.com/cotradee3/cotradeecode.git
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
     targetRevision: HEAD
     path: helm/execution
     helm:

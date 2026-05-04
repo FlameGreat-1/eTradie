@@ -16,8 +16,9 @@ replicaCount: 2
 
 image:
   # The root Dockerfile at the repo root builds the Python engine.
-  # CI must publish it as `<registry>/<project>/engine:<tag>`.
-  repository: registry.gitlab.com/cotradee3/cotradeecode/engine
+  # CI publishes it to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  # Owner + repo are lowercased per GHCR case-sensitivity.
+  repository: ghcr.io/flamegreat-1/etradie/engine
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 

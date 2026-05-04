@@ -395,8 +395,11 @@ jobs:
     name: Build (and push on main) all four service images
     runs-on: ubuntu-latest
     needs: [test, test-go, helm]
+    # GHCR push requires packages: write. contents: read is the
+    # workflow's read-only access to the repo for actions/checkout.
     permissions:
       contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -415,8 +418,9 @@ jobs:
             context: .
     env:
       # Image registry path that helm/<service>/values.yaml encodes.
-      REGISTRY: registry.gitlab.com
-      IMAGE_BASE: registry.gitlab.com/cotradee3/cotradeecode
+      # GHCR is case-sensitive: owner + repo must be lowercase.
+      REGISTRY: ghcr.io
+      IMAGE_BASE: ghcr.io/flamegreat-1/etradie
       # Chart version that the new ArgoCD production children pin to.
       RELEASE_TAG: "0.2.0"
     steps:
@@ -427,13 +431,15 @@ jobs:
 
       # Login is only needed when we actually push (push event on main).
       # Pull-request runs build-only to keep the registry clean.
-      - name: Log in to GitLab Container Registry
+      # GHCR honours the built-in GITHUB_TOKEN when the job has
+      # packages: write permission, so no operator secret is needed.
+      - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.GITLAB_REGISTRY_USER }}
-          password: ${{ secrets.GITLAB_REGISTRY_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && ' and push' || '' }} ${{ matrix.service }}
         uses: docker/build-push-action@v6

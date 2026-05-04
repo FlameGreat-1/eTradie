@@ -18,7 +18,8 @@
 replicaCount: 2
 
 image:
-  repository: registry.gitlab.com/cotradee3/cotradeecode/management
+  # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  repository: ghcr.io/flamegreat-1/etradie/management
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 

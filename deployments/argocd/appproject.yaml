@@ -14,8 +14,8 @@ spec:
   # Allowed git sources. Adding any other repo requires a deliberate
   # AppProject change reviewed by platform owners.
   sourceRepos:
-    - https://gitlab.com/cotradee3/cotradeecode.git
-    - https://gitlab.com/cotradee3/cotradeecode
+    - https://github.com/FlameGreat-1/eTradie.git
+    - https://github.com/FlameGreat-1/eTradie
 
   # Allowed destinations. Limited to the namespaces this platform
   # actually owns. Bootstrap of new namespaces requires an explicit
