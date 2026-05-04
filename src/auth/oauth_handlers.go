@@ -430,6 +430,292 @@ func sanitiseReturnTo(p string) string {
 	return p
 }
 
+// ---------------------------------------------------------------------------
+// Google account-link flow (authenticated)
+//
+// Three endpoints, all behind RequireAuth:
+//
+//   POST   /auth/oauth/google/link/start    -> oauthLinkStartResponse
+//   POST   /auth/oauth/google/link/callback -> oauthLinkCallbackResponse
+//   DELETE /auth/oauth/google/link          -> 204
+//
+// The link flow is structurally similar to the sign-in flow but
+// differs in three security-relevant places:
+//
+//   1. The authorize / callback redirect URI is configured separately
+//      (Config.GoogleLinkRedirectURI). This makes Google itself a
+//      participant in flow disambiguation: a sign-in flow row can
+//      never be redeemed at the link callback path because Google
+//      would not have redirected the browser there.
+//
+//   2. The auth_oauth_flows row carries the originating user_id and
+//      flow_kind='link'. The callback handler refuses to complete
+//      against any other authenticated user (account-linking CSRF
+//      mitigation).
+//
+//   3. No TokenPair is minted on success. The user's existing
+//      session is preserved verbatim; only auth_oauth_identities is
+//      written and the profile is returned for UI refresh.
+// ---------------------------------------------------------------------------
+
+type oauthLinkStartResponse struct {
+	AuthorizeURL string `json:"authorize_url"`
+	State        string `json:"state"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+type oauthLinkCallbackResponse struct {
+	User     map[string]interface{} `json:"user"`
+	ReturnTo string                 `json:"return_to"`
+}
+
+// errOAuthLinkSubjectClaimed is returned when the verified Google
+// identity is already bound to a *different* eTradie user. We refuse
+// rather than silently re-attach because re-attaching would let an
+// attacker move a victim's Google sign-in to their own account.
+var errOAuthLinkSubjectClaimed = errors.New("this Google account is already linked to a different user")
+
+// errOAuthLinkEmailMismatch is returned when the authenticated user's
+// email differs from the verified Google account's email. This is
+// defence-in-depth: even though the user_id binding on the flow row
+// already prevents account-linking CSRF, the email check protects
+// against a user accidentally linking the wrong Google account, and
+// makes the user-visible failure mode explicit.
+var errOAuthLinkEmailMismatch = errors.New("the Google account's email does not match this account's email")
+
+func (h *Handler) handleOAuthGoogleLinkStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.oauthEnabled {
+		writeAuthError(w, http.StatusNotFound, "google oauth is not enabled")
+		return
+	}
+
+	userID := UserIDFromContext(r.Context())
+	if userID == "" {
+		writeAuthError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	var req oauthStartRequest
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+	}
+	returnTo := sanitiseReturnTo(req.ReturnTo)
+
+	state, err := GenerateOAuthSecret()
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to generate state")
+		return
+	}
+	nonce, err := GenerateOAuthSecret()
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to generate nonce")
+		return
+	}
+	verifier, err := GenerateOAuthSecret()
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to generate code_verifier")
+		return
+	}
+	flowID, err := GenerateOAuthSecret()
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to generate flow_id")
+		return
+	}
+
+	now := time.Now().UTC()
+	ttl := time.Duration(h.cfg.OAuthFlowTTLSeconds) * time.Second
+	flow := &OAuthFlow{
+		FlowID:       flowID,
+		Provider:     OAuthProviderGoogle,
+		FlowKind:     OAuthFlowKindLink,
+		UserID:       userID,
+		State:        state,
+		CodeVerifier: verifier,
+		Nonce:        nonce,
+		RedirectURI:  h.googleProvider.LinkRedirectURI(),
+		ReturnTo:     returnTo,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(ttl),
+	}
+	if err := h.oauthFlows.Create(r.Context(), flow); err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to create oauth flow")
+		return
+	}
+
+	authorizeURL, err := h.googleProvider.BuildLinkAuthorizeURL(state, verifier, nonce)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to build authorize url")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, &oauthLinkStartResponse{
+		AuthorizeURL: authorizeURL,
+		State:        state,
+		ExpiresIn:    h.cfg.OAuthFlowTTLSeconds,
+	})
+}
+
+func (h *Handler) handleOAuthGoogleLinkCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.oauthEnabled {
+		writeAuthError(w, http.StatusNotFound, "google oauth is not enabled")
+		return
+	}
+
+	userID := UserIDFromContext(r.Context())
+	if userID == "" {
+		writeAuthError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	var req oauthCallbackRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	req.Code = strings.TrimSpace(req.Code)
+	req.State = strings.TrimSpace(req.State)
+	if req.Code == "" || req.State == "" {
+		writeAuthError(w, http.StatusBadRequest, "code and state are required")
+		return
+	}
+
+	flow, err := h.oauthFlows.ConsumeByState(r.Context(), OAuthProviderGoogle, OAuthFlowKindLink, req.State)
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if flow.UserID == "" || flow.UserID != userID {
+		// The link flow was started by a different authenticated
+		// session. Refusing here is the standard mitigation against
+		// OAuth account-linking CSRF.
+		writeAuthError(w, http.StatusForbidden, "this link request belongs to a different user")
+		return
+	}
+
+	claims, err := h.googleProvider.ExchangeCodeAndVerify(r.Context(), req.Code, flow.CodeVerifier, flow.Nonce, flow.RedirectURI)
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	user, err := h.users.GetUserByID(r.Context(), userID)
+	if err != nil || user == nil {
+		writeAuthError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if !user.Active {
+		writeAuthError(w, http.StatusForbidden, "account is deactivated")
+		return
+	}
+
+	// Refuse to link if the verified Google email does not match the
+	// authenticated user's email. This is a defence-in-depth check on
+	// top of the user_id binding above.
+	if !strings.EqualFold(strings.TrimSpace(user.Email), strings.TrimSpace(claims.Email)) {
+		writeAuthError(w, http.StatusConflict, errOAuthLinkEmailMismatch.Error())
+		return
+	}
+
+	// Refuse to link if this Google subject is already bound to a
+	// different user.
+	existing, err := h.oauthIdentities.GetByProviderSubject(r.Context(), OAuthProviderGoogle, claims.Subject)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to lookup oauth identity")
+		return
+	}
+	if existing != nil && existing.UserID != user.ID {
+		writeAuthError(w, http.StatusConflict, errOAuthLinkSubjectClaimed.Error())
+		return
+	}
+
+	if err := h.oauthIdentities.Upsert(r.Context(), &OAuthIdentity{
+		ID:              GenerateID(),
+		UserID:          user.ID,
+		Provider:        OAuthProviderGoogle,
+		ProviderSubject: claims.Subject,
+		Email:           claims.Email,
+		EmailVerified:   claims.EmailVerified,
+		Name:            claims.Name,
+		Picture:         claims.Picture,
+		HostedDomain:    claims.HostedDomain,
+	}); err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to persist oauth identity")
+		return
+	}
+
+	// Refresh provider-managed profile fields (avatar, email_verified)
+	// without touching last_login_at: the link itself is not a sign-in.
+	if err := h.users.UpdateProfileFromOAuthLink(r.Context(), user.ID, claims.Picture, true); err == nil {
+		user.AvatarURL = claims.Picture
+		user.EmailVerified = true
+	}
+
+	// Deliberately no token rotation here. The user's existing session
+	// remains valid; only the identity binding has changed.
+	writeJSON(w, http.StatusOK, &oauthLinkCallbackResponse{
+		User:     userPublicView(user),
+		ReturnTo: flow.ReturnTo,
+	})
+}
+
+func (h *Handler) handleOAuthGoogleUnlink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.oauthEnabled {
+		writeAuthError(w, http.StatusNotFound, "google oauth is not enabled")
+		return
+	}
+
+	userID := UserIDFromContext(r.Context())
+	if userID == "" {
+		writeAuthError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	user, err := h.users.GetUserByID(r.Context(), userID)
+	if err != nil || user == nil {
+		writeAuthError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	// Refuse to unlink for accounts that have no local password,
+	// otherwise the user would lose all sign-in credentials and lock
+	// themselves out. They must set a local password first via a
+	// separate flow (out of scope here).
+	if strings.TrimSpace(user.PasswordHash) == "" {
+		writeAuthError(w, http.StatusConflict, "cannot unlink Google: this account has no local password set; set a password first")
+		return
+	}
+
+	deleted, err := h.oauthIdentities.DeleteByUserAndProvider(r.Context(), user.ID, OAuthProviderGoogle)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to unlink google identity")
+		return
+	}
+	if deleted == 0 {
+		writeAuthError(w, http.StatusNotFound, "no Google identity is linked to this account")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "google account unlinked",
+		"user":    userPublicView(user),
+	})
+}
+
 // userPublicView is the canonical JSON shape for AuthUser, shared by
 // /auth/me and the OAuth callback so the React types only need one
 // definition.
