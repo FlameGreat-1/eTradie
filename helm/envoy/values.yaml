@@ -92,18 +92,40 @@ autoscaling:
           periodSeconds: 30
       selectPolicy: Max
   # Custom metrics require an external adapter (prometheus-adapter or
-  # KEDA) configured to serve `envoy_http_downstream_rq_active`.
-  # Default-OFF; flip to true in values-production.yaml once the
-  # adapter is installed.
+  # KEDA) configured to serve the metric below as a per-pod custom
+  # metric. Default-OFF so the chart works on any cluster; flip to
+  # true in values-production.yaml once the adapter is installed.
+  #
+  # Metric: envoy_cluster_upstream_rq_active{envoy_cluster_name="gateway_cluster"}
+  #   - This is a per-pod gauge of in-flight requests proxied to the
+  #     gateway cluster. It is a more direct backpressure signal than
+  #     per-listener downstream metrics because it correlates with
+  #     real upstream work, not just connection accepts.
+  #
+  # Required prometheus-adapter rule (paste into the adapter's
+  # ConfigMap; do NOT ship from this chart, that crosses concerns):
+  #
+  #   - seriesQuery: 'envoy_cluster_upstream_rq_active{envoy_cluster_name="gateway_cluster",namespace!="",pod!=""}'
+  #     resources:
+  #       overrides:
+  #         namespace: { resource: namespace }
+  #         pod:       { resource: pod }
+  #     name:
+  #       matches: 'envoy_cluster_upstream_rq_active'
+  #       as:      'envoy_gateway_cluster_upstream_rq_active'
+  #     metricsQuery: |
+  #       sum by (<<.GroupBy>>) (
+  #         envoy_cluster_upstream_rq_active{<<.LabelMatchers>>,envoy_cluster_name="gateway_cluster"}
+  #       )
   customMetricsEnabled: false
   customMetricsList:
     - type: Pods
       pods:
         metric:
-          name: envoy_http_downstream_rq_active
+          name: envoy_gateway_cluster_upstream_rq_active
         target:
           type: AverageValue
-          averageValue: "1500"
+          averageValue: "500"
 
 podDisruptionBudget:
   enabled: true

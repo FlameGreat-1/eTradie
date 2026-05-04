@@ -134,8 +134,27 @@ autoscaling:
   # Custom metrics require an external adapter (prometheus-adapter or
   # KEDA) installed in the cluster. Default-OFF so the chart works on
   # any cluster; the operator flips this to true in
-  # values-production.yaml once the adapter is installed and
-  # configured to serve `edge_ingress_active_connections`.
+  # values-production.yaml once the adapter is installed.
+  #
+  # Metric: edge_ingress_active_connections (registered in
+  # src/edge-ingress/crates/common/src/metrics.rs as a Prometheus
+  # IntGauge per pod). This is a true per-pod connection count.
+  #
+  # Required prometheus-adapter rule (paste into the adapter's
+  # ConfigMap; do NOT ship from this chart, that crosses concerns):
+  #
+  #   - seriesQuery: 'edge_ingress_active_connections{namespace!="",pod!=""}'
+  #     resources:
+  #       overrides:
+  #         namespace: { resource: namespace }
+  #         pod:       { resource: pod }
+  #     name:
+  #       matches: 'edge_ingress_active_connections'
+  #       as:      'edge_ingress_active_connections'
+  #     metricsQuery: |
+  #       sum by (<<.GroupBy>>) (
+  #         edge_ingress_active_connections{<<.LabelMatchers>>}
+  #       )
   customMetricsEnabled: false
   customMetricsList:
     - type: Pods
