@@ -15,13 +15,28 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Public TLS traffic on :443
+    # Public TLS traffic on :443. Source depends on cloudProvider:
+    # - cloudflare-tunnel: traffic comes from the cloudflared pod
+    #   (in this same namespace). Restrict the source accordingly.
+    # - aws / generic: traffic comes through the LoadBalancer
+    #   service which preserves client IPs from arbitrary networks;
+    #   we leave the source open in those modes.
+    {{- if eq (.Values.service.cloudProvider | default "cloudflare-tunnel") "cloudflare-tunnel" }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- else }}
     - from:
         - namespaceSelector: {}
           podSelector: {}
       ports:
         - protocol: TCP
           port: 443
+    {{- end }}
     # Prometheus scraping on metrics port
     - from:
         - namespaceSelector:

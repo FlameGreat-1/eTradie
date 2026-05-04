@@ -59,21 +59,36 @@ strategy:
   maxUnavailable: 0
 
 service:
-  type: LoadBalancer
+  # Cloud LB strategy. One of:
+  #   - "cloudflare-tunnel": no public LB; a cloudflared deployment
+  #     opens an outbound tunnel to Cloudflare and forwards to
+  #     edge-ingress on :443 in-cluster. Service.type=ClusterIP.
+  #     This is the default because Cloudflare is already part of
+  #     the trust chain (AOP CA, CF-Connecting-IP, IP ranges).
+  #   - "aws": LoadBalancer Service with AWS NLB annotations + ACM.
+  #   - "generic": LoadBalancer Service with no cloud-specific
+  #     annotations (works on OCI OKE, GKE, AKS, MetalLB on bare
+  #     metal). TLS terminates inside edge-ingress; no LB-level ACM.
+  cloudProvider: "cloudflare-tunnel"
+  # type is auto-selected from cloudProvider above. This value is
+  # honoured only as an explicit override; leave empty to let the
+  # template choose ClusterIP (cloudflare-tunnel) or LoadBalancer
+  # (aws / generic).
+  type: ""
   externalTrafficPolicy: Local
   ports:
     tls:
       port: 443
-  # ACM cert ARN that the NLB terminates TLS with. REQUIRED in any
-  # environment that wants public TLS termination at the NLB layer
-  # (i.e. staging + production). The chart fails rendering when this
-  # is empty, so CI must inject it explicitly:
-  #   --set service.tlsCertificateArn=arn:aws:acm:<region>:<acct>:certificate/<id>
+  # AWS-only. ACM cert ARN that the NLB terminates TLS with. The
+  # chart fails rendering when cloudProvider=aws and this is empty.
+  # Ignored for cloudflare-tunnel and generic modes (TLS terminates
+  # inside edge-ingress in those modes).
   tlsCertificateArn: ""
-  # NLB access-log S3 bucket (production only). Empty disables access
+  # AWS-only. NLB access-log S3 bucket. Empty disables access
   # logging; non-empty enables and points at the bucket.
   accessLogS3Bucket: ""
-  annotations:
+  # Only rendered when cloudProvider=aws.
+  awsAnnotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
@@ -84,6 +99,48 @@ service:
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "3"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "3"
+  # Extra annotations applied regardless of cloudProvider. Keep this
+  # empty unless you genuinely need a vendor-specific knob; cloud-
+  # specific bits belong in cloudProvider-aware blocks above.
+  annotations: {}
+
+# Cloudflare Tunnel (cloudflared) configuration. Only rendered when
+# service.cloudProvider="cloudflare-tunnel". The tunnel token is
+# resolved through External Secrets Operator from Vault, identical to
+# the existing tlsCerts / aopCa / maxmind ExternalSecrets pattern.
+cloudflareTunnel:
+  enabled: true   # honoured only when service.cloudProvider=cloudflare-tunnel
+  replicaCount: 2
+  image:
+    repository: "cloudflare/cloudflared"
+    tag: "2024.10.1"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # ExternalSecret for the tunnel token. The token authenticates the
+  # cloudflared pod against Cloudflare's edge; it must be rotated
+  # via Vault, never committed.
+  externalSecret:
+    secretStoreName: "vault-backend"
+    secretStoreKind: "ClusterSecretStore"
+    refreshInterval: "1h"
+    targetSecretName: "cloudflared-tunnel-token"
+    vaultPath: "etradie/services/edge-ingress/production/cloudflare/tunnel"
+    property: "tunnel_token"
+  # Tunnel forwards inbound requests to this in-cluster URL. The
+  # default points at the edge-ingress ClusterIP Service on :443.
+  upstreamUrl: "https://edge-ingress.edge-ingress-system.svc.cluster.local:443"
+  # cloudflared can run in --no-tls-verify when the ingress terminates
+  # TLS with a cert that cloudflared cannot validate (e.g. self-signed
+  # or internal CA). For production with Cloudflare AOP CA, the
+  # certificate is publicly trusted via the same AOP chain, so we
+  # leave verification ON.
+  noTlsVerify: false
 
 metricsService:
   type: ClusterIP
