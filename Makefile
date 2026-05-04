@@ -10,6 +10,15 @@
 .SILENT:
 MAKEFLAGS += --no-print-directory
 
+# ----------------------------------------------------------------------------
+# Platform Makefile fragment. Sourced unconditionally with `-include`
+# so a missing fragment does not break the build (the platform-layer
+# targets simply will not be available). All edge-ingress / envoy /
+# helm / argocd / terraform / cloudflare targets live there to keep
+# this top-level file readable.
+# ----------------------------------------------------------------------------
+-include Makefile.platform
+
 # Dynamically extract Windows Host IP for WSL traffic routing
 export WSL_HOST_IP ?= $(shell ip route show default | awk '{print $$3}')
 

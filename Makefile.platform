@@ -1,0 +1,317 @@
+# ============================================================================
+# eTradie - Unified PLATFORM Makefile fragment
+# ============================================================================
+#
+# Sourced by the top-level Makefile via `-include Makefile.platform`. Keeps
+# all platform-layer targets (Rust services, helm charts, ArgoCD apps,
+# terraform modules, Cloudflare integration) in one file so the top-level
+# Makefile does not balloon and so every target is discoverable from a
+# single `make help`.
+#
+# Conventions (must match the top-level Makefile so `awk` help-generation
+# keeps working):
+#   - Section banners use `##@ Group Name` on their own line.
+#   - Each runnable target has a one-line `## description` after the colon.
+#   - Recipes use TAB indent and the existing color vars ($(BLUE) etc.).
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Per-area paths. Must match the actual repo layout.
+# ----------------------------------------------------------------------------
+EDGE_INGRESS_DIR    := $(PROJECT_ROOT)/src/edge-ingress
+ENVOY_DIR           := $(PROJECT_ROOT)/src/envoy
+ENVOY_WASM_TARGET   := wasm32-wasi
+ENVOY_WASM_FILE     := $(ENVOY_DIR)/target/$(ENVOY_WASM_TARGET)/release/etradie_envoy_integration_filter.wasm
+
+HELM_CHARTS         := edge-ingress envoy gateway
+HELM_DIR            := $(PROJECT_ROOT)/helm
+
+ARGOCD_DIR          := $(PROJECT_ROOT)/deployments/argocd
+
+INFRA_DIR           := $(PROJECT_ROOT)/infrastructure
+INFRA_MODULES       := cluster cloudflare
+
+CF_DIR              := $(PROJECT_ROOT)/deployments/cloudflare
+CF_REFRESH_SCRIPT   := $(CF_DIR)/scripts/refresh-cloudflare-ips.sh
+
+# ============================================================================
+##@ Edge-Ingress (Rust)
+# ============================================================================
+
+.PHONY: edge-ingress-build edge-ingress-build-release edge-ingress-test \
+        edge-ingress-fmt edge-ingress-clippy edge-ingress-check \
+        edge-ingress-clean edge-ingress-ci
+
+edge-ingress-build: ## Build edge-ingress debug binary (cargo build)
+	echo -e "$(BLUE)Building edge-ingress (debug)...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo build
+	echo -e "$(GREEN)\xE2\x9C\x93 edge-ingress debug build complete$(NC)"
+
+edge-ingress-build-release: ## Build edge-ingress release binary (stripped, optimized)
+	echo -e "$(BLUE)Building edge-ingress (release)...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && \
+		BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+		GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+		cargo build --release
+	echo -e "$(GREEN)\xE2\x9C\x93 edge-ingress release build complete$(NC)"
+
+edge-ingress-test: ## Run edge-ingress tests (cargo test --workspace)
+	echo -e "$(BLUE)Running edge-ingress tests...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo test --workspace
+	echo -e "$(GREEN)\xE2\x9C\x93 edge-ingress tests passed$(NC)"
+
+edge-ingress-fmt: ## Format edge-ingress code (cargo fmt --all)
+	echo -e "$(BLUE)Formatting edge-ingress...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo fmt --all
+
+edge-ingress-clippy: ## Lint edge-ingress (cargo clippy -- -D warnings)
+	echo -e "$(BLUE)Running clippy on edge-ingress...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo clippy --workspace --all-targets -- -D warnings
+	echo -e "$(GREEN)\xE2\x9C\x93 edge-ingress clippy passed$(NC)"
+
+edge-ingress-check: ## Type-check edge-ingress (cargo check --workspace)
+	echo -e "$(BLUE)cargo check on edge-ingress...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo check --workspace
+
+edge-ingress-clean: ## Clean edge-ingress build artifacts
+	echo -e "$(BLUE)Cleaning edge-ingress...$(NC)"
+	cd $(EDGE_INGRESS_DIR) && cargo clean
+
+edge-ingress-ci: edge-ingress-check edge-ingress-clippy edge-ingress-test ## CI bundle: check + clippy + test
+	echo -e "$(GREEN)\xE2\x9C\x93 edge-ingress CI bundle passed$(NC)"
+
+# ============================================================================
+##@ Envoy WASM Filter (Rust)
+# ============================================================================
+
+.PHONY: envoy-build envoy-build-debug envoy-test envoy-fmt envoy-fmt-check \
+        envoy-clippy envoy-verify envoy-clean envoy-install-tools envoy-ci
+
+envoy-build: ## Build envoy WASM filter release (target wasm32-wasi)
+	echo -e "$(BLUE)Building envoy WASM filter (release)...$(NC)"
+	cd $(ENVOY_DIR) && cargo build --workspace --target $(ENVOY_WASM_TARGET) --release
+	echo -e "$(GREEN)\xE2\x9C\x93 envoy WASM filter built: $(ENVOY_WASM_FILE)$(NC)"
+
+envoy-build-debug: ## Build envoy WASM filter debug
+	echo -e "$(BLUE)Building envoy WASM filter (debug)...$(NC)"
+	cd $(ENVOY_DIR) && cargo build --workspace --target $(ENVOY_WASM_TARGET)
+
+envoy-test: ## Run envoy WASM filter tests (cargo test --workspace)
+	echo -e "$(BLUE)Running envoy WASM filter tests...$(NC)"
+	cd $(ENVOY_DIR) && cargo test --workspace
+	echo -e "$(GREEN)\xE2\x9C\x93 envoy WASM tests passed$(NC)"
+
+envoy-fmt: ## Format envoy WASM filter code (cargo fmt --all)
+	echo -e "$(BLUE)Formatting envoy WASM filter...$(NC)"
+	cd $(ENVOY_DIR) && cargo fmt --all
+
+envoy-fmt-check: ## Verify envoy WASM filter is formatted (cargo fmt --check)
+	cd $(ENVOY_DIR) && cargo fmt --all -- --check
+
+envoy-clippy: ## Lint envoy WASM filter (cargo clippy -- -D warnings)
+	echo -e "$(BLUE)Running clippy on envoy WASM filter...$(NC)"
+	cd $(ENVOY_DIR) && cargo clippy --workspace --target $(ENVOY_WASM_TARGET) -- -D warnings
+	echo -e "$(GREEN)\xE2\x9C\x93 envoy WASM clippy passed$(NC)"
+
+envoy-verify: envoy-build ## Verify envoy WASM binary integrity (magic bytes + size)
+	echo -e "$(BLUE)Verifying envoy WASM binary...$(NC)"
+	@if [ ! -f $(ENVOY_WASM_FILE) ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 WASM binary not found: $(ENVOY_WASM_FILE)$(NC)"; \
+		exit 1; \
+	fi
+	@magic=$$(hexdump -n 4 -e '4/1 "%02x " "\n"' $(ENVOY_WASM_FILE)); \
+		if [ "$$magic" != "00 61 73 6d " ]; then \
+			echo -e "$(RED)\xE2\x9C\x97 invalid WASM magic bytes: $$magic$(NC)"; \
+			exit 1; \
+		fi; \
+		echo -e "$(GREEN)\xE2\x9C\x93 valid WASM magic bytes: $$magic$(NC)"
+	@size=$$(stat -c%s $(ENVOY_WASM_FILE) 2>/dev/null || stat -f%z $(ENVOY_WASM_FILE)); \
+		if [ "$$size" -lt 1024 ]; then \
+			echo -e "$(RED)\xE2\x9C\x97 WASM too small ($$size bytes); build is broken$(NC)"; \
+			exit 1; \
+		fi; \
+		echo -e "$(GREEN)\xE2\x9C\x93 WASM size: $$size bytes$(NC)"
+
+envoy-clean: ## Clean envoy WASM build artifacts
+	echo -e "$(BLUE)Cleaning envoy WASM build...$(NC)"
+	cd $(ENVOY_DIR) && cargo clean
+
+envoy-install-tools: ## Install envoy WASM build prerequisites (rustup + wasm32-wasi target)
+	echo -e "$(BLUE)Installing envoy WASM build tools...$(NC)"
+	@command -v rustup >/dev/null 2>&1 || { echo -e "$(RED)rustup not found. Install from https://rustup.rs/$(NC)"; exit 1; }
+	rustup target add $(ENVOY_WASM_TARGET)
+	rustup component add rustfmt clippy
+	echo -e "$(GREEN)\xE2\x9C\x93 envoy WASM toolchain ready$(NC)"
+
+envoy-ci: envoy-fmt-check envoy-clippy envoy-test envoy-build envoy-verify ## CI bundle: fmt-check + clippy + test + build + verify
+	echo -e "$(GREEN)\xE2\x9C\x93 envoy CI bundle passed$(NC)"
+
+# ============================================================================
+##@ Helm charts (helm lint + render)
+# ============================================================================
+
+.PHONY: helm-lint helm-template-staging helm-template-production helm-render-all
+
+helm-lint: ## helm lint each chart under helm/
+	echo -e "$(BLUE)helm lint on every chart...$(NC)"
+	@for chart in $(HELM_CHARTS); do \
+		echo -e "$(BLUE)  -> helm lint helm/$$chart$(NC)"; \
+		helm lint $(HELM_DIR)/$$chart || exit 1; \
+	done
+	echo -e "$(GREEN)\xE2\x9C\x93 helm lint passed for all charts$(NC)"
+
+helm-template-staging: ## Render every chart with values-staging.yaml (parity with CI)
+	echo -e "$(BLUE)Rendering helm charts (staging)...$(NC)"
+	helm template edge-ingress $(HELM_DIR)/edge-ingress \
+		-f $(HELM_DIR)/edge-ingress/values.yaml \
+		-f $(HELM_DIR)/edge-ingress/values-staging.yaml \
+		--set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+		> /tmp/edge-ingress-staging.yaml
+	helm template etradie-envoy $(HELM_DIR)/envoy \
+		-f $(HELM_DIR)/envoy/values.yaml \
+		-f $(HELM_DIR)/envoy/values-staging.yaml \
+		--set wasm.base64=AA== --set wasm.sha256=local-staging \
+		> /tmp/envoy-staging.yaml
+	helm template etradie-gateway $(HELM_DIR)/gateway \
+		-f $(HELM_DIR)/gateway/values.yaml \
+		-f $(HELM_DIR)/gateway/values-staging.yaml \
+		> /tmp/gateway-staging.yaml
+	echo -e "$(GREEN)\xE2\x9C\x93 staging renders written to /tmp/{edge-ingress,envoy,gateway}-staging.yaml$(NC)"
+
+helm-template-production: ## Render every chart with values-production.yaml (parity with CI)
+	echo -e "$(BLUE)Rendering helm charts (production)...$(NC)"
+	helm template edge-ingress $(HELM_DIR)/edge-ingress \
+		-f $(HELM_DIR)/edge-ingress/values.yaml \
+		-f $(HELM_DIR)/edge-ingress/values-production.yaml \
+		--set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
+		> /tmp/edge-ingress-production.yaml
+	helm template etradie-envoy $(HELM_DIR)/envoy \
+		-f $(HELM_DIR)/envoy/values.yaml \
+		-f $(HELM_DIR)/envoy/values-production.yaml \
+		--set wasm.base64=AA== --set wasm.sha256=local-production \
+		> /tmp/envoy-production.yaml
+	helm template etradie-gateway $(HELM_DIR)/gateway \
+		-f $(HELM_DIR)/gateway/values.yaml \
+		-f $(HELM_DIR)/gateway/values-production.yaml \
+		> /tmp/gateway-production.yaml
+	echo -e "$(GREEN)\xE2\x9C\x93 production renders written to /tmp/{edge-ingress,envoy,gateway}-production.yaml$(NC)"
+
+helm-render-all: helm-lint helm-template-staging helm-template-production ## helm-lint + render every chart for every env
+	echo -e "$(GREEN)\xE2\x9C\x93 all helm renders complete$(NC)"
+
+# ============================================================================
+##@ ArgoCD
+# ============================================================================
+
+.PHONY: argocd-validate
+
+argocd-validate: ## Validate every ArgoCD AppProject + Application YAML
+	echo -e "$(BLUE)Validating ArgoCD manifests...$(NC)"
+	@for f in $(ARGOCD_DIR)/appproject.yaml \
+	           $(ARGOCD_DIR)/root-app.yaml \
+	           $(ARGOCD_DIR)/children/*.yaml; do \
+		echo -e "$(BLUE)  -> $$f$(NC)"; \
+		python3 -c "import yaml,sys; list(yaml.safe_load_all(open('$$f')))" || exit 1; \
+	done
+	echo -e "$(GREEN)\xE2\x9C\x93 ArgoCD manifests parse cleanly$(NC)"
+
+# ============================================================================
+##@ Infrastructure (Terraform)
+# ============================================================================
+
+.PHONY: tf-fmt tf-fmt-check tf-validate-cluster tf-validate-cloudflare \
+        tf-validate-all tf-plan-cluster tf-plan-cloudflare
+
+tf-fmt: ## terraform fmt -recursive on infrastructure/
+	echo -e "$(BLUE)terraform fmt -recursive $(INFRA_DIR)$(NC)"
+	terraform fmt -recursive $(INFRA_DIR)
+	echo -e "$(GREEN)\xE2\x9C\x93 terraform fmt complete$(NC)"
+
+tf-fmt-check: ## terraform fmt -check (CI parity)
+	echo -e "$(BLUE)terraform fmt -check on $(INFRA_DIR)$(NC)"
+	terraform fmt -check -recursive $(INFRA_DIR)
+
+tf-validate-cluster: ## terraform init + validate for infrastructure/cluster
+	echo -e "$(BLUE)terraform validate: cluster$(NC)"
+	cd $(INFRA_DIR)/cluster && terraform init -backend=false -input=false
+	cd $(INFRA_DIR)/cluster && terraform validate
+	echo -e "$(GREEN)\xE2\x9C\x93 cluster module valid$(NC)"
+
+tf-validate-cloudflare: ## terraform init + validate for infrastructure/cloudflare
+	echo -e "$(BLUE)terraform validate: cloudflare$(NC)"
+	cd $(INFRA_DIR)/cloudflare && terraform init -backend=false -input=false
+	cd $(INFRA_DIR)/cloudflare && terraform validate
+	echo -e "$(GREEN)\xE2\x9C\x93 cloudflare module valid$(NC)"
+
+tf-validate-all: tf-fmt-check tf-validate-cluster tf-validate-cloudflare ## fmt-check + validate every TF module
+	echo -e "$(GREEN)\xE2\x9C\x93 all terraform modules valid$(NC)"
+
+tf-plan-cluster: ## terraform plan for cluster module (requires TF_VAR_* env or -var-file via TF_PLAN_ARGS)
+	echo -e "$(BLUE)terraform plan: cluster (TF_PLAN_ARGS=$(TF_PLAN_ARGS))$(NC)"
+	cd $(INFRA_DIR)/cluster && terraform init -input=false
+	cd $(INFRA_DIR)/cluster && terraform plan -input=false $(TF_PLAN_ARGS)
+
+tf-plan-cloudflare: ## terraform plan for cloudflare module (requires TF_VAR_* env or -var-file via TF_PLAN_ARGS)
+	echo -e "$(BLUE)terraform plan: cloudflare (TF_PLAN_ARGS=$(TF_PLAN_ARGS))$(NC)"
+	cd $(INFRA_DIR)/cloudflare && terraform init -input=false
+	cd $(INFRA_DIR)/cloudflare && terraform plan -input=false $(TF_PLAN_ARGS)
+
+# ============================================================================
+##@ Cloudflare integration
+# ============================================================================
+
+.PHONY: cf-bootstrap-aop-ca cf-refresh-ips cf-verify-aop-ca
+
+cf-bootstrap-aop-ca: ## ONE-TIME: capture live Cloudflare AOP CA fingerprint + PEM and write the pin files
+	echo -e "$(BLUE)Bootstrapping Cloudflare AOP CA pin...$(NC)"
+	bash $(CF_REFRESH_SCRIPT) --bootstrap
+	echo -e "$(YELLOW)NOTE:$(NC) commit BOTH of these files:"
+	echo -e "  $(CF_DIR)/origin-pull/aop-ca.sha256"
+	echo -e "  $(CF_DIR)/origin-pull/origin-pull-ca.pem  (use 'git add -f')"
+
+cf-refresh-ips: ## Refresh Cloudflare published IPv4/IPv6 ranges + verify AOP CA pin (CI runs this weekly)
+	echo -e "$(BLUE)Refreshing Cloudflare IPs + verifying AOP CA pin...$(NC)"
+	bash $(CF_REFRESH_SCRIPT)
+	echo -e "$(GREEN)\xE2\x9C\x93 Cloudflare ranges + AOP CA pin verified$(NC)"
+
+cf-verify-aop-ca: ## Verify the live Cloudflare AOP CA still matches the committed pin (no writes)
+	echo -e "$(BLUE)Verifying live Cloudflare AOP CA against committed pin...$(NC)"
+	@PIN_FILE=$(CF_DIR)/origin-pull/aop-ca.sha256; \
+		if [ ! -f "$$PIN_FILE" ]; then \
+			echo -e "$(RED)\xE2\x9C\x97 pin file missing: $$PIN_FILE$(NC)"; \
+			echo -e "   Run: make cf-bootstrap-aop-ca"; \
+			exit 1; \
+		fi; \
+		PIN=$$(grep -v -E '^[[:space:]]*(#|$$)' $$PIN_FILE | head -n1 | tr -d '[:space:]'); \
+		if [ -z "$$PIN" ]; then \
+			echo -e "$(RED)\xE2\x9C\x97 pin file is empty: $$PIN_FILE$(NC)"; \
+			echo -e "   Run: make cf-bootstrap-aop-ca"; \
+			exit 1; \
+		fi; \
+		ACTUAL=$$(curl -fsSL --max-time 10 \
+			https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem \
+			| openssl x509 -noout -fingerprint -sha256 \
+			| awk -F= '{print $$2}' | tr -d ':' | tr 'A-Z' 'a-z'); \
+		if [ "$$ACTUAL" = "$$PIN" ]; then \
+			echo -e "$(GREEN)\xE2\x9C\x93 AOP CA pin matches: $$PIN$(NC)"; \
+		else \
+			echo -e "$(RED)\xE2\x9C\x97 AOP CA fingerprint mismatch$(NC)"; \
+			echo -e "   pin:    $$PIN"; \
+			echo -e "   actual: $$ACTUAL"; \
+			exit 1; \
+		fi
+
+# ============================================================================
+##@ Platform meta-targets
+# ============================================================================
+
+.PHONY: platform-ci platform-fmt platform-clean
+
+platform-ci: edge-ingress-ci envoy-ci helm-lint argocd-validate tf-validate-all ## Run every platform CI bundle (rust + helm + argocd + terraform)
+	echo -e "$(GREEN)\xE2\x9C\x93 full platform CI passed$(NC)"
+
+platform-fmt: edge-ingress-fmt envoy-fmt tf-fmt ## Format every platform component (rust + terraform)
+	echo -e "$(GREEN)\xE2\x9C\x93 platform formatted$(NC)"
+
+platform-clean: edge-ingress-clean envoy-clean ## Clean every platform component build dir
+	echo -e "$(GREEN)\xE2\x9C\x93 platform cleaned$(NC)"
