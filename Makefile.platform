@@ -272,8 +272,7 @@ cf-bootstrap-aop-ca: ## ONE-TIME: capture live Cloudflare AOP CA fingerprint + P
 cf-refresh-ips: ## Refresh Cloudflare published IPv4/IPv6 ranges + verify AOP CA pin (CI runs this weekly)
 	echo -e "$(BLUE)Refreshing Cloudflare IPs + verifying AOP CA pin...$(NC)"
 	bash $(CF_REFRESH_SCRIPT)
-
-echo -e "$(GREEN)\xE2\x9C\x93 Cloudflare ranges + AOP CA pin verified$(NC)"
+	echo -e "$(GREEN)\xE2\x9C\x93 Cloudflare ranges + AOP CA pin verified$(NC)"
 
 cf-verify-aop-ca: ## Verify the live Cloudflare AOP CA still matches the committed pin (no writes)
 	echo -e "$(BLUE)Verifying live Cloudflare AOP CA against committed pin...$(NC)"
