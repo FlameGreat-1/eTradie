@@ -1,4 +1,4 @@
-# ── Python ───────────────────────────────────────────────────
+# ── Python ────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,47 +8,71 @@ dist/
 build/
 .eggs/
 
-# ── Virtual Environments ─────────────────────────────────────
+# ── Virtual Environments ──────────────────────────────────────────────────
 .venv/
 venv/
 env/
 
-# ── IDE ──────────────────────────────────────────────────────
+# ── IDE ───────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# ── Testing ──────────────────────────────────────────────────
+# ── Testing ───────────────────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
 .coverage
 .coverage.*
 coverage.xml
 
-# ── Linting / Type Checking ─────────────────────────────────
+# ── Linting / Type Checking ───────────────────────────────────────────────
 .mypy_cache/
 .ruff_cache/
 
-# ── Environment ─────────────────────────────────────────────
+# ── Environment ───────────────────────────────────────────────────────────
 .env
 .env.local
 .env.production
 
-# ── Docker ───────────────────────────────────────────────────
+# ── Docker ────────────────────────────────────────────────────────────────
 postgres_data/
 prometheus_data/
 
-# ── OS ───────────────────────────────────────────────────────
+# ── OS ────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# ── Security reports ────────────────────────────────────────
+# ── Security reports ──────────────────────────────────────────────────────
 bandit-report.json
-# ── AI Models ────────────────────────────────────────────────
+# ── AI Models ─────────────────────────────────────────────────────────────
 torch/
 all-MiniLM-L6-v2/
 models/
 .cache/
 /model_cache/
+
+# ── Rust / Cargo build artifacts ──────────────────────────────────────────
+# Cargo writes all build output to `target/`. This must never be committed.
+# The repo has Cargo workspaces under src/edge-ingress and src/envoy, so
+# we ignore both top-level and nested target/ directories.
+target/
+**/target/
+# Per-workspace Cargo state.
+**/.cargo-lock
+.cargo/
+# Cargo intermediate library outputs (defensive; usually inside target/).
+*.rlib
+*.rmeta
+# Debug symbols emitted by some Rust toolchains.
+*.pdb
+*.dSYM/
+# WASM artifacts produced by `cargo build --target wasm32-wasi`. The
+# deployable .wasm is published by CI (helm `--set-file wasm.base64=...`),
+# not committed to source control.
+*.wasm
+# NOTE: Cargo.lock is intentionally NOT ignored. We commit it for binary
+# crates (edge-ingress) per the official Cargo guidance to make builds
+# reproducible. Library-only crates that are published to crates.io would
+# typically ignore Cargo.lock, but no crate in this repo is published.
