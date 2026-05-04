@@ -124,13 +124,16 @@ topologySpreadConstraints:
       matchLabels:
         app.kubernetes.io/name: etradie-gateway
 
-nodeSelector:
-  node.kubernetes.io/instance-type: c6i.2xlarge
+# Cloud-agnostic: do NOT pin AWS-specific instance types here.
+# Cluster-specific scheduling hints (instance types, GPU pools,
+# spot/on-demand) belong on the cluster (taints, custom labels), not
+# in the chart. The chart now deploys identically on Contabo K3s,
+# OCI OKE, Talos, EKS, GKE, AKS, or kubeadm.
+#
+# To pin to specific node pools at the cluster level, override
+# nodeSelector / tolerations in a cluster-local values overlay.
+nodeSelector: {}
 
-tolerations:
-  - key: "workload"
-    operator: "Equal"
-    value: "etradie-system"
-    effect: "NoSchedule"
+tolerations: []
 
 terminationGracePeriodSeconds: 90
