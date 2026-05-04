@@ -371,9 +371,12 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
-      EXECUTION_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
-      MANAGEMENT_DATABASE_URL: postgres[REDACTED]localhost:5432/etradie?sslmode=disable
+      # Connection strings target the in-job postgres service container
+      # (credentials: etradie / etradie_dev / etradie). sslmode=disable
+      # is correct for the GitHub Actions service network.
+      DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      EXECUTION_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
+      MANAGEMENT_DATABASE_URL: postgres://etradie:etradie_dev@localhost:5432/etradie?sslmode=disable
       POSTGRES_HOST: localhost
       POSTGRES_USER: etradie
       POSTGRES_PASSWORD: etradie_dev
