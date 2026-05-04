@@ -81,6 +81,15 @@ spec:
     # the child Applications under deployments/argocd/children/.
     - group: argoproj.io
       kind: Application
+    # batch/CronJob is required for the postgres nightly backup job
+    # created by helm/data-layer/templates/postgres-backup-cronjob.yaml.
+    # batch/Job is required because the CronJob controller spawns Jobs
+    # in this project; ArgoCD must be allowed to observe them so
+    # selfHeal does not mistakenly try to prune controller-owned Jobs.
+    - group: batch
+      kind: CronJob
+    - group: batch
+      kind: Job
 
   # Roles the project grants. Maintainers can sync; readers cannot.
   roles:

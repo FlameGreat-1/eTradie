@@ -5,6 +5,18 @@
 # NOT install any Kubernetes resources - that is ArgoCD's job once the
 # cluster is reachable.
 
+# Vault provider configuration. Required so the vault_kv_secret_v2
+# resources below can actually reach Vault. Authentication is via
+# the operator's `VAULT_TOKEN` environment variable (or any other
+# auth method honoured by the Vault provider's default chain), so
+# this module does not embed credentials.
+provider "vault" {
+  address = var.vault_address
+  # Optional Vault Enterprise / HCP namespace. Empty for OSS Vault,
+  # validated as such by variables.tf default.
+  namespace = var.vault_namespace
+}
+
 locals {
   cluster_name = coalesce(var.cluster_name, "etradie-${var.environment}")
   common_tags = merge(

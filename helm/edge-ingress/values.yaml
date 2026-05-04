@@ -1,9 +1,27 @@
-# helm/edge-ingress - default values (production posture).
+# helm/edge-ingress - default values.
 #
 # Local dev does not use this chart (kustomize-only).
-# values-staging.yaml overrides what genuinely differs in staging.
+# values-staging.yaml and values-production.yaml override what
+# genuinely differs per environment.
+#
+# Baseline sizing rationale:
+#   - replicaCount/minReplicas: 3 satisfies single-node loss
+#     resilience (>=2 healthy after one drains) AND single-AZ loss
+#     resilience (chart spreads across >=2 zones via
+#     topologySpreadConstraints + pod anti-affinity).
+#   - Required hostname-level pod anti-affinity stays in place
+#     (affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+#     below) so the cluster needs at least replicaCount distinct
+#     nodes in the edge pool. With replicaCount=3 that is the same
+#     order as gateway/engine baseline elsewhere in this repo.
+#   - HPA bursts up to maxReplicas=50 at 60% CPU in under 30s, so
+#     baseline = sustainable + emergency-resilience floor, not
+#     peak-traffic floor.
+#   - PDB.minAvailable: 2 keeps service available during voluntary
+#     evictions (one node drain) while leaving room for a pod to
+#     restart.
 
-replicaCount: 10
+replicaCount: 3
 revisionHistoryLimit: 10
 
 image:
@@ -88,7 +106,7 @@ resources:
 
 autoscaling:
   enabled: true
-  minReplicas: 10
+  minReplicas: 3
   maxReplicas: 50
   targetCPUUtilizationPercentage: 60
   targetMemoryUtilizationPercentage: 70
@@ -116,8 +134,27 @@ autoscaling:
   # Custom metrics require an external adapter (prometheus-adapter or
   # KEDA) installed in the cluster. Default-OFF so the chart works on
   # any cluster; the operator flips this to true in
-  # values-production.yaml once the adapter is installed and
-  # configured to serve `edge_ingress_active_connections`.
+  # values-production.yaml once the adapter is installed.
+  #
+  # Metric: edge_ingress_active_connections (registered in
+  # src/edge-ingress/crates/common/src/metrics.rs as a Prometheus
+  # IntGauge per pod). This is a true per-pod connection count.
+  #
+  # Required prometheus-adapter rule (paste into the adapter's
+  # ConfigMap; do NOT ship from this chart, that crosses concerns):
+  #
+  #   - seriesQuery: 'edge_ingress_active_connections{namespace!="",pod!=""}'
+  #     resources:
+  #       overrides:
+  #         namespace: { resource: namespace }
+  #         pod:       { resource: pod }
+  #     name:
+  #       matches: 'edge_ingress_active_connections'
+  #       as:      'edge_ingress_active_connections'
+  #     metricsQuery: |
+  #       sum by (<<.GroupBy>>) (
+  #         edge_ingress_active_connections{<<.LabelMatchers>>}
+  #       )
   customMetricsEnabled: false
   customMetricsList:
     - type: Pods
@@ -130,7 +167,7 @@ autoscaling:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 5
+  minAvailable: 2
   unhealthyPodEvictionPolicy: AlwaysAllow
 
 resourceQuota:
@@ -223,6 +260,28 @@ geoip:
     image: "maxmindinc/geoipupdate:v6.0"
     pullPolicy: IfNotPresent
 
+# Preflight init-container that validates the Cloudflare AOP CA Secret
+# is present, non-empty, and parseable as PEM before the main
+# edge-ingress container starts. Without this, an empty Vault path
+# (operator has not yet populated `aop_ca`) produces a Rust panic at
+# TLS handshake; with this, pods stay in Init: with a clear error
+# message, traffic is never routed, and the operator gets a precise
+# pointer to the Vault path that needs populating.
+aopCaPreflight:
+  enabled: true
+  # Tiny alpine image with the openssl CLI. Pinned by tag (no
+  # :latest). Air-gapped clusters can mirror this and override the
+  # repository here.
+  image: "alpine/openssl:3.3"
+  pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
 externalSecrets:
   enabled: true
   tlsCerts:
@@ -230,7 +289,10 @@ externalSecrets:
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "1h"
     targetSecretName: "edge-ingress-tls-certs"
-    vaultPath: "etradie/services/edge-ingress/tls"
+    # Production Vault path. Aligns with infrastructure/cluster/main.tf
+    # which creates etradie/services/edge-ingress/${environment}/tls.
+    # values-staging.yaml overrides this to the staging-segmented path.
+    vaultPath: "etradie/services/edge-ingress/production/tls"
     entries:
       - secretKey: "api.etradie.com.crt"
         property: "api_cert"
@@ -253,13 +315,17 @@ externalSecrets:
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "24h"
     targetSecretName: "maxmind-credentials"
-    vaultPath: "etradie/services/edge-ingress/maxmind"
+    # Production Vault path; staging/production overlays override.
+    vaultPath: "etradie/services/edge-ingress/production/maxmind"
   aopCa:
     secretStoreName: "vault-backend"
     secretStoreKind: "ClusterSecretStore"
     refreshInterval: "1h"
     targetSecretName: "cloudflare-aop-ca"
-    vaultPath: "etradie/services/edge-ingress/cloudflare/aop_ca"
+    # Production Vault path. Aligns with
+    # infrastructure/cluster/main.tf::vault_kv_secret_v2.edge_ingress_aop_ca
+    # (etradie/services/edge-ingress/${environment}/cloudflare/aop_ca).
+    vaultPath: "etradie/services/edge-ingress/production/cloudflare/aop_ca"
 
 # Edge-ingress YAML config rendered by templates/configmap.yaml.
 config:
@@ -297,15 +363,17 @@ config:
   upstream:
     connectTimeoutSecs: 5
     requestTimeoutSecs: 60
+    # Only list regions that actually have an envoy Service deployed.
+    # Each entry triggers a periodic DNS + TCP health probe; entries
+    # whose FQDN does not resolve produce noisy NXDOMAIN traffic and
+    # spurious upstream-unhealthy metrics with no functional value
+    # (the geo-router fallback policy steers everything to a healthy
+    # region anyway). When a new region is brought online, deploy an
+    # envoy chart instance with fullnameOverride matching the FQDN
+    # below and add the entry here in the same MR.
     endpoints:
       - region: "us-east-1"
         address: "etradie-envoy.envoy-system.svc.cluster.local:8080"
-      - region: "us-west-2"
-        address: "etradie-envoy-us-west-2.envoy-system.svc.cluster.local:8080"
-      - region: "eu-west-1"
-        address: "etradie-envoy-eu-west-1.envoy-system.svc.cluster.local:8080"
-      - region: "ap-southeast-1"
-        address: "etradie-envoy-ap-southeast-1.envoy-system.svc.cluster.local:8080"
   connectionLimits:
     maxGlobalConnections: 100000
     maxConnectionsPerIp: 1000

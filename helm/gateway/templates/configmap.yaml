@@ -48,6 +48,22 @@ data:
   AUTH_ADMIN_USERNAME: {{ .Values.config.auth.adminUsername | quote }}
   AUTH_ADMIN_EMAIL: {{ .Values.config.auth.adminEmail | quote }}
 
-  # Trust chain (Cloudflare → edge-ingress → envoy → gateway)
-  AUTH_TRUSTED_PROXY_CIDRS: {{ .Values.trustChain.trustedProxyCidrs | quote }}
+  # Trust chain (Cloudflare → edge-ingress → envoy → gateway).
+  # trustedProxyCidrs accepts a list (preferred) or a scalar string;
+  # this template normalises both to a comma-joined string for the
+  # Go binary's envconfig parser. Empty list -> empty string, which
+  # is the safe default (no trusted proxies = peer wins).
+  AUTH_TRUSTED_PROXY_CIDRS: {{ if kindIs "slice" .Values.trustChain.trustedProxyCidrs -}}
+  {{- join "," .Values.trustChain.trustedProxyCidrs | quote -}}
+  {{- else -}}
+  {{- .Values.trustChain.trustedProxyCidrs | default "" | quote -}}
+  {{- end }}
   AUTH_TRUST_CLOUDFLARE: {{ .Values.trustChain.trustCloudflare | quote }}
+  {{- if eq (.Values.trustChain.trustCloudflare | toString) "true" }}
+  # When Cloudflare trust is enabled, point the gateway at the
+  # ConfigMap-mounted ipv4.txt / ipv6.txt files so the binary picks
+  # up live-refreshed ranges instead of its compile-time fallback.
+  # The path matches the volumeMount configured in deployment.yaml
+  # and the ConfigMap rendered by configmap-cf-ranges.yaml.
+  AUTH_CLOUDFLARE_RANGES_DIR: {{ .Values.trustChain.cloudflareRangesMountPath | default "/etc/etradie/cloudflare" | quote }}
+  {{- end }}

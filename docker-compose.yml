@@ -169,11 +169,22 @@ services:
       - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
       - GATEWAY_EXECUTION_ADDR=execution:50053
       - GATEWAY_MANAGEMENT_ADDR=management:50054
-      - AUTH_DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # In-network FQDN for postgres is the service name `postgres`;
+      # do NOT interpolate ${POSTGRES_HOST} from .env here because
+      # that variable is shared with host-side tooling and may be set
+      # to `localhost` for host-port access. The gateway container's
+      # network namespace cannot reach the host's localhost; it must
+      # use the docker-compose service name. user/password/db remain
+      # interpolated because those are not network-namespace-sensitive.
+      - AUTH_DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
       - "8080:8080"
       - "50052:50052"
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       engine:
         condition: service_healthy
     networks:

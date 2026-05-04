@@ -1,0 +1,13 @@
+{{- if .Values.priorityClass.enabled }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.priorityClass.name | default "etradie-envoy-critical" }}
+  labels:
+    {{- include "envoy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priority-class
+value: {{ .Values.priorityClass.value | default 900000 }}
+globalDefault: {{ .Values.priorityClass.globalDefault | default false }}
+description: {{ .Values.priorityClass.description | default "Critical priority for envoy data-plane proxy. Ranks below edge-ingress-critical (1_000_000) and above default workloads. Application-tier; explicitly NOT system-* tier." | quote }}
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy | default "PreemptLowerPriority" }}
+{{- end }}
