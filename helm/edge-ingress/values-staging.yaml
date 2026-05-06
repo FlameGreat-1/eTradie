@@ -44,13 +44,13 @@ externalSecrets:
   tlsCerts:
     vaultPath: "etradie/services/edge-ingress/staging/tls"
     entries:
-      - secretKey: "staging-api.etradie.com.crt"
+      - secretKey: "staging-api.exoper.com.crt"
         property: "staging_api_cert"
-      - secretKey: "staging-api.etradie.com.key"
+      - secretKey: "staging-api.exoper.com.key"
         property: "staging_api_key"
-      - secretKey: "wildcard.staging.etradie.com.crt"
+      - secretKey: "wildcard.staging.exoper.com.crt"
         property: "staging_wildcard_cert"
-      - secretKey: "wildcard.staging.etradie.com.key"
+      - secretKey: "wildcard.staging.exoper.com.key"
         property: "staging_wildcard_key"
   maxmind:
     vaultPath: "etradie/services/edge-ingress/staging/maxmind"
@@ -64,13 +64,13 @@ config:
     handshakeTimeoutSecs: 8
     certReloadIntervalSecs: 1800
     certificates:
-      - hostname: "staging-api.etradie.com"
-        certPath: "/etc/edge-ingress/certs/staging-api.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/staging-api.etradie.com.key"
+      - hostname: "staging-api.exoper.com"
+        certPath: "/etc/edge-ingress/certs/staging-api.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/staging-api.exoper.com.key"
         isDefault: true
-      - hostname: "*.staging.etradie.com"
-        certPath: "/etc/edge-ingress/certs/wildcard.staging.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/wildcard.staging.etradie.com.key"
+      - hostname: "*.staging.exoper.com"
+        certPath: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.key"
         isDefault: false
   upstream:
     connectTimeoutSecs: 4

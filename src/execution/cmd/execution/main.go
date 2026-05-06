@@ -338,7 +338,7 @@ func main() {
 }
 
 // restoreOrderFromRecord reconstructs an Order from a persisted watcher record.
-// Used on service restart to resume monitoring of pending instant-mode orders.
+// Used on service restart to resume monitoring of pending orders.
 func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string) *models.Order {
 	return &models.Order{
 		OrderID:            rec.OrderID,
@@ -370,6 +370,7 @@ func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string) *
 		Confidence:         rec.Confidence,
 		SetupType:          rec.SetupType,
 		WatcherID:          rec.WatcherID,
+		BrokerOrderID:      rec.BrokerOrderID,
 		CreatedAt:          rec.CreatedAt,
 		UserID:             rec.UserID,
 		AuthToken:          authToken,

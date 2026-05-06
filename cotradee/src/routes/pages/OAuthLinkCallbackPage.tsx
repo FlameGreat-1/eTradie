@@ -55,27 +55,7 @@ export default function OAuthLinkCallbackPage() {
   }, [completeGoogleLink, navigate, searchParams]);
 
   if (status === 'pending') {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center justify-center gap-4 py-10"
-      >
-        <img
-          src="/assets/sidebar/icons/logo.svg"
-          alt=""
-          aria-hidden="true"
-          className="w-10 h-10"
-          style={{ animation: 'logoZoom 1.2s ease-in-out infinite' }}
-        />
-        <style>{`
-          @keyframes logoZoom {
-            0%, 100% { transform: scale(0.9); opacity: 0.7; }
-            50% { transform: scale(1.15); opacity: 1; }
-          }
-        `}</style>
-      </div>
-    );
+    return null;
   }
 
   return (

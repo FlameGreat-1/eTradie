@@ -14,8 +14,8 @@ keywords:
   - etradie
 maintainers:
   - name: eTradie Platform Team
-    email: platform@etradie.com
+    email: platform@exoper.com
 sources:
   - https://github.com/FlameGreat-1/eTradie
-icon: https://etradie.com/icon.png
+icon: https://exoper.com/icon.png
 dependencies: []

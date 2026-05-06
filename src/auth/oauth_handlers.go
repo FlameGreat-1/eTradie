@@ -700,15 +700,28 @@ func (h *Handler) handleOAuthGoogleUnlink(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	deleted, err := h.oauthIdentities.DeleteByUserAndProvider(r.Context(), user.ID, OAuthProviderGoogle)
+	_, err = h.oauthIdentities.DeleteByUserAndProvider(r.Context(), user.ID, OAuthProviderGoogle)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to unlink google identity")
 		return
 	}
-	if deleted == 0 {
-		writeAuthError(w, http.StatusNotFound, "no Google identity is linked to this account")
+	
+	// We intentionally do not abort if deleted == 0. If a previous unlink attempt 
+	// deleted the identity row but failed to clear the auth_users profile fields,
+	// the user will be trapped in a state where the UI shows "Connected" but
+	// the backend thinks there's no identity. By continuing unconditionally,
+	// we idempotently heal the user's profile state.
+
+	// Update the user profile in the database to clear Google-managed fields
+	if err := h.users.UpdateProfileFromOAuthUnlink(r.Context(), user.ID); err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to clear google profile fields")
 		return
 	}
+
+	// Update the in-memory user object so the JSON response reflects the unlinked state
+	user.AuthProvider = AuthProviderLocal
+	user.AvatarURL = ""
+	user.EmailVerified = false
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "google account unlinked",

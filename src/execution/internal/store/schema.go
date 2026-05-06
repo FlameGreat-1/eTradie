@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS execution_pending_watchers (
     confidence          DOUBLE PRECISION NOT NULL DEFAULT 0,
     setup_type          TEXT NOT NULL DEFAULT '',
     trace_id            TEXT NOT NULL DEFAULT '',
+    broker_order_id     TEXT NOT NULL DEFAULT '',
     status              VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

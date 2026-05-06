@@ -11,4 +11,6 @@ import (
 // be implemented in a separate module and injected via the container.
 type ExecutionPort interface {
 	Execute(ctx context.Context, decision *models.ProcessorOutput) (map[string]interface{}, error)
+	GetState(ctx context.Context, traceID string) (map[string]interface{}, error)
+	CancelOrder(ctx context.Context, orderID, symbol, reason, traceID string) error
 }

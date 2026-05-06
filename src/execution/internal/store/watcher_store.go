@@ -61,6 +61,7 @@ type PendingWatcherRecord struct {
 	Confidence         float64
 	SetupType          string
 	TraceID            string
+	BrokerOrderID      string
 	CreatedAt          time.Time
 }
 
@@ -78,14 +79,14 @@ func (s *WatcherStore) Insert(ctx context.Context, order *models.Order) error {
 			tp3_price, tp3_pct, lot_size, risk_percent, risk_amount, rr_ratio,
 			account_balance, sl_distance_pips, pip_value, overshoot_tolerance,
 			ltf_confirmed, analysis_id, trading_style, session, grade,
-			confluence, confidence, setup_type, status, created_at
+			confluence, confidence, setup_type, broker_order_id, status, created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11, $12,
 			$13, $14, $15, $16, $17, $18,
 			$19, $20, $21, $22,
 			$23, $24, $25, $26, $27,
-			$28, $29, $30, 'PENDING', $31
+			$28, $29, $30, $31, 'PENDING', $32
 		)
 		ON CONFLICT (watcher_id) DO NOTHING`,
 		order.WatcherID, order.OrderID, order.UserID, order.Symbol,
@@ -96,7 +97,7 @@ func (s *WatcherStore) Insert(ctx context.Context, order *models.Order) error {
 		order.AccountBalance, order.SLDistancePips, order.PipValue,
 		order.OvershootTolerance, order.LTFConfirmed, order.AnalysisID,
 		string(order.TradingStyle), order.Session, order.Grade,
-		order.Confluence, order.Confidence, order.SetupType,
+		order.Confluence, order.Confidence, order.SetupType, order.BrokerOrderID,
 		order.CreatedAt,
 	)
 	if err != nil {
@@ -133,7 +134,7 @@ func (s *WatcherStore) GetAllPending(ctx context.Context) ([]*PendingWatcherReco
 			tp3_price, tp3_pct, lot_size, risk_percent, risk_amount, rr_ratio,
 			account_balance, sl_distance_pips, pip_value, overshoot_tolerance,
 			ltf_confirmed, analysis_id, trading_style, session, grade,
-			confluence, confidence, setup_type, created_at
+			confluence, confidence, setup_type, broker_order_id, created_at
 		FROM execution_pending_watchers
 		WHERE status = 'PENDING'
 		ORDER BY created_at ASC`)
@@ -153,7 +154,7 @@ func (s *WatcherStore) GetAllPending(ctx context.Context) ([]*PendingWatcherReco
 			&r.AccountBalance, &r.SLDistancePips, &r.PipValue,
 			&r.OvershootTolerance, &r.LTFConfirmed, &r.AnalysisID,
 			&r.TradingStyle, &r.Session, &r.Grade, &r.Confluence,
-			&r.Confidence, &r.SetupType, &r.CreatedAt,
+			&r.Confidence, &r.SetupType, &r.BrokerOrderID, &r.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan pending watcher: %w", err)
 		}

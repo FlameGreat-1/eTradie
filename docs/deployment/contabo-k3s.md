@@ -407,12 +407,12 @@ EOF
    with `eyJ...`. Save it; you cannot recover it later (you can
    only rotate to a new one).
 5. **Public Hostnames** tab: add one entry per public DNS name:
-   * Subdomain: `api`, Domain: `etradie.com`
+   * Subdomain: `api`, Domain: `exoper.com`
    * Type: **HTTPS**
    * URL: `edge-ingress.edge-ingress-system.svc.cluster.local:443`
    * Additional application settings -> TLS: leave **No TLS Verify**
      UNCHECKED (the AOP CA establishes trust correctly).
-6. Repeat for any other public hostname (e.g. `app.etradie.com`).
+6. Repeat for any other public hostname (e.g. `app.exoper.com`).
 
 Cloudflare auto-creates the CNAME records for you when you add Public
 Hostnames in the Tunnel UI; you do not need
@@ -813,7 +813,7 @@ kubectl -n edge-ingress-system logs -l app.kubernetes.io/name=cloudflared --tail
 ### 8.3 Public hostname reachability
 
 ```bash
-curl -fsS -o /dev/null -w "HTTP %{http_code}\n" https://api.etradie.com/healthz
+curl -fsS -o /dev/null -w "HTTP %{http_code}\n" https://api.exoper.com/healthz
 # Expected: HTTP 200
 ```
 
@@ -824,10 +824,10 @@ get pods` and the cloudflared logs.
 ### 8.4 OAuth + login round-trip
 
 ```bash
-curl -fsS https://api.etradie.com/api/v1/auth/health
+curl -fsS https://api.exoper.com/api/v1/auth/health
 # Expected: {"status":"ok",...}
 
-curl -fsS -X POST https://api.etradie.com/api/v1/auth/login \
+curl -fsS -X POST https://api.exoper.com/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<ADMIN_PASS-from-step-6.2>"}'
 # Expected: 200 with access_token + refresh_token JSON
@@ -836,11 +836,11 @@ curl -fsS -X POST https://api.etradie.com/api/v1/auth/login \
 ### 8.5 Internal call chain
 
 ```bash
-TOKEN=$(curl -fsS -X POST https://api.etradie.com/api/v1/auth/login \
+TOKEN=$(curl -fsS -X POST https://api.exoper.com/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<ADMIN_PASS>"}' | jq -r .access_token)
 
-curl -fsS https://api.etradie.com/api/v1/state/account \
+curl -fsS https://api.exoper.com/api/v1/state/account \
   -H "Authorization: Bearer $TOKEN"
 # Expected: 200 with {"balance": 10000.0, ...}
 ```

@@ -22,21 +22,21 @@ tls:
   client_auth:
     ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
-    - hostname: "api.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/api.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/api.etradie.com.key"
+    - hostname: "api.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/api.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/api.exoper.com.key"
       is_default: true
-    - hostname: "*.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/wildcard.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/wildcard.etradie.com.key"
+    - hostname: "*.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/wildcard.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/wildcard.exoper.com.key"
       is_default: false
-    - hostname: "api-eu.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/api-eu.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/api-eu.etradie.com.key"
+    - hostname: "api-eu.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/api-eu.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/api-eu.exoper.com.key"
       is_default: false
-    - hostname: "api-ap.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/api-ap.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/api-ap.etradie.com.key"
+    - hostname: "api-ap.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/api-ap.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/api-ap.exoper.com.key"
       is_default: false
 
 upstream:

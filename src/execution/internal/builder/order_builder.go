@@ -62,6 +62,7 @@ func BuildWithMode(
 			ttl = constants.LimitTTLCandlesByStyle[constants.StyleIntraday]
 		}
 		order.TTLCandles = ttl
+		order.WatcherID = fmt.Sprintf("LMT_%s_%s", req.Symbol, orderID[4:])
 
 	case constants.ModeInstant:
 		order.WatcherID = fmt.Sprintf("GRT_%s_%s", req.Symbol, orderID[4:])

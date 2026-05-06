@@ -6,7 +6,7 @@ front of `edge-ingress` -> `envoy` -> `gateway` so that:
 1. **Layer-3/4 DDoS** is absorbed by Cloudflare before any byte reaches the
    eTradie origin.
 2. **The origin IP is never exposed** in DNS. All public hostnames
-   (`api.etradie.com`, `*.etradie.com`, `staging-api.etradie.com`) resolve to
+   (`api.exoper.com`, `*.exoper.com`, `staging-api.exoper.com`) resolve to
    Cloudflare's anycast IPs.
 3. **Origin-spoofing** is impossible: even if an attacker discovers the
    origin IP, they cannot terminate TLS on `edge-ingress:443` because
@@ -120,10 +120,10 @@ rotate again:
 After all four layers are deployed (Cloudflare -> edge-ingress -> envoy ->
 gateway), the following must all be true:
 
-- `curl -v https://api.etradie.com/auth/healthz` returns 200 via
+- `curl -v https://api.exoper.com/auth/healthz` returns 200 via
    Cloudflare.
-- Direct origin hit (`curl -v --resolve api.etradie.com:443:<origin-ip>
-   https://api.etradie.com/auth/healthz`) **fails** with a TLS handshake
+- Direct origin hit (`curl -v --resolve api.exoper.com:443:<origin-ip>
+   https://api.exoper.com/auth/healthz`) **fails** with a TLS handshake
    error (no client cert).
 - Gateway logs show `client_ip_resolution.method=cf_connecting_ip` for
    Cloudflare-originated requests when `AUTH_TRUST_CLOUDFLARE=true`.

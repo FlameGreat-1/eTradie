@@ -94,17 +94,6 @@ func New(
 	// Decision Router.
 	router := routing.NewRouter(guards, execution, transport)
 
-	// Pipeline Orchestrator.
-	orchestrator := pipeline.NewOrchestrator(
-		cfg, taCollector, macroCollector, qb, assembler,
-		processor, router, engineHTTP, transport,
-	)
-
-	// Scheduler (with SettingsStore for persisted interval overrides).
-	// tokenService and userStore are passed so the scheduler can issue
-	// service tokens for autonomous 24/7 operation without a logged-in user.
-	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
-
 	// Management Client (Module C).
 	var mgmtClient *management.Client
 	if cfg.ManagementEnabled {
@@ -114,6 +103,17 @@ func New(
 			// We don't fail container creation if management is down, Gateway can still route to Execution.
 		}
 	}
+
+	// Pipeline Orchestrator.
+	orchestrator := pipeline.NewOrchestrator(
+		cfg, taCollector, macroCollector, qb, assembler,
+		processor, router, engineHTTP, transport, execution,
+	)
+
+	// Scheduler (with SettingsStore for persisted interval overrides).
+	// tokenService and userStore are passed so the scheduler can issue
+	// service tokens for autonomous 24/7 operation without a logged-in user.
+	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
 
 	// Servers (now with auth support).
 	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler)

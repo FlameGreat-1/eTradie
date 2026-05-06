@@ -135,6 +135,90 @@ func (a *ExecutionGRPCAdapter) Execute(ctx context.Context, decision *models.Pro
 	return result, nil
 }
 
+// GetState retrieves the current execution state (open positions, pending orders).
+func (a *ExecutionGRPCAdapter) GetState(ctx context.Context, traceID string) (map[string]interface{}, error) {
+	req := &executionv1.GetStateRequest{TraceId: traceID}
+
+	var metadataKVs []string
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	retryCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
+
+	var resp *executionv1.GetStateResponse
+	operation := func() error {
+		var err error
+		resp, err = a.client.GetExecutionState(retryCtx, req)
+		return err
+	}
+
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Internal
+	}
+
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		a.log.Error().Err(err).Msg("execution_rpc_failed_get_state")
+		return nil, fmt.Errorf("execution get state: %w", err)
+	}
+
+	// For simplicity, just return the raw struct, or map.
+	// Since port expects a map for easy routing use, we build a simple map.
+	result := map[string]interface{}{
+		"open_position_count": resp.GetOpenPositionCount(),
+		"pending_order_count": resp.GetPendingOrderCount(),
+		"pending_orders":      resp.GetPendingOrders(),
+		"open_positions":      resp.GetOpenPositions(),
+	}
+
+	return result, nil
+}
+
+// CancelOrder cancels a pending order by ID.
+func (a *ExecutionGRPCAdapter) CancelOrder(ctx context.Context, orderID, symbol, reason, traceID string) error {
+	req := &executionv1.CancelOrderRequest{
+		OrderId: orderID,
+		Symbol:  symbol,
+		Reason:  reason,
+		TraceId: traceID,
+	}
+
+	var metadataKVs []string
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	retryCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
+
+	var resp *executionv1.CancelOrderResponse
+	operation := func() error {
+		var err error
+		resp, err = a.client.CancelPendingOrder(retryCtx, req)
+		return err
+	}
+
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Internal
+	}
+
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		a.log.Error().Err(err).Str("order_id", orderID).Msg("execution_rpc_failed_cancel_order")
+		return fmt.Errorf("execution cancel order: %w", err)
+	}
+
+	if !resp.GetSuccess() {
+		return fmt.Errorf("cancel order failed: %s", resp.GetStatus())
+	}
+
+	return nil
+}
+
 // Close shuts down the gRPC connection.
 func (a *ExecutionGRPCAdapter) Close() error {
 	if a.conn != nil {

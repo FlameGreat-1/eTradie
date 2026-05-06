@@ -9,7 +9,7 @@ eTradie platform via Cloudflare Tunnel.
   strict SSL).
 * Authenticated Origin Pulls (AOP) at the zone level (defence-in-depth
   on top of Tunnel).
-* DNS records (`api.etradie.com`, `*.etradie.com`, etc.) that CNAME
+* DNS records (`api.exoper.com`, `*.exoper.com`, etc.) that CNAME
   to the Cloudflare Tunnel UUID (`<id>.cfargotunnel.com`).
 
 ## What it does NOT own
@@ -38,7 +38,7 @@ terraform init
 terraform apply \
   -var environment=production \
   -var zone_id=<...> \
-  -var 'hostnames={ "api.etradie.com" = "<tunnel-id>.cfargotunnel.com", "app.etradie.com" = "<tunnel-id>.cfargotunnel.com" }'
+  -var 'hostnames={ "api.exoper.com" = "<tunnel-id>.cfargotunnel.com", "app.exoper.com" = "<tunnel-id>.cfargotunnel.com" }'
 ```
 
 The Tunnel token must also be written to Vault before the

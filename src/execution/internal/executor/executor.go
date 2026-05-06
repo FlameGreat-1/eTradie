@@ -87,11 +87,16 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 
 	order.BrokerOrderID = result.BrokerOrderID
 
+	// Arm the watcher for TTL enforcement. The watcher will monitor
+	// the timeout and cancel the broker order if it expires unfilled.
+	e.watcher.Arm(order)
+
 	e.log.Info().
 		Str("symbol", order.Symbol).
 		Str("direction", string(order.Direction)).
 		Str("order_id", order.OrderID).
 		Str("broker_order_id", result.BrokerOrderID).
+		Str("watcher_id", order.WatcherID).
 		Float64("entry_price", order.EntryPrice).
 		Float64("stop_loss", order.StopLoss).
 		Float64("lot_size", order.LotSize).

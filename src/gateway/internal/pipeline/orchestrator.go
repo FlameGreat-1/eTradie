@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
@@ -39,6 +40,7 @@ type Orchestrator struct {
 	router         *routing.Router
 	engineHTTP     *infra.EngineHTTPClient
 	transport      *alertredis.Transport
+	execution      ports.ExecutionPort
 	log            zerolog.Logger
 }
 
@@ -53,6 +55,7 @@ func NewOrchestrator(
 	router *routing.Router,
 	engineHTTP *infra.EngineHTTPClient,
 	transport *alertredis.Transport,
+	execution ports.ExecutionPort,
 ) *Orchestrator {
 	return &Orchestrator{
 		cfg:            cfg,
@@ -64,6 +67,7 @@ func NewOrchestrator(
 		router:         router,
 		engineHTTP:     engineHTTP,
 		transport:      transport,
+		execution:      execution,
 		log:            observability.Logger("orchestrator"),
 	}
 }
@@ -306,12 +310,75 @@ func (o *Orchestrator) executePipeline(
 ) ([]*models.GatewayOutput, error) {
 	traceID := tracker.TraceID()
 
+	// Phase 0: Pre-Pipeline State Filtering & Event-Driven Invalidation
+	// Check execution state to prevent redundant analysis for symbols with active trades.
+	// For pending orders, validate if the setup still exists; if not, cancel it.
+	var filteredSymbols []string
+	activeSymbolsMap := make(map[string]bool)
+
+	if o.execution != nil {
+		if execState, err := o.execution.GetState(ctx, traceID); err == nil {
+			// 1. Filter symbols with open positions (active trades under Management).
+			if openPositions, ok := execState["open_positions"].([]*executionv1.OpenPosition); ok {
+				for _, op := range openPositions {
+					activeSymbolsMap[strings.ToUpper(op.GetSymbol())] = true
+				}
+			}
+
+			// 2. Filter symbols with pending orders (limit orders or instant-mode watchers).
+			// Pending order invalidation is handled by Execution's own watcher, which
+			// calls RunConfirmationPulseWithParams with the full structural parameters
+			// (OB bounds, direction, LTF/HTF timeframes) needed for the lightweight
+			// /internal/ta/confirm_ltf endpoint. That watcher automatically cancels
+			// stale orders when the Python engine reports invalidation.
+			//
+			// We do NOT re-validate pending orders here because:
+			//   a) RunConfirmationPulse without LTFConfirmParams falls back to the
+			//      full TA pipeline (~5-10s), defeating the zero-waste goal.
+			//   b) The PendingOrder proto does not carry the OB/direction/timeframe
+			//      params needed for the lightweight fast-path.
+			//   c) Execution's watcher already handles this with ~100ms latency.
+			if pendingOrders, ok := execState["pending_orders"].([]*executionv1.PendingOrder); ok {
+				for _, po := range pendingOrders {
+					activeSymbolsMap[strings.ToUpper(po.GetSymbol())] = true
+				}
+			}
+		} else {
+			o.log.Warn().Err(err).Str("trace_id", traceID).Msg("failed_to_fetch_execution_state_for_filtering")
+		}
+	}
+
+	var skippedSymbols []string
+	for _, sym := range symbols {
+		if activeSymbolsMap[strings.ToUpper(sym)] {
+			skippedSymbols = append(skippedSymbols, sym)
+		} else {
+			filteredSymbols = append(filteredSymbols, sym)
+		}
+	}
+
+	if len(skippedSymbols) > 0 {
+		o.log.Info().
+			Strs("skipped_symbols", skippedSymbols).
+			Str("trace_id", traceID).
+			Msg("phase0_filtered_active_trades")
+	}
+
+	if len(filteredSymbols) == 0 {
+		tracker.Complete(constants.OutcomeNoSetup)
+		o.log.Info().
+			Str("cycle_id", tracker.CycleID()).
+			Str("trace_id", traceID).
+			Msg("cycle_all_symbols_filtered")
+		return []*models.GatewayOutput{buildNoDataOutput(tracker)}, nil
+	}
+
 	// Phase 1: Parallel TA + Macro collection.
 	tracker.TransitionTo(constants.PhaseCollectParallel)
 	phaseStart := time.Now()
 
 	collectCtx, collectSpan := observability.StartSpan(ctx, "pipeline.collect_parallel",
-		attribute.StringSlice("symbols", symbols),
+		attribute.StringSlice("symbols", filteredSymbols),
 		attribute.String("trace_id", traceID),
 	)
 
@@ -326,7 +393,7 @@ func (o *Orchestrator) executePipeline(
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		taResult, taErr = o.taCollector.Collect(parallelCtx, symbols, traceID, false)
+		taResult, taErr = o.taCollector.Collect(parallelCtx, filteredSymbols, traceID, false)
 	}()
 	go func() {
 		defer wg.Done()

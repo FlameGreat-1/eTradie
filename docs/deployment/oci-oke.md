@@ -439,7 +439,7 @@ kubectl -n etradie-system run alembic-upgrade \
 ## 9. End-to-end verification
 
 *Identical to Contabo guide section 8.* All curl commands target
-`https://api.etradie.com/...` regardless of which cluster is
+`https://api.exoper.com/...` regardless of which cluster is
 backing the Tunnel.
 
 ---

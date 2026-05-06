@@ -8,12 +8,12 @@ variable "environment" {
 }
 
 variable "zone_id" {
-  description = "Cloudflare zone ID for etradie.com (or staging.etradie.com)."
+  description = "Cloudflare zone ID for exoper.com (or staging.exoper.com)."
   type        = string
 }
 
 variable "hostnames" {
-  description = "Map of hostname -> CNAME target. With Cloudflare Tunnel the target is `<tunnel-id>.cfargotunnel.com`. Example: { \"api.etradie.com\" = \"abcd1234-....cfargotunnel.com\" }"
+  description = "Map of hostname -> CNAME target. With Cloudflare Tunnel the target is `<tunnel-id>.cfargotunnel.com`. Example: { \"api.exoper.com\" = \"abcd1234-....cfargotunnel.com\" }"
   type        = map(string)
 }
 

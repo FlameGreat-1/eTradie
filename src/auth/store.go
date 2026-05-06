@@ -277,6 +277,24 @@ func (s *UserStore) UpdateProfileFromOAuthLink(ctx context.Context, userID strin
 	return nil
 }
 
+// UpdateProfileFromOAuthUnlink clears the provider-managed fields (avatar
+// and email_verified) and ensures the auth_provider is reset to 'local'.
+// This ensures the frontend correctly sees the account as fully disconnected.
+func (s *UserStore) UpdateProfileFromOAuthUnlink(ctx context.Context, userID string) error {
+	now := time.Now().UTC()
+	_, err := s.pool.Exec(ctx,
+		`UPDATE auth_users
+		    SET avatar_url     = '',
+		        email_verified = FALSE,
+		        auth_provider  = 'local',
+		        updated_at     = $1
+		  WHERE id = $2`,
+		now, userID)
+	if err != nil {
+		return fmt.Errorf("update profile from oauth unlink: %w", err)
+	}
+	return nil
+}
 
 // UpdateLastLogin sets the last_login_at timestamp for a user.
 func (s *UserStore) UpdateLastLogin(ctx context.Context, userID string) error {

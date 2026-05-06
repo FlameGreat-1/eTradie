@@ -20,13 +20,13 @@ tls:
   client_auth:
     ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
   certificates:
-    - hostname: "staging-api.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/staging-api.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/staging-api.etradie.com.key"
+    - hostname: "staging-api.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/staging-api.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/staging-api.exoper.com.key"
       is_default: true
-    - hostname: "*.staging.etradie.com"
-      cert_path: "/etc/edge-ingress/certs/wildcard.staging.etradie.com.crt"
-      key_path: "/etc/edge-ingress/certs/wildcard.staging.etradie.com.key"
+    - hostname: "*.staging.exoper.com"
+      cert_path: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.crt"
+      key_path: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.key"
       is_default: false
 
 upstream:

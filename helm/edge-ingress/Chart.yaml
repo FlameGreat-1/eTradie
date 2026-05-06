@@ -12,7 +12,7 @@ keywords:
   - ingress
 maintainers:
   - name: eTradie Platform Team
-    email: platform@etradie.com
+    email: platform@exoper.com
 sources:
   - https://github.com/etradie/edge-ingress
 dependencies: []

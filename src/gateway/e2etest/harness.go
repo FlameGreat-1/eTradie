@@ -79,6 +79,20 @@ func (m *MockExecutionPort) Execute(_ context.Context, decision *models.Processo
 	}, nil
 }
 
+// GetState implements ports.ExecutionPort.
+func (m *MockExecutionPort) GetState(_ context.Context, _ string) (map[string]interface{}, error) {
+	// In tests, return empty state (no open positions, no pending orders).
+	return map[string]interface{}{
+		"open_position_count": int32(0),
+		"pending_order_count": int32(0),
+	}, nil
+}
+
+// CancelOrder implements ports.ExecutionPort.
+func (m *MockExecutionPort) CancelOrder(_ context.Context, _, _, _, _ string) error {
+	return nil
+}
+
 // GetCalls returns a copy of all recorded execution calls.
 func (m *MockExecutionPort) GetCalls() []ExecutionCall {
 	m.mu.Lock()
@@ -198,7 +212,7 @@ func NewHarness(t *testing.T) *Harness {
 	// Real orchestrator with the full production pipeline.
 	orchestrator := pipeline.NewOrchestrator(
 		cfg, taCollector, macroCollector, qb, assembler,
-		processor, router, engineHTTP, transport,
+		processor, router, engineHTTP, transport, execPort,
 	)
 
 	return &Harness{

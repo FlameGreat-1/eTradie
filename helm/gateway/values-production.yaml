@@ -20,7 +20,7 @@ config:
     logLevel: "INFO"
     logJson: "true"
     logFullContextPayload: "false"
-    allowedOrigins: "https://app.etradie.com,https://etradie.com"
+    allowedOrigins: "https://app.exoper.com,https://exoper.com"
 
 trustChain:
   trustedProxyCidrs:

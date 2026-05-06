@@ -146,7 +146,7 @@ type Config struct {
 
 	// GoogleAllowedHostedDomains, if non-empty, restricts sign-in to
 	// Google Workspace tenants whose `hd` claim matches one of the
-	// listed domains (e.g. "etradie.com"). Empty means any Google
+	// listed domains (e.g. "exoper.com"). Empty means any Google
 	// account is accepted (consumer + workspace). Comparison is
 	// case-insensitive.
 	GoogleAllowedHostedDomains []string `envconfig:"GOOGLE_ALLOWED_HOSTED_DOMAINS"`

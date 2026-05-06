@@ -16,7 +16,7 @@ config:
     logLevel: "DEBUG"
     logJson: "true"
     logFullContextPayload: "true"
-    allowedOrigins: "https://staging.etradie.com,https://staging-app.etradie.com"
+    allowedOrigins: "https://staging.exoper.com,https://staging-app.exoper.com"
 
 trustChain:
   trustedProxyCidrs: "10.42.0.0/16"

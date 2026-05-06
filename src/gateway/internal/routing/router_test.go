@@ -22,6 +22,14 @@ func (m *mockExecutionPort) Execute(_ context.Context, _ *models.ProcessorOutput
 	return m.result, m.err
 }
 
+func (m *mockExecutionPort) GetState(_ context.Context, _ string) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
+
+func (m *mockExecutionPort) CancelOrder(_ context.Context, _, _, _, _ string) error {
+	return nil
+}
+
 // ── Router Tests ────────────────────────────────────────────────────────────
 
 func TestRouter_NoSetup_ProcessorRejects(t *testing.T) {

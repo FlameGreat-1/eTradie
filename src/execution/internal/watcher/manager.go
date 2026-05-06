@@ -96,9 +96,12 @@ func NewManager(
 	}
 }
 
-// Arm spawns a background watcher goroutine for an instant-mode order.
-// Returns immediately. The watcher monitors tick prices and executes
-// the full confirmation + market order flow autonomously.
+// Arm spawns a background watcher goroutine for an order.
+// For INSTANT orders: monitors tick prices and executes the full
+// confirmation + market order flow autonomously.
+// For LIMIT orders: monitors the TTL timer and cancels the broker
+// order when the timeout elapses.
+// Returns immediately.
 func (m *Manager) Arm(order *models.Order) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -137,19 +140,21 @@ func (m *Manager) Arm(order *models.Order) {
 
 	m.watchers[order.WatcherID] = w
 
-	// Subscribe to tick cache for this symbol.
-	m.tickCache.Subscribe(order.Symbol)
+	modeLabel := string(order.ExecutionMode)
 
-	// Ensure the tick cache has a valid auth token for broker calls.
-	// Tick prices are not user-scoped, so any valid token works.
-	// This is critical when the service starts with zero pending watchers
-	// and the first order arrives via gRPC — without this, the tick
-	// cache poller would have no token and get 401 on every request.
-	if order.AuthToken != "" {
-		m.tickCache.SetAuthToken(order.AuthToken)
+	// INSTANT orders need tick price monitoring; LIMIT orders only
+	// need TTL enforcement (the broker handles the fill).
+	if order.ExecutionMode == constants.ModeInstant {
+		m.tickCache.Subscribe(order.Symbol)
+
+		// Ensure the tick cache has a valid auth token for broker calls.
+		// Tick prices are not user-scoped, so any valid token works.
+		if order.AuthToken != "" {
+			m.tickCache.SetAuthToken(order.AuthToken)
+		}
 	}
 
-	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "armed").Inc()
+	observability.OrderPlacementTotal.WithLabelValues(modeLabel, "armed").Inc()
 
 	go w.run(m.ctx, m.onWatcherDone)
 
@@ -165,10 +170,9 @@ func (m *Manager) Arm(order *models.Order) {
 		Str("watcher_id", order.WatcherID).
 		Str("symbol", order.Symbol).
 		Str("direction", string(order.Direction)).
+		Str("execution_mode", modeLabel).
 		Float64("entry_price", order.EntryPrice).
-		Float64("overshoot_tolerance", order.OvershootTolerance).
-		Int("timeout_minutes", m.cfg.TimeoutMinutes).
-		Int("poll_interval_ms", m.cfg.PollIntervalMs).
+		Str("broker_order_id", order.BrokerOrderID).
 		Msg("watcher_armed")
 }
 
@@ -183,7 +187,11 @@ func (m *Manager) Disarm(watcherID string) {
 
 	if exists {
 		w.stop()
-		m.tickCache.Unsubscribe(w.order.Symbol)
+		// Only unsubscribe from tick cache for INSTANT orders;
+		// LIMIT orders never subscribed.
+		if w.order.ExecutionMode == constants.ModeInstant {
+			m.tickCache.Unsubscribe(w.order.Symbol)
+		}
 		// Remove persistence record.
 		if m.store != nil {
 			if err := m.store.Delete(context.Background(), watcherID); err != nil {
@@ -237,13 +245,17 @@ func (m *Manager) Shutdown() {
 func (m *Manager) onWatcherDone(watcherID string) {
 	m.mu.Lock()
 	var symbol string
+	var mode constants.ExecutionMode
 	if w, ok := m.watchers[watcherID]; ok {
 		symbol = w.order.Symbol
+		mode = w.order.ExecutionMode
 	}
 	delete(m.watchers, watcherID)
 	m.mu.Unlock()
 
-	if symbol != "" {
+	// Only unsubscribe from tick cache for INSTANT orders;
+	// LIMIT orders never subscribed.
+	if symbol != "" && mode == constants.ModeInstant {
 		m.tickCache.Unsubscribe(symbol)
 	}
 
@@ -303,9 +315,10 @@ func (m *Manager) TickCache() *TickCache {
 	return m.tickCache
 }
 
-// Watcher monitors a single instant-mode order's entry zone, calls
-// the Gateway for LTF confirmation when price enters the zone, and
-// fires the market order upon confirmation. Runs as a single goroutine.
+// Watcher monitors a single order. For INSTANT orders, it polls tick
+// prices, calls Gateway for LTF confirmation, and fires the market
+// order. For LIMIT orders, it only enforces the TTL timeout and
+// cancels the broker order when it expires. Runs as a single goroutine.
 type Watcher struct {
 	order          *models.Order
 	broker         broker.Port
@@ -343,20 +356,62 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	ctx, cancel := context.WithTimeout(parentCtx, timeout)
 	defer cancel()
 
+	w.log.Info().
+		Str("execution_mode", string(w.order.ExecutionMode)).
+		Float64("entry_price", w.order.EntryPrice).
+		Float64("stop_loss", w.order.StopLoss).
+		Dur("timeout", timeout).
+		Str("broker_order_id", w.order.BrokerOrderID).
+		Msg("watcher_monitoring_started")
+
+	// LIMIT orders: the broker handles the fill. We only enforce the
+	// TTL timeout. When the timeout fires, we cancel the broker order.
+	if w.order.ExecutionMode == constants.ModeLimit {
+		w.runLimitTTL(ctx)
+		return
+	}
+
+	// INSTANT mode: full tick polling + LTF confirmation flow.
+	w.runInstant(ctx)
+}
+
+// runLimitTTL is the run loop for LIMIT orders. It simply waits for
+// the TTL timeout or external disarm, then cancels the broker order.
+func (w *Watcher) runLimitTTL(ctx context.Context) {
+	// Check every minute if the order was filled externally (e.g., by
+	// the broker). If the order no longer exists at the broker, we can
+	// stop early instead of waiting for the full TTL.
+	checkInterval := 1 * time.Minute
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			w.handleTimeout()
+			return
+		case <-w.done:
+			w.log.Info().Msg("limit_watcher_disarmed_externally")
+			return
+		case <-ticker.C:
+			// Periodic liveness log so operators know the watcher is alive.
+			w.log.Debug().
+				Str("broker_order_id", w.order.BrokerOrderID).
+				Msg("limit_watcher_ttl_check_alive")
+		}
+	}
+}
+
+// runInstant is the run loop for INSTANT orders. Polls tick prices,
+// checks entry zone, calls Gateway for LTF confirmation, and fires
+// the market order.
+func (w *Watcher) runInstant(ctx context.Context) {
 	pollInterval := time.Duration(w.cfg.PollIntervalMs) * time.Millisecond
 	if pollInterval <= 0 {
 		pollInterval = 100 * time.Millisecond // Default fallback
 	}
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-
-	w.log.Info().
-		Float64("entry_price", w.order.EntryPrice).
-		Float64("stop_loss", w.order.StopLoss).
-		Float64("overshoot", w.order.OvershootTolerance).
-		Dur("timeout", timeout).
-		Bool("pre_confirmed", w.order.LTFConfirmed).
-		Msg("watcher_monitoring_started")
 
 	// Pre-confirmed fast path: if Gateway already saw LTF confirmation at analysis time,
 	// we skip the waiting/polling loop and fire the market order immediately.
@@ -620,27 +675,62 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 }
 
 func (w *Watcher) handleTimeout() {
+	modeLabel := string(w.order.ExecutionMode)
+
 	w.log.Warn().
+		Str("execution_mode", modeLabel).
 		Int("timeout_minutes", w.timeoutMinutes).
 		Str("trading_style", string(w.order.TradingStyle)).
+		Str("broker_order_id", w.order.BrokerOrderID).
 		Msg("watcher_timed_out")
 
-	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "timeout").Inc()
+	observability.OrderPlacementTotal.WithLabelValues(modeLabel, "timeout").Inc()
+
+	// For LIMIT orders, cancel the pending order at the broker.
+	// The order has exceeded its TTL without being filled.
+	if w.order.ExecutionMode == constants.ModeLimit && w.order.BrokerOrderID != "" {
+		w.order.RLock()
+		token := w.order.AuthToken
+		w.order.RUnlock()
+		cancelCtx := auth.InjectTokenIntoContext(context.Background(), token)
+
+		if err := w.broker.CancelOrder(cancelCtx, w.order.BrokerOrderID); err != nil {
+			w.log.Error().Err(err).
+				Str("broker_order_id", w.order.BrokerOrderID).
+				Msg("limit_order_ttl_cancel_failed")
+		} else {
+			w.log.Info().
+				Str("broker_order_id", w.order.BrokerOrderID).
+				Int("timeout_minutes", w.timeoutMinutes).
+				Str("trading_style", string(w.order.TradingStyle)).
+				Msg("limit_order_ttl_expired_cancelled")
+		}
+	}
 
 	if w.transport != nil {
+		var message string
+		if w.order.ExecutionMode == constants.ModeLimit {
+			message = fmt.Sprintf("Limit order TTL expired for %s after %d minutes (%s style) — cancelled",
+				w.order.Symbol, w.timeoutMinutes, w.order.TradingStyle)
+		} else {
+			message = fmt.Sprintf("Instant watcher timed out for %s after %d minutes (%s style)",
+				w.order.Symbol, w.timeoutMinutes, w.order.TradingStyle)
+		}
+
 		w.transport.Publish(context.Background(),
 			alert.NewEvent(alert.SourceExecution, alert.TypeOrderExpired, alert.SeverityWarning,
-				fmt.Sprintf("Instant watcher timed out for %s after %d minutes (%s style)",
-					w.order.Symbol, w.timeoutMinutes, w.order.TradingStyle)).
+				message).
 				WithUserID(w.order.UserID).
 				WithSymbol(w.order.Symbol).
 				WithDirection(string(w.order.Direction)).
 				WithDetails(map[string]interface{}{
-					"watcher_id":      w.order.WatcherID,
-					"analysis_id":     w.order.AnalysisID,
-					"entry_price":     w.order.EntryPrice,
-					"timeout_minutes": w.timeoutMinutes,
-					"trading_style":   string(w.order.TradingStyle),
+					"watcher_id":       w.order.WatcherID,
+					"analysis_id":      w.order.AnalysisID,
+					"entry_price":      w.order.EntryPrice,
+					"timeout_minutes":  w.timeoutMinutes,
+					"trading_style":    string(w.order.TradingStyle),
+					"execution_mode":   modeLabel,
+					"broker_order_id":  w.order.BrokerOrderID,
 				}),
 		)
 	}

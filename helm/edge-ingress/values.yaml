@@ -349,25 +349,25 @@ externalSecrets:
     # fails at startup (cert path referenced but file does not exist)
     # OR ESO blocks indefinitely (Vault key referenced but absent).
     entries:
-      - secretKey: "api.etradie.com.crt"
+      - secretKey: "api.exoper.com.crt"
         property: "api_cert"
-      - secretKey: "api.etradie.com.key"
+      - secretKey: "api.exoper.com.key"
         property: "api_key"
-      - secretKey: "wildcard.etradie.com.crt"
+      - secretKey: "wildcard.exoper.com.crt"
         property: "wildcard_cert"
-      - secretKey: "wildcard.etradie.com.key"
+      - secretKey: "wildcard.exoper.com.key"
         property: "wildcard_key"
       # Multi-region. Uncomment and populate the corresponding Vault
       # keys (api_eu_cert / api_eu_key / api_ap_cert / api_ap_key)
       # before enabling. Adding a region also requires adding the
       # hostname to config.tls.certificates below.
-      # - secretKey: "api-eu.etradie.com.crt"
+      # - secretKey: "api-eu.exoper.com.crt"
       #   property: "api_eu_cert"
-      # - secretKey: "api-eu.etradie.com.key"
+      # - secretKey: "api-eu.exoper.com.key"
       #   property: "api_eu_key"
-      # - secretKey: "api-ap.etradie.com.crt"
+      # - secretKey: "api-ap.exoper.com.crt"
       #   property: "api_ap_cert"
-      # - secretKey: "api-ap.etradie.com.key"
+      # - secretKey: "api-ap.exoper.com.key"
       #   property: "api_ap_key"
   maxmind:
     secretStoreName: "vault-backend"
@@ -406,23 +406,23 @@ config:
     # entries below AND the matching ExternalSecret entries above
     # when bringing additional regions online.
     certificates:
-      - hostname: "api.etradie.com"
-        certPath: "/etc/edge-ingress/certs/api.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/api.etradie.com.key"
+      - hostname: "api.exoper.com"
+        certPath: "/etc/edge-ingress/certs/api.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/api.exoper.com.key"
         isDefault: true
-      - hostname: "*.etradie.com"
-        certPath: "/etc/edge-ingress/certs/wildcard.etradie.com.crt"
-        keyPath: "/etc/edge-ingress/certs/wildcard.etradie.com.key"
+      - hostname: "*.exoper.com"
+        certPath: "/etc/edge-ingress/certs/wildcard.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/wildcard.exoper.com.key"
         isDefault: false
       # Multi-region. Uncomment when externalSecrets.tlsCerts.entries
       # also contains api_eu / api_ap and Vault is populated.
-      # - hostname: "api-eu.etradie.com"
-      #   certPath: "/etc/edge-ingress/certs/api-eu.etradie.com.crt"
-      #   keyPath: "/etc/edge-ingress/certs/api-eu.etradie.com.key"
+      # - hostname: "api-eu.exoper.com"
+      #   certPath: "/etc/edge-ingress/certs/api-eu.exoper.com.crt"
+      #   keyPath: "/etc/edge-ingress/certs/api-eu.exoper.com.key"
       #   isDefault: false
-      # - hostname: "api-ap.etradie.com"
-      #   certPath: "/etc/edge-ingress/certs/api-ap.etradie.com.crt"
-      #   keyPath: "/etc/edge-ingress/certs/api-ap.etradie.com.key"
+      # - hostname: "api-ap.exoper.com"
+      #   certPath: "/etc/edge-ingress/certs/api-ap.exoper.com.crt"
+      #   keyPath: "/etc/edge-ingress/certs/api-ap.exoper.com.key"
       #   isDefault: false
   upstream:
     connectTimeoutSecs: 5

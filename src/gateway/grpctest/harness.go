@@ -167,7 +167,7 @@ func NewHarness(t *testing.T) *Harness {
 
 	orchestrator := pipeline.NewOrchestrator(
 		cfg, taCollector, macroCollector, qb, assembler,
-		processor, router, engineHTTP, transport,
+		processor, router, engineHTTP, transport, execPort,
 	)
 
 	// SymbolStore and SettingsStore backed by real Redis.

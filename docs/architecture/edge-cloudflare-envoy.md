@@ -168,12 +168,12 @@ After deployment, all of the following must be observable. Any failure means
 the chain is broken and traffic should be rolled back to the previous
 canary.
 
-- `curl -fsS https://api.etradie.com/auth/healthz` returns 200 via
+- `curl -fsS https://api.exoper.com/auth/healthz` returns 200 via
   Cloudflare.
 - Direct origin hit fails at TLS:
   ```bash
-  curl -v --resolve api.etradie.com:443:<origin-ip> \
-    https://api.etradie.com/auth/healthz
+  curl -v --resolve api.exoper.com:443:<origin-ip> \
+    https://api.exoper.com/auth/healthz
   # Expected: TLS handshake failure (no client cert).
   ```
 - Cloudflare dashboard → Analytics → Traffic shows non-zero requests

@@ -5,8 +5,8 @@ metadata:
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: etradie
-    etradie.com/component: management
-    etradie.com/environment: staging
+    exoper.com/component: management
+    exoper.com/environment: staging
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   finalizers:

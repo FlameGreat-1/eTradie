@@ -5,8 +5,8 @@ metadata:
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: etradie
-    etradie.com/component: data-layer
-    etradie.com/environment: staging
+    exoper.com/component: data-layer
+    exoper.com/environment: staging
   annotations:
     # Sync wave -2: data layer must reach Ready before engine
     # (-1) and gateway/execution/management (0) are reconciled.
