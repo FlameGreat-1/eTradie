@@ -59,7 +59,7 @@ export default function LandingHero() {
         {/* ── Headline + CTA ─────────────────────────────────── */}
         <div className="text-center max-w-4xl mx-auto mb-16 md:mb-20">
           <h1
-            className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6"
+            className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6"
             style={{
               letterSpacing: '-0.03em',
               lineHeight: 1.08,
@@ -68,7 +68,7 @@ export default function LandingHero() {
             Start Trading With AI Here.
           </h1>
 
-          <p className="text-base sm:text-lg text-white/60 max-w-xl mx-auto mb-10 leading-relaxed">
+          <p className="text-base sm:text-lg opacity-60 max-w-xl mx-auto mb-10 leading-relaxed">
             Exoper combines institutional-grade technical analysis with AI-powered
             execution to help you trade with precision, discipline, and confidence.
           </p>
@@ -121,13 +121,13 @@ export default function LandingHero() {
             <div key={i} className="feature-card">
               <div className="feature-card-icon">{feat.icon}</div>
               <h3
-                className="font-bold text-white mb-2.5"
+                className="font-bold mb-2.5"
                 style={{ fontSize: '0.95rem', letterSpacing: '-0.01em' }}
               >
                 {feat.title}
               </h3>
               <p
-                className="text-white/45 leading-relaxed"
+                className="opacity-45 leading-relaxed"
                 style={{ fontSize: '0.8rem', lineHeight: 1.65 }}
               >
                 {feat.description}

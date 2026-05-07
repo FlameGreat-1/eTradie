@@ -2,12 +2,76 @@
    Landing Page — NVIDIA "Digital Nebula" Background & Animations
    ========================================================================== */
 
+:root {
+  --landing-bg: #000000;
+  --landing-text: #ffffff;
+  --landing-text-muted: rgba(255, 255, 255, 0.6);
+  --landing-text-faint: rgba(255, 255, 255, 0.45);
+  --landing-card-bg: #0a0d10;
+  --landing-card-border: rgba(255, 255, 255, 0.13);
+  --landing-card-hover-border: rgba(255, 255, 255, 0.22);
+  --landing-card-shadow: rgba(0, 0, 0, 0.40);
+  --landing-header-bg: rgba(0, 0, 0, 0.55);
+  --landing-header-scrolled: rgba(0, 0, 0, 0.82);
+  --landing-header-border: rgba(255, 255, 255, 0.08);
+  --landing-nebula-1: rgba(118, 185, 0, 0.13);
+  --landing-nebula-2: rgba(118, 185, 0, 0.06);
+  --landing-nebula-3: rgba(118, 185, 0, 0.05);
+  --landing-nebula-4: rgba(118, 185, 0, 0.035);
+  --landing-input-bg: #000000;
+  --landing-input-border: rgba(255, 255, 255, 0.3);
+  --landing-input-placeholder: rgba(255, 255, 255, 0.4);
+  --landing-input-focus-border: rgba(255, 255, 255, 0.6);
+  --landing-carousel-bg: rgba(10, 10, 10, 0.6);
+  --landing-carousel-border: rgba(118, 185, 0, 0.12);
+  --landing-btn-outline-bg: transparent;
+  --landing-btn-brand-bg: #000000;
+  --landing-btn-brand-text: #ffffff;
+  --landing-footer-bg: rgba(0, 0, 0, 0.40);
+  --landing-footer-border: rgba(255, 255, 255, 0.06);
+  --landing-footer-text: rgba(255, 255, 255, 0.45);
+  --landing-footer-text-hover: #ffffff;
+}
+
+.light {
+  --landing-bg: #ffffff;
+  --landing-text: #0a0a0a;
+  --landing-text-muted: rgba(0, 0, 0, 0.6);
+  --landing-text-faint: rgba(0, 0, 0, 0.45);
+  --landing-card-bg: #f8f9fa;
+  --landing-card-border: rgba(0, 0, 0, 0.12);
+  --landing-card-hover-border: rgba(118, 185, 0, 0.4);
+  --landing-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --landing-header-bg: rgba(255, 255, 255, 0.85);
+  --landing-header-scrolled: rgba(255, 255, 255, 0.98);
+  --landing-header-border: rgba(0, 0, 0, 0.08);
+  --landing-nebula-1: rgba(118, 185, 0, 0.08);
+  --landing-nebula-2: rgba(118, 185, 0, 0.04);
+  --landing-nebula-3: rgba(118, 185, 0, 0.03);
+  --landing-nebula-4: rgba(118, 185, 0, 0.02);
+  --landing-input-bg: #ffffff;
+  --landing-input-border: rgba(0, 0, 0, 0.2);
+  --landing-input-placeholder: rgba(0, 0, 0, 0.4);
+  --landing-input-focus-border: #76B900;
+  --landing-carousel-bg: #ffffff;
+  --landing-carousel-border: rgba(0, 0, 0, 0.1);
+  --landing-btn-outline-bg: rgba(0, 0, 0, 0.03);
+  --landing-btn-brand-bg: #000000;
+  --landing-btn-brand-text: #ffffff;
+  --landing-footer-bg: #fcfcfc;
+  --landing-footer-border: rgba(0, 0, 0, 0.05);
+  --landing-footer-text: rgba(0, 0, 0, 0.7);
+  --landing-footer-text-hover: #000000;
+}
+
 /* ── Nebula Background Container ─────────────────────────────────────────── */
 .landing-page {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
-  background-color: #000000;
+  background-color: var(--landing-bg);
+  color: var(--landing-text);
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 /* Layer 1: Radial gradient glows — replicates the NVIDIA green nebula */
@@ -21,38 +85,36 @@
     /* Primary green glow — upper-left */
     radial-gradient(
       ellipse 950px 750px at 12% 8%,
-      rgba(118, 185, 0, 0.13) 0%,
-      rgba(118, 185, 0, 0.05) 35%,
+      var(--landing-nebula-1) 0%,
+      var(--landing-nebula-2) 35%,
       transparent 68%
     ),
     /* Secondary green glow — center-right */
     radial-gradient(
       ellipse 650px 550px at 78% 32%,
-      rgba(118, 185, 0, 0.06) 0%,
-      rgba(118, 185, 0, 0.02) 40%,
+      var(--landing-nebula-2) 0%,
+      var(--landing-nebula-3) 40%,
       transparent 68%
     ),
     /* Tertiary glow — lower-left */
     radial-gradient(
       ellipse 750px 650px at 22% 82%,
-      rgba(118, 185, 0, 0.05) 0%,
-      rgba(74, 122, 0, 0.02) 38%,
+      var(--landing-nebula-3) 0%,
+      var(--landing-nebula-4) 38%,
       transparent 62%
     ),
     /* Deep ambient — bottom-right corner */
     radial-gradient(
       ellipse 550px 450px at 88% 88%,
-      rgba(118, 185, 0, 0.035) 0%,
+      var(--landing-nebula-4) 0%,
       transparent 58%
     ),
-    /* Base dark gradient */
-    linear-gradient(
-      175deg,
-      #050505 0%,
-      #000000 28%,
-      #020302 58%,
-      #000000 100%
-    );
+    /* Base dark gradient (only in dark mode) */
+    var(--landing-page-base-gradient, linear-gradient(175deg, #050505 0%, #000000 28%, #020302 58%, #000000 100%));
+}
+
+.light .landing-page::before {
+  --landing-page-base-gradient: linear-gradient(175deg, #ffffff 0%, #f7f9fc 100%);
 }
 
 /* Layer 2: Grain/noise texture for cinematic feel */
@@ -92,14 +154,14 @@
   height: 64px;
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  background: rgba(0, 0, 0, 0.55);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  transition: background 250ms ease, box-shadow 250ms ease;
+  background: var(--landing-header-bg);
+  border-bottom: 1px solid var(--landing-header-border);
+  transition: background 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
 }
 
 .landing-header.scrolled {
-  background: rgba(0, 0, 0, 0.82);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  background: var(--landing-header-scrolled);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
 /* ── Countdown Timer ─────────────────────────────────────────────────────── */
@@ -114,7 +176,7 @@
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--landing-text-faint);
   margin-right: 8px;
   white-space: nowrap;
 }
@@ -131,7 +193,7 @@
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #ffffff;
+  color: var(--landing-text);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -141,7 +203,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--landing-text-faint);
   margin-top: 2px;
 }
 
@@ -163,11 +225,12 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(118, 185, 0, 0.12);
-  background: rgba(10, 10, 10, 0.6);
+  border: 1px solid var(--landing-carousel-border);
+  background: var(--landing-carousel-bg);
   box-shadow:
     0 0 60px rgba(118, 185, 0, 0.08),
-    0 20px 60px rgba(0, 0, 0, 0.50);
+    0 20px 60px rgba(0, 0, 0, 0.15);
+  transition: background 300ms ease, border-color 300ms ease;
 }
 
 .carousel-slide {
@@ -242,19 +305,19 @@
 
 /* ── Feature Cards — NVIDIA solid dark style ─────────────────────────────── */
 .feature-card {
-  background: #0a0d10;
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: var(--landing-card-bg);
+  border: 1px solid var(--landing-card-border);
   border-radius: 14px;
   padding: 28px 26px 32px;
-  transition: border-color 250ms ease, transform 250ms ease, box-shadow 250ms ease;
+  transition: all 250ms ease;
   cursor: default;
   position: relative;
 }
 
 .feature-card:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--landing-card-hover-border);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.40);
+  box-shadow: 0 8px 24px var(--landing-card-shadow);
 }
 
 .feature-card-icon {
@@ -308,24 +371,22 @@
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #ffffff !important;
-  background: #000000 !important;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: var(--landing-btn-brand-text) !important;
+  background: var(--landing-btn-brand-bg) !important;
+  border: 1px solid var(--landing-card-border);
   border-radius: 8px;
   cursor: pointer;
-  transition: background 200ms ease, transform 150ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  transition: all 200ms ease;
   white-space: nowrap;
 }
 
 .btn-cta-brand:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.40);
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 
 .btn-cta-brand:active {
   transform: translateY(0);
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .btn-cta-outline {
@@ -336,35 +397,46 @@
   padding: 12px 28px;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #ffffff;
-  background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: var(--landing-text);
+  background: var(--landing-btn-outline-bg);
+  border: 1px solid var(--landing-card-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 200ms ease;
 }
 
 .btn-cta-outline:hover {
-  border-color: rgba(255, 255, 255, 0.40);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--landing-card-hover-border);
+  background: var(--landing-card-bg);
 }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 .landing-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.40);
+  border-top: 1px solid var(--landing-footer-border);
+  background: var(--landing-footer-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  transition: all 300ms ease;
+}
+
+.landing-footer a, 
+.landing-footer span {
+  color: var(--landing-footer-text);
+  transition: color 200ms ease;
+}
+
+.landing-footer a:hover {
+  color: var(--landing-footer-text-hover);
 }
 
 /* ── Waitlist Input ──────────────────────────────────────────────────────── */
 .waitlist-input {
-  background: #000000 !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: var(--landing-input-bg) !important;
+  border: 1px solid var(--landing-input-border) !important;
   border-radius: 8px;
   padding: 14px 18px;
   font-size: 0.95rem;
-  color: #ffffff !important;
+  color: var(--landing-text) !important;
   outline: none !important;
   transition: border-color 200ms ease, box-shadow 200ms ease;
   width: 100%;
@@ -373,13 +445,13 @@
 }
 
 .waitlist-input::placeholder {
-  color: rgba(255, 255, 255, 0.4) !important;
+  color: var(--landing-input-placeholder) !important;
 }
 
 .waitlist-input:focus {
   outline: none !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--landing-input-focus-border) !important;
+  box-shadow: 0 0 0 3px rgba(118, 185, 0, 0.1) !important;
 }
 
 /* Force removal of browser autofill yellow background */

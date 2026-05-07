@@ -18,7 +18,7 @@ export default function LandingFooter() {
             <a
               key={link.label}
               href={link.href}
-              className="text-xs text-white/40 hover:text-[#76B900] transition-colors duration-200"
+              className="text-xs opacity-60 hover:opacity-100 hover:text-brand transition-all duration-200"
             >
               {link.label}
             </a>
@@ -26,7 +26,7 @@ export default function LandingFooter() {
         </nav>
 
         {/* Copyright */}
-        <p className="text-center text-[0.7rem] text-white/25 tracking-wide">
+        <p className="text-center text-[0.7rem] opacity-40 tracking-wide">
           Copyright © 2026 EXOPER
         </p>
       </div>

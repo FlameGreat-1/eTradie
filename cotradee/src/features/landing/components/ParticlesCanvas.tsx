@@ -60,6 +60,10 @@ export default function ParticlesCanvas() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      const isLight = document.documentElement.classList.contains('light');
+      const nodeColor = isLight ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.4)';
+      const lineColor = isLight ? '0, 0, 0' : '255, 255, 255';
+
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
 
@@ -83,7 +87,7 @@ export default function ParticlesCanvas() {
         // Draw node
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = nodeColor;
         ctx.fill();
 
         // Draw connections to nearby nodes
@@ -98,7 +102,7 @@ export default function ParticlesCanvas() {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+            ctx.strokeStyle = `rgba(${lineColor}, ${opacity})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
