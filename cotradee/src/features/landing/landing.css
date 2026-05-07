@@ -380,6 +380,11 @@
   white-space: nowrap;
 }
 
+.landing-header .btn-cta-brand {
+  padding: 10px 24px;
+  font-size: 0.875rem;
+}
+
 .btn-cta-brand:hover {
   opacity: 0.9;
   transform: translateY(-1px);

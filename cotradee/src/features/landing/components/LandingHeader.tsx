@@ -115,10 +115,10 @@ export default function LandingHeader() {
           </a>
           <a
             href="/register"
-            className="btn-cta-outline text-sm"
-            id="header-start-trading"
+            className="btn-cta-brand text-sm"
+            id="header-join-waitlist"
           >
-            <span style={{ color: 'var(--brand)' }}>Start Trading</span>
+            Start Trading
           </a>
         </div>
       </div>
