@@ -45,11 +45,12 @@ export default function GoogleSignInButton({
         disabled={isStarting}
         aria-busy={isStarting}
         aria-label={label}
-        className="w-full inline-flex items-center justify-center gap-3 rounded-lg
-                   border border-border bg-white px-4 py-2.5 text-sm font-semibold text-gray-800
-                   hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand
-                   transition-colors"
+        className="w-full inline-flex items-center justify-center gap-3 rounded-lg border px-4 py-3 text-sm font-bold transition-all"
+        style={{
+          borderColor: 'var(--landing-card-border)',
+          background: 'var(--landing-btn-outline-bg)',
+          color: 'var(--landing-text)'
+        }}
       >
         <GoogleGlyph />
         <span>{isStarting ? 'Redirecting to Google…' : label}</span>

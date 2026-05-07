@@ -506,17 +506,33 @@
   .countdown-segment {
     min-width: 26px;
   }
-
   .countdown-value {
     font-size: 0.8rem;
   }
-
   .countdown-sep {
     font-size: 0.8rem;
   }
-
   .carousel-viewport {
     aspect-ratio: 4 / 3;
     border-radius: 8px;
   }
+}
+
+/* ── Auth Input Global Sync ─────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--landing-text) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--landing-input-bg) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input:focus {
+  border-color: #76B900 !important;
+  box-shadow: 0 0 0 2px rgba(118, 185, 0, 0.2) !important;
+}
+
+input::placeholder {
+  opacity: 0.25;
 }
