@@ -9,11 +9,11 @@ const BrokerSection = lazy(() => import('./settings/BrokerSection'));
 const ExecutionSection = lazy(() => import('./settings/ExecutionSection'));
 
 const LINKS = [
-  { to: '/settings',           label: 'Profile',   icon: User,     end: true },
-  { to: '/settings/symbols',   label: 'Symbols',   icon: Settings },
-  { to: '/settings/llm',       label: 'AI Engine', icon: Brain },
-  { to: '/settings/broker',    label: 'Broker',    icon: Plug },
-  { to: '/settings/execution', label: 'Execution', icon: Shield },
+  { to: '/dashboard/settings',           label: 'Profile',   icon: User,     end: true },
+  { to: '/dashboard/settings/symbols',   label: 'Symbols',   icon: Settings },
+  { to: '/dashboard/settings/llm',       label: 'AI Engine', icon: Brain },
+  { to: '/dashboard/settings/broker',    label: 'Broker',    icon: Plug },
+  { to: '/dashboard/settings/execution', label: 'Execution', icon: Shield },
 ];
 
 export default function SettingsPage() {

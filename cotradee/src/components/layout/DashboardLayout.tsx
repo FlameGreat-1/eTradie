@@ -17,7 +17,7 @@ function DashboardLayout({ children }: Props) {
   const [isOverlayVisible, setOverlayVisible] = useState(false);
   const [isMobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const onDashboard = location.pathname === '/';
+  const onDashboard = location.pathname === '/dashboard';
 
   const stream = useLiveReasoningStream(() => {
     void queryClient.invalidateQueries({ queryKey: ['analysis'] });

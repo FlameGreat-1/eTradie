@@ -157,7 +157,7 @@ function NotificationsPanelInner() {
 
   const goToJournal = useCallback(() => {
     close();
-    navigate('/journal');
+    navigate('/dashboard/journal');
   }, [close, navigate]);
 
   return (

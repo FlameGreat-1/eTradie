@@ -45,7 +45,7 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
 
   const handleCheckAnalysis = () => {
     onDismiss();
-    navigate(stream.analysisId ? `/analysis?id=${stream.analysisId}` : '/analysis');
+    navigate(stream.analysisId ? `/dashboard/analysis?id=${stream.analysisId}` : '/dashboard/analysis');
   };
 
   const streamSymbol = stream.symbol ?? '—';

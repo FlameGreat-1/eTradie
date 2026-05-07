@@ -14,10 +14,10 @@ interface NavItem {
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { path: '/',         icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 36 },
-  { path: '/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 36 },
-  { path: '/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 36 },
-  { path: '/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 36 },
+  { path: '/dashboard',          icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 36 },
+  { path: '/dashboard/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 36 },
+  { path: '/dashboard/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 36 },
+  { path: '/dashboard/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 36 },
 ];
 
 const FOOTER_NAV: NavItem[] = [
@@ -27,8 +27,8 @@ const FOOTER_NAV: NavItem[] = [
     width: 37,
     height: 82,
     splitPaths: [
-      { path: '/settings', label: 'Settings' },
-      { path: '/support',  label: 'Support' },
+      { path: '/dashboard/settings', label: 'Settings' },
+      { path: '/dashboard/support',  label: 'Support' },
     ],
   },
 ];
@@ -47,7 +47,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const [tooltipTop, setTooltipTop] = useState(0);
 
   const isActive = useCallback(
-    (path: string) => (path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)),
+    (path: string) => (path === '/dashboard' ? location.pathname === '/dashboard' : location.pathname.startsWith(path)),
     [location.pathname],
   );
 
@@ -243,7 +243,7 @@ function RailContents({
   return (
     <>
       <button
-        onClick={() => onNavigate('/')}
+        onClick={() => onNavigate('/dashboard')}
         className="flex items-center justify-center w-full h-12 mb-2 cursor-pointer focus-ring"
         aria-label="Home"
       >

@@ -124,7 +124,7 @@ function ConnectedAccountsPanel() {
     setError('');
     setSuccess('');
     try {
-      await startGoogleLink('/settings');
+      await startGoogleLink('/dashboard/settings');
     } catch (err: unknown) {
       setError(
         err instanceof Error

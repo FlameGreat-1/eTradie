@@ -41,8 +41,8 @@ export default function OAuthLinkCallbackPage() {
         // Default to /settings so the user lands back on the panel
         // they initiated the link from. sanitiseReturnTo enforces
         // same-origin and protects against open-redirect.
-        const target = sanitiseReturnTo(res.return_to) || '/settings';
-        navigate(target === '/' ? '/settings' : target, { replace: true });
+        const target = sanitiseReturnTo(res.return_to) || '/dashboard/settings';
+        navigate(target === '/' ? '/dashboard/settings' : target, { replace: true });
       } catch (err: unknown) {
         const msg =
           err instanceof Error
@@ -73,7 +73,7 @@ export default function OAuthLinkCallbackPage() {
         {errorMessage}
       </div>
       <Link
-        to="/settings"
+        to="/dashboard/settings"
         replace
         className="block w-full text-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white
                    hover:bg-brand-dark transition-colors"

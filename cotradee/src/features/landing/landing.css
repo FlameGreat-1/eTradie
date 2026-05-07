@@ -1,0 +1,445 @@
+/* ==========================================================================
+   Landing Page — NVIDIA "Digital Nebula" Background & Animations
+   ========================================================================== */
+
+/* ── Nebula Background Container ─────────────────────────────────────────── */
+.landing-page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: #000000;
+}
+
+/* Layer 1: Radial gradient glows — replicates the NVIDIA green nebula */
+.landing-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* Primary green glow — upper-left */
+    radial-gradient(
+      ellipse 950px 750px at 12% 8%,
+      rgba(118, 185, 0, 0.13) 0%,
+      rgba(118, 185, 0, 0.05) 35%,
+      transparent 68%
+    ),
+    /* Secondary green glow — center-right */
+    radial-gradient(
+      ellipse 650px 550px at 78% 32%,
+      rgba(118, 185, 0, 0.06) 0%,
+      rgba(118, 185, 0, 0.02) 40%,
+      transparent 68%
+    ),
+    /* Tertiary glow — lower-left */
+    radial-gradient(
+      ellipse 750px 650px at 22% 82%,
+      rgba(118, 185, 0, 0.05) 0%,
+      rgba(74, 122, 0, 0.02) 38%,
+      transparent 62%
+    ),
+    /* Deep ambient — bottom-right corner */
+    radial-gradient(
+      ellipse 550px 450px at 88% 88%,
+      rgba(118, 185, 0, 0.035) 0%,
+      transparent 58%
+    ),
+    /* Base dark gradient */
+    linear-gradient(
+      175deg,
+      #050505 0%,
+      #000000 28%,
+      #020302 58%,
+      #000000 100%
+    );
+}
+
+/* Layer 2: Grain/noise texture for cinematic feel */
+.landing-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Particle canvas layer */
+.landing-particles {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Content sits above background layers */
+.landing-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.landing-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 64px;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  background: rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 250ms ease, box-shadow 250ms ease;
+}
+
+.landing-header.scrolled {
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Countdown Timer ─────────────────────────────────────────────────────── */
+.countdown-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.countdown-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.countdown-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 38px;
+}
+
+.countdown-value {
+  font-family: 'Inter', monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-unit {
+  font-size: 0.55rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 2px;
+}
+
+.countdown-sep {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(118, 185, 0, 0.40);
+  line-height: 1;
+  margin: 0 1px;
+  align-self: flex-start;
+  padding-top: 1px;
+}
+
+/* ── Image Carousel ──────────────────────────────────────────────────────── */
+.carousel-viewport {
+  position: relative;
+  width: 100%;
+  max-width: 1180px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(118, 185, 0, 0.12);
+  background: rgba(10, 10, 10, 0.6);
+  box-shadow:
+    0 0 60px rgba(118, 185, 0, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.50);
+}
+
+.carousel-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+/* Slide enters from bottom */
+.carousel-slide.entering {
+  animation: slideEnter 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Slide stays visible */
+.carousel-slide.active {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Slide exits through top */
+.carousel-slide.exiting {
+  animation: slideExit 500ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* Slide hidden */
+.carousel-slide.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@keyframes slideEnter {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideExit {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+/* Carousel image styling */
+.carousel-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Dashboard placeholder cards (until real screenshots are added) */
+.dashboard-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 16px;
+}
+
+/* ── Feature Cards — NVIDIA solid dark style ─────────────────────────────── */
+.feature-card {
+  background: #0a0d10;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  padding: 28px 26px 32px;
+  transition: border-color 250ms ease, transform 250ms ease, box-shadow 250ms ease;
+  cursor: default;
+  position: relative;
+}
+
+.feature-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.40);
+}
+
+.feature-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(118, 185, 0, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: #76B900;
+}
+
+/* ── CTA Button ──────────────────────────────────────────────────────────── */
+.btn-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #000000;
+  background: #76B900;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 200ms ease, transform 150ms ease, box-shadow 200ms ease;
+  white-space: nowrap;
+}
+
+.btn-cta:hover {
+  background: #8ACF00;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(118, 185, 0, 0.30);
+}
+
+.btn-cta:active {
+  transform: translateY(0);
+  background: #6AA300;
+}
+
+.btn-cta-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #ffffff !important;
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 200ms ease, transform 150ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  white-space: nowrap;
+}
+
+.btn-cta-brand:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.40);
+  transform: translateY(-1px);
+}
+
+.btn-cta-brand:active {
+  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.btn-cta-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.btn-cta-outline:hover {
+  border-color: rgba(255, 255, 255, 0.40);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.landing-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.40);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Waitlist Input ──────────────────────────────────────────────────────── */
+.waitlist-input {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 0.95rem;
+  color: #ffffff !important;
+  outline: none !important;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+  width: 100%;
+  max-width: 340px;
+  font-family: 'Inter', sans-serif;
+}
+
+.waitlist-input::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.waitlist-input:focus {
+  outline: none !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Force removal of browser autofill yellow background */
+.waitlist-input:-webkit-autofill,
+.waitlist-input:-webkit-autofill:hover,
+.waitlist-input:-webkit-autofill:focus,
+.waitlist-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #000 inset !important;
+  -webkit-text-fill-color: #fff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .countdown-label {
+    display: none;
+  }
+
+  .countdown-segment {
+    min-width: 30px;
+  }
+
+  .countdown-value {
+    font-size: 0.9rem;
+  }
+
+  .carousel-viewport {
+    border-radius: 10px;
+    aspect-ratio: 16 / 11;
+  }
+
+  .btn-cta {
+    padding: 12px 24px;
+    font-size: 0.875rem;
+  }
+
+  .feature-card {
+    padding: 20px 18px;
+  }
+
+  .waitlist-input {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .countdown-segment {
+    min-width: 26px;
+  }
+
+  .countdown-value {
+    font-size: 0.8rem;
+  }
+
+  .countdown-sep {
+    font-size: 0.8rem;
+  }
+
+  .carousel-viewport {
+    aspect-ratio: 4 / 3;
+    border-radius: 8px;
+  }
+}

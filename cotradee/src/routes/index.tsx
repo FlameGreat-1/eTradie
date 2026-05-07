@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
 
 /* ─── Lazy-loaded pages ──────────────────────────────────── */
+const LandingPage  = lazy(() => import('@/features/landing/LandingPage'));
 const LoginPage    = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
@@ -40,21 +41,36 @@ function PageLoader() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <PageLoader />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/landing" replace />;
   return <>{children}</>;
 }
 
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <PageLoader />;
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
+}
+
+function RootRedirect() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <PageLoader />;
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />;
 }
 
 export default function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        {/* ── Public landing page ──────────────────────────── */}
+        <Route
+          path="/landing"
+          element={
+            <GuestRoute>
+              <LandingPage />
+            </GuestRoute>
+          }
+        />
         <Route
           path="/login"
           element={
@@ -80,7 +96,7 @@ export default function AppRoutes() {
           }
         />
         <Route
-          path="/*"
+          path="/dashboard/*"
           element={
             <ProtectedRoute>
               <DashboardLayout>
@@ -104,13 +120,19 @@ export default function AppRoutes() {
                     />
                     <Route path="settings/*" element={<SettingsPage />} />
                     <Route path="support"    element={<SupportPage />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Suspense>
               </DashboardLayout>
             </ProtectedRoute>
           }
         />
+        {/* Redirect root to landing (guests) or dashboard (auth) */}
+        <Route
+          path="/"
+          element={<RootRedirect />}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );

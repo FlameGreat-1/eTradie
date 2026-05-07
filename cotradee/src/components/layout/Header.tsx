@@ -101,7 +101,7 @@ function Header({ onMenuClick }: HeaderProps) {
     setShowUserMenu(!showUserMenu);
   };
 
-  const onDashboard = location.pathname === '/';
+  const onDashboard = location.pathname === '/dashboard';
   const [persistedSymbol, setPersistedSymbol] = useState(
     () => localStorage.getItem(SYMBOL_KEY) || '',
   );
@@ -381,10 +381,10 @@ function Header({ onMenuClick }: HeaderProps) {
           className="w-48 rounded-lg bg-surface-elevated border border-border
                      shadow-pop animate-fade-in z-portal"
         >
-          <MenuItem onClick={() => { navigate('/settings/profile'); setShowUserMenu(false); }}>
+          <MenuItem onClick={() => { navigate('/dashboard/settings/profile'); setShowUserMenu(false); }}>
             My Profile
           </MenuItem>
-          <MenuItem onClick={() => { navigate('/settings'); setShowUserMenu(false); }}>
+          <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
             Settings
           </MenuItem>
           <div className="border-t border-border" />

@@ -25,7 +25,7 @@ interface GoogleLinkButtonProps {
  *     re-auth gates) should not leak into the sign-in path.
  */
 export default function GoogleLinkButton({
-  returnTo = '/settings',
+  returnTo = '/dashboard/settings',
   label = 'Connect Google account',
   disabled = false,
 }: GoogleLinkButtonProps) {
