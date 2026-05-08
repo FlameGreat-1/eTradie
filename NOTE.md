@@ -87,3 +87,9 @@ PLEASE NOTE: UNTIL I APPROVE BEFORE YOU MAKE CHANGES. SO JSUT EXAMINE AND GIVE M
 
 
 
+
+
+FIRST, CHANGE THE Connect Broker/MT5, Connect LLM API Key, Configure Execution, Technical Analysis  TO Broker/MT5, API Key, Execution, Tech. Analysis AND Macro Analysis
+
+
+CHANGE 

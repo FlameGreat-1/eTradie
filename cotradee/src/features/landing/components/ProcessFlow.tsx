@@ -2,11 +2,11 @@ import React from 'react';
 import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap, Briefcase, Cpu, Settings, Server } from 'lucide-react';
 
 const LEFT_INPUTS = [
-  { title: 'Connect Broker/MT5', icon: <Network size={20} />, y: 15 },
-  { title: 'Connect LLM API Key', icon: <Key size={20} />, y: 32.5 },
-  { title: 'Configure Execution', icon: <Sliders size={20} />, y: 50 },
-  { title: 'Technical Analysis', icon: <LineChart size={20} />, y: 67.5 },
-  { title: 'Macroeconomic Analysis', icon: <Globe size={20} />, y: 85 },
+  { title: 'Broker/MT5', icon: <Network size={20} />, y: 15 },
+  { title: 'API Key', icon: <Key size={20} />, y: 32.5 },
+  { title: 'Execution', icon: <Sliders size={20} />, y: 50 },
+  { title: 'Tech. Analysis', icon: <LineChart size={20} />, y: 67.5 },
+  { title: 'Macro Analysis', icon: <Globe size={20} />, y: 85 },
 ];
 
 const RIGHT_INTERNAL = [
@@ -17,7 +17,7 @@ const RIGHT_INTERNAL = [
 
 export default function ProcessFlow() {
   return (
-    <section className="relative py-24 border-t border-white/5" id="process-flow">
+    <section className="relative py-24 border-t border-slate-200 dark:border-white/5" id="process-flow">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-lg opacity-68 leading-relaxed">
@@ -29,7 +29,7 @@ export default function ProcessFlow() {
       {/* ── DESKTOP LAYOUT (Horizontal Pipeline) ── */}
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 hidden lg:block">
         <div className="w-full overflow-x-auto pb-8 hide-scrollbar">
-          <div className="relative min-w-[1400px] h-[600px] bg-[#080808] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden mx-auto">
+          <div className="relative min-w-[1400px] h-[600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mx-auto">
             
             {/* Background Glows */}
             <div className="absolute top-[20%] left-[30%] w-[30%] h-[60%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
@@ -55,7 +55,7 @@ export default function ProcessFlow() {
                 }
                 return (
                   <g key={i}>
-                    <path d={pathData} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={pathData} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                     <path d={pathData} fill="none" stroke={strokeColor} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px ${strokeColor})` }}>
                       <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${dur}s`} repeatCount="indefinite" />
                     </path>
@@ -65,7 +65,7 @@ export default function ProcessFlow() {
 
               {/* Settings Node -> Engine Node */}
               <g>
-                <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                 <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                   <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2.5s" repeatCount="indefinite" />
                 </path>
@@ -73,7 +73,7 @@ export default function ProcessFlow() {
 
               {/* Engine Node -> AI Node */}
               <g>
-                <path d="M 44 50 L 59 50" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                <path d="M 44 50 L 59 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                 <path d="M 44 50 L 59 50" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
                   <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2s" repeatCount="indefinite" />
                 </path>
@@ -81,7 +81,7 @@ export default function ProcessFlow() {
 
               {/* AI Node -> Output Node */}
               <g>
-                <path d="M 69 50 L 77 50" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                <path d="M 69 50 L 77 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                 <path d="M 69 50 L 77 50" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #d946ef)` }}>
                   <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" repeatCount="indefinite" />
                 </path>
@@ -112,11 +112,11 @@ export default function ProcessFlow() {
                 style={{ left: '2%', top: `${input.y}%`, zIndex: 10 }}
               >
                 {/* Icon Box */}
-                <div className="w-12 h-12 rounded-xl bg-[#121212] border border-white/10 flex items-center justify-center shadow-lg z-10 relative">
-                  <div className="text-white/70">{input.icon}</div>
+                <div className="w-12 h-12 rounded-xl bg-white dark:bg-[#121212] border border-slate-200 dark:border-white/10 flex items-center justify-center shadow-md z-10 relative">
+                  <div className="text-slate-500 dark:text-white/70">{input.icon}</div>
                 </div>
                 {/* Text Pill */}
-                <div className="pl-6 pr-4 py-2.5 rounded-r-xl bg-[#111] border border-white/5 border-l-0 text-white/80 text-xs font-semibold shadow-md -ml-3 z-0 w-[170px]">
+                <div className="pl-6 pr-4 py-2.5 rounded-r-xl bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 border-l-0 text-slate-700 dark:text-white/80 text-xs font-semibold shadow-sm dark:shadow-md -ml-3 z-0 w-[170px]">
                   {input.title}
                 </div>
               </div>
@@ -127,8 +127,8 @@ export default function ProcessFlow() {
               className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
               style={{ left: '25%', top: '32.5%' }}
             >
-              <div className="w-10 h-10 rounded-full bg-[#111] border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.05)]">
-                <Settings size={18} className="text-white/60 animate-[spin_8s_linear_infinite]" />
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-[#111] border border-slate-300 dark:border-white/20 flex items-center justify-center shadow-md dark:shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+                <Settings size={18} className="text-slate-400 dark:text-white/60 animate-[spin_8s_linear_infinite]" />
               </div>
             </div>
 
@@ -137,16 +137,16 @@ export default function ProcessFlow() {
               className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
               style={{ left: '40%', top: '50%' }}
             >
-              <div className="w-36 h-36 bg-[#0a0a0a] border border-white/10 rounded-3xl flex flex-col items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-cyan-600/10" />
+              <div className="w-36 h-36 bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-3xl flex flex-col items-center justify-center shadow-xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-cyan-600/5 dark:from-blue-600/10 dark:to-cyan-600/10" />
                 
                 {/* Glowing Progress Ring */}
-                <div className="relative w-16 h-16 rounded-full border-[3px] border-blue-900 flex items-center justify-center mb-3">
+                <div className="relative w-16 h-16 rounded-full border-[3px] border-blue-100 dark:border-blue-900 flex items-center justify-center mb-3">
                   <div className="absolute inset-0 rounded-full border-[3px] border-blue-500 border-t-transparent animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }} />
-                  <Server size={24} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                  <Server size={24} className="text-blue-600 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                 </div>
                 
-                <span className="text-white/90 font-bold text-[11px] tracking-wide">Engine</span>
+                <span className="text-slate-800 dark:text-white/90 font-bold text-[11px] tracking-wide">Engine</span>
               </div>
             </div>
 
@@ -155,16 +155,16 @@ export default function ProcessFlow() {
               className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
               style={{ left: '64%', top: '50%' }}
             >
-              <div className="w-36 h-36 bg-[#0a0a0a] border border-white/10 rounded-3xl flex flex-col items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-indigo-600/10" />
+              <div className="w-36 h-36 bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-3xl flex flex-col items-center justify-center shadow-xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-indigo-600/5 dark:from-purple-600/10 dark:to-indigo-600/10" />
                 
                 {/* Glowing Progress Ring */}
-                <div className="relative w-16 h-16 rounded-full border-[3px] border-purple-900 flex items-center justify-center mb-3">
+                <div className="relative w-16 h-16 rounded-full border-[3px] border-purple-100 dark:border-purple-900 flex items-center justify-center mb-3">
                   <div className="absolute inset-0 rounded-full border-[3px] border-purple-500 border-t-transparent animate-spin" style={{ animationDuration: '3s' }} />
-                  <BrainCircuit size={24} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                  <BrainCircuit size={24} className="text-purple-600 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                 </div>
                 
-                <span className="text-white/90 font-bold text-[11px] tracking-wide">Exoper AI</span>
+                <span className="text-slate-800 dark:text-white/90 font-bold text-[11px] tracking-wide">Exoper AI</span>
               </div>
             </div>
 
@@ -173,13 +173,13 @@ export default function ProcessFlow() {
               className="absolute flex flex-col items-center justify-center -translate-y-1/2 z-20"
               style={{ left: '77%', top: '50%', width: '20%' }}
             >
-              <div className="w-full aspect-square bg-[#0c0c0c] border border-white/10 rounded-[2rem] flex flex-col items-center justify-center shadow-2xl relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+              <div className="w-full aspect-square bg-slate-50 dark:bg-[#0c0c0c] border border-slate-200 dark:border-white/10 rounded-[2rem] flex flex-col items-center justify-center shadow-xl dark:shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-200/50 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
 
                 {/* Background Stardust/Particles Effect */}
-                <div className="absolute top-[20%] right-[30%] w-1 h-1 bg-white/40 rounded-full blur-[1px]" />
-                <div className="absolute top-[40%] left-[20%] w-1 h-1 bg-white/20 rounded-full" />
-                <div className="absolute bottom-[30%] right-[20%] w-1.5 h-1.5 bg-white/30 rounded-full blur-[2px]" />
+                <div className="absolute top-[20%] right-[30%] w-1 h-1 bg-slate-400 dark:bg-white/40 rounded-full blur-[1px]" />
+                <div className="absolute top-[40%] left-[20%] w-1 h-1 bg-slate-300 dark:bg-white/20 rounded-full" />
+                <div className="absolute bottom-[30%] right-[20%] w-1.5 h-1.5 bg-slate-400 dark:bg-white/30 rounded-full blur-[2px]" />
 
                 {/* Internal Scattered Capabilities */}
                 {RIGHT_INTERNAL.map((item, i) => (
@@ -188,16 +188,16 @@ export default function ProcessFlow() {
                     className="absolute flex flex-col items-center gap-1.5"
                     style={{ top: item.top, bottom: item.bottom, left: item.left, right: item.right, transform: item.transform }}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-inner">
-                      <div className="text-white/60">{item.icon}</div>
+                    <div className="w-8 h-8 rounded-lg bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 flex items-center justify-center shadow-sm dark:shadow-inner">
+                      <div className="text-slate-500 dark:text-white/60">{item.icon}</div>
                     </div>
-                    <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">{item.title}</span>
+                    <span className="text-[9px] font-bold tracking-wider uppercase text-slate-500 dark:text-white/40">{item.title}</span>
                   </div>
                 ))}
 
                 {/* Main Node Content */}
-                <ShieldCheck size={32} className="text-white mb-3 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
-                <span className="text-white font-bold text-sm tracking-wide text-center">You Stay in Control</span>
+                <ShieldCheck size={32} className="text-slate-800 dark:text-white mb-3 dark:drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+                <span className="text-slate-900 dark:text-white font-bold text-sm tracking-wide text-center">You Stay in Control</span>
               </div>
             </div>
 
@@ -208,7 +208,7 @@ export default function ProcessFlow() {
 
       {/* ── MOBILE LAYOUT (Vertical Top-to-Bottom Pipeline) ── */}
       <div className="w-full max-w-[500px] md:max-w-[900px] mx-auto px-4 block lg:hidden">
-        <div className="relative w-full h-[1100px] md:h-[1600px] bg-[#080808] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden mt-8">
+        <div className="relative w-full h-[1100px] md:h-[1600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mt-8">
           
           {/* Background Glows */}
           <div className="absolute top-[10%] left-[20%] w-[60%] h-[30%] bg-cyan-600/10 blur-[80px] rounded-full pointer-events-none" />
@@ -230,14 +230,14 @@ export default function ProcessFlow() {
                 <g key={i}>
                   {/* Mobile (Orthogonal) */}
                   <g className="md:hidden">
-                    <path d={pathDataMobile} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                     <path d={pathDataMobile} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                       <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
                     </path>
                   </g>
                   {/* Tablet (Curved) */}
                   <g className="hidden md:block">
-                    <path d={pathDataTablet} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                     <path d={pathDataTablet} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                       <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
                     </path>
@@ -248,7 +248,7 @@ export default function ProcessFlow() {
 
             {/* Settings Node -> Engine Node (Zero-Crossing Bus Route) */}
             <g>
-              <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+              <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
               <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                 <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2.5s" repeatCount="indefinite" />
               </path>
@@ -261,13 +261,13 @@ export default function ProcessFlow() {
               return (
                 <g key={i}>
                   <g className="md:hidden">
-                    <path d={pathDataMobile} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                     <path d={pathDataMobile} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                       <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
                     </path>
                   </g>
                   <g className="hidden md:block">
-                    <path d={pathDataTablet} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
                     <path d={pathDataTablet} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                       <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
                     </path>
@@ -278,7 +278,7 @@ export default function ProcessFlow() {
 
             {/* Engine Node -> AI Node */}
             <g>
-              <path d="M 50 61 L 50 73" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+              <path d="M 50 61 L 50 73" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
               <path d="M 50 61 L 50 73" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
                 <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2s" repeatCount="indefinite" />
               </path>
@@ -286,7 +286,7 @@ export default function ProcessFlow() {
 
             {/* AI Node -> Output Node */}
             <g>
-              <path d="M 50 73 L 50 89" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+              <path d="M 50 73 L 50 89" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
               <path d="M 50 73 L 50 89" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #d946ef)` }}>
                 <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" repeatCount="indefinite" />
               </path>
@@ -294,7 +294,7 @@ export default function ProcessFlow() {
 
             {/* Feedback Loop 1: Control -> Engine */}
             <g>
-              <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+              <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" className="opacity-60 dark:opacity-30" />
               <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
                 <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="4s" repeatCount="indefinite" />
               </path>
@@ -312,19 +312,17 @@ export default function ProcessFlow() {
           {/* ── MOBILE INPUT NODES ── */}
           {LEFT_INPUTS.map((input, i) => {
             const yMap = [8, 18, 28, 40, 48];
-            const mobileTitles = ["Broker/MT5", "API Key", "Execution", "Tech. Analysis", "Macro Analysis"];
             return (
               <div 
                 key={i} 
                 className="absolute flex items-center gap-0 -translate-y-1/2 w-[45%] md:w-[30%]"
                 style={{ left: '5%', top: `${yMap[i]}%`, zIndex: 10 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#121212] border border-white/10 flex items-center justify-center shadow-lg z-10 relative flex-shrink-0">
-                  <div className="text-white/70 scale-90">{input.icon}</div>
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#121212] border border-slate-200 dark:border-white/10 flex items-center justify-center shadow-md dark:shadow-lg z-10 relative flex-shrink-0">
+                  <div className="text-slate-500 dark:text-white/70 scale-90">{input.icon}</div>
                 </div>
-                <div className="pl-4 pr-2 py-1.5 rounded-r-xl bg-[#111] border border-white/5 border-l-0 text-white/80 text-[10px] font-semibold shadow-md -ml-2 z-0 w-full truncate">
-                  <span className="md:hidden">{mobileTitles[i]}</span>
-                  <span className="hidden md:inline">{input.title}</span>
+                <div className="pl-4 pr-2 py-1.5 rounded-r-xl bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 border-l-0 text-slate-700 dark:text-white/80 text-[10px] font-semibold shadow-sm dark:shadow-md -ml-2 z-0 w-full truncate">
+                  <span className="inline">{input.title}</span>
                 </div>
               </div>
             );
@@ -335,8 +333,8 @@ export default function ProcessFlow() {
             className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
             style={{ left: '75%', top: '18%' }}
           >
-            <div className="w-8 h-8 rounded-full bg-[#111] border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.05)]">
-              <Settings size={14} className="text-white/60 animate-[spin_8s_linear_infinite]" />
+            <div className="w-8 h-8 rounded-full bg-white dark:bg-[#111] border border-slate-300 dark:border-white/20 flex items-center justify-center shadow-md dark:shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+              <Settings size={14} className="text-slate-400 dark:text-white/60 animate-[spin_8s_linear_infinite]" />
             </div>
           </div>
 
@@ -345,13 +343,13 @@ export default function ProcessFlow() {
             className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
             style={{ left: '50%', top: '61%' }}
           >
-            <div className="w-24 h-24 bg-[#0a0a0a] border border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-cyan-600/10" />
-              <div className="relative w-10 h-10 rounded-full border-2 border-blue-900 flex items-center justify-center mb-1.5">
+            <div className="w-24 h-24 bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-xl dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-cyan-600/5 dark:from-blue-600/10 dark:to-cyan-600/10" />
+              <div className="relative w-10 h-10 rounded-full border-2 border-blue-100 dark:border-blue-900 flex items-center justify-center mb-1.5">
                 <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }} />
-                <Server size={16} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                <Server size={16} className="text-blue-600 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               </div>
-              <span className="text-white/90 font-bold text-[9px] tracking-wide">Engine</span>
+              <span className="text-slate-800 dark:text-white/90 font-bold text-[9px] tracking-wide">Engine</span>
             </div>
           </div>
 
@@ -360,13 +358,13 @@ export default function ProcessFlow() {
             className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
             style={{ left: '50%', top: '73%' }}
           >
-            <div className="w-24 h-24 md:w-32 md:h-32 bg-[#0a0a0a] border border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-indigo-600/10" />
-              <div className="relative w-14 h-14 rounded-full border-2 border-purple-900 flex items-center justify-center mb-2">
+            <div className="w-24 h-24 md:w-32 md:h-32 bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-xl dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-indigo-600/5 dark:from-purple-600/10 dark:to-indigo-600/10" />
+              <div className="relative w-14 h-14 rounded-full border-2 border-purple-100 dark:border-purple-900 flex items-center justify-center mb-2">
                 <div className="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" style={{ animationDuration: '3s' }} />
-                <BrainCircuit size={24} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                <BrainCircuit size={24} className="text-purple-600 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               </div>
-              <span className="text-white/90 font-bold text-[11px] tracking-wide">Exoper AI</span>
+              <span className="text-slate-800 dark:text-white/90 font-bold text-[11px] tracking-wide">Exoper AI</span>
             </div>
           </div>
 
@@ -375,8 +373,8 @@ export default function ProcessFlow() {
             className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
             style={{ left: '50%', top: '89%', width: '80%' }}
           >
-            <div className="w-full h-36 md:h-64 bg-[#0c0c0c] border border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-2xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+            <div className="w-full h-36 md:h-64 bg-slate-50 dark:bg-[#0c0c0c] border border-slate-200 dark:border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-xl dark:shadow-2xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-200/50 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
               
               {/* Internal Scattered Capabilities (Mobile/Tablet) */}
               {[
@@ -389,18 +387,18 @@ export default function ProcessFlow() {
                   className="absolute flex flex-col items-center gap-1 md:gap-2"
                   style={{ top: item.top, bottom: item.bottom, left: item.left, right: item.right, transform: item.transform }}
                 >
-                  <div className="w-6 h-6 md:w-10 md:h-10 rounded bg-[#1a1a1a] border border-white/10 flex items-center justify-center">
-                    <div className="text-white/60 scale-75 md:scale-110">{item.icon}</div>
+                  <div className="w-6 h-6 md:w-10 md:h-10 rounded bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 flex items-center justify-center shadow-sm dark:shadow-inner">
+                    <div className="text-slate-500 dark:text-white/60 scale-75 md:scale-110">{item.icon}</div>
                   </div>
-                  <span className="text-[8px] font-bold tracking-wider uppercase text-white/40 md:hidden">{item.title}</span>
-                  <span className="text-[9px] font-bold tracking-wider uppercase text-white/40 hidden md:inline whitespace-nowrap">{item.fullTitle}</span>
+                  <span className="text-[8px] font-bold tracking-wider uppercase text-slate-400 dark:text-white/40 md:hidden">{item.title}</span>
+                  <span className="text-[9px] font-bold tracking-wider uppercase text-slate-400 dark:text-white/40 hidden md:inline whitespace-nowrap">{item.fullTitle}</span>
                 </div>
               ))}
 
               {/* Centered Main Content Shifted Up */}
               <div className="flex flex-col items-center -translate-y-3 md:-translate-y-5 z-10">
-                <ShieldCheck size={24} className="text-white mb-2 md:mb-4 md:w-10 md:h-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
-                <span className="text-white font-bold text-xs md:text-sm tracking-wide text-center">You Stay in Control</span>
+                <ShieldCheck size={24} className="text-slate-800 dark:text-white mb-2 md:mb-4 md:w-10 md:h-10 dark:drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+                <span className="text-slate-900 dark:text-white font-bold text-xs md:text-sm tracking-wide text-center">You Stay in Control</span>
               </div>
             </div>
           </div>
