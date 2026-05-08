@@ -19,14 +19,15 @@ export default function ProcessFlow() {
   return (
     <section className="relative py-24 border-t border-white/5" id="process-flow">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8">
-        
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-lg opacity-68 leading-relaxed">
             Technical analysis, macroeconomic analysis, execution, and trade management are handled autonomously with you in the loop while the system trades with precision, discipline, and confidence.
           </p>
         </div>
+      </div>
 
-        {/* ── SCROLLABLE WRAPPER FOR ALL DEVICES ── */}
+      {/* ── SCROLLABLE WRAPPER FOR ALL DEVICES ── */}
+      <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8">
         <div className="w-full overflow-x-auto pb-8 hide-scrollbar">
           <div className="relative min-w-[1400px] h-[600px] bg-[#080808] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden mx-auto">
             
@@ -83,6 +84,22 @@ export default function ProcessFlow() {
                 <path d="M 69 50 L 77 50" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
                 <path d="M 69 50 L 77 50" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #d946ef)` }}>
                   <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" repeatCount="indefinite" />
+                </path>
+              </g>
+
+              {/* Feedback Loop 1: Control (Top) -> Engine (Top) */}
+              <g>
+                <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
+                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="4s" repeatCount="indefinite" />
+                </path>
+              </g>
+
+              {/* Feedback Loop 2: Control (Bottom) -> AI (Bottom) */}
+              <g>
+                <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
+                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="3s" repeatCount="indefinite" />
                 </path>
               </g>
             </svg>
