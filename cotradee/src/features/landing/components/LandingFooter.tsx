@@ -41,13 +41,13 @@ export default function LandingFooter() {
               <img src="/assets/sidebar/icons/logo.svg" alt="Exoper" width={32} height={32} />
               <span className="text-xl font-bold tracking-tight">Exoper</span>
             </div>
-            <p className="text-sm leading-relaxed opacity-60 max-w-xs">
+            <p className="text-sm leading-relaxed max-w-xs" style={{ color: 'var(--landing-footer-text)' }}>
               Institutional-grade AI trading platform. Elevate your edge with real-time analysis and automated risk-managed execution.
             </p>
             <div className="flex items-center gap-4 mt-2">
-              <a href="#" className="opacity-60 hover:opacity-100 hover:text-brand transition-all"><Twitter size={20} /></a>
-              <a href="#" className="opacity-60 hover:opacity-100 hover:text-brand transition-all"><Linkedin size={20} /></a>
-              <a href="#" className="opacity-60 hover:opacity-100 hover:text-brand transition-all"><Github size={20} /></a>
+              <a href="#" className="hover:text-[color:var(--landing-footer-text-hover)] transition-all"><Twitter size={20} /></a>
+              <a href="#" className="hover:text-[color:var(--landing-footer-text-hover)] transition-all"><Linkedin size={20} /></a>
+              <a href="#" className="hover:text-[color:var(--landing-footer-text-hover)] transition-all"><Github size={20} /></a>
             </div>
           </div>
 
@@ -60,7 +60,7 @@ export default function LandingFooter() {
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      className="text-sm opacity-60 hover:opacity-100 hover:text-brand transition-all"
+                      className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
                     >
                       {link.label}
                     </a>
@@ -73,10 +73,10 @@ export default function LandingFooter() {
 
         {/* Bottom Row */}
         <div className="pt-8 border-t border-current border-opacity-10 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-xs opacity-40">
+          <p className="text-xs" style={{ color: 'var(--landing-footer-text)' }}>
             © 2026 EXOPER. All rights reserved.
           </p>
-          <div className="flex items-center gap-6 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+          <div className="flex items-center gap-6 grayscale hover:grayscale-0 transition-all duration-500" style={{ color: 'var(--landing-footer-text)' }}>
             {/* Simulated Payment/Security Icons */}
             <span className="text-[10px] font-bold tracking-tighter border border-current px-2 py-1 rounded">STRIPE</span>
             <span className="text-[10px] font-bold tracking-tighter border border-current px-2 py-1 rounded">SECURE</span>

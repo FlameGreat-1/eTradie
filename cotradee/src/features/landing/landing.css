@@ -7,10 +7,10 @@
   --landing-text: #ffffff;
   --landing-text-muted: rgba(255, 255, 255, 0.6);
   --landing-text-faint: rgba(255, 255, 255, 0.45);
-  --landing-card-bg: #0a0d10;
-  --landing-card-border: rgba(255, 255, 255, 0.13);
-  --landing-card-hover-border: rgba(255, 255, 255, 0.22);
-  --landing-card-shadow: rgba(0, 0, 0, 0.40);
+  --landing-card-bg: #111111;
+  --landing-card-border: rgba(255, 255, 255, 0.08);
+  --landing-card-hover-border: rgba(255, 255, 255, 0.14);
+  --landing-card-shadow: rgba(0, 0, 0, 0.35);
   --landing-header-bg: rgba(0, 0, 0, 0.55);
   --landing-header-scrolled: rgba(0, 0, 0, 0.82);
   --landing-header-border: rgba(255, 255, 255, 0.08);
@@ -72,6 +72,22 @@
   background-color: var(--landing-bg);
   color: var(--landing-text);
   transition: background-color 300ms ease, color 300ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Allow text selection inside inputs and textareas */
+.landing-page input,
+.landing-page textarea {
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
+/* Completely hide the selection highlight block if forced */
+.landing-page ::selection,
+.landing-page *::selection {
+  background-color: transparent;
+  color: inherit;
 }
 
 /* Layer 1: Radial gradient glows — replicates the NVIDIA green nebula */
@@ -303,33 +319,118 @@
   gap: 16px;
 }
 
-/* ── Feature Cards — NVIDIA solid dark style ─────────────────────────────── */
+/* ── Feature Cards — NVIDIA Build Marketplace Replica ────────────────────── */
 .feature-card {
   background: var(--landing-card-bg);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
   border: 1px solid var(--landing-card-border);
-  border-radius: 14px;
-  padding: 28px 26px 32px;
-  transition: all 250ms ease;
+  border-radius: 24px;
+  padding: 24px;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   cursor: default;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 8px 24px var(--landing-card-shadow);
+}
+
+.light .feature-card {
+  background-image: none;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.03);
 }
 
 .feature-card:hover {
   border-color: var(--landing-card-hover-border);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px var(--landing-card-shadow);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 12px 32px var(--landing-card-shadow);
+}
+
+.light .feature-card:hover {
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+/* Card header row: icon + publisher name */
+.feature-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .feature-card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(118, 185, 0, 0.10);
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
   color: #76B900;
+  flex-shrink: 0;
+}
+
+.feature-card-publisher {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--landing-text);
+  opacity: 0.82;
+}
+
+/* Card title */
+.feature-card-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--landing-text);
+  margin-bottom: 14px;
+}
+
+/* Card description */
+.feature-card-desc {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--landing-text);
+  opacity: 0.68;
+  margin-bottom: 18px;
+}
+
+/* Card chip / tag row */
+.feature-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.feature-card-chip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--landing-text);
+  opacity: 0.85;
+}
+
+.light .feature-card-chip {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.10);
 }
 
 /* ── CTA Button ──────────────────────────────────────────────────────────── */
@@ -494,7 +595,16 @@
   }
 
   .feature-card {
-    padding: 20px 18px;
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .feature-card-title {
+    font-size: 18px;
+  }
+
+  .feature-card-desc {
+    font-size: 14px;
   }
 
   .waitlist-input {

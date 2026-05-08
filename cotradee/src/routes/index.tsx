@@ -17,7 +17,7 @@ const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
 
-function PageLoader() {
+export function DashboardLoader() {
   return (
     <div className="flex items-center justify-center w-full h-full min-h-screen bg-app">
       <div className="flex flex-col items-center justify-center pointer-events-none gap-3">
@@ -38,29 +38,40 @@ function PageLoader() {
   );
 }
 
+export function BlankLoader() {
+  return <div className="min-h-screen bg-app" />;
+}
+
+function SmartSuspenseLoader() {
+  if (window.location.pathname.startsWith('/dashboard')) {
+    return <DashboardLoader />;
+  }
+  return <BlankLoader />;
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <PageLoader />;
+  if (isLoading) return <DashboardLoader />;
   if (!isAuthenticated) return <Navigate to="/landing" replace />;
   return <>{children}</>;
 }
 
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <PageLoader />;
+  if (isLoading) return <BlankLoader />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <PageLoader />;
+  if (isLoading) return <BlankLoader />;
   return <Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />;
 }
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={<PageLoader />}>
+    <Suspense fallback={<SmartSuspenseLoader />}>
       <Routes>
         {/* ── Public landing page ──────────────────────────── */}
         <Route
@@ -91,7 +102,7 @@ export default function AppRoutes() {
           path="/auth/callback/google"
           element={
             <GuestRoute>
-              <AuthLayout><OAuthCallbackPage /></AuthLayout>
+              <OAuthCallbackPage />
             </GuestRoute>
           }
         />
@@ -100,7 +111,7 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <Suspense fallback={<PageLoader />}>
+                <Suspense fallback={<DashboardLoader />}>
                   <Routes>
                     <Route index           element={<DashboardPage />} />
                     <Route path="analysis"  element={<AnalysisPage />} />

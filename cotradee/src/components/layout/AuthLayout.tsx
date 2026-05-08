@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import ParticlesCanvas from '@/features/landing/components/ParticlesCanvas';
+import BeamGridBackground from '@/features/landing/components/beam-grid-background';
 import LandingHeader from '@/features/landing/components/LandingHeader';
 import '@/features/landing/landing.css';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -16,7 +16,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-1 relative flex-col justify-between p-8 md:p-12 lg:p-16 border-t md:border-t-0 md:border-r"
            style={{ borderColor: 'var(--landing-header-border)' }}>
         <div className="absolute inset-0 h-[500px] md:h-full overflow-hidden">
-          <ParticlesCanvas />
+          <BeamGridBackground />
         </div>
         
         <div className="relative z-10 mt-12 md:mt-32 max-w-lg">
@@ -25,13 +25,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             Institutional AI.<br />
             Personal Edge.
           </h1>
-          <p className="text-base lg:text-lg opacity-60 leading-relaxed">
+          <p className="text-base lg:text-lg leading-relaxed" style={{ opacity: 0.68 }}>
             Connect your broker and let our AI handle the precision. 
             Automated execution, real-time risk management, and institutional analytics.
           </p>
         </div>
 
-        <div className="relative z-10 flex gap-4 md:gap-8 text-[9px] md:text-[10px] font-bold tracking-widest uppercase opacity-40 mt-12 md:mt-0">
+        <div className="relative z-10 flex gap-4 md:gap-8 text-[9px] md:text-[10px] font-bold tracking-widest uppercase opacity-60 mt-12 md:mt-0">
           <span>AI-DRIVEN</span>
           <span>•</span>
           <span>99.9% Uptime</span>

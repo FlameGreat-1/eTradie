@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useGoogleOAuth } from '@/features/auth/hooks/useGoogleOAuth';
 import { sanitiseReturnTo } from '@/features/auth/lib/oauthStorage';
+import { DashboardLoader } from '@/routes';
 
 /**
  * Landing page for the Google OAuth redirect.
@@ -54,31 +55,36 @@ export default function OAuthCallbackPage() {
   }, [completeGoogleOAuth, navigate, searchParams]);
 
   if (status === 'pending') {
-    return null;
+    return <DashboardLoader />;
   }
 
   return (
-    <div className="w-full max-w-sm space-y-4">
-      <div className="text-center">
-        <h1 className="text-xl font-bold text-content">Sign-in failed</h1>
-        <p className="text-sm text-content-muted mt-1">
-          We couldn’t complete your Google sign-in.
-        </p>
+    <div className="min-h-screen bg-app flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm space-y-5 bg-panel border border-panel p-8 rounded-2xl shadow-xl">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <h1 className="text-xl font-bold text-content">Sign-in failed</h1>
+          <p className="text-sm text-content-muted mt-2">
+            We couldn’t complete your Google sign-in.
+          </p>
+        </div>
+        <div
+          role="alert"
+          className="rounded-lg bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger text-center"
+        >
+          {errorMessage}
+        </div>
+        <Link
+          to="/login"
+          replace
+          className="block w-full text-center rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white
+                     hover:bg-brand-dark transition-colors mt-2"
+        >
+          Back to sign in
+        </Link>
       </div>
-      <div
-        role="alert"
-        className="rounded-lg bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger"
-      >
-        {errorMessage}
-      </div>
-      <Link
-        to="/login"
-        replace
-        className="block w-full text-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white
-                   hover:bg-brand-dark transition-colors"
-      >
-        Back to sign in
-      </Link>
     </div>
   );
 }
