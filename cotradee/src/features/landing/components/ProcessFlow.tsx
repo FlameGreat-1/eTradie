@@ -1,20 +1,18 @@
 import React from 'react';
 import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap, Briefcase, Cpu } from 'lucide-react';
 
-const FLOW_NODES = [
-  { id: 1, title: 'Connect Broker/MT5', icon: <Network size={24} />, x: 12, y: 35 },
-  { id: 2, title: 'Connect LLM API Key', icon: <Key size={24} />, x: 30, y: 15 },
-  { id: 3, title: 'Configure Execution', icon: <Sliders size={24} />, x: 48, y: 35 },
-  { id: 4, title: 'AI Algorithm Takes Over', icon: <BrainCircuit size={32} />, x: 70, y: 60, prominent: true },
-  { id: 5, title: 'You Stay in Control', icon: <ShieldCheck size={24} />, x: 88, y: 40, badge: 'Human in the Loop' },
+const LEFT_INPUTS = [
+  { title: 'Connect Broker/MT5', icon: <Network size={20} />, y: 15 },
+  { title: 'Connect LLM API Key', icon: <Key size={20} />, y: 32.5 },
+  { title: 'Configure Execution', icon: <Sliders size={20} />, y: 50 },
+  { title: 'Technical Analysis', icon: <LineChart size={20} />, y: 67.5 },
+  { title: 'Macroeconomic Analysis', icon: <Globe size={20} />, y: 85 },
 ];
 
-const CAPABILITIES = [
-  { title: 'Technical Analysis', icon: <LineChart size={16} />, x: 10, y: 88 },
-  { title: 'Macroeconomic Analysis', icon: <Globe size={16} />, x: 30, y: 88 },
-  { title: 'Trading System', icon: <Cpu size={16} />, x: 50, y: 88 },
-  { title: 'Execution', icon: <Zap size={16} />, x: 70, y: 88 },
-  { title: 'Trade Management', icon: <Briefcase size={16} />, x: 90, y: 88 },
+const RIGHT_INTERNAL = [
+  { title: 'Trading System', icon: <Cpu size={14} />, top: '15%', left: '12%' },
+  { title: 'Execution', icon: <Zap size={14} />, top: '15%', right: '12%' },
+  { title: 'Trade Management', icon: <Briefcase size={14} />, bottom: '12%', left: '50%', transform: 'translateX(-50%)' },
 ];
 
 export default function ProcessFlow() {
@@ -23,160 +21,115 @@ export default function ProcessFlow() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-8">
         
         <div className="text-center max-w-3xl mx-auto mb-16">
-
           <p className="text-lg opacity-68 leading-relaxed">
             Technical analysis, macroeconomic analysis, execution, and trade management are handled autonomously with you in the loop while the system trades with precision, discipline, and confidence.
           </p>
         </div>
 
-        {/* ── DESKTOP LAYOUT (Curved Path) ───────────────────────────────── */}
-        <div className="hidden lg:block relative w-full h-[600px] bg-[#050505] rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl">
-          
-          {/* Subtle Background Glows */}
-          <div className="absolute top-[-10%] left-[20%] w-[40%] h-[50%] bg-indigo-600/10 blur-[100px] rounded-full pointer-events-none" />
-          <div className="absolute bottom-[-10%] right-[20%] w-[40%] h-[50%] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none" />
-          <div className="absolute top-[40%] left-[60%] w-[30%] h-[40%] bg-cyan-600/10 blur-[100px] rounded-full pointer-events-none" />
-
-          {/* SVG Connections */}
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
-            <defs>
-              <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.4" />
-                <stop offset="50%" stopColor="#8b5cf6" stopOpacity="1" />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.6" />
-              </linearGradient>
-            </defs>
+        {/* ── SCROLLABLE WRAPPER FOR ALL DEVICES ── */}
+        <div className="w-full overflow-x-auto pb-8 hide-scrollbar">
+          <div className="relative min-w-[1024px] h-[600px] bg-[#080808] rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden mx-auto">
             
-            {/* Main curved path (Nodes 1, 2, 3 -> Top of Node 4) */}
-            <path 
-              d="M 12 35 C 20 35, 20 15, 30 15 C 40 15, 40 35, 48 35 C 60 35, 70 35, 70 50" 
-              fill="none" 
-              stroke="url(#flowGradient)" 
-              strokeWidth="2" 
-              vectorEffect="non-scaling-stroke"
-              strokeDasharray="6 6" 
-              className="opacity-70"
-            />
+            {/* Background Glows */}
+            <div className="absolute top-[20%] left-[40%] w-[30%] h-[60%] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none" />
+            <div className="absolute top-[10%] left-[10%] w-[20%] h-[40%] bg-indigo-600/10 blur-[100px] rounded-full pointer-events-none" />
 
-            {/* Outgoing path (Right of Node 4 -> Node 5) */}
-            <path 
-              d="M 76 60 C 82 60, 82 40, 88 40" 
-              fill="none" 
-              stroke="url(#flowGradient)" 
-              strokeWidth="2" 
-              vectorEffect="non-scaling-stroke"
-              strokeDasharray="6 6" 
-              className="opacity-70"
-            />
+            {/* SVG Wires & Glowing Packets */}
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+              {/* Left to Center Lines */}
+              {LEFT_INPUTS.map((input, i) => {
+                const pathData = `M 24 ${input.y} C 36 ${input.y}, 36 50, 43 50`;
+                return (
+                  <g key={i}>
+                    {/* Base wire */}
+                    <path d={pathData} fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                    {/* Animated glowing packet */}
+                    <path d={pathData} fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90 drop-shadow-[0_0_8px_rgba(217,70,239,1)]">
+                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
+                    </path>
+                  </g>
+                );
+              })}
 
-            {/* Dotted lines from capabilities to AI Node (Node 4: 70, 60) */}
-            {CAPABILITIES.map((cap, i) => (
-              <path 
-                key={i}
-                d={`M ${cap.x} ${cap.y - 4} Q ${cap.x} 60, 68 60`} 
-                fill="none" 
-                stroke="#8b5cf6" 
-                strokeOpacity="0.4"
-                strokeWidth="1.5" 
-                vectorEffect="non-scaling-stroke"
-                strokeDasharray="4 4" 
-              />
+              {/* Center to Right Line */}
+              <g>
+                <path d="M 57 50 L 73 50" fill="none" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                <path d="M 57 50 L 73 50" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90 drop-shadow-[0_0_8px_rgba(217,70,239,1)]">
+                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2s" repeatCount="indefinite" />
+                </path>
+              </g>
+            </svg>
+
+            {/* ── LEFT INPUT NODES ── */}
+            {LEFT_INPUTS.map((input, i) => (
+              <div 
+                key={i} 
+                className="absolute flex items-center gap-0 -translate-y-1/2"
+                style={{ left: '4%', top: `${input.y}%`, zIndex: 10 }}
+              >
+                {/* Icon Box */}
+                <div className="w-12 h-12 rounded-xl bg-[#121212] border border-white/10 flex items-center justify-center shadow-lg z-10 relative">
+                  <div className="text-white/70">{input.icon}</div>
+                </div>
+                {/* Text Pill */}
+                <div className="pl-6 pr-4 py-2.5 rounded-r-xl bg-[#111] border border-white/5 border-l-0 text-white/80 text-xs font-semibold shadow-md -ml-3 z-0">
+                  {input.title}
+                </div>
+              </div>
             ))}
-          </svg>
 
-          {/* Render Flow Nodes */}
-          {FLOW_NODES.map((node) => (
+            {/* ── CENTER NODE (AI ALGORITHM) ── */}
             <div 
-              key={node.id}
-              className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 group"
-              style={{ left: `${node.x}%`, top: `${node.y}%`, zIndex: 10 }}
+              className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 z-20"
+              style={{ left: '50%', top: '50%' }}
             >
-              {/* Circle (This determines the container size) */}
-              <div className={`
-                relative flex items-center justify-center rounded-full border backdrop-blur-sm
-                ${node.prominent 
-                  ? 'w-28 h-28 bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500 shadow-[0_0_40px_rgba(79,70,229,0.4)] z-20' 
-                  : 'w-16 h-16 bg-[#111]/80 border-white/20 group-hover:border-indigo-400 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.2)]'}
-                transition-all duration-500
-              `}>
-                <div className={`text-white ${node.prominent ? 'scale-125 text-indigo-200' : 'opacity-80 group-hover:opacity-100 group-hover:text-indigo-300'} transition-colors`}>
-                  {node.icon}
+              <div className="w-36 h-36 bg-[#0a0a0a] border border-white/10 rounded-3xl flex flex-col items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-indigo-600/10" />
+                
+                {/* Glowing Progress Ring */}
+                <div className="relative w-16 h-16 rounded-full border-[3px] border-purple-900 flex items-center justify-center mb-3">
+                  <div className="absolute inset-0 rounded-full border-[3px] border-purple-500 border-t-transparent animate-spin" style={{ animationDuration: '3s' }} />
+                  <BrainCircuit size={24} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                 </div>
                 
-                {node.badge && (
-                  <div className="absolute -top-4 whitespace-nowrap bg-cyan-950 border border-cyan-500/50 text-cyan-300 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-                    {node.badge}
-                  </div>
-                )}
-              </div>
-
-              {/* Title (Absolutely positioned below so it doesn't skew the Y-center) */}
-              <div className="absolute top-full mt-4 text-center w-max">
-                <div className={`font-bold tracking-tight whitespace-nowrap ${node.prominent ? 'text-lg text-white' : 'text-sm text-white/80'}`}>
-                  {node.title}
-                </div>
+                <span className="text-white/90 font-bold text-[11px] tracking-wide">AI Algorithm</span>
               </div>
             </div>
-          ))}
 
-          {/* Render Capability Boxes */}
-          {CAPABILITIES.map((cap, i) => (
+            {/* ── RIGHT NODE (OUTPUT & MANAGEMENT) ── */}
             <div 
-              key={i}
-              className="absolute flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#111]/90 border border-white/10 backdrop-blur-md -translate-x-1/2 -translate-y-1/2 hover:border-purple-500/50 hover:bg-[#1a1a1a] transition-all cursor-default"
-              style={{ left: `${cap.x}%`, top: `${cap.y}%`, zIndex: 5 }}
+              className="absolute flex flex-col items-center justify-center -translate-y-1/2 z-20"
+              style={{ left: '73%', top: '50%', width: '23%' }}
             >
-              <div className="text-purple-400">{cap.icon}</div>
-              <span className="text-xs font-semibold text-white/80 whitespace-nowrap">{cap.title}</span>
-            </div>
-          ))}
-        </div>
+              <div className="w-full aspect-square bg-[#0c0c0c] border border-white/10 rounded-[2rem] flex flex-col items-center justify-center shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 
-        {/* ── MOBILE / TABLET LAYOUT (Vertical Timeline) ──────────────────── */}
-        <div className="lg:hidden flex flex-col gap-6 relative bg-[#050505] rounded-3xl border border-white/10 p-6 sm:p-10 overflow-hidden">
-          {/* Subtle Background Glows */}
-          <div className="absolute top-0 right-0 w-[80%] h-[50%] bg-indigo-600/10 blur-[80px] rounded-full pointer-events-none" />
-          
-          <div className="absolute left-[39px] sm:left-[55px] top-[40px] bottom-[40px] w-px bg-gradient-to-b from-indigo-500/20 via-purple-500/50 to-cyan-500/20" />
+                {/* Background Stardust/Particles Effect */}
+                <div className="absolute top-[20%] right-[30%] w-1 h-1 bg-white/40 rounded-full blur-[1px]" />
+                <div className="absolute top-[40%] left-[20%] w-1 h-1 bg-white/20 rounded-full" />
+                <div className="absolute bottom-[30%] right-[20%] w-1.5 h-1.5 bg-white/30 rounded-full blur-[2px]" />
 
-          {FLOW_NODES.map((node) => (
-            <div key={node.id} className="relative flex items-start gap-6">
-              <div className={`
-                relative flex-shrink-0 flex items-center justify-center rounded-full border backdrop-blur-sm z-10 mt-1
-                ${node.prominent 
-                  ? 'w-16 h-16 bg-gradient-to-br from-indigo-900 to-purple-900 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.3)]' 
-                  : 'w-12 h-12 bg-[#111] border-white/20'}
-              `}>
-                <div className={`text-white ${node.prominent ? 'text-indigo-200' : 'opacity-80'}`}>
-                  {node.icon}
-                </div>
-              </div>
+                {/* Internal Scattered Capabilities */}
+                {RIGHT_INTERNAL.map((item, i) => (
+                  <div 
+                    key={i} 
+                    className="absolute flex flex-col items-center gap-1.5"
+                    style={{ top: item.top, bottom: item.bottom, left: item.left, right: item.right, transform: item.transform }}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-white/10 flex items-center justify-center shadow-inner">
+                      <div className="text-white/60">{item.icon}</div>
+                    </div>
+                    <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">{item.title}</span>
+                  </div>
+                ))}
 
-              <div className="flex flex-col pt-2 sm:pt-3">
-                {node.badge && (
-                  <span className="inline-block w-fit mb-2 bg-cyan-950 border border-cyan-500/50 text-cyan-300 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    {node.badge}
-                  </span>
-                )}
-                <h3 className={`font-bold tracking-tight ${node.prominent ? 'text-lg text-white' : 'text-base text-white/90'}`}>
-                  {node.title}
-                </h3>
+                {/* Main Node Content */}
+                <ShieldCheck size={32} className="text-white mb-3 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+                <span className="text-white font-bold text-sm tracking-wide">You Stay in Control</span>
               </div>
             </div>
-          ))}
 
-          <div className="mt-8 pt-8 border-t border-white/10">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-center text-white/50 mb-6">Autonomous Capabilities</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {CAPABILITIES.map((cap, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#111]/80 border border-white/10">
-                  <div className="text-purple-400">{cap.icon}</div>
-                  <span className="text-sm font-semibold text-white/80">{cap.title}</span>
-                </div>
-              ))}
-            </div>
           </div>
-
         </div>
 
       </div>
