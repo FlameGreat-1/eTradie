@@ -87,38 +87,3 @@ PLEASE NOTE: UNTIL I APPROVE BEFORE YOU MAKE CHANGES. SO JSUT EXAMINE AND GIVE M
 
 
 
-
-
-HEADER:
-
-1. Logo on the left 2. "Get started" at the right. 3. "Time to Pre-launch" at the center...it should be properly designed
-
-
-HERO:
-
-1. Join Waitlist  2. We add image of the dashboard 3. Cards with contents
-
-PLEASE NOTE: It will be 6 images and this is the behavior:
-The image 1 will surface from down and stay like a second then vanishes through the top
-Then image 2 appears and repeat till all 6 images are covered.
-
-THIS HAS TO BE HAPPENING AUTOMATICALLY, ANIMATED AND USERS SEES THE BEHAVIOR LITERALLY WITH THEIR EYES
-
-FOOTER:
-
-Terms of Use
-Privacy Policy
-Your Privacy Choices
-Contact
-Copyright © 2026 EXOPER
-
-
-
-PLEASE NOTE: The color, lightening, appearance, clearity etc must be exactly the same
-
-
-
-
-I AM NOT REALLY SURE IF I AM CORRECT BUT THIS IS LIKELY THE DESCRIPTION OF THE BACKGROUND
-
-That specific background is a hallmark of NVIDIA's modern brand identity, often referred to as a "Space" or "Digital Nebula" aesthetic. It’s designed to evoke a sense of futuristic technology and high-performance computing.Key CharacteristicsColor Palette: A deep black/dark charcoal base (e.g., #000000) with subtle, glowing gradients of NVIDIA Green (approximately #76B900).Texture: It often incorporates a "noise" or "grainy" texture to give it a more organic, cinematic feel rather than a flat digital look.Elements: Subtle "stardust" or "node" patterns—fine white or green dots—scattered across the gradients to represent data or interconnected networks
