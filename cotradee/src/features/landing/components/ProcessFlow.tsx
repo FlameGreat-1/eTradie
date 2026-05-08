@@ -1,5 +1,5 @@
 import React from 'react';
-import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap, Briefcase } from 'lucide-react';
+import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap, Briefcase, Cpu } from 'lucide-react';
 
 const FLOW_NODES = [
   { id: 1, title: 'Connect Broker/MT5', icon: <Network size={24} />, x: 12, y: 35 },
@@ -10,10 +10,11 @@ const FLOW_NODES = [
 ];
 
 const CAPABILITIES = [
-  { title: 'Technical Analysis', icon: <LineChart size={16} />, x: 16, y: 88 },
-  { title: 'Macroeconomic Analysis', icon: <Globe size={16} />, x: 39, y: 88 },
-  { title: 'Execution', icon: <Zap size={16} />, x: 61, y: 88 },
-  { title: 'Trade Management', icon: <Briefcase size={16} />, x: 84, y: 88 },
+  { title: 'Technical Analysis', icon: <LineChart size={16} />, x: 10, y: 88 },
+  { title: 'Macroeconomic Analysis', icon: <Globe size={16} />, x: 30, y: 88 },
+  { title: 'Trading System', icon: <Cpu size={16} />, x: 50, y: 88 },
+  { title: 'Execution', icon: <Zap size={16} />, x: 70, y: 88 },
+  { title: 'Trade Management', icon: <Briefcase size={16} />, x: 90, y: 88 },
 ];
 
 export default function ProcessFlow() {
@@ -22,9 +23,7 @@ export default function ProcessFlow() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-8">
         
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-            Process Flow Architecture
-          </h2>
+
           <p className="text-lg opacity-68 leading-relaxed">
             Technical analysis, macroeconomic analysis, execution, and trade management are handled autonomously with you in the loop while the system trades with precision, discipline, and confidence.
           </p>
@@ -48,9 +47,20 @@ export default function ProcessFlow() {
               </linearGradient>
             </defs>
             
-            {/* Main curved path between nodes */}
+            {/* Main curved path (Nodes 1, 2, 3 -> Top of Node 4) */}
             <path 
-              d="M 12 35 C 20 35, 20 15, 30 15 C 40 15, 40 35, 48 35 C 58 35, 60 60, 70 60 C 80 60, 80 40, 88 40" 
+              d="M 12 35 C 20 35, 20 15, 30 15 C 40 15, 40 35, 48 35 C 60 35, 70 35, 70 50" 
+              fill="none" 
+              stroke="url(#flowGradient)" 
+              strokeWidth="2" 
+              vectorEffect="non-scaling-stroke"
+              strokeDasharray="6 6" 
+              className="opacity-70"
+            />
+
+            {/* Outgoing path (Right of Node 4 -> Node 5) */}
+            <path 
+              d="M 76 60 C 82 60, 82 40, 88 40" 
               fill="none" 
               stroke="url(#flowGradient)" 
               strokeWidth="2" 
@@ -81,6 +91,7 @@ export default function ProcessFlow() {
               className="absolute flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 group"
               style={{ left: `${node.x}%`, top: `${node.y}%`, zIndex: 10 }}
             >
+              {/* Circle (This determines the container size) */}
               <div className={`
                 relative flex items-center justify-center rounded-full border backdrop-blur-sm
                 ${node.prominent 
@@ -99,9 +110,10 @@ export default function ProcessFlow() {
                 )}
               </div>
 
-              <div className="mt-4 text-center">
+              {/* Title (Absolutely positioned below so it doesn't skew the Y-center) */}
+              <div className="absolute top-full mt-4 text-center w-max">
                 <div className={`font-bold tracking-tight whitespace-nowrap ${node.prominent ? 'text-lg text-white' : 'text-sm text-white/80'}`}>
-                  {node.id}. {node.title}
+                  {node.title}
                 </div>
               </div>
             </div>
@@ -147,7 +159,7 @@ export default function ProcessFlow() {
                   </span>
                 )}
                 <h3 className={`font-bold tracking-tight ${node.prominent ? 'text-lg text-white' : 'text-base text-white/90'}`}>
-                  {node.id}. {node.title}
+                  {node.title}
                 </h3>
               </div>
             </div>
