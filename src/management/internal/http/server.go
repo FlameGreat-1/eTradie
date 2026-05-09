@@ -50,6 +50,7 @@ func NewServer(
 	mux.Handle("/api/v1/management/trades", authMw(http.HandlerFunc(s.handleGetTrades)))
 	mux.Handle("/api/v1/management/journal", authMw(http.HandlerFunc(s.handleGetJournal)))
 	mux.Handle("/api/v1/management/metrics", authMw(http.HandlerFunc(s.handleGetMetrics)))
+	mux.Handle("/api/v1/management/pnl-calendar", authMw(http.HandlerFunc(s.handleGetPnLCalendar)))
 
 	// Ops endpoints (public, no auth required).
 	mux.HandleFunc("/health", s.handleHealth)
@@ -266,6 +267,66 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// GET /api/v1/management/pnl-calendar?year=2026&month=4&tz=America/New_York
+// Returns daily PnL aggregation for the specified month and streak info.
+func (s *Server) handleGetPnLCalendar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	q := r.URL.Query()
+
+	year, err := strconv.Atoi(q.Get("year"))
+	if err != nil || year < 2000 || year > 2100 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid year parameter"})
+		return
+	}
+
+	month, err := strconv.Atoi(q.Get("month"))
+	if err != nil || month < 1 || month > 12 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid month parameter"})
+		return
+	}
+
+	tz := q.Get("tz")
+	if tz == "" {
+		tz = "UTC"
+	}
+
+	dailyPnL, err := s.journal.GetDailyPnL(r.Context(), userID, year, month, tz)
+	if err != nil {
+		s.log.Error().Err(err).Msg("failed_to_get_daily_pnl")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to retrieve PnL data"})
+		return
+	}
+
+	streaks, err := s.journal.GetStreaks(r.Context(), userID, tz)
+	if err != nil {
+		s.log.Error().Err(err).Msg("failed_to_get_streaks")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to calculate streaks"})
+		return
+	}
+
+	// Build map[string]float64 for the response.
+	pnlMap := make(map[string]float64, len(dailyPnL))
+	for _, d := range dailyPnL {
+		pnlMap[d.Date] = d.PnL
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"daily_pnl":      pnlMap,
+		"current_streak": streaks.CurrentStreak,
+		"max_streak":     streaks.MaxStreak,
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

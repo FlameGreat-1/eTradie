@@ -173,7 +173,7 @@ function NotificationsPanelInner() {
                    bg-surface-2 border border-border hover:border-brand transition-colors duration-fast
                    focus-ring"
       >
-        <Bell size={14} className="text-content" />
+        <img src="/assets/dashboard/icons/bellIcon.svg" alt="Notifications" className="w-[18px] h-[18px] object-contain" />
         {unreadCount > 0 && (
           <span
             className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand

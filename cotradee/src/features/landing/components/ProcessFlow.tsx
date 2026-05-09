@@ -3,7 +3,7 @@ import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap
 
 const LEFT_INPUTS = [
   { title: 'Broker/MT5', icon: <Network size={20} />, y: 15 },
-  { title: 'API Key', icon: <Key size={20} />, y: 32.5 },
+  { title: 'Vault', icon: <Key size={20} />, y: 32.5 },
   { title: 'Execution', icon: <Sliders size={20} />, y: 50 },
   { title: 'Tech. Analysis', icon: <LineChart size={20} />, y: 67.5 },
   { title: 'Macro Analysis', icon: <Globe size={20} />, y: 85 },
@@ -29,7 +29,7 @@ export default function ProcessFlow() {
       {/* ── DESKTOP LAYOUT (Horizontal Pipeline) ── */}
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 hidden lg:block">
         <div className="w-full overflow-x-auto pb-8 hide-scrollbar">
-          <div className="relative min-w-[1400px] h-[600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mx-auto">
+          <div className="relative w-full min-w-[1024px] h-[550px] xl:h-[600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mx-auto">
             
             {/* Background Glows */}
             <div className="absolute top-[20%] left-[30%] w-[30%] h-[60%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />

@@ -73,6 +73,20 @@ export function formatVolume(value: number | string | null | undefined): string 
   return formatNumber(value, DECIMAL_PLACES.VOLUME);
 }
 
+export function formatAssetPrice(symbol: string, value: number | string | null | undefined): string {
+  const n = safeNumber(value);
+  if (n === null) return PLACEHOLDER;
+  
+  // Forex pairs like EURUSD typically need 5 decimal places.
+  // Indices and Gold typically need 2.
+  const decimals = n < 100 ? 5 : 2;
+  
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n);
+}
+
 export function formatPercentage(
   value: number | string | null | undefined,
   decimals = 2,

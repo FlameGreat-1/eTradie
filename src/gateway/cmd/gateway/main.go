@@ -16,6 +16,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
+	"github.com/flamegreat-1/etradie/src/mails"
 )
 
 func main() {
@@ -104,6 +105,27 @@ func main() {
 
 	log.Info().Msg("auth_service_initialized")
 
+	// ── Waitlist / Mails module ───────────────────────────────────────
+	smtpCfg, err := mails.LoadConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("smtp_config_load_failed")
+	}
+
+	// Create waitlist table (idempotent, same pool as auth).
+	if _, err := authPool.Exec(ctx, mails.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("waitlist_schema_creation_failed")
+	}
+
+	waitlistStore := mails.NewWaitlistStore(authPool)
+	emailSender := mails.NewSender(smtpCfg, observability.Logger("email_sender"))
+	waitlistHandler := mails.NewHandler(waitlistStore, emailSender, observability.Logger("waitlist"))
+
+	if smtpCfg.IsConfigured() {
+		log.Info().Str("host", smtpCfg.Host).Int("port", smtpCfg.Port).Msg("smtp_configured")
+	} else {
+		log.Warn().Msg("smtp_not_configured_waitlist_emails_will_be_skipped")
+	}
+
 	// Initialize OpenTelemetry tracing. When GATEWAY_OTEL_ENDPOINT is
 	// empty (default), InitTracing returns (nil, nil) which we treat as
 	// "tracing explicitly disabled". Any non-empty endpoint that fails
@@ -135,7 +157,7 @@ func main() {
 		log.Info().Msg("execution_engine_disabled")
 	}
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

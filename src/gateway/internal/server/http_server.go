@@ -19,6 +19,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/pipeline"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
+	"github.com/flamegreat-1/etradie/src/mails"
 )
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,
@@ -44,6 +45,7 @@ func NewHTTPServer(
 	scheduler *pipeline.Scheduler,
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
+	waitlistHandler *mails.Handler,
 ) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
@@ -59,6 +61,9 @@ func NewHTTPServer(
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/readiness", s.handleReadiness)
 	mux.Handle("/metrics", promhttp.Handler())
+
+	// Waitlist endpoint (public, no auth required).
+	waitlistHandler.RegisterRoutes(mux)
 
 	// ---------------------------------------------------------------
 	// Auth endpoints (public: login, register, refresh).

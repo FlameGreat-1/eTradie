@@ -22,6 +22,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/server"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
+	"github.com/flamegreat-1/etradie/src/mails"
 )
 
 // Container holds all gateway components and manages their lifecycle.
@@ -53,6 +54,7 @@ func New(
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
 	userStore *auth.UserStore,
+	waitlistHandler *mails.Handler,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -116,7 +118,7 @@ func New(
 	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
 
 	// Servers (now with auth support).
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler)
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler)
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().

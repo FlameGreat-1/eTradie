@@ -277,9 +277,7 @@ function Header({ onMenuClick }: HeaderProps) {
                 className="flex items-center gap-2 rounded-full bg-surface-2 border border-border
                            px-2 h-9 hover:border-brand transition-colors duration-fast focus-ring"
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-soft to-brand flex items-center justify-center text-[11px] font-bold text-strong">
-                  {user?.username?.charAt(0).toUpperCase() || '?'}
-                </div>
+                <img src="/assets/dashboard/icons/profilePic.png" alt={user?.username || 'Profile'} className="w-7 h-7 rounded-full object-cover" />
                 <ChevronDown size={12} className="text-content-muted" />
               </button>
             </div>
@@ -352,9 +350,7 @@ function Header({ onMenuClick }: HeaderProps) {
               aria-haspopup="menu"
               aria-expanded={showUserMenu}
             >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-soft to-brand flex items-center justify-center text-[11px] font-bold text-strong">
-                {user?.username?.charAt(0).toUpperCase() || '?'}
-              </div>
+              <img src="/assets/dashboard/icons/profilePic.png" alt={user?.username || 'Profile'} className="w-7 h-7 rounded-full object-cover" />
               <div className="hidden sm:flex flex-col items-start">
                 <span className="text-xs font-medium text-content leading-none">
                   {user?.username || 'User'}

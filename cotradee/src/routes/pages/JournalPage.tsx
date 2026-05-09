@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTradeJournal, usePerformanceMetrics } from '@/features/journal/api/journal';
-import { formatCurrency, formatPercentage, formatDateTime } from '@/utils/formatters';
-import { BookOpen } from 'lucide-react';
+import { formatCurrency, formatPercentage, formatDateTime, formatAssetPrice } from '@/utils/formatters';
+import { BookOpen, CalendarDays } from 'lucide-react';
+import PnLCalendar from '@/features/journal/components/PnLCalendar';
 
 type Period = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ALL_TIME';
 
@@ -20,6 +21,7 @@ interface JournalEntry {
 
 export default function JournalPage() {
   const [period, setPeriod] = useState<Period>('ALL_TIME');
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const { data: journal, isLoading } = useTradeJournal({ limit: 50 });
   const { data: metrics } = usePerformanceMetrics(period);
 
@@ -30,7 +32,6 @@ export default function JournalPage() {
     <div className="p-4 sm:p-6 space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BookOpen size={18} className="text-brand" />
           <h1 className="text-lg font-bold text-content">Trade Journal</h1>
           <span className="text-xs text-content-muted">({total})</span>
         </div>
@@ -58,8 +59,8 @@ export default function JournalPage() {
         <StatBox
           label="Avg R:R"
           value={
-            metrics?.avg_risk_reward != null
-              ? Number(metrics.avg_risk_reward).toFixed(2)
+            metrics?.avg_r_multiple != null
+              ? Number(metrics.avg_r_multiple).toFixed(2)
               : '---'
           }
         />
@@ -76,21 +77,23 @@ export default function JournalPage() {
         />
       </div>
 
+      {calendarOpen && <PnLCalendar onClose={() => setCalendarOpen(false)} />}
+
       {/* Desktop table */}
       <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-surface-2">
               <tr className="border-b border-border text-content-muted">
-                <Th>Symbol</Th>
-                <Th>Dir</Th>
-                <Th>Style</Th>
-                <Th align="right">Entry</Th>
-                <Th align="right">Exit</Th>
-                <Th align="right">P&amp;L</Th>
-                <Th align="right">R</Th>
-                <Th align="left">Outcome</Th>
-                <Th align="right">Closed</Th>
+                <Th className="w-[12%]">Symbol</Th>
+                <Th className="w-[8%]">Dir</Th>
+                <Th className="w-[14%]">Style</Th>
+                <Th align="right" className="w-[12%]">Entry</Th>
+                <Th align="right" className="w-[12%]">Exit</Th>
+                <Th align="right" className="w-[12%]">P&amp;L</Th>
+                <Th align="right" className="w-[8%]">R</Th>
+                <Th align="center" className="w-[8%]">Outcome</Th>
+                <Th align="right" className="w-[14%]">Closed</Th>
               </tr>
             </thead>
             <tbody>
@@ -122,8 +125,8 @@ export default function JournalPage() {
                   <Td className="font-bold text-brand">{e.symbol}</Td>
                   <Td>{e.direction}</Td>
                   <Td className="text-content-muted">{e.trading_style}</Td>
-                  <Td align="right">{formatCurrency(Number(e.entry_price))}</Td>
-                  <Td align="right">{formatCurrency(Number(e.exit_price))}</Td>
+                  <Td align="right">{formatAssetPrice(e.symbol, Number(e.entry_price))}</Td>
+                  <Td align="right">{formatAssetPrice(e.symbol, Number(e.exit_price))}</Td>
                   <Td
                     align="right"
                     className={`font-medium ${
@@ -133,7 +136,7 @@ export default function JournalPage() {
                     {formatCurrency(Number(e.gross_pnl))}
                   </Td>
                   <Td align="right">{Number(e.r_multiple).toFixed(2)}</Td>
-                  <Td>
+                  <Td align="center">
                     <OutcomeChip outcome={e.outcome} />
                   </Td>
                   <Td align="right" className="text-content-muted">
@@ -177,8 +180,8 @@ export default function JournalPage() {
             <div className="grid grid-cols-2 gap-2 mt-2 text-[11px]">
               <Field label="Direction" value={e.direction} />
               <Field label="Style" value={e.trading_style} />
-              <Field label="Entry" value={formatCurrency(Number(e.entry_price))} />
-              <Field label="Exit" value={formatCurrency(Number(e.exit_price))} />
+              <Field label="Entry" value={formatAssetPrice(e.symbol, Number(e.entry_price))} />
+              <Field label="Exit" value={formatAssetPrice(e.symbol, Number(e.exit_price))} />
               <Field
                 label="P&L"
                 value={formatCurrency(Number(e.gross_pnl))}
@@ -192,6 +195,18 @@ export default function JournalPage() {
           </div>
         ))}
       </div>
+
+      {/* Floating Action Button for PnL Calendar */}
+      <button
+        onClick={() => setCalendarOpen(true)}
+        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 flex items-center justify-center
+                   bg-brand text-white p-4 rounded-full shadow-lg hover:shadow-brand/20
+                   hover:scale-105 transition-all duration-fast group"
+        aria-label="Open PnL Calendar"
+        id="pnl-calendar-fab"
+      >
+        <CalendarDays size={24} className="group-hover:animate-pulse" />
+      </button>
     </div>
   );
 }
@@ -231,14 +246,15 @@ function StatBox({
 function Th({
   children,
   align = 'left',
+  className,
 }: {
   children: React.ReactNode;
   align?: 'left' | 'right' | 'center';
+  className?: string;
 }) {
   return (
     <th
-      className={`px-4 py-2.5 font-medium text-[10px] uppercase tracking-wider whitespace-nowrap
-                   text-${align}`}
+      className={`px-4 py-3 font-semibold text-[10px] uppercase tracking-wider whitespace-nowrap text-${align} ${className ?? ''}`}
     >
       {children}
     </th>

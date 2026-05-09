@@ -100,6 +100,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (requestPath) => requestPath.replace(/^\/api\/gateway/, ''),
         },
+        '/api/waitlist': {
+          target: gatewayUrl,
+          changeOrigin: true,
+        },
       },
     },
     build: {

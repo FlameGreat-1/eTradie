@@ -81,3 +81,34 @@ export function usePerformanceMetrics(period = 'ALL_TIME') {
   });
 }
 
+/**
+ * PnL calendar data for a specific month. Returns daily PnL map
+ * and streak information. Uses the user's local IANA timezone for
+ * day-boundary accuracy.
+ */
+export interface PnLCalendarData {
+  daily_pnl: Record<string, number>;
+  current_streak: number;
+  max_streak: number;
+}
+
+export function usePnLCalendar(year: number, month: number) {
+  const { isAuthenticated } = useAuth();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return useQuery<PnLCalendarData>({
+    queryKey: ['management', 'pnl-calendar', year, month],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        year: year.toString(),
+        month: month.toString(),
+        tz,
+      });
+      const { data } = await api.management.get(`/api/v1/management/pnl-calendar?${params}`);
+      return data;
+    },
+    staleTime: 30_000,
+    retry: POLL_RETRY,
+    enabled: isAuthenticated,
+  });
+}

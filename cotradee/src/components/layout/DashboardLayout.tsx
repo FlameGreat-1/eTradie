@@ -33,7 +33,7 @@ function DashboardLayout({ children }: Props) {
   const handleMenuClose = useCallback(() => setMobileNavOpen(false), []);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-app text-content">
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-app text-content select-none">
       <Sidebar
         isMobileOpen={isMobileNavOpen}
         onMobileClose={handleMenuClose}

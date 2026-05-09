@@ -55,11 +55,18 @@ export default function LandingHero() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    // TODO: Wire to actual waitlist API
+    if (!email.trim() || submitted) return;
+
+    // Fire-and-forget: backend handles storage + email delivery with retries.
+    fetch('/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    }).catch(() => {});
+
     setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
     setEmail('');
+    setTimeout(() => setSubmitted(false), 5000);
   };
 
   return (

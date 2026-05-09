@@ -451,3 +451,105 @@ func (r *Repository) GetClosedTrades(ctx context.Context, userID string, limit, 
 
 	return trades, total, nil
 }
+
+// DailyPnL holds the aggregated P&L for a single calendar day.
+type DailyPnL struct {
+	Date string  `db:"day"` // "2026-04-01"
+	PnL  float64 `db:"pnl"`
+}
+
+// StreakInfo holds the current and max consecutive profitable-day streaks.
+type StreakInfo struct {
+	CurrentStreak int
+	MaxStreak     int
+}
+
+// GetDailyPnL returns the sum of gross_pnl grouped by the calendar day
+// the trade was closed, for a specific month. The timezone parameter
+// (e.g. "America/New_York") shifts closed_at into the user's local day.
+func (r *Repository) GetDailyPnL(ctx context.Context, userID string, year, month int, tz string) ([]DailyPnL, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("get daily pnl: user_id must not be empty")
+	}
+
+	query := `
+		SELECT
+			TO_CHAR(closed_at AT TIME ZONE $4, 'YYYY-MM-DD') AS day,
+			SUM(gross_pnl) AS pnl
+		FROM management_trades
+		WHERE status = 'CLOSED'
+		  AND user_id = $1
+		  AND EXTRACT(YEAR FROM closed_at AT TIME ZONE $4) = $2
+		  AND EXTRACT(MONTH FROM closed_at AT TIME ZONE $4) = $3
+		GROUP BY day
+		ORDER BY day`
+
+	rows, err := r.pool.Query(ctx, query, userID, year, month, tz)
+	if err != nil {
+		return nil, fmt.Errorf("get daily pnl: %w", err)
+	}
+	defer rows.Close()
+
+	var results []DailyPnL
+	for rows.Next() {
+		var d DailyPnL
+		if err := rows.Scan(&d.Date, &d.PnL); err != nil {
+			return nil, fmt.Errorf("scan daily pnl: %w", err)
+		}
+		results = append(results, d)
+	}
+
+	return results, nil
+}
+
+// GetStreaks calculates the current consecutive profitable-day streak
+// and the all-time max consecutive profitable-day streak using a CTE.
+func (r *Repository) GetStreaks(ctx context.Context, userID, tz string) (*StreakInfo, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("get streaks: user_id must not be empty")
+	}
+
+	query := `
+		WITH daily AS (
+			SELECT
+				(closed_at AT TIME ZONE $2)::date AS day,
+				SUM(gross_pnl) AS pnl
+			FROM management_trades
+			WHERE status = 'CLOSED' AND user_id = $1
+			GROUP BY day
+			ORDER BY day
+		),
+		flagged AS (
+			SELECT day, pnl,
+				CASE WHEN pnl > 0 THEN 1 ELSE 0 END AS is_win,
+				ROW_NUMBER() OVER (ORDER BY day)
+				- ROW_NUMBER() OVER (
+					PARTITION BY CASE WHEN pnl > 0 THEN 1 ELSE 0 END
+					ORDER BY day
+				  ) AS grp
+			FROM daily
+		),
+		streaks AS (
+			SELECT grp, MIN(day) AS streak_start, MAX(day) AS streak_end,
+				COUNT(*) AS streak_len, is_win
+			FROM flagged
+			WHERE is_win = 1
+			GROUP BY grp, is_win
+		)
+		SELECT
+			COALESCE(
+				(SELECT streak_len FROM streaks
+				 WHERE streak_end = (SELECT MAX(day) FROM daily WHERE pnl > 0)
+				   AND streak_end >= (SELECT MAX(day) FROM daily) -- still active
+				 LIMIT 1), 0
+			) AS current_streak,
+			COALESCE((SELECT MAX(streak_len) FROM streaks), 0) AS max_streak`
+
+	var info StreakInfo
+	err := r.pool.QueryRow(ctx, query, userID, tz).Scan(&info.CurrentStreak, &info.MaxStreak)
+	if err != nil {
+		return &StreakInfo{}, nil // No data = zero streaks
+	}
+
+	return &info, nil
+}
