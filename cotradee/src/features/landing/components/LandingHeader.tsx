@@ -41,26 +41,40 @@ export default function LandingHeader() {
         id="landing-header"
       >
       <div className="flex items-center justify-between h-full w-full max-w-[1280px] mx-auto px-6 md:px-8">
-        {/* ── Logo (Left) ──────────────────────────────────────── */}
-        <a
-          href="/"
-          className="flex items-center gap-2.5 select-none group"
-          aria-label="Exoper Home"
-        >
-          <img
-            src="/assets/sidebar/icons/logo.svg"
-            alt="Exoper"
-            width={32}
-            height={32}
-            className="select-none"
-          />
-          <span
-            className="text-xl font-bold tracking-tight group-hover:text-brand transition-colors duration-200"
-            style={{ letterSpacing: '-0.03em', color: 'var(--landing-text)' }}
+        {/* ── Left Section (Logo & Nav) ─────────────────────────── */}
+        <div className="flex items-center gap-8">
+          <a
+            href="/"
+            className="flex items-center gap-2.5 select-none group"
+            aria-label="Exoper Home"
           >
-            Exoper
-          </span>
-        </a>
+            <img
+              src="/assets/sidebar/icons/logo.svg"
+              alt="Exoper"
+              width={32}
+              height={32}
+              className="select-none"
+            />
+            <span
+              className="text-xl font-bold tracking-tight group-hover:text-brand transition-colors duration-200"
+              style={{ letterSpacing: '-0.03em', color: 'var(--landing-text)' }}
+            >
+              Exoper
+            </span>
+          </a>
+
+          {/* Desktop Nav Links (Left-aligned) */}
+          <nav className="hidden md:flex items-center gap-6 mt-[2px]">
+            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700"></div>
+            <a
+              href="#process-flow"
+              className="text-sm font-medium px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors duration-200"
+              style={{ color: 'var(--landing-text)' }}
+            >
+              Process
+            </a>
+          </nav>
+        </div>
 
         {/* ── Countdown Timer (Center) ─────────────────────────── */}
         <div className="countdown-container hidden lg:flex">
@@ -97,6 +111,7 @@ export default function LandingHeader() {
 
         {/* ── Auth Buttons (Desktop) ───────────────────────────── */}
         <div className="hidden md:flex items-center gap-4">
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -204,8 +219,32 @@ export default function LandingHeader() {
             : '0 0 0 1px rgba(255,255,255,0.02), 0 8px 24px rgba(0,0,0,0.35)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           
+          {/* Process */}
+          <a 
+            href="#process-flow"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '14px',
+              color: 'var(--landing-text)',
+              textDecoration: 'none',
+              transition: 'background 180ms ease',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span style={{ fontSize: '15px', fontWeight: 600 }}>Process</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="m9 18 6-6-6-6"/></svg>
+          </a>
+
           {/* Sign In */}
           <a 
             href="/login"
