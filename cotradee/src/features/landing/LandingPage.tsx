@@ -3,6 +3,7 @@ import ParticlesCanvas from './components/ParticlesCanvas';
 import LandingHeader from './components/LandingHeader';
 import LandingHero from './components/LandingHero';
 import ProcessFlow from './components/ProcessFlow';
+import HowItWorks from './components/HowItWorks';
 import LandingFooter from './components/LandingFooter';
 
 /**
@@ -25,6 +26,7 @@ export default function LandingPage() {
         <main>
           <LandingHero />
           <ProcessFlow />
+          <HowItWorks />
         </main>
 
         <LandingFooter />

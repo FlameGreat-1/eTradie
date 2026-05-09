@@ -56,9 +56,9 @@ export default function ProcessFlow() {
                 return (
                   <g key={i}>
                     <path d={pathData} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                    <path d={pathData} fill="none" stroke={strokeColor} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px ${strokeColor})` }}>
-                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${dur}s`} repeatCount="indefinite" />
-                    </path>
+                    <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                      <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" path={pathData} />
+                    </image>
                   </g>
                 );
               })}
@@ -66,41 +66,41 @@ export default function ProcessFlow() {
               {/* Settings Node -> Engine Node */}
               <g>
                 <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2.5s" repeatCount="indefinite" />
-                </path>
+                <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                  <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto" path="M 26 32.5 C 31 32.5, 31 50, 36 50" />
+                </image>
               </g>
 
               {/* Engine Node -> AI Node */}
               <g>
                 <path d="M 44 50 L 59 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                <path d="M 44 50 L 59 50" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
-                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2s" repeatCount="indefinite" />
-                </path>
+                <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                  <animateMotion dur="2s" repeatCount="indefinite" rotate="auto" path="M 44 50 L 59 50" />
+                </image>
               </g>
 
               {/* AI Node -> Output Node */}
               <g>
                 <path d="M 69 50 L 77 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                <path d="M 69 50 L 77 50" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #d946ef)` }}>
-                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" repeatCount="indefinite" />
-                </path>
+                <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                  <animateMotion dur="1.5s" repeatCount="indefinite" rotate="auto" path="M 69 50 L 77 50" />
+                </image>
               </g>
 
               {/* Feedback Loop 1: Control (Top) -> Engine (Top) */}
               <g>
                 <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-                <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="4s" repeatCount="indefinite" />
-                </path>
+                <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                  <animateMotion dur="4s" repeatCount="indefinite" rotate="auto" path="M 87 27 L 87 10 L 40 10 L 40 38" />
+                </image>
               </g>
 
               {/* Feedback Loop 2: Control (Bottom) -> AI (Bottom) */}
               <g>
                 <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-                <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
-                  <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="3s" repeatCount="indefinite" />
-                </path>
+                <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                  <animateMotion dur="3s" repeatCount="indefinite" rotate="auto" path="M 87 73 L 87 90 L 64 90 L 64 62" />
+                </image>
               </g>
             </svg>
 
@@ -231,16 +231,16 @@ export default function ProcessFlow() {
                   {/* Mobile (Orthogonal) */}
                   <g className="md:hidden">
                     <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                    <path d={pathDataMobile} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
-                    </path>
+                    <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                      <animateMotion dur={`${2 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataMobile} />
+                    </image>
                   </g>
                   {/* Tablet (Curved) */}
                   <g className="hidden md:block">
                     <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                    <path d={pathDataTablet} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
-                    </path>
+                    <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                      <animateMotion dur={`${2 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataTablet} />
+                    </image>
                   </g>
                 </g>
               );
@@ -249,9 +249,9 @@ export default function ProcessFlow() {
             {/* Settings Node -> Engine Node (Zero-Crossing Bus Route) */}
             <g>
               <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-              <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2.5s" repeatCount="indefinite" />
-              </path>
+              <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto" path="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" />
+              </image>
             </g>
 
             {/* Bottom 2 Inputs -> Engine Node (Merging into the Bus) */}
@@ -262,15 +262,15 @@ export default function ProcessFlow() {
                 <g key={i}>
                   <g className="md:hidden">
                     <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                    <path d={pathDataMobile} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
-                    </path>
+                    <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                      <animateMotion dur={`${3 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataMobile} />
+                    </image>
                   </g>
                   <g className="hidden md:block">
                     <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-                    <path d={pathDataTablet} fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                      <animate attributeName="stroke-dashoffset" from="1000" to="0" dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
-                    </path>
+                    <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                      <animateMotion dur={`${3 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataTablet} />
+                    </image>
                   </g>
                 </g>
               );
@@ -279,33 +279,33 @@ export default function ProcessFlow() {
             {/* Engine Node -> AI Node */}
             <g>
               <path d="M 50 61 L 50 73" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-              <path d="M 50 61 L 50 73" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
-                <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="2s" repeatCount="indefinite" />
-              </path>
+              <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                <animateMotion dur="2s" repeatCount="indefinite" rotate="auto" path="M 50 61 L 50 73" />
+              </image>
             </g>
 
             {/* AI Node -> Output Node */}
             <g>
               <path d="M 50 73 L 50 89" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
-              <path d="M 50 73 L 50 89" fill="none" stroke="#d946ef" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="10 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #d946ef)` }}>
-                <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" repeatCount="indefinite" />
-              </path>
+              <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                <animateMotion dur="1.5s" repeatCount="indefinite" rotate="auto" path="M 50 73 L 50 89" />
+              </image>
             </g>
 
             {/* Feedback Loop 1: Control -> Engine */}
             <g>
               <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" className="opacity-60 dark:opacity-30" />
-              <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #06b6d4)` }}>
-                <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="4s" repeatCount="indefinite" />
-              </path>
+              <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                <animateMotion dur="4s" repeatCount="indefinite" rotate="auto" path="M 90 89 L 95 89 L 95 61 L 55 61" />
+              </image>
             </g>
 
             {/* Feedback Loop 2: Control -> AI */}
             <g>
               <path d="M 10 89 L 5 89 L 5 73 L 45 73" fill="none" stroke="#a855f7" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-              <path d="M 10 89 L 5 89 L 5 73 L 45 73" fill="none" stroke="#a855f7" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="15 1000" strokeLinecap="round" className="opacity-90" style={{ filter: `drop-shadow(0 0 8px #a855f7)` }}>
-                <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="3s" repeatCount="indefinite" />
-              </path>
+              <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
+                <animateMotion dur="3s" repeatCount="indefinite" rotate="auto" path="M 10 89 L 5 89 L 5 73 L 45 73" />
+              </image>
             </g>
           </svg>
 
