@@ -92,11 +92,11 @@ export default function PnLCalendar({ onClose }: PnLCalendarProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 pt-5 pb-3">
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <h2 className="text-base sm:text-lg font-bold text-content tracking-tight whitespace-nowrap">PnL Calendar</h2>
+        <div className="flex items-center justify-between gap-1 sm:gap-3 px-3 sm:px-5 pt-5 pb-3">
+          <div className="flex items-center gap-1 sm:gap-2.5">
+            <h2 className="text-[14px] sm:text-lg font-bold text-content tracking-tight whitespace-nowrap">PnL Calendar</h2>
             <span
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-surface-2 text-content-muted border border-border"
+              className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-semibold bg-surface-2 text-content-muted border border-border"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10" />
@@ -114,7 +114,7 @@ export default function PnLCalendar({ onClose }: PnLCalendarProps) {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="text-sm font-semibold text-content min-w-[80px] text-center">{monthLabel}</span>
+              <span className="text-xs sm:text-sm font-semibold text-content min-w-[64px] sm:min-w-[80px] text-center">{monthLabel}</span>
               <button
                 onClick={goToNextMonth}
                 className="p-0.5 rounded hover:bg-surface-3 transition-colors text-content-muted hover:text-content"

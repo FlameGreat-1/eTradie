@@ -52,6 +52,13 @@ class BrokerConnectionRow(ProcessorBase):
         index=True,
     )
 
+    # -- Platform: 'mt4' or 'mt5' ---------------------------------------------
+    platform: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        server_default="mt5",
+    )
+
     # -- Display name (e.g. "VPS EA - ICMarkets", "Local PC Backup") ----------
     name: Mapped[str] = mapped_column(
         String(100),

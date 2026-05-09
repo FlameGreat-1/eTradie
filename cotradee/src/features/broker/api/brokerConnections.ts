@@ -33,7 +33,12 @@ export function useCreateBrokerConnection() {
       const { data } = await api.engine.post('/api/broker/connections', payload);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['broker', 'connections'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broker'] });
+      qc.invalidateQueries({ queryKey: ['execution'] });
+      qc.invalidateQueries({ queryKey: ['management'] });
+      qc.invalidateQueries({ queryKey: ['symbols'] });
+    },
   });
 }
 
@@ -44,7 +49,12 @@ export function useUpdateBrokerConnection() {
       const { data } = await api.engine.put(`/api/broker/connections/${id}`, payload);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['broker', 'connections'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broker'] });
+      qc.invalidateQueries({ queryKey: ['execution'] });
+      qc.invalidateQueries({ queryKey: ['management'] });
+      qc.invalidateQueries({ queryKey: ['symbols'] });
+    },
   });
 }
 
@@ -55,7 +65,12 @@ export function useActivateBroker() {
       const { data } = await api.engine.post(`/api/broker/connections/${id}/activate`);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['broker'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broker'] });
+      qc.invalidateQueries({ queryKey: ['execution'] });
+      qc.invalidateQueries({ queryKey: ['management'] });
+      qc.invalidateQueries({ queryKey: ['symbols'] });
+    },
   });
 }
 
@@ -74,6 +89,11 @@ export function useDeleteBrokerConnection() {
     mutationFn: async (id: string) => {
       await api.engine.delete(`/api/broker/connections/${id}`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['broker', 'connections'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broker'] });
+      qc.invalidateQueries({ queryKey: ['execution'] });
+      qc.invalidateQueries({ queryKey: ['management'] });
+      qc.invalidateQueries({ queryKey: ['symbols'] });
+    },
   });
 }

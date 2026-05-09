@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 import GoogleSignInButton from './GoogleSignInButton';
 import SocialAuthDivider from './SocialAuthDivider';
 import { env } from '@/config/env';
@@ -18,7 +19,12 @@ export default function LoginForm() {
     try {
       await login({ username, password });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
+      let msg = 'Login failed';
+      if (axios.isAxiosError(err) && err.response?.data?.error) {
+        msg = err.response.data.error;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
     } finally {
       setLoading(false);

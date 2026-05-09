@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 import GoogleSignInButton from './GoogleSignInButton';
 import SocialAuthDivider from './SocialAuthDivider';
 import { env } from '@/config/env';
@@ -19,7 +20,12 @@ export default function RegisterForm() {
     try {
       await register({ username, email, password });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Registration failed';
+      let msg = 'Registration failed';
+      if (axios.isAxiosError(err) && err.response?.data?.error) {
+        msg = err.response.data.error;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
     } finally {
       setLoading(false);

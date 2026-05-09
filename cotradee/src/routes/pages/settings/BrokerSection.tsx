@@ -11,6 +11,7 @@ type BrokerForm = {
   mt5_server: string;
   mt5_login: string;
   mt5_password: string;
+  platform: 'mt4' | 'mt5';
 };
 
 const INITIAL_FORM: BrokerForm = {
@@ -19,6 +20,7 @@ const INITIAL_FORM: BrokerForm = {
   mt5_server: '',
   mt5_login: '',
   mt5_password: '',
+  platform: 'mt5',
 };
 
 export default function BrokerSection() {
@@ -58,6 +60,7 @@ export default function BrokerSection() {
       mt5_server: form.mt5_server,
       mt5_login: form.mt5_login,
       mt5_password: form.mt5_password,
+      platform: form.platform,
     };
     await createConn.mutateAsync(payload);
     setShowForm(false);
@@ -90,8 +93,20 @@ export default function BrokerSection() {
             <div className="space-y-1">
               <label className="text-xs text-content-muted">Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="My MT5 Broker" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                placeholder="My Broker" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
             </div>
+            {form.connection_type === 'metaapi' && (
+              <div className="space-y-1">
+                <label className="text-xs text-content-muted">Platform</label>
+                <select
+                  value={form.platform}
+                  onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value as 'mt4' | 'mt5' }))}
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand">
+                  <option value="mt5">MetaTrader 5</option>
+                  <option value="mt4">MetaTrader 4</option>
+                </select>
+              </div>
+            )}
             {form.connection_type === 'ea' && (
               <>
                 <div className="space-y-1">
@@ -109,17 +124,17 @@ export default function BrokerSection() {
             {form.connection_type === 'metaapi' && (
               <>
                 <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MT5 Server</label>
+                  <label className="text-xs text-content-muted">Server Name</label>
                   <input type="text" value={form.mt5_server} onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
                     placeholder="Exness-MT5Trial9" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MT5 Login</label>
+                  <label className="text-xs text-content-muted">Login</label>
                   <input type="text" value={form.mt5_login} onChange={(e) => setForm((f) => ({ ...f, mt5_login: e.target.value }))}
                     placeholder="12345678" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MT5 Password</label>
+                  <label className="text-xs text-content-muted">Password</label>
                   <input type="password" autoComplete="new-password" value={form.mt5_password}
                     onChange={(e) => setForm((f) => ({ ...f, mt5_password: e.target.value }))}
                     placeholder="Trading password"
@@ -144,7 +159,7 @@ export default function BrokerSection() {
           const isActive = c.is_active === true || String(active?.id) === id;
           // Show the broker info the user actually recognises (server + login)
           // instead of raw infrastructure values (ea_host or metaapi_account_id).
-          const subtitleParts = [String(c.connection_type)];
+          const subtitleParts = [String(c.connection_type), String(c.platform || 'mt5').toUpperCase()];
           if (c.mt5_server) subtitleParts.push(String(c.mt5_server));
           if (c.mt5_login) subtitleParts.push(String(c.mt5_login));
           const subtitle = subtitleParts.join(' · ');

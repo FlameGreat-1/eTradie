@@ -50,6 +50,7 @@ def _serialize_broker_connection(row) -> dict:
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
+        "platform": getattr(row, "platform", "mt5"),
         "is_active": row.is_active,
         "is_primary": row.is_primary,
         "status": row.status,
@@ -132,6 +133,7 @@ async def create_broker_connection(
                     password=body.mt5_password,
                     server=body.mt5_server,
                     name=body.name,
+                    platform=body.platform,
                 )
                 metaapi_account_id = metaapi_result["account_id"]
                 metaapi_region = metaapi_result.get("region")
@@ -159,6 +161,7 @@ async def create_broker_connection(
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
+                platform=body.platform,
                 activate=body.activate,
             )
             result = _serialize_broker_connection(row)
@@ -262,6 +265,7 @@ async def update_broker_connection(
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
+                platform=body.platform,
             )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

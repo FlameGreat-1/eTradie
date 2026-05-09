@@ -204,6 +204,7 @@ class BrokerConnectionRepository:
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
+        platform: str = "mt5",
         # Activation
         activate: bool = True,
     ) -> BrokerConnectionRow:
@@ -257,6 +258,7 @@ class BrokerConnectionRepository:
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
+            platform=platform,
             is_active=activate,
             is_primary=activate,
             status=STATUS_UNTESTED,
@@ -347,6 +349,7 @@ class BrokerConnectionRepository:
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
+        platform: Optional[str] = None,
     ) -> Optional[BrokerConnectionRow]:
         """Update fields on an existing connection.
 
@@ -376,6 +379,8 @@ class BrokerConnectionRepository:
             values["mt5_login"] = mt5_login
         if mt5_password is not None:
             values["mt5_password_encrypted"] = _encrypt(mt5_password)
+        if platform is not None:
+            values["platform"] = platform
 
         stmt = (
             update(BrokerConnectionRow)

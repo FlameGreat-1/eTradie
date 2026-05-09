@@ -138,6 +138,7 @@ class CreateBrokerConnectionRequest(BaseModel):
     mt5_login: Optional[str] = None
     mt5_password: Optional[str] = None
     mt5_server: Optional[str] = None
+    platform: str = Field(default="mt5", description="Trading platform (mt4 or mt5)")
     # EA: no user-facing fields (auto from env)
     activate: bool = True
 
@@ -146,3 +147,4 @@ class UpdateBrokerConnectionRequest(BaseModel):
     mt5_server: Optional[str] = None
     mt5_login: Optional[str] = None
     mt5_password: Optional[str] = None
+    platform: Optional[str] = None

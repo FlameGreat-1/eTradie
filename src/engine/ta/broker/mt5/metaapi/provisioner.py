@@ -35,9 +35,9 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# MetaAPI Provisioning API base URL template (region-specific).
+# MetaAPI Provisioning API base URL is global.
 _PROVISIONING_BASE_URL_TEMPLATE = (
-    "https://mt-provisioning-api-v1.{region}.agiliumtrade.ai"
+    "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"
 )
 
 # Maximum number of polling attempts when MetaAPI returns 202 (async).
@@ -121,7 +121,7 @@ class MetaApiProvisioner:
         self._token = platform_token
         self._magic = magic_number
         self._region = region
-        self._base_url = _PROVISIONING_BASE_URL_TEMPLATE.format(region=region)
+        self._base_url = _PROVISIONING_BASE_URL_TEMPLATE
         self._auth_headers = {"auth-token": platform_token}
 
     # -- Public API -----------------------------------------------------------
@@ -133,6 +133,7 @@ class MetaApiProvisioner:
         password: str,
         server: str,
         name: str,
+        platform: str = "mt5",
     ) -> dict[str, Any]:
         """Provision a new MT5 cloud account.
 
@@ -162,7 +163,9 @@ class MetaApiProvisioner:
             "password": password,
             "name": name,
             "server": server,
-            "platform": "mt5",
+            "platform": platform,
+            "type": "cloud",
+            "application": "MetaApi",
         }
 
         if self._magic:
