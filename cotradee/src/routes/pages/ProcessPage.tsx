@@ -3,19 +3,21 @@ import ParticlesCanvas from '@/features/landing/components/ParticlesCanvas';
 import LandingHeader from '@/features/landing/components/LandingHeader';
 import LandingFooter from '@/features/landing/components/LandingFooter';
 import ProcessFlow from '@/features/landing/components/ProcessFlow';
+import HowItWorks from '@/features/landing/components/HowItWorks';
 
 /**
  * Public Process page — reachable at `/process`.
  *
- * Renders the exact same <ProcessFlow /> component used as a section
- * on /landing, with no modifications, inside the same landing-page
- * chrome (background, particles, header, footer). This guarantees
- * the visual output and behavior match the /landing rendering of
- * Process byte-for-byte.
+ * Renders the same Process-related sections that appear on /landing,
+ * in the same order, by composing the existing components without
+ * modification:
+ *
+ *   1. <ProcessFlow />   — the pipeline diagram ("Process")
+ *   2. <HowItWorks />    — the "How It Works" timeline + "Why It Works" grid
  *
  * The top padding (`pt-24`) compensates for the fixed LandingHeader
- * so the Process section's first content (its intro paragraph) is
- * not hidden behind the header on initial load.
+ * so the first content is not hidden behind the header on initial
+ * load.
  */
 export default function ProcessPage() {
   return (
@@ -27,6 +29,7 @@ export default function ProcessPage() {
 
         <main className="pt-24">
           <ProcessFlow />
+          <HowItWorks />
         </main>
 
         <LandingFooter />
