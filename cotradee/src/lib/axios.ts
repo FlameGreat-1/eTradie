@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { env } from '@/config/env';
+import { toast } from '@/hooks/useToast';
 
 const TOKEN_KEY = 'etradie_access_token';
 const REFRESH_KEY = 'etradie_refresh_token';
@@ -63,6 +64,26 @@ function createClient(baseURL: string): AxiosInstance {
     (res) => res,
     async (error: AxiosError) => {
       const original = error.config;
+      
+      // Global Interceptor for Restrictions / Limits
+      if (error.response?.status === 403) {
+        const msg = (error.response.data as any)?.error || 'Action restricted by your subscription tier.';
+        toast({
+          title: 'Upgrade Required',
+          description: msg,
+          variant: 'warning',
+        });
+      }
+      
+      if (error.response?.status === 429) {
+        const msg = (error.response.data as any)?.detail || (error.response.data as any)?.error || 'Rate limit exceeded.';
+        toast({
+          title: 'Limit Reached',
+          description: msg,
+          variant: 'warning',
+        });
+      }
+
       if (!original || error.response?.status !== 401) {
         return Promise.reject(error);
       }

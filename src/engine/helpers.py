@@ -62,7 +62,7 @@ async def _rate_limit(
 
 
 async def _resolve_user_processor(
-    container: "Container", user_id: str
+    container: "Container", user: "AuthenticatedUser"
 ) -> "AnalysisProcessor":
     """Resolve the authenticated user's LLM processor.
 
@@ -71,10 +71,10 @@ async def _resolve_user_processor(
 
     Uses the Container's per-user processor cache. Every user MUST
     configure their own LLM connection via the dashboard. There is
-    no env-var fallback for regular users.
+    no env-var fallback for regular users (unless they are pro_managed).
     """
     try:
-        return await container.resolve_user_processor(user_id)
+        return await container.resolve_user_processor(user)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 

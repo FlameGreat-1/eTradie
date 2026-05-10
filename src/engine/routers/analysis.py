@@ -37,6 +37,32 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+@router.get("/api/usage/me")
+async def get_my_usage(
+    request: Request,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    """Return the current user's usage metrics (for dashboard countdown timer)."""
+    container: Container = request.app.state.container
+    from engine.processor.storage.repositories.billing_repository import BillingRepository
+
+    async with container.db.read_session() as session:
+        billing_repo = BillingRepository(session)
+        await billing_repo.reset_daily_usage_if_needed(user.user_id)
+        usage = await billing_repo.get_usage_for_user(user.user_id)
+
+    return {
+        "tier": user.tier,
+        "analyses_today": usage.get("analyses_today", 0),
+        "last_analysis_at": usage.get("last_analysis_at"),
+        "last_reset_at": usage.get("last_reset_at"),
+        "daily_limit": 1 if user.tier == "free" and not user.is_admin else None,
+        "ta_cycles_used": usage.get("ta_cycles_used", 0),
+        "macro_cycles_used": usage.get("macro_cycles_used", 0),
+        "execution_attempts": usage.get("execution_attempts", 0),
+    }
+
+
 @router.get("/api/analysis/latest")
 async def get_latest_analyses(
     request: Request,
@@ -491,7 +517,7 @@ async def rerun_analysis(
     execution routing (those are gateway-side concerns).
     """
     container: Container = request.app.state.container
-    processor = await _resolve_user_processor(container, user.user_id)
+    processor = await _resolve_user_processor(container, user)
     if not hasattr(container, "ta_orchestrator"):
         raise HTTPException(
             status_code=503, detail="TA orchestrator not initialized"
@@ -501,6 +527,38 @@ async def rerun_analysis(
     symbol = symbol.strip()
     if not symbol:
         raise HTTPException(status_code=400, detail="Symbol is required")
+
+    from engine.processor.storage.repositories.billing_repository import BillingRepository
+    from datetime import timezone, timedelta
+    
+    async with container.db.write_session() as session:
+        billing_repo = BillingRepository(session)
+        # We don't need reset_daily_usage_if_needed anymore for this check
+        usage = await billing_repo.get_or_create_usage(user.user_id)
+        
+        if not user.is_admin and user.tier == "free":
+            last_analysis = usage.get("last_analysis_at")
+            if last_analysis:
+                now = dt.now(timezone.utc)
+                # Ensure last_analysis is timezone aware
+                if last_analysis.tzinfo is None:
+                    last_analysis = last_analysis.replace(tzinfo=timezone.utc)
+                
+                time_since_last = now - last_analysis
+                if time_since_last < timedelta(hours=24):
+                    remaining = timedelta(hours=24) - time_since_last
+                    hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    raise HTTPException(
+                        status_code=429, 
+                        detail=f"Free tier is limited to 1 analysis per 24 hours. Next analysis available in {hours}h {minutes}m. Upgrade to Pro for unlimited analyses."
+                    )
+        
+        await billing_repo.increment_analysis(user.user_id)
+        # Track that we are starting a full TA + Macro cycle.
+        # Later this can be used for usage-based billing.
+        await billing_repo.increment_usage_metric(user.user_id, "ta_cycles_used")
+        await billing_repo.increment_usage_metric(user.user_id, "macro_cycles_used")
 
     # Step 1: Run TA analysis for the symbol using the user's broker.
     try:

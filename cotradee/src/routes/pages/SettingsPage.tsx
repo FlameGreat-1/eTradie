@@ -1,19 +1,23 @@
 import { Routes, Route, NavLink } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { Settings, Brain, Plug, Shield, User } from 'lucide-react';
+import { Settings, Brain, Plug, Shield, User, CreditCard, Crown } from 'lucide-react';
 
 const ProfileSection = lazy(() => import('./settings/ProfileSection'));
 const SymbolsSection = lazy(() => import('./settings/SymbolsSection'));
 const LlmSection = lazy(() => import('./settings/LlmSection'));
 const BrokerSection = lazy(() => import('./settings/BrokerSection'));
 const ExecutionSection = lazy(() => import('./settings/ExecutionSection'));
+const BillingSection = lazy(() => import('./settings/BillingSection'));
+const PaymentSection = lazy(() => import('./settings/PaymentSection'));
 
 const LINKS = [
-  { to: '/dashboard/settings',           label: 'Profile',   icon: User,     end: true },
+  { to: '/dashboard/settings',           label: 'Profile',   icon: User,       end: true },
   { to: '/dashboard/settings/symbols',   label: 'Symbols',   icon: Settings },
-  { to: '/dashboard/settings/llm',       label: 'API Key', icon: Brain },
+  { to: '/dashboard/settings/llm',       label: 'API Key',   icon: Brain },
   { to: '/dashboard/settings/broker',    label: 'Broker',    icon: Plug },
   { to: '/dashboard/settings/execution', label: 'Execution', icon: Shield },
+  { to: '/dashboard/settings/billing',   label: 'Billing',   icon: Crown },
+  { to: '/dashboard/settings/payment',   label: 'Payment',   icon: CreditCard },
 ];
 
 export default function SettingsPage() {
@@ -85,9 +89,12 @@ export default function SettingsPage() {
             <Route path="llm" element={<LlmSection />} />
             <Route path="broker" element={<BrokerSection />} />
             <Route path="execution" element={<ExecutionSection />} />
+            <Route path="billing" element={<BillingSection />} />
+            <Route path="payment" element={<PaymentSection />} />
           </Routes>
         </Suspense>
       </div>
     </div>
   );
 }
+

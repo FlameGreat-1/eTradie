@@ -320,6 +320,12 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 		return nil, status.Errorf(codes.InvalidArgument, "interval_seconds must be <= 86400 (24h), got %d", newInterval)
 	}
 
+	// Free tier users do not get automated scheduling — block interval changes.
+	claims := auth.ClaimsFromContext(ctx)
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" {
+		return nil, status.Errorf(codes.PermissionDenied, "Automated scheduling is not available on the Free tier. Upgrade to Pro to configure cycle intervals.")
+	}
+
 	oldInterval := s.scheduler.CurrentIntervalForUser(ctx, userID)
 
 	// Persist and update this user's interval only. Other users are unaffected.
@@ -356,7 +362,20 @@ func (s *GRPCServer) SetCycleInterval(ctx context.Context, req *gatewayv1.SetCyc
 
 // SetActiveSymbols updates the user's active symbol selection.
 func (s *GRPCServer) SetActiveSymbols(ctx context.Context, req *gatewayv1.SetActiveSymbolsRequest) (*gatewayv1.SetActiveSymbolsResponse, error) {
-	userID := auth.UserIDFromContext(ctx)
+	claims := auth.ClaimsFromContext(ctx)
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" && len(req.GetSymbols()) > 1 {
+		s.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityWarning,
+				"Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.").
+				WithUserID(claims.UserID).
+				WithDetails(map[string]interface{}{
+					"attempted_symbols": len(req.GetSymbols()),
+				}),
+		)
+		return nil, status.Errorf(codes.PermissionDenied, "Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.")
+	}
+
+	userID := claims.UserID
 	oldSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
 	ok := s.symbolStore.SetActiveSymbols(ctx, userID, req.GetSymbols())
 	active := s.symbolStore.GetActiveSymbols(ctx, userID)

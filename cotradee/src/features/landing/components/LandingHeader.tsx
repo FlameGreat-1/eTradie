@@ -9,7 +9,7 @@ function pad(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-export default function LandingHeader() {
+export default function LandingHeader({ forceScrolled = false }: { forceScrolled?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const countdown = useCountdown(LAUNCH_DATE);
@@ -37,7 +37,7 @@ export default function LandingHeader() {
   return (
     <>
       <header
-        className={`landing-header ${scrolled ? 'scrolled' : ''}`}
+        className={`landing-header ${scrolled || forceScrolled ? 'scrolled' : ''}`}
         id="landing-header"
       >
       <div className="flex items-center justify-between h-full w-full max-w-[1280px] mx-auto px-6 md:px-8">
@@ -73,6 +73,16 @@ export default function LandingHeader() {
             >
               Process
             </a>
+            <button
+              onClick={() => {
+                const event = new CustomEvent('open-pricing-modal');
+                window.dispatchEvent(event);
+              }}
+              className="text-sm font-medium px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors duration-200"
+              style={{ color: 'var(--landing-text)' }}
+            >
+              Pricing
+            </button>
           </nav>
         </div>
 
@@ -244,6 +254,37 @@ export default function LandingHeader() {
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="m9 18 6-6-6-6"/></svg>
           </a>
+
+          {/* Pricing */}
+          <button 
+            onClick={() => {
+              setMobileMenuOpen(false);
+              const event = new CustomEvent('open-pricing-modal');
+              window.dispatchEvent(event);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              borderRadius: '14px',
+              color: 'var(--landing-text)',
+              textDecoration: 'none',
+              transition: 'background 180ms ease',
+              width: '100%',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+              <span style={{ fontSize: '15px', fontWeight: 600 }}>Pricing</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="m9 18 6-6-6-6"/></svg>
+          </button>
 
           {/* Sign In */}
           <a 

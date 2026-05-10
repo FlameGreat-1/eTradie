@@ -3,9 +3,11 @@ import {
   useCreateLlmConnection, useActivateLlm, useDeactivateLlm, useDeleteLlmConnection,
 } from '@/features/llm/api/llmConnections';
 import { useState } from 'react';
-import { Plus, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Plus, Power, PowerOff, Trash2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/features/auth';
 
 export default function LlmSection() {
+  const { user } = useAuth();
   const { data: connections } = useLlmConnections();
   const { data: active } = useActiveLlmConnection();
   const { data: providers } = useLlmProviders();
@@ -31,10 +33,25 @@ export default function LlmSection() {
     setForm({ provider: '', api_key: '' });
   };
 
+  const isProManaged = user?.tier === 'pro_managed';
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-content">API Key Connections</h3>
+        <div>
+          <h3 className="text-sm font-semibold text-content">API Key Connections</h3>
+          {isProManaged ? (
+            <p className="text-[11px] text-content-muted mt-1 flex items-center gap-1">
+              <ShieldCheck size={12} className="text-brand" />
+              Pro Managed: Using Platform AI by default. You can configure custom overrides below.
+            </p>
+          ) : (
+            <p className="text-[11px] text-warning mt-1 flex items-center gap-1">
+              <AlertCircle size={12} />
+              {user?.tier === 'pro_byok' ? 'Pro BYOK: You must configure an API key to run analysis.' : 'Free Tier: You must configure an API key to run analysis.'}
+            </p>
+          )}
+        </div>
         <button onClick={() => setShowForm((p) => !p)}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-dark transition-colors">
           <Plus size={12} /> Add Connection

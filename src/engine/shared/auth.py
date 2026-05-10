@@ -42,6 +42,8 @@ class AuthenticatedUser:
     user_id: str
     username: str
     role: str  # "admin" or "etradie"
+    tier: str  # "free", "pro_byok", "pro_managed"
+    status: str # "active", "past_due", "canceled"
 
     @property
     def is_admin(self) -> bool:
@@ -118,6 +120,8 @@ def _verify_token(token: str) -> AuthenticatedUser:
     user_id = payload.get("sub")
     username = payload.get("username")
     role = payload.get("role")
+    tier = payload.get("tier", "free")
+    status = payload.get("status", "active")
 
     if not user_id or not username or not role:
         raise HTTPException(
@@ -128,7 +132,13 @@ def _verify_token(token: str) -> AuthenticatedUser:
     if role not in ("admin", "etradie"):
         raise HTTPException(status_code=401, detail=f"Invalid role: {role}")
 
-    return AuthenticatedUser(user_id=user_id, username=username, role=role)
+    return AuthenticatedUser(
+        user_id=user_id, 
+        username=username, 
+        role=role,
+        tier=tier,
+        status=status
+    )
 
 
 async def get_current_user(

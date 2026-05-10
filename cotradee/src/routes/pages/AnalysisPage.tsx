@@ -8,6 +8,7 @@ import {
 import { formatRelativeTime } from '@/utils/formatters';
 import { RefreshCw, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import AnalysisDetailModal from '@/features/analysis/components/AnalysisDetailModal';
+import AnalysisCountdown from '@/components/ui/AnalysisCountdown';
 
 const PAGE_SIZE = 15;
 
@@ -81,6 +82,9 @@ export default function AnalysisPage() {
           </button>
         </div>
       </div>
+
+      {/* Free tier countdown timer */}
+      <AnalysisCountdown />
 
       {/* Desktop grid */}
       <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">

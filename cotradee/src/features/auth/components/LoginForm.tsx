@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import GoogleSignInButton from './GoogleSignInButton';
@@ -6,6 +7,7 @@ import SocialAuthDivider from './SocialAuthDivider';
 import { env } from '@/config/env';
 
 export default function LoginForm() {
+  const location = useLocation();
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -120,7 +122,7 @@ export default function LoginForm() {
       <div className="flex items-center gap-3 py-2">
         <div className="flex-1 h-px opacity-10" style={{ background: 'var(--landing-text)' }} />
         <p className="text-xs font-medium opacity-60" style={{ color: 'var(--landing-text)' }}>
-          Don't have an account? <a href="/register" className="opacity-100 underline decoration-[#76B900] decoration-2 underline-offset-4 font-bold">Create one</a>
+          Don't have an account? <Link to={`/register${location.search}`} className="opacity-100 underline decoration-[#76B900] decoration-2 underline-offset-4 font-bold">Create one</Link>
         </p>
         <div className="flex-1 h-px opacity-10" style={{ background: 'var(--landing-text)' }} />
       </div>

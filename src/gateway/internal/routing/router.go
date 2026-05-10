@@ -10,6 +10,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	"github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -25,19 +26,26 @@ type RouteResult struct {
 
 // Router routes processor decisions through guards to execution.
 type Router struct {
-	guards    *GuardEvaluator
-	execution ports.ExecutionPort
-	transport *alertredis.Transport
-	log       zerolog.Logger
+	guards     *GuardEvaluator
+	execution  ports.ExecutionPort
+	transport  *alertredis.Transport
+	usageStore *store.UsageStore
+	log        zerolog.Logger
 }
 
 // NewRouter creates a DecisionRouter.
-func NewRouter(guards *GuardEvaluator, execution ports.ExecutionPort, transport *alertredis.Transport) *Router {
+func NewRouter(
+	guards *GuardEvaluator,
+	execution ports.ExecutionPort,
+	transport *alertredis.Transport,
+	usageStore *store.UsageStore,
+) *Router {
 	return &Router{
-		guards:    guards,
-		execution: execution,
-		transport: transport,
-		log:       observability.Logger("decision_router"),
+		guards:     guards,
+		execution:  execution,
+		transport:  transport,
+		usageStore: usageStore,
+		log:        observability.Logger("decision_router"),
 	}
 }
 
@@ -185,6 +193,31 @@ func (r *Router) executeTrade(
 	decision *models.ProcessorOutput,
 	traceID string,
 ) map[string]interface{} {
+	claims := auth.ClaimsFromContext(ctx)
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" {
+		r.log.Info().
+			Str("symbol", decision.Symbol).
+			Str("direction", decision.Direction).
+			Str("trace_id", traceID).
+			Msg("execution_blocked_for_free_tier")
+
+		if r.transport != nil {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityWarning,
+					fmt.Sprintf("Trade execution blocked for %s: Upgrade to Pro tier to unlock execution.", decision.Symbol)).
+					WithUserID(claims.UserID).
+					WithSymbol(decision.Symbol).
+					WithDirection(decision.Direction).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"reason": "Free tier does not support trade execution.",
+					}),
+			)
+		}
+
+		return map[string]interface{}{"status": "blocked", "reason": "Trade execution is not available on the Free tier. Upgrade to Pro."}
+	}
+
 	if r.execution == nil {
 		r.log.Info().
 			Str("symbol", decision.Symbol).
@@ -192,6 +225,10 @@ func (r *Router) executeTrade(
 			Str("trace_id", traceID).
 			Msg("execution_engine_not_available")
 		return map[string]interface{}{"status": "pending", "reason": "execution_engine_not_implemented"}
+	}
+
+	if r.usageStore != nil && claims != nil {
+		_ = r.usageStore.IncrementMetric(ctx, claims.UserID, "execution_attempts", 1)
 	}
 
 	result, err := r.execution.Execute(ctx, decision)

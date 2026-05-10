@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/flamegreat-1/etradie/src/auth"
+	"github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/container"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
@@ -71,6 +72,11 @@ func main() {
 	// Create auth tables.
 	if _, err := authPool.Exec(ctx, auth.SchemaSQL()); err != nil {
 		log.Fatal().Err(err).Msg("auth_schema_creation_failed")
+	}
+
+	// Create billing tables (subscriptions + usage tracking).
+	if _, err := authPool.Exec(ctx, store.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("billing_schema_creation_failed")
 	}
 
 	// Build auth components.
@@ -157,7 +163,10 @@ func main() {
 		log.Info().Msg("execution_engine_disabled")
 	}
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler)
+	usageStore := store.NewUsageStore(authPool)
+	subStore := store.NewSubscriptionStore(authPool)
+
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, usageStore, subStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

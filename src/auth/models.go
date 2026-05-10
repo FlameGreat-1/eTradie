@@ -76,6 +76,8 @@ type User struct {
 	Email          string     `json:"email"`
 	PasswordHash   string     `json:"-"` // never serialised to JSON
 	Role           Role       `json:"role"`
+	Tier           string     `json:"tier"`
+	Status         string     `json:"status"`
 	Active         bool       `json:"active"`
 	AuthProvider   string     `json:"auth_provider"`
 	AvatarURL      string     `json:"avatar_url,omitempty"`
@@ -153,6 +155,8 @@ type Claims struct {
 	UserID   string `json:"sub"`
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
+	Tier     string `json:"tier"`
+	Status   string `json:"status"`
 	IssuedAt int64  `json:"iat"`
 	Expiry   int64  `json:"exp"`
 }

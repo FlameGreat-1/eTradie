@@ -34,6 +34,7 @@ export default function ProfileSection() {
           <InfoRow label="Username" value={user?.username ?? '-'} />
           <InfoRow label="Email" value={user?.email ?? '-'} />
           <InfoRow label="Role" value={user?.role ?? '-'} />
+          <InfoRow label="Tier" value={(user?.tier ?? 'free').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())} />
           <InfoRow label="Status" value={user?.active ? 'Active' : 'Inactive'} />
         </div>
       </section>

@@ -46,6 +46,7 @@ func NewHTTPServer(
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
 	waitlistHandler *mails.Handler,
+	subStore *store.SubscriptionStore,
 ) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
@@ -86,6 +87,10 @@ func NewHTTPServer(
 	// Dashboard REST API (all protected).
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
 	api.RegisterProtectedRoutes(mux, authMiddleware)
+
+	// Billing REST API (all protected).
+	billing := NewBillingHandler(subStore)
+	billing.RegisterRoutes(mux, authMiddleware)
 
 	// Build the CORS origin allowlist from config.
 	allowedOrigins := make(map[string]bool, len(cfg.AllowedOrigins))

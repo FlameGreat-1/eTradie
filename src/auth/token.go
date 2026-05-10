@@ -32,6 +32,8 @@ func (ts *TokenService) IssueTokenPair(user *User) (*TokenPair, string, error) {
 		"sub":      user.ID,
 		"username": user.Username,
 		"role":     string(user.Role),
+		"tier":     user.Tier,
+		"status":   user.Status,
 		"iss":      ts.cfg.Issuer,
 		"iat":      now.Unix(),
 		"exp":      accessExpiry.Unix(),
@@ -100,6 +102,18 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 		claims.Role = parsedRole
 	} else {
 		return nil, fmt.Errorf("missing or invalid 'role' claim")
+	}
+
+	if tier, ok := mapClaims["tier"].(string); ok {
+		claims.Tier = tier
+	} else {
+		claims.Tier = "free"
+	}
+
+	if status, ok := mapClaims["status"].(string); ok {
+		claims.Status = status
+	} else {
+		claims.Status = "active"
 	}
 
 	if iat, ok := mapClaims["iat"].(float64); ok {

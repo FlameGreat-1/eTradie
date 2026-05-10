@@ -180,25 +180,25 @@ func (s *UserStore) CreateUser(ctx context.Context, user *User) error {
 // GetUserByID retrieves a user by their ID.
 func (s *UserStore) GetUserByID(ctx context.Context, id string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM auth_users WHERE id = $1`, id))
+		`SELECT `+userColumns+` FROM auth_users a LEFT JOIN billing_subscriptions b ON a.id = b.user_id WHERE a.id = $1`, id))
 }
 
 // GetUserByUsername retrieves a user by their username (case-insensitive).
 func (s *UserStore) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM auth_users WHERE LOWER(username) = LOWER($1)`, username))
+		`SELECT `+userColumns+` FROM auth_users a LEFT JOIN billing_subscriptions b ON a.id = b.user_id WHERE LOWER(a.username) = LOWER($1)`, username))
 }
 
 // GetUserByEmail retrieves a user by their email (case-insensitive).
 func (s *UserStore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	return s.scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM auth_users WHERE LOWER(email) = LOWER($1)`, email))
+		`SELECT `+userColumns+` FROM auth_users a LEFT JOIN billing_subscriptions b ON a.id = b.user_id WHERE LOWER(a.email) = LOWER($1)`, email))
 }
 
 // ListUsers returns all users. Admin only.
 func (s *UserStore) ListUsers(ctx context.Context) ([]*User, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT `+userColumns+` FROM auth_users ORDER BY created_at ASC`)
+		`SELECT `+userColumns+` FROM auth_users a LEFT JOIN billing_subscriptions b ON a.id = b.user_id ORDER BY a.created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
@@ -218,7 +218,7 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]*User, error) {
 // ListActiveUsers returns all users where active=true.
 func (s *UserStore) ListActiveUsers(ctx context.Context) ([]*User, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT `+userColumns+` FROM auth_users WHERE active = TRUE ORDER BY created_at ASC`)
+		`SELECT `+userColumns+` FROM auth_users a LEFT JOIN billing_subscriptions b ON a.id = b.user_id WHERE a.active = TRUE ORDER BY a.created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list active users: %w", err)
 	}
@@ -357,9 +357,10 @@ func (s *UserStore) CountAdmins(ctx context.Context) (int, error) {
 
 // userColumns is the canonical SELECT list for auth_users. Centralised
 // so every read path scans the same columns in the same order.
-const userColumns = `id, username, email, password_hash, role, active,
-        auth_provider, avatar_url, email_verified,
-        created_at, updated_at, last_login_at`
+const userColumns = `a.id, a.username, a.email, a.password_hash, a.role, a.active,
+        a.auth_provider, a.avatar_url, a.email_verified,
+        a.created_at, a.updated_at, a.last_login_at,
+        COALESCE(b.tier, 'free'), COALESCE(b.status, 'active')`
 
 func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
@@ -369,6 +370,7 @@ func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.Tier, &u.Status,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -390,6 +392,7 @@ func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.Tier, &u.Status,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan user row: %w", err)

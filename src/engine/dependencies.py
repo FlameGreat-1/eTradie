@@ -634,7 +634,7 @@ class Container:
             cache=self.cache,
         )
 
-    async def resolve_user_processor(self, user_id: str) -> "AnalysisProcessor":
+    async def resolve_user_processor(self, user: "AuthenticatedUser") -> "AnalysisProcessor":
         """Resolve the authenticated user's LLM processor.
 
         Uses a per-user cache to avoid rebuilding the LLM client on
@@ -644,21 +644,19 @@ class Container:
         Resolution order:
           1. Cached processor for this user -> return immediately
           2. Active LLM connection from DB -> build, cache, return
-          3. No connection configured -> raise (no env-var fallback)
+          3. If user is pro_managed and no DB connection, use platform env-var fallback.
+          4. No connection configured (and not pro_managed) -> raise.
 
-        Every user MUST configure their own LLM connection. The env-var
-        processor (self.processor) is for system/admin use only.
-
-        Raises:
-            ValueError: If no LLM connection is configured for this user.
+        Every user MUST configure their own LLM connection unless they
+        are subscribed to the pro_managed tier.
         """
         # Check cache first.
-        cached = self._user_processors.get(user_id)
+        cached = self._user_processors.get(user.user_id)
         if cached is not None:
             return cached
 
         # Build from DB.
-        user_config = await self._load_active_llm_connection(user_id)
+        user_config = await self._load_active_llm_connection(user)
         if user_config is None:
             raise ValueError(
                 "No LLM connection configured. "
@@ -703,19 +701,20 @@ class Container:
                 extra={"user_id": user_id},
             )
 
-    async def load_user_llm_config(self, user_id: str) -> "ProcessorConfig | None":
+    async def load_user_llm_config(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
         """Load the active LLM connection for a specific user.
 
         Called at request time. Returns a ProcessorConfig built from
-        the user's saved connection, or None (use system default).
+        the user's saved connection, or None.
         """
-        return await self._load_active_llm_connection(user_id)
+        return await self._load_active_llm_connection(user)
 
-    async def _load_active_llm_connection(self, user_id: str) -> "ProcessorConfig | None":
+    async def _load_active_llm_connection(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
         """Load the active LLM connection from the database for a user.
 
         Returns a ProcessorConfig built from the saved connection,
-        or None if no active connection exists for this user.
+        or the platform env-var fallback if the user is pro_managed and has no connection.
+        Otherwise, returns None (requiring the user to configure BYOK).
         """
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
@@ -726,10 +725,13 @@ class Container:
 
             async with self.db.read_session() as session:
                 repo = LLMConnectionRepository(session)
-                row = await repo.get_active(user_id=user_id)
+                row = await repo.get_active(user_id=user.user_id)
 
             if row is None:
-                _logger.info("no_active_llm_connection_in_db_using_env_vars", extra={"user_id": user_id})
+                if user.tier == "pro_managed" or user.is_admin:
+                    _logger.info("using_platform_llm_for_managed_or_admin", extra={"user_id": user.user_id})
+                    return get_processor_config()
+                _logger.info("no_active_llm_connection_in_db_for_byok", extra={"user_id": user.user_id})
                 return None
 
             api_key = decrypt_api_key(row.api_key_encrypted)

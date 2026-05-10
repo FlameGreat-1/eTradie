@@ -161,6 +161,12 @@ func (h *APIHandler) handleSymbols(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) getSymbols(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	symbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
+
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" && len(symbols) > 1 {
+		symbols = symbols[:1]
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"symbols": symbols,
 		"source":  "redis",
@@ -179,7 +185,21 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := auth.UserIDFromContext(r.Context())
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" && len(req.Symbols) > 1 {
+		h.transport.Publish(r.Context(),
+			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityWarning,
+				"Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.").
+				WithUserID(claims.UserID).
+				WithDetails(map[string]interface{}{
+					"attempted_symbols": len(req.Symbols),
+				}),
+		)
+		writeJSONError(w, http.StatusForbidden, "Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.")
+		return
+	}
+
+	userID := claims.UserID
 	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 	ok := h.symbolStore.SetActiveSymbols(r.Context(), userID, req.Symbols)
 	active := h.symbolStore.GetActiveSymbols(r.Context(), userID)
@@ -299,6 +319,13 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.IntervalSeconds > 86400 {
 		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("interval_seconds must be <= 86400 (24h), got %d", req.IntervalSeconds))
+		return
+	}
+
+	// Free tier users do not get automated scheduling — block interval changes.
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims != nil && claims.Role != "admin" && claims.Tier == "free" {
+		writeJSONError(w, http.StatusForbidden, "Automated scheduling is not available on the Free tier. Upgrade to Pro to configure cycle intervals.")
 		return
 	}
 

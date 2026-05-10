@@ -19,6 +19,8 @@ export interface AuthUser {
    * true for accounts created via Google.
    */
   email_verified?: boolean;
+  tier?: 'free' | 'pro_byok' | 'pro_managed';
+  status?: string;
   created_at: string;
   last_login_at: string | null;
 }

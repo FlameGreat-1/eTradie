@@ -9,6 +9,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	"github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat-1/etradie/src/gateway/internal/context"
@@ -31,6 +32,8 @@ type Container struct {
 	Redis          *infra.RedisClient
 	Engine         *infra.EngineHTTPClient
 	Execution      *infra.ExecutionGRPCAdapter
+	UsageStore     *store.UsageStore
+	SubStore       *store.SubscriptionStore
 	SymbolStore    *symbolstore.Store
 	SettingsStore  *settingsstore.Store
 	Orchestrator   *pipeline.Orchestrator
@@ -55,6 +58,8 @@ func New(
 	authHandler *auth.Handler,
 	userStore *auth.UserStore,
 	waitlistHandler *mails.Handler,
+	usageStore *store.UsageStore,
+	subStore *store.SubscriptionStore,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -94,7 +99,7 @@ func New(
 	guards := routing.NewGuardEvaluator()
 
 	// Decision Router.
-	router := routing.NewRouter(guards, execution, transport)
+	router := routing.NewRouter(guards, execution, transport, usageStore)
 
 	// Management Client (Module C).
 	var mgmtClient *management.Client
@@ -118,7 +123,7 @@ func New(
 	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
 
 	// Servers (now with auth support).
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler)
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore)
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
@@ -134,6 +139,8 @@ func New(
 		Redis:          redisClient,
 		Engine:         engineHTTP,
 		Execution:      execAdapter,
+		UsageStore:     usageStore,
+		SubStore:       subStore,
 		SymbolStore:    symStore,
 		SettingsStore:  settStore,
 		Orchestrator:   orchestrator,

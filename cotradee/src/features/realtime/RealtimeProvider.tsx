@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationsSocket } from './useNotificationsSocket';
 import { applyEventInvalidations } from './eventMap';
 import type { RealtimeEvent } from './types';
+import { toast } from '@/hooks/useToast';
 
 /**
  * Single global realtime broadcaster.
@@ -64,6 +65,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         if (next.length > LOG_BUFFER_SIZE) next.length = LOG_BUFFER_SIZE;
         return next;
       });
+
+      // Show toast for critical events (especially the new restriction events)
+      if (event.severity === 'WARNING' || event.severity === 'ERROR') {
+        toast({
+          title: event.type.replace(/_/g, ' '),
+          description: event.message || 'An important event occurred.',
+          variant: event.severity === 'ERROR' ? 'destructive' : 'warning',
+        });
+      }
 
       // 3. Fan out to component subscribers.
       for (const handler of subscribersRef.current) {

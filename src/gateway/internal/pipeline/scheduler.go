@@ -122,8 +122,12 @@ func (s *Scheduler) UpdateUserInterval(ctx context.Context, userID string, newIn
 }
 
 // getUserInterval returns the cycle interval for a specific user as a Duration.
-func (s *Scheduler) getUserInterval(ctx context.Context, userID string) time.Duration {
-	return time.Duration(s.CurrentIntervalForUser(ctx, userID)) * time.Second
+// Enforces a hardcoded 24-hour interval for Free tier users regardless of their Redis settings.
+func (s *Scheduler) getUserInterval(ctx context.Context, user *auth.User) time.Duration {
+	if user != nil && user.Role != "admin" && user.Tier == "free" {
+		return 24 * time.Hour
+	}
+	return time.Duration(s.CurrentIntervalForUser(ctx, user.ID)) * time.Second
 }
 
 // issueUserServiceContext creates a context with a valid service token
@@ -208,13 +212,16 @@ func (s *Scheduler) reconcileUserRunners(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Stop runners for users that are no longer active.
+	// Stop runners for users that are no longer active or have downgraded to Free.
 	for uid, runner := range s.runners {
-		if _, stillActive := activeIDs[uid]; !stillActive {
+		user, stillActive := activeIDs[uid]
+		shouldStop := !stillActive || (user != nil && user.Role != "admin" && user.Tier == "free")
+
+		if shouldStop {
 			s.log.Info().
 				Str("user_id", uid).
 				Str("username", runner.username).
-				Msg("scheduler_stopping_runner_for_inactive_user")
+				Msg("scheduler_stopping_runner_for_inactive_or_free_user")
 			runner.cancel()
 			delete(s.runners, uid)
 		}
@@ -223,6 +230,12 @@ func (s *Scheduler) reconcileUserRunners(ctx context.Context) {
 	// Start runners for new active users.
 	for uid, user := range activeIDs {
 		if _, exists := s.runners[uid]; !exists {
+			// Free tier users do NOT get automated scheduling (except Admins).
+			// They must trigger analysis manually from the dashboard.
+			if user.Role != "admin" && user.Tier == "free" {
+				continue
+			}
+
 			userCtx, cancel := context.WithCancel(ctx)
 			runner := &userRunner{
 				userID:   user.ID,
@@ -258,7 +271,7 @@ func (s *Scheduler) runUserLoop(ctx context.Context, user *auth.User) {
 		Logger()
 
 	// Load this user's configured interval.
-	interval := s.getUserInterval(ctx, user.ID)
+	interval := s.getUserInterval(ctx, user)
 
 	userLog.Info().
 		Float64("interval_seconds", interval.Seconds()).
@@ -295,7 +308,7 @@ func (s *Scheduler) runUserLoop(ctx context.Context, user *auth.User) {
 
 		case <-intervalCheckTicker.C:
 			// Re-read the user's interval from Redis in case they changed it.
-			newInterval := s.getUserInterval(ctx, user.ID)
+			newInterval := s.getUserInterval(ctx, user)
 			if newInterval != interval {
 				userLog.Info().
 					Float64("old_interval_seconds", interval.Seconds()).
@@ -330,6 +343,15 @@ func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userL
 
 	// Load this user's symbol selection from Redis.
 	symbols := s.symbolStore.GetActiveSymbols(userCtx, user.ID)
+
+	// Enforce 1-symbol limit dynamically for Free tier users regardless of what is in Redis
+	// This prevents downgrade bypasses and default config bypasses.
+	if user.Role != "admin" && user.Tier == "free" && len(symbols) > 1 {
+		s.log.Warn().
+			Str("user_id", user.ID).
+			Msg("scheduler_truncating_symbols_for_free_tier")
+		symbols = symbols[:1]
+	}
 
 	userLog.Info().
 		Strs("symbols", symbols).

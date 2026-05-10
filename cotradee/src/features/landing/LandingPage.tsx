@@ -5,6 +5,7 @@ import LandingHero from './components/LandingHero';
 import ProcessFlow from './components/ProcessFlow';
 import HowItWorks from './components/HowItWorks';
 import LandingFooter from './components/LandingFooter';
+import PricingModal from './components/PricingModal';
 
 /**
  * Exoper public landing page.
@@ -30,6 +31,7 @@ export default function LandingPage() {
         </main>
 
         <LandingFooter />
+        <PricingModal />
       </div>
     </div>
   );
