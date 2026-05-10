@@ -159,7 +159,6 @@ func main() {
 	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)})
 
 	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
-	_ = e // silence unused if any conditional compile in test builds removes the executor
 
 	// ── gRPC server ───────────────────────────────────────────────────
 	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
