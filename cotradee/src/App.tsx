@@ -3,7 +3,6 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import AppRoutes from '@/routes';
 import { Toaster } from '@/components/ui/Toaster';
 
-import PricingModal from '@/features/landing/components/PricingModal';
 import UpgradeModal from '@/features/settings/components/UpgradeModal';
 
 export default function App() {
@@ -11,7 +10,6 @@ export default function App() {
     <ErrorBoundary>
       <AppProvider>
         <AppRoutes />
-        <PricingModal />
         <UpgradeModal />
         <Toaster />
       </AppProvider>

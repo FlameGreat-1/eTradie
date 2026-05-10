@@ -408,15 +408,9 @@ export default function ProcessFlow() {
 
       {/* ── PRICING BUTTON ── */}
       <div className="flex justify-center mt-16 md:mt-24">
-        <button
-          onClick={() => {
-            const event = new CustomEvent('open-pricing-modal');
-            window.dispatchEvent(event);
-          }}
-          className="btn-cta-brand"
-        >
+        <a href="/pricing" className="btn-cta-brand">
           View Pricing & Plans
-        </button>
+        </a>
       </div>
     </section>
   );
