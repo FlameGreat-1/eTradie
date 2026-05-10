@@ -218,7 +218,7 @@ func main() {
 				log.Warn().Str("user_id", uid).Msg("skipping_watcher_restore_for_deactivated_user")
 				continue
 			}
-			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
 			if err != nil {
 				log.Error().Err(err).Str("user_id", uid).Msg("watcher_restore_service_token_failed")
 				continue
