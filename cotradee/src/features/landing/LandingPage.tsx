@@ -5,7 +5,6 @@ import LandingHero from './components/LandingHero';
 import ProcessFlow from './components/ProcessFlow';
 import HowItWorks from './components/HowItWorks';
 import LandingFooter from './components/LandingFooter';
-import PricingModal from './components/PricingModal';
 
 /**
  * Exoper public landing page.
@@ -13,6 +12,12 @@ import PricingModal from './components/PricingModal';
  * Rendered at "/" for unauthenticated visitors. Uses the NVIDIA-style
  * "Digital Nebula" background with green accents, stardust particles,
  * and a noise texture overlay.
+ *
+ * NOTE: <PricingModal /> is mounted globally in App.tsx so it can be
+ * triggered from any route via the `open-pricing-modal` window event.
+ * Do NOT mount a second instance here — doing so causes two stacked
+ * overlays which break the "Get Started Now" CTA and double-toggle the
+ * body scroll lock.
  */
 export default function LandingPage() {
   return (
@@ -31,7 +36,6 @@ export default function LandingPage() {
         </main>
 
         <LandingFooter />
-        <PricingModal />
       </div>
     </div>
   );
