@@ -233,10 +233,21 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		Str("trace_id", traceID).
 		Msg("execute_trade_received")
 
-	// Extract authenticated user from context (set by auth interceptor).
-	userID := auth.UserIDFromContext(ctx)
+	// Extract authenticated user + tier from context (set by auth interceptor).
+	// Defense-in-depth: the gateway router already blocks Free-tier execution
+	// at the perimeter, but Execution must also reject directly so that any
+	// future caller path (or a misconfigured ingress) cannot bypass billing.
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "missing claims in context")
+	}
+	userID := claims.UserID
 	if userID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+	if claims.Role != auth.RoleAdmin && claims.Tier == "free" {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"automated trade execution is restricted to Pro users")
 	}
 
 	tradeReq := parseRequest(req)
