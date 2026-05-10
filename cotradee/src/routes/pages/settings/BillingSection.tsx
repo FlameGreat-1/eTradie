@@ -1,5 +1,5 @@
 import { useAuth } from '@/features/auth';
-import { Crown, Zap, ShieldCheck, AlertCircle, ExternalLink } from 'lucide-react';
+import { Crown, Zap, ShieldCheck, AlertCircle, ExternalLink, CreditCard } from 'lucide-react';
 import UpgradeModal from '@/features/settings/components/UpgradeModal';
 
 const TIER_DISPLAY: Record<string, { label: string; color: string; icon: typeof Crown; description: string }> = {
