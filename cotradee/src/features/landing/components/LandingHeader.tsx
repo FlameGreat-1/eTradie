@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useCountdown } from '../hooks/useCountdown';
 import { useTheme } from '@/providers/ThemeProvider';
 
@@ -14,6 +15,12 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const countdown = useCountdown(LAUNCH_DATE);
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+
+  // The Process link is an in-page anchor when the user is already on
+  // /landing (so the existing smooth-scroll behavior is preserved), and
+  // a real route otherwise so it works from /pricing, /login, etc.
+  const processHref = location.pathname === '/landing' ? '#process-flow' : '/process';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -67,7 +74,7 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
           <nav className="hidden md:flex items-center gap-6 mt-[2px]">
             <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700"></div>
             <a
-              href="#process-flow"
+              href={processHref}
               className="text-sm font-medium px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors duration-200"
               style={{ color: 'var(--landing-text)' }}
             >
@@ -230,7 +237,7 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
           
           {/* Process */}
           <a 
-            href="#process-flow"
+            href={processHref}
             onClick={() => setMobileMenuOpen(false)}
             style={{
               display: 'flex',
