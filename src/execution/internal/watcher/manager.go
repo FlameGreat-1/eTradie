@@ -49,6 +49,15 @@ type WatcherPersistence interface {
 	Delete(ctx context.Context, watcherID string) error
 }
 
+// WatcherUsage is the narrow contract the watcher manager needs from the
+// billing usage store so the billing_usage.watcher_count column reflects
+// reality. Pluggable for tests; main.go wires the real billing UsageStore
+// via a small adapter so this package never imports billing/*.
+type WatcherUsage interface {
+	IncrementWatchers(ctx context.Context, userID string) error
+	DecrementWatchers(ctx context.Context, userID string) error
+}
+
 // Manager tracks all active instant-mode watchers. Thread-safe.
 // Provides Arm/Disarm lifecycle and coordinates graceful shutdown.
 type Manager struct {
@@ -57,6 +66,7 @@ type Manager struct {
 	audit     *audit.Logger
 	transport *alertredis.Transport
 	store     WatcherPersistence
+	usage     WatcherUsage
 	tickCache *TickCache
 	cfg       Config
 	log       zerolog.Logger
@@ -70,8 +80,8 @@ type Manager struct {
 
 // NewManager creates a watcher manager. The provided context controls
 // the lifecycle of all spawned watchers — cancelling it stops all.
-// The store parameter is optional (nil-safe) for backward compatibility
-// with tests that don't need persistence.
+// The persistence and usage parameters are optional (nil-safe) for
+// backward compatibility with tests that don't need them.
 func NewManager(
 	bp broker.Port,
 	gw GatewayPort,
@@ -94,6 +104,45 @@ func NewManager(
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+}
+
+// WithUsage attaches a billing-usage tracker so Arm/Disarm increments and
+// decrements billing_usage.watcher_count for the affected user. Optional;
+// nil keeps the manager fully functional but stops feeding the metric.
+func (m *Manager) WithUsage(u WatcherUsage) *Manager {
+	m.mu.Lock()
+	m.usage = u
+	m.mu.Unlock()
+	return m
+}
+
+// trackArm fires a non-blocking watcher_count increment. Detached from the
+// caller's context so a cancelled request does not abort the metric write,
+// and run in a goroutine so the Arm hot path is never DB-bound.
+func (m *Manager) trackArm(userID string) {
+	if m.usage == nil || userID == "" {
+		return
+	}
+	go func(uid string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := m.usage.IncrementWatchers(ctx, uid); err != nil {
+			m.log.Warn().Err(err).Str("user_id", uid).Msg("watcher_usage_increment_failed")
+		}
+	}(userID)
+}
+
+func (m *Manager) trackDisarm(userID string) {
+	if m.usage == nil || userID == "" {
+		return
+	}
+	go func(uid string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := m.usage.DecrementWatchers(ctx, uid); err != nil {
+			m.log.Warn().Err(err).Str("user_id", uid).Msg("watcher_usage_decrement_failed")
+		}
+	}(userID)
 }
 
 // Arm spawns a background watcher goroutine for an order.
@@ -165,6 +214,9 @@ func (m *Manager) Arm(order *models.Order) {
 			m.log.Error().Err(err).Str("watcher_id", order.WatcherID).Msg("watcher_persist_failed")
 		}
 	}
+
+	// Bump the user's billing_usage.watcher_count. Non-blocking, best-effort.
+	m.trackArm(order.UserID)
 
 	m.log.Info().
 		Str("watcher_id", order.WatcherID).
@@ -240,15 +292,19 @@ func (m *Manager) Shutdown() {
 }
 
 // onWatcherDone is a callback invoked when a watcher finishes. Removes
-// the watcher from the active map and deletes the persistence record.
-// Thread-safe.
+// the watcher from the active map, deletes the persistence record, and
+// decrements the per-user billing_usage.watcher_count. Thread-safe.
 func (m *Manager) onWatcherDone(watcherID string) {
 	m.mu.Lock()
-	var symbol string
-	var mode constants.ExecutionMode
+	var (
+		symbol string
+		mode   constants.ExecutionMode
+		userID string
+	)
 	if w, ok := m.watchers[watcherID]; ok {
 		symbol = w.order.Symbol
 		mode = w.order.ExecutionMode
+		userID = w.order.UserID
 	}
 	delete(m.watchers, watcherID)
 	m.mu.Unlock()
@@ -265,6 +321,9 @@ func (m *Manager) onWatcherDone(watcherID string) {
 			m.log.Error().Err(err).Str("watcher_id", watcherID).Msg("watcher_persist_delete_failed")
 		}
 	}
+
+	// Decrement the user's billing_usage.watcher_count. Non-blocking.
+	m.trackDisarm(userID)
 }
 
 // RefreshUserOrderTokens updates the AuthToken on all active watchers

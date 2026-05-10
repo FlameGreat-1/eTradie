@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
@@ -215,15 +216,29 @@ func (s *Scheduler) reconcileUserRunners(ctx context.Context) {
 	// Stop runners for users that are no longer active or have downgraded to Free.
 	for uid, runner := range s.runners {
 		user, stillActive := activeIDs[uid]
-		shouldStop := !stillActive || (user != nil && user.Role != "admin" && user.Tier == "free")
+		downgraded := user != nil && user.Role != "admin" && user.Tier == "free"
+		shouldStop := !stillActive || downgraded
 
 		if shouldStop {
 			s.log.Info().
 				Str("user_id", uid).
 				Str("username", runner.username).
+				Bool("downgraded", downgraded).
 				Msg("scheduler_stopping_runner_for_inactive_or_free_user")
 			runner.cancel()
 			delete(s.runners, uid)
+
+			// Surface a non-silent dashboard message on tier downgrade so the
+			// user knows their automated cycles have been disabled. Manual
+			// analysis stays available; the message tells them how to use it.
+			if downgraded && s.transport != nil {
+				s.transport.Publish(ctx,
+					alert.NewEvent(alert.SourceGateway, alert.TypeSubscriptionDowngraded, alert.SeverityWarning,
+						"Automated analysis cycles have been disabled because your subscription is now on the Free tier. You can still trigger manual analyses from the dashboard.").
+						WithUserID(uid).
+						WithDetail("username", runner.username),
+				)
+			}
 		}
 	}
 
