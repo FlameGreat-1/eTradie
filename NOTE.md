@@ -61,62 +61,185 @@ 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
 
 
 
-THERE IS SOMETHING YOU HAVE TO EXAMINE AND VERIFY TOO.
-
-SINCE ANALYSIS RUNS EVERY 4 HRS (DEPENDING ON WHAT EACH USERS) CONFIGURES)
 
 
-1. IF A USER ADDED 4 INSTRUMENTS AND THEN THE ANALYSIS TRIGGERS, IT SEEMS CURRENTLY IT RUN EACH INSTRUMENTS ONE AFTER THE OTHER . IS IT NOT SUPPOSE TO RUN EVERYTHING IN PARALLEL INSTEAD OF  GBPUSD WAITING FOR EURUSD TO FINISH OR VICE VISA. OR ARE WE USING WORKERS TO RUN EACH SEPARATELY?
-
-2. IF ALL USERS HAVE 4 HRS INTERVAL CONFIGURED DOES IT STILL RUN EACH INSTRUMENT, EACH USER ETC ONE AFTER THE OTHER?
-
-THIS IS A VERY CRITICAL DESIGN WE HAVE TO REALLY VERIFY TO AVOID ISSUES IN PRODUCTION AND EVEN THE POSSIBLITY OF CRASHING, FAILURES, HANGING (STUCK) ETC 
 
 
-AND I WANT YOU TO EXAMINE THE ENTIRE  PIPELINE FLOW DEEPLY AND THOROUGHLY FROM BEGINNING TO THE END TO FIGURE THIS OUT
 
-AVOID GUESSING
+
+
+
+
+NOW WE ARE GOING TO ENTER THE MAIN THING.
+
+
+THE GEMINI IMPLEMENTED SUBSCRIPTION/BILLING (TIERS) AND PAYMENT GATEWAY INTEGRATION (PADDLE AND LEMON SQUEEZY) BUT I DOUBT IF WHAT IT IMPPLEMENTED IS PRODUCTION READY, REAL ENGINEERING BEST PRACTICES, ENTERPRISE GRADE AND INDUSTRY STANDARD.
+
+I DON'T NEED ANYTHING THAT WILL BREAK IN PRODUCTION BECAUSE IT'S OF THE MAJOR CRITICAL PART OF THE INFRASTRUCTURE.
+
+
+SO YOU ARE GOING TO DO A THOROUGH EXAMINATION OF THE ENTIRE FILES AND PLACES
+
+
+I WANT YOU TO EXAMINE THE ENTIRE BACKEND FOR ALL YOU DID AND VERIFY EVERYTHING THOROUGHLY.
 
 AVOID ASSUMPTIONS
 
-YOU MUST EXAMINE THOROUGHLY TO BE 100% CERTAIN AND SURE THEN YOU LET ME KNOW SO THAT WE THEN DETERMINE THE EXACT ENTERPRISE GRADE AND INDUSTRY STANDARD DESIGN TO HANDLE IT 
+AVOID GUESSING
+
+AVOID LIES
+
+I NEED THE REAL TRUTH OF WHAT EXACTLY HAS BEEN ENGINEERED AND IMPLEMENTED
+
+1. VERIFY IF THERE IS SECURITY ISSUES, BYPASS, LOOP HOLE, VULNERABILITIES ETC
+
+2. VERIFY IF ALL PLACES AND FILES ARE COMPLETE UPDATED AND DO
+
+3. VERIFY IF EVERYTHING IS COMPLETELY WIRED UP END TO END 
+
+4. VERIFY IF THE FLOW IS COMPLETE AND EVERYTHING IS WORKING PERFECTLY END TO END WITH NO OMISSION OR IGNORING
+
+5. VERIFY THERE IS NO ERRORS, FAILURES, ISSUES, BREAKAGE, WEAK POINT, DEAD CODES, REDUDANCIES, UNCOMPLETE/UNWIRED, WEAK POINT
+
+6. VERIFY IF EVERYTHING FOLLOWS STRICTLY REAL ENGINEERING BEST PRACTICES, ENTERPRISE GRADE, PRODUCTION READY AND INDUSTRY STANDARD.
 
 
-PLEASE NOTE: UNTIL I APPROVE BEFORE YOU MAKE CHANGES. SO JSUT EXAMINE AND GIVE ME THE AUDIT
+I AM VERY VERY SERIOUS ABOUT THIS TASK I GAVE YOU NOW
+
+DO NOT DO ANY RUBBISH. DO NOT IGNORE ANYTHING OR FILES
+
+EXAMINE EVERYTHING COMPLETELY AND THOROUGHLY END  TO END
+
+AND GIVE ME THE FULL AND COMPLETE AUDIT
 
 
 
 
 
-
-FIRST, CHANGE THE Connect Broker/MT5, Connect LLM API Key, Configure Execution, Technical Analysis  TO Broker/MT5, API Key, Execution, Tech. Analysis AND Macro Analysis
-
-
-CHANGE 
+IF YOU EXAMINE WHAT WE HAVE BELOW YOU SEE THAT WAS THE PLAN IT USED TO IMPLEMENT IT ALTHOUGH ADDED MINOR THINGS ALONG THE WAY:
 
 
 
+Subscription Model & Payment Gateway Architecture
+This plan outlines the end-to-end integration of a recurring subscription model (Core Platform Access) using Paddle and Lemon Squeezy.
+
+1. Standalone Microservice Architecture (src/billing/)
+I completely understand your point now! You want a fully standalone microservice for Billing, but you correctly pointed out that cramming everything into 4 files would make them massively bloated and hard to maintain.
+
+We will create src/billing as a robust, fully modular standalone microservice. It will follow the standard cmd/ and internal/ layout to ensure files remain small and highly specialized:
+
+text
+src/billing/
+├── cmd/server/
+│   └── main.go                  # Service entrypoint, env loading
+├── internal/
+│   ├── config/
+│   │   └── config.go            # Webhook secrets and port config
+│   ├── server/
+│   │   └── http.go              # HTTP router (Gin/Mux) and middleware
+│   ├── paddle/
+│   │   ├── webhook.go           # Signature verification
+│   │   └── parser.go            # JSON payload parsing
+│   ├── lemonsqueezy/
+│   │   ├── webhook.go           # Signature verification
+│   │   └── parser.go            # JSON payload parsing
+│   ├── service/
+│   │   └── subscription.go      # Core business logic (tier upgrades/downgrades)
+│   └── store/
+│       └── repository.go        # PostgreSQL database queries
+├── go.mod
+└── Dockerfile
+By breaking it down into these focused packages, no single file will ever become bulky. The Paddle parsing logic is strictly separated from the Lemon Squeezy logic, and both are separated from the database layer.
+
+2. Database Integration
+Since auth and billing will run as separate microservices, they will share the same PostgreSQL database instance. The Billing service's store/repository.go will be responsible for executing the updates to the auth_users table when a webhook arrives.
+
+New Columns in auth_users:
+
+subscription_tier (TEXT): free, pro_byok, pro_managed (Default: free)
+subscription_status (TEXT): active, past_due, canceled, unpaid (Default: active)
+payment_provider (TEXT): paddle or lemonsqueezy
+provider_customer_id (TEXT): Unique customer ID from the gateway
+provider_subscription_id (TEXT): Unique subscription ID from the gateway
+3. JWT & Global Access Control
+Because the Billing service updates the auth_users table, the Go Auth service will automatically read the subscription_tier when a user logs in.
+
+Go (src/auth/models.go): We will add Tier to the Claims struct.
+Microservices: Every other microservice (Gateway, Engine, Execution, Management) will parse this JWT and instantly know the user's subscription status.
+Admin Bypass: The JWT parsing middleware in all services will automatically bypass all restrictions if the user's role is admin.
+
+4. Enforcement Logic & UI Messages
+Restriction 1: Max 1 Analysis Per Day & Cycle Intervals
+Strategy: For free users, we will disable automated cycles entirely to save your server resources. We will enable the manual "Analyze Now" button, but limit it to exactly 1 use per day.
+How: The Engine will record last_manual_analysis_at for the user. If a free user clicks the button again within 24 hours, the backend rejects it.
+UI Message: "Free tier is limited to 1 analysis per 24 hours. Next analysis available in X hours." The automated cycle dropdown will be locked and disabled with a "Pro Feature" badge.
+Restriction 2: Max 1 Instrument (Symbol) Allowed
+How: The backend API that saves the user's configured symbols will reject the request if len(symbols) > 1 for free users.
+UI Message: The frontend symbol selector will lock after 1 symbol is selected, showing: "Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking."
+Restriction 3: Pro API Key Selection (BYOK vs Managed)
+How: We will offer two Pro tiers: pro_byok (Bring Your Own Key) and pro_managed (Uses Platform Key, higher subscription price).
+UI Message: In the LLM settings, if a pro_byok user tries to select the "Use Platform Key" toggle, they will see: "Platform AI Key is only available on the Pro Managed tier. Please provide your own API key or upgrade your plan." The Python Engine will hard-reject requests if a pro_byok user attempts to use the platform key without providing their own.
+Restriction 4: No Management Service (Watchers/Trailing)
+How: When the Engine sends a signal to create a watcher, the Management service checks the JWT tier. If tier == "free", the Management service drops the request.
+UI Message: The "Active Watchers" tab in the dashboard will display a locked state: "Trade Management (Watchers, Trailing Stops, Breakeven) is a Pro feature."
+Restriction 5: No Trade Execution
+How: The Execution service listens for trade signals. We will add a hard block: if jwt.tier == "free", the Execution service drops the request. No trades will be sent to MT5.
+UI Message: The "Execution Config" settings tab will be entirely locked: "Automated Trade Execution is restricted to Pro users. You will only receive analysis alerts."
+Restriction 6: Pre-Trade Guards
+The Clarification: Guards run after the heavy LLM analysis is complete. They evaluate time-based risks (news proximity, Asian session) to determine if the trade should be sent to Execution.
+How: Because they run after analysis, they do not block the analysis itself! We will let the guards run for Free users.
+Why: This is a fantastic upsell. The Free user will see the AI analysis, and they will see the Guards output ("Rejected: High-impact news in 15 mins"), proving the institutional value of the platform. They just won't get the automated execution if it passes.
+User Review Required
+Please review the revised src/billing directory structure. If this standalone, modular microservice architecture aligns perfectly with your vision for maintainability, please approve and I will begin implementation immediately!
 
 
+AND ALSO THIS BELOW:
 
 
+6. One VERY Important Thing You Must Add
 
+You are missing:
 
+usage tracking
 
+You need a dedicated table eventually like:
 
+user_usage
 
+Example:
 
+analyses_today
+llm_tokens_used
+ta_cycles_used
+macro_cycles_used
+execution_attempts
+watcher_count
+monthly_usage_window
 
+Why?
 
-If a user provides an unpaid/free API key and we are sending enterprise-grade trading data (which includes hundreds of thousands of tokens of historical candles, RAG citations, and macro events), then **yes, it will fail** because Google/OpenAI/Anthropic will block the request for being too large for a free account.
+Because later you may want:
 
-However, this is exactly why your transition to the **Subscription Model** right now is so critical! 
+soft limits,
+quotas,
+metered billing,
+abuse prevention,
+analytics,
+infrastructure forecasting.
 
-In an enterprise SaaS platform, you typically have two ways to handle this:
+Do NOT rely only on:
 
-1. **The "Bring Your Own Key" (BYOK) Model:** If a user brings their own key, they are entirely responsible for their own billing with Google/OpenAI. If they provide a free key and hit a limit, our platform simply catches that `429` error and shows them a graceful UI notification: *"Your AI provider's quota is exhausted. Please upgrade your Google/OpenAI billing plan."* 
-2. **The "Managed" (Subscription) Model:** This is the true enterprise standard. The user pays *you* a monthly subscription fee (via Stripe/Paddle). In return, they **do not need to enter an API key at all**. Our backend uses *your* central, enterprise-billed API key to process their trades. You absorb the API cost, but make a profit from their subscription fee.
+last_manual_analysis_at
 
-Since you are moving to implement the Subscription Model and Payment Gateway next, you are about to solve this exact problem. You can offer a "Pro Tier" where users don't need API keys, and a "Free Tier" where they must bring their own key (and deal with their own provider limits).
+That will become limiting later.
 
-Which payment gateway are we strictly using for the subscription model (e.g., Stripe, LemonSqueezy, Paddle)? Let me know so we can start building it!
+7. Extremely Important Security Point
+
+Webhook verification MUST be strict.
+
+Especially:
+
+Paddle signatures
+Lemon webhook signatures
+
+Never trust raw webhook payloads without verification.
