@@ -658,6 +658,14 @@ class Container:
         # Build from DB.
         user_config = await self._load_active_llm_connection(user)
         if user_config is None:
+            # Tier-aware message so pro_byok users see why their request
+            # was rejected; everyone else gets the generic guidance.
+            if user.tier == "pro_byok":
+                raise ValueError(
+                    "Pro BYOK requires your own LLM API key. "
+                    "Please add a connection on the LLM Settings page, "
+                    "or upgrade to Pro Managed to use the platform key."
+                )
             raise ValueError(
                 "No LLM connection configured. "
                 "Please set up an LLM connection via the dashboard."
@@ -671,12 +679,12 @@ class Container:
             cache=self.cache,
         )
 
-        self._user_processors[user_id] = user_processor
+        self._user_processors[user.user_id] = user_processor
 
         _logger.info(
             "user_processor_cached",
             extra={
-                "user_id": user_id,
+                "user_id": user.user_id,
                 "provider": user_config.llm_provider,
                 "model": user_config.model_name,
             },
@@ -712,9 +720,19 @@ class Container:
     async def _load_active_llm_connection(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
         """Load the active LLM connection from the database for a user.
 
-        Returns a ProcessorConfig built from the saved connection,
-        or the platform env-var fallback if the user is pro_managed and has no connection.
-        Otherwise, returns None (requiring the user to configure BYOK).
+        Tier policy (defense-in-depth):
+          - admin or pro_managed with NO saved connection → platform env-var
+            key (the "managed" tier subsidises this).
+          - pro_byok or any other tier with no saved connection → None,
+            the caller raises a tier-aware 503 telling the user to add
+            their own key in the dashboard.
+          - any user with a saved connection → use the saved key,
+            regardless of tier.
+
+        The hard guard inside the platform-key branch makes the
+        invariant local: even if a future caller bypasses the entry-
+        point tier check, a non-managed/non-admin user can never
+        receive the platform key from this method.
         """
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
@@ -728,10 +746,19 @@ class Container:
                 row = await repo.get_active(user_id=user.user_id)
 
             if row is None:
-                if user.tier == "pro_managed" or user.is_admin:
-                    _logger.info("using_platform_llm_for_managed_or_admin", extra={"user_id": user.user_id})
+                # Defense-in-depth: only admin and pro_managed are eligible
+                # for the platform key. Anyone else falls through to None
+                # and the caller raises a tier-aware error.
+                if user.is_admin or user.tier == "pro_managed":
+                    _logger.info(
+                        "using_platform_llm_for_managed_or_admin",
+                        extra={"user_id": user.user_id, "tier": user.tier},
+                    )
                     return get_processor_config()
-                _logger.info("no_active_llm_connection_in_db_for_byok", extra={"user_id": user.user_id})
+                _logger.info(
+                    "no_active_llm_connection_in_db_for_byok",
+                    extra={"user_id": user.user_id, "tier": user.tier},
+                )
                 return None
 
             api_key = decrypt_api_key(row.api_key_encrypted)
@@ -784,7 +811,7 @@ class Container:
         except Exception as exc:
             _logger.warning(
                 "failed_to_load_llm_connection_from_db",
-                extra={"error": str(exc), "user_id": user_id},
+                extra={"error": str(exc), "user_id": user.user_id},
             )
             return None
 
