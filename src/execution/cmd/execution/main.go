@@ -17,6 +17,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	mockbroker "github.com/flamegreat-1/etradie/src/execution/internal/broker/mock"
@@ -149,6 +150,14 @@ func main() {
 		ConfirmPollIntervalSecs: cfg.WatcherConfirmPollIntervalSecs,
 	}, watcherStore)
 
+	// Apply the billing schema (idempotent) so this binary is safe to start
+	// against a fresh DB even if it boots before the gateway. Then wire the
+	// per-user watcher_count tracker so billing_usage stays accurate.
+	if _, err := pool.Exec(ctx, billingstore.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("billing_schema_apply_failed")
+	}
+	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)})
+
 	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
 
 	// ── gRPC server ───────────────────────────────────────────────────
@@ -218,7 +227,7 @@ func main() {
 				log.Warn().Str("user_id", uid).Msg("skipping_watcher_restore_for_deactivated_user")
 				continue
 			}
-			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role)
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
 			if err != nil {
 				log.Error().Err(err).Str("user_id", uid).Msg("watcher_restore_service_token_failed")
 				continue

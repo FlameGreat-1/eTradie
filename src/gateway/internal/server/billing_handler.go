@@ -1,25 +1,55 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/flamegreat-1/etradie/src/auth"
-	"github.com/flamegreat-1/etradie/src/billing/store"
+	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 )
 
-type BillingHandler struct {
-	subStore *store.SubscriptionStore
+// validTiers is the canonical allowlist of paid tiers the dashboard may
+// initiate a checkout for. Free is intentionally excluded: a checkout for a
+// free tier is meaningless.
+var validTiers = map[string]bool{
+	"pro_byok":    true,
+	"pro_managed": true,
 }
 
-func NewBillingHandler(subStore *store.SubscriptionStore) *BillingHandler {
-	return &BillingHandler{subStore: subStore}
+var validProviders = map[string]bool{
+	"paddle":       true,
+	"lemonsqueezy": true,
+}
+
+// BillingHandler exposes the dashboard-facing /api/v1/billing/* surface.
+// All endpoints sit behind the auth middleware (require a valid Bearer JWT).
+// The handler delegates checkout creation to the billing microservice via
+// BillingClient so provider API keys never live inside the gateway process.
+type BillingHandler struct {
+	subStore  *billingstore.SubscriptionStore
+	client    *BillingClient
+	userStore *auth.UserStore
+}
+
+func NewBillingHandler(
+	subStore *billingstore.SubscriptionStore,
+	client *BillingClient,
+	userStore *auth.UserStore,
+) *BillingHandler {
+	return &BillingHandler{subStore: subStore, client: client, userStore: userStore}
 }
 
 func (h *BillingHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
 	mux.Handle("/api/v1/billing/subscription", authMiddleware(http.HandlerFunc(h.handleGetSubscription)))
 	mux.Handle("/api/v1/billing/checkout", authMiddleware(http.HandlerFunc(h.handleCreateCheckout)))
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/billing/subscription
+// ---------------------------------------------------------------------------
 
 func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -30,20 +60,28 @@ func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Re
 	userID := auth.UserIDFromContext(r.Context())
 	sub, err := h.subStore.GetSubscription(r.Context(), userID)
 	if err != nil {
-		// If not found, return a default free tier sub
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"tier":   "free",
-			"status": "active",
-		})
+		if errors.Is(err, billingstore.ErrSubscriptionNotFound) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"tier":   "free",
+				"status": "active",
+			})
+			return
+		}
+		// Genuine infrastructure failure. Surface as 500 so the dashboard does
+		// not silently treat a paying customer as free during DB hiccups.
+		writeJSONError(w, http.StatusInternalServerError, "failed to load subscription")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, sub)
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/v1/billing/checkout
+// ---------------------------------------------------------------------------
+
 type checkoutRequest struct {
-	Provider string `json:"provider"` // "paddle" or "lemonsqueezy"
-	Tier     string `json:"tier"`     // "pro_byok" or "pro_managed"
+	Provider string `json:"provider"`
+	Tier     string `json:"tier"`
 }
 
 func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Request) {
@@ -53,25 +91,58 @@ func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Req
 	}
 
 	var req checkoutRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
+	if !validProviders[req.Provider] {
+		writeJSONError(w, http.StatusBadRequest, "invalid provider; must be one of paddle, lemonsqueezy")
+		return
+	}
+	if !validTiers[req.Tier] {
+		writeJSONError(w, http.StatusBadRequest, "invalid tier; must be one of pro_byok, pro_managed")
+		return
+	}
 
-	// This is where the integration with Paddle/Lemon Squeezy would happen
-	// For now, we return a mock checkout URL based on the provider
-	var checkoutURL string
-	switch req.Provider {
-	case "paddle":
-		checkoutURL = "https://checkout.paddle.com/test-checkout-url"
-	case "lemonsqueezy":
-		checkoutURL = "https://etradie.lemonsqueezy.com/checkout/buy/test-id"
-	default:
-		writeJSONError(w, http.StatusBadRequest, "invalid provider")
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Look up the canonical email from the user store so the provider
+	// pre-fills the checkout form. Failure here is non-fatal: we proceed
+	// without an email rather than blocking the upgrade.
+	email := ""
+	lookupCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	if u, err := h.userStore.GetUserByID(lookupCtx, claims.UserID); err == nil && u != nil {
+		email = u.Email
+	}
+
+	respCtx, cancelResp := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancelResp()
+
+	resp, err := h.client.CreateCheckout(respCtx, CheckoutRequest{
+		Provider:  req.Provider,
+		Tier:      req.Tier,
+		UserID:    claims.UserID,
+		UserEmail: email,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrUpstreamRejected):
+			writeJSONError(w, http.StatusBadRequest, "checkout rejected by billing service")
+			return
+		case errors.Is(err, ErrUpstreamUnavailable):
+			writeJSONError(w, http.StatusBadGateway, "billing service unavailable")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "checkout failed")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"checkout_url": checkoutURL,
+		"checkout_url": resp.CheckoutURL,
 	})
 }

@@ -67,10 +67,20 @@ func NewManagementServer(
 // RegisterFilledTrade is called by the Gateway when a trade is filled.
 // This is Step 7 of the architecture \u2014 full ownership transfer.
 func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managementv1.RegisterFilledTradeRequest) (*managementv1.RegisterFilledTradeResponse, error) {
-	// Extract authenticated user from context (set by auth interceptor).
-	userID := auth.UserIDFromContext(ctx)
+	// Defense-in-depth tier check: trade management (watchers, trailing stops,
+	// breakeven moves) is a Pro feature. Free-tier callers are rejected here
+	// even if they somehow bypass the gateway perimeter.
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "missing claims in context")
+	}
+	userID := claims.UserID
 	if userID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+	if claims.Role != auth.RoleAdmin && claims.Tier == "free" {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"trade management is restricted to Pro users")
 	}
 
 	// Validate required fields.
@@ -213,9 +223,17 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 
 // UpdateTradeStatus receives trade event updates.
 func (s *ManagementServer) UpdateTradeStatus(ctx context.Context, req *managementv1.UpdateTradeStatusRequest) (*managementv1.UpdateTradeStatusResponse, error) {
-	userID := auth.UserIDFromContext(ctx)
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "missing claims in context")
+	}
+	userID := claims.UserID
 	if userID == "" {
 		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+	if claims.Role != auth.RoleAdmin && claims.Tier == "free" {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"trade management is restricted to Pro users")
 	}
 
 	s.log.Info().

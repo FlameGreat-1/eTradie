@@ -237,6 +237,18 @@ func (h *APIHandler) handleResetSymbols(w http.ResponseWriter, r *http.Request) 
 	ok := h.symbolStore.ResetToDefaults(r.Context(), userID)
 	active := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 
+	// Free-tier defense-in-depth: ResetToDefaults writes the full default list
+	// (typically 8 symbols). For a Free non-admin user, persist only the first
+	// symbol so the stored state matches the 1-symbol policy. Without this,
+	// the scheduler truncates at execution time but the persisted state stays
+	// wrong, and any future read path that doesn't truncate inherits the bypass.
+	claims := auth.ClaimsFromContext(r.Context())
+	if ok && claims != nil && claims.Role != "admin" && claims.Tier == "free" && len(active) > 1 {
+		if h.symbolStore.SetActiveSymbols(r.Context(), userID, active[:1]) {
+			active = h.symbolStore.GetActiveSymbols(r.Context(), userID)
+		}
+	}
+
 	if ok {
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,

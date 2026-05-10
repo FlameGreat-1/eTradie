@@ -137,16 +137,17 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 // news protection, invalidation engines) that must make authenticated broker
 // calls on behalf of a user without the user being present.
 //
-// The token carries the same claims structure (sub, username, role, iss, iat,
-// exp) as user session tokens so the Python engine validates and resolves the
-// correct broker connection identically. The "svc" token_type claim
-// distinguishes service tokens from user session tokens in audit logs.
+// The token carries the same claims structure (sub, username, role, tier,
+// status, iss, iat, exp) as user session tokens so downstream tier checks
+// see the user's actual subscription state — not a silent "free" default.
+// The "svc" token_type claim distinguishes service tokens from user session
+// tokens in audit logs.
 //
 // Service tokens have a long TTL (default 30 days) because they back
 // autonomous 24/7 operations. They are re-issued on service restart for
 // each user with active trades, and replaced by fresh user session tokens
 // when the user authenticates.
-func (ts *TokenService) IssueServiceToken(userID, username string, role Role) (string, error) {
+func (ts *TokenService) IssueServiceToken(userID, username string, role Role, tier, statusClaim string) (string, error) {
 	if userID == "" {
 		return "", fmt.Errorf("issue service token: userID must not be empty")
 	}
@@ -156,6 +157,12 @@ func (ts *TokenService) IssueServiceToken(userID, username string, role Role) (s
 	if !role.IsValid() {
 		return "", fmt.Errorf("issue service token: invalid role %q", role)
 	}
+	if tier == "" {
+		tier = "free"
+	}
+	if statusClaim == "" {
+		statusClaim = "active"
+	}
 
 	now := time.Now().UTC()
 	expiry := now.Add(time.Duration(ts.cfg.ServiceTokenTTLSeconds) * time.Second)
@@ -164,6 +171,8 @@ func (ts *TokenService) IssueServiceToken(userID, username string, role Role) (s
 		"sub":        userID,
 		"username":   username,
 		"role":       string(role),
+		"tier":       tier,
+		"status":     statusClaim,
 		"iss":        ts.cfg.Issuer,
 		"iat":        now.Unix(),
 		"exp":        expiry.Unix(),

@@ -81,6 +81,12 @@ const (
 	TypeServiceStopping  = "SERVICE_STOPPING"
 	TypeBrokerDisconnect = "BROKER_DISCONNECTED"
 	TypeBrokerReconnect  = "BROKER_RECONNECTED"
+
+	// Billing / subscription events.
+	// Emitted when the gateway scheduler stops a user's automated cycles
+	// because they have transitioned to the Free tier (cancellation,
+	// expiry, refund). Lets the dashboard surface a non-silent message.
+	TypeSubscriptionDowngraded = "SUBSCRIPTION_DOWNGRADED"
 )
 
 // Event is the universal notification payload. Every module publishes

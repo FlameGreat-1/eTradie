@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink } from 'lucide-react';
+import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 
 interface Subscription {
@@ -7,9 +7,14 @@ interface Subscription {
   status: string;
 }
 
+type Provider = 'paddle' | 'lemonsqueezy';
+type Tier = 'pro_byok' | 'pro_managed';
+
 export default function UpgradeModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingTier, setLoadingTier] = useState<Tier | null>(null);
+  const [provider, setProvider] = useState<Provider>('paddle');
   const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
   const { toast } = useToast();
 
@@ -17,9 +22,9 @@ export default function UpgradeModal() {
     const handleOpen = () => {
       setIsOpen(true);
       document.body.style.overflow = 'hidden';
-      fetchSubscription();
+      void fetchSubscription();
     };
-    
+
     window.addEventListener('open-upgrade-modal', handleOpen);
     return () => {
       window.removeEventListener('open-upgrade-modal', handleOpen);
@@ -31,10 +36,10 @@ export default function UpgradeModal() {
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch('/api/v1/billing/subscription', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as Subscription;
         setCurrentSub(data);
       }
     } catch (err) {
@@ -47,38 +52,53 @@ export default function UpgradeModal() {
     document.body.style.overflow = 'auto';
   };
 
-  const handleUpgrade = async (tier: string) => {
+  const handleUpgrade = async (tier: Tier) => {
     setIsLoading(true);
+    setLoadingTier(tier);
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch('/api/v1/billing/checkout', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ provider: 'paddle', tier })
+        body: JSON.stringify({ provider, tier }),
       });
 
-      if (!response.ok) throw new Error('Failed to initiate checkout');
-      
-      const { checkout_url } = await response.json();
-      
+      if (!response.ok) {
+        // Surface the server-side reason so the user sees "checkout
+        // rejected by billing service" / "billing service unavailable"
+        // instead of a generic message.
+        let serverMessage = 'Unable to start checkout.';
+        try {
+          const body = (await response.json()) as { error?: string };
+          if (body?.error) serverMessage = body.error;
+        } catch {
+          /* response had no JSON body */
+        }
+        throw new Error(serverMessage);
+      }
+
+      const { checkout_url } = (await response.json()) as { checkout_url: string };
+      if (!checkout_url) {
+        throw new Error('Billing service returned an empty checkout URL.');
+      }
+
       toast({
-        title: "Redirecting to checkout",
-        description: "Please complete your payment on the secure provider page.",
+        title: 'Redirecting to checkout',
+        description: 'Please complete your payment on the secure provider page.',
       });
-
-      // In a real app, you'd redirect to the checkout URL
       window.location.href = checkout_url;
     } catch (err) {
       toast({
-        title: "Upgrade Failed",
-        description: "Unable to connect to the payment provider. Please try again later.",
-        variant: "destructive",
+        title: 'Upgrade Failed',
+        description: err instanceof Error ? err.message : 'Unable to start checkout.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
+      setLoadingTier(null);
     }
   };
 
@@ -86,10 +106,10 @@ export default function UpgradeModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 px-4">
-      <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="relative w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         {/* NVIDIA-style Glow */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#76b900]/10 blur-[80px] rounded-full pointer-events-none" />
-        
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -101,67 +121,66 @@ export default function UpgradeModal() {
               <p className="text-xs text-white/40">Unlock institutional-grade trading tools</p>
             </div>
           </div>
-          <button onClick={handleClose} className="text-white/40 hover:text-white transition-colors p-1">
+          <button onClick={handleClose} className="text-white/40 hover:text-white transition-colors p-1" aria-label="Close">
             <X size={20} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Features List */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wider">What's Included</h3>
-              <ul className="space-y-3">
-                <FeatureItem text="Unlimited symbols tracking" />
-                <FeatureItem text="Automated trade execution" />
-                <FeatureItem text="Institutional risk guard" />
-                <FeatureItem text="Advanced P&L analytics" />
-                <FeatureItem text="Priority 24/7 support" />
-              </ul>
+        {/* Body */}
+        <div className="p-8 space-y-8">
+          {/* Provider selector */}
+          <div>
+            <h3 className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-3">Payment Provider</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <ProviderOption
+                value="paddle"
+                selected={provider}
+                onSelect={setProvider}
+                title="Paddle"
+                subtitle="Cards, Apple Pay, Google Pay"
+              />
+              <ProviderOption
+                value="lemonsqueezy"
+                selected={provider}
+                onSelect={setProvider}
+                title="Lemon Squeezy"
+                subtitle="Cards, PayPal, regional methods"
+              />
             </div>
+          </div>
 
-            {/* Pricing Options */}
-            <div className="space-y-6">
-              <div className="bg-white/5 rounded-xl p-5 border border-white/10 hover:border-[#76b900]/50 transition-colors group">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <span className="text-xs font-bold text-[#76b900] bg-[#76b900]/10 px-2 py-0.5 rounded-full uppercase tracking-widest">Enterprise Grade</span>
-                    <h4 className="text-lg font-bold text-white mt-1">Pro Membership</h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-white">$49</span>
-                    <span className="text-xs text-white/40">/mo</span>
-                  </div>
-                </div>
-                
-                <p className="text-xs text-white/60 mb-6 leading-relaxed">
-                  Full access to the eTradie platform with managed infrastructure and automated execution.
-                </p>
+          {/* Tier cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TierCard
+              tier="pro_byok"
+              title="Pro BYOK"
+              priceLabel="$29"
+              icon={<KeyRound className="text-[#76b900] w-4 h-4" />}
+              tagline="Bring your own AI key"
+              description="Full Pro access using your own Anthropic / OpenAI / Gemini API key. Best for power users with existing LLM credits."
+              features={['Unlimited symbols', 'Automated execution', 'Trade management', 'Use your own LLM key']}
+              currentTier={currentSub?.tier}
+              isLoading={isLoading && loadingTier === 'pro_byok'}
+              onUpgrade={() => handleUpgrade('pro_byok')}
+            />
+            <TierCard
+              tier="pro_managed"
+              title="Pro Managed"
+              priceLabel="$49"
+              icon={<Server className="text-[#76b900] w-4 h-4" />}
+              tagline="We provide the AI key"
+              description="Everything in Pro BYOK, plus the platform-managed AI key. No external accounts to set up."
+              features={['Everything in Pro BYOK', 'Platform-managed LLM key', 'Higher rate limits', 'Priority 24/7 support']}
+              currentTier={currentSub?.tier}
+              isLoading={isLoading && loadingTier === 'pro_managed'}
+              onUpgrade={() => handleUpgrade('pro_managed')}
+              highlight
+            />
+          </div>
 
-                <button 
-                  onClick={() => handleUpgrade('pro_managed')}
-                  disabled={isLoading || currentSub?.tier === 'pro'}
-                  className="w-full btn-cta-brand py-3 text-sm flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                  ) : currentSub?.tier === 'pro' ? (
-                    'Current Plan'
-                  ) : (
-                    <>
-                      Proceed to Checkout
-                      <ExternalLink size={14} />
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 text-[10px] text-white/40 justify-center">
-                <ShieldCheck size={12} className="text-[#76b900]" />
-                Secure payments handled by Paddle & Lemon Squeezy
-              </div>
-            </div>
+          <div className="flex items-center gap-2 text-[10px] text-white/40 justify-center">
+            <ShieldCheck size={12} className="text-[#76b900]" />
+            Secure payments handled by Paddle &amp; Lemon Squeezy. You can cancel anytime from this page.
           </div>
         </div>
 
@@ -179,13 +198,115 @@ export default function UpgradeModal() {
   );
 }
 
-function FeatureItem({ text }: { text: string }) {
+interface ProviderOptionProps {
+  value: Provider;
+  selected: Provider;
+  onSelect: (p: Provider) => void;
+  title: string;
+  subtitle: string;
+}
+
+function ProviderOption({ value, selected, onSelect, title, subtitle }: ProviderOptionProps) {
+  const isSelected = value === selected;
   return (
-    <li className="flex items-start gap-2.5 text-sm text-white/80">
-      <div className="mt-1 bg-[#76b900]/20 rounded-full p-0.5">
-        <Check size={10} className="text-[#76b900]" />
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      className={`text-left rounded-xl p-4 border transition-colors ${
+        isSelected
+          ? 'bg-[#76b900]/10 border-[#76b900]/50'
+          : 'bg-white/5 border-white/10 hover:border-white/30'
+      }`}
+      aria-pressed={isSelected}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm font-semibold text-white">{title}</span>
+        {isSelected && (
+          <div className="bg-[#76b900]/20 rounded-full p-0.5">
+            <Check size={10} className="text-[#76b900]" />
+          </div>
+        )}
       </div>
-      {text}
-    </li>
+      <p className="text-[11px] text-white/50">{subtitle}</p>
+    </button>
+  );
+}
+
+interface TierCardProps {
+  tier: Tier;
+  title: string;
+  priceLabel: string;
+  icon: React.ReactNode;
+  tagline: string;
+  description: string;
+  features: string[];
+  currentTier: string | undefined;
+  isLoading: boolean;
+  onUpgrade: () => void;
+  highlight?: boolean;
+}
+
+function TierCard({
+  tier,
+  title,
+  priceLabel,
+  icon,
+  tagline,
+  description,
+  features,
+  currentTier,
+  isLoading,
+  onUpgrade,
+  highlight,
+}: TierCardProps) {
+  const isCurrent = currentTier === tier;
+  return (
+    <div
+      className={`relative bg-white/5 rounded-xl p-5 border transition-colors ${
+        highlight ? 'border-[#76b900]/40 hover:border-[#76b900]/70' : 'border-white/10 hover:border-white/30'
+      }`}
+    >
+      {highlight && (
+        <span className="absolute -top-2 right-4 text-[10px] font-bold text-black bg-[#76b900] px-2 py-0.5 rounded-full uppercase tracking-widest">
+          Most Popular
+        </span>
+      )}
+      <div className="flex items-center gap-2 mb-1">
+        {icon}
+        <h4 className="text-lg font-bold text-white">{title}</h4>
+      </div>
+      <p className="text-xs text-[#76b900] mb-3">{tagline}</p>
+      <div className="flex items-baseline gap-1 mb-4">
+        <span className="text-2xl font-bold text-white">{priceLabel}</span>
+        <span className="text-xs text-white/40">/mo</span>
+      </div>
+      <p className="text-xs text-white/60 mb-5 leading-relaxed">{description}</p>
+      <ul className="space-y-2 mb-6">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2 text-sm text-white/80">
+            <div className="mt-1 bg-[#76b900]/20 rounded-full p-0.5">
+              <Check size={10} className="text-[#76b900]" />
+            </div>
+            {f}
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={onUpgrade}
+        disabled={isLoading || isCurrent}
+        className="w-full btn-cta-brand py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {isCurrent ? (
+          'Current Plan'
+        ) : isLoading ? (
+          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+        ) : (
+          <>
+            Proceed to Checkout
+            <ExternalLink size={14} />
+          </>
+        )}
+      </button>
+    </div>
   );
 }

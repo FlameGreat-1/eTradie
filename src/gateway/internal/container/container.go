@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -122,8 +123,19 @@ func New(
 	// service tokens for autonomous 24/7 operation without a logged-in user.
 	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
 
+	// Billing service client. Used by the gateway billing handler to create
+	// checkout URLs without ever holding provider API keys.
+	billingClient, err := server.NewBillingClient(
+		cfg.BillingServiceURL,
+		cfg.BillingInternalSharedSecret,
+		time.Duration(cfg.BillingClientTimeoutMs)*time.Millisecond,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("container: billing client: %w", err)
+	}
+
 	// Servers (now with auth support).
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore)
+	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, billingClient, userStore)
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
