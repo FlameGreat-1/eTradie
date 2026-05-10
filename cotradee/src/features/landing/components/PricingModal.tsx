@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import ParticlesCanvas from './ParticlesCanvas';
@@ -26,17 +26,31 @@ import LandingHeader from './LandingHeader';
 export default function PricingModal() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const previousScrollRef = useRef(0);
 
   // Open on global event
   useEffect(() => {
     const handleOpen = () => {
+      previousScrollRef.current = window.scrollY;
       setIsOpen(true);
-      // Start at the top of the pricing page every time it opens.
-      window.scrollTo({ top: 0, behavior: 'auto' });
     };
     window.addEventListener('open-pricing-modal', handleOpen);
     return () => window.removeEventListener('open-pricing-modal', handleOpen);
   }, []);
+
+  // While open: hide the underlying landing page by clipping the body so
+  // the modal's own scroll container drives the page scrollbar. Restore
+  // the previous scroll position on close so the user returns exactly
+  // where they left off on the landing page.
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.scrollTo({ top: previousScrollRef.current, behavior: 'auto' });
+    };
+  }, [isOpen]);
 
   // Close on Esc as a keyboard affordance (no visible close button).
   useEffect(() => {
@@ -51,7 +65,7 @@ export default function PricingModal() {
   // Auto-close whenever the route changes (e.g. "Get Started Now" → /register).
   // We skip the very first render so opening on the current route doesn't
   // immediately close the modal.
-  const initialPathRef = React.useRef(location.pathname + location.search + location.hash);
+  const initialPathRef = useRef(location.pathname + location.search + location.hash);
   useEffect(() => {
     const current = location.pathname + location.search + location.hash;
     if (isOpen && current !== initialPathRef.current) {
@@ -60,10 +74,24 @@ export default function PricingModal() {
     initialPathRef.current = current;
   }, [location, isOpen]);
 
+  // Reset the modal's own scroll to the top whenever it (re)opens.
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] block bg-[#050505] animate-fade-in">
+    <div
+      ref={scrollContainerRef}
+      className="fixed inset-0 z-[120] overflow-y-auto bg-[#050505] animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pricing comparison"
+    >
       {/* Background particle system (purely decorative, ignores pointer events) */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[8%] left-[12%] w-[600px] h-[600px] bg-[#76b900] opacity-[0.08] blur-[120px] rounded-full" />
