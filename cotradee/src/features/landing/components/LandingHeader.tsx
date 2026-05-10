@@ -73,16 +73,13 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
             >
               Process
             </a>
-            <button
-              onClick={() => {
-                const event = new CustomEvent('open-pricing-modal');
-                window.dispatchEvent(event);
-              }}
+            <a
+              href="/pricing"
               className="text-sm font-medium px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors duration-200"
               style={{ color: 'var(--landing-text)' }}
             >
               Pricing
-            </button>
+            </a>
           </nav>
         </div>
 
@@ -256,12 +253,9 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
           </a>
 
           {/* Pricing */}
-          <button 
-            onClick={() => {
-              setMobileMenuOpen(false);
-              const event = new CustomEvent('open-pricing-modal');
-              window.dispatchEvent(event);
-            }}
+          <a
+            href="/pricing"
+            onClick={() => setMobileMenuOpen(false)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -271,10 +265,6 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
               color: 'var(--landing-text)',
               textDecoration: 'none',
               transition: 'background 180ms ease',
-              width: '100%',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
             }}
             onMouseOver={(e) => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
@@ -284,7 +274,7 @@ export default function LandingHeader({ forceScrolled = false }: { forceScrolled
               <span style={{ fontSize: '15px', fontWeight: 600 }}>Pricing</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="m9 18 6-6-6-6"/></svg>
-          </button>
+          </a>
 
           {/* Sign In */}
           <a 

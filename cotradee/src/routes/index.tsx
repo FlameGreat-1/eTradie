@@ -6,6 +6,7 @@ import AuthLayout from '@/components/layout/AuthLayout';
 
 /* ─── Lazy-loaded pages ──────────────────────────────────── */
 const LandingPage  = lazy(() => import('@/features/landing/LandingPage'));
+const PricingPage  = lazy(() => import('./pages/PricingPage'));
 const LoginPage    = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
@@ -83,6 +84,14 @@ export default function AppRoutes() {
           element={
             <GuestRoute>
               <LandingPage />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={
+            <GuestRoute>
+              <PricingPage />
             </GuestRoute>
           }
         />
