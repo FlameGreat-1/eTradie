@@ -13,6 +13,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -46,7 +47,9 @@ func NewHTTPServer(
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
 	waitlistHandler *mails.Handler,
-	subStore *store.SubscriptionStore,
+	subStore *billingstore.SubscriptionStore,
+	billingClient *BillingClient,
+	userStore *auth.UserStore,
 ) *HTTPServer {
 	s := &HTTPServer{
 		redis:  redis,
@@ -89,7 +92,7 @@ func NewHTTPServer(
 	api.RegisterProtectedRoutes(mux, authMiddleware)
 
 	// Billing REST API (all protected).
-	billing := NewBillingHandler(subStore)
+	billing := NewBillingHandler(subStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware)
 
 	// Build the CORS origin allowlist from config.

@@ -80,6 +80,12 @@ type Config struct {
 	ManagementAddr      string `envconfig:"MANAGEMENT_ADDR" default:"localhost:50054"`
 	ManagementTimeoutMs int    `envconfig:"MANAGEMENT_TIMEOUT_MS" default:"5000"`
 
+	// Billing microservice. The gateway calls /internal/checkout on this
+	// service so provider API keys never leak into user-facing services.
+	BillingServiceURL          string `envconfig:"BILLING_SERVICE_URL" default:"http://billing:8082"`
+	BillingInternalSharedSecret string `envconfig:"BILLING_INTERNAL_SHARED_SECRET" required:"true"`
+	BillingClientTimeoutMs     int    `envconfig:"BILLING_CLIENT_TIMEOUT_MS" default:"15000"`
+
 	// HTTP server (health, readiness, metrics).
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8080"`
 
@@ -187,6 +193,17 @@ func (c *Config) validate() error {
 	}
 	if c.HTTPPort == c.GRPCPort {
 		return fmt.Errorf("HTTP_PORT and GRPC_PORT must be different, both are %d", c.HTTPPort)
+	}
+
+	// Billing client validation.
+	if strings.TrimSpace(c.BillingServiceURL) == "" {
+		return fmt.Errorf("BILLING_SERVICE_URL must not be empty")
+	}
+	if len(c.BillingInternalSharedSecret) < 32 {
+		return fmt.Errorf("BILLING_INTERNAL_SHARED_SECRET must be at least 32 characters")
+	}
+	if c.BillingClientTimeoutMs < 1000 || c.BillingClientTimeoutMs > 60000 {
+		return fmt.Errorf("BILLING_CLIENT_TIMEOUT_MS must be 1000..60000, got %d", c.BillingClientTimeoutMs)
 	}
 
 	return nil
