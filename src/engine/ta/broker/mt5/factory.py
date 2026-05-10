@@ -4,9 +4,10 @@ Reads MT5Config.provider and returns the correct BrokerBase
 implementation.  This is the single entry point for creating
 an MT5-compatible broker client.
 
-Two creation paths:
-  1. create_mt5_broker(config) - from MT5Config (env vars)
-  2. create_mt5_broker_from_connection(row, http_client) - from DB row
+Three creation paths from DB rows:
+  1. connection_type='ea'      -> ZmqClient (user's own PC/VPS)
+  2. connection_type='metaapi'  -> MetaApiClient (cloud REST)
+  3. connection_type='hosted'   -> ZmqClient (Dockerized MT on-server)
 """
 
 from __future__ import annotations
@@ -205,12 +206,78 @@ def create_mt5_broker_from_connection(
         )
         return client
 
+    if row.connection_type == "hosted":
+        if not row.hosted_container_id:
+            raise ConfigurationError(
+                "Hosted connection has no container_id. "
+                "The container may not have been provisioned yet.",
+                details={"connection_id": str(row.id)},
+            )
+
+        # Resolve the container's internal IP on the Docker bridge network.
+        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+
+        try:
+            provisioner = HostedProvisioner()
+            zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
+        except Exception:
+            zmq_host = None
+
+        if not zmq_host:
+            raise ConfigurationError(
+                "Cannot resolve hosted container IP. "
+                "The container may have been removed.",
+                details={
+                    "connection_id": str(row.id),
+                    "container_id": row.hosted_container_id,
+                },
+            )
+
+        # Build MT5Config for ZeroMQ native provider pointed at the
+        # Docker container's internal IP address.
+        config = MT5Config.model_construct(
+            enabled=True,
+            provider="native",
+            metaapi_token="",
+            metaapi_account_id="",
+            metaapi_base_url="",
+            zmq_host=zmq_host,
+            zmq_port=5555,
+            zmq_auth_token="",
+            terminal_path=None,
+            account=0,
+            password="",
+            server=row.mt5_server or "",
+            timeout_seconds=60,
+            max_retries=3,
+            retry_delay_seconds=2,
+            connection_timeout_seconds=30,
+            max_candles_per_request=5000,
+            enable_tick_data=False,
+            magic_number=0,
+        )
+
+        from engine.ta.broker.mt5.zmq.client import ZmqClient
+
+        client = ZmqClient(config=config, auth_token="")
+        logger.info(
+            "mt5_broker_created_from_db",
+            extra={
+                "provider": "hosted",
+                "connection_id": str(row.id),
+                "name": row.name,
+                "endpoint": f"tcp://{zmq_host}:5555",
+                "container_id": row.hosted_container_id[:12],
+            },
+        )
+        return client
+
     raise ConfigurationError(
         f"Unknown connection type: {row.connection_type}",
         details={
             "connection_id": str(row.id),
             "connection_type": row.connection_type,
-            "allowed": ["ea", "metaapi"],
+            "allowed": ["ea", "metaapi", "hosted"],
         },
     )
 

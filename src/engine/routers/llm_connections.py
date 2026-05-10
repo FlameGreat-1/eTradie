@@ -159,15 +159,29 @@ async def create_llm_connection(
     if not body.api_key.strip():
         raise HTTPException(status_code=400, detail="api_key must not be empty")
 
+    # Auto-resolve model: use the platform's curated default for the
+    # provider when the frontend does not send a specific model.
+    resolved_model = body.model_name
+    if not resolved_model or not resolved_model.strip():
+        resolved_model = DEFAULT_MODELS.get(body.provider, "")
+    if not resolved_model:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No default model configured for provider '{body.provider}'. Please contact support.",
+        )
+
+    # Temperature is locked to 0.0 for deterministic trading analysis.
+    resolved_temperature = 0.0
+
     async with container.db.session() as session:
         repo = LLMConnectionRepository(session)
         row = await repo.create(
             user_id=user.user_id,
             provider=body.provider,
-            model_name=body.model_name,
+            model_name=resolved_model,
             api_key=body.api_key,
             base_url=body.base_url,
-            temperature=body.temperature,
+            temperature=resolved_temperature,
             max_output_tokens=body.max_output_tokens,
             label=body.label or "",
             activate=body.activate,
@@ -182,9 +196,9 @@ async def create_llm_connection(
     return {
         "id": connection_id,
         "provider": body.provider,
-        "model_name": body.model_name,
+        "model_name": resolved_model,
         "is_active": body.activate,
-        "label": body.label or f"{body.provider} / {body.model_name}",
+        "label": body.label or f"{body.provider} / {resolved_model}",
         "message": (
             "Connection created and activated."
             if body.activate

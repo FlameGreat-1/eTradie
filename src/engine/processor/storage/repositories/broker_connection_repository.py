@@ -38,7 +38,8 @@ logger = get_logger(__name__)
 # Valid connection types.
 CONNECTION_TYPE_EA = "ea"
 CONNECTION_TYPE_METAAPI = "metaapi"
-VALID_CONNECTION_TYPES = {CONNECTION_TYPE_EA, CONNECTION_TYPE_METAAPI}
+CONNECTION_TYPE_HOSTED = "hosted"
+VALID_CONNECTION_TYPES = {CONNECTION_TYPE_EA, CONNECTION_TYPE_METAAPI, CONNECTION_TYPE_HOSTED}
 
 # Valid status values.
 STATUS_UNTESTED = "untested"
@@ -169,6 +170,14 @@ def _validate_connection(
         if not mt5_server or not mt5_server.strip():
             raise ValueError("mt5_server is required for MetaAPI connections")
 
+    if connection_type == CONNECTION_TYPE_HOSTED:
+        if not mt5_login or not mt5_login.strip():
+            raise ValueError("mt5_login is required for Hosted connections")
+        if not mt5_password or not mt5_password.strip():
+            raise ValueError("mt5_password is required for Hosted connections")
+        if not mt5_server or not mt5_server.strip():
+            raise ValueError("mt5_server is required for Hosted connections")
+
 
 # ---------------------------------------------------------------------------
 # Repository
@@ -200,6 +209,8 @@ class BrokerConnectionRepository:
         # MetaAPI: account_id and region come from provisioning, not user input
         metaapi_account_id: Optional[str] = None,
         metaapi_region: Optional[str] = None,
+        # Hosted: container_id comes from Docker provisioner
+        hosted_container_id: Optional[str] = None,
         # Common MT5 info
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
@@ -255,6 +266,7 @@ class BrokerConnectionRepository:
             ea_auth_token_encrypted=encrypted_ea_token,
             metaapi_account_id=metaapi_account_id,
             metaapi_region=metaapi_region,
+            hosted_container_id=hosted_container_id,
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
@@ -346,6 +358,7 @@ class BrokerConnectionRepository:
         ea_auth_token: Optional[str] = None,
         metaapi_account_id: Optional[str] = None,
         metaapi_region: Optional[str] = None,
+        hosted_container_id: Optional[str] = None,
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
@@ -373,6 +386,8 @@ class BrokerConnectionRepository:
             values["metaapi_account_id"] = metaapi_account_id
         if metaapi_region is not None:
             values["metaapi_region"] = metaapi_region
+        if hosted_container_id is not None:
+            values["hosted_container_id"] = hosted_container_id
         if mt5_server is not None:
             values["mt5_server"] = mt5_server
         if mt5_login is not None:

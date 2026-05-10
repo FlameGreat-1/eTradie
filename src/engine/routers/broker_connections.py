@@ -33,6 +33,7 @@ from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.logging import get_logger
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
+from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -51,6 +52,7 @@ def _serialize_broker_connection(row) -> dict:
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
         "platform": getattr(row, "platform", "mt5"),
+        "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
         "is_primary": row.is_primary,
         "status": row.status,
@@ -147,6 +149,41 @@ async def create_broker_connection(
                     detail=f"MetaAPI provisioning failed: {exc}"
                 )
 
+        elif body.connection_type == "hosted":
+            # Provision a Dockerized headless MetaTrader container.
+            if not body.mt5_login or not body.mt5_password or not body.mt5_server:
+                raise HTTPException(
+                    status_code=400,
+                    detail="mt5_login, mt5_password, and mt5_server are required for Hosted connections",
+                )
+
+            from uuid import uuid4 as _uuid4
+            temp_connection_id = str(_uuid4())
+
+            try:
+                provisioner = HostedProvisioner()
+                hosted_result = await provisioner.provision_account(
+                    connection_id=temp_connection_id,
+                    login=body.mt5_login,
+                    password=body.mt5_password,
+                    server=body.mt5_server,
+                    platform=body.platform,
+                )
+                hosted_container_id = hosted_result["container_id"]
+                # For hosted connections, the Engine connects to the
+                # Pod via ZeroMQ on the internal Kubernetes network.
+                ea_host = hosted_result["zmq_host"]
+                ea_port = hosted_result["zmq_port"]
+            except Exception as exc:
+                logger.error(
+                    "hosted_provisioning_error_in_api",
+                    extra={"error": str(exc)},
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Hosted provisioning failed: {exc}"
+                )
+
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.create(
@@ -158,6 +195,8 @@ async def create_broker_connection(
                 ea_auth_token=ea_auth_token,
                 metaapi_account_id=metaapi_account_id,
                 metaapi_region=metaapi_region,
+                hosted_container_id=hosted_container_id
+                    if body.connection_type == "hosted" else None,
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
@@ -468,6 +507,8 @@ async def delete_broker_connection(
 
     is_metaapi = row.connection_type == "metaapi"
     metaapi_account_id = row.metaapi_account_id
+    is_hosted = row.connection_type == "hosted"
+    hosted_container_id = row.hosted_container_id
 
     async with container.db.session() as session:
         repo = BrokerConnectionRepository(session)
@@ -478,7 +519,7 @@ async def delete_broker_connection(
 
     await container.invalidate_user_broker(user.user_id)
 
-    # Clean up cloud resources asynchronously after DB deletion
+    # Clean up cloud/docker resources asynchronously after DB deletion
     if is_metaapi and metaapi_account_id:
         platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
         if platform_token:
@@ -493,5 +534,11 @@ async def delete_broker_connection(
                 asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))
             except Exception as exc:
                 logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
+    elif is_hosted and hosted_container_id:
+        try:
+            provisioner = HostedProvisioner()
+            asyncio.create_task(provisioner.delete_account(hosted_container_id))
+        except Exception as exc:
+            logger.error("failed_to_start_hosted_cleanup", extra={"error": str(exc)})
 
     return {"deleted": True, "id": connection_id, "message": "Connection deleted."}

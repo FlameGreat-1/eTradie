@@ -25,18 +25,19 @@ class LLMProvider(StrEnum):
     SELF_HOSTED = "self_hosted"
 
 
-# Default model per provider. Users can override with ANY model string.
+# Default model per provider. The backend auto-assigns this when the
+# user creates a connection without specifying a model (standard flow).
 DEFAULT_MODELS: Final[dict[str, str]] = {
     LLMProvider.ANTHROPIC: "claude-sonnet-4-20250514",
     LLMProvider.OPENAI: "gpt-4o",
-    LLMProvider.GEMINI: "gemini-2.5-pro",
+    LLMProvider.GEMINI: "gemini-flash-latest",
     LLMProvider.SELF_HOSTED: "default",
 }
 
-# Available models per provider for the dashboard model selector.
-# Users pick from this list; the selected model overrides the default
-# and is persisted until changed. SELF_HOSTED accepts any model string
-# since the user controls the endpoint.
+# Complete catalogue of supported models per provider.
+# Served by GET /api/llm/providers for admin visibility.
+# The provider SDKs accept any valid model string; this list is
+# informational and does NOT gate API calls.
 AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
     LLMProvider.ANTHROPIC: [
         "claude-sonnet-4-20250514",
@@ -44,14 +45,22 @@ AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
         "claude-3-7-sonnet-20250219",
         "claude-3-5-sonnet-20241022",
         "claude-3-5-haiku-20241022",
+        "claude-3-opus-20240229",
+        "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307",
     ],
     LLMProvider.OPENAI: [
         "gpt-4o",
         "gpt-4o-mini",
         "gpt-4-turbo",
+        "gpt-4",
+        "gpt-3.5-turbo",
         "o3",
         "o3-mini",
         "o4-mini",
+        "o1",
+        "o1-mini",
+        "o1-preview",
     ],
     LLMProvider.GEMINI: [
         "gemini-2.5-pro",
@@ -59,6 +68,9 @@ AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
         "gemini-2.0-flash",
         "gemini-1.5-pro",
         "gemini-1.5-flash",
+        "gemini-flash-latest",
+        "gemini-pro-latest",
+        "gemini-3-flash-preview",
     ],
 }
 

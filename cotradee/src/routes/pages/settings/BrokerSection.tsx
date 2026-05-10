@@ -6,7 +6,7 @@ import {
 import { Plus, Trash2, Zap, Check, AlertCircle } from 'lucide-react';
 
 type BrokerForm = {
-  connection_type: 'ea' | 'metaapi';
+  connection_type: 'ea' | 'metaapi' | 'hosted';
   name: string;
   mt5_server: string;
   mt5_login: string;
@@ -86,8 +86,9 @@ export default function BrokerSection() {
                 value={form.connection_type}
                 onChange={(e) => setForm((f) => ({ ...f, connection_type: e.target.value as BrokerForm['connection_type'] }))}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand">
-                <option value="ea">ZeroMQ (MT5 EA)</option>
-                <option value="metaapi">MetaAPI Cloud</option>
+                <option value="ea">ZeroMQ</option>
+                <option value="metaapi">MetaAPI</option>
+                <option value="hosted">Exoper</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -95,7 +96,7 @@ export default function BrokerSection() {
               <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="My Broker" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
             </div>
-            {form.connection_type === 'metaapi' && (
+            {(form.connection_type === 'metaapi' || form.connection_type === 'hosted') && (
               <div className="space-y-1">
                 <label className="text-xs text-content-muted">Platform</label>
                 <select
@@ -121,7 +122,7 @@ export default function BrokerSection() {
                 </div>
               </>
             )}
-            {form.connection_type === 'metaapi' && (
+            {(form.connection_type === 'metaapi' || form.connection_type === 'hosted') && (
               <>
                 <div className="space-y-1">
                   <label className="text-xs text-content-muted">Server Name</label>

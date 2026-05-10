@@ -118,16 +118,17 @@ Users bring their own keys. Can have multiple saved AI connections (Anthropic, O
 
 ## 7. BROKER CONNECTION MANAGEMENT
 
-User sets up MT5 connections via EA (ZeroMQ localhost/local network) or cloud MetaAPI.
+User sets up MT4/MT5 connections. The platform dynamically provisions a MetaTrader container via Kubernetes for the selected platform, or supports manual local EA connection as a fallback.
 
 ### 7.1 Connection Management
 - **Endpoints:**
-  - `POST /api/broker/connections` (Engine): Create MetaAPI/EA link.
+  - `POST /api/broker/connections` (Engine): Create a new connection configuration (requires `platform="mt4"` or `platform="mt5"`).
   - `GET /api/broker/connections` (Engine): See all saved broker credentials.
   - `GET /api/broker/connections/active` (Engine): Check active used broker.
   - `PUT /api/broker/connections/{id}`: Modify terminal details.
-  - `POST /api/broker/connections/{id}/activate`: Hot-swap to broker.
-  - `POST /api/broker/connections/{id}/test`: Pre-ping broker API endpoint to see if it's healthy.
+  - `POST /api/broker/connections/{id}/activate`: Spawns a dedicated Kubernetes Pod (`etradie-mt-node`) for this connection and routes all Engine traffic to it.
+  - `POST /api/broker/connections/{id}/deactivate`: Terminates the Kubernetes Pod.
+  - `POST /api/broker/connections/{id}/test`: Pre-ping broker API endpoint to see if the terminal is online.
   - `DELETE /api/broker/connections/{id}`: Drop the connection entirely.
 - **Dashboard use:** "My Broker" integration page.
 

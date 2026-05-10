@@ -243,6 +243,16 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
+build-mt-node: ## Build the MetaTrader headless Docker image
+	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
+	docker build -t ghcr.io/flamegreat-1/etradie-mt-node:latest docker/mt-node/
+	echo -e "$(GREEN)✓ etradie-mt-node built$(NC)"
+
+push-mt-node: build-mt-node ## Push the MetaTrader Docker image to GHCR
+	echo -e "$(BLUE)Pushing etradie-mt-node to GHCR...$(NC)"
+	docker push ghcr.io/flamegreat-1/etradie-mt-node:latest
+	echo -e "$(GREEN)✓ etradie-mt-node pushed$(NC)"
+
 ##@ Go Local Builds
 build-gateway: ## Build Gateway binary locally
 	echo -e "$(BLUE)Building Gateway...$(NC)"

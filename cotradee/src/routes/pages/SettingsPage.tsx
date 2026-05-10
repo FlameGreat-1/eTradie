@@ -11,7 +11,7 @@ const ExecutionSection = lazy(() => import('./settings/ExecutionSection'));
 const LINKS = [
   { to: '/dashboard/settings',           label: 'Profile',   icon: User,     end: true },
   { to: '/dashboard/settings/symbols',   label: 'Symbols',   icon: Settings },
-  { to: '/dashboard/settings/llm',       label: 'AI Engine', icon: Brain },
+  { to: '/dashboard/settings/llm',       label: 'API Key', icon: Brain },
   { to: '/dashboard/settings/broker',    label: 'Broker',    icon: Plug },
   { to: '/dashboard/settings/execution', label: 'Execution', icon: Shield },
 ];

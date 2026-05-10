@@ -35,7 +35,7 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  automountServiceAccountToken: false
+  automountServiceAccountToken: true
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -351,6 +351,18 @@ networkPolicy:
           port: 443
         - protocol: TCP
           port: 80
+    # K8s API Server (usually 10.43.0.1:443 in K3s). The generic HTTPS
+    # rule above already covers 443, but adding explicit IP blocks
+    # if you later restrict the generic rule is wise. For now, 443 is open.
+    
+    # Egress to dynamically provisioned MT5 Node Pods
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+      ports:
+        - protocol: TCP
+          port: 5555
 
 serviceMonitor:
   enabled: true

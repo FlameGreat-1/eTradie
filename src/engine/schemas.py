@@ -114,8 +114,8 @@ class InternalDebugRunCycleRequest(BaseModel):
 
 class CreateLLMConnectionRequest(BaseModel):
     provider: str
-    model_name: str
     api_key: str
+    model_name: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=16384, ge=1024, le=131072)
@@ -132,9 +132,9 @@ class UpdateLLMConnectionRequest(BaseModel):
     label: Optional[str] = None
 
 class CreateBrokerConnectionRequest(BaseModel):
-    connection_type: str  # 'ea' or 'metaapi'
+    connection_type: str  # 'ea', 'metaapi', or 'hosted'
     name: str
-    # MetaAPI: user's MT5 broker credentials
+    # MetaAPI / Hosted: user's MT broker credentials
     mt5_login: Optional[str] = None
     mt5_password: Optional[str] = None
     mt5_server: Optional[str] = None

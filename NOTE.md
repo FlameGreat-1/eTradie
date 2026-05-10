@@ -93,3 +93,30 @@ FIRST, CHANGE THE Connect Broker/MT5, Connect LLM API Key, Configure Execution, 
 
 
 CHANGE 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+If a user provides an unpaid/free API key and we are sending enterprise-grade trading data (which includes hundreds of thousands of tokens of historical candles, RAG citations, and macro events), then **yes, it will fail** because Google/OpenAI/Anthropic will block the request for being too large for a free account.
+
+However, this is exactly why your transition to the **Subscription Model** right now is so critical! 
+
+In an enterprise SaaS platform, you typically have two ways to handle this:
+
+1. **The "Bring Your Own Key" (BYOK) Model:** If a user brings their own key, they are entirely responsible for their own billing with Google/OpenAI. If they provide a free key and hit a limit, our platform simply catches that `429` error and shows them a graceful UI notification: *"Your AI provider's quota is exhausted. Please upgrade your Google/OpenAI billing plan."* 
+2. **The "Managed" (Subscription) Model:** This is the true enterprise standard. The user pays *you* a monthly subscription fee (via Stripe/Paddle). In return, they **do not need to enter an API key at all**. Our backend uses *your* central, enterprise-billed API key to process their trades. You absorb the API cost, but make a profit from their subscription fee.
+
+Since you are moving to implement the Subscription Model and Payment Gateway next, you are about to solve this exact problem. You can offer a "Pro Tier" where users don't need API keys, and a "Free Tier" where they must bring their own key (and deal with their own provider limits).
+
+Which payment gateway are we strictly using for the subscription model (e.g., Stripe, LemonSqueezy, Paddle)? Let me know so we can start building it!

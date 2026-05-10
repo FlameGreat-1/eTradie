@@ -1,9 +1,10 @@
 """SQLAlchemy table definition for broker connection persistence.
 
 Stores user-configured MT5 broker connections with encrypted credentials.
-Supports two connection types:
+Supports three connection types:
   - 'ea': ZeroMQ EA bridge (local PC or cloud VPS)
   - 'metaapi': MetaApi.cloud REST API
+  - 'hosted': Dockerized MetaTrader running on-server via Wine/Xvfb
 
 Only one connection can be active at a time.
 The is_primary flag marks the preferred connection for trading.
@@ -91,6 +92,15 @@ class BrokerConnectionRow(ProcessorBase):
     )
     metaapi_region: Mapped[Optional[str]] = mapped_column(
         String(50),
+        nullable=True,
+    )
+
+    # -- Hosted (Dockerized MT) credentials ------------------------------------
+    # The Docker container ID spawned by the HostedProvisioner for this
+    # user's hosted connection. Used to stop/remove the container on
+    # deletion and to resolve the container's internal IP for ZeroMQ.
+    hosted_container_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
         nullable=True,
     )
 
