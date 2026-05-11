@@ -10,8 +10,13 @@ export async function changePassword(payload: ChangePasswordRequest): Promise<vo
   await api.gateway.put('/auth/me/password', payload);
 }
 
-export async function logout(refreshToken?: string): Promise<void> {
-  await api.gateway.post('/auth/logout', refreshToken ? { refresh_token: refreshToken } : {});
+// Post-Batch-11 the gateway reads the refresh token from the HttpOnly
+// refresh_token cookie. Passing it in the JSON body is unnecessary
+// (and undesirable: JS does not have access to it any more). The
+// gateway logout handler clears all three auth cookies on the
+// response so the browser jar is left in a clean state.
+export async function logout(): Promise<void> {
+  await api.gateway.post('/auth/logout', {});
 }
 
 export async function logoutAll(): Promise<void> {

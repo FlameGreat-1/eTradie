@@ -1,9 +1,26 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/lib/axios';
 import { login as loginApi } from '../api/login';
 import { register as registerApi } from '../api/register';
 import { fetchProfile, logout as logoutApi } from '../api/profile';
 import type { AuthUser, LoginRequest, RegisterRequest, TokenPair } from '../types';
+
+// ---------------------------------------------------------------------------
+// Cookie-auth context (Batch 11)
+//
+// Pre-Batch-11 this provider read access/refresh tokens from localStorage
+// to decide whether to call fetchProfile on mount. Post-Batch-11 the
+// tokens live in HttpOnly cookies that JS cannot read; the canonical
+// way to ask 'am I logged in?' is to call the server. We always issue
+// the request on mount: a 200 means an authenticated user, a 401 (or
+// any other error) is treated as 'not logged in' and the SPA renders
+// the public routes.
+//
+// login / register / loginWithTokenPair / logout no longer mutate any
+// client-side token store. The TokenPair returned by the server is
+// still part of the JSON body for backward compatibility with non-
+// browser clients, but the browser ignores it: the gateway has
+// already set the cookies on the same response.
+// ---------------------------------------------------------------------------
 
 interface AuthState {
   user: AuthUser | null;
@@ -12,11 +29,10 @@ interface AuthState {
   login: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   /**
-   * Hydrate the session from a TokenPair obtained out-of-band
-   * (currently: the Google OAuth callback). Behaves observably the
-   * same as a successful password login: tokens are persisted, the
-   * profile is fetched (or used directly if supplied), and the
-   * AuthContext switches to authenticated.
+   * Hydrate the session from a successful OAuth callback. The cookies
+   * have already been set server-side when this fires; the parameter
+   * exists for API symmetry with the password login but its values
+   * are not stored anywhere on the client.
    */
   loginWithTokenPair: (tokens: TokenPair, user?: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -30,16 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadUser = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
     try {
       const profile = await fetchProfile();
       setUser(profile);
     } catch {
-      clearTokens();
+      // 401 / network error / etc. All map to 'not logged in'.
+      // No client-side state to clear: the cookies are HttpOnly,
+      // and the server has either expired them or never set them.
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -51,20 +64,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadUser]);
 
   const login = useCallback(async (payload: LoginRequest) => {
-    const tokens = await loginApi(payload);
-    setTokens(tokens.access_token, tokens.refresh_token);
+    // /auth/login response sets access_token + refresh_token + csrf_token
+    // cookies before returning. The TokenPair in the JSON body is
+    // ignored by the browser; cookies are the canonical channel.
+    await loginApi(payload);
     const profile = await fetchProfile();
     setUser(profile);
   }, []);
 
   const register = useCallback(async (payload: RegisterRequest) => {
     const res = await registerApi(payload);
-    setTokens(res.tokens.access_token, res.tokens.refresh_token);
     setUser(res.user);
   }, []);
 
-  const loginWithTokenPair = useCallback(async (tokens: TokenPair, presetUser?: AuthUser) => {
-    setTokens(tokens.access_token, tokens.refresh_token);
+  const loginWithTokenPair = useCallback(async (_tokens: TokenPair, presetUser?: AuthUser) => {
+    // OAuth callback already returned with cookies set. The TokenPair
+    // parameter is preserved for API compatibility but its values are
+    // never stored — the browser only trusts the cookie jar.
     if (presetUser) {
       setUser(presetUser);
       return;
@@ -74,11 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    const refresh = getRefreshToken();
     try {
-      await logoutApi(refresh || undefined);
+      // No body: the refresh_token cookie carries the value the
+      // server needs to revoke the session. After this returns,
+      // the gateway has cleared all three cookies.
+      await logoutApi();
     } finally {
-      clearTokens();
       setUser(null);
     }
   }, []);
