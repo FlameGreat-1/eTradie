@@ -296,3 +296,163 @@ tier' incident, the chain to debug is:
 4. Did the SPA stay connected? → the SPA `RealtimeProvider` logs
    reconnection events; absence of `latestEvent` updates points to a
    WebSocket disconnect.
+
+## 8. Deployment
+
+### 8.1 Bootstrap order
+
+The billing service depends on Postgres and Redis. ArgoCD sync-wave
+ordering enforces the correct sequence:
+
+| Wave | Component | Notes |
+| ---- | --------- | ----- |
+| 0    | data-layer (Postgres, Redis, ChromaDB) | Must be Ready before wave 1 |
+| 0    | gateway | init-container waits for billing-service:8082 |
+| 1    | **billing** | init-container waits for postgres:5432 + redis:6379 |
+| 1    | engine, execution, management | Independent of billing |
+
+The gateway's `initContainer.dependencies` list includes
+`billing-service.etradie-system.svc.cluster.local:8082` so the
+gateway pod does not become Ready until billing is accepting
+connections. This prevents the 502 window where the gateway accepts
+`/api/v1/billing/*` requests before billing is up.
+
+### 8.2 Vault population (REQUIRED before first reconcile)
+
+Populate `etradie/services/billing/<env>` with the following keys
+before ArgoCD reconciles the billing Application. The billing pod
+CrashLoops with `billing config: required key ... missing value`
+until all required keys are present.
+
+```bash
+vault kv put etradie/services/billing/production \
+  billing_database_url="postgres://..." \
+  postgres_user="..." \
+  postgres_password="..." \
+  postgres_host="..." \
+  postgres_port="5432" \
+  postgres_db="etradie" \
+  postgres_sslmode="require" \
+  internal_shared_secret="$(openssl rand -hex 32)" \
+  billing_redis_url="redis://..." \
+  paddle_webhook_secret="..." \
+  paddle_api_key="..." \
+  paddle_price_pro_byok="pri_..." \
+  paddle_price_pro_managed="pri_..." \
+  lemonsqueezy_webhook_secret="..." \
+  lemonsqueezy_api_key="..." \
+  lemonsqueezy_store_id="..." \
+  lemonsqueezy_variant_pro_byok="..." \
+  lemonsqueezy_variant_pro_managed="..."
+```
+
+Then populate the SAME `internal_shared_secret` value into the
+gateway Vault path:
+
+```bash
+vault kv patch etradie/services/gateway/production \
+  billing_internal_shared_secret="<same 32-byte hex as above>"
+```
+
+The two values MUST be identical. A mismatch causes every
+`/internal/checkout` and `/internal/portal` call to return 401.
+
+### 8.3 Provider dashboard webhook registration
+
+After the billing pod is Ready, register the webhook URLs in each
+provider's dashboard. The URL is `BILLING_PUBLIC_BASE_URL` + the
+path suffix:
+
+| Provider | Dashboard location | URL |
+| -------- | ------------------ | --- |
+| Paddle | Developer Tools → Notifications | `https://api.exoper.com/webhooks/paddle` |
+| Lemon Squeezy | Settings → Webhooks | `https://api.exoper.com/webhooks/lemonsqueezy` |
+
+For staging, replace `api.exoper.com` with `staging.exoper.com`
+and use the sandbox credentials.
+
+Verify the URL matches `BILLING_PUBLIC_BASE_URL` in the billing pod:
+```bash
+kubectl logs -n etradie-system \
+  -l app.kubernetes.io/name=etradie-billing \
+  | grep billing_starting
+```
+The log line includes `public_base_url` so you can cross-check
+without exec'ing into the pod.
+
+### 8.4 Smoke test
+
+```bash
+# 1. Pods are Ready
+kubectl get pods -n etradie-system -l app.kubernetes.io/name=etradie-billing
+
+# 2. Health endpoint
+kubectl port-forward -n etradie-system svc/billing-service 8082
+curl http://localhost:8082/health
+# Expected: {"status":"ok"}
+
+# 3. Readiness (DB + Redis)
+curl http://localhost:8082/readiness
+# Expected: {"status":"ready","db":true}
+
+# 4. Metrics (verify breaker + semaphore instruments are present)
+curl http://localhost:8082/metrics | grep -E 'billing_breaker|billing_semaphore|billing_webhook'
+
+# 5. Envoy routing (from inside the cluster)
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+  curl -X POST http://etradie-envoy.envoy-system.svc.cluster.local:8080/webhooks/paddle \
+  -H 'Content-Type: application/json' -d '{}'
+# Expected: 401 (missing Paddle-Signature) NOT 404.
+# A 404 means the envoy route is not wired.
+# A 401 means billing received the request and rejected the
+# unsigned payload correctly.
+```
+
+### 8.5 Prometheus alert rules
+
+```yaml
+groups:
+  - name: billing
+    rules:
+      - alert: BillingBreakerOpen
+        expr: billing_breaker_state{name=~"paddle|lemonsqueezy"} == 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Billing circuit breaker OPEN for {{ $labels.name }}"
+          description: "Provider {{ $labels.name }} is returning 5xx. Checkout and portal flows are fast-failing."
+
+      - alert: BillingSemaphoreSaturated
+        expr: billing_semaphore_in_flight / billing_semaphore_capacity > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Billing semaphore {{ $labels.name }} at >90% capacity"
+
+      - alert: BillingWebhookRateLimited
+        expr: rate(billing_webhook_rate_limited_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Billing webhook rate limiter is dropping requests"
+
+      - alert: BillingReconcilerError
+        expr: rate(billing_reconciler_errors_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Billing reconciler errors in stage {{ $labels.stage }}"
+
+      - alert: BillingWebhookUnresolvable
+        expr: rate(billing_webhook_received_total{result="unresolvable"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Billing webhook cannot resolve user"
+          description: "A subscription.created arrived without user_id in custom_data. Manual reconciliation required. See runbook §2."
+```
