@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -161,6 +163,46 @@ type Config struct {
 	// Bounds: 1..30. Default: 10.
 	OAuthHTTPTimeoutSeconds int `envconfig:"OAUTH_HTTP_TIMEOUT_SECONDS" default:"10"`
 
+	// ----------------------------------------------------------------
+	// Cookie auth
+	//
+	// The platform is migrating authenticated session transport from
+	// localStorage-stored JWTs to HttpOnly cookies. These knobs are
+	// consumed by src/auth/cookies.go (Set/Clear helpers) and
+	// src/auth/csrf.go (RequireCSRF middleware). Defaults are
+	// secure-by-default; explicit validation refuses the unsafe
+	// combination (SameSite=None paired with Secure=false).
+	// ----------------------------------------------------------------
+
+	// CookieDomain sets the Domain attribute on every auth cookie.
+	// Empty means host-only (the browser scopes the cookie to the
+	// exact host that set it), which is the safe default. Set to
+	// e.g. ".exoper.com" only when the SPA and the API run on
+	// different subdomains of the same registrable domain.
+	CookieDomain string `envconfig:"COOKIE_DOMAIN" default:""`
+
+	// CookieSecure forces every auth cookie to be sent over HTTPS
+	// only. Defaults to true; an operator running locally without
+	// TLS may disable it, but validate() refuses Secure=false when
+	// CookieSameSite=None because browsers themselves reject that
+	// combination.
+	CookieSecure bool `envconfig:"COOKIE_SECURE" default:"true"`
+
+	// CookieSameSite controls the browser's SameSite attribute on
+	// every auth cookie. Case-insensitive. Legal values: "Strict"
+	// (default), "Lax", "None". "None" must be paired with
+	// CookieSecure=true.
+	CookieSameSite string `envconfig:"COOKIE_SAMESITE" default:"Strict"`
+
+	// CSRFHeader is the request header the SPA echoes the
+	// csrf_token cookie back in on every state-changing request.
+	// Renaming it requires a coordinated frontend change.
+	CSRFHeader string `envconfig:"CSRF_HEADER" default:"X-CSRF-Token"`
+
+	// cookieSameSite is the parsed http.SameSite derived from
+	// CookieSameSite at validate-time. Not loaded from env.
+	cookieSameSite http.SameSite
+
 	// jwtSecretBytes is the parsed secret used for signing.
 	// Not loaded from env; derived from JWTSecret during validation.
 	jwtSecretBytes []byte
@@ -241,6 +283,27 @@ func (c *Config) validate() error {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS contains malformed entries: %v", bad)
 	}
 
+	// Cookie + CSRF validation. Parsed once at startup and cached on
+	// the Config so every Set/Clear cookie path reads a validated
+	// policy object (see CookieOptions()).
+	switch strings.ToLower(strings.TrimSpace(c.CookieSameSite)) {
+	case "strict":
+		c.cookieSameSite = http.SameSiteStrictMode
+	case "lax":
+		c.cookieSameSite = http.SameSiteLaxMode
+	case "none":
+		c.cookieSameSite = http.SameSiteNoneMode
+		if !c.CookieSecure {
+			return fmt.Errorf("COOKIE_SAMESITE=None requires COOKIE_SECURE=true; browsers reject the combination otherwise")
+		}
+	default:
+		return fmt.Errorf("COOKIE_SAMESITE must be Strict, Lax, or None, got %q", c.CookieSameSite)
+	}
+	c.CSRFHeader = strings.TrimSpace(c.CSRFHeader)
+	if c.CSRFHeader == "" {
+		return fmt.Errorf("CSRF_HEADER must not be empty")
+	}
+
 	// Google OAuth: only validate when explicitly enabled. Validation
 	// is strict so a half-configured production deployment fails fast.
 	// All OAuth-only knobs (TTL, HTTP timeout) are also bounded only
@@ -299,6 +362,25 @@ func (c *Config) validate() error {
 // JWTSecretBytes returns the parsed JWT signing key.
 func (c *Config) JWTSecretBytes() []byte {
 	return c.jwtSecretBytes
+}
+
+// CookieOptions returns the materialised cookie policy used by the
+// Set/Clear helpers in cookies.go. The CSRF cookie shares the access
+// token's MaxAge because both are rotated on every login and refresh;
+// keeping their lifetimes aligned avoids a window where one expires
+// without the other (which would surface to the user as a 403 on the
+// next mutating call even though they appear to still be logged in).
+//
+// Safe for concurrent use after validate(); fields are read-only.
+func (c *Config) CookieOptions() *CookieOptions {
+	return &CookieOptions{
+		Domain:             c.CookieDomain,
+		Secure:             c.CookieSecure,
+		SameSite:           c.cookieSameSite,
+		AccessTokenMaxAge:  time.Duration(c.AccessTokenTTLSeconds) * time.Second,
+		RefreshTokenMaxAge: time.Duration(c.RefreshTokenTTLSeconds) * time.Second,
+		CSRFMaxAge:         time.Duration(c.AccessTokenTTLSeconds) * time.Second,
+	}
 }
 
 // IPResolver returns the lazily-initialised ClientIPResolver built from
