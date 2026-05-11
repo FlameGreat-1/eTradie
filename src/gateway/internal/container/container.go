@@ -70,7 +70,7 @@ func New(
 		return nil, fmt.Errorf("container: redis: %w", err)
 	}
 
-	engineHTTP := infra.NewEngineHTTPClient(cfg.EngineHTTPURL, cfg.CycleTimeoutSeconds)
+	engineHTTP := infra.NewEngineHTTPClient(cfg.EngineHTTPURL, cfg.EngineInternalSharedSecret, cfg.CycleTimeoutSeconds)
 
 	// Processor adapter: calls Python engine via HTTP.
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
