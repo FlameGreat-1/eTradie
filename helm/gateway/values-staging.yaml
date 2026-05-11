@@ -17,6 +17,8 @@ config:
     logJson: "true"
     logFullContextPayload: "true"
     allowedOrigins: "https://staging.exoper.com,https://staging-app.exoper.com"
+    billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
+    billingClientTimeoutMs: "15000"
   auth:
     # Staging uses a single-host HTTPS deployment (SPA and gateway on
     # the same hostname) so Strict + host-only cookies are correct.

@@ -201,16 +201,24 @@ func (r *Router) executeTrade(
 			Str("trace_id", traceID).
 			Msg("execution_blocked_for_free_tier")
 
+		// Use the dedicated SUBSCRIPTION_REQUIRED event with SeverityInfo.
+		// This is an upsell, not an error or a routed-trade outcome, so
+		// reusing TypeTradeRouted/Warning here historically misled the
+		// SPA into invalidating execution-state queries for an event
+		// that does not move execution state at all. The new event maps
+		// to ['billing'] + ['auth', 'me'] invalidations in eventMap.ts.
 		if r.transport != nil {
 			r.transport.Publish(ctx,
-				alert.NewEvent(alert.SourceGateway, alert.TypeTradeRouted, alert.SeverityWarning,
+				alert.NewEvent(alert.SourceGateway, alert.TypeSubscriptionRequired, alert.SeverityInfo,
 					fmt.Sprintf("Trade execution blocked for %s: Upgrade to Pro tier to unlock execution.", decision.Symbol)).
 					WithUserID(claims.UserID).
 					WithSymbol(decision.Symbol).
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
-						"reason": "Free tier does not support trade execution.",
+						"reason":           "Free tier does not support trade execution.",
+						"required_tier":   "pro_byok",
+						"feature":         "automated_execution",
 					}),
 			)
 		}

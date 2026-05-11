@@ -165,8 +165,9 @@ func main() {
 
 	usageStore := store.NewUsageStore(authPool)
 	subStore := store.NewSubscriptionStore(authPool)
+	portalAudStore := store.NewPortalAuditStore(authPool)
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, usageStore, subStore)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, usageStore, subStore, portalAudStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

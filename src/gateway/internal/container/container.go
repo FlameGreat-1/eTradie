@@ -29,22 +29,23 @@ import (
 
 // Container holds all gateway components and manages their lifecycle.
 type Container struct {
-	Cfg            *config.Config
-	Redis          *infra.RedisClient
-	Engine         *infra.EngineHTTPClient
-	Execution      *infra.ExecutionGRPCAdapter
-	UsageStore     *store.UsageStore
-	SubStore       *store.SubscriptionStore
-	SymbolStore    *symbolstore.Store
-	SettingsStore  *settingsstore.Store
-	Orchestrator   *pipeline.Orchestrator
-	Scheduler      *pipeline.Scheduler
-	HTTPServer     *server.HTTPServer
-	GRPCServer     *server.GRPCServer
-	Management     *management.Client
-	AlertHub       *alert.Hub
-	AlertTransport *alertredis.Transport
-	log            zerolog.Logger
+	Cfg              *config.Config
+	Redis            *infra.RedisClient
+	Engine           *infra.EngineHTTPClient
+	Execution        *infra.ExecutionGRPCAdapter
+	UsageStore       *store.UsageStore
+	SubStore         *store.SubscriptionStore
+	PortalAuditStore *store.PortalAuditStore
+	SymbolStore      *symbolstore.Store
+	SettingsStore    *settingsstore.Store
+	Orchestrator     *pipeline.Orchestrator
+	Scheduler        *pipeline.Scheduler
+	HTTPServer       *server.HTTPServer
+	GRPCServer       *server.GRPCServer
+	Management       *management.Client
+	AlertHub         *alert.Hub
+	AlertTransport   *alertredis.Transport
+	log              zerolog.Logger
 }
 
 // New builds all gateway components in correct dependency order.
@@ -61,6 +62,7 @@ func New(
 	waitlistHandler *mails.Handler,
 	usageStore *store.UsageStore,
 	subStore *store.SubscriptionStore,
+	portalAudStore *store.PortalAuditStore,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -135,7 +137,7 @@ func New(
 	}
 
 	// Servers (now with auth support).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, billingClient, userStore)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, portalAudStore, billingClient, userStore)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
@@ -150,22 +152,23 @@ func New(
 		Msg("gateway_container_built")
 
 	return &Container{
-		Cfg:            cfg,
-		Redis:          redisClient,
-		Engine:         engineHTTP,
-		Execution:      execAdapter,
-		UsageStore:     usageStore,
-		SubStore:       subStore,
-		SymbolStore:    symStore,
-		SettingsStore:  settStore,
-		Orchestrator:   orchestrator,
-		Scheduler:      scheduler,
-		HTTPServer:     httpServer,
-		GRPCServer:     grpcServer,
-		Management:     mgmtClient,
-		AlertHub:       hub,
-		AlertTransport: transport,
-		log:            log,
+		Cfg:              cfg,
+		Redis:            redisClient,
+		Engine:           engineHTTP,
+		Execution:        execAdapter,
+		UsageStore:       usageStore,
+		SubStore:         subStore,
+		PortalAuditStore: portalAudStore,
+		SymbolStore:      symStore,
+		SettingsStore:    settStore,
+		Orchestrator:     orchestrator,
+		Scheduler:        scheduler,
+		HTTPServer:       httpServer,
+		GRPCServer:       grpcServer,
+		Management:       mgmtClient,
+		AlertHub:         hub,
+		AlertTransport:   transport,
+		log:              log,
 	}, nil
 }
 

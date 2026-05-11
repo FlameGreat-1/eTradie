@@ -1,0 +1,347 @@
+# Default values for the etradie-billing chart.
+# Production / staging overlays live in values-production.yaml and
+# values-staging.yaml respectively. Local development uses the
+# kustomize overlay (when created); this chart is the canonical
+# production artefact.
+#
+# Every env var below maps 1:1 to a field in src/billing/config/config.go.
+# The binary refuses to boot when a required value is missing, so any
+# value listed as required:"true" in config.go MUST be present here
+# OR in the ExternalSecret (secret) before reconciliation succeeds.
+
+replicaCount: 2
+
+image:
+  # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
+  repository: ghcr.io/flamegreat-1/etradie/billing
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  # The billing service shares the etradie-system namespace with
+  # gateway, engine, execution, and management. Set create: true only
+  # when this chart is the sole occupant of the namespace (e.g. an
+  # isolated test cluster). In production the gateway chart owns the
+  # namespace creation.
+  name: etradie-system
+  create: false
+  podSecurityStandard: restricted
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8082"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    http:
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+      appProtocol: http
+
+# Non-secret runtime configuration. Mirrors src/billing/config/config.go
+# field-by-field. Secrets (provider webhook + API keys, internal shared
+# secret, database URL, redis URL) live exclusively in the ExternalSecret.
+config:
+  billing:
+    # HTTP server
+    httpPort: "8082"
+    logLevel: "INFO"
+    logJson: "true"
+
+    # Webhook hardening. The binary validates positive values at startup.
+    webhookReplayWindowSeconds: "300s"
+    webhookMaxBodyBytes: "1048576"
+
+    # Reconciler + idempotency janitor.
+    reconcilerIntervalSeconds: "900s"
+    idempotencyRetentionDays: "30"
+
+    # Provider API base URLs. These are the canonical SaaS endpoints;
+    # operators only override for sandbox/regional testing.
+    paddleApiBaseUrl: "https://api.paddle.com"
+    lemonsqueezyApiBaseUrl: "https://api.lemonsqueezy.com"
+
+    # Per-environment values (REQUIRED to override in values-*.yaml):
+    #   publicBaseUrl: HTTPS origin Paddle + LS dashboards POST to.
+    #     MUST match the URL registered in each provider's dashboard.
+    #   checkoutSuccessUrl / checkoutCancelUrl: where the provider
+    #     redirects after a completed / cancelled checkout. Typically
+    #     /billing/success and /billing/cancel on the SPA host.
+    publicBaseUrl: ""
+    checkoutSuccessUrl: ""
+    checkoutCancelUrl: ""
+
+externalSecrets:
+  enabled: true
+  billing:
+    secretStoreName: vault-backend
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    # Production Vault path. Aligns with
+    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.billing
+    # (etradie/services/billing/${environment}). values-staging.yaml
+    # overrides this to etradie/services/billing/staging.
+    vaultPath: etradie/services/billing/production
+    creationPolicy: Owner
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+    ephemeral-storage: 128Mi
+  limits:
+    cpu: "500m"
+    memory: 512Mi
+    ephemeral-storage: 256Mi
+
+initContainer:
+  # The billing service depends on the same Postgres + Redis as the
+  # gateway. Wait for them before starting the main container so a
+  # cold-start race does not produce a CrashLoop on first boot.
+  enabled: true
+  image: busybox:1.36
+  pullPolicy: IfNotPresent
+  timeoutSeconds: 120
+  intervalSeconds: 2
+  dependencies:
+    - host: "postgres.etradie-system.svc.cluster.local"
+      port: 5432
+    - host: "redis.etradie-system.svc.cluster.local"
+      port: 6379
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+      selectPolicy: Max
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  # Three ingress sources are legitimate:
+  #   - envoy (public-internet webhook traffic, terminated at envoy
+  #     and routed to billing:8082 by the path-prefix rule we add to
+  #     helm/envoy/templates/configmap.yaml in Phase 5)
+  #   - gateway (internal /internal/checkout and /internal/portal calls)
+  #   - prometheus (scrape /metrics)
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-envoy
+      ports:
+        - protocol: TCP
+          port: 8082
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-gateway
+      ports:
+        - protocol: TCP
+          port: 8082
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8082
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Outbound HTTPS to Paddle + Lemon Squeezy. Restrict to 443 only.
+    # We cannot pin destination CIDRs because both providers use
+    # variable edge IPs.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              # Block egress to RFC1918 + link-local + loopback so a
+              # compromised pod cannot scan the cluster network via the
+              # 0.0.0.0/0 wildcard above. The kube-dns + postgres + redis
+              # entries above re-permit the intra-cluster paths we need.
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    prometheus: kube-prometheus
+  metricRelabelDropPrefixes:
+    - go_
+    - process_
+    - promhttp_
+
+resourceQuota:
+  enabled: false
+limitRange:
+  enabled: false
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-billing
+          topologyKey: kubernetes.io/hostname
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-billing
+
+nodeSelector: {}
+tolerations: []
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 2
+  timeoutSeconds: 2
+  successThreshold: 1
+  failureThreshold: 30
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readiness
+    port: http
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 5"]
+
+terminationGracePeriodSeconds: 60
+
+volumes:
+  tmp:
+    emptyDir:
+      sizeLimit: 64Mi

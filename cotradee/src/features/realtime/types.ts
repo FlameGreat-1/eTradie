@@ -64,7 +64,9 @@ export type EventType =
   /* Billing / subscription */
   | 'SUBSCRIPTION_UPGRADED'
   | 'SUBSCRIPTION_DOWNGRADED'
-  | 'SUBSCRIPTION_STATUS_CHANGED';
+  | 'SUBSCRIPTION_STATUS_CHANGED'
+  /* Tier-gated UX upsell (not a state-change) */
+  | 'SUBSCRIPTION_REQUIRED';
 
 export interface RealtimeEvent {
   id: string;

@@ -38,6 +38,20 @@ data:
   GATEWAY_REDIS_MAX_CONNECTIONS: {{ .Values.config.gateway.redisMaxConnections | quote }}
   GATEWAY_ALLOWED_ORIGINS: {{ .Values.config.gateway.allowedOrigins | quote }}
 
+  # Billing microservice client. The gateway proxies
+  # /api/v1/billing/{checkout,portal,subscription} to the billing
+  # service via the in-cluster Service DNS below. The shared secret
+  # the gateway sends in the X-Internal-Auth header lives in the
+  # ExternalSecret (GATEWAY_BILLING_INTERNAL_SHARED_SECRET).
+  #
+  # CRITICAL: src/gateway/internal/config/config.go::validate() refuses
+  # to boot when BillingServiceURL is empty, BillingInternalSharedSecret
+  # is < 32 chars, or BillingClientTimeoutMs is outside [1000..60000].
+  # The values below cover the first and third; the shared secret is
+  # validated when ESO materialises the Secret.
+  GATEWAY_BILLING_SERVICE_URL:        {{ .Values.config.gateway.billingServiceUrl | quote }}
+  GATEWAY_BILLING_CLIENT_TIMEOUT_MS:  {{ .Values.config.gateway.billingClientTimeoutMs | quote }}
+
   # Auth
   AUTH_ACCESS_TOKEN_TTL_SECONDS: {{ .Values.config.auth.accessTokenTtlSeconds | quote }}
   AUTH_REFRESH_TOKEN_TTL_SECONDS: {{ .Values.config.auth.refreshTokenTtlSeconds | quote }}

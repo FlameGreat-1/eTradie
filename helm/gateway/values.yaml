@@ -110,6 +110,12 @@ config:
     managementTimeoutMs: "5000"
     redisMaxConnections: "20"
     allowedOrigins: "http://localhost:3000,http://localhost:5173"
+    # Billing microservice client. The gateway's billing handler
+    # proxies /api/v1/billing/{checkout,portal,subscription} to the
+    # billing service over the internal Service DNS. The shared
+    # secret travels in the X-Internal-Auth header (ExternalSecret).
+    billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
+    billingClientTimeoutMs: "15000"
   auth:
     accessTokenTtlSeconds: "900"
     refreshTokenTtlSeconds: "604800"
@@ -204,6 +210,11 @@ initContainer:
       port: 6379
     - host: "engine.etradie-system.svc.cluster.local"
       port: 8000
+    # Wait for billing too; without it the gateway accepts
+    # /api/v1/billing/* requests that would fail with 502 during
+    # the deploy-order race window.
+    - host: "billing-service.etradie-system.svc.cluster.local"
+      port: 8082
   resources:
     requests:
       cpu: 10m
@@ -317,6 +328,18 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 50054
+    # Billing microservice (Phase 4 wiring). The gateway dials
+    # billing-service:8082 for every /internal/checkout and
+    # /internal/portal call. Without this egress rule the gateway
+    # would receive ECONNREFUSED and the SPA's Upgrade /
+    # Manage Subscription flows would 502.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-billing
+      ports:
+        - protocol: TCP
+          port: 8082
     - to:
         - namespaceSelector:
             matchLabels:

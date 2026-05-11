@@ -96,6 +96,16 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
   SUBSCRIPTION_UPGRADED:        [['billing'], ['auth', 'me']],
   SUBSCRIPTION_DOWNGRADED:      [['billing'], ['auth', 'me']],
   SUBSCRIPTION_STATUS_CHANGED:  [['billing'], ['auth', 'me']],
+  /*
+   * SUBSCRIPTION_REQUIRED fires when a user-facing action is refused
+   * because the user's current tier does not cover it (e.g. Free user
+   * reaches trade-execution routing). The user's subscription state
+   * has not moved on the backend, but we still refetch ['billing']
+   * and ['auth', 'me'] so the upgrade modal opens against the freshest
+   * authoritative state. Execution-state queries are intentionally
+   * NOT invalidated — nothing in execution state actually changed.
+   */
+  SUBSCRIPTION_REQUIRED:        [['billing'], ['auth', 'me']],
 };
 
 /**
