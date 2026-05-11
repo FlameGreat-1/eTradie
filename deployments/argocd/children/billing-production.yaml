@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: billing-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: billing
+    exoper.com/environment: production
+  annotations:
+    # sync-wave: "1" ensures billing starts AFTER the data-layer
+    # (wave 0) so Postgres + Redis are ready before the billing
+    # init-container probes them. The gateway is also wave 0; billing
+    # at wave 1 means the gateway's init-container wait-for-billing
+    # dep is satisfied before the gateway pod becomes Ready.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
+    targetRevision: main
+    path: helm/billing
+    helm:
+      releaseName: etradie-billing
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+      parameters: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: etradie-system
+
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20
