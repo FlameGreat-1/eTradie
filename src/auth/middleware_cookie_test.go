@@ -55,6 +55,87 @@ func TestRequireAuth_AcceptsAccessTokenCookie(t *testing.T) {
 	}
 }
 
+// TestRequireAuth_WSAcceptsCookie verifies that a WebSocket upgrade
+// request carrying the access_token cookie (and no Sec-WebSocket-
+// Protocol Bearer) is accepted. Cookie-auth browsers cannot put the
+// token into the subprotocol header (HttpOnly), so the cookie is the
+// only channel they have.
+func TestRequireAuth_WSAcceptsCookie(t *testing.T) {
+	ts, token := buildTestTokenService(t)
+	handler := RequireAuth(ts)(http.HandlerFunc(protectedHandler))
+
+	req := httptest.NewRequest(http.MethodGet, "/ws/notifications", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.AddCookie(&http.Cookie{Name: AccessTokenCookieName, Value: token})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Body.String(); got != "user-1" {
+		t.Errorf("user id from context = %q, want user-1", got)
+	}
+}
+
+// TestRequireAuth_WSSubprotocolWinsOverCookie verifies that an
+// explicit subprotocol token on a WS upgrade is honoured even when a
+// (stale or different-subject) cookie is also present. This is the
+// non-browser-client contract: a CLI tool that sets the subprotocol
+// explicitly wants that token to be authoritative.
+func TestRequireAuth_WSSubprotocolWinsOverCookie(t *testing.T) {
+	ts, cookieToken := buildTestTokenService(t)
+
+	// Issue a second token for a different user; this is the
+	// subprotocol channel. We expect the protected handler to see
+	// THIS user, not the cookie's user.
+	cfg := &Config{}
+	cfg.SetTestSecret("middleware-cookie-test-secret-aaaaaaaaaaaaaaaaaa")
+	ts2 := NewTokenService(cfg)
+	u2 := &User{ID: "user-2", Username: "bob", Role: RoleEtradie, Tier: "free", Status: "active"}
+	pair, _, err := ts2.IssueTokenPair(u2)
+	if err != nil {
+		t.Fatalf("IssueTokenPair: %v", err)
+	}
+
+	handler := RequireAuth(ts)(http.HandlerFunc(protectedHandler))
+
+	req := httptest.NewRequest(http.MethodGet, "/ws/notifications", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Sec-WebSocket-Protocol", "Bearer, "+pair.AccessToken)
+	req.AddCookie(&http.Cookie{Name: AccessTokenCookieName, Value: cookieToken})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Body.String(); got != "user-2" {
+		t.Errorf("user id from context = %q, want user-2 (subprotocol wins)", got)
+	}
+}
+
+// TestRequireAuth_WSWithoutAnyCredentialsRejected guards the
+// no-cookie-no-subprotocol path so a future regression that drops
+// the cookie branch (or accidentally short-circuits to the handler)
+// is caught by the existing test suite.
+func TestRequireAuth_WSWithoutAnyCredentialsRejected(t *testing.T) {
+	ts, _ := buildTestTokenService(t)
+	handler := RequireAuth(ts)(http.HandlerFunc(protectedHandler))
+
+	req := httptest.NewRequest(http.MethodGet, "/ws/notifications", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
 func TestRequireAuth_HeaderWinsOverCookie(t *testing.T) {
 	// Issue two distinct tokens (different subjects) so we can tell
 	// which one the middleware honoured by inspecting the body.
