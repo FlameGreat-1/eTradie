@@ -162,6 +162,51 @@ func (s *Store) HistoryForUserID(ctx context.Context, userID string, limit int) 
 	return out, nil
 }
 
+// DefaultRetention is the recommended GDPR Art. 5(1)(e) storage
+// limitation window for consent records: 24 months. Operators may
+// pass a different duration to DeleteExpired when their DPO has
+// approved an alternative retention policy.
+const DefaultRetention = 24 * 30 * 24 * time.Hour
+
+// DeleteExpired removes every consent_records row strictly older than
+// cutoff EXCEPT the most recent row per anonymous_id AND the most
+// recent row per user_id. The retained rows are the legally-required
+// proof of consent under GDPR Art. 7.1 and must be preserved while
+// the visitor / user is still relevant.
+//
+// Returns the number of rows deleted. The SQL is a single statement
+// so the deletion is atomic; the latest-per-key sub-queries are
+// served by the existing (anonymous_id, created_at DESC) and
+// (user_id, created_at DESC) WHERE user_id IS NOT NULL indexes.
+func (s *Store) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error) {
+	if cutoff.IsZero() {
+		return 0, errors.New("consent: DeleteExpired: zero cutoff")
+	}
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM consent_records
+		  WHERE created_at < $1
+		    AND id NOT IN (
+		      SELECT DISTINCT ON (anonymous_id) id
+		        FROM consent_records
+		       ORDER BY anonymous_id, created_at DESC
+		    )
+		    AND (
+		      user_id IS NULL
+		      OR id NOT IN (
+		        SELECT DISTINCT ON (user_id) id
+		          FROM consent_records
+		         WHERE user_id IS NOT NULL
+		         ORDER BY user_id, created_at DESC
+		      )
+		    )`,
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("consent: delete expired: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // AttachAnonymousToUser links every consent_records row currently
 // keyed only on the given anonymous_id to the supplied user_id. The
 // original timestamps are preserved — the column we update is
