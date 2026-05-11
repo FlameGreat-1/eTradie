@@ -5,6 +5,7 @@ import { AxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/features/auth';
 
 interface Subscription {
   tier: string;
@@ -32,19 +33,39 @@ async function fetchSubscription(): Promise<Subscription> {
  * badge) reads from the SAME React Query cache. A single SUBSCRIPTION_*
  * realtime event invalidates this key and every caller refetches in
  * lockstep.
+ *
+ * The query is gated on AuthContext.isAuthenticated so an unauthenticated
+ * visitor never hits /api/v1/billing/subscription. That endpoint is
+ * protected by RequireAuth; calling it as a guest returns 401, which
+ * the global axios interceptor treats as a session-expiry signal -
+ * triggering POST /auth/refresh and, when that fails (no refresh
+ * cookie either, gateway responds 400 'refresh_token is required'),
+ * a hard window.location.assign('/login'). Because UpgradeModal is
+ * mounted globally in App.tsx (it must be reachable from any route
+ * via the 'open-upgrade-modal' window event), an ungated query here
+ * produces an infinite refresh -> redirect loop on first visit.
+ * Disabling the query for guests keeps the modal mounted but quiet
+ * until the user actually logs in.
  */
 export function useBillingSubscription() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   return useQuery<Subscription>({
     queryKey: BILLING_SUBSCRIPTION_QUERY_KEY,
     queryFn: fetchSubscription,
+    // Only fire after AuthContext has settled AND the user is
+    // authenticated. The endpoint 401s for guests, and that 401
+    // cannot be safely silent-refreshed (no refresh cookie either),
+    // so the axios interceptor would otherwise navigate to /login
+    // on every app mount and produce the observed reload loop.
+    enabled: !authLoading && isAuthenticated,
     // Matches the gateway's in-process subscription cache TTL so we
     // don't hammer the API on rapid tab/page switches but still pick
     // up server-pushed invalidations promptly.
     staleTime: 30_000,
     retry: (failureCount, error: unknown) => {
       const status = (error as { response?: { status?: number } })?.response?.status;
-      // 401/403/404 are permanent for this endpoint; everything else
-      // gets one retry (covers the gateway's 503 transient response).
+      // 401/403/404/429 are not retryable for this endpoint; everything
+      // else gets one retry (covers the gateway's 503 transient response).
       if (status && status >= 400 && status < 500) return false;
       return failureCount < 1;
     },
