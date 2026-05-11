@@ -17,6 +17,7 @@ import {
   Activity,
   Menu,
   X,
+  Cookie,
 } from 'lucide-react';
 import { useRunCycle } from '@/features/analysis/api/analysis';
 import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown';
@@ -395,6 +396,12 @@ function Header({ onMenuClick }: HeaderProps) {
           <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
             Settings
           </MenuItem>
+          {/*
+            The Cookie Preferences entry is rendered reactively: it
+            tracks the presence of ConsentProvider, so on a navigation
+            into a surface without that provider (e.g. a future
+            maintenance route) the item disappears. Audit finding E.
+          */}
           {consent && (
             <MenuItem
               onClick={() => {
@@ -402,7 +409,7 @@ function Header({ onMenuClick }: HeaderProps) {
                 setShowUserMenu(false);
               }}
             >
-              Cookie Preferences
+              <Cookie size={12} /> Cookie Preferences
             </MenuItem>
           )}
           <div className="border-t border-border" />

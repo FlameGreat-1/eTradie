@@ -20,16 +20,22 @@
  *     a recorded decision.
  */
 
+import { memo, useCallback, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useConsent } from '../useConsent';
 import '../consent.css';
 
-export default function ConsentBanner() {
+function ConsentBanner() {
   const consent = useConsent();
   const location = useLocation();
 
-  // Suppress on the policy page itself.
-  const onPolicyPage = location.pathname === '/cookie';
+  // Memoised so a re-render with the same path does not re-evaluate
+  // (cheap, but it also makes the visibility decision a pure derived
+  // value documented in one place).
+  const onPolicyPage = useMemo(
+    () => location.pathname === '/cookie',
+    [location.pathname],
+  );
 
   // The banner appears only when (a) we have finished hydrating, (b) a
   // decision is required, (c) the preferences modal is not already
@@ -41,17 +47,17 @@ export default function ConsentBanner() {
     !consent.preferencesOpen &&
     !onPolicyPage;
 
-  if (!visible) return null;
-
-  const handleAcceptAll = () => {
+  const handleAcceptAll = useCallback(() => {
     void consent.acceptAll();
-  };
-  const handleRejectAll = () => {
+  }, [consent]);
+  const handleRejectAll = useCallback(() => {
     void consent.rejectAll();
-  };
-  const handleCustomise = () => {
+  }, [consent]);
+  const handleCustomise = useCallback(() => {
     consent.openPreferences();
-  };
+  }, [consent]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -97,3 +103,5 @@ export default function ConsentBanner() {
     </div>
   );
 }
+
+export default memo(ConsentBanner);

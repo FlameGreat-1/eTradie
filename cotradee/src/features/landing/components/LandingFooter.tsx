@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Twitter, Linkedin, Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useConsentOptional } from '@/features/consent/useConsent';
@@ -74,6 +75,11 @@ export default function LandingFooter() {
   // is hidden because there is nothing to open; every other link
   // still works. PRACTICE.md #1.
   const consent = useConsentOptional();
+  // Stable handler so the footer subtree does not allocate a new
+  // function on every consent state change. Audit finding K.
+  const openConsent = useCallback(() => {
+    if (consent) consent.openPreferences();
+  }, [consent]);
   return (
     <footer className="landing-footer" id="landing-footer">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8 pt-16 pb-8">
@@ -113,11 +119,7 @@ export default function LandingFooter() {
                       <li key={link.label}>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (link.action === 'openConsent' && consent) {
-                              consent.openPreferences();
-                            }
-                          }}
+                          onClick={openConsent}
                           className="text-sm text-left hover:text-[color:var(--landing-footer-text-hover)] transition-all bg-transparent border-0 p-0 cursor-pointer"
                           style={{ color: 'inherit' }}
                         >
