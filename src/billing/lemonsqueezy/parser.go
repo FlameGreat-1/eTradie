@@ -46,23 +46,23 @@ type rawMeta struct {
 }
 
 type rawData struct {
-	Type       string            `json:"type"`
-	ID         json.Number       `json:"id"`
-	Attributes rawAttributes     `json:"attributes"`
+	Type       string        `json:"type"`
+	ID         json.Number   `json:"id"`
+	Attributes rawAttributes `json:"attributes"`
 }
 
 type rawAttributes struct {
-	StoreID         json.Number `json:"store_id"`
-	CustomerID      json.Number `json:"customer_id"`
-	ProductID       json.Number `json:"product_id"`
-	VariantID       json.Number `json:"variant_id"`
-	Status          string      `json:"status"`
-	RenewsAt        *time.Time  `json:"renews_at"`
-	EndsAt          *time.Time  `json:"ends_at"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
-	Cancelled       bool        `json:"cancelled"`
-	CustomData      map[string]any `json:"custom_data"`
+	StoreID    json.Number    `json:"store_id"`
+	CustomerID json.Number    `json:"customer_id"`
+	ProductID  json.Number    `json:"product_id"`
+	VariantID  json.Number    `json:"variant_id"`
+	Status     string         `json:"status"`
+	RenewsAt   *time.Time     `json:"renews_at"`
+	EndsAt     *time.Time     `json:"ends_at"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	Cancelled  bool           `json:"cancelled"`
+	CustomData map[string]any `json:"custom_data"`
 }
 
 // Parse turns a verified Lemon Squeezy webhook delivery into a NormalizedEvent.
@@ -202,7 +202,22 @@ func mapEvent(name string, attrs *rawAttributes, variants VariantTierMap) (event
 	case "subscription_cancelled", "subscription_expired":
 		return events.TierFree, events.StatusCanceled, nil
 	case "subscription_payment_refunded":
-		return events.TierFree, events.StatusRefunded, nil
+		// A refund event records that money moved back to the customer; it
+		// does NOT by itself mean the subscription is over. The subscription
+		// resource is still under the same variant, so the price-derived
+		// tier is still the user's entitlement until either:
+		//   - a subscription_cancelled / subscription_expired event lands, or
+		//   - the period-end reconciler sees status='refunded' and
+		//     current_period_end < NOW() and demotes.
+		// If the variant is unknown (which can happen on a refund of a
+		// long-cancelled product), we leave the tier empty and the service
+		// layer inherits the stored tier via the recovery-by-provider-id
+		// path. Either way, we do not instantly downgrade.
+		tier, err := tierFromVariant()
+		if err != nil {
+			return "", events.StatusRefunded, nil
+		}
+		return tier, events.StatusRefunded, nil
 	case "subscription_paused":
 		tier, err := tierFromVariant()
 		if err != nil {
