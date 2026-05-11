@@ -1,0 +1,21 @@
+apiVersion: v2
+name: billing
+description: eTradie billing microservice (Go) handling Paddle + Lemon Squeezy webhooks, checkout creation, customer portal sessions, subscription reconciliation, and cross-service alert publication.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - billing
+  - subscription
+  - paddle
+  - lemonsqueezy
+  - webhook
+  - go
+  - etradie
+maintainers:
+  - name: eTradie Platform Team
+    email: platform@exoper.com
+sources:
+  - https://github.com/FlameGreat-1/eTradie
+icon: https://exoper.com/icon.png
+dependencies: []

@@ -1,0 +1,61 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "billing.namespace" . }}
+  labels:
+    name: {{ include "billing.namespace" . }}
+    {{- include "billing.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+  annotations:
+    description: "eTradie billing namespace (Go microservice handling Paddle + LS webhooks)"
+{{- end }}
+{{- if .Values.resourceQuota.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: etradie-billing-resource-quota
+  namespace: {{ include "billing.namespace" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-quota
+spec:
+  hard:
+    requests.cpu: {{ .Values.resourceQuota.hard.requestsCpu | quote }}
+    requests.memory: {{ .Values.resourceQuota.hard.requestsMemory | quote }}
+    limits.cpu: {{ .Values.resourceQuota.hard.limitsCpu | quote }}
+    limits.memory: {{ .Values.resourceQuota.hard.limitsMemory | quote }}
+    persistentvolumeclaims: {{ .Values.resourceQuota.hard.persistentvolumeclaims | default "0" | quote }}
+    services.loadbalancers: {{ .Values.resourceQuota.hard.servicesLoadbalancers | default "0" | quote }}
+    services.nodeports: {{ .Values.resourceQuota.hard.servicesNodeports | default "0" | quote }}
+{{- end }}
+{{- if .Values.limitRange.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: etradie-billing-limit-range
+  namespace: {{ include "billing.namespace" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: limit-range
+spec:
+  limits:
+    - max:
+        cpu: "1"
+        memory: 1Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+      default:
+        cpu: "500m"
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      type: Container
+{{- end }}
