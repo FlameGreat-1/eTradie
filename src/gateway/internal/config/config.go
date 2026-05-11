@@ -82,9 +82,16 @@ type Config struct {
 
 	// Billing microservice. The gateway calls /internal/checkout on this
 	// service so provider API keys never leak into user-facing services.
-	BillingServiceURL          string `envconfig:"BILLING_SERVICE_URL" default:"http://billing:8082"`
+	BillingServiceURL           string `envconfig:"BILLING_SERVICE_URL" default:"http://billing:8082"`
 	BillingInternalSharedSecret string `envconfig:"BILLING_INTERNAL_SHARED_SECRET" required:"true"`
-	BillingClientTimeoutMs     int    `envconfig:"BILLING_CLIENT_TIMEOUT_MS" default:"15000"`
+	BillingClientTimeoutMs      int    `envconfig:"BILLING_CLIENT_TIMEOUT_MS" default:"15000"`
+
+	// Engine internal shared secret. The gateway sends this in the
+	// X-Internal-Auth header on every call to the engine's /internal/*
+	// endpoints so those routes can reject requests that did not
+	// originate from the gateway. Must match ENGINE_INTERNAL_SHARED_SECRET
+	// on the engine side. Min 32 chars; required in production.
+	EngineInternalSharedSecret string `envconfig:"ENGINE_INTERNAL_SHARED_SECRET" required:"true"`
 
 	// HTTP server (health, readiness, metrics).
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8080"`

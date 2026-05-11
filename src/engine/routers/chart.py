@@ -455,39 +455,42 @@ async def chart_candles(
 async def stream_ticks(websocket: WebSocket):
     """True WebSocket stream of live tick prices for the dashboard chart.
 
-    Protocol (cookie-auth):
-      1. Browser opens the WS — the gateway-issued access_token cookie
+    Protocol (cookie-auth, browser clients):
+      1. Browser opens the WS. The gateway-issued access_token cookie
          rides along on the upgrade automatically (HttpOnly, scoped by
-         host under RFC 6265 §5.4). The user is resolved from the cookie
-         BEFORE the init frame.
+         host under RFC 6265 §5.4). The user is resolved from the
+         cookie BEFORE the init frame.
       2. Client sends an init frame: { "symbol": "USDJPYm" }.
-         For non-browser CLI clients only, a { "token": "<jwt>" } field
-         is still accepted on the init frame (preserved as a third
-         channel by engine.shared.auth.verify_token_from_websocket).
       3. Server pushes tick frames: { "bid", "ask", "time", "symbol" }.
       4. Client can send a symbol-switch frame at any time:
          { "symbol": "EURUSDm" }.
       5. Either side can close the connection.
+
+    Legacy non-browser clients (CLI tooling):
+      The init frame may include a { "token": "<jwt>" } field as a
+      last-resort auth channel. This path is preserved for backward
+      compatibility only. Browser clients MUST NOT use it because the
+      access_token cookie is HttpOnly and cannot be read by JS to copy
+      into the init frame.
     """
     from engine.shared.auth import AuthError, verify_token_from_websocket
 
     await websocket.accept()
 
-    # Step 1: Authenticate from the upgrade cookie / Authorization
-    # header BEFORE reading the init frame. This way a missing init
-    # frame on a valid cookie-auth session can still be diagnosed as
-    # a protocol error rather than an auth error.
+    # Step 1: Authenticate from the upgrade cookie / Authorization header.
+    # This is the primary path for browser clients. A missing or invalid
+    # credential at this stage is NOT immediately fatal: we fall through
+    # to the init-frame path so legacy CLI clients that send a token in
+    # the first JSON frame still work.
     try:
         user = await verify_token_from_websocket(websocket, init_message=None)
         user_id = user.user_id
     except AuthError:
-        # No upgrade-time credentials — fall through to the init frame
-        # path so legacy non-browser clients can still authenticate.
         user = None
         user_id = ""
 
     # Step 2: Read the init frame for the symbol (and, for legacy
-    # clients, an optional token).
+    # non-browser clients, an optional token field).
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
         init_msg = json.loads(raw)
@@ -508,8 +511,10 @@ async def stream_ticks(websocket: WebSocket):
             pass
         return
 
-    # If upgrade-time auth failed, try the init-frame token as a
-    # last-resort channel for legacy clients.
+    # Step 3: If upgrade-time auth failed, try the init-frame token.
+    # This is the legacy path for non-browser CLI clients that hold a
+    # token explicitly. Browser clients never reach this branch because
+    # their cookie is always present on the upgrade.
     if user is None:
         try:
             user = await verify_token_from_websocket(websocket, init_message=init_msg)

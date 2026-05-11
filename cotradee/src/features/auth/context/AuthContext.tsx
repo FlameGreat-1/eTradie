@@ -3,7 +3,7 @@ import { login as loginApi } from '../api/login';
 import { register as registerApi } from '../api/register';
 import { fetchProfile, logout as logoutApi } from '../api/profile';
 import type { AuthUser, LoginRequest, RegisterRequest, TokenPair } from '../types';
-import { broadcastLogoutAndRedirect } from '@/lib/axios';
+import { AUTH_LOGOUT_BROADCAST_KEY } from '@/lib/axios';
 
 // ---------------------------------------------------------------------------
 // Cookie-auth context (Batch 11)
@@ -108,10 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // it is suppressed by the early-return below.
       try {
         // Set the broadcast value without redirecting THIS tab —
-        // we let the caller decide where to navigate next.
+        // we let the caller decide where to navigate next. The key
+        // is imported from @/lib/axios so both ends of the channel
+        // share one source of truth; a rename there is a compile
+        // error here.
         if (typeof window !== 'undefined') {
           window.localStorage.setItem(
-            'etradie:auth:logout',
+            AUTH_LOGOUT_BROADCAST_KEY,
             JSON.stringify({ reason: 'user', at: Date.now() }),
           );
         }
@@ -123,10 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, []);
-
-  // Silence the unused-import warning for environments where
-  // tree-shaking does not detect side-effect imports.
-  void broadcastLogoutAndRedirect;
 
   return (
     <AuthContext.Provider

@@ -48,6 +48,15 @@ data:
   AUTH_ADMIN_USERNAME: {{ .Values.config.auth.adminUsername | quote }}
   AUTH_ADMIN_EMAIL: {{ .Values.config.auth.adminEmail | quote }}
 
+  # Cookie auth policy. These are non-secret policy values; secrets
+  # (JWT signing key, admin password) live in the ExternalSecret.
+  AUTH_COOKIE_DOMAIN: {{ .Values.config.auth.cookieDomain | default "" | quote }}
+  AUTH_COOKIE_SECURE: {{ .Values.config.auth.cookieSecure | default "true" | quote }}
+  AUTH_COOKIE_SAMESITE: {{ .Values.config.auth.cookieSameSite | default "Strict" | quote }}
+  AUTH_CSRF_HEADER: {{ .Values.config.auth.csrfHeader | default "X-CSRF-Token" | quote }}
+  AUTH_CSRF_SIGNED: {{ .Values.config.auth.csrfSigned | default "true" | quote }}
+  AUTH_RETURN_TOKENS_IN_BODY: {{ .Values.config.auth.returnTokensInBody | default "false" | quote }}
+
   # Trust chain (Cloudflare → edge-ingress → envoy → gateway).
   # trustedProxyCidrs accepts a list (preferred) or a scalar string;
   # this template normalises both to a comma-joined string for the

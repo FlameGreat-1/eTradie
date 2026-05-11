@@ -101,15 +101,18 @@ def _get_jwt_secret() -> str:
     """Read the JWT signing secret from environment.
 
     Must match the AUTH_JWT_SECRET used by the Go auth service.
-    Fails fast if not configured in production.
+    Fails fast if not configured in production or staging.
     """
     secret = os.environ.get("AUTH_JWT_SECRET", "")
+    app_env = os.environ.get("APP_ENV", "").lower()
+    is_prod_like = app_env in ("production", "prod", "staging")
+
     if not secret:
-        app_env = os.environ.get("APP_ENV", "development").lower()
-        if app_env in ("production", "staging"):
+        if is_prod_like:
             raise RuntimeError(
-                "AUTH_JWT_SECRET environment variable is required in production/staging. "
-                "It must match the same secret used by the Go auth service."
+                f"AUTH_JWT_SECRET is required in {app_env}. "
+                "It must match the same secret used by the Go auth service. "
+                "Generate with: openssl rand -hex 64"
             )
         # In development, allow empty (Go auth service generates a random one,
         # but for local dev both services should share the same .env file).

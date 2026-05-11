@@ -8,49 +8,59 @@ import (
 	"time"
 )
 
-// writeSessionCookies issues a fresh CSRF token and writes all three
-// auth cookies on the response. Called from every code path that
-// mints or rotates a session (login, register, refresh, OAuth
-// callback). Centralised so a policy change (renamed CSRF cookie,
-// tightened SameSite) is a one-line edit.
+// writeSessionCookies issues a fresh CSRF token bound to the user and
+// writes all three auth cookies on the response. Called from every
+// code path that mints or rotates a session (login, register, refresh,
+// OAuth sign-in callback). Centralised so a policy change (renamed
+// CSRF cookie, tightened SameSite, signed/unsigned toggle) is a
+// one-line edit.
 //
 // CSRF token generation failure does NOT abort the request. The
 // rotated session is still valid for read-only calls; the SPA will
 // hit GET /auth/me, see the user, and retry the next mutating call
-// after a refresh that does mint a CSRF token. Surfacing the
-// failure as a 500 here would lock the user out of an account they
-// just successfully authenticated against.
-func (h *Handler) writeSessionCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+// after a refresh that does mint a CSRF token. Surfacing the failure
+// as a 500 here would lock the user out of an account they just
+// successfully authenticated against.
+func (h *Handler) writeSessionCookies(w http.ResponseWriter, userID, accessToken, refreshToken string) {
 	opts := h.cfg.CookieOptions()
 	SetAccessCookie(w, opts, accessToken)
 	SetRefreshCookie(w, opts, refreshToken)
-	if csrf, err := GenerateCSRFToken(); err == nil {
+	if csrf, err := GenerateCSRFToken(h.cfg.JWTSecretBytes(), userID, h.cfg.CSRFSigned); err == nil {
 		SetCSRFCookie(w, opts, csrf)
 	}
 }
 
-// clearSessionCookies expires all three auth cookies. Called from
-// logout, logout-all, and password-change so the browser jar is
-// left in a known-clean state even when the corresponding session
-// could not be revoked (e.g. unknown refresh token).
+// clearSessionCookies expires all auth cookies (prefixed + unprefixed).
 func (h *Handler) clearSessionCookies(w http.ResponseWriter) {
 	ClearAuthCookies(w, h.cfg.CookieOptions())
 }
 
+// maybeTokenPair returns pair when AUTH_RETURN_TOKENS_IN_BODY is true,
+// otherwise nil. Used to keep the JSON response shape stable for
+// legacy clients while defaulting to cookie-only on the wire.
+func (h *Handler) maybeTokenPair(pair *TokenPair) *TokenPair {
+	if h.cfg.ReturnTokensInBody {
+		return pair
+	}
+	return nil
+}
+
 // CSRFHeader exposes the configured request header name the SPA
 // echoes the csrf_token cookie back in (default: "X-CSRF-Token").
-// The gateway HTTP server reads this to build the RequireCSRF
-// middleware without taking a direct dependency on auth.Config,
-// avoiding a new parameter through Container.New / NewHTTPServer.
+// Consumed by the gateway HTTP server to build the CORS Allow-Headers
+// list dynamically.
 func (h *Handler) CSRFHeader() string {
 	return h.cfg.CSRFHeader
 }
 
+// AuthConfig returns the underlying auth.Config so the gateway HTTP
+// server can build the RequireCSRF middleware with the right (*Config)
+// signature without taking a direct dependency on the Handler internals.
+func (h *Handler) AuthConfig() *Config {
+	return h.cfg
+}
+
 // Handler serves the authentication REST API endpoints.
-//
-// OAuth dependencies are optional and attached at startup via
-// Handler.WithOAuth (see oauth_handlers.go). When oauthEnabled is
-// false the OAuth routes return 404 and no Google client is built.
 type Handler struct {
 	users    *UserStore
 	sessions *SessionStore
@@ -74,22 +84,19 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 }
 
 // RegisterRoutes mounts all auth routes on the given mux.
-// Public routes (no auth required): login, register, refresh.
-// Protected routes (require valid token): logout, me, password change.
-// Admin routes (require admin role): user management.
-// Public endpoints are rate-limited per IP to prevent brute-force attacks.
 //
-// The per-IP rate-limit identity is resolved via h.cfg.IPResolver(),
-// which honours forwarding headers only from trusted proxies. This
-// prevents an attacker who reaches the origin directly from spoofing
-// X-Forwarded-For to impersonate other source IPs.
+// /auth/logout is mounted with OptionalAuth so a user whose access
+// cookie has expired but who still holds a refresh cookie can clear
+// the browser jar without first refreshing. The handler reads the
+// refresh-token body field (or refresh cookie) to revoke the session
+// when possible; cookie clearing happens regardless.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
-	// Rate limiters for public auth endpoints (per IP).
-	loginLimiter := NewRateLimiter(10, 1*time.Minute)        // 10 login attempts/min/IP
-	registerLimiter := NewRateLimiter(5, 1*time.Minute)      // 5 registrations/min/IP
-	refreshLimiter := NewRateLimiter(20, 1*time.Minute)      // 20 refresh attempts/min/IP
-	oauthStartLimiter := NewRateLimiter(20, 1*time.Minute)   // 20 oauth-start/min/IP
-	oauthCallbackLimiter := NewRateLimiter(20, 1*time.Minute) // 20 oauth-callback/min/IP
+	loginLimiter := NewRateLimiter(10, 1*time.Minute)
+	registerLimiter := NewRateLimiter(5, 1*time.Minute)
+	refreshLimiter := NewRateLimiter(20, 1*time.Minute)
+	oauthStartLimiter := NewRateLimiter(20, 1*time.Minute)
+	oauthCallbackLimiter := NewRateLimiter(20, 1*time.Minute)
+	logoutLimiter := NewRateLimiter(60, 1*time.Minute)
 
 	resolver := h.cfg.IPResolver()
 
@@ -98,30 +105,25 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	mux.HandleFunc("/auth/register", registerLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRegister))
 	mux.HandleFunc("/auth/refresh", refreshLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleRefresh))
 
-	// OAuth 2.0 sign-in endpoints (public, rate-limited). Mounted
-	// unconditionally; when OAuth is not configured the handlers
-	// return 404 and the routes are effectively no-ops. This keeps
-	// the route table identical across environments for ops
-	// simplicity.
+	// OAuth 2.0 sign-in endpoints (public, rate-limited).
 	mux.HandleFunc("/auth/oauth/google/start", oauthStartLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleStart))
 	mux.HandleFunc("/auth/oauth/google/callback", oauthCallbackLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleCallback))
 
+	// Logout: OptionalAuth + rate-limited. Even an unauthenticated
+	// request reaches the handler so the cookie jar can be cleared.
+	mux.Handle("/auth/logout", OptionalAuth(ts)(http.HandlerFunc(
+		logoutLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleLogout),
+	)))
+
 	// Protected endpoints (any authenticated user).
-	mux.Handle("/auth/logout", RequireAuthFunc(ts, h.handleLogout))
 	mux.Handle("/auth/logout-all", RequireAuthFunc(ts, h.handleLogoutAll))
 	mux.Handle("/auth/me", RequireAuthFunc(ts, h.handleMe))
 	mux.Handle("/auth/me/password", RequireAuthFunc(ts, h.handleChangePassword))
 
-	// OAuth 2.0 account-link endpoints (authenticated). The auth
-	// middleware itself is the gate, so no per-IP rate-limiter is
-	// added here; an attacker who already holds a valid bearer token
-	// is not in the threat model these limiters protect against, and
-	// the upstream gateway already throttles per-token traffic.
 	mux.Handle("/auth/oauth/google/link/start", RequireAuthFunc(ts, h.handleOAuthGoogleLinkStart))
 	mux.Handle("/auth/oauth/google/link/callback", RequireAuthFunc(ts, h.handleOAuthGoogleLinkCallback))
 	mux.Handle("/auth/oauth/google/link", RequireAuthFunc(ts, h.handleOAuthGoogleUnlink))
 
-	// Admin endpoints.
 	mux.Handle("/auth/admin/users", RequireAdminFunc(ts, h.handleAdminUsers))
 	mux.Handle("/auth/admin/users/", RequireAdminFunc(ts, h.handleAdminUserAction))
 }
@@ -153,7 +155,6 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up user.
 	user, err := h.users.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "internal error")
@@ -163,33 +164,26 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
-
-	// Check account is active.
 	if !user.Active {
 		writeAuthError(w, http.StatusForbidden, "account is deactivated")
 		return
 	}
-
-	// Verify password.
 	if err := user.CheckPassword(req.Password); err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
 
-	// Issue token pair.
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
 		return
 	}
 
-	// Enforce max sessions per user.
 	count, _ := h.sessions.CountActiveSessions(r.Context(), user.ID)
 	if count >= h.cfg.MaxSessionsPerUser {
 		_ = h.sessions.RevokeOldestSession(r.Context(), user.ID)
 	}
 
-	// Persist refresh session.
 	now := time.Now().UTC()
 	sess := &Session{
 		ID:           GenerateID(),
@@ -206,14 +200,27 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update last login.
 	_ = h.users.UpdateLastLogin(r.Context(), user.ID)
 
-	// Cookie-auth transport. Additive: legacy clients still read
-	// the JSON body; cookie-auth clients ignore the body and let
-	// the browser jar carry the tokens.
-	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
-	writeJSON(w, http.StatusOK, pair)
+	h.writeSessionCookies(w, user.ID, pair.AccessToken, rawRefresh)
+	writeJSON(w, http.StatusOK, h.loginResponseBody(user, pair))
+}
+
+// loginResponseBody composes the legacy-shaped JSON response. Tokens
+// are omitted unless AUTH_RETURN_TOKENS_IN_BODY is true so a default
+// cookie-auth deployment does not re-introduce the JS-readable token
+// surface.
+func (h *Handler) loginResponseBody(user *User, pair *TokenPair) map[string]interface{} {
+	body := map[string]interface{}{
+		"user":       userPublicView(user),
+		"token_type": pair.TokenType,
+		"expires_in": pair.ExpiresIn,
+	}
+	if tp := h.maybeTokenPair(pair); tp != nil {
+		body["access_token"] = tp.AccessToken
+		body["refresh_token"] = tp.RefreshToken
+	}
+	return body
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +266,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		ID:        GenerateID(),
 		Username:  req.Username,
 		Email:     req.Email,
-		Role:      RoleEtradie, // Self-registration always creates etradie role.
+		Role:      RoleEtradie,
 		Active:    true,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -279,7 +286,6 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-login: issue tokens immediately.
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "user created but failed to issue tokens")
@@ -298,12 +304,8 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.sessions.CreateSession(r.Context(), sess)
 
-	// Cookie-auth transport (additive, same policy as handleLogin).
-	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
-	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"user":   userPublicView(user),
-		"tokens": pair,
-	})
+	h.writeSessionCookies(w, user.ID, pair.AccessToken, rawRefresh)
+	writeJSON(w, http.StatusCreated, h.loginResponseBody(user, pair))
 }
 
 // ---------------------------------------------------------------------------
@@ -321,11 +323,6 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req refreshRequest
-	// The body is optional for cookie-auth clients (the refresh
-	// token rides in the HttpOnly refresh_token cookie). Tolerate
-	// an empty body when the cookie carries the value; preserve
-	// the legacy "invalid JSON" 400 for clients that DO send a
-	// non-empty body.
 	if r.Body != nil && r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -340,7 +337,6 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up session by refresh token.
 	sess, err := h.sessions.GetSessionByToken(r.Context(), req.RefreshToken)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "internal error")
@@ -350,14 +346,11 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-
-	// Check session is usable.
 	if !sess.IsUsable() {
 		writeAuthError(w, http.StatusUnauthorized, "refresh token expired or revoked")
 		return
 	}
 
-	// Look up user.
 	user, err := h.users.GetUserByID(r.Context(), sess.UserID)
 	if err != nil || user == nil {
 		writeAuthError(w, http.StatusUnauthorized, "user not found")
@@ -368,17 +361,14 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke the old session (refresh token rotation).
 	_ = h.sessions.RevokeSession(r.Context(), sess.ID)
 
-	// Issue new token pair.
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
 		return
 	}
 
-	// Create new session.
 	now := time.Now().UTC()
 	newSess := &Session{
 		ID:           GenerateID(),
@@ -392,15 +382,19 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.sessions.CreateSession(r.Context(), newSess)
 
-	// Rotate cookies in lockstep with the JSON response so the
-	// browser jar holds the new (access, refresh, csrf) triple
-	// before the next request goes out.
-	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
-	writeJSON(w, http.StatusOK, pair)
+	h.writeSessionCookies(w, user.ID, pair.AccessToken, rawRefresh)
+	writeJSON(w, http.StatusOK, h.loginResponseBody(user, pair))
 }
 
 // ---------------------------------------------------------------------------
 // POST /auth/logout
+//
+// Mounted under OptionalAuth (see RegisterRoutes). The handler
+// unconditionally clears the browser cookie jar so a user whose
+// access cookie expired between the dashboard load and the logout
+// click still ends up signed out. The refresh-token body field (or
+// refresh cookie) is consumed when present to revoke the session
+// server-side too.
 // ---------------------------------------------------------------------------
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -417,7 +411,6 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		req.RefreshToken = RefreshTokenFromCookie(r)
 	}
 
-	// If refresh token provided, revoke that specific session.
 	if req.RefreshToken != "" {
 		sess, _ := h.sessions.GetSessionByToken(r.Context(), req.RefreshToken)
 		if sess != nil {
@@ -425,9 +418,6 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Always clear the browser's cookie jar, even when the session
-	// was already gone server-side. Logout must leave the client in
-	// a known-clean state.
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
@@ -450,9 +440,6 @@ func (h *Handler) handleLogoutAll(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
-	// Clear THIS browser's cookies; other devices will hit a
-	// revoked refresh on their next /auth/refresh and clear their
-	// own cookies in the same handler.
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "all sessions revoked"})
 }
@@ -510,20 +497,16 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Federated accounts have no local password to change. Surface a
-	// clear 400 instead of letting CheckPassword return a generic error.
 	if user.AuthProvider != "" && user.AuthProvider != AuthProviderLocal {
 		writeAuthError(w, http.StatusBadRequest, "this account signs in with "+user.AuthProvider+"; password change is not applicable")
 		return
 	}
 
-	// Verify current password.
 	if err := user.CheckPassword(req.CurrentPassword); err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "current password is incorrect")
 		return
 	}
 
-	// Set new password.
 	if err := user.SetPassword(req.NewPassword); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
@@ -534,13 +517,8 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke all sessions to force re-login with new password.
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
-	// Clear cookies so the next request from THIS browser is
-	// unauthenticated, surfacing as a 401 and forcing the SPA to
-	// take the user to the login screen. Without this, the access
-	// cookie would remain valid until its TTL expired.
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated, all sessions revoked"})
 }
@@ -651,7 +629,6 @@ func (h *Handler) adminCreateUser(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func (h *Handler) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
-	// Parse path: /auth/admin/users/{id}/{action}
 	path := strings.TrimPrefix(r.URL.Path, "/auth/admin/users/")
 	parts := strings.SplitN(path, "/", 2)
 
@@ -674,7 +651,6 @@ func (h *Handler) handleAdminUserAction(w http.ResponseWriter, r *http.Request) 
 			writeAuthError(w, http.StatusInternalServerError, "failed to deactivate user")
 			return
 		}
-		// Revoke all sessions for deactivated user.
 		_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 		writeJSON(w, http.StatusOK, map[string]string{"message": "user deactivated", "id": userID})
 
@@ -699,11 +675,6 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
 }
-
-// clientIP() was removed in favour of the trust-aware ClientIPResolver
-// in clientip.go, exposed via Config.IPResolver(). The legacy helper
-// trusted X-Forwarded-For from any peer and was therefore vulnerable
-// to header spoofing once an attacker reached the origin directly.
 
 func formatOptionalTime(t *time.Time) interface{} {
 	if t == nil {
