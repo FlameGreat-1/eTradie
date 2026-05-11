@@ -136,14 +136,22 @@ func main() {
 	}
 	consentStore := consent.NewStore(authPool)
 	consentIPSalt := []byte(os.Getenv("CONSENT_IP_HASH_SALT"))
-	consentHandler := consent.NewHandler(
+	// Per-IP rate limiter for the public POST /api/v1/consent endpoint.
+	// 60 writes / minute / IP is generous for a legitimate user (who
+	// will only ever issue a handful of decisions in their lifetime)
+	// while making a volumetric DB-fill attack uneconomical.
+	consentLimiter := auth.NewRateLimiter(60, time.Minute)
+	consentHandler := consent.NewHandlerWithLimiter(
 		consentStore,
 		authCfg.IPResolver(),
 		consentIPSalt,
+		consentLimiter,
 		observability.Logger("consent"),
 	)
+	defer consentLimiter.Close()
 	log.Info().
 		Bool("ip_hash_salt_configured", len(consentIPSalt) > 0).
+		Int("rate_limit_per_minute", 60).
 		Msg("consent_service_initialized")
 
 	if smtpCfg.IsConfigured() {
@@ -246,6 +254,17 @@ func main() {
 					log.Error().Err(err).Msg("auth_oauth_flows_cleanup_failed")
 				} else if oauthDeleted > 0 {
 					log.Info().Int64("deleted", oauthDeleted).Msg("auth_expired_oauth_flows_cleaned")
+				}
+				// GDPR Art. 5(1)(e): delete consent rows older than the
+				// configured retention window, preserving the latest row
+				// per anonymous_id and per user_id as legally-required
+				// proof of consent.
+				cutoff := time.Now().UTC().Add(-consent.DefaultRetention)
+				consentDeleted, err := consentStore.DeleteExpired(cleanupCtx, cutoff)
+				if err != nil {
+					log.Error().Err(err).Msg("consent_retention_cleanup_failed")
+				} else if consentDeleted > 0 {
+					log.Info().Int64("deleted", consentDeleted).Msg("consent_expired_rows_cleaned")
 				}
 				cancel()
 			}
