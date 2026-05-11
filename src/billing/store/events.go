@@ -44,6 +44,25 @@ func (s *ProcessedEventStore) MarkProcessedTx(
 	return inserted == 1, nil
 }
 
+// PruneOlderThan deletes rows whose received_at is strictly older than the
+// supplied cutoff and returns the number of rows removed.
+//
+// Idempotency only matters during the provider's retry window (Paddle and
+// Lemon Squeezy both retry well under 7 days). The reconciler calls this
+// hourly with a 30-day cutoff by default so processed_webhook_events stays
+// bounded forever. The DELETE is index-scanned via the existing
+// idx_processed_webhook_events_received_at index.
+func (s *ProcessedEventStore) PruneOlderThan(
+	ctx context.Context, cutoff time.Time,
+) (int64, error) {
+	const q = `DELETE FROM processed_webhook_events WHERE received_at < $1`
+	tag, err := s.db.Exec(ctx, q, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // SubscriptionEventStore appends an immutable audit record per subscription
 // transition. Read-only support paths use the row history to answer
 // "what was this user's tier at time X" and to debug provider edge cases.
