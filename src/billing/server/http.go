@@ -98,6 +98,7 @@ func New(opts Options) *Server {
 	mux.HandleFunc("/webhooks/paddle", s.handlePaddleWebhook)
 	mux.HandleFunc("/webhooks/lemonsqueezy", s.handleLSWebhook)
 	mux.HandleFunc("/internal/checkout", s.handleInternalCheckout)
+	mux.HandleFunc("/internal/portal", s.handleInternalPortal)
 
 	s.http = &http.Server{
 		Handler:           mux,
@@ -361,6 +362,60 @@ func (s *Server) handleInternalCheckout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.metrics.CheckoutCreated.WithLabelValues(req.Provider, string(req.Tier), "ok").Inc()
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ---------------------------------------------------------------------------
+// Internal portal endpoint
+//
+// The gateway calls this after looking up the authenticated user's
+// (provider, provider_customer_id) from billing_subscriptions. The
+// shared-secret check below mirrors handleInternalCheckout so the
+// security posture is consistent across every /internal/* route.
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleInternalPortal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	provided := []byte(r.Header.Get(InternalAuthHeader))
+	if len(provided) == 0 || subtle.ConstantTimeCompare(provided, s.internalSecret) != 1 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var req service.PortalRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json: " + err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	resp, err := s.checkoutSvc.CreatePortalSession(ctx, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidProvider):
+			s.log.Warn().Err(err).Str("provider", req.Provider).Msg("billing_portal_invalid_provider")
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, service.ErrPortalNotSupported):
+			s.log.Info().Err(err).Str("provider", req.Provider).Str("user_id", req.UserID).Msg("billing_portal_not_supported")
+			writeJSON(w, http.StatusNotImplemented, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, service.ErrProviderAPI):
+			s.log.Error().Err(err).Str("provider", req.Provider).Msg("billing_portal_provider_failed")
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "provider error"})
+			return
+		}
+		s.log.Error().Err(err).Str("provider", req.Provider).Msg("billing_portal_failed")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 

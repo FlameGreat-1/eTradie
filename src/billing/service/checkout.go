@@ -40,7 +40,31 @@ var (
 	ErrInvalidTier         = errors.New("billing: invalid tier")
 	ErrUnconfiguredProduct = errors.New("billing: provider product is not configured for this tier")
 	ErrProviderAPI         = errors.New("billing: provider api error")
+	// ErrPortalNotSupported is returned by CreatePortalSession when the
+	// provider response carries no portal URL. The Lemon Squeezy customer
+	// resource exposes attributes.urls.customer_portal only for accounts
+	// that have completed at least one successful checkout; the gateway
+	// maps this to a 501 so the SPA shows a clear 'portal unavailable'
+	// toast instead of redirecting the user to an empty URL.
+	ErrPortalNotSupported = errors.New("billing: portal not supported by provider")
 )
+
+// PortalRequest is the gateway-side request shape for /internal/portal.
+// The gateway has already looked up the user's (provider, customer_id)
+// from billing_subscriptions and resolved their identity from the JWT.
+type PortalRequest struct {
+	Provider           string `json:"provider"`
+	ProviderCustomerID string `json:"provider_customer_id"`
+	UserID             string `json:"user_id"`
+}
+
+// PortalResponse is the gateway-side response. PortalURL is the one-shot
+// provider-managed page where the customer can update card, cancel,
+// change plan, or download invoices. Paddle expires its portal_session
+// in minutes by design; the gateway must NOT cache this value.
+type PortalResponse struct {
+	PortalURL string `json:"portal_url"`
+}
 
 // CheckoutService creates one-shot checkout URLs against the configured
 // payment providers. It owns the provider API keys; user-facing services
@@ -465,4 +489,134 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// ---------------------------------------------------------------------------
+// Customer portal
+//   - Paddle: POST /customers/{id}/portal-sessions (Paddle Billing v1)
+//   - Lemon Squeezy: GET /v1/customers/{id}, read attributes.urls.customer_portal
+//
+// The portal URL is one-shot per customer and short-lived (Paddle returns
+// a session that expires within minutes). We never cache it; every call
+// hits the provider so the URL is always fresh.
+// ---------------------------------------------------------------------------
+
+type paddlePortalResponse struct {
+	Data struct {
+		ID   string `json:"id"`
+		URLs struct {
+			General string `json:"general"`
+		} `json:"urls"`
+	} `json:"data"`
+}
+
+type lsCustomerResponse struct {
+	Data struct {
+		ID         string `json:"id"`
+		Attributes struct {
+			URLs struct {
+				CustomerPortal string `json:"customer_portal"`
+			} `json:"urls"`
+		} `json:"attributes"`
+	} `json:"data"`
+}
+
+// CreatePortalSession resolves a one-shot customer-portal URL for the
+// supplied (provider, customer_id). Provider API keys live exclusively
+// inside this service.
+func (c *CheckoutService) CreatePortalSession(
+	ctx context.Context, req PortalRequest,
+) (*PortalResponse, error) {
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	customerID := strings.TrimSpace(req.ProviderCustomerID)
+	if customerID == "" {
+		return nil, fmt.Errorf("%w: provider_customer_id is required", ErrPortalNotSupported)
+	}
+
+	switch provider {
+	case "paddle":
+		return c.createPaddlePortal(ctx, customerID)
+	case "lemonsqueezy":
+		return c.createLemonSqueezyPortal(ctx, customerID)
+	default:
+		return nil, ErrInvalidProvider
+	}
+}
+
+func (c *CheckoutService) createPaddlePortal(ctx context.Context, customerID string) (*PortalResponse, error) {
+	if c.cfg.PaddleAPIKey == "" {
+		return nil, errors.New("billing: PADDLE_API_KEY is not configured")
+	}
+
+	endpoint := strings.TrimRight(c.cfg.PaddleAPIBaseURL, "/") + "/customers/" + customerID + "/portal-sessions"
+
+	var resp paddlePortalResponse
+	// Paddle's portal-sessions endpoint accepts an empty JSON body. We
+	// send {} explicitly so the request is well-formed regardless of
+	// any future server-side validation that rejects zero-byte payloads.
+	if err := c.postJSON(ctx, endpoint, c.cfg.PaddleAPIKey, struct{}{}, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Data.URLs.General == "" {
+		return nil, fmt.Errorf("%w: paddle returned empty portal url", ErrPortalNotSupported)
+	}
+	return &PortalResponse{PortalURL: resp.Data.URLs.General}, nil
+}
+
+func (c *CheckoutService) createLemonSqueezyPortal(ctx context.Context, customerID string) (*PortalResponse, error) {
+	if c.cfg.LSAPIKey == "" {
+		return nil, errors.New("billing: LEMONSQUEEZY_API_KEY is not configured")
+	}
+	endpoint := strings.TrimRight(c.cfg.LSAPIBaseURL, "/") + "/v1/customers/" + customerID
+
+	var resp lsCustomerResponse
+	if err := c.getJSONAPI(ctx, endpoint, c.cfg.LSAPIKey, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Data.Attributes.URLs.CustomerPortal == "" {
+		return nil, fmt.Errorf("%w: lemonsqueezy customer has no portal url", ErrPortalNotSupported)
+	}
+	return &PortalResponse{PortalURL: resp.Data.Attributes.URLs.CustomerPortal}, nil
+}
+
+// getJSONAPI performs a GET against a JSON:API endpoint and decodes the
+// response into out. Mirrors the same retry + bounded error policy as post().
+func (c *CheckoutService) getJSONAPI(
+	ctx context.Context, endpoint, bearer string, out any,
+) error {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return fmt.Errorf("billing: build request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+bearer)
+		req.Header.Set("Accept", "application/vnd.api+json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("%w: %v", ErrProviderAPI, err)
+			continue
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			if out == nil {
+				return nil
+			}
+			if err := json.Unmarshal(respBody, out); err != nil {
+				return fmt.Errorf("billing: decode response: %w", err)
+			}
+			return nil
+		}
+
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("%w: status=%d body=%s", ErrProviderAPI, resp.StatusCode, truncate(string(respBody), 256))
+			continue
+		}
+
+		return fmt.Errorf("%w: status=%d body=%s", ErrProviderAPI, resp.StatusCode, truncate(string(respBody), 256))
+	}
+	return lastErr
 }
