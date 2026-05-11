@@ -15,6 +15,7 @@ import (
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
+	"github.com/flamegreat-1/etradie/src/consent"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -48,6 +49,7 @@ func NewHTTPServer(
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
 	waitlistHandler *mails.Handler,
+	consentHandler *consent.Handler,
 	subStore *billingstore.SubscriptionStore,
 	portalAudStore *billingstore.PortalAuditStore,
 	billingClient *BillingClient,
@@ -99,6 +101,13 @@ func NewHTTPServer(
 
 	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+
+	// Cookie-consent endpoints. The handler owns its own auth-middleware
+	// composition (OptionalAuth for the public POST/GET, RequireAuth +
+	// CSRF for the authenticated /history and /attach endpoints) so the
+	// mounting call only forwards the dependencies it cannot resolve
+	// for itself.
+	consentHandler.RegisterRoutes(mux, tokenService, csrfMiddleware)
 
 	// CORS allowlist is validated at startup so a misconfig fails
 	// the deploy loudly rather than silently producing 403s or, worse,
