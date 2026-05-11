@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -11,9 +12,16 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat-1/etradie/src/auth"
+	billingservice "github.com/flamegreat-1/etradie/src/billing/service"
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 )
+
+// netSplitHostPortImpl avoids a name clash between the import 'net' and
+// the variable netSplitHostPort declared below.
+func netSplitHostPortImpl(s string) (string, string, error) {
+	return net.SplitHostPort(s)
+}
 
 // validTiers is the canonical allowlist of paid tiers the dashboard may
 // initiate a checkout for. Free is intentionally excluded: a checkout for
@@ -56,10 +64,11 @@ var accessGrantingStatuses = map[string]bool{
 // BillingClient so provider API keys never live inside the gateway
 // process.
 type BillingHandler struct {
-	subStore  *billingstore.SubscriptionStore
-	client    *BillingClient
-	userStore *auth.UserStore
-	log       zerolog.Logger
+	subStore   *billingstore.SubscriptionStore
+	portalAud  *billingstore.PortalAuditStore
+	client     *BillingClient
+	userStore  *auth.UserStore
+	log        zerolog.Logger
 
 	// subCache: in-process last-known-good cache, keyed by user_id.
 	//
@@ -71,21 +80,43 @@ type BillingHandler struct {
 	// cached entry exists, we serve the cached snapshot rather than
 	// 503ing the customer out of their own account.
 	subCache *subscriptionCache
+
+	// Per-user token-bucket rate limiter. Defends /api/v1/billing/checkout
+	// and /api/v1/billing/portal against an authenticated-but-abusive
+	// user (compromised account or buggy SPA build). Keyed by user_id
+	// from the JWT (cannot be spoofed). Default budget: 10 req/min,
+	// burst 20. Implementation reuses the same TokenBucketRateLimiter
+	// primitive the billing service uses on its webhook surface.
+	userLimit *billingservice.TokenBucketRateLimiter
 }
 
-// NewBillingHandler builds a handler with the in-process subscription cache.
+// NewBillingHandler builds a handler with the in-process subscription cache
+// and per-user rate limiter.
 func NewBillingHandler(
 	subStore *billingstore.SubscriptionStore,
+	portalAud *billingstore.PortalAuditStore,
 	client *BillingClient,
 	userStore *auth.UserStore,
 ) *BillingHandler {
 	return &BillingHandler{
 		subStore:  subStore,
+		portalAud: portalAud,
 		client:    client,
 		userStore: userStore,
 		log:       observability.Logger("billing_handler"),
 		subCache:  newSubscriptionCache(30 * time.Second),
+		userLimit: billingservice.NewTokenBucketRateLimiter(billingservice.RateLimiterConfig{
+			MaxKeys:    16384,
+			RatePerSec: 10.0 / 60.0, // 10 requests per minute
+			Burst:      20,
+		}),
 	}
+}
+
+// allowUser enforces the per-user rate limit. Returns true on allow,
+// false on reject (caller writes 429 with Retry-After).
+func (h *BillingHandler) allowUser(userID string) bool {
+	return h.userLimit.Allow(userID)
 }
 
 // RegisterRoutes mounts the dashboard-facing billing endpoints.
@@ -127,6 +158,12 @@ func (h *BillingHandler) handleCreatePortal(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !h.allowUser(claims.UserID) {
+		w.Header().Set("Retry-After", "60")
+		h.recordPortalAudit(r, claims.UserID, "", "rate_limited", "per-user rate limit exceeded")
+		writeJSONError(w, http.StatusTooManyRequests, "too many portal attempts; please slow down")
+		return
+	}
 
 	// Resolve the authoritative subscription. We use the with-retry helper
 	// so a transient DB hiccup does not force the user through the upgrade
@@ -162,23 +199,76 @@ func (h *BillingHandler) handleCreatePortal(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrUpstreamNotSupported):
+			h.recordPortalAudit(r, claims.UserID, *sub.PaymentProvider, "not_supported", err.Error())
 			writeJSONError(w, http.StatusNotImplemented, "customer portal is not available for this account")
 			return
 		case errors.Is(err, ErrUpstreamRejected):
+			h.recordPortalAudit(r, claims.UserID, *sub.PaymentProvider, "upstream_rejected", err.Error())
 			writeJSONError(w, http.StatusBadRequest, "portal request rejected by billing service")
 			return
 		case errors.Is(err, ErrUpstreamUnavailable):
+			h.recordPortalAudit(r, claims.UserID, *sub.PaymentProvider, "upstream_error", err.Error())
 			writeJSONError(w, http.StatusBadGateway, "billing service unavailable")
 			return
 		}
+		h.recordPortalAudit(r, claims.UserID, *sub.PaymentProvider, "error", err.Error())
 		h.log.Error().Err(err).Str("user_id", claims.UserID).Msg("billing_portal_failed")
 		writeJSONError(w, http.StatusInternalServerError, "portal failed")
 		return
 	}
 
+	// Compliance audit row. Fire-and-forget with a 5s detached context
+	// so a slow audit insert never blocks the user's redirect.
+	h.recordPortalAudit(r, claims.UserID, *sub.PaymentProvider, "success", "")
+
 	writeJSON(w, http.StatusOK, map[string]string{
 		"portal_url": resp.PortalURL,
 	})
+}
+
+// recordPortalAudit appends an audit row for /api/v1/billing/portal.
+// Best-effort: errors are logged but never propagated, because the
+// user's flow must not be blocked by an audit-table hiccup. SOC 2 /
+// PCI-DSS auditors care that we attempt the write on every request;
+// they accept that the table is best-effort consistent with logs as
+// long as both surfaces are monitored.
+func (h *BillingHandler) recordPortalAudit(r *http.Request, userID, provider, status, reason string) {
+	if h.portalAud == nil {
+		return
+	}
+	ev := &billingstore.PortalAuditEvent{
+		UserID:    userID,
+		Provider:  provider,
+		ClientIP:  clientIPFromRequest(r),
+		UserAgent: r.UserAgent(),
+		Status:    status,
+		Error:     reason,
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.portalAud.Append(ctx, ev); err != nil {
+			h.log.Warn().Err(err).Str("user_id", userID).Str("status", status).Msg("billing_portal_audit_append_failed")
+		}
+	}()
+}
+
+// clientIPFromRequest returns r.RemoteAddr's IP component. We do NOT
+// trust X-Forwarded-For here because this endpoint is on the gateway
+// which is itself the terminating reverse-proxy in our deployment.
+// If you front the gateway with another proxy, add a header-walking
+// helper analogous to billing/server/http.go::clientIP.
+func clientIPFromRequest(r *http.Request) string {
+	host, _, err := netSplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// netSplitHostPort is wrapped so the import list stays explicit.
+var netSplitHostPort = func(s string) (string, string, error) {
+	return netSplitHostPortImpl(s)
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +353,17 @@ type checkoutRequest struct {
 func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	claimsForLimit := auth.ClaimsFromContext(r.Context())
+	if claimsForLimit == nil {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !h.allowUser(claimsForLimit.UserID) {
+		w.Header().Set("Retry-After", "60")
+		writeJSONError(w, http.StatusTooManyRequests, "too many checkout attempts; please slow down")
 		return
 	}
 
