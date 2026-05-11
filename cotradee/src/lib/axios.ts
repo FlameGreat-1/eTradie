@@ -70,6 +70,24 @@ const REFRESH_LOCK_NAME = 'etradie:auth:refresh';
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 
 /**
+ * URL prefixes that are NEVER tier-gated. A 403 from these paths is
+ * either a CSRF mismatch (always remediable by retry after refresh)
+ * or a server bug; in neither case should the SPA show an
+ * "Upgrade Required" toast to the user. PRACTICE.md #2.
+ */
+const NON_TIER_GATED_403_PREFIXES = [
+  '/auth/',
+  '/api/v1/consent',
+  '/health',
+  '/readiness',
+] as const;
+
+function isNonTierGated403(url: string | undefined): boolean {
+  if (!url) return false;
+  return NON_TIER_GATED_403_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+/**
  * Read a cookie value by name from document.cookie.
  * Returns '' when the cookie is absent.
  */
@@ -250,8 +268,14 @@ function createClient(baseURL: string): AxiosInstance {
     async (error: AxiosError) => {
       const original = error.config;
 
-      // Global interceptor for tier restrictions.
-      if (error.response?.status === 403) {
+      // Global interceptor for tier restrictions. A 403 from a
+      // tier-gated endpoint surfaces an "Upgrade Required" toast so
+      // the user knows their plan does not include the requested
+      // action. Public / non-tier-gated endpoints (auth, consent,
+      // health) must NOT show this toast — a 403 from them is
+      // either a server bug or a CSRF mismatch and the upgrade
+      // prompt would be actively misleading. PRACTICE.md #2.
+      if (error.response?.status === 403 && !isNonTierGated403(original?.url)) {
         const data = error.response.data as { error?: string } | undefined;
         const msg = data?.error || 'Action restricted by your subscription tier.';
         toast({

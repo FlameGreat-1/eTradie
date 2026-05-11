@@ -24,13 +24,6 @@
 export type Category = 'functional' | 'analytics';
 
 /**
- * Stable list used by the preferences UI to render toggles in a
- * deterministic order. The order chosen here is the order the user
- * sees in the modal; do not reorder without updating the policy page.
- */
-export const ALL_OPTIONAL_CATEGORIES: readonly Category[] = ['functional', 'analytics'] as const;
-
-/**
  * The per-category boolean map persisted on every consent decision.
  * Always carries both keys explicitly so an absent key is never
  * ambiguous between 'opted out' and 'never asked'.
@@ -79,6 +72,15 @@ export interface ConsentState {
   anonymousId: string;
   /** Policy version of the latest recorded decision; '' when none. */
   recordedPolicyVersion: string;
+  /**
+   * True when the user actively made a consent decision in the
+   * current browser tab session (not loaded from pre-existing local
+   * storage). Used by ConsentAuthBridge to decide whether the
+   * current anonymous_id is safe to attach to a freshly-logged-in
+   * user: attaching a stranger's decision (e.g. a shared computer)
+   * would corrupt the legal audit trail.
+   */
+  decisionMadeThisSession: boolean;
 
   /** Accept every optional category and persist. */
   acceptAll: () => Promise<void>;

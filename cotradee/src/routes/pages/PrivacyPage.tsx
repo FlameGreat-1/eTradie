@@ -192,6 +192,7 @@ export default function PrivacyPage() {
         <li><strong>Security logs:</strong> Retained for up to 90 days</li>
         <li><strong>Billing records:</strong> Retained for up to 7 years for legal and tax compliance</li>
         <li><strong>Webhook event idempotency records:</strong> Retained for 30 days</li>
+        <li><strong>Cookie-consent records:</strong> Retained for up to 24 months. The most recent decision per visitor (anonymous identifier) and per user account is preserved as the legally-required proof of consent under GDPR Article 7(1).</li>
       </ul>
       <p>
         Upon account deletion, we will delete or anonymise your personal data within 30

@@ -1,6 +1,6 @@
 import { Twitter, Linkedin, Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useConsent } from '@/features/consent/useConsent';
+import { useConsentOptional } from '@/features/consent/useConsent';
 
 /**
  * The footer renders three link variants:
@@ -68,7 +68,12 @@ const SECTIONS: FooterSection[] = [
 ];
 
 export default function LandingFooter() {
-  const consent = useConsent();
+  // useConsentOptional returns null when the footer is rendered
+  // outside AppProvider (e.g. an error page, storybook snapshot,
+  // maintenance page). In that case the Cookie Preferences action
+  // is hidden because there is nothing to open; every other link
+  // still works. PRACTICE.md #1.
+  const consent = useConsentOptional();
   return (
     <footer className="landing-footer" id="landing-footer">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8 pt-16 pb-8">
@@ -96,12 +101,20 @@ export default function LandingFooter() {
               <ul className="flex flex-col gap-4">
                 {section.links.map((link) => {
                   if (link.kind === 'action') {
+                    // Hide the Cookie Preferences action when no
+                    // ConsentProvider is mounted above. Without this
+                    // guard the click handler would throw on an
+                    // error page / maintenance surface; see
+                    // PRACTICE.md #1 for the original incident.
+                    if (link.action === 'openConsent' && !consent) {
+                      return null;
+                    }
                     return (
                       <li key={link.label}>
                         <button
                           type="button"
                           onClick={() => {
-                            if (link.action === 'openConsent') {
+                            if (link.action === 'openConsent' && consent) {
                               consent.openPreferences();
                             }
                           }}

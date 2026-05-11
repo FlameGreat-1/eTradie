@@ -120,6 +120,26 @@
   border-color: #86cc00;
 }
 
+/*
+ * Reject variant: equal visual weight with the primary Accept button.
+ * Filled neutral surface (NOT a destructive red) because rejection is
+ * a legitimate, non-error user choice. The EDPB 2022 guidance and
+ * CNIL enforcement actions explicitly require Accept and Reject to be
+ * equally prominent; styling Reject as a secondary outline button
+ * (the previous behaviour) is the exact dark-pattern penalised in the
+ * 2022 Google fine.
+ */
+.consent-btn-reject {
+  background: var(--landing-text);
+  border-color: var(--landing-text);
+  color: var(--landing-card-bg);
+}
+
+.consent-btn-reject:hover {
+  background: var(--landing-text-faint);
+  border-color: var(--landing-text-faint);
+}
+
 /* ===================================================================
  * Modal
  * =================================================================== */

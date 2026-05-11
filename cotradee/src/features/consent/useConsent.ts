@@ -1,13 +1,18 @@
 /**
  * Public hook surface for the cookie-consent feature.
  *
- * useConsent       — full ConsentState (used by the banner, modal,
- *                    settings page, and AuthContext attach-on-login).
- * useHasConsent    — boolean for a single category. Read by gates
- *                    and conditional analytics initialisation.
- * useIsConsentOpen — boolean indicating the preferences modal is
- *                    currently open; used by the footer link to no-op
- *                    if the modal is already on screen.
+ * useConsent          — full ConsentState. Throws when not inside a
+ *                       ConsentProvider; use this in surfaces that
+ *                       are ALWAYS mounted under AppProvider.
+ * useConsentOptional  — returns null when no provider is above. Use
+ *                       in surfaces that might be rendered outside
+ *                       AppProvider (error pages, storybook,
+ *                       maintenance pages) so the consumer can
+ *                       gracefully degrade rather than crashing.
+ * useHasConsent       — boolean for a single category. Returns false
+ *                       when no provider is mounted, so callers like
+ *                       conditional analytics SDK initialisation
+ *                       never throw.
  */
 
 import { useContext } from 'react';
@@ -22,14 +27,13 @@ export function useConsent(): ConsentState {
   return ctx;
 }
 
+export function useConsentOptional(): ConsentState | null {
+  const ctx = useContext(ConsentContext);
+  return ctx ?? null;
+}
+
 export function useHasConsent(category: Category): boolean {
   const ctx = useContext(ConsentContext);
   if (!ctx) return false;
   return ctx.decision[category];
-}
-
-export function useIsConsentOpen(): boolean {
-  const ctx = useContext(ConsentContext);
-  if (!ctx) return false;
-  return ctx.preferencesOpen;
 }

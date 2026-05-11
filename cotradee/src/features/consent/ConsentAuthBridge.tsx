@@ -9,6 +9,17 @@
  * picks up the now-known user_id without losing the original
  * recorded_at timestamp.
  *
+ * IMPORTANT (PRACTICE.md #5): the bridge only fires when the user
+ * actively made a consent decision in the CURRENT tab session
+ * (consent.decisionMadeThisSession === true). Without this guard a
+ * shared-computer scenario would silently attach a stranger's prior
+ * decision (loaded from local storage left by the previous occupant)
+ * to the freshly-authenticated user. That corrupts the GDPR Art. 7.1
+ * audit-trail integrity. Users who log in without making a decision
+ * in this tab will have nothing attached; their next decision (the
+ * one they actually make) will be inserted with their user_id
+ * already populated via OptionalAuth.
+ *
  * The bridge renders nothing; it is mounted under ConsentProvider in
  * the AppProvider stack purely for its useEffect side-effect.
  */
@@ -39,9 +50,20 @@ export default function ConsentAuthBridge() {
     // confirmed against local storage / server.
     if (!consent.hydrated) return;
 
+    // Audit-trail integrity guard. Without this, a fresh sign-in on
+    // a shared computer would attach a stranger's earlier decision
+    // to the new user_id.
+    if (!consent.decisionMadeThisSession) return;
+
     attached.current = true;
     void consent.attachToCurrentUser();
-  }, [isAuthenticated, isLoading, consent.hydrated, consent]);
+  }, [
+    isAuthenticated,
+    isLoading,
+    consent.hydrated,
+    consent.decisionMadeThisSession,
+    consent,
+  ]);
 
   return null;
 }

@@ -21,27 +21,59 @@ type IPResolver interface {
 	Resolve(r *http.Request) string
 }
 
+// rateLimiter is the minimal surface the consent handler needs from a
+// per-IP rate limiter. *auth.RateLimiter satisfies this. Decoupling
+// behind an interface keeps the consent package free of test-time
+// concerns and lets unit tests inject a no-op.
+type rateLimiter interface {
+	Allow(ip string) bool
+}
+
+// noopLimiter is used when NewHandler is called without a limiter
+// (in tests). It always allows; production wiring always supplies a
+// real limiter via NewHandlerWithLimiter.
+type noopLimiter struct{}
+
+func (noopLimiter) Allow(_ string) bool { return true }
+
 // Handler serves the consent REST API.
 type Handler struct {
-	store      *Store
-	resolver   IPResolver
-	ipHashSalt []byte
-	log        zerolog.Logger
+	store       *Store
+	resolver    IPResolver
+	ipHashSalt  []byte
+	writeLimits rateLimiter
+	log         zerolog.Logger
 }
 
 // NewHandler constructs the consent HTTP handler. The salt is used
-// to derive ip_hash; passing an empty slice is permitted (handlers
-// still produce a non-empty hash) but a startup warning is logged so
-// operators notice the misconfiguration.
+// to derive ip_hash and the redacted anonymous_id_hash in audit logs;
+// passing an empty slice is permitted (handlers still produce a
+// non-empty hash) but a startup warning is logged so operators
+// notice the misconfiguration.
+//
+// This constructor uses a no-op rate limiter and is intended for unit
+// tests. Production wiring MUST use NewHandlerWithLimiter so the
+// public POST endpoint is protected against volumetric abuse.
 func NewHandler(store *Store, resolver IPResolver, ipHashSalt []byte, log zerolog.Logger) *Handler {
+	return NewHandlerWithLimiter(store, resolver, ipHashSalt, noopLimiter{}, log)
+}
+
+// NewHandlerWithLimiter is the production constructor. It wires a
+// real rate limiter around POST /api/v1/consent so an attacker cannot
+// volumetrically inflate consent_records (a DoS / DB-fill vector).
+func NewHandlerWithLimiter(store *Store, resolver IPResolver, ipHashSalt []byte, limiter rateLimiter, log zerolog.Logger) *Handler {
 	if len(ipHashSalt) == 0 {
 		log.Warn().Msg("consent_ip_hash_salt_empty_audit_hashes_will_not_be_unique_across_deployments")
 	}
+	if limiter == nil {
+		limiter = noopLimiter{}
+	}
 	return &Handler{
-		store:      store,
-		resolver:   resolver,
-		ipHashSalt: ipHashSalt,
-		log:        log,
+		store:       store,
+		resolver:    resolver,
+		ipHashSalt:  ipHashSalt,
+		writeLimits: limiter,
+		log:         log,
 	}
 }
 
@@ -56,7 +88,8 @@ func NewHandler(store *Store, resolver IPResolver, ipHashSalt []byte, log zerolo
 // this endpoint would at worst record a forged "reject all" entry
 // against the victim's anonymous_id; that has no security or privacy
 // consequence because there is nothing to read back. The endpoint is
-// rate-limited at the platform edge to prevent volumetric abuse.
+// rate-limited per resolved client IP (see NewHandlerWithLimiter) to
+// prevent volumetric abuse.
 //
 // Why RequireCSRF on POST /api/v1/consent/attach? That endpoint runs
 // after authentication and mutates server state in a way that links
@@ -102,6 +135,17 @@ func (h *Handler) handleConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
+	// Rate-limit BEFORE decoding the body so an attacker cannot pay
+	// JSON-decode CPU for every probe. Identity is the resolved
+	// client IP, which is spoof-proof thanks to the trust-aware
+	// ClientIPResolver shared with the auth rate limiter.
+	ip := h.resolveIP(r)
+	if !h.writeLimits.Allow(ip) {
+		w.Header().Set("Retry-After", "60")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded, try again later"})
+		return
+	}
+
 	var req postConsentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -129,7 +173,7 @@ func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
 		AnonymousID:   req.AnonymousID,
 		PolicyVersion: req.PolicyVersion,
 		Categories:    req.Categories,
-		IPHash:        h.hashIP(r),
+		IPHash:        h.hashWithSalt(ip),
 		UserAgent:     r.UserAgent(),
 	})
 	if err != nil {
@@ -139,7 +183,7 @@ func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.log.Info().
-		Str("anonymous_id", req.AnonymousID).
+		Str("anonymous_id_hash", h.hashAnonymousID(req.AnonymousID)).
 		Bool("has_user", userID != nil).
 		Str("policy_version", req.PolicyVersion).
 		Bool("functional", req.Categories.Functional).
@@ -252,7 +296,7 @@ func (h *Handler) handleAttach(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info().
 		Str("user_id", uid).
-		Str("anonymous_id", req.AnonymousID).
+		Str("anonymous_id_hash", h.hashAnonymousID(req.AnonymousID)).
 		Int64("attached", n).
 		Msg("consent_attached")
 
@@ -263,24 +307,39 @@ func (h *Handler) handleAttach(w http.ResponseWriter, r *http.Request) {
 // Helpers
 // ----------------------------------------------------------------------
 
-// hashIP derives a salted SHA-256 hex digest of the resolved client
-// IP. When the resolver is unset (defensive: tests / future
-// configurations) the function returns the empty string rather than
-// hashing whatever the request claims, because trusting raw
-// RemoteAddr here would defeat the spoof-proof guarantees the auth
-// package already provides.
-func (h *Handler) hashIP(r *http.Request) string {
+// resolveIP returns the resolved client IP, or an empty string if the
+// resolver is unset. Used both as the rate-limit identity and as the
+// input to the ip_hash column.
+func (h *Handler) resolveIP(r *http.Request) string {
 	if h.resolver == nil {
 		return ""
 	}
-	ip := h.resolver.Resolve(r)
-	if ip == "" {
+	return h.resolver.Resolve(r)
+}
+
+// hashWithSalt derives a salted SHA-256 hex digest of the given
+// value. Used for both ip_hash storage and anonymous_id_hash logging
+// so an attacker who reads the audit log cannot trivially correlate
+// a leaked anonymous_id back to a recorded decision.
+func (h *Handler) hashWithSalt(value string) string {
+	if value == "" {
 		return ""
 	}
 	sum := sha256.New()
 	sum.Write(h.ipHashSalt)
-	sum.Write([]byte(ip))
+	sum.Write([]byte(value))
 	return hex.EncodeToString(sum.Sum(nil))
+}
+
+// hashAnonymousID returns a short hex prefix of the salted hash of an
+// anonymous_id, suitable for log emission. The prefix is long enough
+// to correlate rows across log lines but short enough to avoid bloat.
+func (h *Handler) hashAnonymousID(id string) string {
+	full := h.hashWithSalt(id)
+	if len(full) > 16 {
+		return full[:16]
+	}
+	return full
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
