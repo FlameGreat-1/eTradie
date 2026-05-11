@@ -1,6 +1,19 @@
 import { Twitter, Linkedin, Github } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-const SECTIONS = [
+interface FooterLink {
+  label: string;
+  href: string;
+  /** When true, render with react-router <Link> for SPA navigation. */
+  internal?: boolean;
+}
+
+interface FooterSection {
+  title: string;
+  links: FooterLink[];
+}
+
+const SECTIONS: FooterSection[] = [
   {
     title: 'PRODUCT',
     links: [
@@ -22,10 +35,13 @@ const SECTIONS = [
   {
     title: 'LEGAL',
     links: [
-      { label: 'Terms & Conditions', href: '/terms' },
-      { label: 'Privacy Policy', href: '/privacy' },
-      { label: 'Cookie Policy', href: '/cookie' },
-      { label: 'Cookie Preferences', href: '#' },
+      { label: 'Terms of Service', href: '/terms', internal: true },
+      { label: 'Privacy Policy', href: '/privacy', internal: true },
+      { label: 'Risk Disclosure', href: '/risk-disclosure', internal: true },
+      { label: 'Refund Policy', href: '/refund', internal: true },
+      { label: 'Billing Policy', href: '/billing-policy', internal: true },
+      { label: 'Cookie Policy', href: '/cookie', internal: true },
+      { label: 'Complaints Policy', href: '/complaints', internal: true },
     ],
   },
 ];
@@ -58,12 +74,21 @@ export default function LandingFooter() {
               <ul className="flex flex-col gap-4">
                 {section.links.map((link) => (
                   <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
-                    >
-                      {link.label}
-                    </a>
+                    {link.internal ? (
+                      <Link
+                        to={link.href}
+                        className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <a
+                        href={link.href}
+                        className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
+                      >
+                        {link.label}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
