@@ -33,17 +33,41 @@ type SessionRevoker interface {
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 }
 
-// NoopRevoker is a test-time stand-in. Production callers must wire a
-// real SessionStore.
-type NoopRevoker struct{}
-
-func (NoopRevoker) RevokeAllUserSessions(_ context.Context, _ string) error { return nil }
-
 // AlertPublisher is the narrow contract the billing service needs
 // from the alert package. *alertredis.Transport satisfies it directly
 // via its Publish method.
 type AlertPublisher interface {
 	Publish(ctx context.Context, evt *alert.Event)
+}
+
+// SubscriptionEventPublisher is the post-commit hook the billing
+// Service uses to emit SUBSCRIPTION_* alerts after a tier or status
+// transition. The Service treats its revoker dependency as a plain
+// SessionRevoker; subscription.go type-asserts to this richer
+// interface so the existing constructor signature stays unchanged.
+// *AlertRedisPublisher satisfies both contracts and is the canonical
+// production implementation; tests can supply a recording fake to
+// assert publication without standing up Redis.
+type SubscriptionEventPublisher interface {
+	PublishSubscriptionChange(ctx context.Context, change SubscriptionChange)
+}
+
+// SubscriptionChange is the payload PublishSubscriptionChange
+// receives. It carries the user identity, the provider that triggered
+// the change, the original webhook event id (so support paths can
+// correlate the dashboard event back to a provider record), and the
+// before / after values needed by the SPA. The boolean flags mirror
+// service.Outcome so the publisher does not need to recompute them.
+type SubscriptionChange struct {
+	UserID         string
+	Provider       string
+	EventID        string
+	PreviousTier   string
+	NewTier        string
+	PreviousStatus string
+	NewStatus      string
+	TierChanged    bool
+	StatusChanged  bool
 }
 
 // AlertRedisPublisher composes session revocation and SPA event
