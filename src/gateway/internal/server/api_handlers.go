@@ -62,9 +62,19 @@ func NewAPIHandler(
 // RegisterProtectedRoutes mounts all dashboard API routes on the given mux,
 // wrapping each with the provided auth middleware so that a valid JWT
 // Bearer token is required for access.
-func (h *APIHandler) RegisterProtectedRoutes(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
+//
+// csrfMiddleware is applied AFTER auth so an unauthenticated request is
+// rejected with 401 (not 403); RequireCSRF itself short-circuits safe
+// methods (GET, HEAD, OPTIONS) and only gates POST/PUT/PATCH/DELETE, so
+// wrapping multi-method endpoints (e.g. /api/v1/symbols which serves
+// GET + PUT) is correct by construction.
+func (h *APIHandler) RegisterProtectedRoutes(
+	mux *http.ServeMux,
+	authMiddleware func(http.Handler) http.Handler,
+	csrfMiddleware func(http.Handler) http.Handler,
+) {
 	wrap := func(handler http.HandlerFunc) http.Handler {
-		return authMiddleware(h.withPanicRecovery(handler))
+		return authMiddleware(csrfMiddleware(h.withPanicRecovery(handler)))
 	}
 
 	mux.Handle("/api/v1/cycle/run", wrap(h.handleRunCycle))

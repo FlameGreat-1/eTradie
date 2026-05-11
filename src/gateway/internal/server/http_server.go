@@ -77,23 +77,35 @@ func NewHTTPServer(
 
 	// ---------------------------------------------------------------
 	// Protected endpoints (require valid JWT).
+	//
+	// authMiddleware accepts the JWT from Authorization header, WS
+	// subprotocol, or access_token cookie (see auth/middleware.go).
+	// csrfMiddleware enforces the double-submit CSRF check on every
+	// state-changing method; safe methods bypass it (see auth/csrf.go).
+	// The chain order is authMiddleware -> csrfMiddleware -> handler so
+	// an unauthenticated request is rejected with 401, not 403.
 	// ---------------------------------------------------------------
 	authMiddleware := auth.RequireAuth(tokenService)
+	csrfMiddleware := auth.RequireCSRF(authHandler.CSRFHeader())
 
 	// WebSocket notifications (real-time event stream to dashboard).
+	// WS uses subprotocol-based single-channel auth and is exempt from
+	// CSRF (handshake is GET; the dashboard's WS client does not POST).
 	mux.Handle("/ws/notifications", authMiddleware(http.HandlerFunc(alert.WebSocketHandler(hub))))
 
-	// Event history REST endpoints (Redis-backed persistence).
-	mux.Handle("/events/recent", authMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport))))
-	mux.Handle("/events/since", authMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport))))
+	// Event history REST endpoints (Redis-backed persistence). Both are
+	// GET, so wrapping with csrfMiddleware would be a no-op. We keep
+	// the wrap for uniformity with other read-only protected routes.
+	mux.Handle("/events/recent", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport)))))
+	mux.Handle("/events/since", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport)))))
 
 	// Dashboard REST API (all protected).
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
-	api.RegisterProtectedRoutes(mux, authMiddleware)
+	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
 	// Billing REST API (all protected).
 	billing := NewBillingHandler(subStore, billingClient, userStore)
-	billing.RegisterRoutes(mux, authMiddleware)
+	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 
 	// Build the CORS origin allowlist from config.
 	allowedOrigins := make(map[string]bool, len(cfg.AllowedOrigins))
@@ -138,7 +150,7 @@ func corsMiddleware(allowedOrigins map[string]bool) func(http.Handler) http.Hand
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID, X-CSRF-Token")
 				w.Header().Set("Access-Control-Max-Age", "86400")
 			}
 

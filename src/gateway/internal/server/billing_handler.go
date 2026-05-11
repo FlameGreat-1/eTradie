@@ -42,9 +42,21 @@ func NewBillingHandler(
 	return &BillingHandler{subStore: subStore, client: client, userStore: userStore}
 }
 
-func (h *BillingHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
-	mux.Handle("/api/v1/billing/subscription", authMiddleware(http.HandlerFunc(h.handleGetSubscription)))
-	mux.Handle("/api/v1/billing/checkout", authMiddleware(http.HandlerFunc(h.handleCreateCheckout)))
+// RegisterRoutes mounts the dashboard-facing billing endpoints on the
+// given mux.
+//
+// csrfMiddleware is layered between auth and the handler so the
+// state-changing /api/v1/billing/checkout is CSRF-protected. The
+// read-only /api/v1/billing/subscription endpoint is wrapped too;
+// RequireCSRF short-circuits GET, so wrapping is a no-op for that
+// route and keeps the registration pattern uniform.
+func (h *BillingHandler) RegisterRoutes(
+	mux *http.ServeMux,
+	authMiddleware func(http.Handler) http.Handler,
+	csrfMiddleware func(http.Handler) http.Handler,
+) {
+	mux.Handle("/api/v1/billing/subscription", authMiddleware(csrfMiddleware(http.HandlerFunc(h.handleGetSubscription))))
+	mux.Handle("/api/v1/billing/checkout", authMiddleware(csrfMiddleware(http.HandlerFunc(h.handleCreateCheckout))))
 }
 
 // ---------------------------------------------------------------------------

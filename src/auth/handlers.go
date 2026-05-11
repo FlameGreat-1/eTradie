@@ -37,6 +37,15 @@ func (h *Handler) clearSessionCookies(w http.ResponseWriter) {
 	ClearAuthCookies(w, h.cfg.CookieOptions())
 }
 
+// CSRFHeader exposes the configured request header name the SPA
+// echoes the csrf_token cookie back in (default: "X-CSRF-Token").
+// The gateway HTTP server reads this to build the RequireCSRF
+// middleware without taking a direct dependency on auth.Config,
+// avoiding a new parameter through Container.New / NewHTTPServer.
+func (h *Handler) CSRFHeader() string {
+	return h.cfg.CSRFHeader
+}
+
 // Handler serves the authentication REST API endpoints.
 //
 // OAuth dependencies are optional and attached at startup via
