@@ -21,9 +21,16 @@ func (s *stubResolver) Resolve(_ *http.Request) string { return s.ip }
 
 func newTestHandler(t *testing.T) (*Handler, *Store, func()) {
 	t.Helper()
-	store, close := newTestStore(t).(*Store), func() {}
-	// newTestStore already runs SchemaSQL and wipes the table.
-	return NewHandler(store, &stubResolver{ip: "127.0.0.1"}, []byte("unit-test-salt"), zerolog.Nop()), store, close
+	// newTestStore already runs SchemaSQL, wipes the table, and
+	// calls t.Skip when POSTGRES_TEST_URL is unset.
+	store, dbClose := newTestStore(t)
+	h := NewHandler(
+		store,
+		&stubResolver{ip: "127.0.0.1"},
+		[]byte("unit-test-salt"),
+		zerolog.Nop(),
+	)
+	return h, store, dbClose
 }
 
 // Many test environments do not have Postgres available; in that
