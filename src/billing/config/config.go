@@ -59,6 +59,18 @@ type Config struct {
 	// Internal service-to-service auth between gateway and billing.
 	InternalSharedSecret string `envconfig:"BILLING_INTERNAL_SHARED_SECRET" required:"true"`
 
+	// Redis URL used by the cross-service alert transport. The billing
+	// service publishes SUBSCRIPTION_UPGRADED / DOWNGRADED /
+	// STATUS_CHANGED events on every applied tier or status change;
+	// the gateway subscribes to the same Redis channel and fans the
+	// events out to every connected SPA WebSocket. Without this, the
+	// dashboard would lag the actual subscription state by up to
+	// React Query's staleTime after a successful payment.
+	//
+	// Falls back to the shared REDIS_URL when BILLING_REDIS_URL is
+	// empty so operators do not have to duplicate the value.
+	RedisURL string `envconfig:"BILLING_REDIS_URL"`
+
 	// Checkout return URLs.
 	SuccessURL string `envconfig:"BILLING_CHECKOUT_SUCCESS_URL" required:"true"`
 	CancelURL  string `envconfig:"BILLING_CHECKOUT_CANCEL_URL"  required:"true"`
@@ -112,6 +124,12 @@ func Load() (*Config, error) {
 	}
 	if err := validatePublicURL(cfg.PublicBaseURL); err != nil {
 		return nil, fmt.Errorf("billing config: BILLING_PUBLIC_BASE_URL: %w", err)
+	}
+	if cfg.RedisURL == "" {
+		cfg.RedisURL = strings.TrimSpace(os.Getenv("REDIS_URL"))
+	}
+	if cfg.RedisURL == "" {
+		return nil, errors.New("billing config: BILLING_REDIS_URL or REDIS_URL is required for cross-service alert publishing")
 	}
 	return &cfg, nil
 }

@@ -116,10 +116,42 @@ export default function UpgradeModal() {
       });
       window.location.href = checkoutURL;
     } catch (err) {
-      // Surface the server-side reason so the user sees the real
-      // failure mode (`checkout rejected by billing service`,
-      // `billing service unavailable`, etc.) instead of a generic
-      // message. axios puts the parsed response body on err.response.
+      // Special case: 409 "already subscribed" from the gateway's
+      // current-tier guard. The user is already on a paid plan and
+      // the platform refuses to create a SECOND provider subscription
+      // for them — this is the double-charge defence, not a bug.
+      // Show a friendly toast that explains the existing state
+      // instead of the generic "Upgrade Failed" message.
+      if (
+        err instanceof AxiosError &&
+        err.response?.status === 409 &&
+        (err.response.data as { error?: string } | undefined)?.error === 'already subscribed'
+      ) {
+        const body = err.response.data as {
+          current_tier?: string;
+          current_status?: string;
+          current_period_end?: string | null;
+        };
+        const tierLabel = body.current_tier === 'pro_managed' ? 'Pro Managed' :
+                          body.current_tier === 'pro_byok'    ? 'Pro BYOK'    :
+                          body.current_tier ?? 'Pro';
+        toast({
+          title: 'Already on a Pro plan',
+          description:
+            `You're already subscribed to ${tierLabel}` +
+            (body.current_status && body.current_status !== 'active'
+              ? ` (status: ${body.current_status})`
+              : '') +
+            '. Cancel or change your plan from your provider dashboard before initiating a new checkout.',
+        });
+        return;
+      }
+
+      // Generic failure path — surface the server-side reason so the
+      // user sees the real failure mode (`checkout rejected by
+      // billing service`, `billing service unavailable`, etc.)
+      // instead of a generic message. axios puts the parsed response
+      // body on err.response.
       let serverMessage = 'Unable to start checkout.';
       if (err instanceof AxiosError) {
         const body = err.response?.data as { error?: string } | undefined;
