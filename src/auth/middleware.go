@@ -223,11 +223,20 @@ func UnaryAdminInterceptor() grpc.UnaryServerInterceptor {
 // string for the request. It tries, in order:
 //
 //  1. the standard `Authorization: Bearer <token>` HTTP header
+//     (server-to-server, CLI tooling, and legacy localStorage SPA);
 //  2. for WebSocket upgrade requests, the `Sec-WebSocket-Protocol`
-//     header in the form `Bearer, <token>`
+//     header in the form `Bearer, <token>` (browsers cannot set
+//     arbitrary headers on new WebSocket());
+//  3. the `access_token` cookie set by the cookie-auth migration
+//     (see src/auth/cookies.go). Only tried when the request is NOT
+//     a WebSocket upgrade, so the WS handshake path stays single-
+//     channel and its failure diagnostics stay unambiguous.
 //
 // Returns errMissingAuth / errInvalidFormat / a token verification
-// error when none of the channels yields a valid token.
+// error when none of the channels yields a valid token. A non-empty
+// channel with an invalid token is reported as an auth failure (not
+// a fallthrough to the next channel) so an expired cookie cannot
+// silently be treated as "unauthenticated".
 func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, string, error) {
 	// 1. Authorization header.
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
@@ -251,6 +260,21 @@ func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, string, e
 			}
 			return claims, tokenString, nil
 		}
+		// WS upgrade with no subprotocol token is unauthenticated;
+		// do NOT fall through to the cookie branch because the WS
+		// channel must remain single-source for diagnostics.
+		return nil, "", errMissingAuth
+	}
+
+	// 3. access_token cookie. The cookie name is centralised in
+	// cookies.go; AccessTokenFromCookie returns "" when the cookie
+	// is absent so this branch is a no-op for non-browser clients.
+	if tokenString := AccessTokenFromCookie(r); tokenString != "" {
+		claims, err := ts.VerifyAccessToken(tokenString)
+		if err != nil {
+			return nil, "", err
+		}
+		return claims, tokenString, nil
 	}
 
 	return nil, "", errMissingAuth
