@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
+import { useConsentOptional } from '@/features/consent/useConsent';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useBrokerAccount } from '@/features/execution/api/brokerAccount';
 import { formatCurrency } from '@/utils/formatters';
@@ -76,6 +77,11 @@ function StatGroup({
 
 function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
+  // Optional so the header degrades gracefully if it is ever
+  // rendered outside ConsentProvider. PRACTICE.md #7 requires every
+  // authenticated surface to expose a one-click route to the cookie
+  // preferences modal to satisfy GDPR Art. 7.3.
+  const consent = useConsentOptional();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -389,6 +395,16 @@ function Header({ onMenuClick }: HeaderProps) {
           <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
             Settings
           </MenuItem>
+          {consent && (
+            <MenuItem
+              onClick={() => {
+                consent.openPreferences();
+                setShowUserMenu(false);
+              }}
+            >
+              Cookie Preferences
+            </MenuItem>
+          )}
           <div className="border-t border-border" />
           <MenuItem onClick={handleLogout} danger>
             <LogOut size={12} /> Sign out
