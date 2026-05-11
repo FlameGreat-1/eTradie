@@ -156,7 +156,117 @@ CSRF-protected). The handler:
 cache them. Every click on 'Manage Subscription' creates a fresh
 session.
 
-## 6. Provider retry policy
+## 6. Resilience primitives
+
+### 6.1 Circuit breaker
+
+Every outbound call to Paddle or Lemon Squeezy passes through a
+per-provider circuit breaker (`src/billing/service/breaker.go`).
+Defaults:
+
+| Setting               | Default | Tuning notes                                             |
+| --------------------- | ------- | -------------------------------------------------------- |
+| `FailureThreshold`    | 5       | Consecutive 5xx / transport errors that trip the breaker.|
+| `OpenCooldown`        | 30s     | Time spent in Open before allowing a half-open probe.    |
+| `HalfOpenProbeTimeout`| 30s     | Defensive: a stuck probe past this re-opens automatically. |
+
+4xx responses are **never** counted as failure: a malformed user input
+must not impact other users.
+
+Metrics:
+  - `billing_breaker_transitions_total{name, from, to}` — alert on
+    `rate(...{to="open"}[5m]) > 0`.
+  - `billing_breaker_state{name}` — 0=closed, 1=half_open, 2=open.
+
+### 6.2 Per-endpoint semaphores
+
+Three counting semaphores cap goroutine fanout under load:
+
+| Endpoint              | Default cap | Override (Options field)   |
+| --------------------- | ----------- | -------------------------- |
+| /internal/checkout    | 64          | CheckoutInFlightCap        |
+| /internal/portal      | 64          | PortalInFlightCap          |
+| /webhooks/* (combined)| 256         | WebhookInFlightCap         |
+
+Saturation returns 503 + `Retry-After: 1`. Tune up if your provider
+latency is high (each in-flight slot is one goroutine + one open HTTP
+connection). The hardened http.Transport limits per-host TCP
+connections to 32 idle / 32 max, so the checkout semaphore cap of 64
+is a deliberate 2x to allow some queueing in front of the transport.
+
+Metrics:
+  - `billing_semaphore_in_flight{name}` vs. `billing_semaphore_capacity{name}`.
+  - `billing_semaphore_rejected_total{name}` — alert on rate > 0.
+
+### 6.3 Per-IP webhook rate limit
+
+Both webhook endpoints are rate-limited per source IP via a bounded
+LRU token bucket (`src/billing/service/ratelimit.go`). Defaults:
+
+| Setting     | Default | Notes                                                |
+| ----------- | ------- | ---------------------------------------------------- |
+| `MaxKeys`   | 4096    | LRU cap; evicts oldest when full.                    |
+| `RatePerSec`| 50      | Refill rate per source IP.                           |
+| `Burst`     | 100     | Maximum tokens; bursts up to this without throttling. |
+
+**Source IP resolution**: by default the limiter uses `r.RemoteAddr`
+only. If the billing service runs behind a known reverse proxy
+(Cloudflare, an ALB, nginx) set `Options.WebhookProxy.TrustHeader` to
+the header name (e.g. `X-Forwarded-For`) and
+`Options.WebhookProxy.TrustedCIDRs` to the proxy's IP ranges. The
+handler walks the header right-to-left and returns the first IP that
+is NOT in any trusted CIDR. **Never set TrustHeader without TrustedCIDRs**
+— doing so makes the limit trivially bypassable by spoofed headers.
+
+Metrics:
+  - `billing_webhook_rate_limited_total{reason}` — reason is
+    `rate_limit` or `saturated`.
+  - `billing_webhook_rate_tracked_keys` — LRU saturation gauge.
+
+### 6.4 Per-user gateway rate limit
+
+The gateway's `/api/v1/billing/checkout` and `/api/v1/billing/portal`
+are additionally rate-limited per **user_id** (resolved from the JWT,
+un-spoofable). Default budget: 10 requests/minute, burst 20 per user.
+Saturation returns 429 + `Retry-After: 60`. The SPA's
+`useBillingPortal` and `UpgradeModal` hooks already handle 429.
+
+## 7. Portal access audit trail
+
+Every `/api/v1/billing/portal` call is recorded in
+`billing_portal_access_events` regardless of outcome. This is the
+compliance trail SOC 2 CC6.1 / PCI-DSS 10.2.5 expect. Schema:
+
+```
+id           BIGSERIAL PRIMARY KEY,
+user_id      TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+provider     TEXT,
+client_ip    TEXT,
+user_agent   TEXT,
+status       TEXT NOT NULL,    -- success | not_found | not_supported | rate_limited | upstream_rejected | upstream_error | error
+error        TEXT,
+created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+```
+
+The table is append-only by convention; the codebase has no UPDATE
+or DELETE path. **No janitor**: deletion is a deliberate compliance
+decision driven by the operator's retention policy (typical: 12-24
+months). Set up a separate retention job if your policy requires it.
+
+Useful queries:
+
+```sql
+-- All portal accesses for one user, newest first
+SELECT * FROM billing_portal_access_events
+WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100;
+
+-- Failure rate over the last hour, by status
+SELECT status, COUNT(*) FROM billing_portal_access_events
+WHERE created_at > NOW() - INTERVAL '1 hour'
+GROUP BY status ORDER BY 2 DESC;
+```
+
+## 8. Provider retry policy
 
 The service's provider-call helper `attemptWithBackoff` retries up to
 3 times on 5xx and transport errors with jittered exponential
