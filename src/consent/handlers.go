@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -342,17 +341,6 @@ func (h *Handler) hashAnonymousID(id string) string {
 	}
 	return full
 }
-
-// startupHashCheck logs once at startup whether the ip-hash salt is
-// configured. Kept as a method for testability; called by the gateway
-// container right after handler construction.
-func (h *Handler) startupHashCheck() {
-	if len(h.ipHashSalt) == 0 {
-		h.log.Warn().Msg("consent_ip_hash_salt_empty")
-	}
-}
-
-var _ = time.Now // keep time import stable for future janitor wiring helpers
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
