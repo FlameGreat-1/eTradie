@@ -1,8 +1,25 @@
 """JWT authentication for the Python FastAPI engine.
 
-Verifies JWT Bearer tokens issued by the Go auth service.
-Uses the same HMAC-SHA256 shared secret (AUTH_JWT_SECRET env var)
-so tokens issued by the Go service are valid here and vice versa.
+Verifies JWT tokens issued by the Go auth service. Uses the same
+HMAC-SHA256 shared secret (AUTH_JWT_SECRET env var) so tokens issued
+by the Go service are valid here and vice versa.
+
+Token sources (in priority order, matching src/auth/middleware.go on
+the Go gateway side):
+
+  1. ``Authorization: Bearer <token>`` header. Used by CLI tooling
+     and server-to-server callers that hold a token explicitly.
+  2. ``access_token`` cookie. Used by cookie-auth browsers; the
+     cookie is HttpOnly and Secure on the Go gateway, scoped by
+     host (not port) under RFC 6265 §5.4, so a single login on the
+     gateway is automatically attached to engine requests too.
+
+WebSocket handshakes carry cookies the same way regular HTTP requests
+do, so the same precedence applies. The dedicated WS helper
+``verify_token_from_websocket`` adds a third, optional channel: a
+``token`` field on the init frame, preserved for non-browser WS
+clients that hold a token explicitly. Browsers must not use it
+(they cannot read the HttpOnly cookie to copy it in).
 
 Usage in FastAPI endpoints:
 
@@ -10,7 +27,21 @@ Usage in FastAPI endpoints:
 
     @app.get("/api/something")
     async def my_endpoint(user: AuthenticatedUser = Depends(get_current_user)):
-        # user.user_id, user.username, user.role are available
+        # user.user_id, user.username, user.role, user.tier, user.status
+        ...
+
+Usage in FastAPI WebSocket endpoints:
+
+    from engine.shared.auth import verify_token_from_websocket
+
+    @app.websocket("/ws/path")
+    async def my_ws(websocket: WebSocket):
+        await websocket.accept()
+        try:
+            user = await verify_token_from_websocket(websocket, init_message=None)
+        except AuthError as exc:
+            await websocket.close(code=4003, reason=str(exc))
+            return
         ...
 """
 
@@ -18,18 +49,34 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, WebSocket
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Reusable FastAPI security scheme.
+# Reusable FastAPI security scheme. auto_error=False so we can fall
+# through to the cookie reader when the Authorization header is
+# absent rather than 401-ing immediately.
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+# Canonical cookie name. Mirrors the Go gateway's
+# src/auth/cookies.go::AccessTokenCookieName. Kept in sync via
+# coordinated change; both services share the same auth contract.
+ACCESS_TOKEN_COOKIE_NAME = "access_token"
+
+
+class AuthError(Exception):
+    """Raised by ``verify_token_from_websocket`` on auth failure.
+
+    WebSocket endpoints must translate this into a close-frame with an
+    application-level code (4001–4003 in this codebase). HTTP
+    endpoints use ``HTTPException`` directly.
+    """
 
 
 @dataclass(frozen=True)
@@ -43,7 +90,7 @@ class AuthenticatedUser:
     username: str
     role: str  # "admin" or "etradie"
     tier: str  # "free", "pro_byok", "pro_managed"
-    status: str # "active", "past_due", "canceled"
+    status: str  # "active", "past_due", "canceled", ...
 
     @property
     def is_admin(self) -> bool:
@@ -133,56 +180,134 @@ def _verify_token(token: str) -> AuthenticatedUser:
         raise HTTPException(status_code=401, detail=f"Invalid role: {role}")
 
     return AuthenticatedUser(
-        user_id=user_id, 
-        username=username, 
+        user_id=user_id,
+        username=username,
         role=role,
         tier=tier,
-        status=status
+        status=status,
     )
 
 
+def _extract_token_from_request(
+    credentials: Optional[HTTPAuthorizationCredentials],
+    request: Request,
+) -> Optional[str]:
+    """Return the raw JWT from the highest-priority source on the request.
+
+    1. The Authorization Bearer credential captured by HTTPBearer.
+    2. The ``access_token`` cookie set by the Go gateway.
+
+    A missing or empty source returns ``None`` so the caller can decide
+    whether to 401 (RequireAuth) or pass through (OptionalAuth).
+    """
+    if credentials is not None:
+        token = (credentials.credentials or "").strip()
+        if token:
+            return token
+    cookie = request.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
+    if cookie:
+        cookie = cookie.strip()
+        if cookie:
+            return cookie
+    return None
+
+
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> AuthenticatedUser:
-    """FastAPI dependency: require a valid JWT Bearer token.
+    """FastAPI dependency: require a valid JWT from header or cookie.
 
-    Usage:
-        @app.get("/protected")
-        async def endpoint(user: AuthenticatedUser = Depends(get_current_user)):
-            ...
+    Resolution order:
+      1. Authorization: Bearer <token>
+      2. access_token cookie
+
+    Raises 401 if neither channel yields a valid token. The response
+    advertises ``WWW-Authenticate: Bearer`` so non-browser clients see
+    the canonical challenge; browsers ignore it and re-route to /login
+    via the axios interceptor.
     """
-    if credentials is None:
+    token = _extract_token_from_request(credentials, request)
+    if token is None:
         raise HTTPException(
             status_code=401,
-            detail="Missing Authorization header",
+            detail="Missing authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return _verify_token(credentials.credentials)
+    return _verify_token(token)
 
 
 async def get_optional_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Optional[AuthenticatedUser]:
-    """FastAPI dependency: optionally authenticate if token is present.
+    """FastAPI dependency: optionally authenticate from header or cookie.
 
-    Returns None if no token is provided (anonymous access).
-    Raises 401 if a token IS provided but is invalid.
+    Returns ``None`` if no token is provided (anonymous access).
+    Raises 401 if a token IS provided but is invalid — a bad cookie
+    must NOT be silently treated as unauthenticated.
     """
-    if credentials is None:
+    token = _extract_token_from_request(credentials, request)
+    if token is None:
         return None
-    return _verify_token(credentials.credentials)
+    return _verify_token(token)
 
 
 async def get_admin_user(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    """FastAPI dependency: require admin role.
-
-    Usage:
-        @app.get("/admin-only")
-        async def endpoint(user: AuthenticatedUser = Depends(get_admin_user)):
-            ...
-    """
+    """FastAPI dependency: require admin role."""
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+async def verify_token_from_websocket(
+    websocket: WebSocket,
+    init_message: Optional[Mapping[str, Any]] = None,
+) -> AuthenticatedUser:
+    """Resolve the authenticated user for a WebSocket connection.
+
+    Resolution order:
+      1. Authorization: Bearer <token> header on the upgrade (CLI clients).
+      2. ``access_token`` cookie on the upgrade (browser cookie-auth).
+      3. ``token`` field on the init frame (legacy non-browser clients).
+
+    Browsers cannot put a token into channel 3 because the cookie is
+    HttpOnly; channels 1–2 cover them. Channel 3 stays for backward
+    compatibility with CLI tooling that explicitly sends a token in
+    the first JSON frame.
+
+    Raises ``AuthError`` on missing or invalid credentials. The caller
+    is responsible for translating it into a WS close-frame.
+    """
+    # 1. Authorization header on the upgrade.
+    auth_header = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
+    if auth_header:
+        token = auth_header.strip()
+        if token.lower().startswith("bearer "):
+            token = token[len("bearer "):].strip()
+        if token:
+            try:
+                return _verify_token(token)
+            except HTTPException as exc:
+                raise AuthError(exc.detail) from exc
+
+    # 2. access_token cookie on the upgrade.
+    cookie = websocket.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
+    if cookie and cookie.strip():
+        try:
+            return _verify_token(cookie.strip())
+        except HTTPException as exc:
+            raise AuthError(exc.detail) from exc
+
+    # 3. Init-frame token for legacy non-browser clients.
+    if init_message is not None:
+        token_field = init_message.get("token") if isinstance(init_message, Mapping) else None
+        if isinstance(token_field, str) and token_field.strip():
+            try:
+                return _verify_token(token_field.strip())
+            except HTTPException as exc:
+                raise AuthError(exc.detail) from exc
+
+    raise AuthError("Missing authentication credentials")
