@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -35,8 +36,8 @@ export default function ComplaintsPage() {
       </p>
       <p>
         This policy applies to all users of the Exoper platform (&ldquo;Platform&rdquo;)
-        and complements our <a href="/terms">Terms of Service</a>,{' '}
-        <a href="/refund">Refund Policy</a>, and <a href="/billing-policy">Billing Policy</a>.
+        and complements our <Link to="/terms">Terms of Service</Link>,{' '}
+        <Link to="/refund">Refund Policy</Link>, and <Link to="/billing-policy">Billing Policy</Link>.
       </p>
 
       {/* 2. Scope */}
@@ -55,8 +56,8 @@ export default function ComplaintsPage() {
         <p>
           <strong>This policy does not cover trading outcomes.</strong> Losses, missed
           opportunities, or dissatisfaction with analysis outputs are addressed by our{' '}
-          <a href="/risk-disclosure">Risk Disclosure</a> and{' '}
-          <a href="/terms">Terms of Service</a>. Trading outcomes are the responsibility of
+          <Link to="/risk-disclosure">Risk Disclosure</Link> and{' '}
+          <Link to="/terms">Terms of Service</Link>. Trading outcomes are the responsibility of
           the user and are not within the scope of this complaints process.
         </p>
       </div>
@@ -69,11 +70,11 @@ export default function ComplaintsPage() {
       </p>
       <ul>
         <li>
-          Check the <a href="/dashboard/support">Platform Support Centre</a> for guidance
+          Check the <Link to="/dashboard/support">Platform Support Centre</Link> for guidance
           on common issues.
         </li>
         <li>
-          Review the relevant policy (for example, the <a href="/refund">Refund Policy</a>{' '}
+          Review the relevant policy (for example, the <Link to="/refund">Refund Policy</Link>{' '}
           for billing matters) so your request can be processed under the correct framework.
         </li>
         <li>
@@ -96,7 +97,7 @@ export default function ComplaintsPage() {
         </li>
         <li>
           <strong>Platform Support Centre:</strong>{' '}
-          <a href="/dashboard/support">/dashboard/support</a>, selecting&nbsp;
+          <Link to="/dashboard/support">/dashboard/support</Link>, selecting&nbsp;
           &ldquo;File a complaint&rdquo;.
         </li>
         <li>
@@ -215,7 +216,7 @@ export default function ComplaintsPage() {
         <p>
           <strong>Please contact us before initiating a chargeback with your bank or card
           issuer.</strong> Most billing complaints can be resolved faster through our
-          support process. See our <a href="/refund">Refund Policy</a> for further detail.
+          support process. See our <Link to="/refund">Refund Policy</Link> for further detail.
         </p>
       </div>
 
@@ -225,7 +226,7 @@ export default function ComplaintsPage() {
         We handle every complaint in good faith and expect the same from complainants.
         Abusive, threatening, or repeatedly frivolous communications may result in
         restrictions on the channels through which we accept further correspondence, in
-        line with our <a href="/terms">Terms of Service</a>.
+        line with our <Link to="/terms">Terms of Service</Link>.
       </p>
       <p>
         Raising a complaint will not, in itself, adversely affect your account or your
@@ -237,7 +238,7 @@ export default function ComplaintsPage() {
       <p>
         Complaint records are retained for the period necessary to comply with our legal,
         regulatory, and operational obligations, and are handled in accordance with our{' '}
-        <a href="/privacy">Privacy Policy</a>. Personal data contained in a complaint is
+        <Link to="/privacy">Privacy Policy</Link>. Personal data contained in a complaint is
         accessed only by personnel who need it to resolve the matter.
       </p>
 
@@ -248,7 +249,7 @@ export default function ComplaintsPage() {
         <li>General: <a href="mailto:support@exoper.com">support@exoper.com</a></li>
         <li>Billing: <a href="mailto:billing@exoper.com">billing@exoper.com</a></li>
         <li>Privacy: <a href="mailto:privacy@exoper.com">privacy@exoper.com</a></li>
-        <li>Support Centre: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support Centre: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

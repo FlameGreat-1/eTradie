@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -132,7 +133,7 @@ export default function PrivacyPage() {
       <h2 id="cookies">6. Cookies &amp; Session Data</h2>
       <p>
         We use cookies to manage your authenticated session. For full details, see our{' '}
-        <a href="/cookie-policy">Cookie Policy</a>. In summary:
+        <Link to="/cookie">Cookie Policy</Link>. In summary:
       </p>
       <ul>
         <li><strong>Authentication cookies:</strong> HttpOnly, Secure cookies that maintain your login session. These are essential and cannot be disabled.</li>
@@ -240,7 +241,7 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li>Email: <a href="mailto:privacy@exoper.com">privacy@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

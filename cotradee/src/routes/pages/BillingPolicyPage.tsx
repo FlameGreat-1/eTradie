@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -53,7 +54,7 @@ export default function BillingPolicyPage() {
         </li>
       </ul>
       <p>
-        Current pricing is displayed on the <a href="/pricing">Pricing page</a> and
+        Current pricing is displayed on the <Link to="/pricing">Pricing page</Link> and
         within the Platform. Prices are subject to change with reasonable notice.
       </p>
 
@@ -163,7 +164,7 @@ export default function BillingPolicyPage() {
         You may cancel your subscription at any time:
       </p>
       <ul>
-        <li>Through the Platform: Settings &rarr; Billing &rarr; Manage Subscription</li>
+        <li>Through the Platform: <Link to="/dashboard/settings/billing">Settings &rarr; Billing &rarr; Manage Subscription</Link></li>
         <li>By contacting support at <a href="mailto:billing@exoper.com">billing@exoper.com</a></li>
       </ul>
       <p>
@@ -198,7 +199,7 @@ export default function BillingPolicyPage() {
       <p>For billing enquiries:</p>
       <ul>
         <li>Email: <a href="mailto:billing@exoper.com">billing@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

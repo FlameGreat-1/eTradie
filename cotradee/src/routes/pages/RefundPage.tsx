@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -116,7 +117,7 @@ export default function RefundPage() {
       <ol>
         <li>
           Contact us at <a href="mailto:billing@exoper.com">billing@exoper.com</a> or
-          via the <a href="/dashboard/support">Platform Support Centre</a>.
+          via the <Link to="/dashboard/support">Platform Support Centre</Link>.
         </li>
         <li>
           Include your account email address, the date of the charge, the amount charged,
@@ -181,7 +182,7 @@ export default function RefundPage() {
       <p>For refund requests or billing enquiries:</p>
       <ul>
         <li>Email: <a href="mailto:billing@exoper.com">billing@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

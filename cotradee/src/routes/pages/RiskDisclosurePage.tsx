@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -197,7 +198,7 @@ export default function RiskDisclosurePage() {
       </p>
       <ul>
         <li>Email: <a href="mailto:legal@exoper.com">legal@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

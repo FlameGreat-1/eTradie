@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -31,7 +32,7 @@ export default function CookiePolicyPage() {
         This Cookie Policy describes how Exoper (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or
         &ldquo;our&rdquo;) uses cookies and similar tracking technologies on the Exoper
         platform (&ldquo;Platform&rdquo;). It should be read together with our{' '}
-        <a href="/privacy">Privacy Policy</a>, which explains how we handle personal data
+        <Link to="/privacy">Privacy Policy</Link>, which explains how we handle personal data
         more broadly.
       </p>
       <p>
@@ -227,7 +228,7 @@ export default function CookiePolicyPage() {
       <p>For questions about this Cookie Policy:</p>
       <ul>
         <li>Email: <a href="mailto:privacy@exoper.com">privacy@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );

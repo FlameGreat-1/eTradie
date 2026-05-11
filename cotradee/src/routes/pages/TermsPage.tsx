@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import LegalPageLayout from '@/features/legal/LegalPageLayout';
 import '@/features/legal/legal.css';
 
@@ -140,7 +141,7 @@ export default function TermsPage() {
       </p>
       <h3>5.5 Refunds</h3>
       <p>
-        Refunds are governed by our <a href="/refund-policy">Refund Policy</a>. Trading
+        Refunds are governed by our <Link to="/refund">Refund Policy</Link>. Trading
         losses, dissatisfaction with analysis outputs, or changes in market conditions
         do not constitute grounds for a refund.
       </p>
@@ -337,7 +338,7 @@ export default function TermsPage() {
       </p>
       <ul>
         <li>Email: <a href="mailto:legal@exoper.com">legal@exoper.com</a></li>
-        <li>Support: <a href="/dashboard/support">Platform Support Centre</a></li>
+        <li>Support: <Link to="/dashboard/support">Platform Support Centre</Link></li>
       </ul>
     </LegalPageLayout>
   );
