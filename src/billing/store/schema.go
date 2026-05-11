@@ -88,5 +88,25 @@ CREATE INDEX IF NOT EXISTS idx_billing_subscription_events_user
     ON billing_subscription_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_billing_subscription_events_provider_event
     ON billing_subscription_events(provider, event_id);
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Checkout-intent idempotency: short-lived (user_id, provider, tier) cache
+-- that defeats double-click and navigation-race double-charges. A repeat
+-- request within the TTL returns the SAME provider checkout URL so the
+-- user lands on the same checkout page instead of creating a second
+-- provider subscription. Pruned by the reconciler janitor pass.
+-- ────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS billing_checkout_intents (
+    user_id      TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    provider     TEXT NOT NULL,
+    tier         TEXT NOT NULL,
+    checkout_url TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at   TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (user_id, provider, tier)
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_checkout_intents_expires_at
+    ON billing_checkout_intents(expires_at);
 `
 }
