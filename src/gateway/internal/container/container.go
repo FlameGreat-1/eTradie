@@ -135,7 +135,10 @@ func New(
 	}
 
 	// Servers (now with auth support).
-	httpServer := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, billingClient, userStore)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, billingClient, userStore)
+	if err != nil {
+		return nil, fmt.Errorf("container: http server: %w", err)
+	}
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
