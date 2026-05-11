@@ -95,8 +95,8 @@ func (s *Service) HandleEvent(ctx context.Context, ev *events.NormalizedEvent) (
 
 	// 2) Race-safe subscription upsert.
 	provider := ev.Provider
-	customerID := nullableString(ev.ProviderCustomerID)
-	subID := nullableString(ev.ProviderSubscriptionID)
+	customerID := nullablePtr(ev.ProviderCustomerID)
+	subID := nullablePtr(ev.ProviderSubscriptionID)
 	row := &store.Subscription{
 		UserID:                 ev.UserID,
 		Tier:                   string(ev.Tier),
@@ -169,7 +169,16 @@ func (s *Service) HandleEvent(ctx context.Context, ev *events.NormalizedEvent) (
 	return outcome, nil
 }
 
-func nullableString(s string) *string {
+// nullablePtr converts an empty string to a nil *string so the optional
+// pointer columns on store.Subscription (PaymentProvider, ProviderCustomerID,
+// ProviderSubscriptionID) stay NULL rather than holding empty strings.
+//
+// This is intentionally distinct from store.nullableString, which returns
+// any and targets pgx Exec parameters for the audit table's nullable
+// text columns. The two helpers live in different packages, return
+// different Go types, and serve different downstream consumers; merging
+// them would force one consumer to convert at every call site.
+func nullablePtr(s string) *string {
 	if s == "" {
 		return nil
 	}
