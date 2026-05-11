@@ -169,6 +169,11 @@ func main() {
 
 	metrics := server.NewMetrics()
 
+	// Wire the metric pack as the circuit-breaker observer so every
+	// closed/half_open/open transition emits a counter increment and a
+	// state-gauge update. Must happen before the first provider call.
+	checkoutSvc.SetBreakerObserver(metrics)
+
 	// Period-end reconciler + idempotency janitor. Constructed before the
 	// listener so a misconfig fails fast.
 	reconciler, err := service.NewReconciler(

@@ -108,5 +108,35 @@ CREATE TABLE IF NOT EXISTS billing_checkout_intents (
 
 CREATE INDEX IF NOT EXISTS idx_billing_checkout_intents_expires_at
     ON billing_checkout_intents(expires_at);
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Customer-portal access audit trail.
+--
+-- Compliance: SOC 2 CC6.1 and PCI-DSS 10.2.5 both require an immutable
+-- log of every authenticated access to subscription-management surfaces.
+-- This table is the trail. One row per /api/v1/billing/portal request
+-- (success OR failure). Append-only by convention; no UPDATE/DELETE
+-- path exists in the codebase.
+--
+-- Retention is operator-driven: many regulated SaaS deployments keep
+-- this table for 12-24 months. There is no janitor on this table by
+-- design — deletion is a deliberate compliance decision, not a
+-- background task.
+-- ────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS billing_portal_access_events (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    provider     TEXT,
+    client_ip    TEXT,
+    user_agent   TEXT,
+    status       TEXT NOT NULL,
+    error        TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_portal_access_events_user_created
+    ON billing_portal_access_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_billing_portal_access_events_created
+    ON billing_portal_access_events(created_at DESC);
 `
 }

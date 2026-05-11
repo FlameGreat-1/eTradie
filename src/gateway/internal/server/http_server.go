@@ -49,6 +49,7 @@ func NewHTTPServer(
 	authHandler *auth.Handler,
 	waitlistHandler *mails.Handler,
 	subStore *billingstore.SubscriptionStore,
+	portalAudStore *billingstore.PortalAuditStore,
 	billingClient *BillingClient,
 	userStore *auth.UserStore,
 ) (*HTTPServer, error) {
@@ -96,7 +97,7 @@ func NewHTTPServer(
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
 	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
-	billing := NewBillingHandler(subStore, billingClient, userStore)
+	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 
 	// CORS allowlist is validated at startup so a misconfig fails

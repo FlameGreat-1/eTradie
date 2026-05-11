@@ -5,6 +5,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/flamegreat-1/etradie/src/billing/service"
 )
 
 // Metrics holds the Prometheus instruments the billing service exposes.
@@ -25,6 +27,16 @@ type Metrics struct {
 	ReconcilerErrors   *prometheus.CounterVec
 	IdempotencyPruned  prometheus.Counter
 	ReconcilerDuration prometheus.Histogram
+
+	// Resilience instruments. *Metrics implements
+	// service.BreakerObserver via OnBreakerTransition below.
+	BreakerTransitions  *prometheus.CounterVec
+	BreakerState        *prometheus.GaugeVec
+	SemaphoreInFlight   *prometheus.GaugeVec
+	SemaphoreCapacity   *prometheus.GaugeVec
+	SemaphoreRejected   *prometheus.CounterVec
+	WebhookRateLimited  *prometheus.CounterVec
+	WebhookRateTracked  prometheus.Gauge
 }
 
 // NewMetrics constructs and registers the instrument set.
@@ -96,10 +108,62 @@ func NewMetrics() *Metrics {
 			Buckets: prometheus.ExponentialBuckets(0.05, 2, 10), // 50ms .. ~50s
 		},
 	)
+	breakerTransitions := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_breaker_transitions_total",
+			Help: "Circuit-breaker state transitions, labelled by breaker name and direction. Alert on rate > 0 with to=open.",
+		},
+		[]string{"name", "from", "to"},
+	)
+	breakerState := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "billing_breaker_state",
+			Help: "Current circuit-breaker state: 0=closed, 1=half_open, 2=open.",
+		},
+		[]string{"name"},
+	)
+	semInFlight := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "billing_semaphore_in_flight",
+			Help: "Current in-flight permits held per semaphore. Compare against billing_semaphore_capacity.",
+		},
+		[]string{"name"},
+	)
+	semCapacity := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "billing_semaphore_capacity",
+			Help: "Configured maximum permits per semaphore (constant per process lifetime).",
+		},
+		[]string{"name"},
+	)
+	semRejected := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_semaphore_rejected_total",
+			Help: "TryAcquire calls refused due to semaphore saturation.",
+		},
+		[]string{"name"},
+	)
+	webhookRateLimited := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_webhook_rate_limited_total",
+			Help: "Webhook requests dropped before HMAC verification (rate_limit or saturated).",
+		},
+		[]string{"reason"},
+	)
+	webhookRateTracked := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "billing_webhook_rate_tracked_keys",
+			Help: "Number of distinct client IPs currently held in the rate-limit LRU.",
+		},
+	)
+
 	reg.MustRegister(
 		webhookReceived, webhookDuration, applyOutcome, checkoutCreated,
 		reconcilerRuns, reconcilerDemoted, reconcilerErrors,
 		idempotencyPruned, reconcilerDuration,
+		breakerTransitions, breakerState,
+		semInFlight, semCapacity, semRejected,
+		webhookRateLimited, webhookRateTracked,
 	)
 
 	return &Metrics{
@@ -113,7 +177,22 @@ func NewMetrics() *Metrics {
 		ReconcilerErrors:   reconcilerErrors,
 		IdempotencyPruned:  idempotencyPruned,
 		ReconcilerDuration: reconcilerDuration,
+		BreakerTransitions: breakerTransitions,
+		BreakerState:       breakerState,
+		SemaphoreInFlight:  semInFlight,
+		SemaphoreCapacity:  semCapacity,
+		SemaphoreRejected:  semRejected,
+		WebhookRateLimited: webhookRateLimited,
+		WebhookRateTracked: webhookRateTracked,
 	}
+}
+
+// OnBreakerTransition implements service.BreakerObserver. Called by
+// every breaker on every state change. Lock-free on the hot path
+// (Prometheus counter Inc + gauge Set are atomic).
+func (m *Metrics) OnBreakerTransition(name string, from, to service.BreakerState) {
+	m.BreakerTransitions.WithLabelValues(name, from.String(), to.String()).Inc()
+	m.BreakerState.WithLabelValues(name).Set(float64(to))
 }
 
 // ObserveReconcilerRun records one full reconciler tick. Implements

@@ -107,6 +107,21 @@ const (
 	TypeSubscriptionUpgraded      = "SUBSCRIPTION_UPGRADED"
 	TypeSubscriptionDowngraded    = "SUBSCRIPTION_DOWNGRADED"
 	TypeSubscriptionStatusChanged = "SUBSCRIPTION_STATUS_CHANGED"
+
+	// TypeSubscriptionRequired fires when a user-facing action is
+	// refused because the caller's current tier does not cover it
+	// (e.g. Free user reaches the trade-execution router). It is the
+	// canonical SAAS-tier upsell signal, distinct from the three
+	// SUBSCRIPTION_* events above which are emitted by the billing
+	// service after a webhook is committed and reflect an actual
+	// state transition in billing_subscriptions.
+	//
+	// SeverityInfo on the wire — this is an upsell, not an alarm.
+	// The SPA's eventMap.ts invalidates ['billing'] and ['auth', 'me']
+	// on receipt so the upgrade modal opens against the freshest
+	// authoritative tier; execution-state queries are intentionally
+	// NOT invalidated because nothing changed there.
+	TypeSubscriptionRequired = "SUBSCRIPTION_REQUIRED"
 )
 
 // Event is the universal notification payload. Every module publishes
