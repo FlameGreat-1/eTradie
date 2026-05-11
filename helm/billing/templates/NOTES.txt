@@ -1,0 +1,43 @@
+eTradie billing service deployed successfully.
+
+Release     : {{ .Release.Name }}
+Namespace   : {{ include "billing.namespace" . }}
+Image       : {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Service     : billing-service.{{ include "billing.namespace" . }}.svc.cluster.local:{{ .Values.service.ports.http.port | default 8082 }}
+Public URL  : {{ .Values.config.billing.publicBaseUrl }}
+Vault path  : {{ .Values.externalSecrets.billing.vaultPath }}
+
+==============================================================
+Operator checklist (REQUIRED before the first webhook arrives):
+==============================================================
+
+1) Provider webhook registration
+   Configure each provider's dashboard with the following URL:
+     Paddle:        {{ .Values.config.billing.publicBaseUrl }}/webhooks/paddle
+     Lemon Squeezy: {{ .Values.config.billing.publicBaseUrl }}/webhooks/lemonsqueezy
+   Both dashboards must use the SAME secret values stored in
+   Vault under {{ .Values.externalSecrets.billing.vaultPath }}
+   (paddle_webhook_secret, lemonsqueezy_webhook_secret).
+
+2) Cross-service shared secret
+   The gateway must hold the SAME value at vault key
+     etradie/services/gateway/<env> -> billing_internal_shared_secret
+   so the gateway's X-Internal-Auth header matches what billing
+   constant-time-compares at /internal/checkout and /internal/portal.
+   Generate once with: openssl rand -hex 32
+
+3) Provider product IDs
+   Both Vault paths (billing AND gateway) must include the same
+   tier->price/variant mappings, otherwise webhooks for unmapped
+   prices return 422 (permanent rejection by provider).
+
+4) Smoke test
+   Verify pods are Ready:
+     kubectl get pods -n {{ include "billing.namespace" . }} -l app.kubernetes.io/name=etradie-billing
+   Tail logs:
+     kubectl logs -n {{ include "billing.namespace" . }} -l app.kubernetes.io/name=etradie-billing -f
+   Scrape metrics:
+     kubectl port-forward -n {{ include "billing.namespace" . }} svc/billing-service 8082
+     curl http://localhost:8082/metrics | grep billing_
+
+Full runbook: docs/deployment/billing-runbook.md
