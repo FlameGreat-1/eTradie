@@ -545,12 +545,19 @@ feature flag.
 
 ---
 
-## 12. Known platform-wide hardening (tracked in follow-on batches)
+## 12. Platform-wide auth posture (cookie-auth, complete)
 
-- **Frontend stores access tokens in `localStorage`.** Not specific to billing — every authenticated frontend call inherits the XSS surface area, including the billing screens. The migration to httpOnly + CSRF-protected cookies is staged across the next two batches in the `feat/billing-production-ready` workstream:
-  - Backend cookie auth (login / refresh / logout / CSRF middleware): batch 10.
-  - Frontend migration of every `fetch` call: batch 11.
-  Until those land, treat the billing UI as carrying the same XSS surface as the rest of the dashboard.
+The frontend no longer stores any JWT in `localStorage`. The access
+and refresh tokens are HttpOnly cookies set by the gateway on every
+`/auth/*` response; the only JS-readable cookie is the CSRF
+double-submit token which is useless without the matching HttpOnly
+access cookie. The billing UI inherits this posture along with the
+rest of the dashboard.
+
+Reference: `docs/cookie-auth.md` (the canonical runbook). Anything
+stored under `localStorage` by the SPA now is UI preference data only
+(active symbol, active timeframe, dismissed-analysis id) and never a
+credential.
 
 ---
 
