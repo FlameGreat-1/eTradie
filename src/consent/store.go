@@ -162,11 +162,20 @@ func (s *Store) HistoryForUserID(ctx context.Context, userID string, limit int) 
 	return out, nil
 }
 
-// DefaultRetention is the recommended GDPR Art. 5(1)(e) storage
-// limitation window for consent records: 24 months. Operators may
-// pass a different duration to DeleteExpired when their DPO has
-// approved an alternative retention policy.
-const DefaultRetention = 24 * 30 * 24 * time.Hour
+// DefaultRetentionMonths is the recommended GDPR Art. 5(1)(e)
+// storage limitation window for consent records: 24 calendar months.
+// Operators may pass a different boundary to DeleteExpired when their
+// DPO has approved an alternative retention policy.
+const DefaultRetentionMonths = 24
+
+// CutoffFromNow returns the timestamp before which consent rows are
+// considered expired, computed as exactly DefaultRetentionMonths
+// calendar months before now. AddDate is calendar-aware (handles
+// month-length variation and DST transitions correctly), unlike a
+// raw 24*30*24h Duration which drifts ~10 days every 2 years.
+func CutoffFromNow(now time.Time) time.Time {
+	return now.AddDate(0, -DefaultRetentionMonths, 0)
+}
 
 // DeleteExpired removes every consent_records row strictly older than
 // cutoff EXCEPT the most recent row per anonymous_id AND the most

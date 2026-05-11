@@ -22,7 +22,6 @@
 import {
   type ConsentDecision,
   type ConsentRecord,
-  rejectAllDecision,
   CONSENT_POLICY_VERSION,
 } from './types';
 
@@ -233,11 +232,3 @@ function buildCookieString(name: string, value: string, maxAgeSeconds: number): 
   ].join('; ') + secure;
 }
 
-/**
- * Defensive default returned by the context when no decision is
- * available anywhere — every optional category off. Strictly-
- * necessary cookies are not in the decision shape and remain on.
- */
-export function defaultPendingDecision(): ConsentDecision {
-  return rejectAllDecision();
-}

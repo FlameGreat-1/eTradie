@@ -258,8 +258,10 @@ func main() {
 				// GDPR Art. 5(1)(e): delete consent rows older than the
 				// configured retention window, preserving the latest row
 				// per anonymous_id and per user_id as legally-required
-				// proof of consent.
-				cutoff := time.Now().UTC().Add(-consent.DefaultRetention)
+				// proof of consent. CutoffFromNow is calendar-aware so
+				// the 24-month boundary aligns with the Privacy Policy
+				// text rather than drifting via 24*30*24h arithmetic.
+				cutoff := consent.CutoffFromNow(time.Now().UTC())
 				consentDeleted, err := consentStore.DeleteExpired(cleanupCtx, cutoff)
 				if err != nil {
 					log.Error().Err(err).Msg("consent_retention_cleanup_failed")

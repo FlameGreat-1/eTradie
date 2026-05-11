@@ -49,7 +49,6 @@ import {
   postConsent,
 } from './api';
 import {
-  defaultPendingDecision,
   getOrCreateAnonymousId,
   mirrorServerRecord,
   readStoredDecision,
@@ -67,7 +66,10 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [needsDecision, setNeedsDecision] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
-  const [decision, setDecision] = useState<ConsentDecision>(defaultPendingDecision());
+  // Defensive default: every optional category off until the user
+  // actively opts in. Strictly-necessary cookies are not part of
+  // ConsentDecision and remain on regardless.
+  const [decision, setDecision] = useState<ConsentDecision>(() => rejectAllDecision());
   const [recordedPolicyVersion, setRecordedPolicyVersion] = useState<string>('');
   // Flipped true the moment the user actively makes a decision in
   // this tab. Stays false when the only decision available was
