@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func NewHTTPServer(
 	subStore *billingstore.SubscriptionStore,
 	billingClient *BillingClient,
 	userStore *auth.UserStore,
-) *HTTPServer {
+) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
 		engine: engine,
@@ -66,12 +67,10 @@ func NewHTTPServer(
 	mux.HandleFunc("/readiness", s.handleReadiness)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Waitlist endpoint (public, no auth required).
 	waitlistHandler.RegisterRoutes(mux)
 
 	// ---------------------------------------------------------------
-	// Auth endpoints (public: login, register, refresh).
-	// Protected auth endpoints are handled inside RegisterRoutes.
+	// Auth endpoints (public: login, register, refresh, logout).
 	// ---------------------------------------------------------------
 	authHandler.RegisterRoutes(mux, tokenService)
 
@@ -80,48 +79,43 @@ func NewHTTPServer(
 	//
 	// authMiddleware accepts the JWT from Authorization header, WS
 	// subprotocol, or access_token cookie (see auth/middleware.go).
-	// csrfMiddleware enforces the double-submit CSRF check on every
+	// csrfMiddleware enforces signed double-submit CSRF on every
 	// state-changing method; safe methods bypass it (see auth/csrf.go).
-	// The chain order is authMiddleware -> csrfMiddleware -> handler so
-	// an unauthenticated request is rejected with 401, not 403.
+	// The chain order is authMiddleware -> csrfMiddleware -> handler
+	// so an unauthenticated request is rejected with 401, not 403,
+	// AND so the user_id is in context for signed-CSRF verification.
 	// ---------------------------------------------------------------
 	authMiddleware := auth.RequireAuth(tokenService)
-	csrfMiddleware := auth.RequireCSRF(authHandler.CSRFHeader())
+	csrfMiddleware := auth.RequireCSRF(authHandler.AuthConfig())
 
-	// WebSocket notifications (real-time event stream to dashboard).
-	// WS uses subprotocol-based single-channel auth and is exempt from
-	// CSRF (handshake is GET; the dashboard's WS client does not POST).
 	mux.Handle("/ws/notifications", authMiddleware(http.HandlerFunc(alert.WebSocketHandler(hub))))
 
-	// Event history REST endpoints (Redis-backed persistence). Both are
-	// GET, so wrapping with csrfMiddleware would be a no-op. We keep
-	// the wrap for uniformity with other read-only protected routes.
 	mux.Handle("/events/recent", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport)))))
 	mux.Handle("/events/since", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport)))))
 
-	// Dashboard REST API (all protected).
 	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
 	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
-	// Billing REST API (all protected).
 	billing := NewBillingHandler(subStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 
-	// Build the CORS origin allowlist from config.
-	allowedOrigins := make(map[string]bool, len(cfg.AllowedOrigins))
-	for _, o := range cfg.AllowedOrigins {
-		allowedOrigins[strings.TrimSpace(o)] = true
+	// CORS allowlist is validated at startup so a misconfig fails
+	// the deploy loudly rather than silently producing 403s or, worse,
+	// reflecting an unsafe origin under credentialed-CORS.
+	allowedOrigins, err := buildCORSAllowlist(cfg.AllowedOrigins)
+	if err != nil {
+		return nil, fmt.Errorf("http_server: invalid CORS allowlist: %w", err)
 	}
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler:      corsMiddleware(allowedOrigins)(mux),
+		Handler:      corsMiddleware(allowedOrigins, authHandler.CSRFHeader())(mux),
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 120 * time.Second, // RunCycle can take up to cycle_timeout_seconds (default 300s)
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return s
+	return s, nil
 }
 
 // Start begins serving HTTP. Blocks until the server stops.
@@ -140,9 +134,64 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
+// buildCORSAllowlist normalises and validates the credentialed-CORS
+// origin allowlist supplied via configuration. Every entry must be a
+// full origin: scheme + host + optional port, no path, no wildcard.
+//
+// Refused (with a clear error) at startup:
+//   - "*"        : credentialed CORS forbids the wildcard,
+//   - "null"     : the literal "null" origin is used by sandboxed
+//                  iframes and data: URLs; never legitimate here,
+//   - empty / whitespace-only entries,
+//   - any non-http/https scheme,
+//   - entries containing a path, query, or fragment,
+//   - entries that fail url.Parse.
+func buildCORSAllowlist(raw []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(raw))
+	for _, entry := range raw {
+		s := strings.TrimSpace(entry)
+		if s == "" {
+			continue
+		}
+		if s == "*" {
+			return nil, fmt.Errorf("wildcard origin %q is incompatible with credentialed CORS", s)
+		}
+		if strings.EqualFold(s, "null") {
+			return nil, fmt.Errorf("literal null origin is not a valid CORS entry")
+		}
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid origin %q: %w", s, err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return nil, fmt.Errorf("origin %q must use http or https scheme", s)
+		}
+		if u.Host == "" {
+			return nil, fmt.Errorf("origin %q is missing host", s)
+		}
+		if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return nil, fmt.Errorf("origin %q must not contain a path, query, or fragment", s)
+		}
+		normalised := u.Scheme + "://" + u.Host
+		out[normalised] = true
+	}
+	return out, nil
+}
+
 // corsMiddleware adds CORS headers for dashboard cross-origin requests.
-// Uses an explicit allowlist of origins to prevent bypass attacks.
-func corsMiddleware(allowedOrigins map[string]bool) func(http.Handler) http.Handler {
+// Allow-Headers is built dynamically from the configured CSRF header
+// so renaming AUTH_CSRF_HEADER does not silently break the preflight.
+func corsMiddleware(allowedOrigins map[string]bool, csrfHeaderName string) func(http.Handler) http.Handler {
+	csrfHeaderName = strings.TrimSpace(csrfHeaderName)
+	if csrfHeaderName == "" {
+		csrfHeaderName = "X-CSRF-Token"
+	}
+	allowHeaders := strings.Join([]string{
+		"Content-Type",
+		"Authorization",
+		"X-Trace-ID",
+		csrfHeaderName,
+	}, ", ")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -150,8 +199,9 @@ func corsMiddleware(allowedOrigins map[string]bool) func(http.Handler) http.Hand
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID, X-CSRF-Token")
+				w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 				w.Header().Set("Access-Control-Max-Age", "86400")
+				w.Header().Add("Vary", "Origin")
 			}
 
 			if r.Method == http.MethodOptions {

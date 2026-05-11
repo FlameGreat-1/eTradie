@@ -26,6 +26,7 @@ from engine.schemas import (
     InternalTARequest,
 )
 from engine.shared.auth import AuthenticatedUser, get_current_user
+from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +37,7 @@ router = APIRouter()
 async def internal_ta_confirm_ltf(
     request: Request,
     body: InternalLTFConfirmRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Lightweight LTF-only confirmation check.
 
@@ -49,7 +50,11 @@ async def internal_ta_confirm_ltf(
     /internal/ta/analyze pipeline.
     """
     container: Container = request.app.state.container
-    user_broker = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    if not user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="X-User-Id header required for internal LTF confirm")
+    user_broker = await _resolve_user_broker(container, user_id)
 
     # Lazy-build the LTF confirmation service
     if not hasattr(container, "ltf_confirmation_service"):
@@ -102,7 +107,7 @@ async def internal_ta_confirm_ltf(
 async def internal_ta_analyze(
     request: Request,
     body: InternalTARequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Run TA analysis for the given symbols.
 
@@ -121,7 +126,8 @@ async def internal_ta_analyze(
         raise HTTPException(
             status_code=503, detail="TA orchestrator not initialized"
         )
-    user_broker = await _resolve_user_broker(container, user.user_id)
+    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
+    user_broker = await _resolve_user_broker(container, user_id)
 
     results = []
     for symbol in body.symbols:
@@ -166,7 +172,7 @@ async def internal_ta_analyze(
 async def internal_macro_collect(
     request: Request,
     body: InternalMacroRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Run all 8 macro collectors in parallel.
 
@@ -237,7 +243,7 @@ async def internal_macro_collect(
 async def internal_rag_retrieve(
     request: Request,
     body: InternalRAGRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Perform RAG retrieval with the given query parameters.
 
@@ -247,10 +253,11 @@ async def internal_rag_retrieve(
     if not hasattr(container, "rag_orchestrator"):
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
+    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
     try:
         bundle = await container.rag_orchestrator.retrieve_context(
             body.query_text,
-            user.user_id,
+            user_id,
             strategy=body.strategy,
             framework=body.framework,
             setup_family=body.setup_family,
@@ -295,7 +302,7 @@ async def internal_rag_retrieve(
 async def internal_processor_process(
     request: Request,
     body: InternalProcessorRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Send assembled context to the Processor LLM.
 
@@ -304,13 +311,14 @@ async def internal_processor_process(
     retrieved_knowledge, and metadata.
     """
     container: Container = request.app.state.container
-    processor = await _resolve_user_processor(container, user.user_id)
+    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
+    processor = await _resolve_user_processor(container, user_id)
 
     try:
         processor_input = ProcessorInput(**body.processor_input)
         result = await processor.process(
             processor_input,
-            user_id=user.user_id,
+            user_id=user_id,
             trace_id=body.trace_id,
         )
 
@@ -332,7 +340,7 @@ async def internal_processor_process(
 async def internal_debug_runcycle(
     request: Request,
     body: InternalDebugRunCycleRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Persist analysis cycle outputs to /output/runcycle/ for debugging.
 

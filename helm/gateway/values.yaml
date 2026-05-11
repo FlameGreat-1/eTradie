@@ -119,6 +119,21 @@ config:
     issuer: "etradie"
     adminUsername: "admin"
     adminEmail: "admin@etradie.local"
+    # Cookie auth policy.
+    # These defaults are SAFE for a single-host HTTPS deployment where
+    # the SPA and the gateway live on the same hostname. For cross-
+    # subdomain deployments (e.g. app.exoper.com + api.exoper.com),
+    # the production overlay MUST override:
+    #   cookieDomain:   ".exoper.com"   (registrable domain, leading dot)
+    #   cookieSameSite: "None"          (required for cross-site cookies)
+    # SameSite=None requires Secure=true; the gateway validate() call
+    # refuses the combination at startup if Secure is false.
+    cookieDomain: ""
+    cookieSecure: "true"
+    cookieSameSite: "Strict"
+    csrfHeader: "X-CSRF-Token"
+    csrfSigned: "true"
+    returnTokensInBody: "false"
 
 # Trust-chain (read by src/auth/clientip.go via AUTH_TRUSTED_PROXY_CIDRS
 # and AUTH_TRUST_CLOUDFLARE). Base values match the PRODUCTION posture

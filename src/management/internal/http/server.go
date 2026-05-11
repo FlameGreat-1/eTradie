@@ -21,6 +21,14 @@ import (
 )
 
 // Server serves the dashboard-facing REST API for Trade Management.
+//
+// Middleware chain for every protected route:
+//
+//	authMw -> csrfMw -> handler
+//
+// All current /api/v1/management/* endpoints are GET, so RequireCSRF
+// short-circuits without doing any work. The wrap is uniform so the
+// next mutating route added to this server is automatically protected.
 type Server struct {
 	server  *http.Server
 	monitor *monitoring.Manager
@@ -30,13 +38,14 @@ type Server struct {
 }
 
 // NewServer creates the management HTTP API server.
-// All /api/v1/* routes require a valid JWT Bearer token.
+// All /api/v1/* routes require a valid JWT and pass the CSRF gate.
 func NewServer(
 	port int,
 	monitor *monitoring.Manager,
 	journal *journal.Repository,
 	metrics *analytics.Metrics,
 	tokenService *auth.TokenService,
+	authCfg *auth.Config,
 ) *Server {
 	s := &Server{
 		monitor: monitor,
@@ -47,12 +56,16 @@ func NewServer(
 
 	mux := http.NewServeMux()
 	authMw := auth.RequireAuth(tokenService)
+	csrfMw := auth.RequireCSRF(authCfg)
 
-	// Dashboard REST API (all protected by auth middleware).
-	mux.Handle("/api/v1/management/trades", authMw(http.HandlerFunc(s.handleGetTrades)))
-	mux.Handle("/api/v1/management/journal", authMw(http.HandlerFunc(s.handleGetJournal)))
-	mux.Handle("/api/v1/management/metrics", authMw(http.HandlerFunc(s.handleGetMetrics)))
-	mux.Handle("/api/v1/management/pnl-calendar", authMw(http.HandlerFunc(s.handleGetPnLCalendar)))
+	wrap := func(h http.HandlerFunc) http.Handler {
+		return authMw(csrfMw(http.HandlerFunc(h)))
+	}
+
+	mux.Handle("/api/v1/management/trades", wrap(s.handleGetTrades))
+	mux.Handle("/api/v1/management/journal", wrap(s.handleGetJournal))
+	mux.Handle("/api/v1/management/metrics", wrap(s.handleGetMetrics))
+	mux.Handle("/api/v1/management/pnl-calendar", wrap(s.handleGetPnLCalendar))
 
 	// Ops endpoints (public, no auth required).
 	mux.HandleFunc("/health", s.handleHealth)
@@ -60,7 +73,7 @@ func NewServer(
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      corsMiddleware(loadAllowedOrigins())(mux),
+		Handler:      corsMiddleware(loadAllowedOrigins(), authCfg.CSRFHeader)(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -70,12 +83,9 @@ func NewServer(
 }
 
 // loadAllowedOrigins reads the credentialed-CORS allow-list from env.
-// Order of precedence:
-//   1. MANAGEMENT_ALLOWED_ORIGINS (service-specific override)
-//   2. ALLOWED_ORIGINS            (shared with the Python engine so
-//                                  operators can configure one value)
-// Empty / unset means "no cross-origin requests allowed" — strictly
-// safer than the previous reflect-anything default.
+// Precedence:
+//  1. MANAGEMENT_ALLOWED_ORIGINS (service-specific override)
+//  2. ALLOWED_ORIGINS            (shared with engine + execution)
 func loadAllowedOrigins() map[string]bool {
 	raw := strings.TrimSpace(os.Getenv("MANAGEMENT_ALLOWED_ORIGINS"))
 	if raw == "" {
@@ -110,10 +120,21 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // corsMiddleware emits credentialed-CORS headers backed by an explicit
-// allow-list. Reflecting the Origin without an allow-list and pairing
-// it with `Access-Control-Allow-Credentials: true` is a known bypass
-// pattern and is refused here.
-func corsMiddleware(allowed map[string]bool) func(http.Handler) http.Handler {
+// allow-list. The Allow-Headers list is built from the configured CSRF
+// header name so AUTH_CSRF_HEADER changes don't silently break the
+// preflight.
+func corsMiddleware(allowed map[string]bool, csrfHeaderName string) func(http.Handler) http.Handler {
+	csrfHeaderName = strings.TrimSpace(csrfHeaderName)
+	if csrfHeaderName == "" {
+		csrfHeaderName = "X-CSRF-Token"
+	}
+	allowHeaders := strings.Join([]string{
+		"Content-Type",
+		"Authorization",
+		"X-Trace-ID",
+		"X-Requested-With",
+		csrfHeaderName,
+	}, ", ")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -121,8 +142,9 @@ func corsMiddleware(allowed map[string]bool) func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID, X-CSRF-Token, X-Requested-With")
+				w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 				w.Header().Set("Access-Control-Max-Age", "86400")
+				w.Header().Add("Vary", "Origin")
 			}
 
 			if r.Method == http.MethodOptions {
@@ -153,7 +175,6 @@ func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 
 	for _, t := range trades {
 		t.RLock()
-		// Only return trades owned by the authenticated user.
 		if t.UserID != userID {
 			t.RUnlock()
 			continue
@@ -301,8 +322,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
-// GET /api/v1/management/pnl-calendar?year=2026&month=4&tz=America/New_York
-// Returns daily PnL aggregation for the specified month and streak info.
+// GET /api/v1/management/pnl-calendar - Daily PnL aggregation and streaks.
 func (s *Server) handleGetPnLCalendar(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -348,7 +368,6 @@ func (s *Server) handleGetPnLCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build map[string]float64 for the response.
 	pnlMap := make(map[string]float64, len(dailyPnL))
 	for _, d := range dailyPnL {
 		pnlMap[d.Date] = d.PnL

@@ -21,6 +21,27 @@ config:
     logJson: "true"
     logFullContextPayload: "false"
     allowedOrigins: "https://app.exoper.com,https://exoper.com"
+  auth:
+    # Production cross-subdomain cookie policy.
+    # The SPA lives at https://app.exoper.com; the gateway lives at
+    # https://api.exoper.com (or behind the same Cloudflare zone).
+    # Cookies must be scoped to the registrable domain so the browser
+    # sends them on requests from app.exoper.com to api.exoper.com.
+    #
+    # SameSite=None is required for cross-site cookies. It MUST be
+    # paired with Secure=true (browsers reject the combination otherwise
+    # and the gateway validate() call refuses it at startup).
+    #
+    # AUTH_COOKIE_DOMAIN, AUTH_COOKIE_SAMESITE, AUTH_COOKIE_SECURE,
+    # AUTH_CSRF_SIGNED, and AUTH_RETURN_TOKENS_IN_BODY are emitted by
+    # the configmap template from these values. They are NOT in the
+    # ExternalSecret because they are not secrets; they are policy.
+    cookieDomain: ".exoper.com"
+    cookieSecure: "true"
+    cookieSameSite: "None"
+    csrfHeader: "X-CSRF-Token"
+    csrfSigned: "true"
+    returnTokensInBody: "false"
 
 trustChain:
   trustedProxyCidrs:

@@ -18,14 +18,30 @@ import (
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
+// internalAuthHeader is the header name the engine's verify_internal_auth
+// dependency reads. Mirrors engine/shared/internal_auth.py::INTERNAL_AUTH_HEADER
+// and billing/server/http.go::InternalAuthHeader.
+const internalAuthHeader = "X-Internal-Auth"
+
+// internalUserIDHeader carries the authenticated user's ID on internal
+// calls so the engine can resolve the correct per-user broker connection
+// without requiring a full JWT on the internal path.
+const internalUserIDHeader = "X-User-Id"
+
 // EngineHTTPClient communicates with the Python engine's internal HTTP endpoints.
 type EngineHTTPClient struct {
-	baseURL string
-	client  *http.Client
-	log     zerolog.Logger
+	baseURL        string
+	internalSecret string
+	client         *http.Client
+	log            zerolog.Logger
 }
 
 // NewEngineHTTPClient creates an HTTP client for the Python engine.
+//
+// internalSecret is the shared secret sent in X-Internal-Auth on every
+// call to /internal/* endpoints. It must match ENGINE_INTERNAL_SHARED_SECRET
+// on the engine side. Pass an empty string only in tests; production
+// deployments must set GATEWAY_ENGINE_INTERNAL_SHARED_SECRET.
 //
 // The client intentionally has NO http.Client.Timeout. Every phase in
 // the orchestrator wraps its ctx with context.WithTimeout using the
@@ -37,7 +53,7 @@ type EngineHTTPClient struct {
 // phase budget is actually spent. The timeoutSeconds parameter is
 // preserved for API compatibility with callers but is only used for
 // the health-check path below.
-func NewEngineHTTPClient(baseURL string, timeoutSeconds int) *EngineHTTPClient {
+func NewEngineHTTPClient(baseURL, internalSecret string, timeoutSeconds int) *EngineHTTPClient {
 	log := observability.Logger("engine_http_client")
 
 	client := &http.Client{
@@ -56,10 +72,18 @@ func NewEngineHTTPClient(baseURL string, timeoutSeconds int) *EngineHTTPClient {
 		Msg("engine_http_client_initialized")
 
 	return &EngineHTTPClient{
-		baseURL: baseURL,
-		client:  client,
-		log:     log,
+		baseURL:        baseURL,
+		internalSecret: internalSecret,
+		client:         client,
+		log:            log,
 	}
+}
+
+// isInternalPath reports whether the given URL path targets an engine
+// /internal/* endpoint. These paths require X-Internal-Auth + X-User-Id
+// instead of (or in addition to) the user JWT.
+func isInternalPath(path string) bool {
+	return strings.HasPrefix(path, "/internal/")
 }
 
 // PostJSON sends a POST request with JSON body and returns the decoded response.
@@ -84,10 +108,23 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Idempotency-Key", idempotencyKey)
 
-		// Forward the JWT Authorization header from the original request
-		// so the Python engine can identify the authenticated user.
-		if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-			req.Header.Set("Authorization", "Bearer "+rawToken)
+		if isInternalPath(path) {
+			// Internal endpoints authenticate via shared secret + user ID.
+			// The JWT is NOT sent on these paths: the engine's
+			// verify_internal_auth dependency rejects user cookies and
+			// only accepts the shared secret.
+			if c.internalSecret != "" {
+				req.Header.Set(internalAuthHeader, c.internalSecret)
+			}
+			if userID := auth.UserIDFromContext(ctx); userID != "" {
+				req.Header.Set(internalUserIDHeader, userID)
+			}
+		} else {
+			// Public / dashboard endpoints: forward the JWT so the engine
+			// can identify the authenticated user via get_current_user.
+			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+				req.Header.Set("Authorization", "Bearer "+rawToken)
+			}
 		}
 
 		resp, err := c.client.Do(req)
@@ -108,7 +145,6 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		if resp.StatusCode >= 400 {
 			safeBody := redactSensitiveJSON(respBody, 500)
 
-			// Log error but don't fail immediately, let it retry if applicable
 			c.log.Error().
 				Str("path", path).
 				Int("status", resp.StatusCode).
@@ -130,14 +166,13 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 	}
 
 	isRetryable := func(err error) bool {
-		// Retry on network errors or 5xx server errors
 		if strings.Contains(err.Error(), "connection refused") || ctx.Err() != nil {
-			return false // Context canceled is not retryable
+			return false
 		}
 		if strings.Contains(err.Error(), "returned 5") {
-			return true // 5xx server errors
+			return true
 		}
-		return strings.Contains(err.Error(), "engine_http: request") // Network/timeout errors
+		return strings.Contains(err.Error(), "engine_http: request")
 	}
 
 	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
@@ -175,14 +210,12 @@ func (c *EngineHTTPClient) Close() {
 }
 
 // redactSensitiveJSON scans a JSON response body for sensitive field names
-// and replaces their values with the redacted placeholder. Returns a
-// truncated string safe for logging.
+// and replaces their values with the redacted placeholder.
 func redactSensitiveJSON(body []byte, maxLen int) string {
 	if len(body) == 0 {
 		return ""
 	}
 
-	// Try to parse as JSON for field-level redaction.
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		redactMap(parsed)
@@ -195,21 +228,18 @@ func redactSensitiveJSON(body []byte, maxLen int) string {
 		}
 	}
 
-	// Fallback: not valid JSON, just truncate.
 	if len(body) > maxLen {
 		return string(body[:maxLen])
 	}
 	return string(body)
 }
 
-// redactMap recursively redacts sensitive fields in a map.
 func redactMap(m map[string]interface{}) {
 	for key, val := range m {
 		if observability.IsSensitiveField(strings.ToLower(key)) {
 			m[key] = observability.RedactedValue
 			continue
 		}
-		// Recurse into nested maps.
 		if nested, ok := val.(map[string]interface{}); ok {
 			redactMap(nested)
 		}

@@ -17,6 +17,17 @@ config:
     logJson: "true"
     logFullContextPayload: "true"
     allowedOrigins: "https://staging.exoper.com,https://staging-app.exoper.com"
+  auth:
+    # Staging uses a single-host HTTPS deployment (SPA and gateway on
+    # the same hostname) so Strict + host-only cookies are correct.
+    # If staging ever moves to a cross-subdomain topology, update these
+    # to match the production values.
+    cookieDomain: ""
+    cookieSecure: "true"
+    cookieSameSite: "Strict"
+    csrfHeader: "X-CSRF-Token"
+    csrfSigned: "true"
+    returnTokensInBody: "false"
 
 trustChain:
   trustedProxyCidrs: "10.42.0.0/16"

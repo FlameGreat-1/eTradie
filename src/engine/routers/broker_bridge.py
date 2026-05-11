@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker
 from engine.shared.auth import AuthenticatedUser, get_current_user
+from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -37,14 +38,15 @@ router = APIRouter()
 @router.get("/internal/broker/account_info")
 async def broker_account_info(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Return live account balance, equity, margin, free margin.
     Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
-    cache_key = f"cache_failover:account_info:{user.user_id}"
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
+    cache_key = f"cache_failover:account_info:{user_id}"
 
     try:
         # Enforce a strict 2-second timeout. If the ZMQ lock is held by a massive
@@ -72,7 +74,7 @@ async def broker_account_info(
         except Exception:
             pass
 
-        logger.error("broker_account_info_failed_no_cache", extra={"error": str(exc), "user_id": user.user_id})
+        logger.error("broker_account_info_failed_no_cache", extra={"error": str(exc), "user_id": user_id})
         # Return empty skeleton to prevent 502s from bubbling up to the dashboard UI
         return {"balance": 0, "equity": 0, "margin": 0, "margin_free": 0, "currency": "USD"}
 
@@ -80,14 +82,15 @@ async def broker_account_info(
 @router.get("/internal/broker/positions")
 async def broker_positions(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> list:
     """Return all open positions at the broker.
     Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
-    cache_key = f"cache_failover:positions:{user.user_id}"
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
+    cache_key = f"cache_failover:positions:{user_id}"
 
     try:
         positions = await asyncio.wait_for(broker_client.get_positions(), timeout=2.0)
@@ -122,7 +125,7 @@ async def broker_positions(
         except Exception:
             pass
 
-        logger.error("broker_positions_failed_no_cache", extra={"error": str(exc), "user_id": user.user_id})
+        logger.error("broker_positions_failed_no_cache", extra={"error": str(exc), "user_id": user_id})
         # Return empty list to prevent 502s from bubbling up to the dashboard UI
         return []
 
@@ -131,12 +134,13 @@ async def broker_positions(
 async def broker_history(
     request: Request,
     days: int = 30,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> list:
     """Return historical closed deals at the broker."""
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
-    cache_key = f"cache_failover:history:{user.user_id}:{days}"
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
+    cache_key = f"cache_failover:history:{user_id}:{days}"
 
     try:
         history = await asyncio.wait_for(broker_client.get_history(days=days), timeout=5.0)
@@ -174,12 +178,13 @@ async def broker_history(
 @router.get("/internal/broker/pending_orders")
 async def broker_pending_orders(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> list:
     """Return all pending limit/stop orders at the broker."""
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
-    cache_key = f"cache_failover:pending_orders:{user.user_id}"
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
+    cache_key = f"cache_failover:pending_orders:{user_id}"
 
     try:
         orders = await asyncio.wait_for(broker_client.get_pending_orders(), timeout=2.0)
@@ -204,7 +209,7 @@ async def broker_pending_orders(
             pass
         return result
     except (asyncio.TimeoutError, Exception) as exc:
-        logger.warning("zmq_execution_lock_timeout_falling_back_to_pending_orders_cache", extra={"error": str(exc), "user_id": user.user_id})
+        logger.warning("zmq_execution_lock_timeout_falling_back_to_pending_orders_cache", extra={"error": str(exc), "user_id": user_id})
 
         try:
             cached_orders = await container.cache.get("internal", cache_key)
@@ -220,24 +225,20 @@ async def broker_pending_orders(
 async def broker_symbol_info(
     request: Request,
     symbol: str = "",
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
-    """Return instrument metadata for the Go sizing engine.
-
-    Extends the existing get_symbol_info() with trade_tick_value and
-    trade_tick_size fields that the Go bridge.go uses for pip value
-    calculation.
-    """
+    """Return instrument metadata for the Go sizing engine."""
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol parameter required")
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     try:
         info = await broker_client.get_symbol_info(symbol)
         return info
     except Exception as exc:
         logger.error(
-            "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user.user_id}
+            "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
         )
         raise HTTPException(
             status_code=502, detail=f"Symbol info unavailable: {exc}"
@@ -248,7 +249,7 @@ async def broker_symbol_info(
 async def broker_tick_price(
     request: Request,
     symbol: str = "",
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Return latest bid/ask for a symbol.
 
@@ -258,7 +259,8 @@ async def broker_tick_price(
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol parameter required")
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     try:
         tick = await broker_client.get_tick_price(symbol)
         return {
@@ -268,7 +270,7 @@ async def broker_tick_price(
         }
     except Exception as exc:
         logger.error(
-            "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user.user_id}
+            "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
         )
         raise HTTPException(
             status_code=502, detail=f"Tick price unavailable: {exc}"
@@ -278,14 +280,17 @@ async def broker_tick_price(
 @router.post("/internal/broker/place_order")
 async def broker_place_order(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Place a limit or market order at the broker.
 
     Called by Execution Module B's bridge.go placeOrder().
+    The Go gateway sends X-User-Id so the engine resolves the correct
+    per-user broker connection.
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     body = await request.json()
 
     symbol = body.get("symbol", "")
@@ -320,7 +325,7 @@ async def broker_place_order(
     except Exception as exc:
         logger.error(
             "broker_place_order_failed",
-            extra={"symbol": symbol, "direction": direction, "error": str(exc), "user_id": user.user_id},
+            extra={"symbol": symbol, "direction": direction, "error": str(exc), "user_id": user_id},
         )
         raise HTTPException(
             status_code=502, detail=f"Order placement failed: {exc}"
@@ -330,11 +335,12 @@ async def broker_place_order(
 @router.post("/internal/broker/cancel_order")
 async def broker_cancel_order(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Cancel a pending order by broker order ID."""
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     body = await request.json()
     order_id = str(body.get("order_id", ""))
 
@@ -347,7 +353,7 @@ async def broker_cancel_order(
     except Exception as exc:
         logger.error(
             "broker_cancel_order_failed",
-            extra={"order_id": order_id, "error": str(exc), "user_id": user.user_id},
+            extra={"order_id": order_id, "error": str(exc), "user_id": user_id},
         )
         return {"success": False, "error": str(exc)}
 
@@ -356,7 +362,7 @@ async def broker_cancel_order(
 async def broker_position(
     request: Request,
     ticket: str = "",
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Return a single open position by broker ticket.
 
@@ -365,7 +371,8 @@ async def broker_position(
     if not ticket:
         raise HTTPException(status_code=400, detail="ticket parameter required")
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     try:
         p = await broker_client.get_position(ticket)
         return {
@@ -381,7 +388,7 @@ async def broker_position(
         }
     except Exception as exc:
         logger.error(
-            "broker_position_failed", extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id}
+            "broker_position_failed", extra={"ticket": ticket, "error": str(exc), "user_id": user_id}
         )
         raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
 
@@ -389,14 +396,15 @@ async def broker_position(
 @router.post("/internal/broker/modify_position")
 async def broker_modify_position(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Modify SL/TP on an existing open position.
 
     Called by Management Module C's client.go ModifyPosition().
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     body = await request.json()
 
     ticket = str(body.get("ticket", ""))
@@ -416,7 +424,7 @@ async def broker_modify_position(
     except Exception as exc:
         logger.error(
             "broker_modify_position_failed",
-            extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id},
+            extra={"ticket": ticket, "error": str(exc), "user_id": user_id},
         )
         return {"success": False, "error": str(exc)}
 
@@ -424,14 +432,15 @@ async def broker_modify_position(
 @router.post("/internal/broker/close_partial")
 async def broker_close_partial(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Partially close a position by volume.
 
     Called by Management Module C's client.go ClosePartial().
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     body = await request.json()
 
     ticket = str(body.get("ticket", ""))
@@ -455,7 +464,7 @@ async def broker_close_partial(
     except Exception as exc:
         logger.error(
             "broker_close_partial_failed",
-            extra={"ticket": ticket, "volume": volume, "error": str(exc), "user_id": user.user_id},
+            extra={"ticket": ticket, "volume": volume, "error": str(exc), "user_id": user_id},
         )
         return {"success": False, "close_price": 0, "error": str(exc)}
 
@@ -463,14 +472,15 @@ async def broker_close_partial(
 @router.post("/internal/broker/close_position")
 async def broker_close_position(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),
+    _: None = Depends(verify_internal_auth),
 ) -> dict:
     """Fully close a position at market.
 
     Called by Management Module C's client.go ClosePosition().
     """
     container: Container = request.app.state.container
-    broker_client = await _resolve_user_broker(container, user.user_id)
+    user_id = request.headers.get("X-User-Id", "")
+    broker_client = await _resolve_user_broker(container, user_id)
     body = await request.json()
 
     ticket = str(body.get("ticket", ""))
@@ -488,6 +498,6 @@ async def broker_close_position(
     except Exception as exc:
         logger.error(
             "broker_close_position_failed",
-            extra={"ticket": ticket, "error": str(exc), "user_id": user.user_id},
+            extra={"ticket": ticket, "error": str(exc), "user_id": user_id},
         )
         return {"success": False, "close_price": 0, "error": str(exc)}
