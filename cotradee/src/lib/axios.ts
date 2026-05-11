@@ -74,15 +74,27 @@ const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
  * either a CSRF mismatch (always remediable by retry after refresh)
  * or a server bug; in neither case should the SPA show an
  * "Upgrade Required" toast to the user. PRACTICE.md #2.
+ *
+ * Exported so a future unit-test suite (when one is added to the SPA)
+ * can lock the membership of this list down in CI. The runtime code
+ * inside this module imports the same constant so there is one
+ * source of truth.
  */
-const NON_TIER_GATED_403_PREFIXES = [
+export const NON_TIER_GATED_403_PREFIXES = [
   '/auth/',
   '/api/v1/consent',
   '/health',
   '/readiness',
 ] as const;
 
-function isNonTierGated403(url: string | undefined): boolean {
+/**
+ * Pure predicate: returns true when `url` starts with any prefix in
+ * NON_TIER_GATED_403_PREFIXES. No side effects, no closure captures,
+ * deterministic for the same input. Exported for testability
+ * (audit finding I) and for any future endpoint client that wants to
+ * apply the same toast-suppression rule.
+ */
+export function isNonTierGated403(url: string | undefined): boolean {
   if (!url) return false;
   return NON_TIER_GATED_403_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
