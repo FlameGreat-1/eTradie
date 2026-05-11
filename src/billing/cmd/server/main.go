@@ -1,7 +1,14 @@
 // Command billing is the standalone billing microservice.
 //
-//	Endpoints (public): /webhooks/paddle, /webhooks/lemonsqueezy, /health, /readiness, /metrics
+//	Endpoints (public):  /webhooks/paddle, /webhooks/lemonsqueezy,
+//	                     /health, /readiness, /metrics
 //	Endpoints (internal, X-Internal-Auth): /internal/checkout
+//
+// In-process background work:
+//	- service.Reconciler runs every BILLING_RECONCILER_INTERVAL_SECONDS
+//	  to demote subscriptions whose tentative-loss status (paused, past_due,
+//	  canceled, refunded) has outlived current_period_end, and to prune
+//	  processed_webhook_events older than BILLING_IDEMPOTENCY_RETENTION_DAYS.
 package main
 
 import (
@@ -33,7 +40,20 @@ func main() {
 	}
 
 	log := newLogger(cfg.LogLevel, cfg.LogJSON)
-	log.Info().Int("port", cfg.HTTPPort).Msg("billing_starting")
+
+	// Surface operator-relevant configuration at startup so the runbook can
+	// be validated against the running process. PublicBaseURL in particular
+	// is the value operators register in the Paddle and Lemon Squeezy
+	// dashboards; a mismatch between this and the dashboard is the most
+	// common cause of "webhooks not arriving" incidents.
+	log.Info().
+		Int("port", cfg.HTTPPort).
+		Str("public_base_url", cfg.PublicBaseURL).
+		Dur("reconciler_interval", cfg.ReconcilerInterval).
+		Int("idempotency_retention_days", cfg.IdempotencyRetentionDays).
+		Dur("webhook_replay_window", cfg.WebhookReplayWindow).
+		Int64("webhook_max_body_bytes", cfg.WebhookMaxBodyBytes).
+		Msg("billing_starting")
 
 	ctx := context.Background()
 
@@ -79,6 +99,20 @@ func main() {
 
 	metrics := server.NewMetrics()
 
+	// Period-end reconciler + idempotency janitor. Runs in-process.
+	reconciler, err := service.NewReconciler(
+		subStore, processedStore, auditStore, revoker,
+		metrics,
+		log.With().Str("component", "billing_reconciler").Logger(),
+		service.ReconcilerConfig{
+			Interval:                 cfg.ReconcilerInterval,
+			IdempotencyRetentionDays: cfg.IdempotencyRetentionDays,
+		},
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("billing_reconciler_init_failed")
+	}
+
 	srv := server.New(server.Options{
 		HTTPPort:            cfg.HTTPPort,
 		DB:                  pool,
@@ -93,6 +127,17 @@ func main() {
 		CheckoutService:     checkoutSvc,
 	})
 
+	// Background work is driven by a cancellable context so SIGTERM stops
+	// the reconciler cleanly before HTTP shutdown. Run blocks until ctx is
+	// cancelled and returns; main waits on the done channel during graceful
+	// shutdown so a half-finished tick can complete.
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	reconcilerDone := make(chan struct{})
+	go func() {
+		reconciler.Run(bgCtx)
+		close(reconcilerDone)
+	}()
+
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Start() }()
 
@@ -106,6 +151,16 @@ func main() {
 		if err != nil {
 			log.Error().Err(err).Msg("billing_http_error")
 		}
+	}
+
+	// Cancel the reconciler first so its current tick finishes before we
+	// drop the DB pool. Wait up to 10s for it to drain; the reconciler's
+	// inner steps are bounded so this is generous.
+	bgCancel()
+	select {
+	case <-reconcilerDone:
+	case <-time.After(10 * time.Second):
+		log.Warn().Msg("billing_reconciler_shutdown_timeout")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
