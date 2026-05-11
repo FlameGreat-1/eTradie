@@ -12,6 +12,7 @@ import (
 
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/billing/store"
+	"github.com/flamegreat-1/etradie/src/consent"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/container"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
@@ -126,6 +127,25 @@ func main() {
 	emailSender := mails.NewSender(smtpCfg, observability.Logger("email_sender"))
 	waitlistHandler := mails.NewHandler(waitlistStore, emailSender, observability.Logger("waitlist"))
 
+	// ── Cookie consent (GDPR / ePrivacy audit trail) ─────────────
+	// Same pool, same idempotent-DDL pattern as every other store.
+	// The consent service is independent of execution / engine /
+	// realtime so it has no fan-out wiring; only DB + IP resolver.
+	if _, err := authPool.Exec(ctx, consent.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("consent_schema_creation_failed")
+	}
+	consentStore := consent.NewStore(authPool)
+	consentIPSalt := []byte(os.Getenv("CONSENT_IP_HASH_SALT"))
+	consentHandler := consent.NewHandler(
+		consentStore,
+		authCfg.IPResolver(),
+		consentIPSalt,
+		observability.Logger("consent"),
+	)
+	log.Info().
+		Bool("ip_hash_salt_configured", len(consentIPSalt) > 0).
+		Msg("consent_service_initialized")
+
 	if smtpCfg.IsConfigured() {
 		log.Info().Str("host", smtpCfg.Host).Int("port", smtpCfg.Port).Msg("smtp_configured")
 	} else {
@@ -167,7 +187,7 @@ func main() {
 	subStore := store.NewSubscriptionStore(authPool)
 	portalAudStore := store.NewPortalAuditStore(authPool)
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, usageStore, subStore, portalAudStore)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, consentHandler, usageStore, subStore, portalAudStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

@@ -1,12 +1,32 @@
 import { Twitter, Linkedin, Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useConsent } from '@/features/consent/useConsent';
 
-interface FooterLink {
+/**
+ * The footer renders three link variants:
+ *
+ *   internal: true   -> react-router <Link>, SPA navigation.
+ *   internal: false  -> plain <a href>, regular anchor / external URL.
+ *   action: 'openConsent' -> <button> wired to a feature hook.
+ *
+ * A discriminated union keeps the variants type-safe and forces every
+ * caller to handle every case at the render site below.
+ */
+interface NavFooterLink {
+  kind: 'nav';
   label: string;
   href: string;
   /** When true, render with react-router <Link> for SPA navigation. */
   internal?: boolean;
 }
+
+interface ActionFooterLink {
+  kind: 'action';
+  label: string;
+  action: 'openConsent';
+}
+
+type FooterLink = NavFooterLink | ActionFooterLink;
 
 interface FooterSection {
   title: string;
@@ -17,36 +37,38 @@ const SECTIONS: FooterSection[] = [
   {
     title: 'PRODUCT',
     links: [
-      { label: 'AI Analysis', href: '#features' },
-      { label: 'Automated Execution', href: '#features' },
-      { label: 'Live Dashboard', href: '#features' },
-      { label: 'Risk Management', href: '#features' },
+      { kind: 'nav', label: 'AI Analysis', href: '#features' },
+      { kind: 'nav', label: 'Automated Execution', href: '#features' },
+      { kind: 'nav', label: 'Live Dashboard', href: '#features' },
+      { kind: 'nav', label: 'Risk Management', href: '#features' },
     ],
   },
   {
     title: 'SUPPORT',
     links: [
-      { label: 'Documentation', href: '#' },
-      { label: 'Help Center', href: '#' },
-      { label: 'Contact Us', href: '#' },
-      { label: 'System Status', href: '#' },
+      { kind: 'nav', label: 'Documentation', href: '#' },
+      { kind: 'nav', label: 'Help Center', href: '#' },
+      { kind: 'nav', label: 'Contact Us', href: '#' },
+      { kind: 'nav', label: 'System Status', href: '#' },
     ],
   },
   {
     title: 'LEGAL',
     links: [
-      { label: 'Terms of Service', href: '/terms', internal: true },
-      { label: 'Privacy Policy', href: '/privacy', internal: true },
-      { label: 'Risk Disclosure', href: '/risk-disclosure', internal: true },
-      { label: 'Refund Policy', href: '/refund', internal: true },
-      { label: 'Billing Policy', href: '/billing-policy', internal: true },
-      { label: 'Cookie Policy', href: '/cookie', internal: true },
-      { label: 'Complaints Policy', href: '/complaints', internal: true },
+      { kind: 'nav', label: 'Terms of Service', href: '/terms', internal: true },
+      { kind: 'nav', label: 'Privacy Policy', href: '/privacy', internal: true },
+      { kind: 'nav', label: 'Risk Disclosure', href: '/risk-disclosure', internal: true },
+      { kind: 'nav', label: 'Refund Policy', href: '/refund', internal: true },
+      { kind: 'nav', label: 'Billing Policy', href: '/billing-policy', internal: true },
+      { kind: 'nav', label: 'Cookie Policy', href: '/cookie', internal: true },
+      { kind: 'nav', label: 'Complaints Policy', href: '/complaints', internal: true },
+      { kind: 'action', label: 'Cookie Preferences', action: 'openConsent' },
     ],
   },
 ];
 
 export default function LandingFooter() {
+  const consent = useConsent();
   return (
     <footer className="landing-footer" id="landing-footer">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8 pt-16 pb-8">
@@ -72,25 +94,45 @@ export default function LandingFooter() {
             <div key={section.title} className="flex flex-col gap-6">
               <h3 className="text-xs font-bold tracking-widest uppercase">{section.title}</h3>
               <ul className="flex flex-col gap-4">
-                {section.links.map((link) => (
-                  <li key={link.label}>
-                    {link.internal ? (
-                      <Link
-                        to={link.href}
-                        className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
-                      >
-                        {link.label}
-                      </Link>
-                    ) : (
-                      <a
-                        href={link.href}
-                        className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
-                      >
-                        {link.label}
-                      </a>
-                    )}
-                  </li>
-                ))}
+                {section.links.map((link) => {
+                  if (link.kind === 'action') {
+                    return (
+                      <li key={link.label}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (link.action === 'openConsent') {
+                              consent.openPreferences();
+                            }
+                          }}
+                          className="text-sm text-left hover:text-[color:var(--landing-footer-text-hover)] transition-all bg-transparent border-0 p-0 cursor-pointer"
+                          style={{ color: 'inherit' }}
+                        >
+                          {link.label}
+                        </button>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={link.label}>
+                      {link.internal ? (
+                        <Link
+                          to={link.href}
+                          className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
+                        >
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <a
+                          href={link.href}
+                          className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
+                        >
+                          {link.label}
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

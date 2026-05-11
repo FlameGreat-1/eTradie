@@ -11,6 +11,7 @@ import (
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/billing/store"
+	"github.com/flamegreat-1/etradie/src/consent"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/collectors"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	ctxpkg "github.com/flamegreat-1/etradie/src/gateway/internal/context"
@@ -45,13 +46,16 @@ type Container struct {
 	Management       *management.Client
 	AlertHub         *alert.Hub
 	AlertTransport   *alertredis.Transport
+	ConsentHandler   *consent.Handler
 	log              zerolog.Logger
 }
 
 // New builds all gateway components in correct dependency order.
 // tokenService and authHandler are created in main.go from the auth
 // package and passed here so the HTTP/gRPC servers can mount auth
-// routes and apply auth middleware.
+// routes and apply auth middleware. consentHandler follows the exact
+// same pattern: it owns its own DB-backed store and IP resolver, so
+// the container only needs to pass it through to the HTTP server.
 func New(
 	cfg *config.Config,
 	execution ports.ExecutionPort,
@@ -60,6 +64,7 @@ func New(
 	authHandler *auth.Handler,
 	userStore *auth.UserStore,
 	waitlistHandler *mails.Handler,
+	consentHandler *consent.Handler,
 	usageStore *store.UsageStore,
 	subStore *store.SubscriptionStore,
 	portalAudStore *store.PortalAuditStore,
@@ -136,8 +141,8 @@ func New(
 		return nil, fmt.Errorf("container: billing client: %w", err)
 	}
 
-	// Servers (now with auth support).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, subStore, portalAudStore, billingClient, userStore)
+	// Servers (now with auth + consent support).
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, subStore, portalAudStore, billingClient, userStore)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
@@ -168,6 +173,7 @@ func New(
 		Management:       mgmtClient,
 		AlertHub:         hub,
 		AlertTransport:   transport,
+		ConsentHandler:   consentHandler,
 		log:              log,
 	}, nil
 }
