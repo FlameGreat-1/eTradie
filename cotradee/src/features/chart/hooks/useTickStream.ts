@@ -5,17 +5,24 @@ import { useAuth } from '@/features/auth';
 /**
  * True WebSocket hook for live tick streaming from the engine.
  *
- * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ * Cookie-auth (Batch 11 + cookie-auth-engine-and-services):
  *   The browser attaches the HttpOnly access_token cookie to the WS
- *   handshake automatically. Cookies set on the gateway host are sent
- *   to the engine host because cookies are scoped by host (not port).
- *   The init frame no longer carries a `token` field; the engine
- *   resolves the user from the cookie on the upgrade request.
+ *   handshake automatically. The engine resolves the user from that
+ *   cookie before the init frame (src/engine/routers/chart.py,
+ *   src/engine/shared/auth.py::verify_token_from_websocket).
+ *   Cookies are scoped by host (not port) under RFC 6265, so cookies
+ *   set on the gateway host reach the engine host on local-dev
+ *   (`localhost:8080` + `localhost:8000`) and on any production
+ *   topology where the gateway and engine share a registrable
+ *   domain configured via AUTH_COOKIE_DOMAIN. See section 4.4 of
+ *   docs/cookie-auth.md for the cross-host constraint.
  *
- * Protocol (post-fix):
+ * Protocol (server contract now matches; no mismatch):
  *   1. On mount, opens a WebSocket to /api/broker/stream-ticks. The
  *      browser includes the access_token cookie on the handshake.
- *   2. Sends an init frame: { symbol }.
+ *   2. Sends an init frame: { symbol }. No token field is sent;
+ *      the engine reads the cookie. Non-browser CLI clients MAY
+ *      still send { token, symbol } — the engine accepts both.
  *   3. Receives tick frames: { bid, ask, time, symbol }.
  *   4. When activeSymbol changes, sends a switch frame: { symbol }.
  *   5. On unmount, closes cleanly.

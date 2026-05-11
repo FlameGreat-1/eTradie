@@ -6,20 +6,20 @@ import type { RealtimeEvent } from './types';
 /**
  * Single shared connection to ${gatewayWsUrl}/ws/notifications.
  *
- * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ * Cookie-auth (Batch 11 + cookie-auth-engine-and-services):
  *   The browser attaches the HttpOnly access_token cookie to the WS
- *   handshake automatically. Same-origin handshakes always carry
- *   cookies; cross-origin handshakes (Vite dev server on :5173 ->
- *   gateway on :8080) carry cookies because cookies are scoped by
- *   host (not port) under RFC 6265. The SPA never has to read,
- *   forward, or attach the token — it cannot, by design, because
- *   the cookie is HttpOnly.
+ *   handshake automatically. The gateway middleware
+ *   (src/auth/middleware.go::extractAndVerifyHTTP) accepts the
+ *   cookie on WS upgrades; non-browser WS clients keep using the
+ *   `Sec-WebSocket-Protocol: Bearer, <token>` subprotocol channel
+ *   verbatim. The SPA never reads or forwards the token — it
+ *   cannot, by design, because the cookie is HttpOnly.
  *
- *   The gateway middleware (src/auth/middleware.go,
- *   extractAndVerifyHTTP) reads the access_token cookie when the
- *   WS upgrade carries no Sec-WebSocket-Protocol token. Non-browser
- *   WS clients (CLI tooling, server-to-server) continue to use the
- *   subprotocol channel, which is preserved.
+ *   Same-origin handshakes always carry cookies; cross-origin
+ *   handshakes (Vite dev server on :5173 → gateway on :8080) carry
+ *   cookies because cookies are scoped by host (not port) under
+ *   RFC 6265. For cross-subdomain production, set AUTH_COOKIE_DOMAIN
+ *   to the registrable domain (see docs/cookie-auth.md §3.3).
  *
  * Behaviour:
  *   - Opens only when the user is authenticated.
