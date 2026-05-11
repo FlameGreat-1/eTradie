@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/flamegreat-1/etradie/src/auth"
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -29,16 +31,17 @@ var validProviders = map[string]bool{
 // paidTiers is the set of tiers that, when held by the user, block a
 // fresh checkout (defect 1: prevent double-subscriptions). A user can
 // still re-checkout if their paid period has elapsed; see
-// allowReupgrade below.
+// alreadyEntitled below.
 var paidTiers = map[string]bool{
 	"pro_byok":    true,
 	"pro_managed": true,
 }
 
-// Subscription statuses that, when paired with a paid tier and an
-// unexpired current_period_end, still entitle the user to the paid
-// product. A user in any of these states is blocked from a fresh
-// checkout because they already have an active provider subscription.
+// accessGrantingStatuses are subscription statuses that, when paired
+// with a paid tier and an unexpired current_period_end, still entitle
+// the user to the paid product. A user in any of these states is
+// blocked from a fresh checkout because they already have an active
+// provider subscription.
 var accessGrantingStatuses = map[string]bool{
 	"active":   true,
 	"past_due": true,
@@ -50,40 +53,27 @@ var accessGrantingStatuses = map[string]bool{
 // BillingHandler exposes the dashboard-facing /api/v1/billing/* surface.
 // All endpoints sit behind the auth + CSRF middleware. The handler
 // delegates checkout creation to the billing microservice via
-// BillingClient so provider API keys never live inside the gateway process.
+// BillingClient so provider API keys never live inside the gateway
+// process.
 type BillingHandler struct {
 	subStore  *billingstore.SubscriptionStore
 	client    *BillingClient
 	userStore *auth.UserStore
-	log       zerologLogger
+	log       zerolog.Logger
 
-	// In-process subscription cache.
+	// subCache: in-process last-known-good cache, keyed by user_id.
 	//
-	// `handleGetSubscription` returned 500 on any transient DB error,
-	// which the SPA does not retry. A 200 ms postgres slow-query was
-	// enough to brick the dashboard for a paying customer. The cache
-	// holds the last-known good result keyed by user_id for 30 s so
-	// the very next request from the same user during the same window
-	// hits cache and renders the correct tier even if the DB is wobbling.
+	// The previous implementation returned 500 on any non-NotFound DB
+	// error from subStore.GetSubscription. The SPA does not retry 500s,
+	// so a 200 ms postgres slow-query was enough to render a paying
+	// customer's dashboard as broken. The cache holds the latest
+	// successful read for 30 s; if a subsequent lookup fails AND a
+	// cached entry exists, we serve the cached snapshot rather than
+	// 503ing the customer out of their own account.
 	subCache *subscriptionCache
 }
 
-// zerologLogger is the minimal contract this file needs from the
-// observability package's logger; declared as a local interface so the
-// file builds against either zerolog or a test-time fake without an
-// import cycle.
-type zerologLogger interface {
-	Warn() loggerEvent
-	Error() loggerEvent
-}
-
-type loggerEvent interface {
-	Str(key, val string) loggerEvent
-	Err(err error) loggerEvent
-	Msg(msg string)
-}
-
-// NewBillingHandler builds a handler with an in-process subscription cache.
+// NewBillingHandler builds a handler with the in-process subscription cache.
 func NewBillingHandler(
 	subStore *billingstore.SubscriptionStore,
 	client *BillingClient,
@@ -93,7 +83,7 @@ func NewBillingHandler(
 		subStore:  subStore,
 		client:    client,
 		userStore: userStore,
-		log:       newBillingLogger(),
+		log:       observability.Logger("billing_handler"),
 		subCache:  newSubscriptionCache(30 * time.Second),
 	}
 }
@@ -129,26 +119,24 @@ func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Re
 	sub, err := h.loadSubscriptionWithRetry(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, billingstore.ErrSubscriptionNotFound) {
-			payload := map[string]any{
+			writeJSON(w, http.StatusOK, map[string]any{
 				"tier":   "free",
 				"status": "active",
-			}
-			writeJSON(w, http.StatusOK, payload)
+			})
 			return
 		}
-		// Genuine transient infrastructure failure. 503 is the correct
-		// code (the SPA's existing retry policy retries 503 once with
-		// short backoff). 500 would imply a caller bug and is NEVER
-		// retried by the dashboard.
 		h.log.Error().Err(err).Str("user_id", userID).Msg("billing_subscription_lookup_failed_after_retries")
 
 		// Last-resort: serve the last-known-good cached snapshot if we
-		// have one for this user. A paying customer must not see a
-		// 503 just because the DB is wobbling.
+		// have one. A paying customer must not see 503 because the DB
+		// is wobbling for a hundred milliseconds.
 		if cached, ok := h.subCache.peek(userID); ok {
 			writeJSON(w, http.StatusOK, cached)
 			return
 		}
+
+		// 503 is the correct code (transient) and IS in the SPA's
+		// retry policy. 500 implied a caller bug and was never retried.
 		writeJSONError(w, http.StatusServiceUnavailable, "subscription temporarily unavailable")
 		return
 	}
@@ -159,9 +147,11 @@ func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Re
 
 // loadSubscriptionWithRetry calls subStore.GetSubscription up to 3 times
 // with 50 ms / 100 ms backoff before giving up. NotFound is returned on
-// the FIRST attempt so the caller can fast-path the default-free response.
-// Context cancellation aborts immediately.
-func (h *BillingHandler) loadSubscriptionWithRetry(ctx context.Context, userID string) (*billingstore.Subscription, error) {
+// the FIRST attempt so the caller can fast-path to the default-free
+// response. Context cancellation aborts immediately.
+func (h *BillingHandler) loadSubscriptionWithRetry(
+	ctx context.Context, userID string,
+) (*billingstore.Subscription, error) {
 	var lastErr error
 	delays := []time.Duration{0, 50 * time.Millisecond, 100 * time.Millisecond}
 	for _, d := range delays {
@@ -234,25 +224,27 @@ func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Req
 	current, err := h.subStore.GetSubscription(guardCtx, claims.UserID)
 	switch {
 	case err == nil && h.alreadyEntitled(current):
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":              "already subscribed",
-			"current_tier":       current.Tier,
-			"current_status":     current.Status,
-			"current_period_end": current.CurrentPeriodEnd,
-		})
+		payload := map[string]any{
+			"error":           "already subscribed",
+			"current_tier":    current.Tier,
+			"current_status":  current.Status,
+		}
+		if current.CurrentPeriodEnd != nil {
+			payload["current_period_end"] = current.CurrentPeriodEnd.UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, http.StatusConflict, payload)
 		return
 	case err != nil && !errors.Is(err, billingstore.ErrSubscriptionNotFound):
 		// Transient DB error on the guard. Refuse the checkout rather
-		// than risk a double-charge by proceeding blind. The SPA will
-		// surface the 503 to the user; they can retry.
+		// than risk a double-charge by proceeding blind. The SPA shows
+		// the 503 and the user can retry.
 		h.log.Error().Err(err).Str("user_id", claims.UserID).Msg("billing_checkout_tier_guard_failed")
 		writeJSONError(w, http.StatusServiceUnavailable, "billing temporarily unavailable; please retry")
 		return
 	}
 
-	// -----------------------------------------------------------------
-	// Defect 6 fix: log email-lookup failure instead of silently swallowing.
-	// -----------------------------------------------------------------
+	// Defect 6 fix: log email-lookup failure rather than silently
+	// swallowing it.
 	email := ""
 	lookupCtx, cancelLookup := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancelLookup()
@@ -290,18 +282,18 @@ func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// alreadyEntitled returns true if the user holds an active paid subscription
-// that has not yet elapsed. Used by the checkout handler to block re-checkout
-// from a user who would otherwise be billed twice.
+// alreadyEntitled returns true if the user holds an active paid
+// subscription that has not yet elapsed. Used by the checkout handler
+// to block re-checkout from a user who would otherwise be billed twice.
 //
 // Logic:
 //   - tier must be in paidTiers (free users can always upgrade);
-//   - status must be in accessGrantingStatuses (genuinely-expired states
-//     like `unpaid` and `expired` allow a fresh upgrade);
-//   - for non-active statuses (paused, past_due, canceled, refunded), the
-//     current_period_end must NOT have elapsed — a fully-elapsed paid
-//     period is the canonical signal that the user has lost access and
-//     must re-checkout to regain it.
+//   - status must be in accessGrantingStatuses (genuinely-expired
+//     states like `unpaid` and `expired` allow a fresh upgrade);
+//   - for non-active statuses (paused, past_due, canceled, refunded),
+//     the current_period_end must NOT have elapsed — a fully-elapsed
+//     paid period is the canonical signal that the user has lost
+//     access and must re-checkout to regain it.
 func (h *BillingHandler) alreadyEntitled(sub *billingstore.Subscription) bool {
 	if sub == nil {
 		return false
@@ -326,17 +318,17 @@ func (h *BillingHandler) alreadyEntitled(sub *billingstore.Subscription) bool {
 // ---------------------------------------------------------------------------
 // In-process subscription cache.
 //
-// Bounds the impact of a transient DB hiccup: we serve a paying customer
-// their last-known-good subscription snapshot rather than 503ing them out
-// of their own dashboard. TTL is small (30 s) so a real tier change (push
-// from billing service via SUBSCRIPTION_* event, or webhook landing on the
-// gateway path) is reflected on the next non-cached refetch.
+// Bounds the impact of a transient DB hiccup: we serve a paying
+// customer their last-known-good subscription snapshot rather than
+// 503ing them out of their own dashboard. TTL is small (30 s) so a
+// real tier change — either pushed via the SUBSCRIPTION_* alert event
+// or detected on the next non-cached refetch — is reflected promptly.
 // ---------------------------------------------------------------------------
 
 type subscriptionCache struct {
-	ttl   time.Duration
-	mu    sync.RWMutex
-	rows  map[string]subscriptionCacheEntry
+	ttl  time.Duration
+	mu   sync.RWMutex
+	rows map[string]subscriptionCacheEntry
 }
 
 type subscriptionCacheEntry struct {
@@ -365,88 +357,4 @@ func (c *subscriptionCache) peek(userID string) (*billingstore.Subscription, boo
 		return nil, false
 	}
 	return e.sub, true
-}
-
-// ---------------------------------------------------------------------------
-// Logger adapter
-//
-// The handler used to call writeJSONError-only; we now log structured fields
-// for operator visibility. Wrap zerolog in a tiny adapter so a future swap
-// to slog (or any other logger) is a one-place edit.
-// ---------------------------------------------------------------------------
-
-func newBillingLogger() zerologLogger {
-	return &zerologAdapter{l: observability.Logger("billing_handler")}
-}
-
-type zerologAdapter struct {
-	l interface {
-		Warn() *zerologEventReal
-		Error() *zerologEventReal
-	}
-}
-
-// zerologEventReal is the concrete type from rs/zerolog. We re-import it
-// indirectly via the observability package so this file does not pull
-// rs/zerolog directly; the cast happens at construction time.
-type zerologEventReal = struct{}
-
-// To avoid a heavyweight adapter that mirrors every zerolog method, we use
-// observability.Logger directly through a thin wrapper. The wrapper below
-// re-exports the Warn/Error methods to the loggerEvent interface that the
-// handler uses; under the hood, the wrapper calls the real zerolog logger.
-// This keeps the field set fixed (Str + Err + Msg) and the package import
-// graph small.
-
-func (a *zerologAdapter) Warn() loggerEvent  { return newEventWrapper("warn") }
-func (a *zerologAdapter) Error() loggerEvent { return newEventWrapper("error") }
-
-type eventWrapper struct {
-	level  string
-	fields []logField
-	err    error
-}
-
-type logField struct{ k, v string }
-
-func newEventWrapper(level string) *eventWrapper {
-	return &eventWrapper{level: level}
-}
-
-func (e *eventWrapper) Str(k, v string) loggerEvent {
-	e.fields = append(e.fields, logField{k, v})
-	return e
-}
-
-func (e *eventWrapper) Err(err error) loggerEvent {
-	e.err = err
-	return e
-}
-
-func (e *eventWrapper) Msg(msg string) {
-	l := observability.Logger("billing_handler")
-	var ev interface {
-		Msg(string)
-	}
-	switch e.level {
-	case "error":
-		zev := l.Error()
-		for _, f := range e.fields {
-			zev = zev.Str(f.k, f.v)
-		}
-		if e.err != nil {
-			zev = zev.Err(e.err)
-		}
-		ev = zev
-	default:
-		zev := l.Warn()
-		for _, f := range e.fields {
-			zev = zev.Str(f.k, f.v)
-		}
-		if e.err != nil {
-			zev = zev.Err(e.err)
-		}
-		ev = zev
-	}
-	ev.Msg(msg)
 }
