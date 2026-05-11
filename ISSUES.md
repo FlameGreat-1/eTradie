@@ -437,26 +437,6 @@ Actually, on closer inspection they serve genuinely different purposes (`*string
 
 
 
-**Batch 8 follow-up committed.** Production refactor (not a test patch): `Server.Start(lis net.Listener)` accepts a pre-bound listener.
-
-#### Progress Tracker
-
-| Batch | Status | Files | Items |
-|---|---|---|---|
-| 1 | ✅ Done | 3 | A1, B11, B12 |
-| 2 | ✅ Done | 3 | B8, B4, B9, B7 |
-| 3 | ✅ Done | 3 | B3 + parser_test + B5 (config) |
-| 4 | ✅ Done | 2 | Store reaper queries |
-| 5 | ✅ Done | 3 | Reconciler + metrics + main + log PublicBaseURL |
-| 6 | ✅ Done | 1 | .env.example reconciler vars |
-| 7 | ✅ Done | 2 | Store + service tests |
-| **8** | ✅ Done | 2 + 3 (refactor) | Reconciler + integration tests + Start(lis) refactor |
-| 9 | ⏭ Next | 1 | `docs/billing.md` |
-| 10 | Pending | 4 | Backend cookie auth |
-| 11 | Pending | 6 | Frontend cookie migration |
-| 12 | Pending | — | Final grep + MR |
-
-Waiting for **"go"** to ship Batch 9 (`docs/billing.md`).
 
 GOOD!
 SO BEYOND JUST ALL THAT I HAVE SHARED NOW, YOU ARE GOING TO DO DEEP EXAMINE OF THE ENTIRE CODEBASE FOR THE SUBSCRIPTION/BILLING (TIERS) AND PAYMENT GATEWAY INTEGRATION (PADDLE AND LEMON SQUEEZY) FOR THE PLAN AND THE ENTIRE IMPLEMENTATION
