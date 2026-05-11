@@ -69,11 +69,12 @@ type Server struct {
 	// production wiring. Per-endpoint semaphores bound goroutine fanout
 	// under provider outage; the webhook rate limiter belt-and-braces the
 	// existing HMAC verification.
-	checkoutSem   *service.Semaphore
-	portalSem     *service.Semaphore
-	webhookSem    *service.Semaphore
-	webhookLimit  *service.TokenBucketRateLimiter
-	webhookProxy  WebhookProxyConfig
+	checkoutSem      *service.Semaphore
+	portalSem        *service.Semaphore
+	webhookSem       *service.Semaphore
+	webhookLimit     *service.TokenBucketRateLimiter
+	webhookProxy     WebhookProxyConfig
+	stopGaugeSampler context.CancelFunc
 }
 
 // WebhookProxyConfig governs how the webhook handlers identify the
@@ -174,16 +175,55 @@ func New(opts Options) *Server {
 
 // Start serves HTTP on the supplied listener. Blocks until the listener
 // stops accepting connections (via Shutdown or an unrecoverable Serve error).
+//
+// Before serving begins, a background goroutine is launched that
+// samples the in-flight gauges of every wired semaphore on a 5-second
+// tick, and the per-IP-tracked count from the webhook rate limiter.
+// 5s is well below any operator alert window and the cost is
+// negligible (three atomic loads).
 func (s *Server) Start(lis net.Listener) error {
 	s.log.Info().Str("addr", lis.Addr().String()).Msg("billing_http_starting")
+
+	// Publish static capacities once so the gauge has a stable label set.
+	s.metrics.SemaphoreCapacity.WithLabelValues(s.checkoutSem.Name()).Set(float64(s.checkoutSem.Capacity()))
+	s.metrics.SemaphoreCapacity.WithLabelValues(s.portalSem.Name()).Set(float64(s.portalSem.Capacity()))
+	s.metrics.SemaphoreCapacity.WithLabelValues(s.webhookSem.Name()).Set(float64(s.webhookSem.Capacity()))
+
+	samplerCtx, cancelSampler := context.WithCancel(context.Background())
+	s.stopGaugeSampler = cancelSampler
+	go s.sampleGauges(samplerCtx)
+
 	if err := s.http.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-// Shutdown gracefully drains the HTTP server.
-func (s *Server) Shutdown(ctx context.Context) error { return s.http.Shutdown(ctx) }
+// sampleGauges polls the semaphore + rate-limiter observables every 5s
+// and pushes them onto the Prometheus gauges. Exits when ctx is cancelled.
+func (s *Server) sampleGauges(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.metrics.SemaphoreInFlight.WithLabelValues(s.checkoutSem.Name()).Set(float64(s.checkoutSem.InFlight()))
+			s.metrics.SemaphoreInFlight.WithLabelValues(s.portalSem.Name()).Set(float64(s.portalSem.InFlight()))
+			s.metrics.SemaphoreInFlight.WithLabelValues(s.webhookSem.Name()).Set(float64(s.webhookSem.InFlight()))
+			s.metrics.WebhookRateTracked.Set(float64(s.webhookLimit.Tracked()))
+		}
+	}
+}
+
+// Shutdown gracefully drains the HTTP server and stops the metric sampler.
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.stopGaugeSampler != nil {
+		s.stopGaugeSampler()
+	}
+	return s.http.Shutdown(ctx)
+}
 
 // ---------------------------------------------------------------------------
 // Operational endpoints
@@ -225,6 +265,7 @@ func (s *Server) handlePaddleWebhook(w http.ResponseWriter, r *http.Request) {
 	clientIP := s.clientIP(r)
 	if !s.webhookLimit.Allow(clientIP) {
 		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, "unknown", "rate_limited").Inc()
+		s.metrics.WebhookRateLimited.WithLabelValues("rate_limit").Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 		return
@@ -235,6 +276,8 @@ func (s *Server) handlePaddleWebhook(w http.ResponseWriter, r *http.Request) {
 	// goroutines on DB or Redis. Fast-fail past the cap.
 	if err := s.webhookSem.TryAcquire(r.Context()); err != nil {
 		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, "unknown", "saturated").Inc()
+		s.metrics.WebhookRateLimited.WithLabelValues("saturated").Inc()
+		s.metrics.SemaphoreRejected.WithLabelValues(s.webhookSem.Name()).Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
 		return
@@ -294,6 +337,7 @@ func (s *Server) handleLSWebhook(w http.ResponseWriter, r *http.Request) {
 	clientIP := s.clientIP(r)
 	if !s.webhookLimit.Allow(clientIP) {
 		s.metrics.WebhookReceived.WithLabelValues(lemonsqueezy.Provider, "unknown", "rate_limited").Inc()
+		s.metrics.WebhookRateLimited.WithLabelValues("rate_limit").Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 		return
@@ -301,6 +345,8 @@ func (s *Server) handleLSWebhook(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.webhookSem.TryAcquire(r.Context()); err != nil {
 		s.metrics.WebhookReceived.WithLabelValues(lemonsqueezy.Provider, "unknown", "saturated").Inc()
+		s.metrics.WebhookRateLimited.WithLabelValues("saturated").Inc()
+		s.metrics.SemaphoreRejected.WithLabelValues(s.webhookSem.Name()).Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
 		return
@@ -436,6 +482,7 @@ func (s *Server) handleInternalCheckout(w http.ResponseWriter, r *http.Request) 
 	// catches the burst that arrives before the breaker has tripped.
 	if err := s.checkoutSem.TryAcquire(r.Context()); err != nil {
 		s.metrics.CheckoutCreated.WithLabelValues("unknown", "unknown", "saturated").Inc()
+		s.metrics.SemaphoreRejected.WithLabelValues(s.checkoutSem.Name()).Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
 		return
@@ -498,6 +545,7 @@ func (s *Server) handleInternalPortal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.portalSem.TryAcquire(r.Context()); err != nil {
+		s.metrics.SemaphoreRejected.WithLabelValues(s.portalSem.Name()).Inc()
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
 		return
