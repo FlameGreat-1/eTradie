@@ -60,7 +60,11 @@ export type EventType =
   | 'SERVICE_STARTED'
   | 'SERVICE_STOPPING'
   | 'BROKER_DISCONNECTED'
-  | 'BROKER_RECONNECTED';
+  | 'BROKER_RECONNECTED'
+  /* Billing / subscription */
+  | 'SUBSCRIPTION_UPGRADED'
+  | 'SUBSCRIPTION_DOWNGRADED'
+  | 'SUBSCRIPTION_STATUS_CHANGED';
 
 export interface RealtimeEvent {
   id: string;

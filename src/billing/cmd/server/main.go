@@ -23,8 +23,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/billing/config"
 	"github.com/flamegreat-1/etradie/src/billing/lemonsqueezy"
@@ -81,9 +84,46 @@ func main() {
 	auditStore := store.NewSubscriptionEventStore(pool)
 	intentStore := store.NewCheckoutIntentStore(pool)
 
-	// SessionRevoker is satisfied by *auth.SessionStore directly; the billing
-	// service only depends on the SessionRevoker interface.
-	var revoker service.SessionRevoker = auth.NewSessionStore(pool)
+	// Redis client: required for the cross-service alert transport that
+	// pushes SUBSCRIPTION_* events to the gateway's WebSocket subscribers.
+	// The gateway runs its own subscriber on the same channel; we only
+	// PUBLISH from this process.
+	redisURL := cfg.RedisURL
+	if redisURL == "" {
+		log.Fatal().Msg("billing_redis_url_required_for_alert_publish")
+	}
+	redisOpts, err := goredis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("billing_redis_url_parse_failed")
+	}
+	redisClient := goredis.NewClient(redisOpts)
+	defer redisClient.Close()
+	pingRedisCtx, pingRedisCancel := context.WithTimeout(ctx, 5*time.Second)
+	if err := redisClient.Ping(pingRedisCtx).Err(); err != nil {
+		pingRedisCancel()
+		log.Fatal().Err(err).Msg("billing_redis_ping_failed")
+	}
+	pingRedisCancel()
+
+	// Local hub is publish-only here — the billing process does NOT
+	// terminate WebSocket connections. The gateway subscribes to the
+	// same Redis channel and fans events out to its own connected
+	// clients.
+	alertHub := alert.NewHub()
+	defer alertHub.Close()
+	alertTransport := alertredis.NewTransport(redisClient, alertHub, alertredis.TransportConfig{})
+	alertTransport.Start(ctx)
+	defer alertTransport.Close()
+
+	// SessionRevoker + SubscriptionEventPublisher composed into a single
+	// type. The Service treats it as a SessionRevoker; the post-commit
+	// code path in subscription.go type-asserts for the publisher
+	// behaviour so this wiring requires no service-constructor changes.
+	revoker := &service.AlertRedisPublisher{
+		Revoker:   auth.NewSessionStore(pool),
+		Publisher: alertTransport,
+		Log:       log.With().Str("component", "billing_event_publisher").Logger(),
+	}
 
 	subSvc := service.NewService(subStore, processedStore, auditStore, revoker, log.With().Str("component", "billing_service").Logger())
 	checkoutSvc, err := service.NewCheckoutService(cfg.CheckoutConfig(), log.With().Str("component", "billing_checkout").Logger())

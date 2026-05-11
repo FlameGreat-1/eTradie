@@ -80,6 +80,22 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
   MACRO_COLLECTION_FAILED: [],
   RAG_RETRIEVAL_FAILED:    [],
   PROCESSOR_LLM_FAILED:    [],
+
+  /* ── Billing / subscription ── */
+  /*
+   * On any tier or status change we refetch BOTH:
+   *   - ['billing'] (the user's subscription row used by every
+   *                  Pro-gated feature),
+   *   - ['auth', 'me'] (the cached profile carries the tier badge
+   *                     on the avatar dropdown).
+   * Without these invalidations the dashboard would lag by up to
+   * React Query's staleTime (60 s) after a successful payment;
+   * with them, the SPA reflects the new tier within ~1 s of the
+   * webhook landing on the billing service.
+   */
+  SUBSCRIPTION_UPGRADED:        [['billing'], ['auth', 'me']],
+  SUBSCRIPTION_DOWNGRADED:      [['billing'], ['auth', 'me']],
+  SUBSCRIPTION_STATUS_CHANGED:  [['billing'], ['auth', 'me']],
 };
 
 /**
