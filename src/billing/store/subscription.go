@@ -43,6 +43,21 @@ type Subscription struct {
 	UpdatedAt              time.Time  `json:"updated_at"`
 }
 
+// ExpiredSubscription is the projection returned by ListExpiredForDemotion.
+// The reconciler only needs the user id (to demote and revoke sessions),
+// the current tier and status (for the audit row that gets appended on
+// demotion), and the provider/subscription id pair (to surface in logs
+// when a demotion fires so operators can correlate against the provider
+// dashboard).
+type ExpiredSubscription struct {
+	UserID                 string
+	Tier                   string
+	Status                 string
+	Provider               string
+	ProviderSubscriptionID string
+	CurrentPeriodEnd       time.Time
+}
+
 const subscriptionColumns = `
 	user_id, tier, status,
 	payment_provider, provider_customer_id, provider_subscription_id,
@@ -135,6 +150,108 @@ func (s *SubscriptionStore) UpsertSubscriptionTx(
 		sub.PaymentProvider, sub.ProviderCustomerID, sub.ProviderSubscriptionID,
 		sub.CurrentPeriodEnd, sub.EventTimestamp,
 	).Scan(&appliedCount, &previousTier, &previousStatus)
+	if err != nil {
+		return false, "", "", err
+	}
+	return appliedCount > 0, previousTier, previousStatus, nil
+}
+
+// ListExpiredForDemotion returns subscriptions in a tentative-loss status
+// (paused, past_due, canceled, refunded) whose current_period_end has
+// elapsed. These users have lost entitlement to their Pro tier but the
+// system has not yet recorded the downgrade because no fresh provider
+// event has arrived (e.g. Paddle subscription.paused with no follow-up
+// subscription.canceled; a refund with no subsequent cancellation event).
+//
+// Rows with NULL current_period_end are deliberately excluded — without a
+// known end-date we cannot prove the user has lost entitlement, and the
+// next webhook will clarify. The limit parameter bounds the result set
+// so the reconciler can process under load in fixed-size chunks.
+func (s *SubscriptionStore) ListExpiredForDemotion(
+	ctx context.Context, now time.Time, limit int,
+) ([]ExpiredSubscription, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	const query = `
+		SELECT user_id, tier, status,
+		       COALESCE(payment_provider, ''),
+		       COALESCE(provider_subscription_id, ''),
+		       current_period_end
+		FROM billing_subscriptions
+		WHERE status IN ('paused', 'past_due', 'canceled', 'refunded')
+		  AND current_period_end IS NOT NULL
+		  AND current_period_end < $1
+		  AND tier <> 'free'
+		ORDER BY current_period_end ASC
+		LIMIT $2
+	`
+	rows, err := s.db.Query(ctx, query, now, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExpiredSubscription
+	for rows.Next() {
+		var e ExpiredSubscription
+		if err := rows.Scan(
+			&e.UserID, &e.Tier, &e.Status,
+			&e.Provider, &e.ProviderSubscriptionID, &e.CurrentPeriodEnd,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// DemoteToFreeTx flips a user's subscription to (tier=free, status=canceled)
+// inside the supplied transaction. The reconciler calls this when it
+// determines a subscription has lost entitlement via ListExpiredForDemotion.
+//
+// The implementation reuses the same race-safe single-statement CTE as
+// UpsertSubscriptionTx: the UPDATE only takes effect if eventTimestamp is
+// greater than or equal to the row's stored event_timestamp. Callers pass
+// time.Now().UTC() so the demotion beats every older stored event but loses
+// to any genuinely-newer webhook arriving concurrently — exactly the
+// desired behaviour (a re-subscribe event that arrives at the same time
+// must not be overwritten by the reaper).
+//
+// payment_provider, provider_customer_id, provider_subscription_id, and
+// current_period_end are deliberately preserved (the historical link
+// to the provider remains in the audit trail). Only tier and status flip.
+//
+// Returns (applied, previousTier, previousStatus, error). applied=false
+// means a newer event_timestamp already exists — the reconciler should
+// log and move on.
+func (s *SubscriptionStore) DemoteToFreeTx(
+	ctx context.Context, tx pgx.Tx, userID string, eventTimestamp time.Time,
+) (applied bool, previousTier, previousStatus string, err error) {
+	const query = `
+		WITH prev AS (
+			SELECT tier, status, event_timestamp
+			FROM billing_subscriptions
+			WHERE user_id = $1
+		),
+		up AS (
+			UPDATE billing_subscriptions
+			SET tier            = 'free',
+			    status          = 'canceled',
+			    event_timestamp = $2,
+			    updated_at      = NOW()
+			WHERE user_id = $1
+			  AND event_timestamp <= $2
+			RETURNING 1
+		)
+		SELECT
+			(SELECT COUNT(*) FROM up) AS applied,
+			COALESCE((SELECT tier   FROM prev), '') AS prev_tier,
+			COALESCE((SELECT status FROM prev), '') AS prev_status
+	`
+	var appliedCount int
+	err = tx.QueryRow(ctx, query, userID, eventTimestamp).
+		Scan(&appliedCount, &previousTier, &previousStatus)
 	if err != nil {
 		return false, "", "", err
 	}

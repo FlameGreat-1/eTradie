@@ -6,6 +6,11 @@
 // Webhook handlers read the raw body once into memory under
 // http.MaxBytesReader and pass the captured bytes unchanged to the verifier.
 // Nothing in this package decodes JSON before the signature check completes.
+//
+// Listener creation is decoupled from serving: callers bind a net.Listener
+// (failing fast on EADDRINUSE) and pass it to Start. main.go does this
+// before kicking off background goroutines so a bind failure cannot leave
+// the reconciler or any other worker running against a dead HTTP path.
 package server
 
 import (
@@ -13,8 +18,8 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -51,9 +56,10 @@ type Server struct {
 	checkoutSvc *service.CheckoutService
 }
 
-// Options bundles the dependencies New requires.
+// Options bundles the dependencies New requires. The listener is supplied
+// to Start, not here, so port-bind failures are surfaced to the caller
+// before any goroutines start.
 type Options struct {
-	HTTPPort       int
 	DB             *pgxpool.Pool
 	Log            zerolog.Logger
 	Metrics        *Metrics
@@ -69,7 +75,8 @@ type Options struct {
 	CheckoutService     *service.CheckoutService
 }
 
-// New builds a Server. The HTTP server is not started yet; call Start.
+// New builds a Server. The HTTP server is not started yet; call Start with
+// a pre-bound listener.
 func New(opts Options) *Server {
 	s := &Server{
 		db:             opts.DB,
@@ -93,7 +100,6 @@ func New(opts Options) *Server {
 	mux.HandleFunc("/internal/checkout", s.handleInternalCheckout)
 
 	s.http = &http.Server{
-		Addr:              fmt.Sprintf(":%d", opts.HTTPPort),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -103,10 +109,11 @@ func New(opts Options) *Server {
 	return s
 }
 
-// Start blocks until the listener stops accepting connections.
-func (s *Server) Start() error {
-	s.log.Info().Str("addr", s.http.Addr).Msg("billing_http_starting")
-	if err := s.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+// Start serves HTTP on the supplied listener. Blocks until the listener
+// stops accepting connections (via Shutdown or an unrecoverable Serve error).
+func (s *Server) Start(lis net.Listener) error {
+	s.log.Info().Str("addr", lis.Addr().String()).Msg("billing_http_starting")
+	if err := s.http.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
@@ -171,9 +178,16 @@ func (s *Server) handlePaddleWebhook(w http.ResponseWriter, r *http.Request) {
 			eventLabel = "unknown"
 		}
 		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, eventLabel, "parse_error").Inc()
-		s.log.Warn().Err(err).Msg("paddle_webhook_parse_failed")
+		// Log the full reason internally; return a sanitised message to the
+		// provider so the notification dashboard never exposes the Go error
+		// chain or wrapped values.
+		s.log.Warn().
+			Err(err).
+			Str("provider", paddle.Provider).
+			Str("event", eventLabel).
+			Msg("paddle_webhook_parse_failed")
 		// 422 is permanent caller error; provider stops retrying.
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "webhook payload could not be parsed"})
 		return
 	}
 
@@ -212,8 +226,12 @@ func (s *Server) handleLSWebhook(w http.ResponseWriter, r *http.Request) {
 			eventLabel = "unknown"
 		}
 		s.metrics.WebhookReceived.WithLabelValues(lemonsqueezy.Provider, eventLabel, "parse_error").Inc()
-		s.log.Warn().Err(err).Msg("lemonsqueezy_webhook_parse_failed")
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+		s.log.Warn().
+			Err(err).
+			Str("provider", lemonsqueezy.Provider).
+			Str("event", eventLabel).
+			Msg("lemonsqueezy_webhook_parse_failed")
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "webhook payload could not be parsed"})
 		return
 	}
 
@@ -221,6 +239,11 @@ func (s *Server) handleLSWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // applyAndRespond dispatches to the service and translates Outcome to HTTP.
+//
+// Every non-error outcome (applied, duplicate, out_of_order) is logged at
+// Info level with provider, event_id, event_name, and the resolved user_id.
+// Operators correlating provider retry storms previously had only Prometheus
+// counters to work with; the per-event log line closes that gap.
 func (s *Server) applyAndRespond(w http.ResponseWriter, r *http.Request, ev *bevents.NormalizedEvent) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
@@ -230,13 +253,21 @@ func (s *Server) applyAndRespond(w http.ResponseWriter, r *http.Request, ev *bev
 		if errors.Is(err, service.ErrCannotResolveUser) {
 			s.metrics.WebhookReceived.WithLabelValues(ev.Provider, ev.EventName, "unresolvable").Inc()
 			s.metrics.ApplyOutcome.WithLabelValues(ev.Provider, "unresolvable").Inc()
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			s.log.Warn().
+				Str("provider", ev.Provider).
+				Str("event", ev.EventName).
+				Str("event_id", ev.EventID).
+				Msg("billing_webhook_unresolvable_user")
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "event refers to an unknown user"})
 			return
 		}
 		s.metrics.WebhookReceived.WithLabelValues(ev.Provider, ev.EventName, "error").Inc()
 		s.metrics.ApplyOutcome.WithLabelValues(ev.Provider, "error").Inc()
-		s.log.Error().Err(err).Str("provider", ev.Provider).Str("event", ev.EventName).
-			Str("event_id", ev.EventID).Msg("billing_apply_failed")
+		s.log.Error().Err(err).
+			Str("provider", ev.Provider).
+			Str("event", ev.EventName).
+			Str("event_id", ev.EventID).
+			Msg("billing_apply_failed")
 		// 5xx so the provider retries. Body deliberately generic.
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
@@ -246,12 +277,32 @@ func (s *Server) applyAndRespond(w http.ResponseWriter, r *http.Request, ev *bev
 	case outcome.AlreadyProcessed:
 		s.metrics.WebhookReceived.WithLabelValues(ev.Provider, ev.EventName, "duplicate").Inc()
 		s.metrics.ApplyOutcome.WithLabelValues(ev.Provider, "duplicate").Inc()
+		s.log.Info().
+			Str("provider", ev.Provider).
+			Str("event", ev.EventName).
+			Str("event_id", ev.EventID).
+			Str("user_id", outcome.UserID).
+			Msg("billing_webhook_duplicate")
 	case outcome.OutOfOrder:
 		s.metrics.WebhookReceived.WithLabelValues(ev.Provider, ev.EventName, "out_of_order").Inc()
 		s.metrics.ApplyOutcome.WithLabelValues(ev.Provider, "out_of_order").Inc()
+		s.log.Info().
+			Str("provider", ev.Provider).
+			Str("event", ev.EventName).
+			Str("event_id", ev.EventID).
+			Str("user_id", outcome.UserID).
+			Msg("billing_webhook_out_of_order")
 	default:
 		s.metrics.WebhookReceived.WithLabelValues(ev.Provider, ev.EventName, "applied").Inc()
 		s.metrics.ApplyOutcome.WithLabelValues(ev.Provider, "applied").Inc()
+		s.log.Info().
+			Str("provider", ev.Provider).
+			Str("event", ev.EventName).
+			Str("event_id", ev.EventID).
+			Str("user_id", outcome.UserID).
+			Bool("tier_changed", outcome.TierChanged).
+			Bool("status_changed", outcome.StatusChanged).
+			Msg("billing_webhook_applied")
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":            "ok",

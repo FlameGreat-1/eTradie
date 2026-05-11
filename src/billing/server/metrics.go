@@ -1,6 +1,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 )
@@ -11,10 +13,18 @@ import (
 type Metrics struct {
 	Registry *prometheus.Registry
 
-	WebhookReceived  *prometheus.CounterVec
-	WebhookDuration  *prometheus.HistogramVec
-	ApplyOutcome     *prometheus.CounterVec
-	CheckoutCreated  *prometheus.CounterVec
+	WebhookReceived *prometheus.CounterVec
+	WebhookDuration *prometheus.HistogramVec
+	ApplyOutcome    *prometheus.CounterVec
+	CheckoutCreated *prometheus.CounterVec
+
+	// Reconciler instruments. *Metrics implements service.ReconcilerMetrics
+	// via the methods at the bottom of this file.
+	ReconcilerRuns     *prometheus.CounterVec
+	ReconcilerDemoted  *prometheus.CounterVec
+	ReconcilerErrors   *prometheus.CounterVec
+	IdempotencyPruned  prometheus.Counter
+	ReconcilerDuration prometheus.Histogram
 }
 
 // NewMetrics constructs and registers the instrument set.
@@ -52,13 +62,83 @@ func NewMetrics() *Metrics {
 		},
 		[]string{"provider", "tier", "result"},
 	)
-	reg.MustRegister(webhookReceived, webhookDuration, applyOutcome, checkoutCreated)
+	reconcilerRuns := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_reconciler_runs_total",
+			Help: "Reconciler ticks, labelled by outcome (ok, sweep_error, prune_error, sweep_and_prune_error).",
+		},
+		[]string{"outcome"},
+	)
+	reconcilerDemoted := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_reconciler_demoted_total",
+			Help: "Subscriptions demoted to free by the period-end reconciler, labelled by their previous tier.",
+		},
+		[]string{"previous_tier"},
+	)
+	reconcilerErrors := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "billing_reconciler_errors_total",
+			Help: "Reconciler per-stage errors (list, begin_tx, demote, audit, commit, prune).",
+		},
+		[]string{"stage"},
+	)
+	idempotencyPruned := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "billing_idempotency_pruned_total",
+			Help: "Total processed_webhook_events rows deleted by the retention janitor.",
+		},
+	)
+	reconcilerDuration := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "billing_reconciler_duration_seconds",
+			Help:    "Wall-clock duration of a single reconciler tick (sweep + prune).",
+			Buckets: prometheus.ExponentialBuckets(0.05, 2, 10), // 50ms .. ~50s
+		},
+	)
+	reg.MustRegister(
+		webhookReceived, webhookDuration, applyOutcome, checkoutCreated,
+		reconcilerRuns, reconcilerDemoted, reconcilerErrors,
+		idempotencyPruned, reconcilerDuration,
+	)
 
 	return &Metrics{
-		Registry:        reg,
-		WebhookReceived: webhookReceived,
-		WebhookDuration: webhookDuration,
-		ApplyOutcome:    applyOutcome,
-		CheckoutCreated: checkoutCreated,
+		Registry:           reg,
+		WebhookReceived:    webhookReceived,
+		WebhookDuration:    webhookDuration,
+		ApplyOutcome:       applyOutcome,
+		CheckoutCreated:    checkoutCreated,
+		ReconcilerRuns:     reconcilerRuns,
+		ReconcilerDemoted:  reconcilerDemoted,
+		ReconcilerErrors:   reconcilerErrors,
+		IdempotencyPruned:  idempotencyPruned,
+		ReconcilerDuration: reconcilerDuration,
+	}
+}
+
+// ObserveReconcilerRun records one full reconciler tick. Implements
+// service.ReconcilerMetrics.
+func (m *Metrics) ObserveReconcilerRun(outcome string, duration time.Duration) {
+	m.ReconcilerRuns.WithLabelValues(outcome).Inc()
+	m.ReconcilerDuration.Observe(duration.Seconds())
+}
+
+// IncReconcilerDemoted records one successful period-end demotion.
+// Implements service.ReconcilerMetrics.
+func (m *Metrics) IncReconcilerDemoted(previousTier string) {
+	m.ReconcilerDemoted.WithLabelValues(previousTier).Inc()
+}
+
+// IncReconcilerError records one per-stage failure. Implements
+// service.ReconcilerMetrics.
+func (m *Metrics) IncReconcilerError(stage string) {
+	m.ReconcilerErrors.WithLabelValues(stage).Inc()
+}
+
+// AddIdempotencyPruned records the number of rows the janitor deleted.
+// Implements service.ReconcilerMetrics.
+func (m *Metrics) AddIdempotencyPruned(rows int64) {
+	if rows > 0 {
+		m.IdempotencyPruned.Add(float64(rows))
 	}
 }

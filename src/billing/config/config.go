@@ -10,6 +10,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -35,9 +36,25 @@ type Config struct {
 	// don't have to repeat themselves between auth and billing.
 	DatabaseURL string `envconfig:"BILLING_DATABASE_URL"`
 
+	// Public origin where Paddle / Lemon Squeezy POST webhooks. MUST be
+	// HTTPS in production. The value is logged on startup so operators can
+	// verify it matches the URL registered in the provider dashboards;
+	// mismatches between this and the dashboard config are the most common
+	// cause of "webhooks not arriving" incidents and historically were
+	// invisible because the service never loaded the value.
+	PublicBaseURL string `envconfig:"BILLING_PUBLIC_BASE_URL" required:"true"`
+
 	// Webhook hardening.
 	WebhookReplayWindow time.Duration `envconfig:"BILLING_WEBHOOK_REPLAY_WINDOW_SECONDS" default:"300s"`
 	WebhookMaxBodyBytes int64         `envconfig:"BILLING_WEBHOOK_MAX_BODY_BYTES"        default:"1048576"`
+
+	// Period-end reconciler. Demotes paused/past_due/canceled/refunded
+	// subscriptions whose current_period_end has elapsed, and prunes the
+	// processed_webhook_events idempotency table. Both knobs are validated
+	// to be positive so a misconfigured deployment cannot silently disable
+	// the reconciler entirely.
+	ReconcilerInterval       time.Duration `envconfig:"BILLING_RECONCILER_INTERVAL_SECONDS" default:"900s"`
+	IdempotencyRetentionDays int           `envconfig:"BILLING_IDEMPOTENCY_RETENTION_DAYS" default:"30"`
 
 	// Internal service-to-service auth between gateway and billing.
 	InternalSharedSecret string `envconfig:"BILLING_INTERNAL_SHARED_SECRET" required:"true"`
@@ -47,18 +64,18 @@ type Config struct {
 	CancelURL  string `envconfig:"BILLING_CHECKOUT_CANCEL_URL"  required:"true"`
 
 	// Paddle.
-	PaddleWebhookSecret   string `envconfig:"PADDLE_WEBHOOK_SECRET"   required:"true"`
-	PaddleAPIKey          string `envconfig:"PADDLE_API_KEY"          required:"true"`
-	PaddleAPIBaseURL      string `envconfig:"PADDLE_API_BASE_URL"     default:"https://api.paddle.com"`
-	PaddlePriceProBYOK    string `envconfig:"PADDLE_PRICE_PRO_BYOK"   required:"true"`
+	PaddleWebhookSecret   string `envconfig:"PADDLE_WEBHOOK_SECRET"    required:"true"`
+	PaddleAPIKey          string `envconfig:"PADDLE_API_KEY"           required:"true"`
+	PaddleAPIBaseURL      string `envconfig:"PADDLE_API_BASE_URL"      default:"https://api.paddle.com"`
+	PaddlePriceProBYOK    string `envconfig:"PADDLE_PRICE_PRO_BYOK"    required:"true"`
 	PaddlePriceProManaged string `envconfig:"PADDLE_PRICE_PRO_MANAGED" required:"true"`
 
 	// Lemon Squeezy.
-	LSWebhookSecret    string `envconfig:"LEMONSQUEEZY_WEBHOOK_SECRET"   required:"true"`
-	LSAPIKey           string `envconfig:"LEMONSQUEEZY_API_KEY"          required:"true"`
-	LSAPIBaseURL       string `envconfig:"LEMONSQUEEZY_API_BASE_URL"     default:"https://api.lemonsqueezy.com"`
-	LSStoreID          string `envconfig:"LEMONSQUEEZY_STORE_ID"         required:"true"`
-	LSVariantProBYOK   string `envconfig:"LEMONSQUEEZY_VARIANT_PRO_BYOK" required:"true"`
+	LSWebhookSecret     string `envconfig:"LEMONSQUEEZY_WEBHOOK_SECRET"      required:"true"`
+	LSAPIKey            string `envconfig:"LEMONSQUEEZY_API_KEY"             required:"true"`
+	LSAPIBaseURL        string `envconfig:"LEMONSQUEEZY_API_BASE_URL"        default:"https://api.lemonsqueezy.com"`
+	LSStoreID           string `envconfig:"LEMONSQUEEZY_STORE_ID"            required:"true"`
+	LSVariantProBYOK    string `envconfig:"LEMONSQUEEZY_VARIANT_PRO_BYOK"    required:"true"`
 	LSVariantProManaged string `envconfig:"LEMONSQUEEZY_VARIANT_PRO_MANAGED" required:"true"`
 }
 
@@ -84,10 +101,41 @@ func Load() (*Config, error) {
 	if cfg.WebhookMaxBodyBytes <= 0 {
 		return nil, errors.New("billing config: BILLING_WEBHOOK_MAX_BODY_BYTES must be positive")
 	}
+	if cfg.ReconcilerInterval <= 0 {
+		return nil, errors.New("billing config: BILLING_RECONCILER_INTERVAL_SECONDS must be positive")
+	}
+	if cfg.IdempotencyRetentionDays <= 0 {
+		return nil, errors.New("billing config: BILLING_IDEMPOTENCY_RETENTION_DAYS must be positive")
+	}
 	if len(cfg.InternalSharedSecret) < 32 {
 		return nil, errors.New("billing config: BILLING_INTERNAL_SHARED_SECRET must be at least 32 characters")
 	}
+	if err := validatePublicURL(cfg.PublicBaseURL); err != nil {
+		return nil, fmt.Errorf("billing config: BILLING_PUBLIC_BASE_URL: %w", err)
+	}
 	return &cfg, nil
+}
+
+// validatePublicURL ensures BILLING_PUBLIC_BASE_URL is a syntactically valid
+// http(s) URL with a host component. The string is operator-facing only
+// (logged at startup, used to construct external links) so we don't enforce
+// trailing-slash policy or paths.
+func validatePublicURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return errors.New("value is empty")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("parse: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return errors.New("host is empty")
+	}
+	return nil
 }
 
 // PriceTierMap returns the Paddle price_id → tier map.
@@ -134,7 +182,7 @@ func buildPostgresURL() string {
 	pass := envOrDefault("POSTGRES_PASSWORD", "")
 	db := envOrDefault("POSTGRES_DB", "etradie")
 	ssl := envOrDefault("POSTGRES_SSLMODE", "disable")
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	return fmt.Sprintf("postgres[REDACTED]%s:%s/%s?sslmode=%s",
 		user, pass, host, port, db, ssl)
 }
 

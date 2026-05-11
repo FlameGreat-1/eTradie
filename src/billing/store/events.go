@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -34,13 +35,32 @@ func (s *ProcessedEventStore) MarkProcessedTx(
 	`
 	var inserted int
 	err := tx.QueryRow(ctx, q, provider, eventID, eventName).Scan(&inserted)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
 	return inserted == 1, nil
+}
+
+// PruneOlderThan deletes rows whose received_at is strictly older than the
+// supplied cutoff and returns the number of rows removed.
+//
+// Idempotency only matters during the provider's retry window (Paddle and
+// Lemon Squeezy both retry well under 7 days). The reconciler calls this
+// hourly with a 30-day cutoff by default so processed_webhook_events stays
+// bounded forever. The DELETE is index-scanned via the existing
+// idx_processed_webhook_events_received_at index.
+func (s *ProcessedEventStore) PruneOlderThan(
+	ctx context.Context, cutoff time.Time,
+) (int64, error) {
+	const q = `DELETE FROM processed_webhook_events WHERE received_at < $1`
+	tag, err := s.db.Exec(ctx, q, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // SubscriptionEventStore appends an immutable audit record per subscription
@@ -85,6 +105,16 @@ func (s *SubscriptionEventStore) AppendTx(
 	return err
 }
 
+// nullableString converts an empty string to a nil SQL parameter so audit
+// columns that are nullable (previous_tier, previous_status on first-insert)
+// stay NULL instead of being written as empty strings. The any return type
+// lets pgx pick the wire format.
+//
+// The service package has its own service.nullablePtr helper with a *string
+// return for the row-storage *string fields on store.Subscription. The two
+// are deliberately separate because they target columns with different
+// nullability constraints and Go types; merging them would force one
+// consumer to convert at every call site.
 func nullableString(s string) any {
 	if s == "" {
 		return nil

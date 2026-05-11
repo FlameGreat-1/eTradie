@@ -89,6 +89,11 @@ func TestLSParse_SubscriptionExpired(t *testing.T) {
 	assert.Equal(t, events.StatusCanceled, ev.Status)
 }
 
+// TestLSParse_PaymentRefunded verifies that subscription_payment_refunded
+// keeps the variant-derived tier in place and only flips status to
+// refunded. Demotion to free now happens via subscription_cancelled /
+// subscription_expired or the period-end reconciler — not a single
+// refund event, which would aggressively cut Pro access mid-period.
 func TestLSParse_PaymentRefunded(t *testing.T) {
 	body := `{
 		"meta": {"event_name": "subscription_payment_refunded", "event_id": "ev_4"},
@@ -96,7 +101,24 @@ func TestLSParse_PaymentRefunded(t *testing.T) {
 	}`
 	ev, err := Parse(reqWithEvent(t, body, "subscription_payment_refunded"), []byte(body), testVariants())
 	require.NoError(t, err)
-	assert.Equal(t, events.TierFree, ev.Tier)
+	assert.Equal(t, events.TierProManaged, ev.Tier, "refund must keep the variant-derived tier")
+	assert.Equal(t, events.StatusRefunded, ev.Status)
+}
+
+// TestLSParse_PaymentRefunded_UnknownVariant covers the secondary path:
+// a refund whose variant is no longer in our map (e.g., a long-cancelled
+// product). The parser must yield an empty tier so the service layer
+// inherits the stored tier via the recovery path; it must NOT raise
+// ErrUnknownVariant for the refund event, which would 422 the webhook
+// and trigger provider retries forever.
+func TestLSParse_PaymentRefunded_UnknownVariant(t *testing.T) {
+	body := `{
+		"meta": {"event_name": "subscription_payment_refunded", "event_id": "ev_4b"},
+		"data": {"type":"subscriptions","id":"77","attributes":{"store_id":1,"customer_id":555,"variant_id":424242,"status":"active","created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-20T00:00:00Z"}}
+	}`
+	ev, err := Parse(reqWithEvent(t, body, "subscription_payment_refunded"), []byte(body), testVariants())
+	require.NoError(t, err)
+	assert.Equal(t, events.Tier(""), ev.Tier, "refund with unknown variant must yield empty tier so service inherits stored tier")
 	assert.Equal(t, events.StatusRefunded, ev.Status)
 }
 
