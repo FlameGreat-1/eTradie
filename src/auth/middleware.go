@@ -223,14 +223,17 @@ func UnaryAdminInterceptor() grpc.UnaryServerInterceptor {
 // string for the request. It tries, in order:
 //
 //  1. the standard `Authorization: Bearer <token>` HTTP header
-//     (server-to-server, CLI tooling, and legacy localStorage SPA);
+//     (server-to-server and CLI tooling);
 //  2. for WebSocket upgrade requests, the `Sec-WebSocket-Protocol`
-//     header in the form `Bearer, <token>` (browsers cannot set
-//     arbitrary headers on new WebSocket());
+//     header in the form `Bearer, <token>` (non-browser WS clients
+//     that explicitly hold a token);
 //  3. the `access_token` cookie set by the cookie-auth migration
-//     (see src/auth/cookies.go). Only tried when the request is NOT
-//     a WebSocket upgrade, so the WS handshake path stays single-
-//     channel and its failure diagnostics stay unambiguous.
+//     (see src/auth/cookies.go). This branch is tried for BOTH
+//     non-WS HTTP requests AND WebSocket upgrade requests: a
+//     cookie-auth browser cannot read its HttpOnly access cookie
+//     to copy it into Sec-WebSocket-Protocol, so the only browser-
+//     safe WS auth channel is the cookie itself. The browser
+//     attaches the cookie to the WS handshake automatically.
 //
 // Returns errMissingAuth / errInvalidFormat / a token verification
 // error when none of the channels yields a valid token. A non-empty
@@ -251,7 +254,13 @@ func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, string, e
 		return claims, tokenString, nil
 	}
 
-	// 2. WebSocket subprotocol fallback.
+	// 2. WebSocket subprotocol channel. Non-browser WS clients (CLI
+	// tooling, server-to-server tests) still use this path. A
+	// non-empty subprotocol token is authoritative: if it is
+	// invalid we surface the verification error rather than
+	// silently falling through to the cookie, because a deliberate
+	// subprotocol declaration with a bad value is a bug, not an
+	// unauthenticated request.
 	if isWebSocketUpgrade(r) {
 		if tokenString := extractWebSocketToken(r); tokenString != "" {
 			claims, err := ts.VerifyAccessToken(tokenString)
@@ -260,15 +269,18 @@ func extractAndVerifyHTTP(r *http.Request, ts *TokenService) (*Claims, string, e
 			}
 			return claims, tokenString, nil
 		}
-		// WS upgrade with no subprotocol token is unauthenticated;
-		// do NOT fall through to the cookie branch because the WS
-		// channel must remain single-source for diagnostics.
-		return nil, "", errMissingAuth
+		// No subprotocol token — fall through to the cookie branch
+		// below. Browsers cannot read HttpOnly cookies from JS so
+		// they cannot put the token into the subprotocol channel;
+		// the cookie attached automatically by the browser to the
+		// WS handshake is the only browser-safe WS auth signal.
 	}
 
-	// 3. access_token cookie. The cookie name is centralised in
-	// cookies.go; AccessTokenFromCookie returns "" when the cookie
-	// is absent so this branch is a no-op for non-browser clients.
+	// 3. access_token cookie. Centralised in cookies.go.
+	// AccessTokenFromCookie returns "" when the cookie is absent
+	// so this branch is a no-op for non-browser clients that
+	// already declared no Authorization header and no subprotocol
+	// token.
 	if tokenString := AccessTokenFromCookie(r); tokenString != "" {
 		claims, err := ts.VerifyAccessToken(tokenString)
 		if err != nil {

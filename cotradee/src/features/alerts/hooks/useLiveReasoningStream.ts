@@ -1,15 +1,25 @@
 import { useEffect, useReducer, useRef } from 'react';
-import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
 
 /**
  * Live-reasoning stream hook.
  *
- * Opens an SSE connection to `${env.engineUrl}/api/analysis/stream-live`
- * using the canonical Bearer token from localStorage. The endpoint is
- * user-scoped on the server (see engine.processor.streaming), so this
- * hook never observes frames from another user's cycle.
+ * Opens an SSE connection to `${env.engineUrl}/api/analysis/stream-live`.
+ *
+ * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ *   fetch() is called with credentials:'include' so the browser
+ *   attaches the HttpOnly access_token cookie. Cookies set on the
+ *   gateway host are sent to the engine host because cookies are
+ *   scoped by host (not port) under RFC 6265. The engine resolves
+ *   the user from the cookie exactly like the gateway does (see
+ *   src/auth/middleware.go::AccessTokenFromCookie); a follow-up
+ *   Python change wires the engine to read the same cookie name.
+ *
+ *   No Authorization header is sent. The previous implementation
+ *   read getAccessToken() (a Batch-11 no-op returning '') and sent
+ *   `Authorization: Bearer ` (literally empty Bearer), which the
+ *   engine correctly rejected with 401.
  *
  * Contract matching the engine's publish format:
  *   { type: 'status',           message: string, symbol?: string }
@@ -185,9 +195,6 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
     let disposed = false;
 
     const connect = async () => {
-      const token = getAccessToken();
-      if (!token) return;
-
       const controller = new AbortController();
       controllerRef.current = controller;
 
@@ -195,11 +202,14 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
         const res = await fetch(`${env.engineUrl}/api/analysis/stream-live`, {
           method: 'GET',
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: 'text/event-stream',
           },
           signal: controller.signal,
-          credentials: 'omit',
+          // Send the access_token cookie. credentials:'include' is the
+          // browser flag that makes the cookie ride along on a
+          // cross-origin fetch; without it the engine sees an
+          // unauthenticated request even though the cookie exists.
+          credentials: 'include',
         });
 
         if (!res.ok || !res.body) {

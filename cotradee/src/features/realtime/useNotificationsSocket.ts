@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
 import type { RealtimeEvent } from './types';
@@ -7,19 +6,33 @@ import type { RealtimeEvent } from './types';
 /**
  * Single shared connection to ${gatewayWsUrl}/ws/notifications.
  *
+ * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ *   The browser attaches the HttpOnly access_token cookie to the WS
+ *   handshake automatically. Same-origin handshakes always carry
+ *   cookies; cross-origin handshakes (Vite dev server on :5173 ->
+ *   gateway on :8080) carry cookies because cookies are scoped by
+ *   host (not port) under RFC 6265. The SPA never has to read,
+ *   forward, or attach the token — it cannot, by design, because
+ *   the cookie is HttpOnly.
+ *
+ *   The gateway middleware (src/auth/middleware.go,
+ *   extractAndVerifyHTTP) reads the access_token cookie when the
+ *   WS upgrade carries no Sec-WebSocket-Protocol token. Non-browser
+ *   WS clients (CLI tooling, server-to-server) continue to use the
+ *   subprotocol channel, which is preserved.
+ *
  * Behaviour:
- *   • Opens only when the user is authenticated.
- *   • Sends auth via the WebSocket subprotocol header (Bearer, token).
- *   • Probes the gateway with a tiny HTTP HEAD/GET against /health
+ *   - Opens only when the user is authenticated.
+ *   - Probes the gateway with a small HTTP GET against /health
  *     BEFORE opening the socket. The browser logs
  *     "WebSocket connection failed" directly to the console (it is
  *     not catchable from JS), so the only way to silence the noise
  *     when the gateway is down is to not call new WebSocket() at all.
  *     If the probe fails the hook waits 60 s before trying again.
- *   • Reconnect uses exponential backoff capped at 30 s when the
+ *   - Reconnect uses exponential backoff capped at 30 s when the
  *     gateway is reachable; switches to 60 s heartbeat when it is
  *     not.
- *   • Closes cleanly on logout / unmount.
+ *   - Closes cleanly on logout / unmount.
  */
 interface UseNotificationsSocketOptions {
   onEvent: (event: RealtimeEvent) => void;
@@ -49,7 +62,9 @@ async function probeGatewayReachable(): Promise<boolean> {
     // `mode: 'cors'` is necessary because the dev server runs on a
     // different port; the gateway responds with permissive CORS for
     // /health. We don't read the body — only that the request
-    // resolves.
+    // resolves. credentials are deliberately omitted: /health does
+    // not require auth and we don't want a stray cookie roundtrip on
+    // every probe.
     const res = await fetch(url, {
       method: 'GET',
       mode: 'cors',
@@ -95,12 +110,6 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
     const connect = async () => {
       if (disposed) return;
 
-      const token = getAccessToken();
-      if (!token) {
-        schedule(SLOW_RETRY_MS);
-        return;
-      }
-
       // 1. Probe HTTP /health. If the gateway is unreachable we don't
       //    even attempt the WebSocket — the browser logs the failure
       //    of new WebSocket() to the console and we cannot suppress
@@ -115,9 +124,15 @@ export function useNotificationsSocket({ onEvent }: UseNotificationsSocketOption
       }
 
       // 2. Probe succeeded — attempt the actual WebSocket handshake.
+      //    No subprotocol is sent: the browser attaches the
+      //    HttpOnly access_token cookie to the upgrade request, and
+      //    the gateway middleware reads it via
+      //    AccessTokenFromCookie. Non-browser WS clients that hold
+      //    an explicit token still use the `Bearer, <token>`
+      //    subprotocol — a path the gateway preserves.
       const url = `${env.gatewayWsUrl}/ws/notifications`;
       try {
-        ws = new WebSocket(url, ['Bearer', token]);
+        ws = new WebSocket(url);
       } catch {
         fastFailures += 1;
         schedule(everConnected ? fastBackoff() : SLOW_RETRY_MS);

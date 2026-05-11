@@ -1,16 +1,23 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 import { useAuth } from '@/features/auth';
 
 /**
  * True WebSocket hook for live tick streaming from the engine.
  *
- * Protocol:
- *   1. On mount, opens a WebSocket to /api/broker/stream-ticks
- *   2. Sends an init frame: { token, symbol }
- *   3. Receives tick frames: { bid, ask, time, symbol }
- *   4. When activeSymbol changes, sends a switch frame: { symbol }
+ * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ *   The browser attaches the HttpOnly access_token cookie to the WS
+ *   handshake automatically. Cookies set on the gateway host are sent
+ *   to the engine host because cookies are scoped by host (not port).
+ *   The init frame no longer carries a `token` field; the engine
+ *   resolves the user from the cookie on the upgrade request.
+ *
+ * Protocol (post-fix):
+ *   1. On mount, opens a WebSocket to /api/broker/stream-ticks. The
+ *      browser includes the access_token cookie on the handshake.
+ *   2. Sends an init frame: { symbol }.
+ *   3. Receives tick frames: { bid, ask, time, symbol }.
+ *   4. When activeSymbol changes, sends a switch frame: { symbol }.
  *   5. On unmount, closes cleanly.
  *
  * Reconnects automatically with exponential backoff on disconnect.
@@ -52,8 +59,7 @@ export function useTickStream({ symbol, onTick }: UseTickStreamOptions) {
   const connect = useCallback(() => {
     if (disposedRef.current) return;
 
-    const token = getAccessToken();
-    if (!token || !symbolRef.current) return;
+    if (!symbolRef.current) return;
 
     // Derive WebSocket URL from the engine HTTP URL.
     const wsBase = env.engineUrl.replace(/^http/, 'ws');
@@ -61,8 +67,10 @@ export function useTickStream({ symbol, onTick }: UseTickStreamOptions) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // Send init frame with auth token and initial symbol.
-      ws.send(JSON.stringify({ token, symbol: symbolRef.current }));
+      // Send init frame with the initial symbol. The user identity
+      // comes from the access_token cookie on the upgrade request,
+      // not from the body.
+      ws.send(JSON.stringify({ symbol: symbolRef.current }));
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
     };

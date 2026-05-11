@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server } from 'lucide-react';
+import { AxiosError } from 'axios';
+import { api } from '@/lib/axios';
 import { useToast } from '@/hooks/useToast';
 
 interface Subscription {
@@ -10,6 +12,19 @@ interface Subscription {
 type Provider = 'paddle' | 'lemonsqueezy';
 type Tier = 'pro_byok' | 'pro_managed';
 
+// Post-Batch-11 the SPA no longer reads tokens from localStorage. The
+// access token lives in an HttpOnly cookie that JS cannot see. Every
+// authenticated request must go through `api.gateway`, which:
+//   - sets withCredentials:true so the browser attaches the cookie jar,
+//   - reads csrf_token from document.cookie and echoes it as the
+//     X-CSRF-Token header on POST / PUT / PATCH / DELETE,
+//   - handles silent token refresh via /auth/refresh and redirects
+//     to /login on a hard 401.
+//
+// The previous implementation used raw fetch() + localStorage.getItem(
+// 'access_token'). After Batch 11 that key never exists, so the
+// Authorization header was `Bearer null` and the gateway responded
+// with 401 'missing authorization header' on every modal open.
 export default function UpgradeModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,16 +49,17 @@ export default function UpgradeModal() {
 
   const fetchSubscription = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/v1/billing/subscription', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = (await response.json()) as Subscription;
-        setCurrentSub(data);
-      }
+      const { data } = await api.gateway.get<Subscription>('/api/v1/billing/subscription');
+      setCurrentSub(data);
     } catch (err) {
-      console.error('Failed to fetch subscription:', err);
+      // 404 on a fresh free user is normal (no billing_subscriptions
+      // row yet); the gateway maps that to the default tier in the
+      // server response, so axios only throws on transport / 5xx.
+      // Treat any failure as 'no subscription info' rather than
+      // surfacing a toast — the modal still works for free users.
+      if (!(err instanceof AxiosError) || err.response?.status !== 401) {
+        console.error('Failed to fetch subscription:', err);
+      }
     }
   };
 
@@ -56,32 +72,12 @@ export default function UpgradeModal() {
     setIsLoading(true);
     setLoadingTier(tier);
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/v1/billing/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ provider, tier }),
-      });
-
-      if (!response.ok) {
-        // Surface the server-side reason so the user sees "checkout
-        // rejected by billing service" / "billing service unavailable"
-        // instead of a generic message.
-        let serverMessage = 'Unable to start checkout.';
-        try {
-          const body = (await response.json()) as { error?: string };
-          if (body?.error) serverMessage = body.error;
-        } catch {
-          /* response had no JSON body */
-        }
-        throw new Error(serverMessage);
-      }
-
-      const { checkout_url } = (await response.json()) as { checkout_url: string };
-      if (!checkout_url) {
+      const { data } = await api.gateway.post<{ checkout_url?: string }>(
+        '/api/v1/billing/checkout',
+        { provider, tier },
+      );
+      const checkoutURL = data.checkout_url;
+      if (!checkoutURL) {
         throw new Error('Billing service returned an empty checkout URL.');
       }
 
@@ -89,11 +85,23 @@ export default function UpgradeModal() {
         title: 'Redirecting to checkout',
         description: 'Please complete your payment on the secure provider page.',
       });
-      window.location.href = checkout_url;
+      window.location.href = checkoutURL;
     } catch (err) {
+      // Surface the server-side reason so the user sees the real
+      // failure mode (`checkout rejected by billing service`,
+      // `billing service unavailable`, etc.) instead of a generic
+      // message. axios puts the parsed response body on err.response.
+      let serverMessage = 'Unable to start checkout.';
+      if (err instanceof AxiosError) {
+        const body = err.response?.data as { error?: string } | undefined;
+        if (body?.error) serverMessage = body.error;
+        else if (err.message) serverMessage = err.message;
+      } else if (err instanceof Error) {
+        serverMessage = err.message;
+      }
       toast({
         title: 'Upgrade Failed',
-        description: err instanceof Error ? err.message : 'Unable to start checkout.',
+        description: serverMessage,
         variant: 'destructive',
       });
     } finally {
