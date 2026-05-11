@@ -102,6 +102,83 @@ func (h *BillingHandler) RegisterRoutes(
 ) {
 	mux.Handle("/api/v1/billing/subscription", authMiddleware(csrfMiddleware(http.HandlerFunc(h.handleGetSubscription))))
 	mux.Handle("/api/v1/billing/checkout", authMiddleware(csrfMiddleware(http.HandlerFunc(h.handleCreateCheckout))))
+	mux.Handle("/api/v1/billing/portal", authMiddleware(csrfMiddleware(http.HandlerFunc(h.handleCreatePortal))))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/billing/portal
+//
+// Returns a one-shot URL on the original payment provider where the user
+// can update their payment method, cancel, change plan, or download
+// invoices. The provider is whichever one took the user's first payment
+// (recorded as payment_provider on billing_subscriptions). The gateway
+// resolves provider + provider_customer_id from the authoritative table
+// so the JWT cannot be spoofed to escalate against another user.
+// ---------------------------------------------------------------------------
+
+func (h *BillingHandler) handleCreatePortal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Resolve the authoritative subscription. We use the with-retry helper
+	// so a transient DB hiccup does not force the user through the upgrade
+	// flow when they already have an active subscription.
+	sub, err := h.loadSubscriptionWithRetry(r.Context(), claims.UserID)
+	if err != nil {
+		if errors.Is(err, billingstore.ErrSubscriptionNotFound) {
+			writeJSONError(w, http.StatusNotFound, "no active subscription")
+			return
+		}
+		h.log.Error().Err(err).Str("user_id", claims.UserID).Msg("billing_portal_subscription_lookup_failed")
+		writeJSONError(w, http.StatusServiceUnavailable, "billing temporarily unavailable; please retry")
+		return
+	}
+
+	if sub.PaymentProvider == nil || *sub.PaymentProvider == "" || sub.ProviderCustomerID == nil || *sub.ProviderCustomerID == "" {
+		// Subscription row exists but the provider link is incomplete.
+		// This happens for the seed default-free row a user has before
+		// any successful checkout. Treat it as 'no active subscription'
+		// rather than confusing the user with a 500.
+		writeJSONError(w, http.StatusNotFound, "no active subscription")
+		return
+	}
+
+	respCtx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	resp, err := h.client.CreatePortalSession(respCtx, PortalRequest{
+		Provider:           *sub.PaymentProvider,
+		ProviderCustomerID: *sub.ProviderCustomerID,
+		UserID:             claims.UserID,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrUpstreamNotSupported):
+			writeJSONError(w, http.StatusNotImplemented, "customer portal is not available for this account")
+			return
+		case errors.Is(err, ErrUpstreamRejected):
+			writeJSONError(w, http.StatusBadRequest, "portal request rejected by billing service")
+			return
+		case errors.Is(err, ErrUpstreamUnavailable):
+			writeJSONError(w, http.StatusBadGateway, "billing service unavailable")
+			return
+		}
+		h.log.Error().Err(err).Str("user_id", claims.UserID).Msg("billing_portal_failed")
+		writeJSONError(w, http.StatusInternalServerError, "portal failed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"portal_url": resp.PortalURL,
+	})
 }
 
 // ---------------------------------------------------------------------------
