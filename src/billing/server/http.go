@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,6 +39,15 @@ import (
 // configured value with constant-time compare.
 const InternalAuthHeader = "X-Internal-Auth"
 
+// Default capacities for the resilience primitives. Tunable via
+// Options{CheckoutSemaphore, PortalSemaphore, WebhookRateLimiter} when
+// the caller wants different values per environment.
+const (
+	defaultCheckoutInFlightCap = 64
+	defaultPortalInFlightCap   = 64
+	defaultWebhookInFlightCap  = 256
+)
+
 // Server wires the HTTP surface against the service layer.
 type Server struct {
 	http           *http.Server
@@ -54,6 +64,31 @@ type Server struct {
 
 	subSvc      *service.Service
 	checkoutSvc *service.CheckoutService
+
+	// Resilience primitives. Constructed in New(); never nil in the
+	// production wiring. Per-endpoint semaphores bound goroutine fanout
+	// under provider outage; the webhook rate limiter belt-and-braces the
+	// existing HMAC verification.
+	checkoutSem   *service.Semaphore
+	portalSem     *service.Semaphore
+	webhookSem    *service.Semaphore
+	webhookLimit  *service.TokenBucketRateLimiter
+	webhookProxy  WebhookProxyConfig
+}
+
+// WebhookProxyConfig governs how the webhook handlers identify the
+// client IP for the per-IP rate limiter. The DEFAULT is to use
+// r.RemoteAddr only and NEVER trust X-Forwarded-For — trusting headers
+// without a configured trusted-proxy CIDR is a trivial bypass.
+//
+// Operators behind a known reverse proxy (Cloudflare, nginx, an ALB)
+// set TrustHeader to the header name and TrustedCIDRs to the list of
+// peer IPs that are allowed to set it. The webhook handler walks the
+// header right-to-left and accepts the first IP that is NOT inside a
+// trusted CIDR.
+type WebhookProxyConfig struct {
+	TrustHeader  string
+	TrustedCIDRs []string
 }
 
 // Options bundles the dependencies New requires. The listener is supplied
@@ -73,11 +108,33 @@ type Options struct {
 
 	SubscriptionService *service.Service
 	CheckoutService     *service.CheckoutService
+
+	// Resilience knobs. Zero values fall back to the defaults declared
+	// above so existing callers (tests, integration_test.go) don't have
+	// to be updated. Production main.go sets them explicitly.
+	CheckoutInFlightCap int
+	PortalInFlightCap   int
+	WebhookInFlightCap  int
+	WebhookRateLimit    service.RateLimiterConfig
+	WebhookProxy        WebhookProxyConfig
 }
 
 // New builds a Server. The HTTP server is not started yet; call Start with
 // a pre-bound listener.
 func New(opts Options) *Server {
+	checkoutCap := opts.CheckoutInFlightCap
+	if checkoutCap <= 0 {
+		checkoutCap = defaultCheckoutInFlightCap
+	}
+	portalCap := opts.PortalInFlightCap
+	if portalCap <= 0 {
+		portalCap = defaultPortalInFlightCap
+	}
+	webhookCap := opts.WebhookInFlightCap
+	if webhookCap <= 0 {
+		webhookCap = defaultWebhookInFlightCap
+	}
+
 	s := &Server{
 		db:             opts.DB,
 		log:            opts.Log,
@@ -89,6 +146,11 @@ func New(opts Options) *Server {
 		lsVariants:     opts.LSVariants,
 		subSvc:         opts.SubscriptionService,
 		checkoutSvc:    opts.CheckoutService,
+		checkoutSem:    service.NewSemaphore("checkout", checkoutCap),
+		portalSem:      service.NewSemaphore("portal", portalCap),
+		webhookSem:     service.NewSemaphore("webhook", webhookCap),
+		webhookLimit:   service.NewTokenBucketRateLimiter(opts.WebhookRateLimit),
+		webhookProxy:   opts.WebhookProxy,
 	}
 
 	mux := http.NewServeMux()
@@ -156,6 +218,29 @@ func (s *Server) handlePaddleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resilience layer 1: per-IP token bucket. The HMAC verification below
+	// is fast (a fixed-time hash) but a leaked-secret flood would still
+	// reach the DB. Rate-limit BEFORE any heavy work so the cost of a
+	// rejected request is essentially the cost of a map lookup.
+	clientIP := s.clientIP(r)
+	if !s.webhookLimit.Allow(clientIP) {
+		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, "unknown", "rate_limited").Inc()
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+		return
+	}
+
+	// Resilience layer 2: per-endpoint semaphore. Even if every IP is
+	// inside the rate budget, a global burst should not pin unbounded
+	// goroutines on DB or Redis. Fast-fail past the cap.
+	if err := s.webhookSem.TryAcquire(r.Context()); err != nil {
+		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, "unknown", "saturated").Inc()
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
+		return
+	}
+	defer s.webhookSem.Release()
+
 	body, err := readBody(r, s.paddleVerifier.MaxBodyBytes())
 	if err != nil {
 		s.metrics.WebhookReceived.WithLabelValues(paddle.Provider, "unknown", "body_error").Inc()
@@ -205,6 +290,22 @@ func (s *Server) handleLSWebhook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
+
+	clientIP := s.clientIP(r)
+	if !s.webhookLimit.Allow(clientIP) {
+		s.metrics.WebhookReceived.WithLabelValues(lemonsqueezy.Provider, "unknown", "rate_limited").Inc()
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+		return
+	}
+
+	if err := s.webhookSem.TryAcquire(r.Context()); err != nil {
+		s.metrics.WebhookReceived.WithLabelValues(lemonsqueezy.Provider, "unknown", "saturated").Inc()
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
+		return
+	}
+	defer s.webhookSem.Release()
 
 	body, err := readBody(r, s.lsVerifier.MaxBodyBytes())
 	if err != nil {
@@ -330,6 +431,17 @@ func (s *Server) handleInternalCheckout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Bound goroutine fanout under a provider outage. The circuit breaker
+	// (service/checkout.go) catches the steady state; this semaphore
+	// catches the burst that arrives before the breaker has tripped.
+	if err := s.checkoutSem.TryAcquire(r.Context()); err != nil {
+		s.metrics.CheckoutCreated.WithLabelValues("unknown", "unknown", "saturated").Inc()
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
+		return
+	}
+	defer s.checkoutSem.Release()
+
 	var req service.CheckoutRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024))
 	dec.DisallowUnknownFields()
@@ -385,6 +497,13 @@ func (s *Server) handleInternalPortal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.portalSem.TryAcquire(r.Context()); err != nil {
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "system busy"})
+		return
+	}
+	defer s.portalSem.Release()
+
 	var req service.PortalRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024))
 	dec.DisallowUnknownFields()
@@ -428,6 +547,60 @@ func (s *Server) handleInternalPortal(w http.ResponseWriter, r *http.Request) {
 func readBody(r *http.Request, max int64) ([]byte, error) {
 	defer r.Body.Close()
 	return io.ReadAll(http.MaxBytesReader(nil, r.Body, max))
+}
+
+// clientIP returns the client IP for rate-limiting purposes. The default
+// uses r.RemoteAddr only; trusting X-Forwarded-For or similar headers
+// without a configured trusted-proxy CIDR list is a trivial bypass.
+//
+// When WebhookProxy.TrustHeader is set, the handler walks the header
+// right-to-left and returns the first address that is NOT inside any
+// configured trusted CIDR. This matches the canonical 'pick the
+// rightmost untrusted hop' algorithm.
+func (s *Server) clientIP(r *http.Request) string {
+	if s.webhookProxy.TrustHeader != "" {
+		if ip := s.firstUntrustedIP(r.Header.Get(s.webhookProxy.TrustHeader)); ip != "" {
+			return ip
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func (s *Server) firstUntrustedIP(header string) string {
+	if header == "" {
+		return ""
+	}
+	parts := strings.Split(header, ",")
+	trustedNets := make([]*net.IPNet, 0, len(s.webhookProxy.TrustedCIDRs))
+	for _, cidr := range s.webhookProxy.TrustedCIDRs {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		trustedNets = append(trustedNets, network)
+	}
+	for i := len(parts) - 1; i >= 0; i-- {
+		candidate := strings.TrimSpace(parts[i])
+		ip := net.ParseIP(candidate)
+		if ip == nil {
+			continue
+		}
+		trusted := false
+		for _, network := range trustedNets {
+			if network.Contains(ip) {
+				trusted = true
+				break
+			}
+		}
+		if !trusted {
+			return ip.String()
+		}
+	}
+	return ""
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
