@@ -186,3 +186,151 @@ func TestStore_InsertRejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+// --- Retention tests (audit finding H) ---------------------------------
+
+// insertAt inserts a row and back-dates its created_at directly via
+// SQL UPDATE so the test can produce a row whose timestamp is older
+// than the in-process clock allows. The Store.Insert path always
+// stamps time.Now().UTC(), which is the right production behaviour,
+// so we reach behind it for the test-only back-date.
+func insertAt(t *testing.T, s *Store, anon string, userID *string, when time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	rec, err := s.Insert(ctx, InsertParams{
+		UserID:        userID,
+		AnonymousID:   anon,
+		PolicyVersion: "v1",
+		Categories:    AllRejected(),
+	})
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE consent_records SET created_at = $1 WHERE id = $2`,
+		when.UTC(), rec.ID,
+	); err != nil {
+		t.Fatalf("back-date update: %v", err)
+	}
+}
+
+func countRows(t *testing.T, s *Store) int {
+	t.Helper()
+	var n int
+	if err := s.pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM consent_records`,
+	).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	return n
+}
+
+func TestStore_DeleteExpired_PreservesLatestPerAnonymousID(t *testing.T) {
+	s, close := newTestStore(t)
+	defer close()
+
+	now := time.Now().UTC()
+	insertAt(t, s, "anon-rt-1", nil, now.AddDate(-3, 0, 0)) // 3y old
+	insertAt(t, s, "anon-rt-1", nil, now.AddDate(-2, -6, 0)) // 2.5y old
+	insertAt(t, s, "anon-rt-1", nil, now.AddDate(0, -1, 0)) // 1 month old (KEEP)
+
+	cutoff := now.AddDate(-2, 0, 0)
+	deleted, err := s.DeleteExpired(context.Background(), cutoff)
+	if err != nil {
+		t.Fatalf("DeleteExpired: %v", err)
+	}
+	// Both rows older than the cutoff are also older than the
+	// 1-month-old latest, so they should both be deleted.
+	if deleted != 2 {
+		t.Fatalf("want 2 deleted, got %d", deleted)
+	}
+	if got := countRows(t, s); got != 1 {
+		t.Fatalf("want 1 row remaining (the latest), got %d", got)
+	}
+	latest, err := s.LatestForAnonymousID(context.Background(), "anon-rt-1")
+	if err != nil || latest == nil {
+		t.Fatalf("latest after retention: %v %+v", err, latest)
+	}
+	if latest.CreatedAt.Before(now.AddDate(0, -2, 0)) {
+		t.Fatalf("surviving row is not the newest: %+v", latest)
+	}
+}
+
+func TestStore_DeleteExpired_PreservesLatestPerUserID(t *testing.T) {
+	s, close := newTestStore(t)
+	defer close()
+
+	uid := "user-rt-1"
+	now := time.Now().UTC()
+	// Three rows for the same user across different anonymous_ids,
+	// all older than the cutoff EXCEPT we want the latest one to be
+	// preserved by the per-user-id rule.
+	insertAt(t, s, "anon-A", &uid, now.AddDate(-5, 0, 0))
+	insertAt(t, s, "anon-B", &uid, now.AddDate(-4, 0, 0))
+	insertAt(t, s, "anon-C", &uid, now.AddDate(-3, 0, 0)) // latest among these, still older than cutoff
+
+	cutoff := now.AddDate(-2, 0, 0)
+	deleted, err := s.DeleteExpired(context.Background(), cutoff)
+	if err != nil {
+		t.Fatalf("DeleteExpired: %v", err)
+	}
+	// Two should be deleted; the latest per user_id is preserved
+	// even though it is older than the cutoff.
+	if deleted != 2 {
+		t.Fatalf("want 2 deleted, got %d", deleted)
+	}
+	latest, err := s.LatestForUserID(context.Background(), uid)
+	if err != nil || latest == nil {
+		t.Fatalf("latest for user after retention: %v %+v", err, latest)
+	}
+	if latest.AnonymousID != "anon-C" {
+		t.Fatalf("surviving row is not the newest per user_id: %+v", latest)
+	}
+}
+
+func TestStore_DeleteExpired_DeletesOldOnlyOnceLatestPreserved(t *testing.T) {
+	s, close := newTestStore(t)
+	defer close()
+
+	now := time.Now().UTC()
+	uid := "user-mixed-1"
+
+	// Mixed: one ancient anonymous-only row, one ancient user row,
+	// one recent user row. The recent row protects both the user_id
+	// latest AND the anonymous_id latest because it shares the
+	// anonymous_id with the ancient anonymous row.
+	insertAt(t, s, "anon-mixed", nil, now.AddDate(-5, 0, 0)) // ancient, anon only
+	insertAt(t, s, "anon-mixed", &uid, now.AddDate(-4, 0, 0)) // ancient, user too
+	insertAt(t, s, "anon-mixed", &uid, now.AddDate(0, -1, 0)) // recent (KEEP)
+
+	cutoff := now.AddDate(-2, 0, 0)
+	deleted, err := s.DeleteExpired(context.Background(), cutoff)
+	if err != nil {
+		t.Fatalf("DeleteExpired: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("want 2 deleted, got %d", deleted)
+	}
+	if got := countRows(t, s); got != 1 {
+		t.Fatalf("want 1 row remaining, got %d", got)
+	}
+}
+
+func TestStore_CutoffFromNow_IsCalendarAware(t *testing.T) {
+	now := time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)
+	cutoff := CutoffFromNow(now)
+	want := time.Date(2024, 5, 11, 12, 0, 0, 0, time.UTC)
+	if !cutoff.Equal(want) {
+		t.Fatalf("CutoffFromNow: want %s, got %s", want, cutoff)
+	}
+
+	// Month-end safety: AddDate handles month rollovers correctly.
+	// Going back 24 months from 2026-03-31 gives 2024-03-31, not
+	// 2024-04-01 (Go's AddDate normalises that path).
+	now2 := time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC)
+	got2 := CutoffFromNow(now2)
+	want2 := time.Date(2024, 3, 31, 0, 0, 0, 0, time.UTC)
+	if !got2.Equal(want2) {
+		t.Fatalf("CutoffFromNow month-end: want %s, got %s", want2, got2)
+	}
+}

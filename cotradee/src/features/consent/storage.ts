@@ -22,7 +22,6 @@
 import {
   type ConsentDecision,
   type ConsentRecord,
-  rejectAllDecision,
   CONSENT_POLICY_VERSION,
 } from './types';
 
@@ -34,6 +33,19 @@ const LS_DECISION_KEY = 'exoper_consent_v1';
 const LS_ANON_ID_KEY = 'exoper_consent_anon_id';
 const COOKIE_NAME = 'exoper_consent';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180; // 180 days
+
+// sessionStorage key for the in-tab "decision was made by THIS user
+// in THIS tab" flag. sessionStorage is per-tab and cleared on tab
+// close, which is exactly the lifetime we want for the
+// attach-on-login safety guard (PRACTICE.md #5 + audit finding D):
+//
+//   - Survives a refresh of the same tab so a brand-new user who
+//     accepted cookies, then refreshed, then signed up, still gets
+//     their consent row attached on first login.
+//   - Does NOT survive a tab close, so a stranger reopening the
+//     browser on a shared computer starts with the flag at false and
+//     cannot accidentally inherit a previous occupant's decision.
+const SS_DECISION_MADE_KEY = 'exoper_consent_session_decision';
 
 // ---------------------------------------------------------------------------
 // Anonymous id
@@ -218,6 +230,37 @@ function parsePayload(raw: string): StoredDecision | null {
   }
 }
 
+/**
+ * Read the per-tab "the user actively decided in THIS tab" flag.
+ * Returns false when sessionStorage is unavailable or the flag has
+ * not been set.
+ */
+export function readDecisionMadeThisSession(): boolean {
+  try {
+    return window.sessionStorage.getItem(SS_DECISION_MADE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Persist the per-tab "the user actively decided in THIS tab" flag.
+ * Pass false to clear it (used during persist() rollback on POST
+ * failure). sessionStorage failures are swallowed because losing this
+ * flag only degrades the attach-on-login UX, never breaks consent.
+ */
+export function writeDecisionMadeThisSession(made: boolean): void {
+  try {
+    if (made) {
+      window.sessionStorage.setItem(SS_DECISION_MADE_KEY, '1');
+    } else {
+      window.sessionStorage.removeItem(SS_DECISION_MADE_KEY);
+    }
+  } catch {
+    /* swallow */
+  }
+}
+
 function buildCookieString(name: string, value: string, maxAgeSeconds: number): string {
   // SameSite=Lax + Secure (when served over https) is the right
   // default for a first-party preference cookie. We do not need
@@ -233,11 +276,3 @@ function buildCookieString(name: string, value: string, maxAgeSeconds: number): 
   ].join('; ') + secure;
 }
 
-/**
- * Defensive default returned by the context when no decision is
- * available anywhere — every optional category off. Strictly-
- * necessary cookies are not in the decision shape and remain on.
- */
-export function defaultPendingDecision(): ConsentDecision {
-  return rejectAllDecision();
-}

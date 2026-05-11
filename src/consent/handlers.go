@@ -22,57 +22,76 @@ type IPResolver interface {
 }
 
 // rateLimiter is the minimal surface the consent handler needs from a
-// per-IP rate limiter. *auth.RateLimiter satisfies this. Decoupling
+// per-key rate limiter. *auth.RateLimiter satisfies this. Decoupling
 // behind an interface keeps the consent package free of test-time
-// concerns and lets unit tests inject a no-op.
+// concerns and lets unit tests inject a deterministic limiter.
 type rateLimiter interface {
-	Allow(ip string) bool
+	Allow(key string) bool
 }
 
-// noopLimiter is used when NewHandler is called without a limiter
+// noopLimiter is used when NewHandler is called without limiters
 // (in tests). It always allows; production wiring always supplies a
-// real limiter via NewHandlerWithLimiter.
+// real pair via NewHandlerWithLimiters.
 type noopLimiter struct{}
 
 func (noopLimiter) Allow(_ string) bool { return true }
 
 // Handler serves the consent REST API.
 type Handler struct {
-	store       *Store
-	resolver    IPResolver
-	ipHashSalt  []byte
-	writeLimits rateLimiter
+	store      *Store
+	resolver   IPResolver
+	ipHashSalt []byte
+	// ipLimiter caps total POST volume per resolved client IP. Cheap
+	// volumetric defence; blocks naive DoS / DB-fill at the edge.
+	ipLimiter rateLimiter
+	// anonLimiter caps total POST volume per anonymous_id. Defeats a
+	// single attacker rotating across many residential IPs (botnet)
+	// who would individually slip under ipLimiter but collectively
+	// inflate a target anonymous_id's history.
+	anonLimiter rateLimiter
 	log         zerolog.Logger
 }
 
-// NewHandler constructs the consent HTTP handler. The salt is used
-// to derive ip_hash and the redacted anonymous_id_hash in audit logs;
-// passing an empty slice is permitted (handlers still produce a
-// non-empty hash) but a startup warning is logged so operators
-// notice the misconfiguration.
+// NewHandler constructs the consent HTTP handler with no-op rate
+// limiters. Intended for unit tests. The salt is used to derive
+// ip_hash and the redacted anonymous_id_hash in audit logs; passing
+// an empty slice is permitted (handlers still produce a non-empty
+// hash) but a startup warning is logged so operators notice the
+// misconfiguration.
 //
-// This constructor uses a no-op rate limiter and is intended for unit
-// tests. Production wiring MUST use NewHandlerWithLimiter so the
-// public POST endpoint is protected against volumetric abuse.
+// Production wiring MUST use NewHandlerWithLimiters so the public
+// POST endpoint is protected against volumetric abuse and
+// per-anonymous_id grinding.
 func NewHandler(store *Store, resolver IPResolver, ipHashSalt []byte, log zerolog.Logger) *Handler {
-	return NewHandlerWithLimiter(store, resolver, ipHashSalt, noopLimiter{}, log)
+	return NewHandlerWithLimiters(store, resolver, ipHashSalt, noopLimiter{}, noopLimiter{}, log)
 }
 
-// NewHandlerWithLimiter is the production constructor. It wires a
-// real rate limiter around POST /api/v1/consent so an attacker cannot
-// volumetrically inflate consent_records (a DoS / DB-fill vector).
-func NewHandlerWithLimiter(store *Store, resolver IPResolver, ipHashSalt []byte, limiter rateLimiter, log zerolog.Logger) *Handler {
+// NewHandlerWithLimiters is the production constructor. It wires two
+// independent rate limiters around POST /api/v1/consent:
+//
+//	ipLimiter   -- keyed on the resolved client IP; defends against
+//	               volumetric attacks from a single origin.
+//	anonLimiter -- keyed on the validated anonymous_id; defends
+//	               against a botnet that rotates IPs but targets a
+//	               single anonymous_id.
+//
+// nil limiters are treated as noop so the constructor never panics.
+func NewHandlerWithLimiters(store *Store, resolver IPResolver, ipHashSalt []byte, ipLimiter, anonLimiter rateLimiter, log zerolog.Logger) *Handler {
 	if len(ipHashSalt) == 0 {
 		log.Warn().Msg("consent_ip_hash_salt_empty_audit_hashes_will_not_be_unique_across_deployments")
 	}
-	if limiter == nil {
-		limiter = noopLimiter{}
+	if ipLimiter == nil {
+		ipLimiter = noopLimiter{}
+	}
+	if anonLimiter == nil {
+		anonLimiter = noopLimiter{}
 	}
 	return &Handler{
 		store:       store,
 		resolver:    resolver,
 		ipHashSalt:  ipHashSalt,
-		writeLimits: limiter,
+		ipLimiter:   ipLimiter,
+		anonLimiter: anonLimiter,
 		log:         log,
 	}
 }
@@ -88,8 +107,9 @@ func NewHandlerWithLimiter(store *Store, resolver IPResolver, ipHashSalt []byte,
 // this endpoint would at worst record a forged "reject all" entry
 // against the victim's anonymous_id; that has no security or privacy
 // consequence because there is nothing to read back. The endpoint is
-// rate-limited per resolved client IP (see NewHandlerWithLimiter) to
-// prevent volumetric abuse.
+// rate-limited per resolved client IP AND per anonymous_id (see
+// NewHandlerWithLimiters) to prevent both volumetric abuse and
+// per-target grinding.
 //
 // Why RequireCSRF on POST /api/v1/consent/attach? That endpoint runs
 // after authentication and mutates server state in a way that links
@@ -135,14 +155,13 @@ func (h *Handler) handleConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
-	// Rate-limit BEFORE decoding the body so an attacker cannot pay
-	// JSON-decode CPU for every probe. Identity is the resolved
-	// client IP, which is spoof-proof thanks to the trust-aware
-	// ClientIPResolver shared with the auth rate limiter.
+	// 1. Per-IP rate limit BEFORE decoding the body so an attacker
+	//    cannot pay JSON-decode CPU for every probe. Identity is the
+	//    resolved client IP, spoof-proof via the trust-aware
+	//    ClientIPResolver shared with the auth rate limiter.
 	ip := h.resolveIP(r)
-	if !h.writeLimits.Allow(ip) {
-		w.Header().Set("Retry-After", "60")
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded, try again later"})
+	if !h.ipLimiter.Allow(ip) {
+		h.write429(w)
 		return
 	}
 
@@ -160,6 +179,14 @@ func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := ValidatePolicyVersion(req.PolicyVersion); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "policy_version is required"})
+		return
+	}
+
+	// 2. Per-anonymous_id rate limit AFTER validation but BEFORE the
+	//    DB insert. A single attacker rotating across many residential
+	//    IPs cannot fan out unlimited writes against one target.
+	if !h.anonLimiter.Allow(req.AnonymousID) {
+		h.write429(w)
 		return
 	}
 
@@ -306,6 +333,14 @@ func (h *Handler) handleAttach(w http.ResponseWriter, r *http.Request) {
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
+
+// write429 emits a 429 Too Many Requests with the standard
+// Retry-After header. Shared between the per-IP and per-anonymous_id
+// limit branches.
+func (h *Handler) write429(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "60")
+	writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded, try again later"})
+}
 
 // resolveIP returns the resolved client IP, or an empty string if the
 // resolver is unset. Used both as the rate-limit identity and as the

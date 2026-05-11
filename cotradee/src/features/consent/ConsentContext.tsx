@@ -49,10 +49,11 @@ import {
   postConsent,
 } from './api';
 import {
-  defaultPendingDecision,
   getOrCreateAnonymousId,
   mirrorServerRecord,
+  readDecisionMadeThisSession,
   readStoredDecision,
+  writeDecisionMadeThisSession,
   writeStoredDecision,
 } from './storage';
 
@@ -67,7 +68,10 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [needsDecision, setNeedsDecision] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
-  const [decision, setDecision] = useState<ConsentDecision>(defaultPendingDecision());
+  // Defensive default: every optional category off until the user
+  // actively opts in. Strictly-necessary cookies are not part of
+  // ConsentDecision and remain on regardless.
+  const [decision, setDecision] = useState<ConsentDecision>(() => rejectAllDecision());
   const [recordedPolicyVersion, setRecordedPolicyVersion] = useState<string>('');
   // Flipped true the moment the user actively makes a decision in
   // this tab. Stays false when the only decision available was
@@ -75,7 +79,21 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   // to decide whether attaching the anonymous_id to a freshly-
   // authenticated user is safe (a shared-computer scenario otherwise
   // attaches a stranger's prior decision to the new user's account).
-  const [decisionMadeThisSession, setDecisionMadeThisSession] = useState(false);
+  //
+  // Seeded from sessionStorage so a refresh of THIS tab between the
+  // decision and the sign-up does not lose the safe-to-attach
+  // signal. sessionStorage is tab-scoped and tab-lifetime, so a
+  // stranger reopening the browser starts at false again.
+  const [decisionMadeThisSession, setDecisionMadeThisSessionState] = useState<boolean>(
+    () => readDecisionMadeThisSession(),
+  );
+
+  // Write-through wrapper so React state and sessionStorage never
+  // drift. Every persist / rollback path uses this single setter.
+  const setDecisionMadeThisSession = useCallback((made: boolean) => {
+    setDecisionMadeThisSessionState(made);
+    writeDecisionMadeThisSession(made);
+  }, []);
 
   // ----- Initial hydrate -----
   useEffect(() => {
@@ -132,7 +150,9 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       setRecordedPolicyVersion(stored.policyVersion);
       setNeedsDecision(false);
       // The user just actively chose; the bridge may now safely
-      // attach this anonymous_id on a subsequent login.
+      // attach this anonymous_id on a subsequent login. This also
+      // writes through to sessionStorage so a tab refresh before
+      // sign-up preserves the safe-to-attach signal.
       setDecisionMadeThisSession(true);
 
       try {
@@ -145,6 +165,8 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         // Roll back so the banner reappears and the user can retry.
         setDecision(previous);
         setRecordedPolicyVersion(previousVersion);
+        // Roll back the session flag too: the user did not actually
+        // succeed in recording a decision this tab.
         setDecisionMadeThisSession(previousSessionFlag);
         setNeedsDecision(true);
         toast({
@@ -155,7 +177,13 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [anonymousId, decision, recordedPolicyVersion, decisionMadeThisSession],
+    [
+      anonymousId,
+      decision,
+      recordedPolicyVersion,
+      decisionMadeThisSession,
+      setDecisionMadeThisSession,
+    ],
   );
 
   const acceptAll = useCallback(() => persist(acceptAllDecision()), [persist]);

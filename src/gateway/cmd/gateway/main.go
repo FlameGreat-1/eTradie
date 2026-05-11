@@ -136,22 +136,32 @@ func main() {
 	}
 	consentStore := consent.NewStore(authPool)
 	consentIPSalt := []byte(os.Getenv("CONSENT_IP_HASH_SALT"))
-	// Per-IP rate limiter for the public POST /api/v1/consent endpoint.
-	// 60 writes / minute / IP is generous for a legitimate user (who
-	// will only ever issue a handful of decisions in their lifetime)
-	// while making a volumetric DB-fill attack uneconomical.
-	consentLimiter := auth.NewRateLimiter(60, time.Minute)
-	consentHandler := consent.NewHandlerWithLimiter(
+	// Layered rate limiters for the public POST /api/v1/consent endpoint:
+	//
+	//   ipLimiter   -- 60 writes / minute / resolved client IP. Generous
+	//                  for a legitimate user (who will only ever issue a
+	//                  handful of decisions in their lifetime) while
+	//                  making a volumetric DB-fill attack uneconomical.
+	//   anonLimiter -- 10 writes / minute / anonymous_id. Defeats a
+	//                  single attacker rotating across many residential
+	//                  IPs (botnet) who would slip under ipLimiter but
+	//                  collectively inflate one target's history.
+	consentIPLimiter := auth.NewRateLimiter(60, time.Minute)
+	consentAnonLimiter := auth.NewRateLimiter(10, time.Minute)
+	consentHandler := consent.NewHandlerWithLimiters(
 		consentStore,
 		authCfg.IPResolver(),
 		consentIPSalt,
-		consentLimiter,
+		consentIPLimiter,
+		consentAnonLimiter,
 		observability.Logger("consent"),
 	)
-	defer consentLimiter.Close()
+	defer consentIPLimiter.Close()
+	defer consentAnonLimiter.Close()
 	log.Info().
 		Bool("ip_hash_salt_configured", len(consentIPSalt) > 0).
-		Int("rate_limit_per_minute", 60).
+		Int("rate_limit_ip_per_minute", 60).
+		Int("rate_limit_anon_per_minute", 10).
 		Msg("consent_service_initialized")
 
 	if smtpCfg.IsConfigured() {
@@ -258,8 +268,10 @@ func main() {
 				// GDPR Art. 5(1)(e): delete consent rows older than the
 				// configured retention window, preserving the latest row
 				// per anonymous_id and per user_id as legally-required
-				// proof of consent.
-				cutoff := time.Now().UTC().Add(-consent.DefaultRetention)
+				// proof of consent. CutoffFromNow is calendar-aware so
+				// the 24-month boundary aligns with the Privacy Policy
+				// text rather than drifting via 24*30*24h arithmetic.
+				cutoff := consent.CutoffFromNow(time.Now().UTC())
 				consentDeleted, err := consentStore.DeleteExpired(cleanupCtx, cutoff)
 				if err != nil {
 					log.Error().Err(err).Msg("consent_retention_cleanup_failed")

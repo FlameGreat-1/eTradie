@@ -63,14 +63,6 @@ const (
 	CategoryAnalytics  = "analytics"
 )
 
-// AllOptionalCategories lists every category the user can toggle. The
-// strictly-necessary category is intentionally omitted: it is always
-// on and is not stored on a record.
-var AllOptionalCategories = []string{
-	CategoryFunctional,
-	CategoryAnalytics,
-}
-
 // Categories is the on-the-wire and on-disk shape of a consent
 // decision. We use named fields rather than map[string]bool so a typo
 // in a future call site is a compile error, not a silent miss.
