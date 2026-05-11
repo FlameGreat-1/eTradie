@@ -83,10 +83,30 @@ const (
 	TypeBrokerReconnect  = "BROKER_RECONNECTED"
 
 	// Billing / subscription events.
-	// Emitted when the gateway scheduler stops a user's automated cycles
-	// because they have transitioned to the Free tier (cancellation,
-	// expiry, refund). Lets the dashboard surface a non-silent message.
-	TypeSubscriptionDowngraded = "SUBSCRIPTION_DOWNGRADED"
+	//
+	// Emitted by the billing service after a webhook is committed (see
+	// src/billing/service/subscription.go::HandleEvent post-commit block).
+	// The gateway's alertredis.Transport subscriber relays each event to
+	// the connected dashboard so the SPA refetches ['billing'] and
+	// ['auth', 'me'] without waiting for React Query staleTime.
+	//
+	// Direction is decided by tier rank in
+	// service.classifySubscriptionChange:
+	//   - TypeSubscriptionUpgraded:      free / unknown -> paid, or a
+	//                                    less-expensive paid tier -> a
+	//                                    more-expensive one.
+	//   - TypeSubscriptionDowngraded:    paid -> free.
+	//   - TypeSubscriptionStatusChanged: same tier, different status
+	//                                    (active -> past_due, etc.) so
+	//                                    the SPA refreshes status badges
+	//                                    even when entitlement didn't move.
+	//
+	// The string values are the wire types the SPA matches on in
+	// cotradee/src/features/realtime/types.ts and eventMap.ts; keep them
+	// in lock-step with that file.
+	TypeSubscriptionUpgraded      = "SUBSCRIPTION_UPGRADED"
+	TypeSubscriptionDowngraded    = "SUBSCRIPTION_DOWNGRADED"
+	TypeSubscriptionStatusChanged = "SUBSCRIPTION_STATUS_CHANGED"
 )
 
 // Event is the universal notification payload. Every module publishes

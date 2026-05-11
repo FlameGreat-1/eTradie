@@ -151,18 +151,60 @@ func (s *Service) HandleEvent(ctx context.Context, ev *events.NormalizedEvent) (
 		return Outcome{}, fmt.Errorf("billing: commit: %w", err)
 	}
 
-	// 4) Post-commit side effects: revoke sessions when tier OR status changed
-	// so a downgraded user immediately loses Pro access and a fresh upgraded
-	// user gets a fresh JWT carrying the new tier on next refresh.
+	// 4) Post-commit side effects: revoke sessions and publish a
+	// SUBSCRIPTION_* realtime event whenever tier OR status changed.
+	//
+	// Revocation forces the next /auth/refresh to mint a JWT carrying
+	// the new tier so a downgraded user immediately loses Pro access
+	// and a fresh upgraded user gets the new entitlement on the next
+	// request.
+	//
+	// Publication is what the SPA listens for: without it the
+	// dashboard would show the stale ['billing'] / ['auth', 'me']
+	// query data for up to React Query's staleTime after a successful
+	// payment. The publisher is reached via a type-assertion so the
+	// Service constructor stays decoupled from the alert package; the
+	// production wiring composes a single AlertRedisPublisher that
+	// satisfies BOTH SessionRevoker and SubscriptionEventPublisher
+	// (see src/billing/cmd/server/main.go).
+	//
+	// Both side effects are best-effort. A transient revoke or publish
+	// failure must not roll back the committed subscription change; we
+	// log loudly so operators can react instead.
 	if applied && (outcome.TierChanged || outcome.StatusChanged) {
 		if err := s.revoker.RevokeAllUserSessions(ctx, ev.UserID); err != nil {
-			// Best-effort. Log loudly so operators can react.
 			s.log.Error().
 				Str("user_id", ev.UserID).
 				Str("provider", ev.Provider).
 				Str("event_id", ev.EventID).
 				Err(err).
 				Msg("billing_session_revoke_failed")
+		}
+
+		if publisher, ok := s.revoker.(SubscriptionEventPublisher); ok {
+			publisher.PublishSubscriptionChange(ctx, SubscriptionChange{
+				UserID:         ev.UserID,
+				Provider:       ev.Provider,
+				EventID:        ev.EventID,
+				PreviousTier:   prevTier,
+				NewTier:        string(ev.Tier),
+				PreviousStatus: prevStatus,
+				NewStatus:      string(ev.Status),
+				TierChanged:    outcome.TierChanged,
+				StatusChanged:  outcome.StatusChanged,
+			})
+		} else {
+			// The constructor accepts any SessionRevoker; in production
+			// the wired type also implements SubscriptionEventPublisher.
+			// If a deployment somehow loses the publisher (e.g. a test
+			// using a bare revoker) the dashboard would silently miss
+			// the realtime tier-refresh. Log once so the gap is visible
+			// in operator logs instead of being a silent regression.
+			s.log.Warn().
+				Str("user_id", ev.UserID).
+				Str("provider", ev.Provider).
+				Str("event_id", ev.EventID).
+				Msg("billing_subscription_publisher_unwired")
 		}
 	}
 
