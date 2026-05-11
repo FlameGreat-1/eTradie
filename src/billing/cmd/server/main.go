@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -78,6 +79,7 @@ func main() {
 	subStore := store.NewSubscriptionStore(pool)
 	processedStore := store.NewProcessedEventStore(pool)
 	auditStore := store.NewSubscriptionEventStore(pool)
+	intentStore := store.NewCheckoutIntentStore(pool)
 
 	// SessionRevoker is satisfied by *auth.SessionStore directly; the billing
 	// service only depends on the SessionRevoker interface.
@@ -88,6 +90,33 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("billing_checkout_service_init_failed")
 	}
+
+	// Wire the checkout-intent idempotency cache into the checkout
+	// service. A repeat call with the same (user, provider, tier) within
+	// the TTL returns the cached provider URL instead of creating a
+	// second checkout session on the provider side. The reconciler's
+	// janitor pass below prunes expired rows.
+	checkoutSvc.WithIntentCache(
+		func(ctx context.Context, userID, provider, tier string) (string, string, string, string, time.Time, bool, error) {
+			rec, err := intentStore.Get(ctx, userID, provider, tier)
+			if err != nil {
+				if errors.Is(err, store.ErrCheckoutIntentNotFound) {
+					return "", "", "", "", time.Time{}, false, nil
+				}
+				return "", "", "", "", time.Time{}, false, err
+			}
+			return rec.UserID, rec.Provider, rec.Tier, rec.CheckoutURL, rec.ExpiresAt, true, nil
+		},
+		func(ctx context.Context, userID, provider, tier, url string, expiresAt time.Time) error {
+			return intentStore.Record(ctx, &store.CheckoutIntent{
+				UserID:      userID,
+				Provider:    provider,
+				Tier:        tier,
+				CheckoutURL: url,
+				ExpiresAt:   expiresAt,
+			})
+		},
+	)
 
 	paddleVerifier, err := paddle.NewVerifier(cfg.PaddleWebhookSecret, cfg.WebhookReplayWindow, cfg.WebhookMaxBodyBytes)
 	if err != nil {
@@ -114,6 +143,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("billing_reconciler_init_failed")
 	}
+
+	// Janitor: prune expired billing_checkout_intents on every tick.
+	reconciler.WithCheckoutIntents(intentStore)
 
 	srv := server.New(server.Options{
 		DB:                  pool,

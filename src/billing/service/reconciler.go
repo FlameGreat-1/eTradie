@@ -59,6 +59,11 @@ type ReconcilerConfig struct {
 
 // Reconciler runs the period-end demotion sweep and the idempotency-table
 // retention janitor on a ticker.
+//
+// Optional dependencies (wired via setter methods so the constructor
+// signature stays stable for existing callers):
+//   - intents: when non-nil, the janitor also prunes
+//     billing_checkout_intents rows whose expires_at has elapsed.
 type Reconciler struct {
 	subs      *store.SubscriptionStore
 	processed *store.ProcessedEventStore
@@ -67,6 +72,15 @@ type Reconciler struct {
 	metrics   ReconcilerMetrics
 	log       zerolog.Logger
 	cfg       ReconcilerConfig
+
+	intents *store.CheckoutIntentStore // optional; nil disables intent prune
+}
+
+// WithCheckoutIntents attaches the checkout-intent store so the janitor
+// prunes expired idempotency rows. Optional; main.go wires it after
+// NewReconciler so the constructor signature does not change.
+func (r *Reconciler) WithCheckoutIntents(intents *store.CheckoutIntentStore) {
+	r.intents = intents
 }
 
 // NewReconciler wires the dependencies. All parameters except metrics are
@@ -282,9 +296,11 @@ func (r *Reconciler) demoteOne(ctx context.Context, e store.ExpiredSubscription,
 	return true
 }
 
-// pruneIdempotency deletes processed_webhook_events older than the retention
-// window. The DELETE is index-scanned so the wall-clock cost is bounded even
-// against a multi-million-row table.
+// pruneIdempotency deletes processed_webhook_events older than the
+// retention window, and (when the intent store is wired) deletes
+// expired billing_checkout_intents rows. The DELETEs are index-scanned
+// so the wall-clock cost is bounded even against a multi-million-row
+// table.
 func (r *Reconciler) pruneIdempotency(ctx context.Context) (int64, error) {
 	cutoff := time.Now().UTC().Add(-time.Duration(r.cfg.IdempotencyRetentionDays) * 24 * time.Hour)
 	n, err := r.processed.PruneOlderThan(ctx, cutoff)
@@ -296,6 +312,20 @@ func (r *Reconciler) pruneIdempotency(ctx context.Context) (int64, error) {
 	if n > 0 {
 		r.metrics.AddIdempotencyPruned(n)
 		r.log.Info().Int64("rows", n).Time("cutoff", cutoff).Msg("billing_reconciler_pruned")
+	}
+
+	// Optional: prune expired checkout intents. Errors do not abort the
+	// tick; the next pass retries. We count failures under the same
+	// `prune` stage label so existing dashboards see one consistent
+	// signal for janitor health.
+	if r.intents != nil {
+		intentRows, intentErr := r.intents.PruneExpired(ctx)
+		if intentErr != nil {
+			r.metrics.IncReconcilerError("prune")
+			r.log.Error().Err(intentErr).Msg("billing_reconciler_intent_prune_failed")
+		} else if intentRows > 0 {
+			r.log.Info().Int64("rows", intentRows).Msg("billing_reconciler_intent_pruned")
+		}
 	}
 	return n, nil
 }
