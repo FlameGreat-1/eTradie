@@ -243,6 +243,11 @@ func (h *Handler) handleOAuthGoogleCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Cookie-auth transport. The OAuth sign-in flow mints a fresh
+	// (access, refresh) pair and must therefore set all three
+	// cookies in lockstep with the JSON body, exactly like
+	// handleLogin / handleRegister.
+	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusOK, &oauthCallbackResponse{
 		User:      userPublicView(user),
 		Tokens:    pair,

@@ -8,6 +8,44 @@ import (
 	"time"
 )
 
+// writeSessionCookies issues a fresh CSRF token and writes all three
+// auth cookies on the response. Called from every code path that
+// mints or rotates a session (login, register, refresh, OAuth
+// callback). Centralised so a policy change (renamed CSRF cookie,
+// tightened SameSite) is a one-line edit.
+//
+// CSRF token generation failure does NOT abort the request. The
+// rotated session is still valid for read-only calls; the SPA will
+// hit GET /auth/me, see the user, and retry the next mutating call
+// after a refresh that does mint a CSRF token. Surfacing the
+// failure as a 500 here would lock the user out of an account they
+// just successfully authenticated against.
+func (h *Handler) writeSessionCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+	opts := h.cfg.CookieOptions()
+	SetAccessCookie(w, opts, accessToken)
+	SetRefreshCookie(w, opts, refreshToken)
+	if csrf, err := GenerateCSRFToken(); err == nil {
+		SetCSRFCookie(w, opts, csrf)
+	}
+}
+
+// clearSessionCookies expires all three auth cookies. Called from
+// logout, logout-all, and password-change so the browser jar is
+// left in a known-clean state even when the corresponding session
+// could not be revoked (e.g. unknown refresh token).
+func (h *Handler) clearSessionCookies(w http.ResponseWriter) {
+	ClearAuthCookies(w, h.cfg.CookieOptions())
+}
+
+// CSRFHeader exposes the configured request header name the SPA
+// echoes the csrf_token cookie back in (default: "X-CSRF-Token").
+// The gateway HTTP server reads this to build the RequireCSRF
+// middleware without taking a direct dependency on auth.Config,
+// avoiding a new parameter through Container.New / NewHTTPServer.
+func (h *Handler) CSRFHeader() string {
+	return h.cfg.CSRFHeader
+}
+
 // Handler serves the authentication REST API endpoints.
 //
 // OAuth dependencies are optional and attached at startup via
@@ -171,6 +209,10 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Update last login.
 	_ = h.users.UpdateLastLogin(r.Context(), user.ID)
 
+	// Cookie-auth transport. Additive: legacy clients still read
+	// the JSON body; cookie-auth clients ignore the body and let
+	// the browser jar carry the tokens.
+	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusOK, pair)
 }
 
@@ -256,6 +298,8 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.sessions.CreateSession(r.Context(), sess)
 
+	// Cookie-auth transport (additive, same policy as handleLogin).
+	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"user":   userPublicView(user),
 		"tokens": pair,
@@ -277,11 +321,20 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req refreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
+	// The body is optional for cookie-auth clients (the refresh
+	// token rides in the HttpOnly refresh_token cookie). Tolerate
+	// an empty body when the cookie carries the value; preserve
+	// the legacy "invalid JSON" 400 for clients that DO send a
+	// non-empty body.
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
 	}
-
+	if req.RefreshToken == "" {
+		req.RefreshToken = RefreshTokenFromCookie(r)
+	}
 	if req.RefreshToken == "" {
 		writeAuthError(w, http.StatusBadRequest, "refresh_token is required")
 		return
@@ -339,6 +392,10 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.sessions.CreateSession(r.Context(), newSess)
 
+	// Rotate cookies in lockstep with the JSON response so the
+	// browser jar holds the new (access, refresh, csrf) triple
+	// before the next request goes out.
+	h.writeSessionCookies(w, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusOK, pair)
 }
 
@@ -356,6 +413,9 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil && r.ContentLength > 0 {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
+	if req.RefreshToken == "" {
+		req.RefreshToken = RefreshTokenFromCookie(r)
+	}
 
 	// If refresh token provided, revoke that specific session.
 	if req.RefreshToken != "" {
@@ -365,6 +425,10 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Always clear the browser's cookie jar, even when the session
+	// was already gone server-side. Logout must leave the client in
+	// a known-clean state.
+	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
@@ -386,6 +450,10 @@ func (h *Handler) handleLogoutAll(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
+	// Clear THIS browser's cookies; other devices will hit a
+	// revoked refresh on their next /auth/refresh and clear their
+	// own cookies in the same handler.
+	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "all sessions revoked"})
 }
 
@@ -469,6 +537,11 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Revoke all sessions to force re-login with new password.
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
+	// Clear cookies so the next request from THIS browser is
+	// unauthenticated, surfacing as a 401 and forcing the SPA to
+	// take the user to the login screen. Without this, the access
+	// cookie would remain valid until its TTL expired.
+	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated, all sessions revoked"})
 }
 
