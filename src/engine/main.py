@@ -217,11 +217,16 @@ def create_app() -> FastAPI:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
-    # -- CORS middleware (defense-in-depth) ----------------------------------
-    # The Go gateway handles CORS for dashboard requests, but the engine
-    # should also restrict cross-origin access as a second layer of defense.
-    # Internal /internal/* endpoints are called server-to-server (no Origin
-    # header) and are unaffected by CORS.
+    # -- CSRF middleware ---------------------------------------------------
+    # Must be added BEFORE the CORS middleware so the CSRF check runs
+    # on the already-authenticated request (get_current_user populates
+    # request.state.user via the route dependency before the middleware
+    # chain runs in Starlette's order). Internal routes (/internal/*)
+    # are exempt because they use X-Internal-Auth instead.
+    from engine.shared.csrf import CSRFMiddleware
+    app.add_middleware(CSRFMiddleware)
+
+    # -- CORS middleware ---------------------------------------------------
     allowed_origins_str = os.environ.get(
         "ALLOWED_ORIGINS",
         "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
