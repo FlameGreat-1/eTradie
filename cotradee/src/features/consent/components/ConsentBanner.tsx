@@ -4,8 +4,12 @@
  * Rendering rules (EDPB 2022 'Cookie banner taskforce' guidance):
  *
  *   - Three equal-weight choices: Accept all / Reject all / Customise.
- *     The Reject button must NOT be visually de-emphasised relative
- *     to the Accept button. Both are .consent-btn-primary.
+ *     Accept and Reject are BOTH rendered with a filled-button style
+ *     so the visitor's eye is not drawn to one over the other. Only
+ *     Customise (a navigation, not a decision) uses the outline style.
+ *     The previous layout placed only Accept in the primary fill,
+ *     which is the exact dark-pattern penalised in CNIL / EDPB / DPC
+ *     enforcement actions.
  *   - No close button. The banner cannot be dismissed by clicking
  *     away, pressing Escape, or scrolling. Implicit consent is not
  *     consent.
@@ -16,7 +20,6 @@
  *     a recorded decision.
  */
 
-import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useConsent } from '../useConsent';
 import '../consent.css';
@@ -37,16 +40,6 @@ export default function ConsentBanner() {
     consent.needsDecision &&
     !consent.preferencesOpen &&
     !onPolicyPage;
-
-  // Defensive scroll-lock parity with the rest of the app's modals.
-  useEffect(() => {
-    if (!visible) return;
-    const prev = document.body.style.overflow;
-    // Banner does NOT lock scroll — unlike a modal, it is non-modal.
-    // We still set this to '' explicitly so a previously-locked state
-    // from a different modal does not bleed through.
-    document.body.style.overflow = prev;
-  }, [visible]);
 
   if (!visible) return null;
 
@@ -86,7 +79,7 @@ export default function ConsentBanner() {
             </button>
             <button
               type="button"
-              className="consent-btn"
+              className="consent-btn consent-btn-reject"
               onClick={handleRejectAll}
             >
               Reject all
