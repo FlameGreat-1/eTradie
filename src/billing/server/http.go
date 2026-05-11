@@ -6,6 +6,11 @@
 // Webhook handlers read the raw body once into memory under
 // http.MaxBytesReader and pass the captured bytes unchanged to the verifier.
 // Nothing in this package decodes JSON before the signature check completes.
+//
+// Listener creation is decoupled from serving: callers bind a net.Listener
+// (failing fast on EADDRINUSE) and pass it to Start. main.go does this
+// before kicking off background goroutines so a bind failure cannot leave
+// the reconciler or any other worker running against a dead HTTP path.
 package server
 
 import (
@@ -13,8 +18,8 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -51,9 +56,10 @@ type Server struct {
 	checkoutSvc *service.CheckoutService
 }
 
-// Options bundles the dependencies New requires.
+// Options bundles the dependencies New requires. The listener is supplied
+// to Start, not here, so port-bind failures are surfaced to the caller
+// before any goroutines start.
 type Options struct {
-	HTTPPort       int
 	DB             *pgxpool.Pool
 	Log            zerolog.Logger
 	Metrics        *Metrics
@@ -69,7 +75,8 @@ type Options struct {
 	CheckoutService     *service.CheckoutService
 }
 
-// New builds a Server. The HTTP server is not started yet; call Start.
+// New builds a Server. The HTTP server is not started yet; call Start with
+// a pre-bound listener.
 func New(opts Options) *Server {
 	s := &Server{
 		db:             opts.DB,
@@ -93,7 +100,6 @@ func New(opts Options) *Server {
 	mux.HandleFunc("/internal/checkout", s.handleInternalCheckout)
 
 	s.http = &http.Server{
-		Addr:              fmt.Sprintf(":%d", opts.HTTPPort),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -103,10 +109,11 @@ func New(opts Options) *Server {
 	return s
 }
 
-// Start blocks until the listener stops accepting connections.
-func (s *Server) Start() error {
-	s.log.Info().Str("addr", s.http.Addr).Msg("billing_http_starting")
-	if err := s.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+// Start serves HTTP on the supplied listener. Blocks until the listener
+// stops accepting connections (via Shutdown or an unrecoverable Serve error).
+func (s *Server) Start(lis net.Listener) error {
+	s.log.Info().Str("addr", lis.Addr().String()).Msg("billing_http_starting")
+	if err := s.http.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil

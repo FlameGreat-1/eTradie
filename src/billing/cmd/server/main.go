@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -99,7 +100,8 @@ func main() {
 
 	metrics := server.NewMetrics()
 
-	// Period-end reconciler + idempotency janitor. Runs in-process.
+	// Period-end reconciler + idempotency janitor. Constructed before the
+	// listener so a misconfig fails fast.
 	reconciler, err := service.NewReconciler(
 		subStore, processedStore, auditStore, revoker,
 		metrics,
@@ -114,7 +116,6 @@ func main() {
 	}
 
 	srv := server.New(server.Options{
-		HTTPPort:            cfg.HTTPPort,
 		DB:                  pool,
 		Log:                 log.With().Str("component", "billing_http").Logger(),
 		Metrics:             metrics,
@@ -126,6 +127,16 @@ func main() {
 		SubscriptionService: subSvc,
 		CheckoutService:     checkoutSvc,
 	})
+
+	// Bind the listener FIRST so a port-bind failure (EADDRINUSE) terminates
+	// the process cleanly before any background goroutines spin up against
+	// a dead HTTP path. The listener is owned by main; defer Close ensures
+	// the OS port is released on every exit path.
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort))
+	if err != nil {
+		log.Fatal().Err(err).Int("port", cfg.HTTPPort).Msg("billing_http_listen_failed")
+	}
+	log.Info().Str("addr", lis.Addr().String()).Msg("billing_http_listener_bound")
 
 	// Background work is driven by a cancellable context so SIGTERM stops
 	// the reconciler cleanly before HTTP shutdown. Run blocks until ctx is
@@ -139,7 +150,7 @@ func main() {
 	}()
 
 	errCh := make(chan error, 1)
-	go func() { errCh <- srv.Start() }()
+	go func() { errCh <- srv.Start(lis) }()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

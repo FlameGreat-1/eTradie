@@ -8,8 +8,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -60,7 +60,6 @@ func (r *captureRevoker) snapshot() []string {
 	return out
 }
 
-// testPool returns a real pgx pool or nil if BILLING_TEST_DATABASE_URL is not set.
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("BILLING_TEST_DATABASE_URL")
@@ -108,10 +107,11 @@ func seedUser(t *testing.T, pool *pgxpool.Pool, id, username, email string) {
 }
 
 // buildIntegrationServer constructs the real billing.Server with real stores
-// (against testPool) and an LS verifier we won't exercise. Returns the
-// *httptest.Server hosting the production mux and the captureRevoker so the
-// test can assert revocation behaviour.
-func buildIntegrationServer(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, *captureRevoker) {
+// (against testPool), binds it to 127.0.0.1:0, and starts serving in a
+// goroutine. Returns the base URL the test should address and the
+// captureRevoker so the test can assert revocation behaviour. t.Cleanup
+// drives a graceful shutdown.
+func buildIntegrationServer(t *testing.T, pool *pgxpool.Pool) (string, *captureRevoker) {
 	t.Helper()
 
 	subStore := store.NewSubscriptionStore(pool)
@@ -123,8 +123,7 @@ func buildIntegrationServer(t *testing.T, pool *pgxpool.Pool) (*httptest.Server,
 	subSvc := service.NewService(subStore, processedStore, auditStore, revoker, log)
 
 	// Checkout service is required by server.Options but never exercised by
-	// these tests; supply a real one against a clearly-test API base URL
-	// (the test never POSTs to /internal/checkout).
+	// these tests. The HTTP timeout is short so any accidental call fails fast.
 	checkoutSvc, err := service.NewCheckoutService(service.CheckoutConfig{
 		PaddleAPIBaseURL:      "https://api.paddle.example.invalid",
 		PaddleAPIKey:          "test",
@@ -149,7 +148,6 @@ func buildIntegrationServer(t *testing.T, pool *pgxpool.Pool) (*httptest.Server,
 	metrics := server.NewMetrics()
 
 	srv := server.New(server.Options{
-		HTTPPort:       0, // unused; httptest.NewServer assigns its own port
 		DB:             pool,
 		Log:            log,
 		Metrics:        metrics,
@@ -165,43 +163,27 @@ func buildIntegrationServer(t *testing.T, pool *pgxpool.Pool) (*httptest.Server,
 		CheckoutService:     checkoutSvc,
 	})
 
-	// The production server.Server holds the *http.Server it built. We can
-	// reach the underlying handler via the documented httptest pattern:
-	// construct a fresh httptest.Server with our own mux that mirrors the
-	// production mux. Cheaper than reflection: build a mux that calls the
-	// same handler methods (which are exported as method values via the
-	// HTTP server's Handler field).
-	//
-	// server.New stores its mux on (*server.Server).http.Handler. We don't
-	// expose it directly, but we don't need to: we can wrap the *http.Server's
-	// Handler. The simplest path is to issue a request via httptest with a
-	// custom RoundTripper... but the cleanest is to wrap the production
-	// Handler via httptest.NewServer.
-	//
-	// To do that we need the Handler. Since *http.Server.Handler is public,
-	// we read it through an explicit helper added in this batch:
-	//
-	// (avoiding adding exported test-only API — instead we reconstruct a
-	// small mux around the same Server's webhook endpoint by serving every
-	// request through srv's http.Handler, which is the http.Server's mux.)
-	//
-	// The simplest practical approach is to start the production server on
-	// a random port via srv.Start() and address it directly. server.Server
-	// already supports HTTPPort=0 — the OS assigns a free port. But Start()
-	// blocks; we'd need to capture the actual listen address.
-	//
-	// To keep this self-contained we mount the same handler shape (which
-	// the production server uses) onto httptest.NewServer below. This means
-	// we re-register the same routes, but the handlers themselves are the
-	// exact same service methods.
-	//
-	// However, the production handlers are unexported methods on *server.Server.
-	// They cannot be addressed from outside the package. Therefore the only
-	// truly end-to-end option is to expose the Handler explicitly via a tiny
-	// helper. That helper is added in the same file as Server (see Handler()).
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
-	return ts, revoker
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	serveDone := make(chan struct{})
+	go func() {
+		_ = srv.Start(lis)
+		close(serveDone)
+	}()
+
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+		select {
+		case <-serveDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("integration server did not exit after Shutdown")
+		}
+	})
+
+	return "http://" + lis.Addr().String(), revoker
 }
 
 // signPaddleBody computes a Paddle-Signature header for the body.
@@ -224,7 +206,7 @@ func TestIntegration_PaddleWebhookEndToEnd(t *testing.T) {
 	truncateAll(t, pool)
 	seedUser(t, pool, "u_int_e2e", "e2e_user", "e2e@example.com")
 
-	ts, revoker := buildIntegrationServer(t, pool)
+	base, revoker := buildIntegrationServer(t, pool)
 
 	body := []byte(`{
 		"event_id": "evt_int_e2e_1",
@@ -242,7 +224,7 @@ func TestIntegration_PaddleWebhookEndToEnd(t *testing.T) {
 	now := time.Now().UTC()
 	sig := signPaddleBody(t, body, now)
 
-	req, err := http.NewRequest(http.MethodPost, ts.URL+"/webhooks/paddle", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, base+"/webhooks/paddle", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(paddle.SignatureHeader, sig)
@@ -280,7 +262,7 @@ func TestIntegration_PaddleWebhookEndToEnd(t *testing.T) {
 	assert.Equal(t, []string{"u_int_e2e"}, revoker.snapshot(), "revocation fires on first apply")
 
 	// Replay the same webhook: must be already_processed with no extra writes.
-	req2, err := http.NewRequest(http.MethodPost, ts.URL+"/webhooks/paddle", bytes.NewReader(body))
+	req2, err := http.NewRequest(http.MethodPost, base+"/webhooks/paddle", bytes.NewReader(body))
 	require.NoError(t, err)
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set(paddle.SignatureHeader, sig)
@@ -311,7 +293,7 @@ func TestIntegration_PaddleWebhookSignatureRejected(t *testing.T) {
 	truncateAll(t, pool)
 	seedUser(t, pool, "u_int_sig", "sig_user", "sig@example.com")
 
-	ts, _ := buildIntegrationServer(t, pool)
+	base, _ := buildIntegrationServer(t, pool)
 
 	body := []byte(`{
 		"event_id": "evt_sig_1",
@@ -329,7 +311,7 @@ func TestIntegration_PaddleWebhookSignatureRejected(t *testing.T) {
 	// Build a malformed-but-well-shaped signature: correct ts, BAD digest.
 	tsHeader := "ts=" + fmt.Sprintf("%d", time.Now().Unix()) + ";h1=" + strings.Repeat("0", 64)
 
-	req, err := http.NewRequest(http.MethodPost, ts.URL+"/webhooks/paddle", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, base+"/webhooks/paddle", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(paddle.SignatureHeader, tsHeader)
