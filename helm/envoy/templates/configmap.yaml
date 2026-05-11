@@ -39,6 +39,26 @@ data:
                           domains: ["*"]
                           routes:
                             - match:
+                                prefix: "/webhooks/paddle"
+                              route:
+                                cluster: billing_cluster
+                                timeout: {{ .Values.config.envoy.webhookRoute.timeout | default "20s" }}
+                                idle_timeout: {{ .Values.config.envoy.webhookRoute.idleTimeout | default "30s" }}
+                                retry_policy:
+                                  retry_on: ""
+                                  num_retries: {{ .Values.config.envoy.webhookRoute.numRetries | default 0 }}
+                                  per_try_timeout: {{ .Values.config.envoy.webhookRoute.perTryTimeout | default "15s" }}
+                            - match:
+                                prefix: "/webhooks/lemonsqueezy"
+                              route:
+                                cluster: billing_cluster
+                                timeout: {{ .Values.config.envoy.webhookRoute.timeout | default "20s" }}
+                                idle_timeout: {{ .Values.config.envoy.webhookRoute.idleTimeout | default "30s" }}
+                                retry_policy:
+                                  retry_on: ""
+                                  num_retries: {{ .Values.config.envoy.webhookRoute.numRetries | default 0 }}
+                                  per_try_timeout: {{ .Values.config.envoy.webhookRoute.perTryTimeout | default "15s" }}
+                            - match:
                                 prefix: "/"
                               route:
                                 cluster: gateway_cluster
@@ -124,6 +144,43 @@ data:
               healthy_threshold: {{ .Values.config.envoy.cluster.healthCheck.healthyThreshold | default 2 }}
               http_health_check:
                 path: {{ .Values.config.envoy.cluster.healthCheck.path | default "/readiness" | quote }}
+                expected_statuses:
+                  - start: 200
+                    end: 299
+        - name: billing_cluster
+          connect_timeout: {{ .Values.config.envoy.billingCluster.connectTimeout | default "5s" }}
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          dns_lookup_family: V4_ONLY
+          circuit_breakers:
+            thresholds:
+              - priority: DEFAULT
+                max_connections: {{ .Values.config.envoy.billingCluster.circuitBreaker.maxConnections | default 256 }}
+                max_pending_requests: {{ .Values.config.envoy.billingCluster.circuitBreaker.maxPendingRequests | default 256 }}
+                max_requests: {{ .Values.config.envoy.billingCluster.circuitBreaker.maxRequests | default 256 }}
+                max_retries: {{ .Values.config.envoy.billingCluster.circuitBreaker.maxRetries | default 0 }}
+          outlier_detection:
+            consecutive_5xx: {{ .Values.config.envoy.billingCluster.outlierDetection.consecutive5xx | default 5 }}
+            interval: {{ .Values.config.envoy.billingCluster.outlierDetection.interval | default "10s" }}
+            base_ejection_time: {{ .Values.config.envoy.billingCluster.outlierDetection.baseEjectionTime | default "30s" }}
+            max_ejection_percent: {{ .Values.config.envoy.billingCluster.outlierDetection.maxEjectionPercent | default 50 }}
+            enforcing_consecutive_5xx: 100
+          load_assignment:
+            cluster_name: billing_cluster
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: {{ .Values.config.envoy.billingCluster.upstream.address | quote }}
+                          port_value: {{ .Values.config.envoy.billingCluster.upstream.port | default 8082 }}
+          health_checks:
+            - timeout: {{ .Values.config.envoy.billingCluster.healthCheck.timeout | default "1s" }}
+              interval: {{ .Values.config.envoy.billingCluster.healthCheck.interval | default "10s" }}
+              unhealthy_threshold: {{ .Values.config.envoy.billingCluster.healthCheck.unhealthyThreshold | default 3 }}
+              healthy_threshold: {{ .Values.config.envoy.billingCluster.healthCheck.healthyThreshold | default 2 }}
+              http_health_check:
+                path: {{ .Values.config.envoy.billingCluster.healthCheck.path | default "/readiness" | quote }}
                 expected_statuses:
                   - start: 200
                     end: 299

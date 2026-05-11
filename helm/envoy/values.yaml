@@ -253,13 +253,6 @@ config:
         baseEjectionTime: "30s"
         maxEjectionPercent: 50
       upstream:
-        # Gateway HEADLESS service FQDN. STRICT_DNS against a regular
-        # ClusterIP Service collapses to a single VIP, defeating
-        # Envoy's per-pod outlier detection, circuit breakers, and
-        # active health checks. The gateway chart publishes
-        # `gateway-headless` (clusterIP: None) so DNS returns one A
-        # record per ready pod and Envoy load-balances per-pod.
-        # Audit ref: NOTE.md N-C4.
         address: "gateway-headless.etradie-system.svc.cluster.local"
         port: 8080
       healthCheck:
@@ -268,6 +261,37 @@ config:
         interval: "10s"
         unhealthyThreshold: 3
         healthyThreshold: 2
+    billingCluster:
+      connectTimeout: "5s"
+      circuitBreaker:
+        maxConnections: 256
+        maxPendingRequests: 256
+        maxRequests: 256
+        maxRetries: 0
+      outlierDetection:
+        consecutive5xx: 5
+        interval: "10s"
+        baseEjectionTime: "30s"
+        maxEjectionPercent: 50
+      upstream:
+        address: "billing-service.etradie-system.svc.cluster.local"
+        port: 8082
+      healthCheck:
+        path: "/readiness"
+        timeout: "1s"
+        interval: "10s"
+        unhealthyThreshold: 3
+        healthyThreshold: 2
+    route:
+      timeout: "30s"
+      idleTimeout: "60s"
+      numRetries: 2
+      perTryTimeout: "10s"
+    webhookRoute:
+      timeout: "20s"
+      idleTimeout: "30s"
+      numRetries: 0
+      perTryTimeout: "15s"
     overload:
       maxHeapSizeBytes: 2147483648
       globalMaxConnections: 50000
