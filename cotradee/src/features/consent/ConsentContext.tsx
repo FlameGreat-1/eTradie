@@ -5,7 +5,9 @@
  *
  *  1. Read local storage (instant). If a recorded decision is found
  *     for the current policy version, set state to it and clear
- *     needsDecision. The banner stays hidden.
+ *     needsDecision. The banner stays hidden. `hydrated` flips to
+ *     true at this point so any UI gated on it renders without
+ *     waiting for the server.
  *
  *  2. Fire GET /api/v1/consent in parallel. If the server returns a
  *     newer record (newer policy_version OR newer timestamp) we
@@ -19,7 +21,9 @@
  * Writes flow through acceptAll / rejectAll / saveCustom; each:
  *  - persists locally first (so the UI updates instantly),
  *  - then POSTs to the server,
- *  - on POST failure: rolls back local storage and surfaces a toast.
+ *  - on POST failure: rolls back local storage and surfaces a toast,
+ *  - on success: flips `decisionMadeThisSession` so the auth bridge
+ *    knows the current anonymous_id is safe to attach to a new user.
  */
 
 import {
@@ -65,6 +69,13 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [decision, setDecision] = useState<ConsentDecision>(defaultPendingDecision());
   const [recordedPolicyVersion, setRecordedPolicyVersion] = useState<string>('');
+  // Flipped true the moment the user actively makes a decision in
+  // this tab. Stays false when the only decision available was
+  // loaded from pre-existing local storage. Used by the auth bridge
+  // to decide whether attaching the anonymous_id to a freshly-
+  // authenticated user is safe (a shared-computer scenario otherwise
+  // attaches a stranger's prior decision to the new user's account).
+  const [decisionMadeThisSession, setDecisionMadeThisSession] = useState(false);
 
   // ----- Initial hydrate -----
   useEffect(() => {
@@ -80,27 +91,28 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       // No local record — must prompt unless the server has one.
       setNeedsDecision(true);
     }
+    // Flip hydrated as soon as the synchronous read is done. The
+    // server reconcile below continues in the background and may
+    // overwrite local state if it returns a newer record. This
+    // prevents the banner from being suppressed for up to 5 minutes
+    // (the axios default timeout) on a flaky network.
+    setHydrated(true);
 
     // 2. Server reconcile. Use the anonymous id when the user is
     // not authenticated; when authenticated the gateway derives the
     // user_id from the access cookie automatically.
-    fetchLatestConsent(anonymousId)
-      .then((rec) => {
-        if (cancelled) return;
-        if (rec) {
-          const localTs = local ? local.recordedAt : 0;
-          const serverTs = Date.parse(rec.created_at) || 0;
-          if (serverTs >= localTs) {
-            mirrorServerRecord(rec);
-            setDecision(rec.categories);
-            setRecordedPolicyVersion(rec.policy_version);
-            setNeedsDecision(rec.policy_version !== CONSENT_POLICY_VERSION);
-          }
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setHydrated(true);
-      });
+    void fetchLatestConsent(anonymousId).then((rec) => {
+      if (cancelled) return;
+      if (!rec) return;
+      const localTs = local ? local.recordedAt : 0;
+      const serverTs = Date.parse(rec.created_at) || 0;
+      if (serverTs >= localTs) {
+        mirrorServerRecord(rec);
+        setDecision(rec.categories);
+        setRecordedPolicyVersion(rec.policy_version);
+        setNeedsDecision(rec.policy_version !== CONSENT_POLICY_VERSION);
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -112,12 +124,16 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
     async (next: ConsentDecision): Promise<void> => {
       const previous = decision;
       const previousVersion = recordedPolicyVersion;
+      const previousSessionFlag = decisionMadeThisSession;
 
       // Optimistic local write.
       const stored = writeStoredDecision(next);
       setDecision(stored.decision);
       setRecordedPolicyVersion(stored.policyVersion);
       setNeedsDecision(false);
+      // The user just actively chose; the bridge may now safely
+      // attach this anonymous_id on a subsequent login.
+      setDecisionMadeThisSession(true);
 
       try {
         await postConsent({
@@ -129,6 +145,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         // Roll back so the banner reappears and the user can retry.
         setDecision(previous);
         setRecordedPolicyVersion(previousVersion);
+        setDecisionMadeThisSession(previousSessionFlag);
         setNeedsDecision(true);
         toast({
           title: 'Could not save preference',
@@ -138,7 +155,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [anonymousId, decision, recordedPolicyVersion],
+    [anonymousId, decision, recordedPolicyVersion, decisionMadeThisSession],
   );
 
   const acceptAll = useCallback(() => persist(acceptAllDecision()), [persist]);
@@ -160,6 +177,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       decision,
       anonymousId,
       recordedPolicyVersion,
+      decisionMadeThisSession,
       acceptAll,
       rejectAll,
       saveCustom,
@@ -174,6 +192,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       decision,
       anonymousId,
       recordedPolicyVersion,
+      decisionMadeThisSession,
       acceptAll,
       rejectAll,
       saveCustom,
