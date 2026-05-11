@@ -415,6 +415,16 @@ func (c *Config) SetTestSecret(secret string) {
 	if c.ServiceTokenTTLSeconds == 0 {
 		c.ServiceTokenTTLSeconds = 2592000 // 30 days for tests
 	}
+	// Pin a deterministic, secure-by-default cookie policy so tests
+	// that build a Config via SetTestSecret (bypassing validate())
+	// can still call CookieOptions() and exercise cookie code paths
+	// without falling through to http.SameSiteDefaultMode.
+	if c.cookieSameSite == 0 {
+		c.cookieSameSite = http.SameSiteStrictMode
+	}
+	if c.CSRFHeader == "" {
+		c.CSRFHeader = "X-CSRF-Token"
+	}
 }
 
 // HasAdminSeedPassword returns true if an admin seed password was
