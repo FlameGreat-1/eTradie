@@ -97,6 +97,16 @@ type Config struct {
 	CSRFHeader     string `envconfig:"CSRF_HEADER" default:"X-CSRF-Token"`
 	CSRFSigned     bool   `envconfig:"CSRF_SIGNED" default:"true"`
 
+	// ReturnTokensInBody, when true, causes /auth/login, /auth/register,
+	// /auth/refresh, and the OAuth callbacks to echo the issued JWT
+	// access and refresh tokens in their JSON response body. The whole
+	// point of the cookie-auth migration is to remove the JS-readable
+	// token surface that an XSS payload can exfiltrate, so this is
+	// false by default in every environment. Legacy non-browser clients
+	// that hold tokens explicitly can set it to true during their
+	// migration window; production deployments MUST leave it false.
+	ReturnTokensInBody bool `envconfig:"RETURN_TOKENS_IN_BODY" default:"false"`
+
 	// AllowSameSiteLaxInProd is an explicit, documented escape hatch.
 	// validate() refuses CookieSameSite=Lax in production/staging
 	// unless this is true. There is no good reason to set this; it
