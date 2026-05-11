@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	cryptoRand "crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -443,19 +445,62 @@ func (c *CheckoutService) post(
 	if err != nil {
 		return fmt.Errorf("billing: marshal request: %w", err)
 	}
-
-	// One retry on 5xx; 4xx is a permanent caller error and short-circuits.
-	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	return attemptWithBackoff(ctx, func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 		if err != nil {
-			return fmt.Errorf("billing: build request: %w", err)
+			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+bearer)
 		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("Accept", accept)
+		return req, nil
+	}, c.client, out)
+}
 
-		resp, err := c.client.Do(req)
+// retryBackoffs is the sleep schedule between attempts. Three total
+// attempts (1 initial + 2 retries) is the right balance for a synchronous
+// user-facing call: long enough to ride out a single 5xx blip on the
+// provider, short enough that the gateway's 20s timeout still bounds the
+// total wall-clock. Jitter is added on top of each delay below.
+var retryBackoffs = []time.Duration{
+	200 * time.Millisecond,
+	500 * time.Millisecond,
+}
+
+// attemptWithBackoff retries a request up to len(retryBackoffs)+1 times.
+// Returns on:
+//   - 2xx: decodes into out (when non-nil) and returns nil.
+//   - 4xx (permanent caller error): returns ErrProviderAPI wrapped with
+//     the response body, no retry.
+//   - 5xx or transport error: sleeps with jittered backoff and retries
+//     up to the schedule limit. Abort immediately on ctx cancellation.
+//
+// The buildReq closure rebuilds the *http.Request on every attempt so
+// the body reader is fresh — reusing a consumed bytes.Reader would yield
+// an empty body on retry.
+func attemptWithBackoff(
+	ctx context.Context,
+	buildReq func() (*http.Request, error),
+	client *http.Client,
+	out any,
+) error {
+	var lastErr error
+	for attempt := 0; attempt <= len(retryBackoffs); attempt++ {
+		if attempt > 0 {
+			delay := jitter(retryBackoffs[attempt-1], 50*time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("%w: context cancelled before retry: %v", ErrProviderAPI, ctx.Err())
+			case <-time.After(delay):
+			}
+		}
+
+		req, err := buildReq()
+		if err != nil {
+			return fmt.Errorf("billing: build request: %w", err)
+		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%w: %v", ErrProviderAPI, err)
 			continue
@@ -478,10 +523,32 @@ func (c *CheckoutService) post(
 			continue
 		}
 
-		// 4xx — permanent. Don't retry.
+		// 4xx — permanent caller error. Short-circuit.
 		return fmt.Errorf("%w: status=%d body=%s", ErrProviderAPI, resp.StatusCode, truncate(string(respBody), 256))
 	}
 	return lastErr
+}
+
+// jitter returns base + a uniform random offset in [-spread, +spread].
+// Uses crypto/rand so concurrent goroutines do not synchronise their
+// retry waves under load. Falls back to base on entropy failure (which
+// crypto/rand documents as effectively never happening on supported
+// platforms).
+func jitter(base, spread time.Duration) time.Duration {
+	if spread <= 0 {
+		return base
+	}
+	var buf [8]byte
+	if _, err := cryptoRand.Read(buf[:]); err != nil {
+		return base
+	}
+	n := binary.LittleEndian.Uint64(buf[:])
+	offset := time.Duration(n%uint64(2*spread)) - spread
+	result := base + offset
+	if result < 0 {
+		return 0
+	}
+	return result
 }
 
 func truncate(s string, n int) string {
@@ -580,43 +647,17 @@ func (c *CheckoutService) createLemonSqueezyPortal(ctx context.Context, customer
 }
 
 // getJSONAPI performs a GET against a JSON:API endpoint and decodes the
-// response into out. Mirrors the same retry + bounded error policy as post().
+// response into out. Shares the same retry + bounded error policy as post().
 func (c *CheckoutService) getJSONAPI(
 	ctx context.Context, endpoint, bearer string, out any,
 ) error {
-	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	return attemptWithBackoff(ctx, func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
-			return fmt.Errorf("billing: build request: %w", err)
+			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+bearer)
 		req.Header.Set("Accept", "application/vnd.api+json")
-
-		resp, err := c.client.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("%w: %v", ErrProviderAPI, err)
-			continue
-		}
-		respBody, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			if out == nil {
-				return nil
-			}
-			if err := json.Unmarshal(respBody, out); err != nil {
-				return fmt.Errorf("billing: decode response: %w", err)
-			}
-			return nil
-		}
-
-		if resp.StatusCode >= 500 {
-			lastErr = fmt.Errorf("%w: status=%d body=%s", ErrProviderAPI, resp.StatusCode, truncate(string(respBody), 256))
-			continue
-		}
-
-		return fmt.Errorf("%w: status=%d body=%s", ErrProviderAPI, resp.StatusCode, truncate(string(respBody), 256))
-	}
-	return lastErr
+		return req, nil
+	}, c.client, out)
 }
