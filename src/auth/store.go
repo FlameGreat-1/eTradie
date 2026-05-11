@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -373,7 +374,7 @@ func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 		&u.Tier, &u.Status,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("scan user: %w", err)
@@ -446,7 +447,7 @@ func (s *SessionStore) GetSessionByToken(ctx context.Context, refreshToken strin
 		&sess.ClientIP, &sess.ExpiresAt, &sess.CreatedAt, &sess.Revoked,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get session by token: %w", err)

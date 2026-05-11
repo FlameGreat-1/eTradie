@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -34,7 +35,7 @@ func (s *ProcessedEventStore) MarkProcessedTx(
 	`
 	var inserted int
 	err := tx.QueryRow(ctx, q, provider, eventID, eventName).Scan(&inserted)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -85,6 +86,16 @@ func (s *SubscriptionEventStore) AppendTx(
 	return err
 }
 
+// nullableString converts an empty string to a nil SQL parameter so audit
+// columns that are nullable (previous_tier, previous_status on first-insert)
+// stay NULL instead of being written as empty strings. The any return type
+// lets pgx pick the wire format.
+//
+// The service package has its own service.nullablePtr helper with a *string
+// return for the row-storage *string fields on store.Subscription. The two
+// are deliberately separate because they target columns with different
+// nullability constraints and Go types; merging them would force one
+// consumer to convert at every call site.
 func nullableString(s string) any {
 	if s == "" {
 		return nil

@@ -54,7 +54,7 @@ func main() {
 		Int("max_concurrent", cfg.MaxConcurrentTrades).
 		Msg("execution_engine_starting")
 
-	// ── Auth configuration ─────────────────────────────────────────────
+	// ── Auth configuration ─────────────────────────────────────────────────
 	authCfg, err := auth.LoadConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("auth_config_load_failed")
@@ -62,7 +62,7 @@ func main() {
 	tokenService := auth.NewTokenService(authCfg)
 	log.Info().Msg("auth_service_initialized")
 
-	// ── Database connection pool ──────────────────────────────────────
+	// ── Database connection pool ───────────────────────────────────────────
 	ctx := context.Background()
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
@@ -95,7 +95,7 @@ func main() {
 	}
 	userStore := auth.NewUserStore(pool)
 
-	// ── Broker implementation ─────────────────────────────────────────
+	// ── Broker implementation ──────────────────────────────────────────────
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
 		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
@@ -105,7 +105,7 @@ func main() {
 		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
 	}
 
-	// ── Redis Connection (for shared alerts) ──────────────────────────
+	// ── Redis Connection (for shared alerts) ───────────────────────────────
 	opts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("redis_url_parse_failed")
@@ -116,7 +116,7 @@ func main() {
 		log.Fatal().Err(err).Msg("redis_ping_failed")
 	}
 
-	// ── Shared alert transport (serves all modules) ───────────────────
+	// ── Shared alert transport (serves all modules) ────────────────────────
 	alertHub := alert.NewHub()
 	defer alertHub.Close()
 
@@ -124,19 +124,19 @@ func main() {
 	alertTransport.Start(ctx)
 	defer alertTransport.Close()
 
-	// ── Stores ────────────────────────────────────────────────────────
+	// ── Stores ─────────────────────────────────────────────────────────────
 	auditStore := store.NewAuditStore(pool)
 	pnlStore := store.NewPnLStore(pool)
 	settingsStore := store.NewSettingsStore(pool)
 
-	// ── Gateway gRPC client (for instant-mode confirmation callbacks) ─
+	// ── Gateway gRPC client (for instant-mode confirmation callbacks) ──
 	gwClient, err := watcher.NewGatewayGRPCClient(cfg.GatewayAddr)
 	if err != nil {
 		log.Fatal().Err(err).Str("addr", cfg.GatewayAddr).Msg("gateway_client_init_failed")
 	}
 	defer gwClient.Close()
 
-	// ── Components (dependency order) ─────────────────────────────────
+	// ── Components (dependency order) ──────────────────────────────────────
 	sm := state.NewManager(bp, pnlStore)
 	v := validator.NewValidator(cfg, sm, bp)
 	s := sizing.NewEngine(cfg, bp)
@@ -160,7 +160,7 @@ func main() {
 
 	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
 
-	// ── gRPC server ───────────────────────────────────────────────────
+	// ── gRPC server ────────────────────────────────────────────────────────
 	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
@@ -189,7 +189,7 @@ func main() {
 		}
 	}()
 
-	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────
+	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────────
 	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService)
 
 	go func() {
@@ -295,18 +295,19 @@ func main() {
 			Msg("pending_watchers_restoration_complete")
 	}
 
-	// ── Startup tick-cache token (fallback for zero-watcher cold starts) ─
+	// ── Startup tick-cache token (fallback for zero-watcher cold starts) ──
 	// When no pending watchers exist at startup, the tick cache has no auth
 	// token and every tick_price request gets 401 Unauthorized. Issue a
 	// service token from any active user so the tick cache can authenticate
-	// immediately. The token will be refreshed when the first watcher is
-	// armed (Arm sets it via the order's AuthToken) or by the execution
-	// gRPC handler.
+	// immediately. The token carries the user's real tier/status (NOT a
+	// silent "free" default) so downstream tier checks see correct claims.
+	// The token will be refreshed when the first watcher is armed (Arm sets
+	// it via the order's AuthToken) or by the execution gRPC handler.
 	{
 		users, userErr := userStore.ListActiveUsers(ctx)
 		if userErr == nil && len(users) > 0 {
 			for _, u := range users {
-				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role)
+				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
 				if tokenErr == nil {
 					wm.TickCache().SetAuthToken(startupToken)
 					log.Info().
@@ -324,7 +325,7 @@ func main() {
 		Int("http_port", cfg.HTTPPort).
 		Msg("execution_engine_ready")
 
-	// ── Graceful shutdown ────────────────────────────────────────────
+	// ── Graceful shutdown ──────────────────────────────────────────────────
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
