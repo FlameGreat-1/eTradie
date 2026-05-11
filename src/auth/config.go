@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -28,187 +29,89 @@ type Config struct {
 	RefreshTokenTTLSeconds int `envconfig:"REFRESH_TOKEN_TTL_SECONDS" default:"604800"`
 
 	// Service token lifetime in seconds. Default: 30 days.
-	// Used for internal service-to-service authentication (e.g., background
-	// trade monitoring, EOD checks, news protection) that must operate
-	// autonomously 24/7 without user presence. These tokens carry the
-	// user's identity (sub, username, role) so the Python engine resolves
-	// the correct broker connection, but are not tied to user sessions.
 	ServiceTokenTTLSeconds int `envconfig:"SERVICE_TOKEN_TTL_SECONDS" default:"2592000"`
 
 	// Bcrypt cost factor. Default: 12. Range: 10-14.
 	BcryptCost int `envconfig:"BCRYPT_COST" default:"12"`
 
-	// Admin seed credentials. Used to create the initial admin user
-	// on first startup if no admin exists in the database.
+	// Admin seed credentials.
 	AdminUsername string `envconfig:"ADMIN_USERNAME" default:"admin"`
 	AdminPassword string `envconfig:"ADMIN_PASSWORD" default:""`
 	AdminEmail    string `envconfig:"ADMIN_EMAIL" default:"admin@etradie.local"`
 
-	// Maximum active sessions per user. Oldest session is revoked
-	// when this limit is exceeded. Default: 5.
+	// Maximum active sessions per user.
 	MaxSessionsPerUser int `envconfig:"MAX_SESSIONS_PER_USER" default:"5"`
 
-	// Database URL for auth tables. Reuses the main PostgreSQL instance.
-	// Falls back to the EXECUTION_DATABASE_URL pattern if not set.
+	// Database URL for auth tables.
 	DatabaseURL string `envconfig:"DATABASE_URL" default:""`
 
 	// Issuer claim for JWT tokens.
 	Issuer string `envconfig:"ISSUER" default:"etradie"`
 
 	// TrustedProxyCIDRs is the list of CIDR blocks whose peer addresses
-	// are treated as trusted proxies for client-IP resolution. When the
-	// HTTP request's immediate peer is in one of these ranges, the
-	// resolver honours CF-Connecting-IP / X-Forwarded-For / X-Real-IP.
-	// Otherwise, those headers are ignored and the peer address is
-	// returned as the client IP. This makes header spoofing impossible
-	// from outside the trusted edge.
-	//
-	// Default: empty. With no trusted proxies, the resolver always
-	// returns the immediate peer, which is the safe default for any
-	// deployment where the edge has not been explicitly configured.
-	//
-	// Production deployment behind edge-ingress + envoy should list the
-	// pod CIDR of edge-ingress (and, if applicable, the envoy pod CIDR
-	// when envoy is co-located with gateway). Production deployment
-	// behind Cloudflare should additionally set AUTH_TRUST_CLOUDFLARE.
+	// are treated as trusted proxies for client-IP resolution.
 	TrustedProxyCIDRs []string `envconfig:"TRUSTED_PROXY_CIDRS"`
 
 	// TrustCloudflare extends the trusted-proxy set with the published
-	// Cloudflare IPv4 + IPv6 ranges. Set to true when Cloudflare is
-	// the front door of the deployment. Default: false.
+	// Cloudflare IPv4 + IPv6 ranges.
 	TrustCloudflare bool `envconfig:"TRUST_CLOUDFLARE" default:"false"`
 
-	// CloudflareRangesDir is an optional directory containing
-	// `ipv4.txt` and `ipv6.txt` files with one CIDR per line. When set
-	// AND TrustCloudflare is true, the resolver reads the file contents
-	// at startup INSTEAD of the in-binary embedded list. This lets the
-	// platform pick up live-refreshed Cloudflare ranges (chart-mounted
-	// from helm/gateway/files/cloudflare/) without requiring a binary
-	// rebuild every time Cloudflare publishes a new range.
-	//
-	// The chart sets this to /etc/etradie/cloudflare in production via
-	// the gateway ConfigMap when trustChain.trustCloudflare is true.
-	// On read error or missing dir, the resolver falls back to the
-	// embedded list with a single warning to stderr - no panic, no
-	// startup failure.
-	//
-	// Default: empty (use embedded list only).
+	// CloudflareRangesDir is an optional directory containing live
+	// Cloudflare CIDR files.
 	CloudflareRangesDir string `envconfig:"CLOUDFLARE_RANGES_DIR" default:""`
 
 	// ----------------------------------------------------------------
 	// Google OAuth 2.0
-	//
-	// Authorization Code with PKCE, server-mediated. The browser never
-	// holds the Google client secret or a Google access/ID token; only
-	// the gateway exchanges the authorization code at Google's token
-	// endpoint and verifies the returned ID token via Google's JWKS.
-	//
-	// All AUTH_GOOGLE_* fields are optional and ignored unless
-	// AUTH_GOOGLE_OAUTH_ENABLED=true. When enabled, ClientID,
-	// ClientSecret, and RedirectURI are mandatory and validated at
-	// startup so misconfiguration fails fast and never silently.
 	// ----------------------------------------------------------------
 
-	// GoogleOAuthEnabled toggles the Google sign-in endpoints.
-	// When false (default), no OAuth routes are mounted and no
-	// AUTH_GOOGLE_* validation is performed.
-	GoogleOAuthEnabled bool `envconfig:"GOOGLE_OAUTH_ENABLED" default:"false"`
-
-	// GoogleClientID is the OAuth 2.0 client ID issued by Google Cloud
-	// Console for this application. Used as the `client_id` query
-	// parameter on the authorize URL and as the audience claim that
-	// Google's ID token must match.
-	GoogleClientID string `envconfig:"GOOGLE_CLIENT_ID" default:""`
-
-	// GoogleClientSecret is the OAuth 2.0 client secret. Used only on
-	// the server-side token-exchange request to oauth2.googleapis.com
-	// /token. Never exposed to the browser.
-	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
-
-	// GoogleRedirectURI is the absolute URL Google redirects the
-	// browser to after consent for the SIGN-IN flow. Must exactly
-	// match one of the "Authorized redirect URIs" registered in
-	// Google Cloud Console. Convention:
-	//   https://<frontend-host>/auth/callback/google.
-	GoogleRedirectURI string `envconfig:"GOOGLE_REDIRECT_URI" default:""`
-
-	// GoogleLinkRedirectURI is the absolute URL Google redirects the
-	// browser to after consent for the ACCOUNT-LINK flow. Must be
-	// distinct from GoogleRedirectURI and registered as a second
-	// entry in Google Cloud Console's "Authorized redirect URIs"
-	// list. Convention:
-	//   https://<frontend-host>/settings/oauth/callback/google.
-	//
-	// Keeping the link callback on its own URI is the standard
-	// defence against cross-flow confusion: even if flow_kind or
-	// state leaked between the two paths, a sign-in flow could
-	// never complete through the link handler because Google would
-	// have redirected the browser to the wrong URL.
-	GoogleLinkRedirectURI string `envconfig:"GOOGLE_LINK_REDIRECT_URI" default:""`
-
-	// GoogleAllowedHostedDomains, if non-empty, restricts sign-in to
-	// Google Workspace tenants whose `hd` claim matches one of the
-	// listed domains (e.g. "exoper.com"). Empty means any Google
-	// account is accepted (consumer + workspace). Comparison is
-	// case-insensitive.
+	GoogleOAuthEnabled         bool     `envconfig:"GOOGLE_OAUTH_ENABLED" default:"false"`
+	GoogleClientID             string   `envconfig:"GOOGLE_CLIENT_ID" default:""`
+	GoogleClientSecret         string   `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
+	GoogleRedirectURI          string   `envconfig:"GOOGLE_REDIRECT_URI" default:""`
+	GoogleLinkRedirectURI      string   `envconfig:"GOOGLE_LINK_REDIRECT_URI" default:""`
 	GoogleAllowedHostedDomains []string `envconfig:"GOOGLE_ALLOWED_HOSTED_DOMAINS"`
-
-	// OAuthFlowTTLSeconds is how long an authorize-step record is
-	// valid before its state/code_verifier/nonce are discarded.
-	// Bounds: 60..1800 (1 min..30 min). Default: 600 (10 min).
-	OAuthFlowTTLSeconds int `envconfig:"OAUTH_FLOW_TTL_SECONDS" default:"600"`
-
-	// OAuthHTTPTimeoutSeconds caps every outbound HTTP request the
-	// gateway makes to Google's token endpoint and JWKS endpoint.
-	// Bounds: 1..30. Default: 10.
-	OAuthHTTPTimeoutSeconds int `envconfig:"OAUTH_HTTP_TIMEOUT_SECONDS" default:"10"`
+	OAuthFlowTTLSeconds        int      `envconfig:"OAUTH_FLOW_TTL_SECONDS" default:"600"`
+	OAuthHTTPTimeoutSeconds    int      `envconfig:"OAUTH_HTTP_TIMEOUT_SECONDS" default:"10"`
 
 	// ----------------------------------------------------------------
 	// Cookie auth
 	//
-	// The platform is migrating authenticated session transport from
-	// localStorage-stored JWTs to HttpOnly cookies. These knobs are
-	// consumed by src/auth/cookies.go (Set/Clear helpers) and
-	// src/auth/csrf.go (RequireCSRF middleware). Defaults are
-	// secure-by-default; explicit validation refuses the unsafe
-	// combination (SameSite=None paired with Secure=false).
+	// CookieDomain  -- empty for host-only (default), ".exoper.com" for
+	//                  cross-subdomain production.
+	// CookieSecure  -- true everywhere except local-HTTP dev. The
+	//                  production-mode guard refuses false when
+	//                  APP_ENV is production or staging.
+	// CookieSameSite-- Strict (default), Lax (legacy escape hatch),
+	//                  None (required for cross-subdomain when SPA and
+	//                  gateway live on different registrable domains).
+	// CSRFHeader    -- request header the SPA echoes the csrf_token
+	//                  cookie back in.
+	// CSRFSigned    -- true (default) selects signed double-submit
+	//                  bound to userID. Setting to false reverts to
+	//                  naive double-submit for a staged rollout.
 	// ----------------------------------------------------------------
 
-	// CookieDomain sets the Domain attribute on every auth cookie.
-	// Empty means host-only (the browser scopes the cookie to the
-	// exact host that set it), which is the safe default. Set to
-	// e.g. ".exoper.com" only when the SPA and the API run on
-	// different subdomains of the same registrable domain.
-	CookieDomain string `envconfig:"COOKIE_DOMAIN" default:""`
-
-	// CookieSecure forces every auth cookie to be sent over HTTPS
-	// only. Defaults to true; an operator running locally without
-	// TLS may disable it, but validate() refuses Secure=false when
-	// CookieSameSite=None because browsers themselves reject that
-	// combination.
-	CookieSecure bool `envconfig:"COOKIE_SECURE" default:"true"`
-
-	// CookieSameSite controls the browser's SameSite attribute on
-	// every auth cookie. Case-insensitive. Legal values: "Strict"
-	// (default), "Lax", "None". "None" must be paired with
-	// CookieSecure=true.
+	CookieDomain   string `envconfig:"COOKIE_DOMAIN" default:""`
+	CookieSecure   bool   `envconfig:"COOKIE_SECURE" default:"true"`
 	CookieSameSite string `envconfig:"COOKIE_SAMESITE" default:"Strict"`
+	CSRFHeader     string `envconfig:"CSRF_HEADER" default:"X-CSRF-Token"`
+	CSRFSigned     bool   `envconfig:"CSRF_SIGNED" default:"true"`
 
-	// CSRFHeader is the request header the SPA echoes the
-	// csrf_token cookie back in on every state-changing request.
-	// Renaming it requires a coordinated frontend change.
-	CSRFHeader string `envconfig:"CSRF_HEADER" default:"X-CSRF-Token"`
+	// AllowSameSiteLaxInProd is an explicit, documented escape hatch.
+	// validate() refuses CookieSameSite=Lax in production/staging
+	// unless this is true. There is no good reason to set this; it
+	// exists only to keep an emergency deploy unblocked while a
+	// SameSite=Strict regression is fixed.
+	AllowSameSiteLaxInProd bool `envconfig:"ALLOW_SAMESITE_LAX_IN_PROD" default:"false"`
 
 	// cookieSameSite is the parsed http.SameSite derived from
-	// CookieSameSite at validate-time. Not loaded from env.
+	// CookieSameSite at validate-time.
 	cookieSameSite http.SameSite
 
 	// jwtSecretBytes is the parsed secret used for signing.
-	// Not loaded from env; derived from JWTSecret during validation.
 	jwtSecretBytes []byte
 
-	// ipResolver is the lazily-built ClientIPResolver. Constructed once
-	// after validation and cached for the lifetime of the Config.
+	// ipResolver is the lazily-built ClientIPResolver.
 	ipResolverOnce sync.Once
 	ipResolver     *ClientIPResolver
 }
@@ -226,8 +129,28 @@ func LoadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
+// appEnv returns the normalised value of APP_ENV (or ENV / ENVIRONMENT
+// as fallbacks). "" means unset; treat as development by the caller.
+func appEnv() string {
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		if v := strings.ToLower(strings.TrimSpace(os.Getenv(k))); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// isProdLikeEnv reports whether the runtime environment is one in
+// which the cookie-security guards must be enforced.
+func isProdLikeEnv() bool {
+	switch appEnv() {
+	case "production", "prod", "staging":
+		return true
+	}
+	return false
+}
+
 func (c *Config) validate() error {
-	// JWT secret: generate random if empty (dev mode), require 32+ chars in production.
 	if c.JWTSecret == "" {
 		b := make([]byte, 64)
 		if _, err := rand.Read(b); err != nil {
@@ -240,7 +163,6 @@ func (c *Config) validate() error {
 	}
 	c.jwtSecretBytes = []byte(c.JWTSecret)
 
-	// Token TTL bounds.
 	if c.AccessTokenTTLSeconds < 60 || c.AccessTokenTTLSeconds > 86400 {
 		return fmt.Errorf("ACCESS_TOKEN_TTL_SECONDS must be 60..86400, got %d", c.AccessTokenTTLSeconds)
 	}
@@ -251,12 +173,10 @@ func (c *Config) validate() error {
 		return fmt.Errorf("SERVICE_TOKEN_TTL_SECONDS must be 3600..7776000 (1h..90d), got %d", c.ServiceTokenTTLSeconds)
 	}
 
-	// Bcrypt cost bounds.
 	if c.BcryptCost < 10 || c.BcryptCost > 14 {
 		return fmt.Errorf("BCRYPT_COST must be 10..14, got %d", c.BcryptCost)
 	}
 
-	// Admin seed validation.
 	c.AdminUsername = strings.TrimSpace(c.AdminUsername)
 	if c.AdminUsername == "" {
 		return fmt.Errorf("ADMIN_USERNAME must not be empty")
@@ -273,19 +193,15 @@ func (c *Config) validate() error {
 		return fmt.Errorf("ADMIN_EMAIL must be a valid email address")
 	}
 
-	// Max sessions bounds.
 	if c.MaxSessionsPerUser < 1 || c.MaxSessionsPerUser > 20 {
 		return fmt.Errorf("MAX_SESSIONS_PER_USER must be 1..20, got %d", c.MaxSessionsPerUser)
 	}
 
-	// Trusted-proxy CIDR validation: surface bad values at startup.
 	if _, bad := ParseTrustedCIDRs(c.TrustedProxyCIDRs); len(bad) > 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS contains malformed entries: %v", bad)
 	}
 
-	// Cookie + CSRF validation. Parsed once at startup and cached on
-	// the Config so every Set/Clear cookie path reads a validated
-	// policy object (see CookieOptions()).
+	// Cookie + CSRF validation.
 	switch strings.ToLower(strings.TrimSpace(c.CookieSameSite)) {
 	case "strict":
 		c.cookieSameSite = http.SameSiteStrictMode
@@ -304,12 +220,19 @@ func (c *Config) validate() error {
 		return fmt.Errorf("CSRF_HEADER must not be empty")
 	}
 
-	// Google OAuth: only validate when explicitly enabled. Validation
-	// is strict so a half-configured production deployment fails fast.
-	// All OAuth-only knobs (TTL, HTTP timeout) are also bounded only
-	// when OAuth is enabled, so an operator who never plans to use
-	// federated login does not pay startup cost or hit confusing
-	// errors about unused fields.
+	// Production-mode cookie security guards. The host runtime sets
+	// APP_ENV (or ENV / ENVIRONMENT); when it indicates a prod-like
+	// deployment, refuse insecure cookie postures. These guards do
+	// nothing in local dev (APP_ENV=development / unset).
+	if isProdLikeEnv() {
+		if !c.CookieSecure {
+			return fmt.Errorf("COOKIE_SECURE must be true in %s; refusing to start with plain-HTTP cookies", appEnv())
+		}
+		if c.cookieSameSite == http.SameSiteLaxMode && !c.AllowSameSiteLaxInProd {
+			return fmt.Errorf("COOKIE_SAMESITE=Lax is unsafe in %s; set COOKIE_SAMESITE=Strict (single host) or None+Secure=true (cross-subdomain), or set ALLOW_SAMESITE_LAX_IN_PROD=true to override", appEnv())
+		}
+	}
+
 	if c.GoogleOAuthEnabled {
 		c.GoogleClientID = strings.TrimSpace(c.GoogleClientID)
 		c.GoogleClientSecret = strings.TrimSpace(c.GoogleClientSecret)
@@ -324,7 +247,7 @@ func (c *Config) validate() error {
 		if c.GoogleRedirectURI == "" {
 			return fmt.Errorf("GOOGLE_REDIRECT_URI must be set when GOOGLE_OAUTH_ENABLED=true")
 		}
-	u, err := url.Parse(c.GoogleRedirectURI)
+		u, err := url.Parse(c.GoogleRedirectURI)
 		if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 			return fmt.Errorf("GOOGLE_REDIRECT_URI must be an absolute http(s) URL, got %q", c.GoogleRedirectURI)
 		}
@@ -359,19 +282,13 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// JWTSecretBytes returns the parsed JWT signing key.
-func (c *Config) JWTSecretBytes() []byte {
-	return c.jwtSecretBytes
-}
+func (c *Config) JWTSecretBytes() []byte { return c.jwtSecretBytes }
 
 // CookieOptions returns the materialised cookie policy used by the
-// Set/Clear helpers in cookies.go. The CSRF cookie shares the access
-// token's MaxAge because both are rotated on every login and refresh;
-// keeping their lifetimes aligned avoids a window where one expires
-// without the other (which would surface to the user as a 403 on the
-// next mutating call even though they appear to still be logged in).
-//
-// Safe for concurrent use after validate(); fields are read-only.
+// Set/Clear helpers. The CSRF cookie shares the access token's
+// MaxAge so both are rotated together; mismatched lifetimes would
+// produce a 403 on the next mutating call after the CSRF cookie
+// expired but before the access cookie did.
 func (c *Config) CookieOptions() *CookieOptions {
 	return &CookieOptions{
 		Domain:             c.CookieDomain,
@@ -383,9 +300,7 @@ func (c *Config) CookieOptions() *CookieOptions {
 	}
 }
 
-// IPResolver returns the lazily-initialised ClientIPResolver built from
-// TrustedProxyCIDRs, TrustCloudflare, and (when set) the contents of
-// CloudflareRangesDir. Safe for concurrent use.
+// IPResolver returns the lazily-initialised ClientIPResolver.
 func (c *Config) IPResolver() *ClientIPResolver {
 	c.ipResolverOnce.Do(func() {
 		c.ipResolver = NewClientIPResolverWithRangesDir(
@@ -397,28 +312,24 @@ func (c *Config) IPResolver() *ClientIPResolver {
 	return c.ipResolver
 }
 
-// SetTestSecret configures the Config with a known JWT secret for use
-// in test harnesses. Sets all required fields to sensible defaults so
-// the Config is usable without environment variable loading.
+// SetTestSecret configures the Config with a known JWT secret for test
+// harnesses. Sets all required fields to sensible defaults so the
+// Config is usable without environment variable loading.
 func (c *Config) SetTestSecret(secret string) {
 	c.JWTSecret = secret
 	c.jwtSecretBytes = []byte(secret)
 	if c.AccessTokenTTLSeconds == 0 {
-		c.AccessTokenTTLSeconds = 3600 // 1 hour for tests
+		c.AccessTokenTTLSeconds = 3600
 	}
 	if c.RefreshTokenTTLSeconds == 0 {
-		c.RefreshTokenTTLSeconds = 86400 // 1 day for tests
+		c.RefreshTokenTTLSeconds = 86400
 	}
 	if c.Issuer == "" {
 		c.Issuer = "etradie-test"
 	}
 	if c.ServiceTokenTTLSeconds == 0 {
-		c.ServiceTokenTTLSeconds = 2592000 // 30 days for tests
+		c.ServiceTokenTTLSeconds = 2592000
 	}
-	// Pin a deterministic, secure-by-default cookie policy so tests
-	// that build a Config via SetTestSecret (bypassing validate())
-	// can still call CookieOptions() and exercise cookie code paths
-	// without falling through to http.SameSiteDefaultMode.
 	if c.cookieSameSite == 0 {
 		c.cookieSameSite = http.SameSiteStrictMode
 	}
@@ -427,9 +338,6 @@ func (c *Config) SetTestSecret(secret string) {
 	}
 }
 
-// HasAdminSeedPassword returns true if an admin seed password was
-// explicitly configured. When false, the admin user is created
-// without a password and must be set via the first-login flow.
 func (c *Config) HasAdminSeedPassword() bool {
 	return strings.TrimSpace(c.AdminPassword) != ""
 }
