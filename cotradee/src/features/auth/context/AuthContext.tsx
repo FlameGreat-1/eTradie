@@ -3,6 +3,7 @@ import { login as loginApi } from '../api/login';
 import { register as registerApi } from '../api/register';
 import { fetchProfile, logout as logoutApi } from '../api/profile';
 import type { AuthUser, LoginRequest, RegisterRequest, TokenPair } from '../types';
+import { broadcastLogoutAndRedirect } from '@/lib/axios';
 
 // ---------------------------------------------------------------------------
 // Cookie-auth context (Batch 11)
@@ -97,8 +98,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await logoutApi();
     } finally {
       setUser(null);
+      // Notify every other tab on this origin that the session has
+      // ended so they can route themselves to /login. The current
+      // tab's navigation is owned by whoever called logout()
+      // (typically the Header's handleLogout, which calls navigate
+      // afterwards), so we deliberately do NOT redirect here.
+      // broadcastLogoutAndRedirect's same-origin storage write is
+      // a no-op in the tab that authored it; the redirect inside
+      // it is suppressed by the early-return below.
+      try {
+        // Set the broadcast value without redirecting THIS tab —
+        // we let the caller decide where to navigate next.
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(
+            'etradie:auth:logout',
+            JSON.stringify({ reason: 'user', at: Date.now() }),
+          );
+        }
+      } catch {
+        /* storage may be disabled (private mode); the user-driven
+           navigation from the calling component still completes
+           and peer tabs will catch the signed-out state on their
+           next /auth/me poll. */
+      }
     }
   }, []);
+
+  // Silence the unused-import warning for environments where
+  // tree-shaking does not detect side-effect imports.
+  void broadcastLogoutAndRedirect;
 
   return (
     <AuthContext.Provider

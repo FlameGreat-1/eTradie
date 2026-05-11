@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -77,13 +78,35 @@ func NewHTTPServer(
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      corsMiddleware(mux),
+		Handler:      corsMiddleware(loadAllowedOrigins())(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	return s
+}
+
+// loadAllowedOrigins reads the credentialed-CORS allow-list from env.
+// Order of precedence:
+//   1. EXECUTION_ALLOWED_ORIGINS (service-specific override)
+//   2. ALLOWED_ORIGINS           (shared with the engine so operators
+//                                 can configure one value)
+func loadAllowedOrigins() map[string]bool {
+	raw := strings.TrimSpace(os.Getenv("EXECUTION_ALLOWED_ORIGINS"))
+	if raw == "" {
+		raw = strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	}
+	if raw == "" {
+		return map[string]bool{}
+	}
+	out := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out[p] = true
+		}
+	}
+	return out
 }
 
 // Start begins serving HTTP. Blocks until the server stops.
@@ -102,26 +125,29 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-// corsMiddleware adds CORS headers for dashboard cross-origin requests.
-// Allowed origins are enforced at the API Gateway / Reverse Proxy layer (Nginx/Traefik).
-// This middleware ensures internal routing and dashboard scenarios work smoothly.
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-		}
+// corsMiddleware emits credentialed-CORS headers backed by an explicit
+// allow-list. Mirrors the gateway and management policies; a single
+// `ALLOWED_ORIGINS` env var configures all three services uniformly.
+func corsMiddleware(allowed map[string]bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && allowed[origin] {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID, X-CSRF-Token, X-Requested-With")
+				w.Header().Set("Access-Control-Max-Age", "86400")
+			}
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // GET /api/v1/settings - Read all settings.
