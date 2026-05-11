@@ -401,8 +401,11 @@ func main() {
 		}
 	}()
 
-	// -- HTTP server (Dashboard REST API with auth) -----------------------
-	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine, tokenService)
+	// -- HTTP server (Dashboard REST API with auth + CSRF) ----------------
+	// authCfg flows through so the HTTP server can build the CSRF
+	// middleware (auth.RequireCSRF) AND emit the configured CSRF header
+	// name in the CORS Allow-Headers preflight response.
+	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine, tokenService, authCfg)
 	go func() {
 		if err := httpServer.Start(); err != nil {
 			log.Fatal().Err(err).Msg("http_serve_failed")

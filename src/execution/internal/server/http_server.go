@@ -24,15 +24,25 @@ import (
 )
 
 // HTTPServer serves the dashboard-facing REST API and WebSocket notifications.
+//
+// Middleware chain for every protected route:
+//
+//	authMw -> csrfMw -> handler
+//
+// authMw populates the request context with the verified user claims;
+// csrfMw enforces signed double-submit CSRF on POST/PUT/PATCH/DELETE
+// and short-circuits safe methods. The WS upgrade is GET so it never
+// hits the CSRF gate even when wrapped, but we keep WS outside the
+// chain for clarity.
 type HTTPServer struct {
-	server         *http.Server
-	state          *state.Manager
-	broker         broker.Port
-	settings       *store.SettingsStore
-	auditLog       *audit.Logger
-	transport      *alertredis.Transport
-	log            zerolog.Logger
-	symbolMetaCache sync.Map // symbol -> symbolMeta (cached forever; digits/point never change)
+	server          *http.Server
+	state           *state.Manager
+	broker          broker.Port
+	settings        *store.SettingsStore
+	auditLog        *audit.Logger
+	transport       *alertredis.Transport
+	log             zerolog.Logger
+	symbolMetaCache sync.Map // symbol -> symbolMeta (cached forever)
 }
 
 // symbolMeta holds broker-sourced instrument metadata for the frontend.
@@ -50,6 +60,7 @@ func NewHTTPServer(
 	al *audit.Logger,
 	transport *alertredis.Transport,
 	tokenService *auth.TokenService,
+	authCfg *auth.Config,
 ) *HTTPServer {
 	s := &HTTPServer{
 		state:     sm,
@@ -62,14 +73,21 @@ func NewHTTPServer(
 
 	mux := http.NewServeMux()
 	authMw := auth.RequireAuth(tokenService)
+	csrfMw := auth.RequireCSRF(authCfg)
 
-	// Dashboard REST API (all protected).
-	mux.Handle("/api/v1/settings", authMw(http.HandlerFunc(s.handleSettings)))
-	mux.Handle("/api/v1/state", authMw(http.HandlerFunc(s.handleState)))
-	mux.Handle("/api/v1/orders/cancel", authMw(http.HandlerFunc(s.handleCancelOrder)))
-	mux.Handle("/api/v1/account", authMw(http.HandlerFunc(s.handleAccount)))
+	wrap := func(h http.HandlerFunc) http.Handler {
+		return authMw(csrfMw(http.HandlerFunc(h)))
+	}
 
-	// WebSocket notifications (protected).
+	// Dashboard REST API (all protected). RequireCSRF short-circuits
+	// safe methods so wrapping GET-only routes is uniform and free.
+	mux.Handle("/api/v1/settings", wrap(s.handleSettings))
+	mux.Handle("/api/v1/state", wrap(s.handleState))
+	mux.Handle("/api/v1/orders/cancel", wrap(s.handleCancelOrder))
+	mux.Handle("/api/v1/account", wrap(s.handleAccount))
+
+	// WebSocket notifications (auth only; the WS handshake is GET and
+	// the dashboard's WS client never POSTs, so CSRF is N/A here).
 	mux.Handle("/ws/notifications", authMw(http.HandlerFunc(alert.WebSocketHandler(transport.LocalHub()))))
 
 	// Ops endpoints (public).
@@ -78,7 +96,7 @@ func NewHTTPServer(
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      corsMiddleware(loadAllowedOrigins())(mux),
+		Handler:      corsMiddleware(loadAllowedOrigins(), authCfg.CSRFHeader)(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -88,10 +106,9 @@ func NewHTTPServer(
 }
 
 // loadAllowedOrigins reads the credentialed-CORS allow-list from env.
-// Order of precedence:
-//   1. EXECUTION_ALLOWED_ORIGINS (service-specific override)
-//   2. ALLOWED_ORIGINS           (shared with the engine so operators
-//                                 can configure one value)
+// Precedence:
+//  1. EXECUTION_ALLOWED_ORIGINS (service-specific override)
+//  2. ALLOWED_ORIGINS           (shared with engine + management)
 func loadAllowedOrigins() map[string]bool {
 	raw := strings.TrimSpace(os.Getenv("EXECUTION_ALLOWED_ORIGINS"))
 	if raw == "" {
@@ -126,9 +143,20 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 }
 
 // corsMiddleware emits credentialed-CORS headers backed by an explicit
-// allow-list. Mirrors the gateway and management policies; a single
-// `ALLOWED_ORIGINS` env var configures all three services uniformly.
-func corsMiddleware(allowed map[string]bool) func(http.Handler) http.Handler {
+// allow-list. The Allow-Headers list includes the configured CSRF
+// header name so renaming AUTH_CSRF_HEADER does not break preflights.
+func corsMiddleware(allowed map[string]bool, csrfHeaderName string) func(http.Handler) http.Handler {
+	csrfHeaderName = strings.TrimSpace(csrfHeaderName)
+	if csrfHeaderName == "" {
+		csrfHeaderName = "X-CSRF-Token"
+	}
+	allowHeaders := strings.Join([]string{
+		"Content-Type",
+		"Authorization",
+		"X-Trace-ID",
+		"X-Requested-With",
+		csrfHeaderName,
+	}, ", ")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -136,8 +164,9 @@ func corsMiddleware(allowed map[string]bool) func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Trace-ID, X-CSRF-Token, X-Requested-With")
+				w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 				w.Header().Set("Access-Control-Max-Age", "86400")
+				w.Header().Add("Vary", "Origin")
 			}
 
 			if r.Method == http.MethodOptions {
@@ -198,7 +227,6 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish settings change to the user's connected dashboards via Redis.
 	s.transport.Publish(r.Context(),
 		alert.NewEvent(alert.SourceExecution, alert.TypeSettingsUpdated, alert.SeverityInfo,
 			fmt.Sprintf("Settings updated: mode=%s, max_trades=%d", req.ExecutionMode, req.MaxConcurrentTrades)).
@@ -238,17 +266,11 @@ func (s *HTTPServer) handleState(w http.ResponseWriter, r *http.Request) {
 		equity = account.Equity
 	}
 
-	// Convert positions slice to a map keyed by symbol. The dashboard
-	// iterates open_positions with Object.entries() expecting
-	// {symbol: positionData} pairs. A flat array would produce
-	// ["0", data] entries whose keys never match the active symbol.
 	posMap := make(map[string]interface{}, len(positions))
 	for _, p := range positions {
 		posMap[p.Symbol] = p
 	}
 
-	// Build symbol_meta from broker. Cached in-memory; digits/point
-	// are immutable properties of a symbol and never change at runtime.
 	meta := make(map[string]symbolMeta, len(positions))
 	for _, p := range positions {
 		if _, exists := meta[p.Symbol]; exists {
@@ -308,9 +330,6 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		req.Reason = "MANUAL"
 	}
 
-	// Ownership verification: ensure the order belongs to this user.
-	// Refresh state to get the user's current pending orders from their
-	// own broker account, then verify the order_id is in that list.
 	userID := auth.UserIDFromContext(r.Context())
 	if err := s.state.Refresh(r.Context(), userID); err != nil {
 		s.log.Error().Err(err).Msg("cancel_order_state_refresh_failed")
@@ -344,7 +363,6 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write audit log (same as gRPC CancelPendingOrder).
 	s.auditLog.LogOrderCancelled(r.Context(), req.OrderID, req.Symbol, req.Reason, "")
 
 	s.transport.Publish(r.Context(),

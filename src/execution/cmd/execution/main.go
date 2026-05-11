@@ -190,7 +190,11 @@ func main() {
 	}()
 
 	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────────
-	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService)
+	// authCfg flows through so the HTTP server can build the CSRF
+	// middleware (auth.RequireCSRF) AND emit the configured CSRF header
+	// name in the CORS Allow-Headers preflight response. Without this,
+	// renaming AUTH_CSRF_HEADER silently broke every mutating request.
+	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService, authCfg)
 
 	go func() {
 		if err := httpServer.Start(); err != nil {
