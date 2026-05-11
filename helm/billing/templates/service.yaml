@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: {{ include "billing.namespace" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+  annotations:
+    description: "eTradie billing HTTP service (ClusterIP, port 8082)"
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  sessionAffinity: {{ .Values.service.sessionAffinity | default "None" }}
+  selector:
+    {{- include "billing.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http.port | default 8082 }}
+      targetPort: {{ .Values.service.ports.http.targetPort | default 8082 }}
+      protocol: TCP
+      appProtocol: http
