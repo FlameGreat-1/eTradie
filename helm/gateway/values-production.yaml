@@ -21,6 +21,11 @@ config:
     logJson: "true"
     logFullContextPayload: "false"
     allowedOrigins: "https://app.exoper.com,https://exoper.com"
+    # Production billing endpoint (in-cluster). Keep default for now;
+    # if we ever split billing into its own namespace, update the
+    # Service DNS here AND the egress NetworkPolicy in values.yaml.
+    billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
+    billingClientTimeoutMs: "15000"
   auth:
     # Production cross-subdomain cookie policy.
     # The SPA lives at https://app.exoper.com; the gateway lives at
