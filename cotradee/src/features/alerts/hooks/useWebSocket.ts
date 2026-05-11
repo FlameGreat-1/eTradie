@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { getAccessToken } from '@/lib/axios';
 import { env } from '@/config/env';
 
 export interface WsEvent {
@@ -13,6 +12,21 @@ export interface WsEvent {
   user_id?: string;
 }
 
+/**
+ * Legacy notifications WebSocket hook.
+ *
+ * The canonical real-time client is useNotificationsSocket in
+ * features/realtime. This file is preserved for any caller that still
+ * wires alerts.useWebSocket directly.
+ *
+ * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ *   The browser attaches the HttpOnly access_token cookie to the WS
+ *   handshake automatically. Cookies are scoped by host, not port,
+ *   so the cookie set on the gateway host rides along on a Vite
+ *   dev-server cross-origin handshake too. The gateway middleware
+ *   reads the cookie when no Sec-WebSocket-Protocol token is present.
+ *   The SPA never sees the token and cannot forward it (HttpOnly).
+ */
 export function useWebSocket(onEvent: (event: WsEvent) => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectCountRef = useRef(0);
@@ -21,11 +35,8 @@ export function useWebSocket(onEvent: (event: WsEvent) => void) {
   callbackRef.current = onEvent;
 
   const connect = useCallback(() => {
-    const token = getAccessToken();
-    if (!token) return;
-
     const url = `${env.gatewayWsUrl}/ws/notifications`;
-    const ws = new WebSocket(url, [`Bearer`, token]);
+    const ws = new WebSocket(url);
 
     ws.onopen = () => {
       reconnectCountRef.current = 0;
