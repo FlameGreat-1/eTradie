@@ -124,6 +124,17 @@ export default function LandingHero() {
               )}
             </button>
           </form>
+
+          {/* Email-capture consent line. Required for lawful waitlist
+              data collection; uses a plain <a> tag because LandingHero
+              is rendered inside the landing page which already lives
+              under the same react-router instance, and the existing
+              header anchor pattern keeps the file dependency-free. */}
+          <p className="text-[11px] mt-4 opacity-50 max-w-md mx-auto">
+            By joining the waitlist you agree to our{' '}
+            <a href="/privacy" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Privacy Policy</a>.
+            We use your email only to send launch updates and you can unsubscribe at any time.
+          </p>
         </div>
 
         {/* ── Dashboard Image Carousel ────────────────────────── */}

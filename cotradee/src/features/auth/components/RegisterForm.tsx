@@ -138,6 +138,20 @@ export default function RegisterForm() {
               </>
             )}
           </button>
+
+          {/* Sign-up consent line. The user is bound to the Terms,
+              Privacy Policy, and Risk Disclosure on submit; making
+              that explicit at the point of action is both standard
+              SaaS practice and a Paddle-compliance requirement. */}
+          <p
+            className="text-[11px] leading-relaxed opacity-60 text-center"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            By creating an account you agree to our{' '}
+            <Link to="/terms" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Terms of Service</Link>,{' '}
+            <Link to="/privacy" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Privacy Policy</Link>, and{' '}
+            <Link to="/risk-disclosure" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Risk Disclosure</Link>.
+          </p>
         </form>
       </div>
 

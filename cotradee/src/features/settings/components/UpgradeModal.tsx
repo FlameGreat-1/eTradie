@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
@@ -251,6 +252,18 @@ export default function UpgradeModal() {
             <ShieldCheck size={12} className="text-[#76b900]" />
             Secure payments handled by Paddle &amp; Lemon Squeezy. You can cancel anytime from this page.
           </div>
+
+          {/* Checkout-time compliance footnote. Required for Paddle /
+              Lemon Squeezy Merchant-of-Record platforms: the user
+              must be able to reach the Terms, Billing Policy, Refund
+              Policy, and Risk Disclosure at the moment of purchase. */}
+          <p className="text-[10px] text-white/40 leading-relaxed text-center max-w-md mx-auto">
+            By proceeding to checkout you agree to our{' '}
+            <Link to="/terms" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Terms of Service</Link>,{' '}
+            <Link to="/billing-policy" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Billing Policy</Link>,{' '}
+            <Link to="/refund" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Refund Policy</Link>, and{' '}
+            <Link to="/risk-disclosure" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Risk Disclosure</Link>.
+          </p>
         </div>
 
         {/* Footer */}

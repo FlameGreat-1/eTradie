@@ -10,6 +10,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import UpgradeModal from '@/features/settings/components/UpgradeModal';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
@@ -193,6 +194,19 @@ export default function BillingSection() {
           </div>
         </div>
       )}
+
+      {/* Always-visible policy strip. Subscribers need one-click
+          access to the documents that govern their subscription. */}
+      <div className="rounded-xl border border-border bg-surface-1 p-4">
+        <p className="text-[11px] text-content-muted leading-relaxed">
+          Subscription governed by our{' '}
+          <Link to="/billing-policy" className="text-content hover:text-brand underline underline-offset-2">Billing Policy</Link>,{' '}
+          <Link to="/refund" className="text-content hover:text-brand underline underline-offset-2">Refund Policy</Link>,{' '}
+          <Link to="/terms" className="text-content hover:text-brand underline underline-offset-2">Terms of Service</Link>, and{' '}
+          <Link to="/complaints" className="text-content hover:text-brand underline underline-offset-2">Complaints Policy</Link>.
+          Payments are processed by Paddle or Lemon Squeezy, acting as Merchant of Record.
+        </p>
+      </div>
 
       <UpgradeModal />
     </div>

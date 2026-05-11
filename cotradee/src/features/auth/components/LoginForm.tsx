@@ -126,6 +126,20 @@ export default function LoginForm() {
         </p>
         <div className="flex-1 h-px opacity-10" style={{ background: 'var(--landing-text)' }} />
       </div>
+
+      {/* Slim legal footnote. Signing in does not create a new
+          contract, but surfacing the Terms / Privacy links here is
+          standard practice and makes the documents reachable from
+          /login without forcing the user to scroll to the footer. */}
+      <p
+        className="text-[11px] leading-relaxed opacity-50 text-center"
+        style={{ color: 'var(--landing-text)' }}
+      >
+        By signing in you accept our{' '}
+        <Link to="/terms" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Terms</Link>{' '}
+        and{' '}
+        <Link to="/privacy" className="underline decoration-[#76B900]/60 underline-offset-2 hover:opacity-100">Privacy Policy</Link>.
+      </p>
     </div>
   );
 }

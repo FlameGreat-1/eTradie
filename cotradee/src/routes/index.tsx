@@ -19,6 +19,15 @@ const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
 
+/* ─── Legal & compliance pages (public, reachable by guests and authed users) ─── */
+const TermsPage           = lazy(() => import('./pages/TermsPage'));
+const PrivacyPage         = lazy(() => import('./pages/PrivacyPage'));
+const RiskDisclosurePage  = lazy(() => import('./pages/RiskDisclosurePage'));
+const RefundPage          = lazy(() => import('./pages/RefundPage'));
+const BillingPolicyPage   = lazy(() => import('./pages/BillingPolicyPage'));
+const CookiePolicyPage    = lazy(() => import('./pages/CookiePolicyPage'));
+const ComplaintsPage      = lazy(() => import('./pages/ComplaintsPage'));
+
 export function DashboardLoader() {
   return (
     <div className="flex items-center justify-center w-full h-full min-h-screen bg-app">
@@ -128,6 +137,17 @@ export default function AppRoutes() {
             </GuestRoute>
           }
         />
+        {/* ── Public legal & compliance pages ─────────────────
+            Wrapped in neither GuestRoute nor ProtectedRoute so they
+            are reachable from anywhere (marketing site, authed app,
+            external emails, Paddle compliance review). */}
+        <Route path="/terms"            element={<TermsPage />} />
+        <Route path="/privacy"          element={<PrivacyPage />} />
+        <Route path="/risk-disclosure"  element={<RiskDisclosurePage />} />
+        <Route path="/refund"           element={<RefundPage />} />
+        <Route path="/billing-policy"   element={<BillingPolicyPage />} />
+        <Route path="/cookie"           element={<CookiePolicyPage />} />
+        <Route path="/complaints"       element={<ComplaintsPage />} />
         <Route
           path="/dashboard/*"
           element={
