@@ -195,24 +195,13 @@ func TestRequireAuth_NoCredentialsReturns401(t *testing.T) {
 	}
 }
 
-func TestRequireAuth_WSUpgradeNoSubprotocolStillRejectedEvenWithCookie(t *testing.T) {
-	// Regression guard: a WS handshake must never silently accept
-	// the access_token cookie. The WS channel is single-source
-	// (subprotocol only) for diagnostic clarity.
-	ts, token := buildTestTokenService(t)
-	handler := RequireAuth(ts)(http.HandlerFunc(protectedHandler))
-
-	req := httptest.NewRequest(http.MethodGet, "/ws/notifications", nil)
-	req.Header.Set("Upgrade", "websocket")
-	req.Header.Set("Connection", "Upgrade")
-	req.AddCookie(&http.Cookie{Name: AccessTokenCookieName, Value: token})
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("WS upgrade must NOT fall back to cookie; status = %d, want 401", rec.Code)
-	}
-}
+// NOTE: A previous regression-guard test asserted that WS upgrades
+// must REJECT a cookie-only authentication request. That contradicts
+// the deliberate design in src/auth/middleware.go::extractAndVerifyHTTP
+// where the cookie branch is the only browser-safe WS auth channel
+// (HttpOnly cookies cannot be read by JS to put into
+// Sec-WebSocket-Protocol). TestRequireAuth_WSAcceptsCookie above
+// pins the correct contract.
 
 func TestOptionalAuth_PassesThroughOnNoCookie(t *testing.T) {
 	ts, _ := buildTestTokenService(t)

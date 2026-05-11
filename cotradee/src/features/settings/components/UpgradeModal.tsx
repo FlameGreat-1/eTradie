@@ -1,12 +1,53 @@
 import { useEffect, useState } from 'react';
 import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server } from 'lucide-react';
 import { AxiosError } from 'axios';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 import { useToast } from '@/hooks/useToast';
 
 interface Subscription {
   tier: string;
   status: string;
+  current_period_end?: string | null;
+}
+
+/**
+ * Canonical React Query key for the current user's billing
+ * subscription. Exported (lowercase const) so the rest of the SPA can
+ * import it for cache-key consistency, and so the realtime event map
+ * (features/realtime/eventMap.ts) invalidates the same key when a
+ * SUBSCRIPTION_* webhook lands.
+ */
+export const BILLING_SUBSCRIPTION_QUERY_KEY = ['billing', 'subscription'] as const;
+
+/** Fetch the current subscription via the gateway's billing endpoint. */
+async function fetchSubscription(): Promise<Subscription> {
+  const { data } = await api.gateway.get<Subscription>('/api/v1/billing/subscription');
+  return data;
+}
+
+/**
+ * Shared hook so any caller (the modal, a Pro-gated feature, the header
+ * badge) reads from the SAME React Query cache. A single SUBSCRIPTION_*
+ * realtime event invalidates this key and every caller refetches in
+ * lockstep.
+ */
+export function useBillingSubscription() {
+  return useQuery<Subscription>({
+    queryKey: BILLING_SUBSCRIPTION_QUERY_KEY,
+    queryFn: fetchSubscription,
+    // Matches the gateway's in-process subscription cache TTL so we
+    // don't hammer the API on rapid tab/page switches but still pick
+    // up server-pushed invalidations promptly.
+    staleTime: 30_000,
+    retry: (failureCount, error: unknown) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      // 401/403/404 are permanent for this endpoint; everything else
+      // gets one retry (covers the gateway's 503 transient response).
+      if (status && status >= 400 && status < 500) return false;
+      return failureCount < 1;
+    },
+  });
 }
 
 type Provider = 'paddle' | 'lemonsqueezy';
@@ -30,14 +71,18 @@ export default function UpgradeModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingTier, setLoadingTier] = useState<Tier | null>(null);
   const [provider, setProvider] = useState<Provider>('paddle');
-  const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
   const { toast } = useToast();
+
+  // Read subscription state from the shared React Query cache. The
+  // realtime event provider invalidates this key when a SUBSCRIPTION_*
+  // event arrives, so the modal reflects post-payment tier changes
+  // without any extra wiring.
+  const { data: currentSub } = useBillingSubscription();
 
   useEffect(() => {
     const handleOpen = () => {
       setIsOpen(true);
       document.body.style.overflow = 'hidden';
-      void fetchSubscription();
     };
 
     window.addEventListener('open-upgrade-modal', handleOpen);
@@ -46,22 +91,6 @@ export default function UpgradeModal() {
       document.body.style.overflow = 'auto';
     };
   }, []);
-
-  const fetchSubscription = async () => {
-    try {
-      const { data } = await api.gateway.get<Subscription>('/api/v1/billing/subscription');
-      setCurrentSub(data);
-    } catch (err) {
-      // 404 on a fresh free user is normal (no billing_subscriptions
-      // row yet); the gateway maps that to the default tier in the
-      // server response, so axios only throws on transport / 5xx.
-      // Treat any failure as 'no subscription info' rather than
-      // surfacing a toast — the modal still works for free users.
-      if (!(err instanceof AxiosError) || err.response?.status !== 401) {
-        console.error('Failed to fetch subscription:', err);
-      }
-    }
-  };
 
   const handleClose = () => {
     setIsOpen(false);
@@ -87,10 +116,42 @@ export default function UpgradeModal() {
       });
       window.location.href = checkoutURL;
     } catch (err) {
-      // Surface the server-side reason so the user sees the real
-      // failure mode (`checkout rejected by billing service`,
-      // `billing service unavailable`, etc.) instead of a generic
-      // message. axios puts the parsed response body on err.response.
+      // Special case: 409 "already subscribed" from the gateway's
+      // current-tier guard. The user is already on a paid plan and
+      // the platform refuses to create a SECOND provider subscription
+      // for them — this is the double-charge defence, not a bug.
+      // Show a friendly toast that explains the existing state
+      // instead of the generic "Upgrade Failed" message.
+      if (
+        err instanceof AxiosError &&
+        err.response?.status === 409 &&
+        (err.response.data as { error?: string } | undefined)?.error === 'already subscribed'
+      ) {
+        const body = err.response.data as {
+          current_tier?: string;
+          current_status?: string;
+          current_period_end?: string | null;
+        };
+        const tierLabel = body.current_tier === 'pro_managed' ? 'Pro Managed' :
+                          body.current_tier === 'pro_byok'    ? 'Pro BYOK'    :
+                          body.current_tier ?? 'Pro';
+        toast({
+          title: 'Already on a Pro plan',
+          description:
+            `You're already subscribed to ${tierLabel}` +
+            (body.current_status && body.current_status !== 'active'
+              ? ` (status: ${body.current_status})`
+              : '') +
+            '. Cancel or change your plan from your provider dashboard before initiating a new checkout.',
+        });
+        return;
+      }
+
+      // Generic failure path — surface the server-side reason so the
+      // user sees the real failure mode (`checkout rejected by
+      // billing service`, `billing service unavailable`, etc.)
+      // instead of a generic message. axios puts the parsed response
+      // body on err.response.
       let serverMessage = 'Unable to start checkout.';
       if (err instanceof AxiosError) {
         const body = err.response?.data as { error?: string } | undefined;

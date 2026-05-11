@@ -45,10 +45,38 @@ var (
 // CheckoutService creates one-shot checkout URLs against the configured
 // payment providers. It owns the provider API keys; user-facing services
 // never see them.
+//
+// Idempotency invariant: the same (user_id, provider, tier) tuple resolves
+// to the SAME checkout URL for `intentTTL` (default 5 minutes). This
+// defeats double-click and navigation-race double-charges. The cache is
+// backed by billing_checkout_intents and pruned by the reconciler janitor;
+// callers do not need to manage lifecycle.
 type CheckoutService struct {
-	cfg    CheckoutConfig
-	client *http.Client
-	log    zerolog.Logger
+	cfg       CheckoutConfig
+	client    *http.Client
+	log       zerolog.Logger
+	intents   checkoutIntentStore // optional; nil disables the cache for tests
+	intentTTL time.Duration
+}
+
+// checkoutIntentStore is the narrow contract the service needs from the
+// idempotency cache. *store.CheckoutIntentStore satisfies it directly.
+// Declared here as an interface so unit tests can inject a fake without
+// importing the store package.
+type checkoutIntentStore interface {
+	Get(ctx context.Context, userID, provider, tier string) (*checkoutIntent, error)
+	Record(ctx context.Context, intent *checkoutIntent) error
+}
+
+// checkoutIntent mirrors store.CheckoutIntent. A local alias keeps the
+// service decoupled from the store package's concrete type so this file
+// remains importable from tests that supply only the interface.
+type checkoutIntent struct {
+	UserID      string
+	Provider    string
+	Tier        string
+	CheckoutURL string
+	ExpiresAt   time.Time
 }
 
 // CheckoutConfig is the static config the service needs. Loaded from env
@@ -70,6 +98,10 @@ type CheckoutConfig struct {
 }
 
 // NewCheckoutService validates config and returns a ready-to-use service.
+//
+// The idempotency cache is OPTIONAL. Production callers MUST supply one via
+// WithIntentCache; the test harness can call NewCheckoutService alone and get
+// a service that bypasses the cache (every call reaches the provider).
 func NewCheckoutService(cfg CheckoutConfig, log zerolog.Logger) (*CheckoutService, error) {
 	if cfg.HTTPTimeout <= 0 {
 		cfg.HTTPTimeout = 10 * time.Second
@@ -78,13 +110,64 @@ func NewCheckoutService(cfg CheckoutConfig, log zerolog.Logger) (*CheckoutServic
 		return nil, errors.New("billing: checkout success/cancel URLs are required")
 	}
 	return &CheckoutService{
-		cfg:    cfg,
-		client: &http.Client{Timeout: cfg.HTTPTimeout},
-		log:    log,
+		cfg:       cfg,
+		client:    &http.Client{Timeout: cfg.HTTPTimeout},
+		log:       log,
+		intentTTL: 5 * time.Minute,
 	}, nil
 }
 
+// WithIntentCache attaches the idempotency cache. Wired in main.go
+// against *store.CheckoutIntentStore. The store is wrapped by a small
+// in-place adapter so this package does not import the store package.
+func (c *CheckoutService) WithIntentCache(
+	get func(ctx context.Context, userID, provider, tier string) (userID2, providerOut, tierOut, url string, expiresAt time.Time, ok bool, err error),
+	record func(ctx context.Context, userID, provider, tier, url string, expiresAt time.Time) error,
+) {
+	c.intents = adapterIntentStore{getFn: get, recordFn: record}
+}
+
+// SetIntentTTL overrides the default cache window. Optional; bounds 1–60 min.
+func (c *CheckoutService) SetIntentTTL(ttl time.Duration) {
+	if ttl < time.Minute {
+		ttl = time.Minute
+	}
+	if ttl > 60*time.Minute {
+		ttl = 60 * time.Minute
+	}
+	c.intentTTL = ttl
+}
+
+// adapterIntentStore lifts caller-supplied closures (over the concrete
+// *store.CheckoutIntentStore) into the interface this package expects.
+// Keeps the store import out of the service package.
+type adapterIntentStore struct {
+	getFn func(ctx context.Context, userID, provider, tier string) (string, string, string, string, time.Time, bool, error)
+	recordFn func(ctx context.Context, userID, provider, tier, url string, expiresAt time.Time) error
+}
+
+func (a adapterIntentStore) Get(ctx context.Context, userID, provider, tier string) (*checkoutIntent, error) {
+	u, p, t, url, exp, ok, err := a.getFn(ctx, userID, provider, tier)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("billing: checkout intent cache miss")
+	}
+	return &checkoutIntent{UserID: u, Provider: p, Tier: t, CheckoutURL: url, ExpiresAt: exp}, nil
+}
+
+func (a adapterIntentStore) Record(ctx context.Context, intent *checkoutIntent) error {
+	return a.recordFn(ctx, intent.UserID, intent.Provider, intent.Tier, intent.CheckoutURL, intent.ExpiresAt)
+}
+
 // CreateCheckout dispatches by provider and returns the redirect URL.
+//
+// The idempotency cache (when configured) short-circuits when a fresh
+// (user, provider, tier) cache entry exists, so a double-click on the
+// SPA's Upgrade button always returns the SAME checkout URL within the
+// TTL window. This is the platform's primary defence against
+// double-charge — the provider's own idempotency catches the rest.
 func (c *CheckoutService) CreateCheckout(ctx context.Context, req CheckoutRequest) (*CheckoutResponse, error) {
 	if !events.IsValidTier(req.Tier) || req.Tier == events.TierFree {
 		return nil, ErrInvalidTier
@@ -93,13 +176,47 @@ func (c *CheckoutService) CreateCheckout(ctx context.Context, req CheckoutReques
 		return nil, errors.New("billing: user_id is required")
 	}
 
-	switch strings.ToLower(strings.TrimSpace(req.Provider)) {
-	case "paddle":
-		return c.createPaddleCheckout(ctx, req)
-	case "lemonsqueezy":
-		return c.createLemonSqueezyCheckout(ctx, req)
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	tierStr := string(req.Tier)
+
+	// 1. Cache hit: return the existing URL. Provider is never called.
+	if c.intents != nil {
+		if cached, err := c.intents.Get(ctx, req.UserID, provider, tierStr); err == nil && cached != nil && cached.CheckoutURL != "" {
+			return &CheckoutResponse{CheckoutURL: cached.CheckoutURL}, nil
+		}
 	}
-	return nil, ErrInvalidProvider
+
+	// 2. Cache miss: dispatch to the provider.
+	var (
+		resp *CheckoutResponse
+		err  error
+	)
+	switch provider {
+	case "paddle":
+		resp, err = c.createPaddleCheckout(ctx, req)
+	case "lemonsqueezy":
+		resp, err = c.createLemonSqueezyCheckout(ctx, req)
+	default:
+		return nil, ErrInvalidProvider
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Best-effort cache write. Failure here is non-fatal: the
+	//    customer's checkout still works; we just lose the
+	//    double-click defence for this one window. Provider-side
+	//    idempotency is the second layer.
+	if c.intents != nil && resp != nil && resp.CheckoutURL != "" {
+		_ = c.intents.Record(ctx, &checkoutIntent{
+			UserID:      req.UserID,
+			Provider:    provider,
+			Tier:        tierStr,
+			CheckoutURL: resp.CheckoutURL,
+			ExpiresAt:   time.Now().UTC().Add(c.intentTTL),
+		})
+	}
+	return resp, nil
 }
 
 // ---------------------------------------------------------------------------

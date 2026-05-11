@@ -236,7 +236,19 @@ def create_app() -> FastAPI:
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-Trace-ID"],
+        # X-CSRF-Token is added so mutating engine calls from the SPA
+        # (e.g. POST /api/analysis/rerun) pass the CORS preflight when
+        # the axios interceptor attaches the double-submit header.
+        # X-Requested-With is allowed for compatibility with libraries
+        # that add it on XHR. Authorization remains in the list for
+        # CLI / server-to-server callers that still send Bearer tokens.
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-CSRF-Token",
+            "X-Trace-ID",
+            "X-Requested-With",
+        ],
         max_age=86400,
     )
 

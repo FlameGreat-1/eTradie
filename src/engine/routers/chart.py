@@ -455,18 +455,39 @@ async def chart_candles(
 async def stream_ticks(websocket: WebSocket):
     """True WebSocket stream of live tick prices for the dashboard chart.
 
-    Protocol:
-      1. Client connects and sends an init message:
-         { "symbol": "USDJPYm", "token": "<jwt>" }
-      2. Server authenticates, then pushes tick frames every ~500ms:
-         { "bid": 149.123, "ask": 149.125, "time": 1713765600 }
-      3. Client can send a symbol-switch message at any time:
-         { "symbol": "EURUSDm" }
-      4. Either side can close the connection.
+    Protocol (cookie-auth):
+      1. Browser opens the WS — the gateway-issued access_token cookie
+         rides along on the upgrade automatically (HttpOnly, scoped by
+         host under RFC 6265 §5.4). The user is resolved from the cookie
+         BEFORE the init frame.
+      2. Client sends an init frame: { "symbol": "USDJPYm" }.
+         For non-browser CLI clients only, a { "token": "<jwt>" } field
+         is still accepted on the init frame (preserved as a third
+         channel by engine.shared.auth.verify_token_from_websocket).
+      3. Server pushes tick frames: { "bid", "ask", "time", "symbol" }.
+      4. Client can send a symbol-switch frame at any time:
+         { "symbol": "EURUSDm" }.
+      5. Either side can close the connection.
     """
+    from engine.shared.auth import AuthError, verify_token_from_websocket
+
     await websocket.accept()
 
-    # Step 1: Wait for init message with token and symbol.
+    # Step 1: Authenticate from the upgrade cookie / Authorization
+    # header BEFORE reading the init frame. This way a missing init
+    # frame on a valid cookie-auth session can still be diagnosed as
+    # a protocol error rather than an auth error.
+    try:
+        user = await verify_token_from_websocket(websocket, init_message=None)
+        user_id = user.user_id
+    except AuthError:
+        # No upgrade-time credentials — fall through to the init frame
+        # path so legacy non-browser clients can still authenticate.
+        user = None
+        user_id = ""
+
+    # Step 2: Read the init frame for the symbol (and, for legacy
+    # clients, an optional token).
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
         init_msg = json.loads(raw)
@@ -474,32 +495,31 @@ async def stream_ticks(websocket: WebSocket):
         return
     except Exception:
         try:
-            await websocket.close(code=4001, reason="Expected init message with token and symbol")
+            await websocket.close(code=4001, reason="Expected init message with symbol")
         except Exception:
             pass
         return
 
-    token = init_msg.get("token", "")
     symbol = init_msg.get("symbol", "")
-
-    if not token or not symbol:
+    if not symbol:
         try:
-            await websocket.close(code=4002, reason="token and symbol required")
+            await websocket.close(code=4002, reason="symbol required")
         except Exception:
             pass
         return
 
-    # Step 2: Authenticate the JWT.
-    from engine.shared.auth import _verify_token
-    try:
-        user = _verify_token(token)
-        user_id = user.user_id
-    except Exception:
+    # If upgrade-time auth failed, try the init-frame token as a
+    # last-resort channel for legacy clients.
+    if user is None:
         try:
-            await websocket.close(code=4003, reason="Invalid or expired token")
-        except Exception:
-            pass
-        return
+            user = await verify_token_from_websocket(websocket, init_message=init_msg)
+            user_id = user.user_id
+        except AuthError as exc:
+            try:
+                await websocket.close(code=4003, reason=f"Unauthorized: {exc}")
+            except Exception:
+                pass
+            return
 
     container: Container = websocket.app.state.container
     broker_client = await container.load_user_broker(user_id)
@@ -569,44 +589,51 @@ async def stream_ticks(websocket: WebSocket):
 async def stream_positions(websocket: WebSocket):
     """WebSocket stream of live position updates.
 
-    Protocol:
-      1. Client connects and sends an init message:
-         { "token": "<jwt>" }
-      2. Server authenticates, then polls positions every 1s and pushes changes:
+    Protocol (cookie-auth):
+      1. Browser opens the WS — access_token cookie rides along
+         automatically; the user is resolved from the cookie BEFORE
+         any init frame. An optional init frame `{}` (or `{ token }`
+         for legacy CLI clients) is accepted but not required.
+      2. Server polls positions every 1 s and pushes diffs:
          [{ "ticket": 12345, "sl": 1.05, "tp": 1.10, ... }]
     """
+    from engine.shared.auth import AuthError, verify_token_from_websocket
+
     await websocket.accept()
 
+    # Step 1: Authenticate from the upgrade cookie / header first.
     try:
-        raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
-        init_msg = json.loads(raw)
-    except WebSocketDisconnect:
-        return
-    except Exception:
-        try:
-            await websocket.close(code=4001, reason="Expected init message with token")
-        except Exception:
-            pass
-        return
-
-    token = init_msg.get("token", "")
-    if not token:
-        try:
-            await websocket.close(code=4002, reason="token required")
-        except Exception:
-            pass
-        return
-
-    from engine.shared.auth import _verify_token
-    try:
-        user = _verify_token(token)
+        user = await verify_token_from_websocket(websocket, init_message=None)
         user_id = user.user_id
-    except Exception:
+    except AuthError:
+        user = None
+        user_id = ""
+
+    # Step 2: For legacy clients, accept an init frame carrying a
+    # `token` field. Cookie-auth browsers don't need an init frame at
+    # all; we tolerate a missing one in that case.
+    if user is None:
         try:
-            await websocket.close(code=4003, reason="Invalid or expired token")
+            raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+            init_msg = json.loads(raw)
+        except WebSocketDisconnect:
+            return
         except Exception:
-            pass
-        return
+            try:
+                await websocket.close(code=4001, reason="Expected init message with token")
+            except Exception:
+                pass
+            return
+
+        try:
+            user = await verify_token_from_websocket(websocket, init_message=init_msg)
+            user_id = user.user_id
+        except AuthError as exc:
+            try:
+                await websocket.close(code=4003, reason=f"Unauthorized: {exc}")
+            except Exception:
+                pass
+            return
 
     container: Container = websocket.app.state.container
     broker_client = await container.load_user_broker(user_id)

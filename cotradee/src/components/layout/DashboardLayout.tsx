@@ -61,7 +61,11 @@ function DashboardLayout({ children }: Props) {
           {children}
         </ErrorBoundary>
 
-        {/* Live reasoning overlay — only on the dashboard route. */}
+        {/* Live reasoning overlay — only on the dashboard route.
+            `dismissed_analysis_id` is a UI preference (see
+            docs/cookie-auth.md): it stops the same completed
+            analysis from popping back up after the user has read
+            it. No credential is stored under this key. */}
         {onDashboard && isOverlayVisible && (
           <AnalysisOverlay
             stream={stream}

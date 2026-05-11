@@ -7,19 +7,20 @@ import { useAuth } from '@/features/auth';
  *
  * Opens an SSE connection to `${env.engineUrl}/api/analysis/stream-live`.
  *
- * Cookie-auth (Batch 11 / fix/cookie-auth-finalize-frontend):
+ * Cookie-auth (Batch 11 + cookie-auth-engine-and-services):
  *   fetch() is called with credentials:'include' so the browser
- *   attaches the HttpOnly access_token cookie. Cookies set on the
- *   gateway host are sent to the engine host because cookies are
- *   scoped by host (not port) under RFC 6265. The engine resolves
- *   the user from the cookie exactly like the gateway does (see
- *   src/auth/middleware.go::AccessTokenFromCookie); a follow-up
- *   Python change wires the engine to read the same cookie name.
+ *   attaches the HttpOnly access_token cookie. The engine reads the
+ *   cookie via `engine.shared.auth.get_current_user` exactly the
+ *   way it reads `Authorization: Bearer <token>` from CLI clients.
+ *   No Authorization header is sent from the browser — the cookie
+ *   IS the auth channel.
  *
- *   No Authorization header is sent. The previous implementation
- *   read getAccessToken() (a Batch-11 no-op returning '') and sent
- *   `Authorization: Bearer ` (literally empty Bearer), which the
- *   engine correctly rejected with 401.
+ *   Cross-host topology requirement: the cookie has to actually
+ *   reach the engine. On a single-host or cross-subdomain
+ *   deployment with AUTH_COOKIE_DOMAIN set to the registrable
+ *   domain, this is automatic. See docs/cookie-auth.md §4.4 for
+ *   the constraint when the gateway and engine live on different
+ *   registrable domains.
  *
  * Contract matching the engine's publish format:
  *   { type: 'status',           message: string, symbol?: string }

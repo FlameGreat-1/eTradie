@@ -22,6 +22,12 @@ import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown
 import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal';
 import { NotificationsPanel } from '@/features/alerts/components/NotificationsPanel';
 
+// localStorage keys used by this component are UI PREFERENCES ONLY.
+// They persist the user's last-selected trading pair and timeframe so
+// re-entering the dashboard does not feel jarring. No authentication
+// token, refresh token, or anything else security-sensitive is ever
+// written under these keys — those live in HttpOnly cookies set by
+// the gateway and are unreadable from JS (see docs/cookie-auth.md).
 const SYMBOL_KEY = 'active_symbol';
 const TF_KEY = 'active_tf';
 

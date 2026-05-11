@@ -59,7 +59,14 @@ AUTH_COOKIE_SECURE=false
 AUTH_COOKIE_SAMESITE=Lax
 AUTH_CSRF_HEADER=X-CSRF-Token
 GATEWAY_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000
 ```
+
+`ALLOWED_ORIGINS` is shared by the engine, management, and execution
+HTTP servers; `GATEWAY_ALLOWED_ORIGINS` is the gateway's own list.
+The SPA origin must appear in BOTH variables because the SPA talks
+to all four services directly via `api.gateway`, `api.engine`,
+`api.management`, and `api.execution`.
 
 Why `Secure=false`: browsers refuse to store cookies with the
 `Secure` attribute over plain HTTP. The next request arrives without
@@ -87,6 +94,7 @@ AUTH_COOKIE_SECURE=true
 AUTH_COOKIE_SAMESITE=Strict
 AUTH_CSRF_HEADER=X-CSRF-Token
 GATEWAY_ALLOWED_ORIGINS=https://app.example.com
+ALLOWED_ORIGINS=https://app.example.com
 ```
 
 This is the most secure topology: same-site `Strict` cookies cannot
@@ -102,7 +110,20 @@ AUTH_COOKIE_SECURE=true
 AUTH_COOKIE_SAMESITE=None
 AUTH_CSRF_HEADER=X-CSRF-Token
 GATEWAY_ALLOWED_ORIGINS=https://app.exoper.com
+ALLOWED_ORIGINS=https://app.exoper.com
 ```
+
+`AUTH_COOKIE_DOMAIN=.exoper.com` is the **mandatory** knob that
+makes the cookies set by the gateway (`api.exoper.com`) reach the
+engine (`engine.exoper.com`) and any other backend that lives on
+`*.exoper.com`. Per RFC 6265 §5.4 the browser does not send a
+host-only cookie to a sibling subdomain; setting the registrable
+domain (with a leading dot) is the only fix. If your engine lives
+at an entirely different registrable domain (e.g.
+`api.example.com` + `engine.elsewhere.com`), cookies will NOT cross
+the boundary and the engine must be made same-origin by routing it
+through the gateway or by serving it from a sibling subdomain of
+the SPA.
 
 `SameSite=None` is required for the browser to attach cookies on a
 true cross-site fetch. Browsers reject `None`+`Secure=false`; the
@@ -146,6 +167,24 @@ header.
 identity is resolved from the access cookie on the upgrade request,
 not from the body.
 
+### 4.4 Cookie scoping on the engine SSE / WS streams
+
+Cookies are scoped by **host** (not port) under RFC 6265 §5.4. The
+implication for the engine streams is:
+
+* **Local dev** (`localhost:8080` gateway + `localhost:8000` engine):
+  cookies set on `localhost` are sent to both ports. No action needed.
+* **Same-host production** (gateway + engine reverse-proxied behind
+  one hostname): same as local dev.
+* **Cross-subdomain production** (`api.exoper.com` gateway,
+  `engine.exoper.com` engine): `AUTH_COOKIE_DOMAIN=.exoper.com` is
+  mandatory. Without it, the cookie set by the gateway never reaches
+  the engine and every SSE / WS handshake 401s.
+* **Cross-registrable-domain production** (e.g. gateway on
+  `api.example.com`, engine on `engine.elsewhere.com`): the cookie
+  cannot cross the boundary at all. Move the engine behind the same
+  registrable domain or proxy its routes through the gateway.
+
 ## 5. CORS
 
 The gateway HTTP server (`src/gateway/internal/server/http_server.go::
@@ -172,7 +211,10 @@ already correct.
 | 403 `csrf token missing or invalid` on a POST that worked before        | `csrf_token` cookie absent or stale (e.g. after a tab kept open across a logout in another tab). | Reload the SPA. The login response will mint a fresh `csrf_token` cookie that the axios interceptor will pick up on the next call. |
 | Cookies set in browser dev-tools but not sent on subsequent requests    | Origin mismatch — the SPA is being served from a hostname NOT in `GATEWAY_ALLOWED_ORIGINS`. | Add the exact origin (scheme + host + port) to `GATEWAY_ALLOWED_ORIGINS` and restart the gateway.                                  |
 | WS notification socket never connects but `/auth/me` works              | Pre-fix gateway binary refusing the access-cookie on WS upgrades.                            | Run the binary built from `fix/cookie-auth-finalize-frontend` or newer. Middleware now reads the cookie on WS handshakes.          |
-| SSE reasoning stream 401s repeatedly                                    | Engine-side cookie reader not yet wired (Python follow-up).                                  | Until the engine is updated, the overlay falls back to the DB-hydrated reasoning. No frontend action required.                     |
+| SSE reasoning stream 401s repeatedly                                    | `ALLOWED_ORIGINS` on the engine does not include the SPA origin, OR cookies are not crossing hosts in cross-subdomain production. | Add the SPA origin to `ALLOWED_ORIGINS`. For cross-subdomain prod, set `AUTH_COOKIE_DOMAIN` to the registrable domain (`.example.com`). |
+| Management or execution REST call 403 on CORS preflight                 | `MANAGEMENT_ALLOWED_ORIGINS` / `EXECUTION_ALLOWED_ORIGINS` / `ALLOWED_ORIGINS` empty.        | Set `ALLOWED_ORIGINS` (or the service-specific override) to include the SPA origin.                                                |
+| POST 403 "csrf token missing or invalid" right after an idle period that triggered a silent refresh | Old `X-CSRF-Token` header on the QUEUED request was still attached after the refresh rotated the cookie. | Already fixed in `cotradee/src/lib/axios.ts` (re-stamps the header at retry). If you still see this, hard-reload the SPA.            |
+| Logging out in one tab leaves a stale signed-in shell in another tab    | `storage` event listener not installed (very old SPA bundle).                                | Hard-reload every tab. Post-fix, `broadcastLogoutAndRedirect` writes `etradie:auth:logout` to `localStorage` and peer tabs redirect.|
 | `COOKIE_SAMESITE=None requires COOKIE_SECURE=true` startup error        | Production deploy set `SameSite=None` without `Secure=true`.                                | Set `AUTH_COOKIE_SECURE=true`. Browsers reject the unsafe combination anyway; failing fast at startup is correct.                  |
 
 ## 7. Verifying the deployment
