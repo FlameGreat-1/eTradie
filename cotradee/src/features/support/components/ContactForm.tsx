@@ -118,7 +118,7 @@ function ContactForm({
     return (
       <section className={shell} aria-labelledby="contact-success-heading">
         <div className="flex items-start gap-3">
-          <span className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/12 text-emerald-500 shrink-0">
+          <span className="flex items-center justify-center w-10 h-10 rounded-full bg-success-soft text-success shrink-0">
             <CheckCircle2 size={20} />
           </span>
           <div className="flex-1">
@@ -278,7 +278,7 @@ function FieldText({
                    placeholder:text-content-muted focus-ring outline-none"
       />
       {error && (
-        <p id={`${id}-error`} className="text-[11px] text-red-500">
+        <p id={`${id}-error`} className="text-[11px] text-danger">
           {error}
         </p>
       )}
@@ -327,7 +327,7 @@ function FieldTextarea({
       />
       <div className="flex items-center justify-between">
         {error ? (
-          <p id={`${id}-error`} className="text-[11px] text-red-500">
+          <p id={`${id}-error`} className="text-[11px] text-danger">
             {error}
           </p>
         ) : (
