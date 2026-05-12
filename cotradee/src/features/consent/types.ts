@@ -105,5 +105,14 @@ export interface ConsentState {
  * Matches the 'Effective:' date displayed on the Cookie Policy page.
  * Change in lockstep with the legal document; a mismatch is a
  * compliance defect.
+ *
+ * Bumped to 2026-05-12 when:
+ *   - Functional consent was wired through to ThemeProvider so the
+ *     toggle now genuinely gates theme persistence.
+ *   - The Analytics description was corrected to reflect that the
+ *     SPA performs no analytics processing today; the toggle is
+ *     preserved for forward compatibility and to honour the user's
+ *     future-state preference, but the prior copy that implied
+ *     active collection has been replaced.
  */
-export const CONSENT_POLICY_VERSION = '2026-01-01';
+export const CONSENT_POLICY_VERSION = '2026-05-12';

@@ -138,7 +138,11 @@ export default function ConsentPreferencesModal() {
             </div>
           </div>
 
-          {/* Functional */}
+          {/* Functional — genuinely gates theme persistence in
+              ThemeProvider. Granting writes the chosen theme to
+              localStorage so the next visit is remembered; revoking
+              deletes the stored key and keeps the theme only for the
+              current tab. See providers/ThemeProvider.tsx. */}
           <div className="consent-category">
             <div className="consent-category-header">
               <div className="consent-category-title">Functional</div>
@@ -153,12 +157,18 @@ export default function ConsentPreferencesModal() {
               />
             </div>
             <div className="consent-category-desc">
-              Remember your preferences such as theme, workspace layout,
-              active symbol, and dismissed onboarding steps.
+              Remember your theme preference across visits. When
+              disabled, your theme choice still applies for the current
+              tab but is not stored on your device.
             </div>
           </div>
 
-          {/* Analytics */}
+          {/* Analytics — dormant. No analytics SDK is installed and
+              no component consumes useHasConsent('analytics'). The
+              toggle is preserved so a future rollout honours the
+              user's pre-recorded preference rather than treating the
+              decision as fresh; the description is explicit that
+              nothing is collected today. */}
           <div className="consent-category">
             <div className="consent-category-header">
               <div className="consent-category-title">Analytics</div>
@@ -173,9 +183,13 @@ export default function ConsentPreferencesModal() {
               />
             </div>
             <div className="consent-category-desc">
-              Aggregated, pseudonymous usage data so we can improve
-              reliability and performance. Never used for advertising and
-              never combined with broker or trading data.
+              Not currently in use. If introduced in the future, these
+              cookies would help us collect aggregated, pseudonymous
+              usage data to improve reliability and performance. Your
+              choice here is recorded today and will be honoured
+              automatically if analytics is ever enabled. Never used
+              for advertising and never combined with broker or
+              trading data.
             </div>
           </div>
         </div>
