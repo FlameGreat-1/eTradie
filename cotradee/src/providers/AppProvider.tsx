@@ -15,13 +15,18 @@ import type { ReactNode } from 'react';
  *  1. BrowserRouter   → routing primitives
  *  2. QueryClient     → server-state cache (must wrap Realtime so it
  *                       can call invalidateQueries)
- *  3. ThemeProvider   → token + class binding on <html>
- *  4. AuthProvider    → session state (must wrap Realtime so the
+ *  3. AuthProvider    → session state (must wrap Realtime so the
  *                       socket only opens when authenticated; must
  *                       also wrap Consent so the attach-on-login
  *                       bridge can subscribe to auth state)
- *  5. ConsentProvider → cookie-consent state. Mounted inside Auth so
+ *  4. ConsentProvider → cookie-consent state. Mounted inside Auth so
  *                       its ConsentAuthBridge can read useAuth().
+ *                       MUST sit above ThemeProvider so ThemeProvider
+ *                       can read Functional consent and only persist
+ *                       the theme to localStorage when granted.
+ *  5. ThemeProvider   → token + class binding on <html>. Reads
+ *                       useHasConsent('functional') to decide whether
+ *                       it may write the theme to localStorage.
  *  6. RealtimeProvider→ single WS that drives instant invalidations
  *                       across all panels.
  */
@@ -34,14 +39,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <AuthProvider>
-            <ConsentProvider>
-              <ConsentAuthBridge />
+        <AuthProvider>
+          <ConsentProvider>
+            <ConsentAuthBridge />
+            <ThemeProvider>
               <RealtimeProvider>{children}</RealtimeProvider>
-            </ConsentProvider>
-          </AuthProvider>
-        </ThemeProvider>
+            </ThemeProvider>
+          </ConsentProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>
   );
