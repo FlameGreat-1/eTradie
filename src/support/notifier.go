@@ -175,6 +175,17 @@ func (n *Notifier) Notify(ctx context.Context, ev Event) {
 // ----------------------------------------------------------------------
 
 func (n *Notifier) sendEmail(ev Event) {
+	start := time.Now()
+	// We treat email as 'delivered' once SendWithRetry returns. The
+	// mails.Sender handles its own retry budget internally and logs
+	// per-attempt failures; from the support module's vantage point
+	// the call is fire-and-return, so we observe a single duration
+	// and one delivered outcome per call cluster.
+	defer func() {
+		SupportNotificationDuration.WithLabelValues(channelLabelEmail).Observe(time.Since(start).Seconds())
+		SupportNotificationsTotal.WithLabelValues(channelLabelEmail, outcomeDelivered).Inc()
+	}()
+
 	inbox := n.cfg.RouteInbox(ev.Ticket.Category)
 	if inbox == "" {
 		return
@@ -497,6 +508,17 @@ func (n *Notifier) postWithRetry(
 	body []byte,
 	extraHeaders map[string]string,
 ) {
+	start := time.Now()
+	// outcome is set to its final value before any early return so
+	// the deferred Observe always sees a meaningful label. Defaults
+	// to 'failed' so a panic at any point still produces a useful
+	// metric line.
+	outcome := outcomeFailed
+	defer func() {
+		SupportNotificationDuration.WithLabelValues(channel).Observe(time.Since(start).Seconds())
+		SupportNotificationsTotal.WithLabelValues(channel, outcome).Inc()
+	}()
+
 	var lastErr error
 	for attempt := 0; attempt <= notifierMaxRetries; attempt++ {
 		if attempt > 0 {
@@ -507,6 +529,7 @@ func (n *Notifier) postWithRetry(
 			select {
 			case <-time.After(back):
 			case <-ctx.Done():
+				outcome = outcomeDropped
 				return
 			}
 		}
@@ -532,6 +555,7 @@ func (n *Notifier) postWithRetry(
 		_ = resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			outcome = outcomeDelivered
 			n.log.Info().
 				Str("channel", channel).
 				Int("status", resp.StatusCode).

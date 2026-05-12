@@ -15,6 +15,12 @@ import (
 	"github.com/flamegreat-1/etradie/src/auth"
 )
 
+// Compile-time assertion that time is used; the honeypot branch
+// stamps generated CreatedAt/UpdatedAt fields on the fabricated
+// response so this import is always exercised even before the
+// existing time.Time-using code paths run.
+var _ = time.Now
+
 // IPResolver is the minimal surface the support handler needs from a
 // proxy-aware client-IP resolver. Satisfied by *auth.ClientIPResolver.
 type IPResolver interface {
@@ -198,6 +204,13 @@ type publicContactRequest struct {
 	Message  string `json:"message"`
 	Category string `json:"category"`
 	Priority string `json:"priority"`
+	// Website is a honeypot field. The legitimate SPA leaves it
+	// empty; bots that auto-fill every text input populate it. When
+	// non-empty the handler silently accepts the request (returns
+	// 201 with a fabricated public_ref so the bot does not learn its
+	// trap was tripped) but does NOT persist or notify. See
+	// handlePublicContact for the dispatch logic.
+	Website string `json:"website"`
 }
 
 type publicContactResponse struct {
@@ -216,6 +229,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 
 	ip := h.resolveIP(r)
 	if !h.ipLimiter.Allow(ip) {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeIP).Inc()
 		h.write429(w)
 		return
 	}
@@ -223,6 +237,33 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 	var req publicContactRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Honeypot check. The 'website' field is hidden from real users
+	// (CSS display:none + aria-hidden + tabindex=-1 on the SPA side)
+	// and any non-empty value is a strong signal of an automated bot.
+	// We return a 201 with a fabricated reference so the bot's
+	// success / failure detector cannot distinguish this from a real
+	// submission, but we never persist or notify. Real users who
+	// somehow trigger the field (e.g. an aggressive password manager)
+	// see a successful confirmation and can re-submit from a follow-up
+	// support email if they actually need a ticket opened.
+	if strings.TrimSpace(req.Website) != "" {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeHoneypot).Inc()
+		h.log.Warn().
+			Str("ip", ip).
+			Str("ua", TruncateUserAgent(r.UserAgent())).
+			Msg("support_honeypot_triggered")
+		writeJSON(w, http.StatusCreated, publicContactResponse{Ticket: &Ticket{
+			ID:        generateID(),
+			PublicRef: generatePublicRef(),
+			Email:     strings.ToLower(strings.TrimSpace(req.Email)),
+			Status:    StatusOpen,
+			Channel:   ChannelContact,
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}})
 		return
 	}
 
@@ -260,6 +301,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 	// Per-email rate limit AFTER validation. A single attacker rotating
 	// IPs cannot fan out unlimited writes against one mailbox.
 	if !h.emailLimiter.Allow(email) {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeEmail).Inc()
 		h.write429(w)
 		return
 	}
@@ -272,6 +314,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if n >= maxOpenTicketsPerEmail {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeOpenTicketCeiling).Inc()
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{
 			"error": "too many open tickets for this email; please wait for a response before opening another",
 		})
@@ -296,6 +339,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	SupportTicketsCreatedTotal.WithLabelValues(string(ticket.Channel), string(category)).Inc()
 	h.log.Info().
 		Str("public_ref", ticket.PublicRef).
 		Str("email", email).
@@ -432,6 +476,7 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	SupportTicketsCreatedTotal.WithLabelValues(string(ticket.Channel), string(category)).Inc()
 	h.log.Info().
 		Str("public_ref", ticket.PublicRef).
 		Str("user_id", uid).
