@@ -73,6 +73,12 @@ function ContactForm({
     message: '',
     category: 'general',
     priority: 'normal',
+    // 'website' is the honeypot. Initialised to empty and NEVER
+    // updated by any change handler in this component; the only
+    // writer is the hidden off-screen <input> below, which a naive
+    // form-walking bot will populate on autofill. The backend drops
+    // any submission with a non-empty value.
+    website: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ContactFormInput, string>>>({});
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
@@ -103,6 +109,7 @@ function ContactForm({
         message: '',
         category: 'general',
         priority: 'normal',
+        website: '',
       });
     } catch {
       // useSubmitContact already shows a toast; nothing else to do.
@@ -150,6 +157,41 @@ function ContactForm({
         </h2>
       )}
       <form className="grid grid-cols-1 gap-3" onSubmit={onSubmit} noValidate>
+        {/*
+          Honeypot field. Off-screen, keyboard-unreachable, and
+          screen-reader-hidden, so a real user never sees or touches
+          it. A naive form-walking bot will autofill it and trip the
+          backend trap (the server returns 201 with a fabricated
+          public_ref so the bot's success detector is fooled, but no
+          ticket is persisted). Do NOT remove this field or relocate
+          it inside a visible region without also updating
+          src/support/handler.go.
+        */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+            pointerEvents: 'none',
+          }}
+        >
+          <label htmlFor="contact-website">Leave this field empty</label>
+          <input
+            id="contact-website"
+            type="text"
+            name="website"
+            value={form.website ?? ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
+            tabIndex={-1}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+          />
+        </div>
+
         {!hideIdentity && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FieldText
