@@ -19,6 +19,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/support"
 )
 
 func main() {
@@ -170,6 +171,50 @@ func main() {
 		log.Warn().Msg("smtp_not_configured_waitlist_emails_will_be_skipped")
 	}
 
+	// ── Support & Contact Us module ───────────────────────────────────
+	//
+	// Persists customer-facing tickets and fans new events out to the
+	// configured channels (email, Discord webhook, Telegram bot,
+	// WhatsApp Cloud API). The schema is idempotent and lives in the
+	// same auth pool as every other persisted feature.
+	supportCfg, err := support.LoadConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("support_config_load_failed")
+	}
+	if _, err := authPool.Exec(ctx, support.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("support_schema_creation_failed")
+	}
+	supportStore := support.NewStore(authPool)
+	supportNotifier := support.NewNotifier(supportCfg, emailSender, observability.Logger("support_notifier"))
+	// Layered rate limiters for the public contact endpoint:
+	//
+	//   supportIPLimiter    -- 60 writes/minute per resolved client IP.
+	//                          Defends against volumetric abuse.
+	//   supportEmailLimiter -- 15 writes/minute per validated email.
+	//                          Defends against a botnet rotating IPs to
+	//                          flood a single mailbox.
+	supportIPLimiter := auth.NewRateLimiter(60, time.Minute)
+	supportEmailLimiter := auth.NewRateLimiter(15, time.Minute)
+	supportHandler := support.NewHandlerWithLimiters(
+		supportStore,
+		supportNotifier,
+		supportCfg,
+		userStore,
+		authCfg.IPResolver(),
+		supportIPLimiter,
+		supportEmailLimiter,
+		observability.Logger("support"),
+	)
+	defer supportIPLimiter.Close()
+	defer supportEmailLimiter.Close()
+	log.Info().
+		Bool("email_enabled", supportCfg.EmailEnabled()).
+		Bool("discord_enabled", supportCfg.DiscordEnabled()).
+		Bool("telegram_enabled", supportCfg.TelegramEnabled()).
+		Bool("whatsapp_enabled", supportCfg.WhatsAppEnabled()).
+		Bool("community_links_configured", supportCfg.HasCommunityLinks()).
+		Msg("support_service_initialized")
+
 	// Initialize OpenTelemetry tracing. When GATEWAY_OTEL_ENDPOINT is
 	// empty (default), InitTracing returns (nil, nil) which we treat as
 	// "tracing explicitly disabled". Any non-empty endpoint that fails
@@ -205,7 +250,7 @@ func main() {
 	subStore := store.NewSubscriptionStore(authPool)
 	portalAudStore := store.NewPortalAuditStore(authPool)
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, consentHandler, usageStore, subStore, portalAudStore)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, consentHandler, supportHandler, usageStore, subStore, portalAudStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}
