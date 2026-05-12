@@ -251,11 +251,13 @@ func TestHandler_PublicContact_RejectsSixthOpenTicketPerEmail(t *testing.T) {
 
 func mintAuthBearer(t *testing.T, uid, username string) (string, *auth.TokenService) {
 	t.Helper()
-	cfg := &auth.Config{
-		JWTSecret:             "unit-test-secret-which-is-at-least-32-bytes-long",
-		AccessTokenTTLSeconds: 60,
-		Issuer:                "unit-test",
-	}
+	// SetTestSecret populates jwtSecretBytes and every TTL default in
+	// one call, matching what auth.LoadConfig() would do at startup.
+	// Using it here keeps the test loosely coupled to the validation
+	// rules in auth.Config.validate() (the JWT-secret minimum length,
+	// the TTL bounds) which are out of scope for these handler tests.
+	cfg := &auth.Config{}
+	cfg.SetTestSecret("unit-test-secret-which-is-at-least-32-bytes-long")
 	ts := auth.NewTokenService(cfg)
 	pair, _, err := ts.IssueTokenPair(&auth.User{
 		ID: uid, Username: username, Email: username + "@example.com",
