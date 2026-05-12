@@ -83,7 +83,7 @@ function NewTicketModal({
         </button>
       </header>
 
-      <form onSubmit={onSubmit} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" noValidate>
+      <form id="new-ticket-form" onSubmit={onSubmit} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" noValidate>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FieldSelect
             id="new-ticket-category"
@@ -175,10 +175,7 @@ function NewTicketModal({
         </button>
         <button
           type="submit"
-          form=""
-          onClick={(e) => {
-            (e.currentTarget.closest('section')?.querySelector('form') as HTMLFormElement | null)?.requestSubmit();
-          }}
+          form="new-ticket-form"
           disabled={mutation.isPending}
           className="inline-flex items-center gap-1.5 rounded-md bg-brand px-4 h-8 text-xs font-semibold
                      text-white hover:bg-brand-hover transition-colors duration-fast focus-ring
