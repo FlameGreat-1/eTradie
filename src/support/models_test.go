@@ -160,6 +160,25 @@ func TestEnumIsValid(t *testing.T) {
 			t.Fatalf("author %q should be valid", a)
 		}
 	}
+	for _, a := range []TicketAction{
+		ActionCreated, ActionReplied, ActionClosed,
+		ActionReopened, ActionHoneypotDropped,
+	} {
+		if !a.IsValid() {
+			t.Fatalf("action %q should be valid", a)
+		}
+	}
+	if TicketAction("weird").IsValid() {
+		t.Fatal("unexpected valid action")
+	}
+	for _, k := range []AuditActorKind{ActorUser, ActorStaff, ActorSystem, ActorAnonymous} {
+		if !k.IsValid() {
+			t.Fatalf("actor_kind %q should be valid", k)
+		}
+	}
+	if AuditActorKind("weird").IsValid() {
+		t.Fatal("unexpected valid actor_kind")
+	}
 }
 
 func TestGenerateID_FormatAndUniqueness(t *testing.T) {

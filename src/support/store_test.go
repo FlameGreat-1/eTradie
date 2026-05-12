@@ -261,6 +261,83 @@ func TestStore_ListByUser_BoundsLimitAndOffset(t *testing.T) {
 	}
 }
 
+func TestStore_RecordAudit_PersistsRow(t *testing.T) {
+	s, pool, close := newTestStore(t)
+	defer close()
+
+	uid := "audit-owner"
+	tk := seedTicket(t, s, &uid, "audit@example.com")
+
+	cases := []AuditParams{
+		{
+			TicketID:  &tk.ID,
+			Action:    ActionCreated,
+			ActorKind: ActorUser,
+			ActorID:   uid,
+			IPAddress: "127.0.0.1",
+			UserAgent: "go-test",
+			Metadata:  map[string]string{"category": "general"},
+		},
+		{
+			TicketID:  &tk.ID,
+			Action:    ActionReplied,
+			ActorKind: ActorUser,
+			ActorID:   uid,
+			IPAddress: "127.0.0.1",
+			UserAgent: "go-test",
+			Metadata:  map[string]string{"message_id": "abc"},
+		},
+		{
+			TicketID:  nil, // honeypot drops are not tied to a ticket
+			Action:    ActionHoneypotDropped,
+			ActorKind: ActorAnonymous,
+			IPAddress: "203.0.113.42",
+			UserAgent: "bot/1.0",
+			Metadata:  map[string]string{"claimed_email": "bot@example.com"},
+		},
+	}
+	for i, p := range cases {
+		if err := s.RecordAudit(context.Background(), p); err != nil {
+			t.Fatalf("case %d RecordAudit: %v", i, err)
+		}
+	}
+
+	var n int64
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM support_ticket_audit`,
+	).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != int64(len(cases)) {
+		t.Fatalf("want %d audit rows, got %d", len(cases), n)
+	}
+
+	// The honeypot row must have NULL ticket_id so the FK ON DELETE SET NULL
+	// path stays meaningful and admin queries can filter on the action enum.
+	var nullCount int64
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM support_ticket_audit WHERE ticket_id IS NULL`,
+	).Scan(&nullCount); err != nil {
+		t.Fatalf("count null: %v", err)
+	}
+	if nullCount != 1 {
+		t.Fatalf("want 1 audit row with NULL ticket_id (honeypot), got %d", nullCount)
+	}
+}
+
+func TestStore_RecordAudit_RejectsUnknownAction(t *testing.T) {
+	s, _, close := newTestStore(t)
+	defer close()
+
+	err := s.RecordAudit(context.Background(), AuditParams{
+		Action:    TicketAction("weird"),
+		ActorKind: ActorAnonymous,
+	})
+	if err == nil {
+		t.Fatal("want err for unknown action")
+	}
+}
+
 func TestStore_ListByUser_OrderingNewestFirst(t *testing.T) {
 	s, _, close := newTestStore(t)
 	defer close()
