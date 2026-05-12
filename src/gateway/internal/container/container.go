@@ -48,6 +48,7 @@ type Container struct {
 	AlertHub         *alert.Hub
 	AlertTransport   *alertredis.Transport
 	ConsentHandler   *consent.Handler
+	SupportNotifier  *support.Notifier
 	log              zerolog.Logger
 }
 
@@ -67,6 +68,7 @@ func New(
 	waitlistHandler *mails.Handler,
 	consentHandler *consent.Handler,
 	supportHandler *support.Handler,
+	supportNotifier *support.Notifier,
 	usageStore *store.UsageStore,
 	subStore *store.SubscriptionStore,
 	portalAudStore *store.PortalAuditStore,
@@ -176,6 +178,7 @@ func New(
 		AlertHub:         hub,
 		AlertTransport:   transport,
 		ConsentHandler:   consentHandler,
+		SupportNotifier:  supportNotifier,
 		log:              log,
 	}, nil
 }
@@ -188,6 +191,21 @@ func (c *Container) Shutdown(ctx context.Context) {
 
 	if err := c.HTTPServer.Shutdown(ctx); err != nil {
 		c.log.Error().Err(err).Msg("http_server_shutdown_error")
+	}
+
+	// Drain in-flight support notifications AFTER the HTTP server has
+	// stopped accepting new requests (so no new tickets can register
+	// work) and BEFORE the DB pool is closed (the notifier itself does
+	// not touch the DB, but ordering keeps the dependency graph honest).
+	// A SIGTERM that arrives during a burst of new tickets now waits
+	// for Discord / Telegram / WhatsApp / email deliveries to finish or
+	// for the shutdown deadline to expire, whichever comes first.
+	if c.SupportNotifier != nil {
+		if err := c.SupportNotifier.Shutdown(ctx); err != nil {
+			c.log.Warn().Err(err).Msg("support_notifier_shutdown_incomplete")
+		} else {
+			c.log.Info().Msg("support_notifier_drained")
+		}
 	}
 
 	c.Engine.Close()
