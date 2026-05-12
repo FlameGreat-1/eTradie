@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Twitter, Linkedin, Github } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useConsentOptional } from '@/features/consent/useConsent';
 import { useAuth } from '@/features/auth';
 
@@ -108,6 +108,25 @@ export default function LandingFooter() {
     () => [PRODUCT_SECTION, buildSupportSection(isAuthenticated), LEGAL_SECTION],
     [isAuthenticated],
   );
+  // Smart same-page anchor for the 'Community' link. When the user
+  // is already on /landing we want a smooth in-page scroll instead
+  // of a redundant SPA navigation that flashes the top of the page
+  // before the hash jump. On any other route we fall through to the
+  // normal <Link to="/landing#community"> behaviour.
+  const location = useLocation();
+  const onCommunityClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (location.pathname !== '/landing') return;
+      const target = document.getElementById('community');
+      if (!target) return;
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Update the hash without a navigation so the URL stays
+      // shareable but no re-render is triggered.
+      window.history.replaceState(null, '', '/landing#community');
+    },
+    [location.pathname],
+  );
   return (
     <footer className="landing-footer" id="landing-footer">
       <div className="max-w-[1280px] mx-auto px-6 md:px-8 pt-16 pb-8">
@@ -156,11 +175,17 @@ export default function LandingFooter() {
                       </li>
                     );
                   }
+                  // Smart anchor: the Community link gets a custom
+                  // click handler that performs an in-page scroll
+                  // when we are already on /landing. Every other
+                  // internal link keeps the plain <Link> behaviour.
+                  const isCommunityAnchor = link.internal && link.href === '/landing#community';
                   return (
                     <li key={link.label}>
                       {link.internal ? (
                         <Link
                           to={link.href}
+                          onClick={isCommunityAnchor ? onCommunityClick : undefined}
                           className="text-sm hover:text-[color:var(--landing-footer-text-hover)] transition-all"
                         >
                           {link.label}
