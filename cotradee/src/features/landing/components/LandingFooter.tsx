@@ -47,10 +47,14 @@ const SECTIONS: FooterSection[] = [
   {
     title: 'SUPPORT',
     links: [
-      { kind: 'nav', label: 'Documentation', href: '#' },
-      { kind: 'nav', label: 'Help Center', href: '#' },
-      { kind: 'nav', label: 'Contact Us', href: '#' },
-      { kind: 'nav', label: 'System Status', href: '#' },
+      // Documentation lives outside the SPA bundle. When the docs
+      // site is published we'll point this at https://docs.exoper.com;
+      // until then it falls back to the in-app Support Centre so the
+      // link is never a dead anchor.
+      { kind: 'nav', label: 'Help Center', href: '/dashboard/support', internal: true },
+      { kind: 'nav', label: 'Contact Us', href: '/contact', internal: true },
+      { kind: 'nav', label: 'System Status', href: 'https://status.exoper.com' },
+      { kind: 'nav', label: 'Documentation', href: 'https://docs.exoper.com' },
     ],
   },
   {
