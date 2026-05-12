@@ -579,11 +579,20 @@ func (h *Handler) handleCloseTicket(w http.ResponseWriter, r *http.Request, tick
 // generous timeout. We deliberately do not use r.Context() because
 // the request context is cancelled the moment the HTTP response is
 // written, which would race with the notifier.
+//
+// The detached goroutine is registered on the notifier's WaitGroup
+// via Track / TrackDone so Notifier.Shutdown can drain it during a
+// graceful shutdown. Notify itself also registers each per-channel
+// goroutine on the same WaitGroup, giving us end-to-end tracking from
+// the moment a ticket is persisted until every channel has been
+// delivered to (or the shutdown context has expired).
 func (h *Handler) dispatchEvent(ev Event) {
 	if h.notifier == nil {
 		return
 	}
+	h.notifier.Track()
 	go func() {
+		defer h.notifier.TrackDone()
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		h.notifier.Notify(ctx, ev)

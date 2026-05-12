@@ -55,11 +55,25 @@ const (
 )
 
 // Notifier fans new events out to every configured channel.
+//
+// Concurrency model:
+//
+//   - Every channel fan-out (email, Discord, Telegram, WhatsApp) runs
+//     in its own goroutine spawned by Notify.
+//   - Each goroutine is registered on the notifier's private WaitGroup
+//     so a SIGTERM during a burst of new tickets can drain in-flight
+//     deliveries instead of silently dropping them.
+//   - The HTTP handler additionally registers ITS parent goroutine on
+//     the same WaitGroup (via Track / TrackDone) so a notification
+//     that is queued but has not yet entered Notify is still drained.
+//
+// The WaitGroup is unexported; callers use Shutdown to wait on it.
 type Notifier struct {
-	cfg    *Config
-	email  EmailSender
-	http   *http.Client
-	log    zerolog.Logger
+	cfg   *Config
+	email EmailSender
+	http  *http.Client
+	log   zerolog.Logger
+	wg    sync.WaitGroup
 }
 
 // NewNotifier constructs a Notifier wired to the given email sender
@@ -77,50 +91,83 @@ func NewNotifier(cfg *Config, email EmailSender, log zerolog.Logger) *Notifier {
 	}
 }
 
+// Track increments the notifier's internal WaitGroup. The caller is
+// then responsible for invoking TrackDone exactly once when the work
+// has completed (typically with defer). The HTTP handler uses this to
+// register the detached parent goroutine that calls Notify so SIGTERM
+// drains queued notifications, not just ones already inside Notify.
+func (n *Notifier) Track() {
+	n.wg.Add(1)
+}
+
+// TrackDone decrements the notifier's internal WaitGroup. Pair with
+// Track via defer to guarantee the count is balanced on panic.
+func (n *Notifier) TrackDone() {
+	n.wg.Done()
+}
+
+// Shutdown blocks until every in-flight delivery has completed or the
+// supplied context is cancelled. Idempotent: a second call returns
+// immediately because no new work can be registered after the
+// container has begun shutting down (the handler's dispatchEvent
+// short-circuits when the gateway is mid-shutdown).
+func (n *Notifier) Shutdown(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		n.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Notify dispatches a single event to every configured channel
 // concurrently. It always returns nil; channel failures are logged
 // and never surfaced because the persisted ticket already represents
 // the user's request — a downstream channel outage must not break
 // the user-visible flow. Invoke this from a goroutine to keep HTTP
 // response latency bounded.
+//
+// Every per-channel goroutine is registered on the notifier's private
+// WaitGroup so Shutdown can drain them. Notify itself blocks until
+// every fan-out goroutine returns, which mirrors the old behaviour
+// for callers that want a synchronous fan-out.
 func (n *Notifier) Notify(ctx context.Context, ev Event) {
 	if ev.Ticket == nil {
 		n.log.Error().Str("event", string(ev.Kind)).Msg("support_notify_missing_ticket")
 		return
 	}
 
-	var wg sync.WaitGroup
+	var local sync.WaitGroup
+
+	spawn := func(fn func()) {
+		n.wg.Add(1)
+		local.Add(1)
+		go func() {
+			defer n.wg.Done()
+			defer local.Done()
+			fn()
+		}()
+	}
 
 	if n.cfg.EmailEnabled() && n.email != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			n.sendEmail(ev)
-		}()
+		spawn(func() { n.sendEmail(ev) })
 	}
 	if n.cfg.DiscordEnabled() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			n.sendDiscord(ctx, ev)
-		}()
+		spawn(func() { n.sendDiscord(ctx, ev) })
 	}
 	if n.cfg.TelegramEnabled() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			n.sendTelegram(ctx, ev)
-		}()
+		spawn(func() { n.sendTelegram(ctx, ev) })
 	}
 	if n.cfg.WhatsAppEnabled() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			n.sendWhatsApp(ctx, ev)
-		}()
+		spawn(func() { n.sendWhatsApp(ctx, ev) })
 	}
 
-	wg.Wait()
+	local.Wait()
 }
 
 // ----------------------------------------------------------------------
@@ -263,6 +310,13 @@ func discordTitleAndBody(ev Event) (string, string) {
 
 // discordEscape escapes Discord markdown control chars in user-controlled
 // strings so a malicious subject cannot break out of an embed field.
+//
+// We also defang '@' by inserting a zero-width space immediately after
+// it so user-controlled text like "@everyone billing issue" cannot
+// trigger a mass-mention in the staff channel. A trailing ZWSP keeps
+// the character visually identical for human readers while preventing
+// Discord's mention parser from matching @everyone, @here, or any
+// role mention.
 func discordEscape(s string) string {
 	replacer := strings.NewReplacer(
 		"`", "\\`",
@@ -270,6 +324,7 @@ func discordEscape(s string) string {
 		"_", "\\_",
 		"~", "\\~",
 		"|", "\\|",
+		"@", "@\u200b",
 	)
 	return replacer.Replace(s)
 }
