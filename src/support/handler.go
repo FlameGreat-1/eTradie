@@ -31,6 +31,15 @@ type noopLimiter struct{}
 
 func (noopLimiter) Allow(_ string) bool { return true }
 
+// UserLookup is the minimal surface the support handler needs from a
+// user store: fetch the canonical user record by ID so the handler
+// can populate ticket.email (the JWT Claims intentionally omit the
+// email to keep tokens small). *auth.UserStore satisfies this. The
+// abstraction also lets unit tests inject a deterministic fake.
+type UserLookup interface {
+	GetUserByID(ctx context.Context, id string) (*auth.User, error)
+}
+
 // Hard caps and policy constants. Centralised here so all branches of
 // the handler reference the same values.
 const (
@@ -52,6 +61,7 @@ type Handler struct {
 	store        *Store
 	notifier     *Notifier
 	cfg          *Config
+	users        UserLookup
 	resolver     IPResolver
 	ipLimiter    rateLimiter
 	emailLimiter rateLimiter
@@ -66,10 +76,11 @@ func NewHandler(
 	store *Store,
 	notifier *Notifier,
 	cfg *Config,
+	users UserLookup,
 	resolver IPResolver,
 	log zerolog.Logger,
 ) *Handler {
-	return NewHandlerWithLimiters(store, notifier, cfg, resolver, noopLimiter{}, noopLimiter{}, log)
+	return NewHandlerWithLimiters(store, notifier, cfg, users, resolver, noopLimiter{}, noopLimiter{}, log)
 }
 
 // NewHandlerWithLimiters is the production constructor. It wires:
@@ -82,6 +93,7 @@ func NewHandlerWithLimiters(
 	store *Store,
 	notifier *Notifier,
 	cfg *Config,
+	users UserLookup,
 	resolver IPResolver,
 	ipLimiter, emailLimiter rateLimiter,
 	log zerolog.Logger,
@@ -96,6 +108,7 @@ func NewHandlerWithLimiters(
 		store:        store,
 		notifier:     notifier,
 		cfg:          cfg,
+		users:        users,
 		resolver:     resolver,
 		ipLimiter:    ipLimiter,
 		emailLimiter: emailLimiter,
@@ -357,8 +370,14 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
-	claims := auth.ClaimsFromContext(r.Context())
-	if claims == nil {
+	if h.users == nil {
+		h.log.Error().Msg("support_user_lookup_not_wired")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	user, err := h.users.GetUserByID(r.Context(), uid)
+	if err != nil || user == nil {
+		h.log.Warn().Err(err).Str("user_id", uid).Msg("support_user_lookup_failed")
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
@@ -389,7 +408,7 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email := strings.TrimSpace(strings.ToLower(claims.Email))
+	email := strings.TrimSpace(strings.ToLower(user.Email))
 	if email == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "account is missing an email"})
 		return
@@ -398,7 +417,7 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 	ticket, err := h.store.CreateTicket(r.Context(), CreateParams{
 		UserID:    &uid,
 		Email:     email,
-		Name:      strings.TrimSpace(claims.Username),
+		Name:      strings.TrimSpace(user.Username),
 		Subject:   subject,
 		Body:      body,
 		Category:  category,
