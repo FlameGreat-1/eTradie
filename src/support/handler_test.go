@@ -451,6 +451,44 @@ func TestIsValidIDFormat(t *testing.T) {
 	}
 }
 
+func TestHandler_PublicContact_HoneypotSilentlyAccepts(t *testing.T) {
+	h, store, _, _, close := newHandlerForTest(t, 100, 100)
+	defer close()
+
+	body := strings.NewReader(`{
+		"email": "bot@example.com",
+		"name": "Spam Bot",
+		"subject": "buy viagra now please",
+		"message": "win millions today, click here, totally legit",
+		"website": "http://spam.example/"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/support/contact", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.handlePublicContact(rec, req)
+
+	// The bot must see a 201 so its success detector is fooled.
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("want 201 (silent trap), got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp publicContactResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Ticket == nil || resp.Ticket.PublicRef == "" {
+		t.Fatalf("want fabricated public_ref, got %+v", resp.Ticket)
+	}
+
+	// But NO row may be persisted: the bot's email has zero open tickets.
+	n, err := store.CountOpenByEmail(context.Background(), "bot@example.com")
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("want 0 persisted tickets after honeypot trip, got %d", n)
+	}
+}
+
 // Sanity: the contact-form 64 KiB body cap is enforced. We send a
 // 200 KiB payload and expect 400 (the decoder errors out reading past
 // MaxBytesReader before unmarshalling).
