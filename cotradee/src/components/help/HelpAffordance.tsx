@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LifeBuoy, MessageSquarePlus, Inbox, Users, X } from 'lucide-react';
+import { LifeBuoy, MessageSquarePlus, Inbox, Users, X, BookOpen } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 
 /**
@@ -22,6 +22,11 @@ export function isHelpVisibleOnPath(pathname: string): boolean {
   if (path === '/register' || path.startsWith('/register/')) return false;
   if (path.startsWith('/auth/')) return false;
   if (path === '/contact') return false;
+  // /faq itself is the self-service surface; a floating button on
+  // top of the page would be redundant. The other discovery routes
+  // (header menu, footer link, /contact CTA) cover navigation TO
+  // /faq so users still reach it from everywhere else.
+  if (path === '/faq' || path === '/faqs') return false;
   return true;
 }
 
@@ -110,6 +115,10 @@ function HelpAffordance() {
     navigate('/landing#community');
   }, [navigate]);
 
+  const goFAQ = useCallback(() => {
+    navigate('/faq');
+  }, [navigate]);
+
   // Render nothing while auth is still resolving so the widget does
   // not flash a 'guest' state for an authenticated user on first paint.
   if (isLoading) return null;
@@ -151,6 +160,12 @@ function HelpAffordance() {
             label="My tickets"
             description="View your conversation history"
             onClick={goMyTickets}
+          />
+          <ActionRow
+            icon={<BookOpen size={14} />}
+            label="Browse FAQs"
+            description="Self-serve answers to common questions"
+            onClick={goFAQ}
           />
           <ActionRow
             icon={<Users size={14} />}

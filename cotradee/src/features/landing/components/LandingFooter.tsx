@@ -50,16 +50,20 @@ function buildSupportSection(isAuthenticated: boolean): FooterSection {
     links.push({ kind: 'nav', label: 'Support Centre', href: '/dashboard/support', internal: true });
   }
   links.push({ kind: 'nav', label: 'Contact Us', href: '/contact', internal: true });
+  // FAQs ship inside the SPA bundle and are the fastest self-service
+  // path. Listed above 'Documentation' so the user picks the most
+  // immediately useful surface first.
+  links.push({ kind: 'nav', label: 'FAQs', href: '/faq', internal: true });
   // The community anchor is a plain hash link so it works from any
   // page that includes the landing footer (LandingPage, ContactPage).
   // On pages without the community section the anchor is a no-op.
   links.push({ kind: 'nav', label: 'Community', href: '/landing#community', internal: true });
-  // Documentation lives outside the SPA bundle. When the docs site is
-  // published we'll point this at https://docs.exoper.com; until then
-  // it falls back to the public Contact form so the link is never a
-  // dead anchor for users who do not have an account yet.
+  // The dedicated docs site at https://docs.exoper.com is not yet
+  // published. Until it is, 'Documentation' falls back to the in-app
+  // FAQ so the link always lands on a real surface. Flip the href
+  // and `internal: false` back when docs.exoper.com goes live.
+  links.push({ kind: 'nav', label: 'Documentation', href: '/faq', internal: true });
   links.push({ kind: 'nav', label: 'System Status', href: 'https://status.exoper.com' });
-  links.push({ kind: 'nav', label: 'Documentation', href: 'https://docs.exoper.com' });
   return { title: 'SUPPORT', links };
 }
 

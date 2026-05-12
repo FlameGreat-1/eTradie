@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { LifeBuoy, ArrowRight } from 'lucide-react';
+import { LifeBuoy, ArrowRight, BookOpen } from 'lucide-react';
 import ContactForm from '@/features/support/components/ContactForm';
 import CommunityLinks from '@/features/support/components/CommunityLinks';
 import LandingHeader from '@/features/landing/components/LandingHeader';
@@ -55,6 +55,35 @@ function ContactPage() {
               </Link>
             </div>
           )}
+
+          {/*
+            Self-service nudge. Many incoming tickets are answered by
+            the FAQ catalogue already; surfacing the FAQs above the
+            form lets the user resolve common questions without an
+            email round-trip. The card is intentionally compact so it
+            does not push the form below the fold.
+          */}
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface-1 px-4 py-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand-soft text-brand shrink-0">
+                <BookOpen size={16} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-content">Have a quick question first?</p>
+                <p className="text-[11px] text-content-muted">
+                  Browse the FAQs \u2014 most common questions are answered there.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/faq"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 h-8 text-xs font-semibold
+                         text-content hover:border-brand transition-colors duration-fast focus-ring shrink-0"
+            >
+              View FAQs
+              <ArrowRight size={12} />
+            </Link>
+          </div>
 
           <ContactForm
             defaultEmail={user?.email ?? ''}
