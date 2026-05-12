@@ -37,6 +37,17 @@
   --info: rgb(var(--info-rgb));
   --info-soft: rgb(var(--info-rgb) / 0.14);
 
+  /* Social platform brand colours (theme-aware).
+     Published as RGB triplets so the Tailwind <alpha-value> modifier
+     (e.g. bg-social-discord/14) compiles to a valid rgb(... / N) rule.
+     The dark and light themes override these below; the shared block
+     here gives the dark canonical values as a sensible default for any
+     surface rendered before the theme class is applied. */
+  --social-facebook-rgb: 24 119 242;
+  --social-discord-rgb: 88 101 242;
+  --social-telegram-rgb: 38 165 228;
+  --social-whatsapp-rgb: 37 211 102;
+
   /* Layout */
   --sidebar-width: 48px;
   --header-height: 50px;
@@ -113,6 +124,15 @@
   --chart-axis-label-text: #ffffff;
   --chart-tooltip-bg: #1f2937;
 
+  /* Social platform brand colours — dark theme: canonical hex values.
+     Kept identical to the :root defaults so the dashboard renders
+     correctly during the brief window before the .dark class is
+     applied (e.g. server-rendered HTML hydration on the landing page). */
+  --social-facebook-rgb: 24 119 242;
+  --social-discord-rgb: 88 101 242;
+  --social-telegram-rgb: 38 165 228;
+  --social-whatsapp-rgb: 37 211 102;
+
   color-scheme: dark;
 }
 
@@ -166,6 +186,16 @@
   --chart-axis-label-bg: rgb(15 23 42 / 0.92);
   --chart-axis-label-text: #ffffff;
   --chart-tooltip-bg: #f1f5f9;
+
+  /* Social platform brand colours — light theme: slightly darkened so
+     the /14 soft pill retains enough contrast against a white card.
+     The shift is minimal (~5–10 RGB points per channel) so the colour
+     is still instantly recognisable as Facebook blue / Discord blurple
+     / Telegram cyan / WhatsApp green. */
+  --social-facebook-rgb: 22 109 220;
+  --social-discord-rgb: 78 90 220;
+  --social-telegram-rgb: 22 150 220;
+  --social-whatsapp-rgb: 22 184 88;
 
   color-scheme: light;
 }
