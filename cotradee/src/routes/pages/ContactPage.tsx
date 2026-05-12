@@ -1,11 +1,14 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { LifeBuoy, ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen } from 'lucide-react';
 import ContactForm from '@/features/support/components/ContactForm';
 import CommunityLinks from '@/features/support/components/CommunityLinks';
 import LandingHeader from '@/features/landing/components/LandingHeader';
 import LandingFooter from '@/features/landing/components/LandingFooter';
 import { useAuth } from '@/features/auth';
+// Pulls in the .brand-icon-help mask utility so the page-hero icon
+// can render the in-house helpAndFaq.svg tinted with the brand token.
+import '@/features/faq/faq.css';
 
 /**
  * Public /contact page.
@@ -27,7 +30,7 @@ function ContactPage() {
         <section className="max-w-4xl mx-auto px-6 md:px-8 py-12 md:py-16">
           <header className="flex flex-col items-center text-center mb-10">
             <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
-              <LifeBuoy size={22} />
+              <span className="brand-icon-help" style={{ width: 22, height: 22 }} aria-hidden />
             </span>
             <h1 className="text-2xl md:text-3xl font-bold text-content mb-2 tracking-tight">
               Contact us

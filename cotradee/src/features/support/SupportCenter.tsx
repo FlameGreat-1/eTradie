@@ -1,6 +1,12 @@
 import { memo, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LifeBuoy } from 'lucide-react';
+// Note: the in-house brand mark for the page hero is loaded from the
+// public/ folder via the .brand-icon-help mask utility declared in
+// cotradee/src/features/faq/faq.css. We import that stylesheet once
+// at the SupportCenter level so the class is available on every
+// dashboard surface that mounts SupportCenter without any per-route
+// CSS plumbing.
+import '@/features/faq/faq.css';
 import CommunityLinks from './components/CommunityLinks';
 import NewTicketModal from './components/NewTicketModal';
 import TicketDetail from './components/TicketDetail';
@@ -86,7 +92,7 @@ function SupportCenter() {
       <div className="max-w-6xl mx-auto flex flex-col gap-4">
         <header className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand-soft text-brand">
-            <LifeBuoy size={20} />
+            <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
           </div>
           <div>
             <h1 className="text-lg font-bold text-content">Support Centre</h1>
@@ -132,7 +138,7 @@ function EmptyDetail({ onNewTicket }: { onNewTicket: () => void }) {
   return (
     <section className="flex flex-col items-center justify-center h-full rounded-xl border border-border bg-surface-1 px-6 py-12 text-center">
       <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
-        <LifeBuoy size={20} />
+        <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
       </span>
       <p className="text-sm font-bold text-content mb-1">Select a ticket</p>
       <p className="text-xs text-content-muted max-w-sm mb-4">

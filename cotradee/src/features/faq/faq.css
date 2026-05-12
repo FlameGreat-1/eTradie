@@ -158,3 +158,39 @@
     transform: translateY(0);
   }
 }
+
+/*
+ * .brand-icon-help renders cotradee/public/assets/landing/icons/helpAndFaq.svg
+ * tinted to inherit `currentColor` via CSS mask-image. Used on every
+ * hero surface that previously embedded a Lucide LifeBuoy glyph so
+ * the support / contact / FAQ pages share one in-house brand mark.
+ *
+ * Mask-image is preferred over inlining the SVG because:
+ *   - the asset stays a real cacheable static file,
+ *   - components do not duplicate path data,
+ *   - tinting flows from the surrounding `color` (or an explicit
+ *     `style={{ color: '#76b900' }}` / Tailwind `text-brand`).
+ *
+ * Sized by the consumer via width / height utilities so the same
+ * class works at every callsite from 16px to 48px.
+ *
+ * Declared outside .faq-body deliberately: SupportCenter and
+ * ContactPage live outside the FAQ surface but use the same mark,
+ * so the class needs to be globally available once faq.css is
+ * imported by any one of those entry points. The actual import
+ * graph routes faq.css through FAQPage.tsx, which is lazy-loaded
+ * but always part of the bundle the SPA pulls on first paint.
+ */
+.brand-icon-help {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask-image: url('/assets/landing/icons/helpAndFaq.svg');
+  mask-image: url('/assets/landing/icons/helpAndFaq.svg');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Search, LifeBuoy } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 import '@/features/landing/landing.css';
 import './faq.css';
 import ParticlesCanvas from '@/features/landing/components/ParticlesCanvas';
@@ -133,14 +133,27 @@ function FAQPage() {
 
           {/* Page header */}
           <div className="mb-12">
-            <div className="inline-flex items-center gap-2 mb-4">
+            <div
+              className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full"
+              style={{
+                background: 'rgba(118,185,0,0.12)',
+                border: '1px solid rgba(118,185,0,0.25)',
+              }}
+            >
+              {/*
+                In-house brand mark from public/assets/landing/icons/
+                helpAndFaq.svg, tinted via the .brand-icon-help mask
+                utility so it inherits the brand token (no fixed grey
+                fill from the source SVG bleeding through).
+              */}
               <span
-                className="text-[10px] font-bold uppercase tracking-[0.25em] px-3 py-1 rounded-full"
-                style={{
-                  background: 'rgba(118,185,0,0.12)',
-                  color: '#76b900',
-                  border: '1px solid rgba(118,185,0,0.25)',
-                }}
+                className="brand-icon-help"
+                style={{ color: '#76b900', width: 12, height: 12 }}
+                aria-hidden
+              />
+              <span
+                className="text-[10px] font-bold uppercase tracking-[0.25em]"
+                style={{ color: '#76b900' }}
               >
                 Frequently Asked Questions
               </span>
@@ -250,7 +263,12 @@ function FAQPage() {
                     className="inline-flex items-center gap-2 text-sm font-semibold"
                     style={{ color: '#76b900' }}
                   >
-                    <LifeBuoy size={14} /> Contact us
+                    <span
+                      className="brand-icon-help"
+                      style={{ width: 14, height: 14 }}
+                      aria-hidden
+                    />{' '}
+                    Contact us
                   </Link>
                 </div>
               )}
@@ -308,7 +326,12 @@ function FAQPage() {
                     color: '#0a0a0a',
                   }}
                 >
-                  <LifeBuoy size={14} /> Contact support
+                  <span
+                    className="brand-icon-help"
+                    style={{ width: 14, height: 14 }}
+                    aria-hidden
+                  />{' '}
+                  Contact support
                 </Link>
               </div>
             </article>
