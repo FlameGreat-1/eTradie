@@ -26,6 +26,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/support"
 )
 
 // Container holds all gateway components and manages their lifecycle.
@@ -65,6 +66,7 @@ func New(
 	userStore *auth.UserStore,
 	waitlistHandler *mails.Handler,
 	consentHandler *consent.Handler,
+	supportHandler *support.Handler,
 	usageStore *store.UsageStore,
 	subStore *store.SubscriptionStore,
 	portalAudStore *store.PortalAuditStore,
@@ -142,7 +144,7 @@ func New(
 	}
 
 	// Servers (now with auth + consent support).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, subStore, portalAudStore, billingClient, userStore)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}

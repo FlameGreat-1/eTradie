@@ -23,6 +23,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/support"
 )
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,
@@ -50,6 +51,7 @@ func NewHTTPServer(
 	authHandler *auth.Handler,
 	waitlistHandler *mails.Handler,
 	consentHandler *consent.Handler,
+	supportHandler *support.Handler,
 	subStore *billingstore.SubscriptionStore,
 	portalAudStore *billingstore.PortalAuditStore,
 	billingClient *BillingClient,
@@ -108,6 +110,13 @@ func NewHTTPServer(
 	// mounting call only forwards the dependencies it cannot resolve
 	// for itself.
 	consentHandler.RegisterRoutes(mux, tokenService, csrfMiddleware)
+
+	// Support & Contact Us endpoints. Public routes (contact form,
+	// community-links) are reachable without authentication; the
+	// authenticated ticketing CRUD inherits the standard
+	// auth + CSRF middleware chain. The handler internally splits the
+	// two surfaces so a single RegisterRoutes call is enough.
+	supportHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 
 	// CORS allowlist is validated at startup so a misconfig fails
 	// the deploy loudly rather than silently producing 403s or, worse,

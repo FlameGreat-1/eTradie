@@ -27,6 +27,7 @@ const RefundPage          = lazy(() => import('./pages/RefundPage'));
 const BillingPolicyPage   = lazy(() => import('./pages/BillingPolicyPage'));
 const CookiePolicyPage    = lazy(() => import('./pages/CookiePolicyPage'));
 const ComplaintsPage      = lazy(() => import('./pages/ComplaintsPage'));
+const ContactPage          = lazy(() => import('./pages/ContactPage'));
 
 export function DashboardLoader() {
   return (
@@ -148,6 +149,7 @@ export default function AppRoutes() {
         <Route path="/billing-policy"   element={<BillingPolicyPage />} />
         <Route path="/cookie"           element={<CookiePolicyPage />} />
         <Route path="/complaints"       element={<ComplaintsPage />} />
+        <Route path="/contact"          element={<ContactPage />} />
         <Route
           path="/dashboard/*"
           element={
