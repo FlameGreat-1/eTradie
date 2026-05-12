@@ -4,6 +4,7 @@ import LandingHeader from './components/LandingHeader';
 import LandingHero from './components/LandingHero';
 import ProcessFlow from './components/ProcessFlow';
 import HowItWorks from './components/HowItWorks';
+import CommunitySection from './components/CommunitySection';
 import LandingFooter from './components/LandingFooter';
 
 /**
@@ -33,6 +34,14 @@ export default function LandingPage() {
           <LandingHero />
           <ProcessFlow />
           <HowItWorks />
+          {/*
+            Public community entry points (Facebook / Discord /
+            Telegram / WhatsApp). Reachable without an account and
+            kept distinct from the staff-facing notification channels
+            wired into the support backend. Section auto-hides when
+            no SUPPORT_COMMUNITY_* env vars are configured.
+          */}
+          <CommunitySection />
         </main>
 
         <LandingFooter />
