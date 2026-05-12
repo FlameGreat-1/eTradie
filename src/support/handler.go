@@ -15,12 +15,6 @@ import (
 	"github.com/flamegreat-1/etradie/src/auth"
 )
 
-// Compile-time assertion that time is used; the honeypot branch
-// stamps generated CreatedAt/UpdatedAt fields on the fabricated
-// response so this import is always exercised even before the
-// existing time.Time-using code paths run.
-var _ = time.Now
-
 // IPResolver is the minimal surface the support handler needs from a
 // proxy-aware client-IP resolver. Satisfied by *auth.ClientIPResolver.
 type IPResolver interface {
