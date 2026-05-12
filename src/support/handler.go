@@ -249,9 +249,28 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 			Str("ip", ip).
 			Str("ua", TruncateUserAgent(r.UserAgent())).
 			Msg("support_honeypot_triggered")
+		// Forensic audit row. ticket_id is intentionally nil because
+		// no ticket was persisted; the metadata carries the
+		// fabricated public_ref + the bot's claimed email so a future
+		// review can correlate.
+		fabricatedRef := generatePublicRef()
+		if err := h.store.RecordAudit(r.Context(), AuditParams{
+			Action:    ActionHoneypotDropped,
+			ActorKind: ActorAnonymous,
+			IPAddress: ip,
+			UserAgent: r.UserAgent(),
+			Metadata: map[string]string{
+				"claimed_email":   strings.ToLower(strings.TrimSpace(req.Email)),
+				"fabricated_ref":  fabricatedRef,
+				"trap_field_size": strconv.Itoa(len(req.Website)),
+			},
+		}); err != nil {
+			SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionHoneypotDropped)).Inc()
+			h.log.Error().Err(err).Msg("support_audit_honeypot_failed")
+		}
 		writeJSON(w, http.StatusCreated, publicContactResponse{Ticket: &Ticket{
 			ID:        generateID(),
-			PublicRef: generatePublicRef(),
+			PublicRef: fabricatedRef,
 			Email:     strings.ToLower(strings.TrimSpace(req.Email)),
 			Status:    StatusOpen,
 			Channel:   ChannelContact,
@@ -340,6 +359,23 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 		Str("category", string(category)).
 		Str("channel", string(ticket.Channel)).
 		Msg("support_ticket_created")
+
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionCreated,
+		ActorKind: ActorAnonymous,
+		IPAddress: ip,
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"email":    email,
+			"category": string(category),
+			"priority": string(priority),
+			"channel":  string(ticket.Channel),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionCreated)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_created_failed")
+	}
 
 	h.dispatchEvent(Event{Kind: EventNewTicket, Ticket: ticket})
 	writeJSON(w, http.StatusCreated, publicContactResponse{Ticket: ticket})
@@ -477,6 +513,24 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 		Str("category", string(category)).
 		Msg("support_ticket_created")
 
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionCreated,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"email":    email,
+			"category": string(category),
+			"priority": string(priority),
+			"channel":  string(ticket.Channel),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionCreated)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_created_failed")
+	}
+
 	h.dispatchEvent(Event{Kind: EventNewTicket, Ticket: ticket})
 	writeJSON(w, http.StatusCreated, ticketResponse{Ticket: ticket})
 }
@@ -581,6 +635,43 @@ func (h *Handler) handleAppendMessage(w http.ResponseWriter, r *http.Request, ti
 		Str("user_id", uid).
 		Msg("support_message_appended")
 
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionReplied,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"message_id": msg.ID,
+			"status":     string(ticket.Status),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionReplied)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_replied_failed")
+	}
+
+	// AppendMessage flips a 'resolved' ticket back to 'open' on a
+	// user reply. When that side effect fires, record a separate
+	// audit row so a forensic timeline shows the reopen explicitly
+	// rather than burying it inside the reply event.
+	if ticket.Status == StatusOpen {
+		if err := h.store.RecordAudit(r.Context(), AuditParams{
+			TicketID:  &ticket.ID,
+			Action:    ActionReopened,
+			ActorKind: ActorUser,
+			ActorID:   uid,
+			IPAddress: h.resolveIP(r),
+			UserAgent: r.UserAgent(),
+			Metadata: map[string]string{
+				"triggered_by": msg.ID,
+			},
+		}); err != nil {
+			SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionReopened)).Inc()
+			h.log.Error().Err(err).Msg("support_audit_reopened_failed")
+		}
+	}
+
 	h.dispatchEvent(Event{Kind: EventNewReply, Ticket: ticket, LatestMessage: msg})
 	writeJSON(w, http.StatusCreated, appendMessageResponse{Message: msg, Ticket: ticket})
 }
@@ -604,6 +695,18 @@ func (h *Handler) handleCloseTicket(w http.ResponseWriter, r *http.Request, tick
 		Str("public_ref", t.PublicRef).
 		Str("user_id", uid).
 		Msg("support_ticket_closed")
+
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &t.ID,
+		Action:    ActionClosed,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionClosed)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_closed_failed")
+	}
 
 	h.dispatchEvent(Event{Kind: EventTicketClosed, Ticket: t})
 	writeJSON(w, http.StatusOK, ticketResponse{Ticket: t})

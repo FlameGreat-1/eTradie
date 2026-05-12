@@ -80,4 +80,16 @@ var (
 		Name: "support_rate_limited_total",
 		Help: "Public support requests rejected by a rate-limit or anti-abuse layer, partitioned by scope.",
 	}, []string{"scope"})
+
+	// SupportAuditWriteFailuresTotal counts every failed write to
+	// the support_ticket_audit table. An audit-write failure is
+	// deliberately non-fatal at the user-facing layer (we never
+	// abort a ticket creation because the audit row could not be
+	// inserted) but operators must be able to see the spike
+	// immediately because a missing audit row is a compliance
+	// concern. Alert when increase(...) > 0 over 5m.
+	SupportAuditWriteFailuresTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "support_audit_write_failures_total",
+		Help: "Failed inserts into the append-only support_ticket_audit table, partitioned by action.",
+	}, []string{"action"})
 )
