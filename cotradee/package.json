@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 && npm run lint:consent",
+    "lint:consent": "node scripts/check-consent-consumers.mjs",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
