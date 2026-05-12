@@ -43,7 +43,7 @@ function TicketDetail({
   if (isError || !ticket) {
     return (
       <section className="flex flex-col items-center justify-center h-full px-6 py-12 text-center rounded-xl border border-border bg-surface-1">
-        <span className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/12 text-red-500 mb-4">
+        <span className="flex items-center justify-center w-12 h-12 rounded-full bg-danger-soft text-danger mb-4">
           <AlertCircle size={20} />
         </span>
         <p className="text-sm font-bold text-content mb-1">Ticket not found</p>
@@ -143,8 +143,8 @@ function TicketDetail({
                   type="button"
                   onClick={onConfirmClose}
                   disabled={closeTicket.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-red-500/15 text-red-500
-                             hover:bg-red-500/25 px-2 h-7 text-[11px] font-semibold
+                  className="inline-flex items-center gap-1.5 rounded-md bg-danger-soft text-danger
+                             hover:bg-danger/20 px-2 h-7 text-[11px] font-semibold
                              transition-colors duration-fast focus-ring
                              disabled:opacity-60 disabled:cursor-not-allowed"
                 >
@@ -163,7 +163,7 @@ function TicketDetail({
               <button
                 type="button"
                 onClick={() => setConfirmingClose(true)}
-                className="text-[11px] text-content-muted hover:text-red-500 transition-colors duration-fast focus-ring"
+                className="text-[11px] text-content-muted hover:text-danger transition-colors duration-fast focus-ring"
               >
                 Close ticket
               </button>

@@ -1,9 +1,28 @@
-import { memo, useState } from 'react';
-import { LifeBuoy } from 'lucide-react';
+import { memo, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+// Note: the in-house brand mark for the page hero is loaded from the
+// public/ folder via the .brand-icon-help mask utility declared in
+// cotradee/src/features/faq/faq.css. We import that stylesheet once
+// at the SupportCenter level so the class is available on every
+// dashboard surface that mounts SupportCenter without any per-route
+// CSS plumbing.
+import '@/features/faq/faq.css';
 import CommunityLinks from './components/CommunityLinks';
 import NewTicketModal from './components/NewTicketModal';
 import TicketDetail from './components/TicketDetail';
 import TicketList from './components/TicketList';
+
+// Mirrors src/support/handler.go isValidIDFormat. A 32-char lowercase
+// hex string is the ONLY shape a real ticket id can take; rejecting
+// anything else before opening the detail panel avoids a flash of an
+// empty 'ticket not found' state for a malformed deep link.
+function isValidTicketID(raw: string): boolean {
+  if (raw.length !== 32) return false;
+  for (const ch of raw) {
+    if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))) return false;
+  }
+  return true;
+}
 
 /**
  * SupportCenter is the top-level orchestrator used by the authenticated
@@ -24,6 +43,32 @@ type Panel = { kind: 'empty' } | { kind: 'detail'; ticketId: string } | { kind: 
 function SupportCenter() {
   const [panel, setPanel] = useState<Panel>({ kind: 'empty' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Honour deep links from the help widget ('?new=1') and from
+  // transactional emails ('?ticket=<32hex>'). Consume the query
+  // params on mount, then strip them from the URL via
+  // setSearchParams({ replace: true }) so a subsequent refresh does
+  // not snap the panel back to the deep-linked one.
+  useEffect(() => {
+    const wantNew = searchParams.get('new') === '1';
+    const rawTicket = searchParams.get('ticket') ?? '';
+    if (!wantNew && !rawTicket) return;
+    if (wantNew) {
+      setPanel({ kind: 'new' });
+      setMobileShowDetail(true);
+    } else if (isValidTicketID(rawTicket)) {
+      setPanel({ kind: 'detail', ticketId: rawTicket });
+      setMobileShowDetail(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    next.delete('ticket');
+    setSearchParams(next, { replace: true });
+  // We only want to react to params on mount or when they actually
+  // change; the setters are stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const openNew = () => {
     setPanel({ kind: 'new' });
@@ -47,7 +92,7 @@ function SupportCenter() {
       <div className="max-w-6xl mx-auto flex flex-col gap-4">
         <header className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand-soft text-brand">
-            <LifeBuoy size={20} />
+            <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
           </div>
           <div>
             <h1 className="text-lg font-bold text-content">Support Centre</h1>
@@ -93,7 +138,7 @@ function EmptyDetail({ onNewTicket }: { onNewTicket: () => void }) {
   return (
     <section className="flex flex-col items-center justify-center h-full rounded-xl border border-border bg-surface-1 px-6 py-12 text-center">
       <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
-        <LifeBuoy size={20} />
+        <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
       </span>
       <p className="text-sm font-bold text-content mb-1">Select a ticket</p>
       <p className="text-xs text-content-muted max-w-sm mb-4">

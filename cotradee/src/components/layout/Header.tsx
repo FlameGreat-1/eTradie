@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Cookie,
+  LifeBuoy,
 } from 'lucide-react';
 import { useRunCycle } from '@/features/analysis/api/analysis';
 import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown';
@@ -395,6 +396,9 @@ function Header({ onMenuClick }: HeaderProps) {
           </MenuItem>
           <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
             Settings
+          </MenuItem>
+          <MenuItem onClick={() => { navigate('/dashboard/support'); setShowUserMenu(false); }}>
+            <LifeBuoy size={12} /> Help & Support
           </MenuItem>
           {/*
             The Cookie Preferences entry is rendered reactively: it

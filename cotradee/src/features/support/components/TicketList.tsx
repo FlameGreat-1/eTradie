@@ -60,7 +60,7 @@ function TicketList({
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center h-32 px-4 text-center">
-            <p className="text-xs text-red-500 mb-2">Could not load tickets.</p>
+            <p className="text-xs text-danger mb-2">Could not load tickets.</p>
             <p className="text-[11px] text-content-muted">Please refresh the page.</p>
           </div>
         ) : !data || data.tickets.length === 0 ? (
@@ -144,11 +144,14 @@ export function StatusBadge({ status }: { status: Ticket['status'] }) {
   );
 }
 
+// Status -> semantic theme tokens. Keeping these aligned with the
+// rest of the dashboard means a status badge looks correct in both
+// dark and light themes without per-component overrides.
 const STATUS_BADGE_CLASS: Record<Ticket['status'], string> = {
-  open: 'bg-blue-500/15 text-blue-500',
-  pending: 'bg-amber-500/15 text-amber-500',
-  resolved: 'bg-emerald-500/15 text-emerald-500',
-  closed: 'bg-slate-500/15 text-slate-400',
+  open: 'bg-info-soft text-info',
+  pending: 'bg-warning-soft text-warning',
+  resolved: 'bg-success-soft text-success',
+  closed: 'bg-content-muted/10 text-content-muted',
 };
 
 export function relativeTime(iso: string): string {

@@ -108,7 +108,17 @@ export interface CommunityLinksResponse {
   links: CommunityLink[];
 }
 
-/** Public contact form input. */
+/**
+ * Public contact form input.
+ *
+ * The `website` field is a HONEYPOT. The legitimate SPA flows MUST
+ * leave it empty; the backend silently drops any submission whose
+ * `website` value is non-empty (returning a fabricated 201 so a bot's
+ * success detector is fooled). Do NOT bind a user-facing input to
+ * this field. The form component renders an off-screen,
+ * keyboard-unreachable, screen-reader-hidden input under this name
+ * specifically so naive form-walking bots populate it on autofill.
+ */
 export interface ContactFormInput {
   email: string;
   name?: string;
@@ -116,6 +126,8 @@ export interface ContactFormInput {
   message: string;
   category?: TicketCategory;
   priority?: TicketPriority;
+  /** Honeypot. Must stay empty in every legitimate code path. */
+  website?: string;
 }
 
 /** Authenticated 'new ticket from dashboard' input. */

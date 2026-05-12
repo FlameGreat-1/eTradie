@@ -1,0 +1,196 @@
+/*
+ * FAQ page body styles.
+ *
+ * Scoped to .faq-body so styles never bleed into landing, dashboard,
+ * or the legal pages. Mirrors the legal.css pattern: every visual
+ * token is driven by the --landing-* CSS variables already published
+ * in landing.css, so the FAQ page automatically inherits theme
+ * consistency with /pricing, /process, /terms, /privacy, etc.
+ */
+
+.faq-body .faq-category {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--landing-card-border);
+  scroll-margin-top: 7rem;
+}
+
+.faq-body .faq-category:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.faq-body .faq-category-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--landing-text);
+  margin-bottom: 0.375rem;
+}
+
+.faq-body .faq-category-description {
+  font-size: 0.875rem;
+  color: var(--landing-text-faint);
+  margin-bottom: 1.5rem;
+}
+
+.faq-body .faq-item {
+  border-top: 1px solid var(--landing-card-border);
+}
+
+.faq-body .faq-item:last-child {
+  border-bottom: 1px solid var(--landing-card-border);
+}
+
+.faq-body .faq-item-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  padding: 1.125rem 0;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: var(--landing-text);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: color 150ms ease;
+  scroll-margin-top: 7rem;
+}
+
+.faq-body .faq-item-trigger:hover {
+  color: #76b900;
+}
+
+.faq-body .faq-item-trigger:focus-visible {
+  outline: 2px solid #76b900;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.faq-body .faq-item-icon {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--landing-text-faint);
+  transition: transform 200ms ease, color 150ms ease;
+}
+
+.faq-body .faq-item[data-expanded='true'] .faq-item-icon {
+  transform: rotate(180deg);
+  color: #76b900;
+}
+
+.faq-body .faq-item-panel {
+  padding: 0 0 1.25rem 0;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--landing-text-faint);
+  /*
+   * No JS-animated height; CSS-only transitions on max-height are
+   * unreliable for variable-height content. The accordion simply
+   * mounts / unmounts the panel; CSS opacity gives a subtle fade.
+   */
+  animation: faqFadeIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.faq-body .faq-item-panel a {
+  color: #76b900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 150ms ease;
+}
+
+.faq-body .faq-item-panel a:hover {
+  opacity: 0.8;
+}
+
+.faq-body .faq-item-panel p {
+  margin-bottom: 0.75rem;
+}
+
+.faq-body .faq-item-panel p:last-child {
+  margin-bottom: 0;
+}
+
+.faq-body .faq-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--landing-text-faint);
+  font-size: 0.9375rem;
+  border: 1px dashed var(--landing-card-border);
+  border-radius: 12px;
+}
+
+.faq-body .faq-search-input {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.875rem 0 2.5rem;
+  border-radius: 10px;
+  background: var(--landing-card-bg);
+  border: 1px solid var(--landing-card-border);
+  color: var(--landing-text);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.faq-body .faq-search-input::placeholder {
+  color: var(--landing-text-faint);
+}
+
+.faq-body .faq-search-input:focus-visible {
+  border-color: rgba(118, 185, 0, 0.55);
+  box-shadow: 0 0 0 3px rgba(118, 185, 0, 0.18);
+}
+
+@keyframes faqFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * .brand-icon-help renders cotradee/public/assets/landing/icons/helpAndFaq.svg
+ * tinted to inherit `currentColor` via CSS mask-image. Used on every
+ * hero surface that previously embedded a Lucide LifeBuoy glyph so
+ * the support / contact / FAQ pages share one in-house brand mark.
+ *
+ * Mask-image is preferred over inlining the SVG because:
+ *   - the asset stays a real cacheable static file,
+ *   - components do not duplicate path data,
+ *   - tinting flows from the surrounding `color` (or an explicit
+ *     `style={{ color: '#76b900' }}` / Tailwind `text-brand`).
+ *
+ * Sized by the consumer via width / height utilities so the same
+ * class works at every callsite from 16px to 48px.
+ *
+ * Declared outside .faq-body deliberately: SupportCenter and
+ * ContactPage live outside the FAQ surface but use the same mark,
+ * so the class needs to be globally available once faq.css is
+ * imported by any one of those entry points. The actual import
+ * graph routes faq.css through FAQPage.tsx, which is lazy-loaded
+ * but always part of the bundle the SPA pulls on first paint.
+ */
+.brand-icon-help {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask-image: url('/assets/landing/icons/helpAndFaq.svg');
+  mask-image: url('/assets/landing/icons/helpAndFaq.svg');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+

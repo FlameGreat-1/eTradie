@@ -66,6 +66,16 @@ const config: Config = {
           DEFAULT: rgb('--info-rgb'),
           soft: 'var(--info-soft)',
         },
+        // Social-platform brand colours. Theme-aware via the
+        // --social-*-rgb CSS variables published per theme. Use as
+        // `text-social-discord` for the icon glyph and
+        // `bg-social-discord/14` for the soft surface pill.
+        social: {
+          facebook: rgb('--social-facebook-rgb'),
+          discord: rgb('--social-discord-rgb'),
+          telegram: rgb('--social-telegram-rgb'),
+          whatsapp: rgb('--social-whatsapp-rgb'),
+        },
       },
       spacing: {
         sidebar: 'var(--sidebar-width)',

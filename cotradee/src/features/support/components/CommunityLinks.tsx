@@ -56,32 +56,37 @@ function CommunityLinks({
   );
 }
 
+// Each platform pulls its surface (/14 soft pill) and foreground glyph
+// from the theme-aware `social.<platform>` tokens declared in
+// tailwind.config.ts. The tokens automatically switch between dark and
+// light theme values via the --social-<platform>-rgb CSS variables in
+// src/assets/index.css.
 const PLATFORM_META: Record<
   CommunityPlatform,
   { icon: React.ReactNode; iconBg: string; iconColor: string; tagline: string }
 > = {
   facebook: {
     icon: <Facebook size={18} />,
-    iconBg: 'bg-[#1877F2]/12',
-    iconColor: 'text-[#1877F2]',
+    iconBg: 'bg-social-facebook/14',
+    iconColor: 'text-social-facebook',
     tagline: 'Latest announcements & community posts',
   },
   discord: {
     icon: <MessageSquare size={18} />,
-    iconBg: 'bg-[#5865F2]/12',
-    iconColor: 'text-[#5865F2]',
+    iconBg: 'bg-social-discord/14',
+    iconColor: 'text-social-discord',
     tagline: 'Real-time chat with traders & the team',
   },
   telegram: {
     icon: <Send size={18} />,
-    iconBg: 'bg-[#26A5E4]/12',
-    iconColor: 'text-[#26A5E4]',
+    iconBg: 'bg-social-telegram/14',
+    iconColor: 'text-social-telegram',
     tagline: 'Instant updates & feature drops',
   },
   whatsapp: {
     icon: <MessageCircle size={18} />,
-    iconBg: 'bg-[#25D366]/12',
-    iconColor: 'text-[#25D366]',
+    iconBg: 'bg-social-whatsapp/14',
+    iconColor: 'text-social-whatsapp',
     tagline: 'Mobile-first broadcast channel',
   },
 };

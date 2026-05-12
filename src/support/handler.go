@@ -198,6 +198,13 @@ type publicContactRequest struct {
 	Message  string `json:"message"`
 	Category string `json:"category"`
 	Priority string `json:"priority"`
+	// Website is a honeypot field. The legitimate SPA leaves it
+	// empty; bots that auto-fill every text input populate it. When
+	// non-empty the handler silently accepts the request (returns
+	// 201 with a fabricated public_ref so the bot does not learn its
+	// trap was tripped) but does NOT persist or notify. See
+	// handlePublicContact for the dispatch logic.
+	Website string `json:"website"`
 }
 
 type publicContactResponse struct {
@@ -216,6 +223,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 
 	ip := h.resolveIP(r)
 	if !h.ipLimiter.Allow(ip) {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeIP).Inc()
 		h.write429(w)
 		return
 	}
@@ -223,6 +231,52 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 	var req publicContactRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Honeypot check. The 'website' field is hidden from real users
+	// (CSS display:none + aria-hidden + tabindex=-1 on the SPA side)
+	// and any non-empty value is a strong signal of an automated bot.
+	// We return a 201 with a fabricated reference so the bot's
+	// success / failure detector cannot distinguish this from a real
+	// submission, but we never persist or notify. Real users who
+	// somehow trigger the field (e.g. an aggressive password manager)
+	// see a successful confirmation and can re-submit from a follow-up
+	// support email if they actually need a ticket opened.
+	if strings.TrimSpace(req.Website) != "" {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeHoneypot).Inc()
+		h.log.Warn().
+			Str("ip", ip).
+			Str("ua", TruncateUserAgent(r.UserAgent())).
+			Msg("support_honeypot_triggered")
+		// Forensic audit row. ticket_id is intentionally nil because
+		// no ticket was persisted; the metadata carries the
+		// fabricated public_ref + the bot's claimed email so a future
+		// review can correlate.
+		fabricatedRef := generatePublicRef()
+		if err := h.store.RecordAudit(r.Context(), AuditParams{
+			Action:    ActionHoneypotDropped,
+			ActorKind: ActorAnonymous,
+			IPAddress: ip,
+			UserAgent: r.UserAgent(),
+			Metadata: map[string]string{
+				"claimed_email":   strings.ToLower(strings.TrimSpace(req.Email)),
+				"fabricated_ref":  fabricatedRef,
+				"trap_field_size": strconv.Itoa(len(req.Website)),
+			},
+		}); err != nil {
+			SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionHoneypotDropped)).Inc()
+			h.log.Error().Err(err).Msg("support_audit_honeypot_failed")
+		}
+		writeJSON(w, http.StatusCreated, publicContactResponse{Ticket: &Ticket{
+			ID:        generateID(),
+			PublicRef: fabricatedRef,
+			Email:     strings.ToLower(strings.TrimSpace(req.Email)),
+			Status:    StatusOpen,
+			Channel:   ChannelContact,
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}})
 		return
 	}
 
@@ -260,6 +314,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 	// Per-email rate limit AFTER validation. A single attacker rotating
 	// IPs cannot fan out unlimited writes against one mailbox.
 	if !h.emailLimiter.Allow(email) {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeEmail).Inc()
 		h.write429(w)
 		return
 	}
@@ -272,6 +327,7 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if n >= maxOpenTicketsPerEmail {
+		SupportRateLimitedTotal.WithLabelValues(rateScopeOpenTicketCeiling).Inc()
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{
 			"error": "too many open tickets for this email; please wait for a response before opening another",
 		})
@@ -296,12 +352,30 @@ func (h *Handler) handlePublicContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	SupportTicketsCreatedTotal.WithLabelValues(string(ticket.Channel), string(category)).Inc()
 	h.log.Info().
 		Str("public_ref", ticket.PublicRef).
 		Str("email", email).
 		Str("category", string(category)).
 		Str("channel", string(ticket.Channel)).
 		Msg("support_ticket_created")
+
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionCreated,
+		ActorKind: ActorAnonymous,
+		IPAddress: ip,
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"email":    email,
+			"category": string(category),
+			"priority": string(priority),
+			"channel":  string(ticket.Channel),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionCreated)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_created_failed")
+	}
 
 	h.dispatchEvent(Event{Kind: EventNewTicket, Ticket: ticket})
 	writeJSON(w, http.StatusCreated, publicContactResponse{Ticket: ticket})
@@ -432,11 +506,30 @@ func (h *Handler) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	SupportTicketsCreatedTotal.WithLabelValues(string(ticket.Channel), string(category)).Inc()
 	h.log.Info().
 		Str("public_ref", ticket.PublicRef).
 		Str("user_id", uid).
 		Str("category", string(category)).
 		Msg("support_ticket_created")
+
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionCreated,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"email":    email,
+			"category": string(category),
+			"priority": string(priority),
+			"channel":  string(ticket.Channel),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionCreated)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_created_failed")
+	}
 
 	h.dispatchEvent(Event{Kind: EventNewTicket, Ticket: ticket})
 	writeJSON(w, http.StatusCreated, ticketResponse{Ticket: ticket})
@@ -542,6 +635,43 @@ func (h *Handler) handleAppendMessage(w http.ResponseWriter, r *http.Request, ti
 		Str("user_id", uid).
 		Msg("support_message_appended")
 
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &ticket.ID,
+		Action:    ActionReplied,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+		Metadata: map[string]string{
+			"message_id": msg.ID,
+			"status":     string(ticket.Status),
+		},
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionReplied)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_replied_failed")
+	}
+
+	// AppendMessage flips a 'resolved' ticket back to 'open' on a
+	// user reply. When that side effect fires, record a separate
+	// audit row so a forensic timeline shows the reopen explicitly
+	// rather than burying it inside the reply event.
+	if ticket.Status == StatusOpen {
+		if err := h.store.RecordAudit(r.Context(), AuditParams{
+			TicketID:  &ticket.ID,
+			Action:    ActionReopened,
+			ActorKind: ActorUser,
+			ActorID:   uid,
+			IPAddress: h.resolveIP(r),
+			UserAgent: r.UserAgent(),
+			Metadata: map[string]string{
+				"triggered_by": msg.ID,
+			},
+		}); err != nil {
+			SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionReopened)).Inc()
+			h.log.Error().Err(err).Msg("support_audit_reopened_failed")
+		}
+	}
+
 	h.dispatchEvent(Event{Kind: EventNewReply, Ticket: ticket, LatestMessage: msg})
 	writeJSON(w, http.StatusCreated, appendMessageResponse{Message: msg, Ticket: ticket})
 }
@@ -566,6 +696,18 @@ func (h *Handler) handleCloseTicket(w http.ResponseWriter, r *http.Request, tick
 		Str("user_id", uid).
 		Msg("support_ticket_closed")
 
+	if err := h.store.RecordAudit(r.Context(), AuditParams{
+		TicketID:  &t.ID,
+		Action:    ActionClosed,
+		ActorKind: ActorUser,
+		ActorID:   uid,
+		IPAddress: h.resolveIP(r),
+		UserAgent: r.UserAgent(),
+	}); err != nil {
+		SupportAuditWriteFailuresTotal.WithLabelValues(string(ActionClosed)).Inc()
+		h.log.Error().Err(err).Msg("support_audit_closed_failed")
+	}
+
 	h.dispatchEvent(Event{Kind: EventTicketClosed, Ticket: t})
 	writeJSON(w, http.StatusOK, ticketResponse{Ticket: t})
 }
@@ -579,11 +721,20 @@ func (h *Handler) handleCloseTicket(w http.ResponseWriter, r *http.Request, tick
 // generous timeout. We deliberately do not use r.Context() because
 // the request context is cancelled the moment the HTTP response is
 // written, which would race with the notifier.
+//
+// The detached goroutine is registered on the notifier's WaitGroup
+// via Track / TrackDone so Notifier.Shutdown can drain it during a
+// graceful shutdown. Notify itself also registers each per-channel
+// goroutine on the same WaitGroup, giving us end-to-end tracking from
+// the moment a ticket is persisted until every channel has been
+// delivered to (or the shutdown context has expired).
 func (h *Handler) dispatchEvent(ev Event) {
 	if h.notifier == nil {
 		return
 	}
+	h.notifier.Track()
 	go func() {
+		defer h.notifier.TrackDone()
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		h.notifier.Notify(ctx, ev)

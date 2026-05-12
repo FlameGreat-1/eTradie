@@ -29,6 +29,12 @@ import (
 // SchemaSQL returns idempotent DDL for the support tables. Called
 // once at gateway startup against the same pgxpool used by
 // auth / billing / mails / consent.
+//
+// support_ticket_audit is an append-only audit trail; rows are NEVER
+// updated or deleted by the application. The FK to support_tickets is
+// ON DELETE SET NULL so even if a ticket is hard-deleted in the
+// future (e.g. for GDPR right-to-erasure), the audit row survives
+// with a NULL ticket_id and the original metadata.
 func SchemaSQL() string {
 	return `
 CREATE TABLE IF NOT EXISTS support_tickets (
@@ -70,6 +76,25 @@ CREATE TABLE IF NOT EXISTS support_ticket_messages (
 
 CREATE INDEX IF NOT EXISTS idx_support_messages_ticket
     ON support_ticket_messages (ticket_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS support_ticket_audit (
+    id          TEXT PRIMARY KEY,
+    ticket_id   TEXT REFERENCES support_tickets(id) ON DELETE SET NULL,
+    action      TEXT NOT NULL,
+    actor_kind  TEXT NOT NULL,
+    actor_id    TEXT NOT NULL DEFAULT '',
+    ip_address  TEXT NOT NULL DEFAULT '',
+    user_agent  TEXT NOT NULL DEFAULT '',
+    metadata    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_audit_ticket
+    ON support_ticket_audit (ticket_id, created_at DESC)
+    WHERE ticket_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_support_audit_action
+    ON support_ticket_audit (action, created_at DESC);
 `
 }
 
@@ -172,6 +197,72 @@ const (
 func (k MessageAuthorKind) IsValid() bool {
 	switch k {
 	case AuthorKindUser, AuthorKindStaff, AuthorKindSystem:
+		return true
+	}
+	return false
+}
+
+// ----------------------------------------------------------------------
+// Audit trail
+// ----------------------------------------------------------------------
+
+// TicketAction is the closed enum of state-changing operations
+// captured in the support_ticket_audit table. The set is intentionally
+// small so the audit log is easy to query and dashboard.
+type TicketAction string
+
+const (
+	// ActionCreated fires once per successful ticket persistence,
+	// regardless of which channel the request arrived on.
+	ActionCreated TicketAction = "created"
+
+	// ActionReplied fires once per user-side append on an existing
+	// open / pending / resolved ticket.
+	ActionReplied TicketAction = "replied"
+
+	// ActionClosed fires when the user transitions a ticket to the
+	// terminal closed state via the dashboard.
+	ActionClosed TicketAction = "closed"
+
+	// ActionReopened fires when a user reply on a 'resolved' ticket
+	// flips its status back to 'open' as a side effect.
+	ActionReopened TicketAction = "reopened"
+
+	// ActionHoneypotDropped fires when the public contact form's
+	// honeypot field is populated. The triggering request is
+	// silently accepted (so the bot's success detector is fooled)
+	// but no ticket is persisted; this row is the only durable
+	// record of the event for forensics.
+	ActionHoneypotDropped TicketAction = "honeypot_dropped"
+)
+
+// IsValid returns true for the closed enum of TicketAction values.
+func (a TicketAction) IsValid() bool {
+	switch a {
+	case ActionCreated, ActionReplied, ActionClosed,
+		ActionReopened, ActionHoneypotDropped:
+		return true
+	}
+	return false
+}
+
+// AuditActorKind distinguishes who initiated the action. 'anonymous'
+// covers the public-contact-form path where no user_id exists; the
+// other three mirror MessageAuthorKind exactly so the two enums can
+// be derived from each other without an explicit mapping table.
+type AuditActorKind string
+
+const (
+	ActorUser      AuditActorKind = "user"
+	ActorStaff     AuditActorKind = "staff"
+	ActorSystem    AuditActorKind = "system"
+	ActorAnonymous AuditActorKind = "anonymous"
+)
+
+// IsValid returns true for the four canonical actor kinds.
+func (k AuditActorKind) IsValid() bool {
+	switch k {
+	case ActorUser, ActorStaff, ActorSystem, ActorAnonymous:
 		return true
 	}
 	return false

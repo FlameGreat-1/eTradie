@@ -28,6 +28,7 @@ const BillingPolicyPage   = lazy(() => import('./pages/BillingPolicyPage'));
 const CookiePolicyPage    = lazy(() => import('./pages/CookiePolicyPage'));
 const ComplaintsPage      = lazy(() => import('./pages/ComplaintsPage'));
 const ContactPage          = lazy(() => import('./pages/ContactPage'));
+const FAQPage              = lazy(() => import('@/features/faq/FAQPage'));
 
 export function DashboardLoader() {
   return (
@@ -150,6 +151,15 @@ export default function AppRoutes() {
         <Route path="/cookie"           element={<CookiePolicyPage />} />
         <Route path="/complaints"       element={<ComplaintsPage />} />
         <Route path="/contact"          element={<ContactPage />} />
+        {/*
+          /faq is the canonical public FAQ surface. /faqs is the
+          plural-vs-singular alias so a URL slip (or a tweet linking
+          /faqs#thing) never produces a 404. SEO best practice is to
+          serve one canonical and 301 the other; the SPA approximates
+          this with a client-side Navigate(replace).
+        */}
+        <Route path="/faq"              element={<FAQPage />} />
+        <Route path="/faqs"             element={<Navigate to="/faq" replace />} />
         <Route
           path="/dashboard/*"
           element={
