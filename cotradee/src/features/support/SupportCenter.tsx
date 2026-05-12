@@ -1,9 +1,22 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { LifeBuoy } from 'lucide-react';
 import CommunityLinks from './components/CommunityLinks';
 import NewTicketModal from './components/NewTicketModal';
 import TicketDetail from './components/TicketDetail';
 import TicketList from './components/TicketList';
+
+// Mirrors src/support/handler.go isValidIDFormat. A 32-char lowercase
+// hex string is the ONLY shape a real ticket id can take; rejecting
+// anything else before opening the detail panel avoids a flash of an
+// empty 'ticket not found' state for a malformed deep link.
+function isValidTicketID(raw: string): boolean {
+  if (raw.length !== 32) return false;
+  for (const ch of raw) {
+    if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))) return false;
+  }
+  return true;
+}
 
 /**
  * SupportCenter is the top-level orchestrator used by the authenticated
@@ -24,6 +37,32 @@ type Panel = { kind: 'empty' } | { kind: 'detail'; ticketId: string } | { kind: 
 function SupportCenter() {
   const [panel, setPanel] = useState<Panel>({ kind: 'empty' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Honour deep links from the help widget ('?new=1') and from
+  // transactional emails ('?ticket=<32hex>'). Consume the query
+  // params on mount, then strip them from the URL via
+  // setSearchParams({ replace: true }) so a subsequent refresh does
+  // not snap the panel back to the deep-linked one.
+  useEffect(() => {
+    const wantNew = searchParams.get('new') === '1';
+    const rawTicket = searchParams.get('ticket') ?? '';
+    if (!wantNew && !rawTicket) return;
+    if (wantNew) {
+      setPanel({ kind: 'new' });
+      setMobileShowDetail(true);
+    } else if (isValidTicketID(rawTicket)) {
+      setPanel({ kind: 'detail', ticketId: rawTicket });
+      setMobileShowDetail(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    next.delete('ticket');
+    setSearchParams(next, { replace: true });
+  // We only want to react to params on mount or when they actually
+  // change; the setters are stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const openNew = () => {
     setPanel({ kind: 'new' });
