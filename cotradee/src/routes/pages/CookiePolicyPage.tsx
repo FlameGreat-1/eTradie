@@ -22,8 +22,8 @@ export default function CookiePolicyPage() {
     <LegalPageLayout
       title="Cookie Policy"
       subtitle="This policy explains what cookies and similar technologies Exoper uses, why we use them, and how you can control them."
-      effectiveDate="1 January 2026"
-      lastUpdated="1 January 2026"
+      effectiveDate="12 May 2026"
+      lastUpdated="12 May 2026"
       sections={SECTIONS}
     >
       {/* 1. Overview */}
@@ -57,13 +57,14 @@ export default function CookiePolicyPage() {
       {/* 3. Categories */}
       <h2 id="categories">3. Categories We Use</h2>
       <p>
-        Exoper uses cookies in the following categories. We do not use advertising cookies
-        and we do not sell cookie data to third parties.
+        Exoper uses cookies in the following categories. We do not use advertising cookies,
+        we do not sell cookie data to third parties, and we do not currently operate any
+        analytics or tracking pixels of our own.
       </p>
       <ul>
-        <li><strong>Strictly necessary</strong> — required for the Platform to function</li>
-        <li><strong>Functional</strong> — remember your preferences and settings</li>
-        <li><strong>Analytics</strong> — help us understand how the Platform is used</li>
+        <li><strong>Strictly necessary</strong> &mdash; required for the Platform to function</li>
+        <li><strong>Functional</strong> &mdash; remember your preferences and settings</li>
+        <li><strong>Analytics</strong> &mdash; currently not in use; see Section&nbsp;6</li>
       </ul>
 
       {/* 4. Strictly Necessary */}
@@ -75,19 +76,19 @@ export default function CookiePolicyPage() {
       </p>
       <ul>
         <li>
-          <strong>Authentication tokens</strong> — keep you signed in across pages and
+          <strong>Authentication tokens</strong> &mdash; keep you signed in across pages and
           sessions, and protect your account from unauthorised access.
         </li>
         <li>
-          <strong>Session identifiers</strong> — maintain the state of your current session
+          <strong>Session identifiers</strong> &mdash; maintain the state of your current session
           (for example, which workspace or symbol you have selected).
         </li>
         <li>
-          <strong>CSRF tokens</strong> — protect form submissions and API requests against
+          <strong>CSRF tokens</strong> &mdash; protect form submissions and API requests against
           cross-site request forgery.
         </li>
         <li>
-          <strong>Security cookies</strong> — detect and mitigate abusive traffic,
+          <strong>Security cookies</strong> &mdash; detect and mitigate abusive traffic,
           credential-stuffing attempts, and other security events.
         </li>
       </ul>
@@ -96,39 +97,53 @@ export default function CookiePolicyPage() {
       <h2 id="functional">5. Functional Cookies</h2>
       <p>
         Functional cookies remember choices you have made so the Platform behaves the way
-        you expect on each visit.
+        you expect on each visit. They are written only after you grant Functional consent
+        in the cookie preferences and are removed from your device if you later withdraw
+        consent.
       </p>
       <ul>
         <li>
-          <strong>Theme preference</strong> — remembers whether you have selected the
-          light or dark interface.
-        </li>
-        <li>
-          <strong>Workspace layout</strong> — remembers your selected timeframe, active
-          symbol, and dashboard configuration.
-        </li>
-        <li>
-          <strong>Locale &amp; region</strong> — remembers your preferred language and
-          regional formatting.
-        </li>
-        <li>
-          <strong>UI dismissals</strong> — remembers banners, tips, and onboarding steps
-          you have already dismissed.
+          <strong>Theme preference</strong> &mdash; remembers whether you have selected the
+          light or dark interface across visits. When Functional consent is not granted,
+          your theme choice still applies for the current tab but is not stored on your
+          device.
         </li>
       </ul>
-
-      {/* 6. Analytics */}
-      <h2 id="analytics">6. Analytics Cookies</h2>
       <p>
-        Analytics cookies help us understand how the Platform is used so we can improve
-        reliability, performance, and feature quality. They collect aggregated, pseudonymous
-        usage data such as page views, navigation paths, feature engagement, error rates,
-        and load performance.
+        Other preference-style features (workspace layout, dismissed banners, locale
+        formatting) may be added in future. When they are, they will be added to this
+        section and the policy version will be bumped so every user is re-prompted before
+        any new device-side storage begins.
+      </p>
+
+      {/* 6. Analytics — dormant. */}
+      <h2 id="analytics">6. Analytics Cookies</h2>
+      <div className="legal-callout">
+        <p>
+          <strong>Currently not in use.</strong> Exoper does not operate any analytics
+          or tracking pixels of its own at this time. No analytics cookies are set on
+          your device when you visit the Platform.
+        </p>
+      </div>
+      <p>
+        The Analytics toggle in your cookie preferences is preserved so that, if
+        analytics is ever introduced, your prior choice is honoured automatically and you
+        are not asked to decide again about a category you have already considered.
       </p>
       <p>
-        Analytics data is not used for advertising and is not combined with broker or
-        trading account data. Where reasonably possible, IP addresses are truncated or
-        anonymised before analysis.
+        If introduced in the future, analytics cookies would help us collect aggregated,
+        pseudonymous usage data such as page views, navigation paths, feature engagement,
+        error rates, and load performance. Analytics data would never be used for
+        advertising and would never be combined with broker or trading account data.
+        Where reasonably possible, IP addresses would be truncated or anonymised before
+        analysis.
+      </p>
+      <p>
+        Before any analytics processing begins, we will update this policy with the name
+        of the analytics provider, the data categories collected, the retention period,
+        and the lawful basis; we will bump the policy version so every user is
+        re-prompted; and any prior &lsquo;reject&rsquo; choice recorded under this dormant
+        category will be honoured automatically.
       </p>
 
       {/* 7. Third-Party */}
@@ -139,16 +154,16 @@ export default function CookiePolicyPage() {
       </p>
       <ul>
         <li>
-          <strong>Paddle and Lemon Squeezy</strong> — set cookies during checkout and
+          <strong>Paddle and Lemon Squeezy</strong> &mdash; set cookies during checkout and
           billing management. These cookies are governed by the respective provider&rsquo;s
           cookie and privacy policies.
         </li>
         <li>
-          <strong>Google (OAuth sign-in)</strong> — if you sign in with Google, Google may
+          <strong>Google (OAuth sign-in)</strong> &mdash; if you sign in with Google, Google may
           set cookies as part of its authentication flow.
         </li>
         <li>
-          <strong>Cloud infrastructure providers</strong> — may set cookies for traffic
+          <strong>Cloud infrastructure providers</strong> &mdash; may set cookies for traffic
           routing, load balancing, and security purposes.
         </li>
       </ul>
@@ -169,11 +184,11 @@ export default function CookiePolicyPage() {
       </p>
       <ul>
         <li>
-          <strong>Session cookies</strong> — deleted automatically when you close your
+          <strong>Session cookies</strong> &mdash; deleted automatically when you close your
           browser. Used for short-lived session state.
         </li>
         <li>
-          <strong>Persistent cookies</strong> — remain on your device for a defined period
+          <strong>Persistent cookies</strong> &mdash; remain on your device for a defined period
           (typically between 7 days and 12 months, depending on the cookie&rsquo;s purpose)
           or until you delete them.
         </li>
@@ -184,15 +199,17 @@ export default function CookiePolicyPage() {
       <p>You can control cookies in several ways:</p>
       <ul>
         <li>
-          <strong>Browser settings</strong> — all modern browsers allow you to view, block,
+          <strong>Browser settings</strong> &mdash; all modern browsers allow you to view, block,
           or delete cookies. Consult your browser&rsquo;s help documentation for instructions.
         </li>
         <li>
-          <strong>Cookie preferences in the Platform</strong> — where applicable, you can
-          adjust non-essential cookie categories from your account settings.
+          <strong>Cookie preferences in the Platform</strong> &mdash; you can adjust the
+          Functional and Analytics categories at any time from the Cookie Preferences
+          control. Withdrawing Functional consent deletes the stored preference and stops
+          further writes immediately.
         </li>
         <li>
-          <strong>Opt-out tools</strong> — third-party providers may offer their own
+          <strong>Opt-out tools</strong> &mdash; third-party providers may offer their own
           opt-out mechanisms; see the links in Section&nbsp;7.
         </li>
       </ul>
@@ -200,8 +217,8 @@ export default function CookiePolicyPage() {
         <p>
           <strong>Blocking strictly necessary cookies will prevent the Platform from
           functioning.</strong> You will not be able to sign in, maintain a session, or use
-          core features. Blocking functional or analytics cookies will not prevent core
-          functionality but may degrade your experience.
+          core features. Blocking Functional cookies will not prevent core functionality
+          but means your theme preference will not be remembered between visits.
         </p>
       </div>
 
@@ -219,8 +236,9 @@ export default function CookiePolicyPage() {
       <p>
         We may update this Cookie Policy from time to time to reflect changes in technology,
         regulation, or our practices. The updated policy will be effective from the date
-        shown at the top of this page. Material changes will be communicated through the
-        Platform or by email.
+        shown at the top of this page. Material changes (including the introduction of any
+        new cookie category) will be communicated through the Platform and will require a
+        fresh consent decision before any new processing begins.
       </p>
 
       {/* 12. Contact */}
