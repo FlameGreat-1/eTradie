@@ -84,6 +84,12 @@ func main() {
 	auditStore := store.NewSubscriptionEventStore(pool)
 	intentStore := store.NewCheckoutIntentStore(pool)
 
+	// LLM usage store. Shared between the subscription service (for the
+	// MonthlyReset hook fired on renewal / upgrade-into-managed) and the
+	// reconciler (for the stale-reservation janitor). Constructed once
+	// so both consumers operate on the same connection-pooled handle.
+	usageStore := store.NewUsageStore(pool)
+
 	// Redis client: required for the cross-service alert transport that
 	// pushes SUBSCRIPTION_* events to the gateway's WebSocket subscribers.
 	// The gateway runs its own subscriber on the same channel; we only
@@ -126,6 +132,14 @@ func main() {
 	}
 
 	subSvc := service.NewService(subStore, processedStore, auditStore, revoker, log.With().Str("component", "billing_service").Logger())
+
+	// Wire the LLM usage store into the subscription service so renewal /
+	// upgrade-into-managed events reset the user's monthly token quota
+	// window. Without this the quota would only reset on demotion to
+	// free, and a paying customer would silently hit the monthly cap
+	// ~30 days after their first managed event and stay 429'd forever.
+	subSvc.WithUsageStore(usageStore)
+
 	checkoutSvc, err := service.NewCheckoutService(cfg.CheckoutConfig(), log.With().Str("component", "billing_checkout").Logger())
 	if err != nil {
 		log.Fatal().Err(err).Msg("billing_checkout_service_init_failed")
@@ -192,10 +206,10 @@ func main() {
 	// Janitor: prune expired billing_checkout_intents on every tick.
 	reconciler.WithCheckoutIntents(intentStore)
 
-	// Janitor: reap stale LLM reservations (held + TTL elapsed) and
-	// reset monthly token counters on period-end renewal. The usage
-	// store shares the same pool as every other billing store.
-	usageStore := store.NewUsageStore(pool)
+	// Janitor: reap stale LLM reservations (held + TTL elapsed). The
+	// usage store is the same handle wired into the subscription service
+	// above; the reconciler only uses it for the reservation reaper and
+	// for the post-demotion MonthlyReset call (period-end → free).
 	reconciler.WithUsageStore(usageStore)
 
 	srv := server.New(server.Options{
