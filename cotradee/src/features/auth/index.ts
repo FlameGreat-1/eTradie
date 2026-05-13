@@ -24,10 +24,13 @@ export {
   requestPasswordReset,
   validateResetToken,
   resetPassword,
+  getPasswordPolicy,
+  DEFAULT_PASSWORD_POLICY,
 } from './api/passwordReset';
 export type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
+  PasswordPolicy,
   ValidateResetTokenRequest,
   ValidateResetTokenResponse,
   ResetPasswordRequest,

@@ -89,6 +89,11 @@ func main() {
 	passwordResetStore := auth.NewPasswordResetStore(authPool)
 	tokenService := auth.NewTokenService(authCfg)
 	authHandler := auth.NewHandler(userStore, sessionStore, tokenService, authCfg)
+	// Inject a structured logger so the password-reset endpoints can
+	// emit silent-skip telemetry without weakening the non-enumeration
+	// contract on the wire. The auth handler defaults to zerolog.Nop()
+	// when this is not called; that path is used by unit tests.
+	authHandler.WithLogger(observability.Logger("auth"))
 
 	// Wire Google OAuth only when explicitly enabled. The provider
 	// builds an HTTP client with a bounded timeout and an empty JWKS
@@ -262,7 +267,7 @@ func main() {
 	subStore := store.NewSubscriptionStore(authPool)
 	portalAudStore := store.NewPortalAuditStore(authPool)
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, usageStore, subStore, portalAudStore)
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, usageStore, subStore, portalAudStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

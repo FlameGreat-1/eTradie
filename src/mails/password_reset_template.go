@@ -1,3 +1,10 @@
+// Package mails owns transactional email templates and SMTP delivery.
+// Dependency direction note (audit finding L1): the auth package
+// imports mails (mails.Sender satisfies auth.Mailer; mails.PasswordResetHTML
+// is composed by auth.handleForgotPassword). The arrow is therefore
+// one-way: auth -> mails. Do NOT add `import ".../src/auth"` to any
+// file in this package; doing so would introduce an import cycle that
+// only manifests at `go build` time.
 package mails
 
 import (

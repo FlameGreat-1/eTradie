@@ -2,11 +2,29 @@ import { api } from '@/lib/axios';
 import type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
+  PasswordPolicy,
   ValidateResetTokenRequest,
   ValidateResetTokenResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
 } from '../types';
+
+/**
+ * DEFAULT_PASSWORD_POLICY is the compile-time fallback used when the
+ * gateway's /auth/password/policy endpoint cannot be reached. The
+ * numbers mirror the backend defaults (auth/models.go PasswordMinLength
+ * /MaxLength and AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS=3600); they are
+ * SAFE to use because the backend will re-validate every input on
+ * submit anyway. The defaults exist purely so the form can render a
+ * sensible placeholder while the policy probe is in flight, and so a
+ * transient probe failure does not block the user from trying.
+ */
+export const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
+  reset_enabled: true,
+  token_expires_minutes: 60,
+  password_min_length: 8,
+  password_max_length: 72,
+};
 
 /**
  * Trigger a password-reset email.
@@ -64,4 +82,35 @@ export async function resetPassword(
     payload,
   );
   return data;
+}
+
+/**
+ * Fetch the server-driven password policy: TTL of the reset token in
+ * minutes, password length bounds, and a feature-enabled flag. Public
+ * GET; never throws — returns DEFAULT_PASSWORD_POLICY on any transport
+ * or shape failure so the UI never blocks on this call. The caller
+ * should treat the return value as advisory and rely on the gateway
+ * to re-validate on submit.
+ */
+export async function getPasswordPolicy(): Promise<PasswordPolicy> {
+  try {
+    const { data } = await api.gateway.get<PasswordPolicy>(
+      '/auth/password/policy',
+    );
+    if (
+      typeof data?.token_expires_minutes !== 'number' ||
+      typeof data?.password_min_length !== 'number' ||
+      typeof data?.password_max_length !== 'number'
+    ) {
+      return DEFAULT_PASSWORD_POLICY;
+    }
+    return {
+      reset_enabled: Boolean(data.reset_enabled),
+      token_expires_minutes: data.token_expires_minutes,
+      password_min_length: data.password_min_length,
+      password_max_length: data.password_max_length,
+    };
+  } catch {
+    return DEFAULT_PASSWORD_POLICY;
+  }
 }
