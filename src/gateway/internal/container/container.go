@@ -64,6 +64,7 @@ func New(
 	execAdapter *infra.ExecutionGRPCAdapter,
 	tokenService *auth.TokenService,
 	authHandler *auth.Handler,
+	authCfg *auth.Config,
 	userStore *auth.UserStore,
 	waitlistHandler *mails.Handler,
 	consentHandler *consent.Handler,
@@ -145,8 +146,20 @@ func New(
 		return nil, fmt.Errorf("container: billing client: %w", err)
 	}
 
-	// Servers (now with auth + consent support).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore)
+	// LLM metering handler. The same engine shared-secret used by every
+	// /internal/* call from gateway to engine is reused here in the
+	// opposite direction (engine -> gateway). When the secret is empty
+	// (dev) the handler refuses every internal call with 401, which is
+	// the safe default.
+	meteringHandler := server.NewMeteringHandler(
+		usageStore,
+		userStore,
+		authCfg,
+		cfg.EngineInternalSharedSecret,
+	)
+
+	// Servers (now with auth + consent support + metering).
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}

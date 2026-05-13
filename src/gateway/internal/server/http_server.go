@@ -56,6 +56,7 @@ func NewHTTPServer(
 	portalAudStore *billingstore.PortalAuditStore,
 	billingClient *BillingClient,
 	userStore *auth.UserStore,
+	meteringHandler *MeteringHandler,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
@@ -103,6 +104,15 @@ func NewHTTPServer(
 
 	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+
+	// LLM metering: internal Reserve/Commit/Refund (shared-secret) +
+	// user-facing GET /api/v1/billing/usage (auth + CSRF). The handler
+	// guards the internal trio itself with a constant-time HMAC check
+	// against the same X-Internal-Auth header the engine already uses
+	// for its /internal/* surface.
+	if meteringHandler != nil {
+		meteringHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+	}
 
 	// Cookie-consent endpoints. The handler owns its own auth-middleware
 	// composition (OptionalAuth for the public POST/GET, RequireAuth +
