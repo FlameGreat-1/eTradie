@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -151,31 +150,31 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	ip := h.cfg.IPResolver().Resolve(r)
 	ua := r.UserAgent()
-	emailFingerprint := emailFingerprint(email)
+	emailFP := emailFingerprint(email)
 
 	user, err := h.users.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		// Internal lookup failures must not leak as 500 because that
 		// makes the endpoint behave differently when an email exists
 		// (cheap path) vs doesn't (DB miss). Log and return generic.
-		h.logForgotSkip(skipReasonLookupFailed, emailFingerprint, ip, "")
+		h.logForgotSkip(skipReasonLookupFailed, emailFP, ip, "")
 		respondGeneric()
 		return
 	}
 	if user == nil {
-		h.logForgotSkip(skipReasonUserNotFound, emailFingerprint, ip, "")
+		h.logForgotSkip(skipReasonUserNotFound, emailFP, ip, "")
 		respondGeneric()
 		return
 	}
 	if !user.Active {
-		h.logForgotSkip(skipReasonUserInactive, emailFingerprint, ip, user.ID)
+		h.logForgotSkip(skipReasonUserInactive, emailFP, ip, user.ID)
 		respondGeneric()
 		return
 	}
 	// Federated accounts have no local password; mailing a reset link
 	// would be pointless and the redemption handler would reject it.
 	if user.AuthProvider != "" && user.AuthProvider != AuthProviderLocal {
-		h.logForgotSkip(skipReasonUserFederated, emailFingerprint, ip, user.ID)
+		h.logForgotSkip(skipReasonUserFederated, emailFP, ip, user.ID)
 		respondGeneric()
 		return
 	}
@@ -184,14 +183,14 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// on top of the IP limiter that already gates the route.
 	count, err := h.passwordResets.CountRecentRequests(r.Context(), user.ID, passwordResetUserWindow)
 	if err == nil && count >= passwordResetUserMax {
-		h.logForgotSkip(skipReasonPerUserRateLimited, emailFingerprint, ip, user.ID)
+		h.logForgotSkip(skipReasonPerUserRateLimited, emailFP, ip, user.ID)
 		respondGeneric()
 		return
 	}
 
 	plaintextToken, err := GeneratePasswordResetToken()
 	if err != nil {
-		h.logForgotSkip(skipReasonTokenGenFailed, emailFingerprint, ip, user.ID)
+		h.logForgotSkip(skipReasonTokenGenFailed, emailFP, ip, user.ID)
 		respondGeneric()
 		return
 	}
@@ -201,7 +200,7 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		h.cfg.PasswordResetTokenTTL(), ip, ua,
 	)
 	if err != nil {
-		h.logForgotSkip(skipReasonPersistFailed, emailFingerprint, ip, user.ID)
+		h.logForgotSkip(skipReasonPersistFailed, emailFP, ip, user.ID)
 		respondGeneric()
 		return
 	}
@@ -224,7 +223,7 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	h.log.Info().
 		Str("event", "password_reset_email_dispatched").
 		Str("user_id", user.ID).
-		Str("email_fp", emailFingerprint).
+		Str("email_fp", emailFP).
 		Str("client_ip", ip).
 		Int("expires_minutes", expiresMinutes).
 		Msg("password_reset_requested")
@@ -531,8 +530,4 @@ func emailFingerprint(email string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-// io is imported but only used inside the alternative size-limited
-// reader paths above; the unused alias guard below keeps a future
-// editor from removing the import.
-var _ io.Reader = (*strings.Reader)(nil)
 
