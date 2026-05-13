@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,14 +31,14 @@ import (
 //
 // The shared secret is constant-time-compared against the
 // X-Internal-Auth header on every internal call. Failure paths are
-// uniform (404 "not found") so a probe cannot distinguish
+// uniform (401 "unauthorized") so a probe cannot distinguish
 // "no secret configured" from "wrong secret supplied".
 type MeteringHandler struct {
-	usage     *billingstore.UsageStore
-	users     *auth.UserStore
-	cfg       *auth.Config
-	secret    []byte
-	log       zerolog.Logger
+	usage  *billingstore.UsageStore
+	users  *auth.UserStore
+	cfg    *auth.Config
+	secret []byte
+	log    zerolog.Logger
 }
 
 // NewMeteringHandler returns a ready-to-mount handler. internalSecret
@@ -105,11 +106,11 @@ func (h *MeteringHandler) rejectInternal(w http.ResponseWriter) {
 // ---------------------------------------------------------------------------
 
 type reserveRequest struct {
-	Provider               string `json:"provider"`
-	Model                  string `json:"model"`
-	EstimatedInputTokens   int64  `json:"estimated_input_tokens"`
-	MaxOutputTokens        int64  `json:"max_output_tokens"`
-	TraceID                string `json:"trace_id"`
+	Provider             string `json:"provider"`
+	Model                string `json:"model"`
+	EstimatedInputTokens int64  `json:"estimated_input_tokens"`
+	MaxOutputTokens      int64  `json:"max_output_tokens"`
+	TraceID              string `json:"trace_id"`
 }
 
 type reserveResponse struct {
@@ -157,7 +158,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 
 	reservationID, err := h.usage.ReserveLLMTokens(
 		r.Context(),
-		user.ID, user.Tier,
+		user.ID, tierFor(user),
 		req.Provider, req.Model, req.TraceID,
 		req.EstimatedInputTokens, req.MaxOutputTokens,
 		policy,
@@ -169,7 +170,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 			if retryAfter < 1 {
 				retryAfter = 1
 			}
-			w.Header().Set("Retry-After", intToString(retryAfter))
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -182,7 +183,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 			})
 			h.log.Info().
 				Str("user_id", user.ID).
-				Str("tier", user.Tier).
+				Str("tier", tierFor(user)).
 				Str("dimension", qerr.Dimension).
 				Int64("limit", qerr.Limit).
 				Int64("used", qerr.Used).
@@ -315,15 +316,30 @@ func (h *MeteringHandler) handleGetUsage(w http.ResponseWriter, r *http.Request)
 }
 
 // ---------------------------------------------------------------------------
-// Policy conversion: auth.Config snapshot -> billingstore.LLMQuotaPolicy
+// Tier resolution + policy conversion
 // ---------------------------------------------------------------------------
 
-func (h *MeteringHandler) policyForUser(user *auth.User) billingstore.LLMQuotaPolicy {
-	tier := user.Tier
+// tierFor returns the canonical tier string the metering layer applies
+// to this user. Admins are treated as "admin" so the auth config can
+// map them to the managed-tier policy independent of whatever tier
+// string lives on their billing subscription row (admins typically
+// retain tier="free" because they do not pay).
+//
+// Centralised in one helper so every call site — the Reserve insert,
+// the quota-blocked log line, the policy lookup — sees the same
+// canonicalised string and cannot drift.
+func tierFor(user *auth.User) string {
 	if user.IsAdmin() {
-		tier = "admin"
+		return "admin"
 	}
-	authPol := h.cfg.LLMQuotaPolicyForTier(tier)
+	return user.Tier
+}
+
+// policyForUser resolves the user's LLM quota policy from the auth
+// config. Snapshot copy of the auth-package shape into the billing-store
+// shape so neither package needs to import the other.
+func (h *MeteringHandler) policyForUser(user *auth.User) billingstore.LLMQuotaPolicy {
+	authPol := h.cfg.LLMQuotaPolicyForTier(tierFor(user))
 
 	allowed := make(map[string]bool, len(authPol.AllowedModels))
 	for _, m := range authPol.AllowedModels {
@@ -339,31 +355,4 @@ func (h *MeteringHandler) policyForUser(user *auth.User) billingstore.LLMQuotaPo
 		AllowedModels:         allowed,
 		ReservationTTL:        authPol.ReservationTTL,
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// intToString avoids the strconv import on the hot path; the secret
-// header values we emit are tiny so the cost is negligible. Kept local
-// to the file to avoid polluting the package namespace.
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := false
-	if n < 0 {
-		neg = true
-		n = -n
-	}
-	digits := make([]byte, 0, 12)
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		digits = append([]byte{'-'}, digits...)
-	}
-	return string(digits)
 }
