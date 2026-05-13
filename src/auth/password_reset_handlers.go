@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -367,10 +366,3 @@ func buildPasswordResetURL(base, token string) string {
 	return base + "/reset-password?token=" + url.QueryEscape(token)
 }
 
-// ctxWithTimeout is a small helper used in the background email
-// goroutine path so the goroutine cannot leak a request context past
-// the response. Unused at present (the mailer takes no context) but
-// declared here as the obvious extension point for the next iteration.
-func ctxWithTimeout(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(parent, d)
-}
