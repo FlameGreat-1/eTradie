@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // writeSessionCookies issues a fresh CSRF token bound to the user and
@@ -77,6 +79,14 @@ type Handler struct {
 	// forgot/reset endpoints return 503.
 	passwordResets *PasswordResetStore
 	mailer         Mailer
+
+	// log is the structured logger used for silent-skip telemetry on
+	// the password-reset endpoints (and any future handler that needs
+	// observability without changing its wire response). Defaults to a
+	// no-op logger when WithLogger has not been called so unit tests
+	// do not need to inject one and a half-wired Handler still serves
+	// traffic safely.
+	log zerolog.Logger
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -86,7 +96,15 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 		sessions: sessions,
 		tokens:   tokens,
 		cfg:      cfg,
+		log:      zerolog.Nop(),
 	}
+}
+
+// WithLogger attaches a structured logger. Symmetric with WithOAuth /
+// WithPasswordReset; safe to call exactly once at startup before any
+// route serves traffic.
+func (h *Handler) WithLogger(log zerolog.Logger) {
+	h.log = log
 }
 
 // RegisterRoutes mounts all auth routes on the given mux.
@@ -106,6 +124,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	forgotPasswordLimiter := NewRateLimiter(5, 1*time.Minute)
 	resetValidateLimiter := NewRateLimiter(30, 1*time.Minute)
 	resetPasswordLimiter := NewRateLimiter(10, 1*time.Minute)
+	passwordPolicyLimiter := NewRateLimiter(60, 1*time.Minute)
 
 	resolver := h.cfg.IPResolver()
 
@@ -125,6 +144,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	mux.HandleFunc("/auth/password/forgot", forgotPasswordLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleForgotPassword))
 	mux.HandleFunc("/auth/password/reset/validate", resetValidateLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleValidateResetToken))
 	mux.HandleFunc("/auth/password/reset", resetPasswordLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleResetPassword))
+	mux.HandleFunc("/auth/password/policy", passwordPolicyLimiter.RateLimitMiddlewareWithResolver(resolver, h.handlePasswordPolicy))
 
 	// Logout: OptionalAuth + rate-limited. Even an unauthenticated
 	// request reaches the handler so the cookie jar can be cleared.

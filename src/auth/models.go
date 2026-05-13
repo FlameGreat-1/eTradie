@@ -93,14 +93,24 @@ const (
 	AuthProviderGoogle = "google"
 )
 
+// Password length policy. Bcrypt accepts at most 72 bytes; bytes past
+// 72 are silently truncated so we refuse them up front. The minimum is
+// the lower bound used historically by SetPassword. Exported so the
+// public GET /auth/password/policy endpoint and the SPA's reset form
+// can mirror the same numbers without copy-pasting magic constants.
+const (
+	PasswordMinLength = 8
+	PasswordMaxLength = 72
+)
+
 // SetPassword hashes the plaintext password with bcrypt (cost 12)
 // and stores the result in PasswordHash.
 func (u *User) SetPassword(plaintext string) error {
-	if len(plaintext) < 8 {
-		return fmt.Errorf("password must be at least 8 characters")
+	if len(plaintext) < PasswordMinLength {
+		return fmt.Errorf("password must be at least %d characters", PasswordMinLength)
 	}
-	if len(plaintext) > 72 {
-		return fmt.Errorf("password must be at most 72 characters")
+	if len(plaintext) > PasswordMaxLength {
+		return fmt.Errorf("password must be at most %d characters", PasswordMaxLength)
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
 	if err != nil {

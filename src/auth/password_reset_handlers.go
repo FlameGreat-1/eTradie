@@ -1,8 +1,12 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,6 +51,14 @@ const (
 	// non-enumerable.
 	passwordResetGenericMessage = "if an account exists for that email, a password reset link has been sent"
 
+	// passwordResetGenericRedemptionFailure is the single user-facing
+	// message returned for every failure path of POST /auth/password/reset
+	// EXCEPT internal-server faults. Sharing one string across the
+	// not-found / expired / consumed / inactive-user / federated-user
+	// branches means a presented token cannot be used as an oracle for
+	// the account's lifecycle state.
+	passwordResetGenericRedemptionFailure = "reset link is invalid, expired, or already used"
+
 	// passwordResetUserWindow / passwordResetUserMax cap the number of
 	// reset requests a single user can trigger in a rolling window. The
 	// limit is intentionally generous (legitimate users retry a couple
@@ -54,6 +66,24 @@ const (
 	// the endpoint as a mailbomb against one address.
 	passwordResetUserWindow = 15 * time.Minute
 	passwordResetUserMax    = 5
+
+	// passwordResetMaxBodyBytes caps the JSON body each public reset
+	// endpoint will read. The largest legitimate body is the redemption
+	// request: {"token":"<64 hex chars>","new_password":"<<=72 chars>"}
+	// which fits in well under 256 bytes. 4 KiB is far above any
+	// legitimate payload and small enough that an attacker cannot make
+	// the gateway buffer a multi-MB blob just to have it rejected.
+	passwordResetMaxBodyBytes int64 = 4 << 10
+
+	// Skip-reason codes used by the silent-skip telemetry on /forgot.
+	// Stable strings so dashboards / alerts can match on them.
+	skipReasonUserNotFound       = "user_not_found"
+	skipReasonUserInactive       = "user_inactive"
+	skipReasonUserFederated      = "user_federated"
+	skipReasonPerUserRateLimited = "per_user_rate_limited"
+	skipReasonLookupFailed       = "lookup_failed"
+	skipReasonTokenGenFailed     = "token_generation_failed"
+	skipReasonPersistFailed      = "persist_failed"
 )
 
 // WithPasswordReset attaches the password-reset dependencies to the
@@ -90,9 +120,8 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req forgotPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
+	if err := decodeResetJSON(w, r, &req); err != nil {
+		return // decodeResetJSON already wrote the error response
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
@@ -120,25 +149,33 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	ip := h.cfg.IPResolver().Resolve(r)
+	ua := r.UserAgent()
+	emailFingerprint := emailFingerprint(email)
+
 	user, err := h.users.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		// Internal lookup failures must not leak as 500 because that
 		// makes the endpoint behave differently when an email exists
 		// (cheap path) vs doesn't (DB miss). Log and return generic.
+		h.logForgotSkip(skipReasonLookupFailed, emailFingerprint, ip, "")
 		respondGeneric()
 		return
 	}
 	if user == nil {
+		h.logForgotSkip(skipReasonUserNotFound, emailFingerprint, ip, "")
 		respondGeneric()
 		return
 	}
 	if !user.Active {
+		h.logForgotSkip(skipReasonUserInactive, emailFingerprint, ip, user.ID)
 		respondGeneric()
 		return
 	}
 	// Federated accounts have no local password; mailing a reset link
 	// would be pointless and the redemption handler would reject it.
 	if user.AuthProvider != "" && user.AuthProvider != AuthProviderLocal {
+		h.logForgotSkip(skipReasonUserFederated, emailFingerprint, ip, user.ID)
 		respondGeneric()
 		return
 	}
@@ -147,24 +184,24 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// on top of the IP limiter that already gates the route.
 	count, err := h.passwordResets.CountRecentRequests(r.Context(), user.ID, passwordResetUserWindow)
 	if err == nil && count >= passwordResetUserMax {
+		h.logForgotSkip(skipReasonPerUserRateLimited, emailFingerprint, ip, user.ID)
 		respondGeneric()
 		return
 	}
 
 	plaintextToken, err := GeneratePasswordResetToken()
 	if err != nil {
+		h.logForgotSkip(skipReasonTokenGenFailed, emailFingerprint, ip, user.ID)
 		respondGeneric()
 		return
 	}
-
-	ip := h.cfg.IPResolver().Resolve(r)
-	ua := r.UserAgent()
 
 	_, err = h.passwordResets.CreateToken(
 		r.Context(), user.ID, plaintextToken,
 		h.cfg.PasswordResetTokenTTL(), ip, ua,
 	)
 	if err != nil {
+		h.logForgotSkip(skipReasonPersistFailed, emailFingerprint, ip, user.ID)
 		respondGeneric()
 		return
 	}
@@ -183,6 +220,14 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		htmlBody := mails.PasswordResetHTML(name, link, exp, requestedIP, requestedUA)
 		h.mailer.SendWithRetry(to, mails.PasswordResetSubject, htmlBody)
 	}(user.Email, display, resetURL, expiresMinutes, ip, ua)
+
+	h.log.Info().
+		Str("event", "password_reset_email_dispatched").
+		Str("user_id", user.ID).
+		Str("email_fp", emailFingerprint).
+		Str("client_ip", ip).
+		Int("expires_minutes", expiresMinutes).
+		Msg("password_reset_requested")
 
 	respondGeneric()
 }
@@ -210,7 +255,7 @@ func (h *Handler) handleValidateResetToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req validateResetTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeResetJSONSilent(r, &req); err != nil {
 		writeJSON(w, http.StatusOK, &validateResetTokenResponse{Valid: false})
 		return
 	}
@@ -262,9 +307,8 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req resetPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
+	if err := decodeResetJSON(w, r, &req); err != nil {
+		return // decodeResetJSON already wrote the error response
 	}
 	req.Token = strings.TrimSpace(req.Token)
 	if req.Token == "" {
@@ -282,21 +326,30 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if row == nil {
-		writeAuthError(w, http.StatusBadRequest, "reset link is invalid, expired, or already used")
+		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
 
 	user, err := h.users.GetUserByID(r.Context(), row.UserID)
 	if err != nil || user == nil {
-		writeAuthError(w, http.StatusBadRequest, "reset link is invalid, expired, or already used")
+		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
 	if !user.Active {
-		writeAuthError(w, http.StatusForbidden, "account is deactivated")
+		// Deliberately collapsed into the generic redemption-failure
+		// message so the response is indistinguishable from
+		// not-found / expired / consumed. A separate 403 here would
+		// leak the existence of a deactivated account that an
+		// attacker holds a stale token for.
+		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
 	if user.AuthProvider != "" && user.AuthProvider != AuthProviderLocal {
-		writeAuthError(w, http.StatusBadRequest, fmt.Sprintf("this account signs in with %s; password reset is not applicable", user.AuthProvider))
+		// M4: collapse the federated branch into the generic message
+		// so a presented token does not leak the provider name. The
+		// scenario is essentially unreachable (/forgot never mails
+		// federated accounts) but defence in depth.
+		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
 
@@ -319,8 +372,54 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), user.ID)
 
 	h.clearSessionCookies(w)
+
+	h.log.Info().
+		Str("event", "password_reset_completed").
+		Str("user_id", user.ID).
+		Str("client_ip", h.cfg.IPResolver().Resolve(r)).
+		Msg("password_reset_redeemed")
+
 	writeJSON(w, http.StatusOK, map[string]string{
 		"message": "password updated, all sessions revoked",
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GET /auth/password/policy
+//
+// Public, read-only, no DB access. The SPA hits this once on the
+// forgot-password screen to display the real expiry minutes (instead
+// of a hard-coded literal that would drift the moment an operator
+// overrides AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS) and the real
+// min/max password length used by the reset form's client-side
+// validation. ResetEnabled mirrors h.passwordResetEnabled() so the
+// SPA can render a graceful 'feature unavailable' card on a deployment
+// where the operator wired no mailer.
+// ---------------------------------------------------------------------------
+
+type passwordPolicyResponse struct {
+	ResetEnabled         bool `json:"reset_enabled"`
+	TokenExpiresMinutes  int  `json:"token_expires_minutes"`
+	PasswordMinLength    int  `json:"password_min_length"`
+	PasswordMaxLength    int  `json:"password_max_length"`
+}
+
+func (h *Handler) handlePasswordPolicy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	expiresMinutes := int(h.cfg.PasswordResetTokenTTL() / time.Minute)
+	if expiresMinutes < 1 {
+		expiresMinutes = 1
+	}
+
+	writeJSON(w, http.StatusOK, &passwordPolicyResponse{
+		ResetEnabled:        h.passwordResetEnabled(),
+		TokenExpiresMinutes: expiresMinutes,
+		PasswordMinLength:   PasswordMinLength,
+		PasswordMaxLength:   PasswordMaxLength,
 	})
 }
 
@@ -365,4 +464,75 @@ func (h *Handler) passwordResetBaseURL(r *http.Request) (string, error) {
 func buildPasswordResetURL(base, token string) string {
 	return base + "/reset-password?token=" + url.QueryEscape(token)
 }
+
+// ---------------------------------------------------------------------------
+// JSON body helpers + observability
+// ---------------------------------------------------------------------------
+
+// decodeResetJSON wraps r.Body in an http.MaxBytesReader (4 KiB) and
+// decodes into out. On any failure it writes a 400 (or 413, for the
+// size cap) and returns the error so the caller can early-return
+// without writing a second response.
+func decodeResetJSON(w http.ResponseWriter, r *http.Request, out interface{}) error {
+	r.Body = http.MaxBytesReader(w, r.Body, passwordResetMaxBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(out); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeAuthError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return err
+		}
+		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return err
+	}
+	return nil
+}
+
+// decodeResetJSONSilent is the variant used by /reset/validate, where
+// every failure mode (including oversize, malformed JSON, empty body)
+// is mapped to the same {valid:false} response by the caller. The
+// caller writes the response; we just bound the read.
+func decodeResetJSONSilent(r *http.Request, out interface{}) error {
+	// Use a discard ResponseWriter-ish bound: MaxBytesReader needs an
+	// http.ResponseWriter only to set the connection-close hint on
+	// oversize; we pass nil to suppress that side-effect and let the
+	// caller decide how to respond. Inspect via errors.As below.
+	r.Body = http.MaxBytesReader(nil, r.Body, passwordResetMaxBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(out)
+}
+
+// logForgotSkip emits a debug-level structured event on every silent-
+// skip branch of POST /auth/password/forgot. Reasons are stable string
+// constants so dashboards can match on them. The email is never logged
+// in plaintext; emailFingerprint() returns a short SHA-256 prefix that
+// stays stable across requests for safe correlation without exposing
+// PII to the log stream.
+func (h *Handler) logForgotSkip(reason, emailFP, clientIP, userID string) {
+	ev := h.log.Debug().
+		Str("event", "password_reset_forgot_skipped").
+		Str("reason", reason).
+		Str("email_fp", emailFP).
+		Str("client_ip", clientIP)
+	if userID != "" {
+		ev = ev.Str("user_id", userID)
+	}
+	ev.Msg("password_reset_forgot_skipped")
+}
+
+// emailFingerprint returns a stable 16-hex-char prefix of SHA-256 of
+// the lowercased trimmed email. Used in logs so operators can correlate
+// repeated reset requests for the same address without ever writing
+// the address itself to disk.
+func emailFingerprint(email string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// io is imported but only used inside the alternative size-limited
+// reader paths above; the unused alias guard below keeps a future
+// editor from removing the import.
+var _ io.Reader = (*strings.Reader)(nil)
 
