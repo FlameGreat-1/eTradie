@@ -1,7 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { requestPasswordReset } from '../api/passwordReset';
+import {
+  DEFAULT_PASSWORD_POLICY,
+  getPasswordPolicy,
+  requestPasswordReset,
+} from '../api/passwordReset';
+import type { PasswordPolicy } from '../types';
 
 /**
  * ForgotPasswordForm collects an email address and triggers a reset.
@@ -11,12 +16,29 @@ import { requestPasswordReset } from '../api/passwordReset';
  * deactivated, throttled) so this form deliberately shows a single
  * success state for all of them. The user is told to check their inbox
  * AND junk folder; if no email arrives, they should retry.
+ *
+ * The displayed expiry minutes comes from GET /auth/password/policy on
+ * mount so the UI never lies when an operator overrides
+ * AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS. A transport failure falls back
+ * to the compile-time default (60 min).
  */
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [policy, setPolicy] = useState<PasswordPolicy>(DEFAULT_PASSWORD_POLICY);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const p = await getPasswordPolicy();
+      if (!cancelled) setPolicy(p);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,6 +65,60 @@ export default function ForgotPasswordForm() {
     }
   };
 
+  // Operator misconfiguration: the gateway is up but no mailer / no
+  // FRONTEND_BASE_URL is wired. We refuse to submit the form rather
+  // than let the user get a 503 after typing their email.
+  if (!policy.reset_enabled) {
+    return (
+      <div className="w-full space-y-8">
+        <div className="text-left">
+          <h1
+            className="text-3xl font-bold mb-2"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            Password reset is temporarily unavailable
+          </h1>
+          <p
+            className="text-sm opacity-60 leading-relaxed"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            We can't send reset emails at the moment. Please try again
+            later or{' '}
+            <Link
+              to="/contact"
+              className="underline decoration-[#76B900] decoration-2 underline-offset-4 font-bold"
+              style={{ opacity: 1 }}
+            >
+              contact support
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="flex items-center gap-3 py-2">
+          <div
+            className="flex-1 h-px opacity-10"
+            style={{ background: 'var(--landing-text)' }}
+          />
+          <p
+            className="text-xs font-medium opacity-60"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            <Link
+              to="/login"
+              className="opacity-100 underline decoration-[#76B900] decoration-2 underline-offset-4 font-bold"
+            >
+              Back to sign in
+            </Link>
+          </p>
+          <div
+            className="flex-1 h-px opacity-10"
+            style={{ background: 'var(--landing-text)' }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="w-full space-y-8">
@@ -62,7 +138,9 @@ export default function ForgotPasswordForm() {
               {email.trim()}
             </span>
             , we just sent a password reset link to it. The link will
-            expire in 60 minutes and can be used only once.
+            expire in {policy.token_expires_minutes} minute
+            {policy.token_expires_minutes === 1 ? '' : 's'} and can be
+            used only once.
           </p>
           <p
             className="text-sm opacity-50 mt-4 leading-relaxed"

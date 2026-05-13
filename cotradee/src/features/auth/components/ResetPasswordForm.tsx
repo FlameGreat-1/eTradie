@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { resetPassword, validateResetToken } from '../api/passwordReset';
+import {
+  DEFAULT_PASSWORD_POLICY,
+  getPasswordPolicy,
+  resetPassword,
+  validateResetToken,
+} from '../api/passwordReset';
+import type { PasswordPolicy } from '../types';
 import { toast } from '@/hooks/useToast';
 
-type ValidationState = 'validating' | 'invalid' | 'valid';
-
-// Mirror of the backend rule in auth/models.go SetPassword:
-//   bcrypt accepts at most 72 bytes; we enforce 8..72.
-const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 72;
+type ValidationState = 'validating' | 'invalid' | 'valid' | 'disabled';
 
 /**
  * ResetPasswordForm renders the second leg of the forgot-password flow.
@@ -39,8 +40,12 @@ export default function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [policy, setPolicy] = useState<PasswordPolicy>(DEFAULT_PASSWORD_POLICY);
 
-  // Initial validation. Runs once on mount with the URL token.
+  // Initial validation. Runs once on mount with the URL token. Fetches
+  // the server-driven password policy in parallel via allSettled so a
+  // policy-probe failure never blocks the token check (the form falls
+  // back to DEFAULT_PASSWORD_POLICY in that case).
   useEffect(() => {
     let cancelled = false;
     if (!token) {
@@ -50,12 +55,24 @@ export default function ResetPasswordForm() {
       };
     }
     (async () => {
-      try {
-        const res = await validateResetToken({ token });
-        if (cancelled) return;
-        setState(res.valid ? 'valid' : 'invalid');
-      } catch {
-        if (cancelled) return;
+      const [validation, policyResult] = await Promise.allSettled([
+        validateResetToken({ token }),
+        getPasswordPolicy(),
+      ]);
+      if (cancelled) return;
+      if (
+        policyResult.status === 'fulfilled' &&
+        policyResult.value
+      ) {
+        setPolicy(policyResult.value);
+        if (!policyResult.value.reset_enabled) {
+          setState('disabled');
+          return;
+        }
+      }
+      if (validation.status === 'fulfilled') {
+        setState(validation.value.valid ? 'valid' : 'invalid');
+      } else {
         setState('invalid');
       }
     })();
@@ -68,12 +85,16 @@ export default function ResetPasswordForm() {
     e.preventDefault();
     setError('');
 
-    if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+    if (password.length < policy.password_min_length) {
+      setError(
+        `Password must be at least ${policy.password_min_length} characters.`,
+      );
       return;
     }
-    if (password.length > PASSWORD_MAX_LENGTH) {
-      setError(`Password must be at most ${PASSWORD_MAX_LENGTH} characters.`);
+    if (password.length > policy.password_max_length) {
+      setError(
+        `Password must be at most ${policy.password_max_length} characters.`,
+      );
       return;
     }
     if (password !== confirm) {
@@ -131,6 +152,48 @@ export default function ResetPasswordForm() {
             className="h-8 w-8 rounded-full border-2 border-t-transparent animate-spin"
             style={{ borderColor: '#76B900', borderTopColor: 'transparent' }}
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (state === 'disabled') {
+    return (
+      <div className="w-full space-y-8">
+        <div className="text-left">
+          <h1
+            className="text-3xl font-bold mb-2"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            Password reset is temporarily unavailable
+          </h1>
+          <p
+            className="text-sm opacity-60 leading-relaxed"
+            style={{ color: 'var(--landing-text)' }}
+          >
+            We can't complete password resets at the moment. Please try
+            again later or{' '}
+            <Link
+              to="/contact"
+              className="underline decoration-[#76B900] decoration-2 underline-offset-4 font-bold"
+              style={{ opacity: 1 }}
+            >
+              contact support
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="space-y-3">
+          <Link
+            to="/login"
+            className="block w-full rounded-lg border px-4 py-3 text-sm font-medium text-center transition-all"
+            style={{
+              borderColor: 'var(--landing-card-border)',
+              color: 'var(--landing-text)',
+            }}
+          >
+            Back to sign in
+          </Link>
         </div>
       </div>
     );
@@ -227,8 +290,8 @@ export default function ResetPasswordForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={PASSWORD_MIN_LENGTH}
-            maxLength={PASSWORD_MAX_LENGTH}
+            minLength={policy.password_min_length}
+            maxLength={policy.password_max_length}
             autoComplete="new-password"
             className="w-full rounded-lg border px-4 py-3 text-sm transition-all focus:outline-none"
             style={{
@@ -236,7 +299,7 @@ export default function ResetPasswordForm() {
               background: 'var(--landing-input-bg)',
               color: 'var(--landing-text)',
             }}
-            placeholder="At least 8 characters"
+            placeholder={`At least ${policy.password_min_length} characters`}
           />
         </div>
 
@@ -254,8 +317,8 @@ export default function ResetPasswordForm() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
-            minLength={PASSWORD_MIN_LENGTH}
-            maxLength={PASSWORD_MAX_LENGTH}
+            minLength={policy.password_min_length}
+            maxLength={policy.password_max_length}
             autoComplete="new-password"
             className="w-full rounded-lg border px-4 py-3 text-sm transition-all focus:outline-none"
             style={{

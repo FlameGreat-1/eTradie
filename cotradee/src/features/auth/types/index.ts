@@ -149,3 +149,25 @@ export interface ResetPasswordRequest {
 export interface ResetPasswordResponse {
   message: string;
 }
+
+/**
+ * Server-driven password policy. Returned by GET /auth/password/policy.
+ * The SPA reads this on every forgot/reset form mount so the displayed
+ * expiry and length-validation track the gateway configuration without
+ * a fresh build.
+ */
+export interface PasswordPolicy {
+  /**
+   * False when the gateway is healthy but the operator has not wired
+   * a mailer (no SMTP, no AUTH_FRONTEND_BASE_URL). The SPA renders a
+   * graceful 'feature unavailable' state instead of letting the user
+   * submit a request that will 503.
+   */
+  reset_enabled: boolean;
+  /** Lifetime of an emailed reset link, in minutes. */
+  token_expires_minutes: number;
+  /** Minimum password length accepted by the backend bcrypt rule. */
+  password_min_length: number;
+  /** Maximum password length accepted by the backend bcrypt rule. */
+  password_max_length: number;
+}
