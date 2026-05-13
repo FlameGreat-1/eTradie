@@ -12,6 +12,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	billingservice "github.com/flamegreat-1/etradie/src/billing/service"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -32,12 +33,25 @@ type APIHandler struct {
 	engine        *infra.EngineHTTPClient
 	transport     *alertredis.Transport
 	cfg           *config.Config
+	authCfg       *auth.Config
 	log           zerolog.Logger
+
+	// Per-tier token-bucket rate limiters for POST /api/v1/cycle/run.
+	// One bucket pool per tier so a Pro Managed user's burst budget is
+	// not shared with a BYOK user's; the limiter is keyed by user_id
+	// from the JWT, so two devices on the same account share one bucket
+	// (correct behaviour: it is one user, one cost centre).
+	cycleLimitFree       *billingservice.TokenBucketRateLimiter
+	cycleLimitProByok    *billingservice.TokenBucketRateLimiter
+	cycleLimitProManaged *billingservice.TokenBucketRateLimiter
 }
 
-// NewAPIHandler creates the dashboard REST API handler.
+// NewAPIHandler creates the dashboard REST API handler. authCfg
+// supplies the per-tier rate-limit knobs configured via
+// AUTH_TIER_*_CYCLE_RPM / _CYCLE_BURST.
 func NewAPIHandler(
 	cfg *config.Config,
+	authCfg *auth.Config,
 	orchestrator *pipeline.Orchestrator,
 	symbolStore *symbolstore.Store,
 	settingsStore *settingsstore.Store,
@@ -46,16 +60,47 @@ func NewAPIHandler(
 	engine *infra.EngineHTTPClient,
 	transport *alertredis.Transport,
 ) *APIHandler {
+	makeLimiter := func(rpm, burst int) *billingservice.TokenBucketRateLimiter {
+		return billingservice.NewTokenBucketRateLimiter(billingservice.RateLimiterConfig{
+			MaxKeys:    16384,
+			RatePerSec: float64(rpm) / 60.0,
+			Burst:      float64(burst),
+		})
+	}
 	return &APIHandler{
-		orchestrator:  orchestrator,
-		symbolStore:   symbolStore,
-		settingsStore: settingsStore,
-		scheduler:     scheduler,
-		redis:         redis,
-		engine:        engine,
-		transport:     transport,
-		cfg:           cfg,
-		log:           observability.Logger("api_handler"),
+		orchestrator:         orchestrator,
+		symbolStore:          symbolStore,
+		settingsStore:        settingsStore,
+		scheduler:            scheduler,
+		redis:                redis,
+		engine:               engine,
+		transport:            transport,
+		cfg:                  cfg,
+		authCfg:              authCfg,
+		log:                  observability.Logger("api_handler"),
+		cycleLimitFree:       makeLimiter(authCfg.TierFreeCycleRPM, authCfg.TierFreeCycleBurst),
+		cycleLimitProByok:    makeLimiter(authCfg.TierProByokCycleRPM, authCfg.TierProByokCycleBurst),
+		cycleLimitProManaged: makeLimiter(authCfg.TierProManagedCycleRPM, authCfg.TierProManagedCycleBurst),
+	}
+}
+
+// cycleLimiterForClaims returns the right token bucket for the user's
+// tier. Admins share the managed bucket because their LLM calls run on
+// the platform key (see engine.dependencies._load_active_llm_connection).
+func (h *APIHandler) cycleLimiterForClaims(claims *auth.Claims) *billingservice.TokenBucketRateLimiter {
+	if claims == nil {
+		return h.cycleLimitFree
+	}
+	if claims.Role == auth.RoleAdmin {
+		return h.cycleLimitProManaged
+	}
+	switch strings.ToLower(strings.TrimSpace(claims.Tier)) {
+	case "pro_managed":
+		return h.cycleLimitProManaged
+	case "pro_byok":
+		return h.cycleLimitProByok
+	default:
+		return h.cycleLimitFree
 	}
 }
 
@@ -100,6 +145,32 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Per-user token bucket gated by the authenticated tier. Keyed by
+	// JWT subject so two tabs / devices on the same account share one
+	// bucket (correct: one user, one cost centre).
+	limiter := h.cycleLimiterForClaims(claims)
+	if !limiter.Allow(claims.UserID) {
+		rpm, _ := h.authCfg.CycleRateLimitForTier(claims.Tier)
+		if claims.Role == auth.RoleAdmin {
+			rpm = h.authCfg.TierProManagedCycleRPM
+		}
+		retryAfter := 60 / max(rpm, 1)
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+		h.log.Info().
+			Str("user_id", claims.UserID).
+			Str("tier", claims.Tier).
+			Int("rpm", rpm).
+			Msg("cycle_run_rate_limited")
+		writeJSONError(w, http.StatusTooManyRequests, "too many cycle requests; please slow down")
+		return
+	}
+
 	var req runCycleRequest
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -108,7 +179,7 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userID := auth.UserIDFromContext(r.Context())
+	userID := claims.UserID
 	symbols := req.Symbols
 	if len(symbols) == 0 {
 		symbols = h.symbolStore.GetActiveSymbols(r.Context(), userID)
@@ -117,6 +188,8 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 	h.log.Info().
 		Strs("symbols", symbols).
 		Str("trace_id", req.TraceID).
+		Str("user_id", userID).
+		Str("tier", claims.Tier).
 		Msg("dashboard_run_cycle_triggered")
 
 	outputs := h.orchestrator.RunCycle(r.Context(), symbols, req.TraceID)
