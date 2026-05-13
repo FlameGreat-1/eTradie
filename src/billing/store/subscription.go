@@ -107,17 +107,23 @@ func (s *SubscriptionStore) GetByProviderSubscriptionID(
 // incoming event_timestamp is greater than or equal to the stored one,
 // so a delayed older event cannot overwrite newer state.
 //
-// Returns (applied, previousTier, previousStatus, error):
+// Returns (applied, previousTier, previousStatus, previousPeriodEnd, error):
 //   - applied=true  → row was inserted or updated; previous_* reflect the
-//     row state before the change ("","" on insert).
+//     row state before the change ("", "", nil on insert).
 //   - applied=false → a newer event_timestamp already exists; the caller's
 //     event was older and was discarded as expected.
+//
+// previousPeriodEnd is the pre-change current_period_end (nil when there
+// was no prior row or the prior row had a NULL period_end). The service
+// layer compares it against the incoming CurrentPeriodEnd to detect
+// renewals so it can fire side effects scoped to billing-cycle
+// rollovers (e.g. UsageStore.MonthlyReset for the LLM token quota).
 func (s *SubscriptionStore) UpsertSubscriptionTx(
 	ctx context.Context, tx pgx.Tx, sub *Subscription,
-) (applied bool, previousTier, previousStatus string, err error) {
+) (applied bool, previousTier, previousStatus string, previousPeriodEnd *time.Time, err error) {
 	query := `
 		WITH prev AS (
-			SELECT tier, status, event_timestamp
+			SELECT tier, status, current_period_end, event_timestamp
 			FROM billing_subscriptions
 			WHERE user_id = $1
 		),
@@ -142,18 +148,19 @@ func (s *SubscriptionStore) UpsertSubscriptionTx(
 		SELECT
 			(SELECT COUNT(*) FROM up) AS applied,
 			COALESCE((SELECT tier   FROM prev), '') AS prev_tier,
-			COALESCE((SELECT status FROM prev), '') AS prev_status
+			COALESCE((SELECT status FROM prev), '') AS prev_status,
+			(SELECT current_period_end FROM prev) AS prev_period_end
 	`
 	var appliedCount int
 	err = tx.QueryRow(ctx, query,
 		sub.UserID, sub.Tier, sub.Status,
 		sub.PaymentProvider, sub.ProviderCustomerID, sub.ProviderSubscriptionID,
 		sub.CurrentPeriodEnd, sub.EventTimestamp,
-	).Scan(&appliedCount, &previousTier, &previousStatus)
+	).Scan(&appliedCount, &previousTier, &previousStatus, &previousPeriodEnd)
 	if err != nil {
-		return false, "", "", err
+		return false, "", "", nil, err
 	}
-	return appliedCount > 0, previousTier, previousStatus, nil
+	return appliedCount > 0, previousTier, previousStatus, previousPeriodEnd, nil
 }
 
 // ListExpiredForDemotion returns subscriptions in a tentative-loss status
