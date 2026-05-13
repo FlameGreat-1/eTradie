@@ -37,6 +37,23 @@ CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_provider_subscription
 -- ────────────────────────────────────────────────────────────────────────────
 -- Usage: per-user counters with atomic daily reset.
 -- Scanned and incremented from the gateway and engine.
+--
+-- LLM-token columns (additive to the original schema; existing rows
+-- migrate cleanly via DEFAULT 0):
+--   llm_input_tokens_today / llm_output_tokens_today
+--     Daily counters, reset by the existing daily-reset path in
+--     GetOrUpdateUsage (DATE(last_reset_at) < CURRENT_DATE).
+--   llm_input_tokens_month / llm_output_tokens_month
+--     Monthly counters, reset by the reconciler on subscription
+--     period-end renewal via UsageStore.MonthlyReset.
+--   llm_quota_blocked_count_today / llm_quota_blocked_count_month
+--     Audit counters: how often this user hit a 429 due to quota.
+--   monthly_window_start
+--     The wall-clock start of the active monthly window. Used by the
+--     SPA usage panel to show "resets on YYYY-MM-DD".
+--   llm_last_metered_at
+--     Timestamp of the last successful Commit. Cheap freshness
+--     indicator for operator dashboards.
 -- ────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_usage (
     user_id              TEXT PRIMARY KEY REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -50,6 +67,63 @@ CREATE TABLE IF NOT EXISTS billing_usage (
     last_analysis_at     TIMESTAMPTZ,
     last_reset_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_input_tokens_today        BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_output_tokens_today       BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_input_tokens_month        BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_output_tokens_month       BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_quota_blocked_count_today INT    NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_quota_blocked_count_month INT    NOT NULL DEFAULT 0;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS monthly_window_start          TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_last_metered_at           TIMESTAMPTZ;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- LLM token reservations.
+--
+-- Workflow:
+--   1. Engine reserves a provisional debit BEFORE calling the LLM. The
+--      input cost is the caller's estimated_input_tokens (counted via
+--      the model's tokenizer); the output cost is bounded by
+--      max_output_tokens (the cap the LLM provider will honour).
+--      Reservation row is inserted with status='held'.
+--   2. After the LLM call returns with the real usage numbers, the
+--      engine Commits the reservation. The store transitions
+--      status='committed', subtracts (max_output - actual_output) from
+--      the over-reservation, and stamps llm_last_metered_at.
+--   3. If the LLM call fails (after retries are exhausted), the engine
+--      Refunds the reservation: status='refunded', the provisional
+--      input AND the provisional output debits are rolled back via
+--      GREATEST(0, …) clamps in usage.go.
+--   4. Reservations whose expires_at has elapsed AND remain 'held'
+--      are reaped by the reconciler janitor and treated as Refund
+--      (the LLM probably never ran or the engine crashed).
+--
+-- The status column is constrained to the three lifecycle values so a
+-- bad UPDATE cannot silently break the invariant.
+-- ────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS billing_llm_reservations (
+    id                       TEXT PRIMARY KEY,
+    user_id                  TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    tier                     TEXT NOT NULL,
+    provider                 TEXT NOT NULL,
+    model                    TEXT NOT NULL,
+    estimated_input_tokens   BIGINT NOT NULL,
+    max_output_tokens        BIGINT NOT NULL,
+    actual_input_tokens      BIGINT,
+    actual_output_tokens     BIGINT,
+    status                   TEXT NOT NULL DEFAULT 'held'
+                             CHECK (status IN ('held', 'committed', 'refunded')),
+    trace_id                 TEXT NOT NULL DEFAULT '',
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    settled_at               TIMESTAMPTZ,
+    expires_at               TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_llm_reservations_user_created
+    ON billing_llm_reservations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_billing_llm_reservations_status_expires
+    ON billing_llm_reservations(status, expires_at)
+    WHERE status = 'held';
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Webhook idempotency: one row per (provider, event_id) actually processed.

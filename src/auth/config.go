@@ -128,6 +128,43 @@ type Config struct {
 	PasswordResetTokenTTLSeconds int    `envconfig:"PASSWORD_RESET_TOKEN_TTL_SECONDS" default:"3600"`
 	FrontendBaseURL              string `envconfig:"FRONTEND_BASE_URL" default:""`
 
+	// ----------------------------------------------------------------
+	// LLM quota policy (Pro Managed tier metering)
+	//
+	// Every Pro Managed LLM call goes through the gateway metering
+	// surface, which reserves a provisional debit before the call,
+	// commits the real token count after it returns, and refunds on
+	// failure. The caps below bound the absolute exposure per user.
+	//
+	// All token caps are BIG integers (Anthropic Sonnet 4 input is
+	// roughly $3 / 1M tokens; numbers up to 100M are sane defaults
+	// for monthly caps).
+	//
+	// Free / Pro BYOK users do not hit these caps because their LLM
+	// calls run on their own provider keys (the engine refuses the
+	// platform key for them; see _load_active_llm_connection in
+	// engine/dependencies.py). The cycle RPM knobs DO apply to BYOK
+	// users so a compromised account cannot fan out cycles.
+	// ----------------------------------------------------------------
+	TierProManagedDailyInputTokens     int64    `envconfig:"TIER_PRO_MANAGED_DAILY_INPUT_TOKENS" default:"2000000"`
+	TierProManagedDailyOutputTokens    int64    `envconfig:"TIER_PRO_MANAGED_DAILY_OUTPUT_TOKENS" default:"200000"`
+	TierProManagedMonthlyInputTokens   int64    `envconfig:"TIER_PRO_MANAGED_MONTHLY_INPUT_TOKENS" default:"20000000"`
+	TierProManagedMonthlyOutputTokens  int64    `envconfig:"TIER_PRO_MANAGED_MONTHLY_OUTPUT_TOKENS" default:"2000000"`
+	TierProManagedMaxInputPerCall      int64    `envconfig:"TIER_PRO_MANAGED_MAX_INPUT_PER_CALL" default:"300000"`
+	TierProManagedSoftCapPercent       int      `envconfig:"TIER_PRO_MANAGED_SOFT_CAP_PERCENT" default:"80"`
+	TierProManagedAllowedModels        []string `envconfig:"TIER_PRO_MANAGED_ALLOWED_MODELS"`
+	LLMReservationTTLSeconds           int      `envconfig:"LLM_RESERVATION_TTL_SECONDS" default:"300"`
+
+	// Per-user rate limit on POST /api/v1/cycle/run. Tiered so
+	// managed users (who burn the platform key) are tighter than
+	// BYOK users (who pay their own bill).
+	TierFreeCycleRPM                 int `envconfig:"TIER_FREE_CYCLE_RPM" default:"2"`
+	TierFreeCycleBurst               int `envconfig:"TIER_FREE_CYCLE_BURST" default:"3"`
+	TierProByokCycleRPM              int `envconfig:"TIER_PRO_BYOK_CYCLE_RPM" default:"30"`
+	TierProByokCycleBurst            int `envconfig:"TIER_PRO_BYOK_CYCLE_BURST" default:"60"`
+	TierProManagedCycleRPM           int `envconfig:"TIER_PRO_MANAGED_CYCLE_RPM" default:"10"`
+	TierProManagedCycleBurst         int `envconfig:"TIER_PRO_MANAGED_CYCLE_BURST" default:"20"`
+
 	// cookieSameSite is the parsed http.SameSite derived from
 	// CookieSameSite at validate-time.
 	cookieSameSite http.SameSite
@@ -224,6 +261,60 @@ func (c *Config) validate() error {
 	if c.PasswordResetTokenTTLSeconds < 300 || c.PasswordResetTokenTTLSeconds > 86400 {
 		return fmt.Errorf("PASSWORD_RESET_TOKEN_TTL_SECONDS must be 300..86400 (5m..24h), got %d", c.PasswordResetTokenTTLSeconds)
 	}
+
+	// LLM quota bounds. Token caps cannot be negative; per-call cap
+	// must be > 0 so the engine has a deterministic ceiling on the
+	// largest legitimate request. Soft-cap percent is informational
+	// only (the SPA renders an amber banner above it) so we accept
+	// 0..100.
+	if c.TierProManagedDailyInputTokens < 0 ||
+		c.TierProManagedDailyOutputTokens < 0 ||
+		c.TierProManagedMonthlyInputTokens < 0 ||
+		c.TierProManagedMonthlyOutputTokens < 0 {
+		return fmt.Errorf("TIER_PRO_MANAGED_*_TOKENS must be non-negative")
+	}
+	if c.TierProManagedMaxInputPerCall <= 0 {
+		return fmt.Errorf("TIER_PRO_MANAGED_MAX_INPUT_PER_CALL must be positive, got %d", c.TierProManagedMaxInputPerCall)
+	}
+	if c.TierProManagedSoftCapPercent < 0 || c.TierProManagedSoftCapPercent > 100 {
+		return fmt.Errorf("TIER_PRO_MANAGED_SOFT_CAP_PERCENT must be 0..100, got %d", c.TierProManagedSoftCapPercent)
+	}
+	if c.LLMReservationTTLSeconds < 30 || c.LLMReservationTTLSeconds > 3600 {
+		return fmt.Errorf("LLM_RESERVATION_TTL_SECONDS must be 30..3600, got %d", c.LLMReservationTTLSeconds)
+	}
+
+	// Cycle RPM tiers. RPM > 0 so a misconfigured zero does not
+	// silently lock everyone out; burst >= RPM so the token bucket
+	// can actually serve the steady-state rate.
+	for _, p := range []struct {
+		name  string
+		rpm   int
+		burst int
+	}{
+		{"FREE", c.TierFreeCycleRPM, c.TierFreeCycleBurst},
+		{"PRO_BYOK", c.TierProByokCycleRPM, c.TierProByokCycleBurst},
+		{"PRO_MANAGED", c.TierProManagedCycleRPM, c.TierProManagedCycleBurst},
+	} {
+		if p.rpm <= 0 || p.rpm > 600 {
+			return fmt.Errorf("TIER_%s_CYCLE_RPM must be 1..600, got %d", p.name, p.rpm)
+		}
+		if p.burst < p.rpm || p.burst > 1200 {
+			return fmt.Errorf("TIER_%s_CYCLE_BURST must be %d..1200, got %d", p.name, p.rpm, p.burst)
+		}
+	}
+
+	// Normalise the model allow-list to lowercase, trimmed, non-empty
+	// entries. An empty list means "any model the provider supports";
+	// the engine still constrains by the active provider's allow-list
+	// upstream when set.
+	normalisedModels := make([]string, 0, len(c.TierProManagedAllowedModels))
+	for _, m := range c.TierProManagedAllowedModels {
+		m = strings.ToLower(strings.TrimSpace(m))
+		if m != "" {
+			normalisedModels = append(normalisedModels, m)
+		}
+	}
+	c.TierProManagedAllowedModels = normalisedModels
 
 	c.FrontendBaseURL = strings.TrimRight(strings.TrimSpace(c.FrontendBaseURL), "/")
 	if c.FrontendBaseURL != "" {
@@ -326,6 +417,70 @@ func (c *Config) JWTSecretBytes() []byte { return c.jwtSecretBytes }
 // PasswordResetTokenTTL returns the configured reset-token lifetime.
 func (c *Config) PasswordResetTokenTTL() time.Duration {
 	return time.Duration(c.PasswordResetTokenTTLSeconds) * time.Second
+}
+
+// LLMReservationTTL returns the wall-clock window inside which a Commit
+// or Refund must arrive before the janitor reaps a held reservation.
+func (c *Config) LLMReservationTTL() time.Duration {
+	return time.Duration(c.LLMReservationTTLSeconds) * time.Second
+}
+
+// LLMQuotaPolicy is a tier-agnostic snapshot of the policy fields the
+// store needs. Mirror of billing/store.LLMQuotaPolicy with no time-
+// duration dependency on the store package so auth can stay free of
+// any billing import (the gateway-side metering handler converts to
+// the store type at the boundary).
+type LLMQuotaPolicy struct {
+	DailyInputTokens      int64
+	DailyOutputTokens     int64
+	MonthlyInputTokens    int64
+	MonthlyOutputTokens   int64
+	MaxInputTokensPerCall int64
+	SoftCapPercent        int
+	AllowedModels         []string
+	ReservationTTL        time.Duration
+}
+
+// LLMQuotaPolicyForTier returns the policy snapshot for the given tier
+// string. Unknown tiers and BYOK both return a zero-access policy so
+// the metering handler refuses any request that should not have hit it
+// (the BYOK user already has their own key; metering is irrelevant).
+//
+// admin and pro_managed share the managed-tier numbers because admins
+// already use the platform LLM key per _load_active_llm_connection.
+func (c *Config) LLMQuotaPolicyForTier(tier string) LLMQuotaPolicy {
+	switch strings.ToLower(strings.TrimSpace(tier)) {
+	case "pro_managed", "admin":
+		models := make([]string, len(c.TierProManagedAllowedModels))
+		copy(models, c.TierProManagedAllowedModels)
+		return LLMQuotaPolicy{
+			DailyInputTokens:      c.TierProManagedDailyInputTokens,
+			DailyOutputTokens:     c.TierProManagedDailyOutputTokens,
+			MonthlyInputTokens:    c.TierProManagedMonthlyInputTokens,
+			MonthlyOutputTokens:   c.TierProManagedMonthlyOutputTokens,
+			MaxInputTokensPerCall: c.TierProManagedMaxInputPerCall,
+			SoftCapPercent:        c.TierProManagedSoftCapPercent,
+			AllowedModels:         models,
+			ReservationTTL:        c.LLMReservationTTL(),
+		}
+	default:
+		return LLMQuotaPolicy{ReservationTTL: c.LLMReservationTTL()}
+	}
+}
+
+// CycleRateLimitForTier returns the per-user (RPM, burst) pair that the
+// gateway's /api/v1/cycle/run handler should apply to this user. Unknown
+// tiers fall back to the free tier so a misconfigured JWT cannot grant a
+// looser limit.
+func (c *Config) CycleRateLimitForTier(tier string) (int, int) {
+	switch strings.ToLower(strings.TrimSpace(tier)) {
+	case "pro_managed", "admin":
+		return c.TierProManagedCycleRPM, c.TierProManagedCycleBurst
+	case "pro_byok":
+		return c.TierProByokCycleRPM, c.TierProByokCycleBurst
+	default:
+		return c.TierFreeCycleRPM, c.TierFreeCycleBurst
+	}
 }
 
 // CookieOptions returns the materialised cookie policy used by the
