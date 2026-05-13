@@ -299,10 +299,16 @@ function createClient(baseURL: string): AxiosInstance {
 
       if (error.response?.status === 429) {
         const data = error.response.data as { detail?: string; error?: string } | undefined;
-        const msg = data?.detail || data?.error || 'Rate limit exceeded.';
+        const retryAfterHeader = error.response.headers?.['retry-after'];
+        const retryAfterSecs = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+        const baseMsg = data?.detail || data?.error || 'Rate limit exceeded.';
+        const retryMsg =
+          retryAfterSecs && !isNaN(retryAfterSecs)
+            ? ` Try again in ${retryAfterSecs < 60 ? `${retryAfterSecs}s` : `${Math.ceil(retryAfterSecs / 60)} min`}.`
+            : '';
         toast({
           title: 'Limit Reached',
-          description: msg,
+          description: baseMsg + retryMsg,
           variant: 'warning',
         });
       }
