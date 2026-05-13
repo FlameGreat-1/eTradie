@@ -114,6 +114,20 @@ type Config struct {
 	// SameSite=Strict regression is fixed.
 	AllowSameSiteLaxInProd bool `envconfig:"ALLOW_SAMESITE_LAX_IN_PROD" default:"false"`
 
+	// ----------------------------------------------------------------
+	// Password reset (forgot password)
+	//
+	// PasswordResetTokenTTLSeconds -- lifetime of the bearer token
+	//   carried in the emailed reset link. Default 1 hour. Bounded
+	//   at startup to [5 minutes .. 24 hours] so an operator cannot
+	//   accidentally configure a permanent reset link.
+	// FrontendBaseURL -- origin used to construct the user-facing
+	//   reset URL ("<base>/reset-password?token=...") that the email
+	//   template includes. Validated to be absolute http(s).
+	// ----------------------------------------------------------------
+	PasswordResetTokenTTLSeconds int    `envconfig:"PASSWORD_RESET_TOKEN_TTL_SECONDS" default:"3600"`
+	FrontendBaseURL              string `envconfig:"FRONTEND_BASE_URL" default:""`
+
 	// cookieSameSite is the parsed http.SameSite derived from
 	// CookieSameSite at validate-time.
 	cookieSameSite http.SameSite
@@ -207,6 +221,21 @@ func (c *Config) validate() error {
 		return fmt.Errorf("MAX_SESSIONS_PER_USER must be 1..20, got %d", c.MaxSessionsPerUser)
 	}
 
+	if c.PasswordResetTokenTTLSeconds < 300 || c.PasswordResetTokenTTLSeconds > 86400 {
+		return fmt.Errorf("PASSWORD_RESET_TOKEN_TTL_SECONDS must be 300..86400 (5m..24h), got %d", c.PasswordResetTokenTTLSeconds)
+	}
+
+	c.FrontendBaseURL = strings.TrimRight(strings.TrimSpace(c.FrontendBaseURL), "/")
+	if c.FrontendBaseURL != "" {
+		fu, err := url.Parse(c.FrontendBaseURL)
+		if err != nil || fu.Scheme == "" || fu.Host == "" || (fu.Scheme != "http" && fu.Scheme != "https") {
+			return fmt.Errorf("FRONTEND_BASE_URL must be an absolute http(s) URL, got %q", c.FrontendBaseURL)
+		}
+		if fu.Path != "" || fu.RawQuery != "" || fu.Fragment != "" {
+			return fmt.Errorf("FRONTEND_BASE_URL must not contain a path, query, or fragment, got %q", c.FrontendBaseURL)
+		}
+	}
+
 	if _, bad := ParseTrustedCIDRs(c.TrustedProxyCIDRs); len(bad) > 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS contains malformed entries: %v", bad)
 	}
@@ -293,6 +322,11 @@ func (c *Config) validate() error {
 }
 
 func (c *Config) JWTSecretBytes() []byte { return c.jwtSecretBytes }
+
+// PasswordResetTokenTTL returns the configured reset-token lifetime.
+func (c *Config) PasswordResetTokenTTL() time.Duration {
+	return time.Duration(c.PasswordResetTokenTTLSeconds) * time.Second
+}
 
 // CookieOptions returns the materialised cookie policy used by the
 // Set/Clear helpers. The CSRF cookie shares the access token's
