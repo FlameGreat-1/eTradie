@@ -139,6 +139,23 @@ class ProcessorConfig(BaseSettings):
         description="Log full raw LLM response (dev/debug only)",
     )
 
+    # -- Metering (Pro Managed LLM quota) ------------------------------------
+    # When metering_enabled is True the processor calls the gateway's
+    # /internal/metering/reserve before every LLM call and
+    # /internal/metering/commit (or /refund) after. The gateway enforces
+    # the per-tier token caps and writes the debit to billing_usage.
+    #
+    # metering_enabled defaults to True so a fresh deployment is safe;
+    # set to False only in local dev where no gateway is running.
+    metering_enabled: bool = Field(
+        default=True,
+        description="Enable LLM token metering via the gateway internal API",
+    )
+    metering_gateway_url: str = Field(
+        default="",
+        description="Base URL of the gateway HTTP server for metering calls (e.g. http://gateway:8080)",
+    )
+
     @model_validator(mode="after")
     def _set_default_model(self) -> Self:
         """Auto-fill model_name from provider defaults if empty."""
@@ -172,6 +189,13 @@ class ProcessorConfig(BaseSettings):
                 "Provider 'self_hosted' requires PROCESSOR_API_BASE_URL to be set"
             )
 
+        return self
+
+    @model_validator(mode="after")
+    def _validate_metering_url(self) -> Self:
+        """Normalise the metering gateway URL."""
+        url = self.metering_gateway_url.strip().rstrip("/")
+        object.__setattr__(self, "metering_gateway_url", url)
         return self
 
     @model_validator(mode="after")

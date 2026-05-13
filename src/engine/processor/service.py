@@ -21,12 +21,14 @@ import orjson
 from engine.shared.exceptions import (
     ProcessorError,
     ProcessorInsufficientDataError,
+    QuotaExceededError,
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
     PROCESSOR_RUN_DURATION,
     PROCESSOR_RUN_TOTAL,
 )
+from engine.shared import metering_client as metering
 from engine.processor.audit.logger import (
     build_analysis_record,
     build_audit_log_record,
@@ -112,6 +114,12 @@ class AnalysisProcessor(ProcessorPort):
         try:
             async with asyncio.timeout(self._config.total_timeout_seconds):
                 return await self._execute(context, user_id=user_id, trace_id=trace_id, start=start)
+
+        except QuotaExceededError:
+            # Propagate immediately: the metering layer already recorded
+            # the blocked-count; no audit row is needed for a quota
+            # rejection (the user never got an LLM response).
+            raise
 
         except asyncio.TimeoutError:
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -212,7 +220,30 @@ class AnalysisProcessor(ProcessorPort):
             },
         )
 
-        # Step 3: Call LLM API with retry + exponential backoff.
+        # Step 3: Metering reserve (Pro Managed / admin only).
+        # We estimate the input token count from the prompt byte length
+        # divided by 4 (a conservative approximation that errs on the
+        # side of over-reserving; the Commit step corrects to the real
+        # count). The max_output_tokens cap is the hard ceiling the
+        # provider will honour.
+        #
+        # If metering is disabled (METERING_ENABLED=false or no gateway
+        # URL configured) reserve() returns '' and the call proceeds
+        # without any quota check. This is the correct behaviour for
+        # BYOK users (they pay their own bill) and for local dev.
+        estimated_input = max(0, len(user_message.encode("utf-8")) // 4)
+        reservation_id = await metering.reserve(
+            user_id=user_id,
+            provider=self._llm.PROVIDER,
+            model=self._config.model_name,
+            estimated_input_tokens=estimated_input,
+            max_output_tokens=self._config.max_output_tokens,
+            trace_id=trace_id or "",
+        )
+        # QuotaExceededError propagates immediately (no LLM call, no
+        # audit row). The internal router maps it to HTTP 429.
+
+        # Step 4: Call LLM API with retry + exponential backoff.
         # retry_llm_call handles transient failures (rate limits, server
         # errors, timeouts) with exponential backoff + jitter. Non-retryable
         # errors (auth, bad request) are raised immediately.
@@ -306,10 +337,29 @@ class AnalysisProcessor(ProcessorPort):
                 stop_reason="stop",
             )
 
-        llm_response: LLMResponse = await retry_llm_call(
-            _llm_call,
-            config=self._config,
-            trace_id=trace_id,
+        try:
+            llm_response: LLMResponse = await retry_llm_call(
+                _llm_call,
+                config=self._config,
+                trace_id=trace_id,
+            )
+        except Exception:
+            # LLM call failed after all retries. Refund the provisional
+            # debit so the user's quota is not permanently consumed for
+            # a call that never completed. The refund is best-effort;
+            # the janitor will reap the reservation after its TTL if
+            # the refund call itself fails.
+            await metering.refund(reservation_id=reservation_id)
+            raise
+
+        # Step 5: Commit the real token counts. The over-reservation on
+        # the output side (max_output - actual_output) is returned to
+        # the user's quota. Commit is best-effort: a transient failure
+        # does not roll back the completed LLM call.
+        await metering.commit(
+            reservation_id=reservation_id,
+            actual_input_tokens=llm_response.input_tokens,
+            actual_output_tokens=llm_response.output_tokens,
         )
 
         if self._config.log_raw_llm_response:
@@ -394,6 +444,7 @@ class AnalysisProcessor(ProcessorPort):
                 "duration_ms": round(elapsed_ms, 1),
                 "input_tokens": llm_response.input_tokens,
                 "output_tokens": llm_response.output_tokens,
+                "reservation_id": reservation_id,
                 "warnings": validation_warnings,
                 "trace_id": trace_id,
             },

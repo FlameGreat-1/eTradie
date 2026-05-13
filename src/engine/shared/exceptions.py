@@ -55,6 +55,46 @@ class CollectorAllProvidersFailedError(CollectorError):
     pass
 
 
+class QuotaExceededError(ETradieBaseError):
+    """Raised by MeteringClient.reserve() when the user has hit a
+    per-tier LLM token cap. The gateway returns a structured 429 body;
+    this exception carries the parsed fields so the processor can
+    surface a meaningful message and the internal router can map it
+    to an HTTP 429 with a Retry-After header.
+
+    Attributes:
+        dimension   : which cap was breached (e.g. 'daily_input',
+                      'monthly_output', 'per_call_input',
+                      'model_not_allowed').
+        limit       : the cap value.
+        used        : tokens already consumed in the window.
+        requested   : tokens the current call would have consumed.
+        resets_at   : ISO-8601 UTC timestamp when the window resets.
+        retry_after : seconds until the window resets (pre-computed
+                      from resets_at for the Retry-After header).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        dimension: str = "",
+        limit: int = 0,
+        used: int = 0,
+        requested: int = 0,
+        resets_at: str = "",
+        retry_after: int = 60,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details=details or {})
+        self.dimension = dimension
+        self.limit = limit
+        self.used = used
+        self.requested = requested
+        self.resets_at = resets_at
+        self.retry_after = retry_after
+
+
 class ProcessorError(ETradieBaseError):
     pass
 
@@ -139,9 +179,9 @@ class TracingValidationError(TracingError):
     pass
 
 
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
 # RAG (Retrieval-Augmented Generation) Errors
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
 
 
 class RAGError(ETradieBaseError):
