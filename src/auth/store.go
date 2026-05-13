@@ -123,6 +123,36 @@ CREATE TABLE IF NOT EXISTS auth_oauth_identities (
 
 CREATE INDEX IF NOT EXISTS idx_auth_oauth_identities_user_id  ON auth_oauth_identities (user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_oauth_identities_provider ON auth_oauth_identities (provider);
+
+-- Password reset tokens. The plaintext token lives only inside the
+-- emailed reset link; the database holds a SHA-256 digest. Single-use
+-- enforcement is via the consumed flag plus an expires_at TTL; the
+-- partial-unique index makes "one outstanding token per user" an
+-- invariant rather than a best-effort.
+CREATE TABLE IF NOT EXISTS auth_password_resets (
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    token_hash    TEXT NOT NULL UNIQUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at    TIMESTAMPTZ NOT NULL,
+    consumed      BOOLEAN NOT NULL DEFAULT FALSE,
+    consumed_at   TIMESTAMPTZ,
+    requested_ip  TEXT NOT NULL DEFAULT '',
+    user_agent    TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_password_resets_user_id    ON auth_password_resets (user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_password_resets_token_hash ON auth_password_resets (token_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_password_resets_expires_at ON auth_password_resets (expires_at);
+
+-- Partial unique index: at most one unconsumed reset row per user.
+-- Prior rows are logically consumed (consumed = TRUE) before a new one
+-- is inserted, so this index never fails the legitimate single-issuer
+-- path; it exists to harden against a race that slips past the
+-- transactional check in the store.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_password_resets_user_active
+    ON auth_password_resets (user_id)
+    WHERE consumed = FALSE;
 `
 }
 

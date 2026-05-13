@@ -81,7 +81,13 @@ export default function LoginForm() {
               <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-widest opacity-40" style={{ color: 'var(--landing-text)' }}>
                 Password
               </label>
-              <a href="#" className="text-[10px] font-bold opacity-30 hover:opacity-100 transition-colors" style={{ color: 'var(--landing-text)' }}>FORGOT?</a>
+              <Link
+                to="/forgot-password"
+                className="text-[10px] font-bold opacity-30 hover:opacity-100 transition-colors"
+                style={{ color: 'var(--landing-text)' }}
+              >
+                FORGOT?
+              </Link>
             </div>
             <input
               id="login-password"

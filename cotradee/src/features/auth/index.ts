@@ -20,6 +20,19 @@ export {
   completeGoogleLink,
   unlinkGoogle,
 } from './api/oauth';
+export {
+  requestPasswordReset,
+  validateResetToken,
+  resetPassword,
+} from './api/passwordReset';
+export type {
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ValidateResetTokenRequest,
+  ValidateResetTokenResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
+} from './types';
 export { useGoogleOAuth } from './hooks/useGoogleOAuth';
 export type {
   OAuthLinkStartRequest,

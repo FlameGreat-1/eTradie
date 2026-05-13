@@ -71,6 +71,12 @@ type Handler struct {
 	oauthFlows      *OAuthFlowStore
 	oauthIdentities *OAuthIdentityStore
 	googleProvider  *GoogleOAuthProvider
+
+	// Password reset (forgot password) dependencies. nil when
+	// WithPasswordReset has not been called; in that case the
+	// forgot/reset endpoints return 503.
+	passwordResets *PasswordResetStore
+	mailer         Mailer
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -97,6 +103,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	oauthStartLimiter := NewRateLimiter(20, 1*time.Minute)
 	oauthCallbackLimiter := NewRateLimiter(20, 1*time.Minute)
 	logoutLimiter := NewRateLimiter(60, 1*time.Minute)
+	forgotPasswordLimiter := NewRateLimiter(5, 1*time.Minute)
+	resetValidateLimiter := NewRateLimiter(30, 1*time.Minute)
+	resetPasswordLimiter := NewRateLimiter(10, 1*time.Minute)
 
 	resolver := h.cfg.IPResolver()
 
@@ -108,6 +117,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
 	// OAuth 2.0 sign-in endpoints (public, rate-limited).
 	mux.HandleFunc("/auth/oauth/google/start", oauthStartLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleStart))
 	mux.HandleFunc("/auth/oauth/google/callback", oauthCallbackLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleOAuthGoogleCallback))
+
+	// Forgot / reset password endpoints (public, rate-limited).
+	// The three routes are independent so the SPA can validate a
+	// token without mutating it (UX: render the form vs the "link
+	// expired" screen) and then redeem it with a separate POST.
+	mux.HandleFunc("/auth/password/forgot", forgotPasswordLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleForgotPassword))
+	mux.HandleFunc("/auth/password/reset/validate", resetValidateLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleValidateResetToken))
+	mux.HandleFunc("/auth/password/reset", resetPasswordLimiter.RateLimitMiddlewareWithResolver(resolver, h.handleResetPassword))
 
 	// Logout: OptionalAuth + rate-limited. Even an unauthenticated
 	// request reaches the handler so the cookie jar can be cleared.
