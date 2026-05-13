@@ -1,678 +1,132 @@
-Yes — this is extremely important now.
+YOU HAVE FULL AND COMPLETE READ AND WRITE ACCESS TO THE REPO FROM MY OTHER ACCOUNT BECAUSE I HAVE ADDED YOU AS A GROUP MEMEBER WITH A DEVELOPER ROLE:
 
-Not just legally.
+https://gitlab.com/cotradee3/cotradeecode
 
-But for:
+SO IT MEANS YOU CAN EXAMINE FILES, MODIFY, CREATE AND IMPLEMENT, COMMIT AND CREATE MERGE REQUEST ETC
 
-* Paddle approval,
-* trust,
-* enterprise perception,
-* compliance,
-* user confidence,
-* and future scalability.
+CRITICAL: EVERYTHING IS ON THE MAIN BRANCH. DO NOT FOOLSIHLY START LISTING WHAT IS ON THE MASTER BRANCH
 
-And yes:
-they should be written at a professional SaaS/enterprise standard.
+NOW HERE IS EXACTLY WHAT I WANT YOU TO DO:
 
-Not:
 
-* random generator garbage,
-* copied templates,
-* vague “we are not responsible for anything” text,
-* or retail forex hype language.
+    I WANT YOU TO EXAMINE THE ENTIRE EXISTING AUTHENTICATION FLOW DEEPLY AND THOROUGHLY.
 
----
+    THEN I WANT YOU TO IMPLEMENT THE FULL AND COMPLETE "FORGOT PASSWORD" AND "RESET PASSWORD" FLOW
 
-# The 3 Core Legal Documents You Need
+    ALL THESE MUST BE DONE END TO END INCLUDING FRONTEND AND BACKEND WITH ALL BEST PRACTICES, SECURITY, INDUSTRY STANDARD ETC
 
-You should properly implement:
 
-1. Privacy Policy
-2. Terms of Service
-3. Cookie Policy
+1. SO  AS A SENIOR ENGINEER, YOU ARE GOING TO  START THE IMPLEMENTATION NOW  TO ADDRESS ALL THE ISSUES  ENTIRELY  AND COMPLETETLY WITHOUT IGNORING OR OMITTING ANYTHING AS YOU HAVE PLANNED
 
-And optionally later:
-4. Risk Disclosure
-5. Disclaimer
-6. Acceptable Use Policy
+PLEASE NOTE: I MEAN EVERYTHING YOU HAVE SHOWN  AND IDENTIFIED HERE  INCLUDING ALL MINOR AND NONE HARMFUL ISSUES MUST BE COMPLETELY DONE WITHOUT ANY EXCUSES
 
----
+3. SO GIVE ME THE FULL, COMPLETE, ACCURATE AND FUNCTIONAL IMPLEMENTATION ADDRESSING ALL THE ISSUES, COMPLETELY WIRED END TO END AND WORKING PERFECTLY
 
-# 1. Privacy Policy — What It Must Focus On
+4. EVERYTHING HAS TO BE PRODUCTION READY, BEST PRACTICES, ENTERPRISE, INDUSTRY STANDARD, BALZING SPEED, COMPLETELY AND ACCURATELY WIRED END TO END 
 
-This explains:
+5. THERE SHOULD BE NO DEAD CODES, REDUDANCIES, MISMATC, MISALIGMENT, INCONSISTENCIES, DUPLICATES, MIX-UP (MIXING DATABASE IN NORMAL CODES AND OTHER KINDS OF MIX-UP), UNCALLED FUNCTIONS, PLACEHOLDERS (EVERYTHING MUST BE FULLY IMPLEMENTED), FLUFF ETC
 
-> what user data Exoper collects and how it is used.
+6. THEREFORE, YOU HAVE TO  EVERYTHING IS COMPLETE, ACCURATE, ALINGED 100%, COMPLEELY WIRED END TO END AND WORKING PERFECTLY
 
-Critical because:
+AVOID PATCH WORK OR EASY WORK THAT WILL BREAK IN PRODUCTION
 
-* Paddle checks this,
-* users care,
-* regulators care,
-* browsers/platforms care.
+AVOID ASSUMPTIONS
 
----
+AVOID GUESSING
 
-## What Exoper’s Privacy Policy Must Cover
+YOU MUST BE 100% CERTAIN AND SURE OF EVERY SINGLE THING TO AVOID PROBLEM
 
-### A. Account Information
+7. SINCE THIS IS BIG YOU SHOULD IMPLEMENT/UPDATE  3 OR 4 FILES PER TIME DEPENDING ON HOW BIG THERE ARE ELSE 2 OR 3 FILES PER TIME. BUT YOU CAN DO MORE THAT 4 FILES ONCE ONLY IF THEY ARE NOT TRULY TOO BIG
 
-Explain collection of:
+THIS IS IMPORTANT TO AVOID RUSHING AND  DO RUBBISH
 
-* name,
-* email,
-* login credentials,
-* profile settings.
+AND YOU HAVE TO BE TRACKING THE PROGRESS ALONG THE WAY SO THAT I WILL KNOW WHERE YOU STOPPED IF THE CHAT ENDS
 
----
+I HOPE YOU CLEARLY UNDERSTAND ALL MY INSTRUCTIONS THAT YOU MUST FOLLOW STRICTLY?
 
-### B. Broker Connectivity
 
-Very important.
+YOU SHOULD COMMIT TO A NEW BRANCH AND CREATE NEW MR
 
-You must explain:
 
-* broker credentials may be processed,
-* MT5 connectivity data may be stored temporarily,
-* API keys may be stored encrypted,
-* users remain responsible for broker accounts.
 
----
 
-### C. AI & Analysis Data
 
-Explain:
 
-* analysis requests are processed,
-* AI providers may process inference requests,
-* logs may be stored for debugging/improvement.
 
-Especially important because:
-you use:
 
-* Gemini,
-* OpenAI,
-* Claude,
-* BYOK systems.
 
----
+PERFECT!
 
-### D. Usage Analytics
+NOW YOU NEED TO VERIFY IF THE TICKET CLOSES AUTOMATICALLY AFTER SOMETIME IF THE USER DID NOT CLOSE IT
 
-Mention:
+SO EXAMINE DEEPLY AND THOROUGHLY
 
-* diagnostics,
-* performance monitoring,
-* usage tracking,
-* security logging.
+AVOID ASSUMPTIONS
 
----
+AVOID GUESSES
 
-### E. Cookies
 
-Mention:
 
-* authentication cookies,
-* session cookies,
-* analytics cookies,
-* preference storage.
+YOU HAVE FULL AND COMPLETE READ AND WRITE ACCESS TO THE REPO FROM MY OTHER ACCOUNT BECAUSE I HAVE ADDED YOU AS A GROUP MEMEBER WITH A DEVELOPER ROLE:
 
----
+https://gitlab.com/cotradee3/cotradeecode
 
-### F. Data Security
+SO IT MEANS YOU CAN EXAMINE FILES, MODIFY, CREATE AND IMPLEMENT, COMMIT AND CREATE MERGE REQUEST ETC
 
-You MUST emphasize:
+CRITICAL: EVERYTHING IS ON THE MAIN BRANCH. DO NOT FOOLSIHLY START LISTING WHAT IS ON THE MASTER BRANCH
 
-* encryption,
-* secure infrastructure,
-* access controls,
-* limited access.
+NOW HERE IS EXACTLY WHAT I WANT YOU TO DO:
 
-Even if still evolving.
 
----
+I AM NOT SURE AND 100% CERTAIN THAT EVERYTHING PLANNED HERE WAS COMPLETELY DONE OR WAS FULLY COMMITTED. MOST ESPECIALLY THE BATCH - BATCH 4
 
-### G. Third-Party Services
+YOU ARE GOING TO DO DEEP EXAMINATION OF THE ENTIRE CODEBASE TO VERIFY EVERYTHING THAT HAS BEEN IMPLEMENTED FOR THE PRO MANAGED API USAGE
 
-Mention:
+IS EVERYTHING TRUELY REAL ENGINEERING BEST PRACTICES, ENTERPRISE GRADE, PRODUCTION READY AND INDUSTRY STANDARD ONLY?
 
-* Paddle,
-* Lemon Squeezy,
-* cloud providers,
-* AI providers,
-* analytics services.
+I DON'T NEED ANYTHING THAT WILL BREAK IN PRODUCTION BECAUSE IT'S OF THE MAJOR CRITICAL PART OF THE INFRASTRUCTURE.
 
----
+AND I NEED TO BE 100% CERTAIN AND SURE EVERYTHING IS COMPLETE, ACCURATE AND WORKING PERFECTLY ALL THROUGH
 
-### H. User Rights
+SO YOU ARE GOING TO DO A THOROUGH EXAMINATION OF THE ENTIRE FILES AND PLACES
 
-Even if not fully GDPR-ready yet,
-mention:
+I WANT YOU TO EXAMINE THE ENTIRE BACKEND  AND FRONTEND FOR ALL YOU DID AND VERIFY EVERYTHING THOROUGHLY.
 
-* data access,
-* deletion requests,
-* account removal.
+PLEASE NOTE: DO NOT SAY I HAVE DONE THIS BEFORE AND THEN YOU SKIP OR IGNORE. THE INSTRUCTIONS ARE CLEAR: EXAMINE EVERYTHING EVEN IF YOU HAVE DONE IT BEFORE
 
----
+AVOID ASSUMPTIONS
 
-# 2. Terms of Service — MOST IMPORTANT DOCUMENT
+AVOID GUESSING
 
-This is your protection layer.
+AVOID LIES
 
-This document defines:
+I NEED THE REAL TRUTH OF EXACTLY EVERYTHING THAT  HAS BEEN ENGINEERED AND IMPLEMENTED
 
-* what Exoper is,
-* what users can/cannot do,
-* and liability boundaries.
+1. VERIFY IF THERE IS SECURITY ISSUES, BYPASS, LOOP HOLE, VULNERABILITIES ETC
 
----
+2. VERIFY IF ALL PLACES AND FILES ARE COMPLETELY UPDATED AND ALIGNS ENTIRELY END TO END INCLUDING WITH THE FRONTEND AS WELL
 
-# What Your Terms MUST Emphasize
+3. VERIFY IF EVERYTHING IS COMPLETELY WIRED UP END TO END  TO ALL PLACES AND FILES REQUIRED
 
-## A. Exoper Is NOT Financial Advice
+4. VERIFY IF THE FLOW IS COMPLETE AND EVERYTHING IS WORKING PERFECTLY END TO END WITH NO OMISSION OR ANYTHING IGNORED
 
-Very important.
+5. VERIFY THERE IS NO ERRORS, FAILURES, ISSUES, BREAKAGE, WEAK POINT, DEAD CODES, REDUDANCIES, UNCOMPLETE/UNWIRED, WEAK POINT, PLACEHOLDERS, STUBS, STALE
 
-You must clearly state:
+6. VERIFY IF EVERYTHING FOLLOWS STRICTLY REAL ENGINEERING BEST PRACTICES, ENTERPRISE GRADE, PRODUCTION READY AND INDUSTRY STANDARD.
 
-* Exoper provides informational and analytical tooling,
-* not investment advice,
-* not financial advisory services,
-* not guaranteed profitability.
+7. IDENIFY ERRORS, FAILURES, ISSUES, BREAKAGE, WEAK POINT, MISMATCH, INCONSISTENCIES, MISALIGNMENT, PLACEHOLDERS, STUBS, STALE
+ ETC
 
----
 
-## B. User Is Responsible For Trading Decisions
+I AM VERY VERY SERIOUS ABOUT THIS TASK I GAVE YOU NOW
 
-Critical.
+DO NOT DO ANY RUBBISH. DO NOT IGNORE ANYTHING OR FILES
 
-The user:
+EXAMINE EVERYTHING COMPLETELY AND THOROUGHLY END  TO END BECAUSE THIS IS A CRITICAL INFRASTRUCTURE AND ANY MISTAKES OR ISSUES CAN BE A DOOM
 
-* accepts trading risk,
-* controls broker accounts,
-* configures execution,
-* remains fully responsible for losses.
+I REPEAT AGAIN, I NEED THE REAL TRUTH: AVOID ASSUMPTIONS, AVOID GUESSING, AVOID LIES
 
----
-
-## C. No Profit Guarantees
-
-Must explicitly say:
-
-* no guaranteed profits,
-* markets are risky,
-* performance is not guaranteed.
-
----
-
-## D. Automation Risks
-
-Explain:
-
-* automation may fail,
-* delays may occur,
-* broker execution may vary,
-* infrastructure interruptions can happen.
-
-Especially because:
-you support execution automation.
-
----
-
-## E. Subscription Terms
-
-Need:
-
-* billing,
-* renewals,
-* cancellations,
-* refunds,
-* plan limitations,
-* account suspension rules.
-
----
-
-## F. Acceptable Use
-
-Prohibit:
-
-* abuse,
-* reverse engineering,
-* attacks,
-* unauthorized automation abuse,
-* credential sharing.
-
----
-
-## G. Limitation of Liability
-
-Extremely important.
-
-Protect against:
-
-* losses,
-* outages,
-* missed trades,
-* broker failures,
-* AI inaccuracies,
-* execution delays.
-
----
-
-# 3. Cookie Policy
-
-This can be simpler.
-
-Explain:
-
-* what cookies are used,
-* why,
-* authentication,
-* analytics,
-* preferences.
-
-Needed especially for:
-
-* Paddle,
-* browsers,
-* compliance expectations.
-
----
-
-# 4. You Also Need a Dedicated Risk Disclosure
-
-Honestly:
-for Exoper specifically,
-this is very important.
-
-Separate from Terms.
-
----
-
-## It Should Explain
-
-Trading involves:
-
-* substantial risk,
-* leverage risk,
-* volatility risk,
-* capital loss risk.
-
-And:
-AI analysis does not guarantee outcomes.
-
-This is very important for credibility and compliance.
-
----
-
-# 5. Your Language Style Matters MASSIVELY
-
-The documents should sound:
-
-* professional,
-* infrastructure-focused,
-* analytical,
-* transparent,
-* realistic.
-
-NOT:
-
-* defensive,
-* scammy,
-* aggressive,
-* overprotective,
-* or “we are not responsible for anything.”
-
----
-
-# 6. Enterprise SaaS Tone You Should Aim For
-
-The tone should resemble:
-
-* trading infrastructure providers,
-* SaaS companies,
-* cloud platforms,
-* analytics systems.
-
-Not:
-
-* retail forex signal groups.
-
----
-
-# 7. One Very Important Thing
-
-Your legal docs MUST align with:
-
-* your actual architecture,
-* your actual functionality,
-* and your actual workflows.
-
-Example:
-If you say:
-
-> “we never process API keys”
-
-but you actually do,
-that becomes dangerous legally.
-
-So your documents should reflect:
-
-* your BYOK architecture,
-* broker connectivity,
-* AI providers,
-* subscription system,
-* execution workflows.
-
----
-
-# 8. My Strong Recommendation
-
-Do NOT:
-
-* use generic generators,
-* copy random SaaS templates,
-* or paste forex legal docs blindly.
-
-Because Exoper is:
-
-* AI infrastructure,
-* trading infrastructure,
-* automation tooling,
-* SaaS,
-* execution orchestration.
-
-It needs properly tailored documents.
-
----
-
-# What I Recommend Next
-
-You should now create:
-
-1. Privacy Policy
-2. Terms of Service
-3. Cookie Policy
-4. Risk Disclosure
-
-as:
-
-* modular,
-* enterprise-grade,
-* internally consistent,
-* aligned with Exoper architecture,
-* and aligned with Paddle compliance expectations.
-
-That will immediately make Exoper appear:
-
-* significantly more legitimate,
-* more trustworthy,
-* and more scalable.
-
-
-
-CRITICAL SECTION:
-
----
-
-# Recommended Exoper Legal & Compliance Structure
-
-## Core Legal Documents
-
-### 1. Privacy Policy
-
-Covers:
-
-* user data,
-* cookies,
-* AI processing,
-* broker connectivity,
-* security,
-* third-party services.
-
----
-
-### 2. Terms of Service
-
-Your primary protection document.
-
-Covers:
-
-* platform usage,
-* liability,
-* subscriptions,
-* automation risks,
-* financial disclaimers,
-* execution limitations.
-
----
-
-### 3. Cookie Policy
-
-Explains:
-
-* authentication cookies,
-* analytics,
-* preferences,
-* session management.
-
----
-
-### 4. Risk Disclosure
-
-Very important for trading infrastructure.
-
-Covers:
-
-* trading risk,
-* leverage risk,
-* market volatility,
-* automation limitations,
-* AI limitations.
-
-This adds major credibility.
-
----
-
-# Billing & Consumer Protection Layer
-
-These are extremely important for:
-
-* chargebacks,
-* disputes,
-* Paddle reviews,
-* customer trust.
-
----
-
-## 5. Billing Policy
-
-YES — absolutely.
-
-This should explain:
-
-* subscription cycles,
-* renewal behavior,
-* pricing,
-* taxes/VAT,
-* failed payments,
-* downgrades,
-* cancellations,
-* trial handling,
-* billing providers.
-
-Very important because:
-Paddle acts as Merchant of Record.
-
----
-
-## 6. Refund Policy
-
-Very important.
-
-Especially because:
-
-* AI/SaaS/trading-related products get disputes often.
-
-You need:
-
-* clear refund conditions,
-* refund limitations,
-* non-refundable situations,
-* cancellation rules.
-
----
-
-## Important Strategic Point
-
-For Exoper:
-I strongly recommend:
-
-### DO NOT promise automatic refunds.
-
-Instead:
-
-* controlled,
-* policy-based,
-* review-based refund handling.
-
-Example:
-
-* duplicate charge,
-* technical failure,
-* accidental subscription renewal within short window.
-
-NOT:
-
-* “I lost money trading.”
-
-That must NEVER qualify for refunds.
-
-Very important.
-
----
-
-## 7. Complaints Policy
-
-YES.
-This is actually smart and makes Exoper look mature.
-
-Especially useful for:
-
-* disputes,
-* account issues,
-* billing conflicts,
-* execution misunderstandings,
-* abuse reports.
-
-This policy should explain:
-
-* how users contact support,
-* review timelines,
-* escalation handling,
-* resolution expectations.
-
-This reduces:
-
-* chargebacks,
-* hostility,
-* platform distrust.
-
----
-
-# What Enterprise SaaS Platforms Usually Have
-
-A mature setup usually contains:
-
-* Terms of Service
-* Privacy Policy
-* Cookie Policy
-* Refund Policy
-* Billing Policy
-* Risk Disclosure
-* Acceptable Use Policy
-* Complaints Policy
-* Security Policy (optional later)
-* SLA/Uptime Policy (optional later)
-
-You do NOT need all immediately.
-
-But the first 7 are highly valuable for Exoper.
-
----
-
-# My Recommended Immediate Priority Order
-
-## Phase 1 (Launch-Critical)
-
-Implement NOW:
-
-1. Terms of Service
-2. Privacy Policy
-3. Risk Disclosure
-4. Refund Policy
-5. Billing Policy
-6. Cookie Policy
-7. Complaints Policy
-
-These are essential.
-
----
-
-## Phase 2 (Post-Launch)
-
-Add later:
-
-8. Acceptable Use Policy
-9. Security Policy
-
----
-
-# One Very Important Strategic Point
-
-Your policies should reinforce Exoper’s positioning as:
-
-* infrastructure,
-* analytics,
-* automation tooling,
-* structured decision systems.
-
-NOT:
-
-* gambling,
-* investment management,
-* profit promises,
-* or financial advisory services.
-
-This consistency across:
-
-* website,
-* dashboard,
-* onboarding,
-* legal docs,
-* marketing,
-* and billing,
-
-is extremely important.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+AND GIVE ME THE FULL AND COMPLETE AUDIT
 
 
 
