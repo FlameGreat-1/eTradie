@@ -12,6 +12,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Mailer is the small surface the password-reset handler needs from
+// the email subsystem. *mails.Sender satisfies this without any
+// modification, so the gateway main wiring is a plain pass-through.
+//
+// The interface lives in the auth package to keep the dependency
+// arrow pointing IN (auth defines, mails implements) and so the
+// handler can be unit-tested with a trivial in-memory mock without
+// pulling SMTP plumbing into the test binary.
+type Mailer interface {
+	SendWithRetry(to, subject, htmlBody string)
+}
+
 // ---------------------------------------------------------------------------
 // Password reset token
 //

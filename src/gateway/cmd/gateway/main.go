@@ -86,6 +86,7 @@ func main() {
 	sessionStore := auth.NewSessionStore(authPool)
 	oauthFlowStore := auth.NewOAuthFlowStore(authPool)
 	oauthIdentityStore := auth.NewOAuthIdentityStore(authPool)
+	passwordResetStore := auth.NewPasswordResetStore(authPool)
 	tokenService := auth.NewTokenService(authCfg)
 	authHandler := auth.NewHandler(userStore, sessionStore, tokenService, authCfg)
 
@@ -127,6 +128,17 @@ func main() {
 	waitlistStore := mails.NewWaitlistStore(authPool)
 	emailSender := mails.NewSender(smtpCfg, observability.Logger("email_sender"))
 	waitlistHandler := mails.NewHandler(waitlistStore, emailSender, observability.Logger("waitlist"))
+
+	// Wire forgot/reset-password into the auth handler. The mailer is
+	// the same *mails.Sender used by the waitlist (it satisfies the
+	// auth.Mailer interface). When SMTP is not configured the sender's
+	// SendWithRetry logs a warning and returns; the handler still
+	// records the reset row so audit trails are intact.
+	authHandler.WithPasswordReset(passwordResetStore, emailSender)
+	log.Info().
+		Int("token_ttl_seconds", authCfg.PasswordResetTokenTTLSeconds).
+		Bool("frontend_base_url_set", authCfg.FrontendBaseURL != "").
+		Msg("auth_password_reset_initialized")
 
 	// ── Cookie consent (GDPR / ePrivacy audit trail) ─────────────
 	// Same pool, same idempotent-DDL pattern as every other store.
@@ -309,6 +321,12 @@ func main() {
 					log.Error().Err(err).Msg("auth_oauth_flows_cleanup_failed")
 				} else if oauthDeleted > 0 {
 					log.Info().Int64("deleted", oauthDeleted).Msg("auth_expired_oauth_flows_cleaned")
+				}
+				resetDeleted, err := passwordResetStore.DeleteExpiredTokens(cleanupCtx)
+				if err != nil {
+					log.Error().Err(err).Msg("auth_password_reset_cleanup_failed")
+				} else if resetDeleted > 0 {
+					log.Info().Int64("deleted", resetDeleted).Msg("auth_expired_password_resets_cleaned")
 				}
 				// GDPR Art. 5(1)(e): delete consent rows older than the
 				// configured retention window, preserving the latest row
