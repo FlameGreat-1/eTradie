@@ -299,10 +299,9 @@ func (s *UsageStore) ReserveLLMTokens(
 	// Upsert the usage row and lock it for update. If we just created
 	// the row, both today/month start fresh at zero.
 	var (
-		inputToday, outputToday   int64
-		inputMonth, outputMonth   int64
-		monthlyWindowStart        time.Time
-		lastResetAt               time.Time
+		inputToday, outputToday int64
+		inputMonth, outputMonth int64
+		monthlyWindowStart      time.Time
 	)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO billing_usage (user_id, monthly_window_start, last_reset_at)
@@ -318,11 +317,11 @@ func (s *UsageStore) ReserveLLMTokens(
 			                                THEN $2 ELSE billing_usage.last_reset_at END
 		RETURNING llm_input_tokens_today, llm_output_tokens_today,
 		          llm_input_tokens_month, llm_output_tokens_month,
-		          monthly_window_start, last_reset_at
+		          monthly_window_start
 	`, userID, now).Scan(
 		&inputToday, &outputToday,
 		&inputMonth, &outputMonth,
-		&monthlyWindowStart, &lastResetAt,
+		&monthlyWindowStart,
 	); err != nil {
 		return "", fmt.Errorf("reserve_llm_tokens: upsert usage: %w", err)
 	}
@@ -442,9 +441,8 @@ func (s *UsageStore) CommitLLMTokens(
 	now := time.Now().UTC()
 
 	var (
-		userID                       string
-		estimatedInput, maxOutput    int64
-		prevStatus                   string
+		userID                    string
+		estimatedInput, maxOutput int64
 	)
 	err = tx.QueryRow(ctx, `
 		UPDATE billing_llm_reservations SET
@@ -453,9 +451,9 @@ func (s *UsageStore) CommitLLMTokens(
 			actual_output_tokens = $3,
 			settled_at           = $4
 		WHERE id = $1 AND status = 'held'
-		RETURNING user_id, estimated_input_tokens, max_output_tokens, 'held'
+		RETURNING user_id, estimated_input_tokens, max_output_tokens
 	`, reservationID, actualInput, actualOutput, now,
-	).Scan(&userID, &estimatedInput, &maxOutput, &prevStatus)
+	).Scan(&userID, &estimatedInput, &maxOutput)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Already settled or never existed. Idempotent: no-op.
