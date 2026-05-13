@@ -55,23 +55,26 @@ export default function ResetPasswordForm() {
       };
     }
     (async () => {
-      const [validation, policyResult] = await Promise.allSettled([
-        validateResetToken({ token }),
-        getPasswordPolicy(),
-      ]);
+      // Kick off both requests in parallel before awaiting either.
+      // getPasswordPolicy never throws (it returns DEFAULT_PASSWORD_POLICY
+      // on any failure), so we can await it directly without a wrapper.
+      const policyPromise = getPasswordPolicy();
+      const validationPromise = validateResetToken({ token }).catch(
+        () => null,
+      );
+
+      const fetchedPolicy = await policyPromise;
       if (cancelled) return;
-      if (
-        policyResult.status === 'fulfilled' &&
-        policyResult.value
-      ) {
-        setPolicy(policyResult.value);
-        if (!policyResult.value.reset_enabled) {
-          setState('disabled');
-          return;
-        }
+      setPolicy(fetchedPolicy);
+      if (!fetchedPolicy.reset_enabled) {
+        setState('disabled');
+        return;
       }
-      if (validation.status === 'fulfilled') {
-        setState(validation.value.valid ? 'valid' : 'invalid');
+
+      const validation = await validationPromise;
+      if (cancelled) return;
+      if (validation && validation.valid) {
+        setState('valid');
       } else {
         setState('invalid');
       }
