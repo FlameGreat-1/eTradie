@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
 
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
@@ -304,12 +305,18 @@ async def internal_processor_process(
     request: Request,
     body: InternalProcessorRequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> Response:
     """Send assembled context to the Processor LLM.
 
     Called by the Go gateway. Delegates to AnalysisProcessor.
     The processor_input dict contains ta_analysis, macro_analysis,
     retrieved_knowledge, and metadata.
+
+    The return type is the FastAPI Response base class because the
+    happy path returns a plain dict (FastAPI auto-encodes to JSON) but
+    the QuotaExceededError branch returns a JSONResponse with custom
+    status code (429) and Retry-After header. Annotating as Response
+    keeps static analysers honest about both code paths.
     """
     container: Container = request.app.state.container
     user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
@@ -330,10 +337,24 @@ async def internal_processor_process(
         return {"raw": str(result)}
 
     except QuotaExceededError as exc:
-        # Map the typed quota error to a 429 with a Retry-After header
-        # and a structured body so the gateway can surface it to the
-        # SPA's axios interceptor (which already handles 429 toasts).
-        from fastapi.responses import JSONResponse
+        # The metering layer rejected the reservation. Log the rejection
+        # at warning level so operators can correlate the SPA-side 429
+        # toast to the gateway-side metering log entry by trace_id.
+        # Then map to a structured 429 with a Retry-After header so the
+        # SPA's axios interceptor surfaces a meaningful message.
+        logger.warning(
+            "internal_processor_quota_exceeded",
+            extra={
+                "user_id": user_id,
+                "trace_id": body.trace_id,
+                "dimension": exc.dimension,
+                "limit": exc.limit,
+                "used": exc.used,
+                "requested": exc.requested,
+                "resets_at": exc.resets_at,
+                "retry_after": exc.retry_after,
+            },
+        )
         return JSONResponse(
             status_code=429,
             headers={"Retry-After": str(exc.retry_after)},

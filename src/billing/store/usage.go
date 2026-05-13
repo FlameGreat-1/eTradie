@@ -635,6 +635,10 @@ func (s *UsageStore) GetLLMUsageSnapshot(
 // Called by the billing reconciler on every subscription period-end
 // renewal so a paying customer's quota lifecycle matches their billing
 // cycle exactly.
+//
+// soft_cap_notified_at is cleared in the same UPDATE so the new monthly
+// window gets one fresh notification opportunity. Without this clear, a
+// user who crossed the soft cap last month would never get warned again.
 func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStart time.Time) error {
 	if userID == "" {
 		return fmt.Errorf("monthly_reset: user_id is required")
@@ -644,13 +648,86 @@ func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStar
 			llm_input_tokens_month        = 0,
 			llm_output_tokens_month       = 0,
 			llm_quota_blocked_count_month = 0,
-			monthly_window_start          = $2
+			monthly_window_start          = $2,
+			soft_cap_notified_at          = NULL
 		WHERE user_id = $1
 	`, userID, windowStart.UTC())
 	if err != nil {
 		return fmt.Errorf("monthly_reset: %w", err)
 	}
 	return nil
+}
+
+// MarkSoftCapNotifiedIfCrossed performs a one-shot test-and-set inside
+// a single atomic UPDATE: returns (true, nil) the first time the user's
+// current-window monthly usage crosses softCapPercent of either the
+// input or output cap; returns (false, nil) on every subsequent call
+// until MonthlyReset clears soft_cap_notified_at.
+//
+// The handler calls this immediately after a successful Reserve and
+// fires the warning email when the return is true. The test-and-set
+// happens entirely in SQL so two parallel reserve calls from the same
+// user cannot both observe "just crossed" and double-fire the email
+// (PostgreSQL serialises the UPDATE on the row's MVCC version).
+//
+// Inputs:
+//
+//	softCapPercent       : 0..100. Values <= 0 disable the check
+//	                       (returns false, nil) so a tier without a
+//	                       configured soft cap never triggers a notice.
+//	monthlyInputLimit    : tier policy cap on input tokens this window.
+//	                       Values <= 0 disable the input-side trigger.
+//	monthlyOutputLimit   : same, for output tokens.
+//
+// The threshold is computed as ceil(limit * pct / 100) so a soft cap of
+// 80% on a 20,000,000 input cap fires at exactly 16,000,000 tokens, not
+// at 15,999,999.
+func (s *UsageStore) MarkSoftCapNotifiedIfCrossed(
+	ctx context.Context,
+	userID string,
+	softCapPercent int,
+	monthlyInputLimit, monthlyOutputLimit int64,
+) (bool, error) {
+	if userID == "" {
+		return false, fmt.Errorf("mark_soft_cap_notified: user_id is required")
+	}
+	if softCapPercent <= 0 || softCapPercent > 100 {
+		return false, nil
+	}
+	if monthlyInputLimit <= 0 && monthlyOutputLimit <= 0 {
+		return false, nil
+	}
+
+	// ceilDiv computes ⌈a * pct / 100⌉ without floating-point error.
+	ceilDiv := func(limit int64, pct int) int64 {
+		if limit <= 0 {
+			return 0
+		}
+		num := limit * int64(pct)
+		return (num + 99) / 100
+	}
+	inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
+	outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
+
+	var firedAt *time.Time
+	err := s.db.QueryRow(ctx, `
+		UPDATE billing_usage
+		SET soft_cap_notified_at = NOW()
+		WHERE user_id = $1
+		  AND soft_cap_notified_at IS NULL
+		  AND (
+		       ($2 > 0 AND llm_input_tokens_month  >= $2)
+		    OR ($3 > 0 AND llm_output_tokens_month >= $3)
+		  )
+		RETURNING soft_cap_notified_at
+	`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("mark_soft_cap_notified: %w", err)
+	}
+	return firedAt != nil, nil
 }
 
 // ---------------------------------------------------------------------------

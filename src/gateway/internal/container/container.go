@@ -27,6 +27,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+
 )
 
 // Container holds all gateway components and manages their lifecycle.
@@ -70,6 +71,7 @@ func New(
 	consentHandler *consent.Handler,
 	supportHandler *support.Handler,
 	supportNotifier *support.Notifier,
+	emailSender *mails.Sender,
 	usageStore *store.UsageStore,
 	subStore *store.SubscriptionStore,
 	portalAudStore *store.PortalAuditStore,
@@ -157,6 +159,20 @@ func New(
 		authCfg,
 		cfg.EngineInternalSharedSecret,
 	)
+
+	// Wire the shared *mails.Sender (already used for waitlist and
+	// password-reset emails) into the metering handler so the
+	// soft-cap warning email reuses the same SMTP configuration with
+	// zero extra env vars. The dashboard URL is built from the
+	// already-validated AUTH_FRONTEND_BASE_URL so the email button
+	// links to the same SPA origin every other auth email uses; an
+	// empty FrontendBaseURL (dev) leaves the URL empty and the
+	// template gracefully degrades the CTA button.
+	dashboardURL := ""
+	if authCfg.FrontendBaseURL != "" {
+		dashboardURL = authCfg.FrontendBaseURL + "/settings/billing"
+	}
+	meteringHandler.WithSoftCapMailer(emailSender, dashboardURL)
 
 	// Servers (now with auth + consent support + metering).
 	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler)

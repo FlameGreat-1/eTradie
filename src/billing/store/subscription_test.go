@@ -112,11 +112,12 @@ func TestUpsertSubscription_InsertPath(t *testing.T) {
 	}
 
 	withTx(t, pool, func(tx pgx.Tx) {
-		applied, prevTier, prevStatus, err := s.UpsertSubscriptionTx(context.Background(), tx, row)
+		applied, prevTier, prevStatus, prevPeriodEnd, err := s.UpsertSubscriptionTx(context.Background(), tx, row)
 		require.NoError(t, err)
 		assert.True(t, applied, "insert should be applied")
 		assert.Equal(t, "", prevTier, "no previous tier on insert")
 		assert.Equal(t, "", prevStatus, "no previous status on insert")
+		assert.Nil(t, prevPeriodEnd, "no previous period_end on insert")
 	})
 
 	got, err := s.GetSubscription(context.Background(), "u_insert")
@@ -140,7 +141,7 @@ func TestUpsertSubscription_NewerWins(t *testing.T) {
 
 	// First event.
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:          "u_newer",
 			Tier:            "pro_byok",
 			Status:          "active",
@@ -152,7 +153,7 @@ func TestUpsertSubscription_NewerWins(t *testing.T) {
 
 	// Newer event upgrades.
 	withTx(t, pool, func(tx pgx.Tx) {
-		applied, prevTier, prevStatus, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		applied, prevTier, prevStatus, prevPeriodEnd, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:          "u_newer",
 			Tier:            "pro_managed",
 			Status:          "active",
@@ -163,6 +164,7 @@ func TestUpsertSubscription_NewerWins(t *testing.T) {
 		assert.True(t, applied)
 		assert.Equal(t, "pro_byok", prevTier)
 		assert.Equal(t, "active", prevStatus)
+		assert.Nil(t, prevPeriodEnd, "first event had nil period_end so previous remains nil")
 	})
 
 	got, err := s.GetSubscription(context.Background(), "u_newer")
@@ -185,7 +187,7 @@ func TestUpsertSubscription_OlderDrops(t *testing.T) {
 
 	// Establish newer state first.
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:          "u_older",
 			Tier:            "pro_managed",
 			Status:          "active",
@@ -197,7 +199,7 @@ func TestUpsertSubscription_OlderDrops(t *testing.T) {
 
 	// Older event arrives late. Must NOT regress the row.
 	withTx(t, pool, func(tx pgx.Tx) {
-		applied, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		applied, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:          "u_older",
 			Tier:            "pro_byok",
 			Status:          "paused",
@@ -229,7 +231,7 @@ func TestDemoteToFreeTx_HappyPath(t *testing.T) {
 	eventTS := time.Now().UTC().Add(-7 * 24 * time.Hour)
 
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:           "u_demote",
 			Tier:             "pro_byok",
 			Status:           "paused",
@@ -270,7 +272,7 @@ func TestDemoteToFreeTx_SkipsOnNewerEvent(t *testing.T) {
 	// proposed event_timestamp. Reconciler must lose the race.
 	storedEventTS := time.Now().UTC().Add(1 * time.Hour)
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID:          "u_race",
 			Tier:            "pro_managed",
 			Status:          "active",
@@ -309,7 +311,7 @@ func TestListExpiredForDemotion_Filters(t *testing.T) {
 	// 1) Free tier paused with elapsed period — EXCLUDED (already free).
 	seedUser(t, pool, "u_free", "free_user", "free@example.com")
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID: "u_free", Tier: "free", Status: "paused",
 			PaymentProvider: &provider, CurrentPeriodEnd: &past, EventTimestamp: eventTS,
 		})
@@ -319,7 +321,7 @@ func TestListExpiredForDemotion_Filters(t *testing.T) {
 	// 2) Pro paused with NULL period_end — EXCLUDED.
 	seedUser(t, pool, "u_null", "null_user", "null@example.com")
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID: "u_null", Tier: "pro_byok", Status: "paused",
 			PaymentProvider: &provider, CurrentPeriodEnd: nil, EventTimestamp: eventTS,
 		})
@@ -329,7 +331,7 @@ func TestListExpiredForDemotion_Filters(t *testing.T) {
 	// 3) Pro paused with future period_end — EXCLUDED.
 	seedUser(t, pool, "u_future", "future_user", "future@example.com")
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID: "u_future", Tier: "pro_byok", Status: "paused",
 			PaymentProvider: &provider, CurrentPeriodEnd: &future, EventTimestamp: eventTS,
 		})
@@ -339,7 +341,7 @@ func TestListExpiredForDemotion_Filters(t *testing.T) {
 	// 4) Pro ACTIVE with elapsed period_end — EXCLUDED (active is not a loss status).
 	seedUser(t, pool, "u_active", "active_user", "active@example.com")
 	withTx(t, pool, func(tx pgx.Tx) {
-		_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+		_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 			UserID: "u_active", Tier: "pro_byok", Status: "active",
 			PaymentProvider: &provider, CurrentPeriodEnd: &past, EventTimestamp: eventTS,
 		})
@@ -354,7 +356,7 @@ func TestListExpiredForDemotion_Filters(t *testing.T) {
 		expected[uid] = true
 		seedUser(t, pool, uid, st+"_user", st+"@example.com")
 		withTx(t, pool, func(tx pgx.Tx) {
-			_, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
+			_, _, _, _, err := s.UpsertSubscriptionTx(context.Background(), tx, &store.Subscription{
 				UserID: uid, Tier: "pro_byok", Status: st,
 				PaymentProvider: &provider, CurrentPeriodEnd: &past, EventTimestamp: eventTS,
 			})
