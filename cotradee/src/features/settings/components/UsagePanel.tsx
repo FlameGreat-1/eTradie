@@ -99,9 +99,9 @@ export default function UsagePanel() {
       )}
 
       {!isHardCapBreached && isSoftCapBreached && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
-          <AlertTriangle size={14} className="text-warning mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-warning">
+        <div className="flex items-start gap-2 rounded-lg border border-brand/30 bg-brand/5 p-3">
+          <AlertTriangle size={14} className="text-brand mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-brand">
             Approaching monthly token limit. Resets{' '}
             <span className="font-semibold">{resetLabel}</span>.
           </p>
@@ -185,7 +185,7 @@ function UsageBar({
     pct >= 100
       ? 'bg-danger'
       : pct >= softPct && softPct > 0
-      ? 'bg-warning'
+      ? 'bg-brand'
       : 'bg-brand';
 
   return (

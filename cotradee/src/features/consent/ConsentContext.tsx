@@ -172,7 +172,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         toast({
           title: 'Could not save preference',
           description: 'Your cookie preference will be re-prompted shortly.',
-          variant: 'warning',
+          variant: 'destructive',
         });
         throw err;
       }

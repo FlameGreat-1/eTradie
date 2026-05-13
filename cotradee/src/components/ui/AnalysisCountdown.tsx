@@ -67,10 +67,10 @@ export default function AnalysisCountdown() {
 
   // Countdown active — user must wait.
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
-      <Clock size={14} className="text-warning animate-pulse" />
+    <div className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2">
+      <Clock size={14} className="text-danger animate-pulse" />
       <div className="flex-1">
-        <span className="text-xs font-semibold text-warning">
+        <span className="text-xs font-semibold text-danger">
           Next analysis in{' '}
           <span className="font-mono tabular-nums">{formatTime(remaining)}</span>
         </span>

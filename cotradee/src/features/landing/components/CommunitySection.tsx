@@ -46,7 +46,7 @@ function CommunitySection() {
             {[0, 1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-32 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0c0c0c] animate-pulse"
+                className="h-64 rounded-2xl border border-border bg-surface-1 animate-pulse"
               />
             ))}
           </div>
@@ -62,7 +62,7 @@ function CommunitySection() {
   return (
     <section
       id="community"
-      className="relative py-24 border-t border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-[#050505]"
+      className="relative py-24 border-t border-border bg-surface-0"
       aria-labelledby="community-heading"
     >
       <div className="max-w-[1280px] mx-auto px-6 md:px-8">
@@ -136,25 +136,30 @@ function CommunityCard({ link }: { link: CommunityLink }) {
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-white/5
-                 bg-white dark:bg-[#0c0c0c] p-5 shadow-md dark:shadow-xl
-                 hover:border-slate-300 dark:hover:border-white/15
-                 transition-colors duration-300"
+      className="feature-card group h-full"
     >
-      <div className="flex items-center justify-between">
-        <span
-          className={`flex items-center justify-center w-11 h-11 rounded-xl ${meta.iconBg} ${meta.iconColor}`}
-        >
+      <div className="feature-card-header">
+        <span className={`feature-card-icon ${meta.iconColor}`}>
           {meta.icon}
         </span>
-        <ExternalLink
-          size={14}
-          className="text-slate-400 dark:text-white/40 group-hover:text-slate-700 dark:group-hover:text-white/80 transition-colors duration-300"
-          aria-hidden
-        />
+        <span className="feature-card-publisher">Official Community</span>
       </div>
-      <span className="text-base font-bold text-slate-900 dark:text-white">{meta.label}</span>
-      <span className="text-sm text-slate-600 dark:text-white/60 leading-relaxed">{meta.tagline}</span>
+
+      <div className="flex-1">
+        <h3 className="feature-card-title">{meta.label}</h3>
+        <p className="feature-card-desc">{meta.tagline}</p>
+      </div>
+
+      <div className="feature-card-tags">
+        <span className="feature-card-chip">community</span>
+        <span className="feature-card-chip">real-time</span>
+      </div>
+
+      <ExternalLink
+        size={14}
+        className="absolute top-6 right-6 text-content-faint group-hover:text-brand transition-colors duration-fast"
+        aria-hidden
+      />
     </a>
   );
 }

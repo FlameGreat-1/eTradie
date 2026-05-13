@@ -138,7 +138,7 @@ export default function AnalysisPage() {
                   a.status === 'success'
                     ? 'text-success'
                     : a.status === 'no_setup'
-                    ? 'text-warning'
+                    ? 'text-content-muted'
                     : 'text-content-muted'
                 }`}
               >
@@ -242,7 +242,7 @@ export default function AnalysisPage() {
                     a.status === 'success'
                       ? 'text-success'
                       : a.status === 'no_setup'
-                      ? 'text-warning'
+                      ? 'text-content-muted'
                       : 'text-content-muted'
                   }
                 />

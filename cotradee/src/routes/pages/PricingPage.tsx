@@ -85,11 +85,11 @@ export default function PricingPage() {
                   <Row title="Automated Execution" free="No" pro={<CheckIcon />} />
                   <Row title="Automated Scheduling" free="No" pro={<CheckIcon />} />
                   <Row title="AI Technical Analysis" free="1 per day" pro="Unlimited" />
-                  <Row title="Custom Cycle Intervals" free="\u2014" pro={<CheckIcon />} />
+                  <Row title="Custom Cycle Intervals" free="—" pro={<CheckIcon />} />
                   <Row title="Live Chart Updates" free="Real-time" pro="Real-time" />
                   <Row title="Risk Engine Safeguards" free={<CheckIcon />} pro={<CheckIcon />} />
                   <Row title="Trade Journal" free="Basic" pro="Advanced" />
-                  <Row title="Telegram Alerts" free="\u2014" pro={<CheckIcon />} />
+                  <Row title="Telegram Alerts" free="—" pro={<CheckIcon />} />
                   <Row title="Support" free="Community" pro="Priority" last />
                 </tbody>
               </table>

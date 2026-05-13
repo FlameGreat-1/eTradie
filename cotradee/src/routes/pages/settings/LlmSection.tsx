@@ -254,7 +254,7 @@ export default function LlmSection() {
                 {isActive ? (
                   <button
                     onClick={() => deactivate.mutate(id)}
-                    className="p-1.5 rounded text-warning hover:bg-surface-3 transition-colors"
+                    className="p-1.5 rounded text-danger hover:bg-surface-3 transition-colors"
                     title="Deactivate"
                   >
                     <PowerOff size={14} />

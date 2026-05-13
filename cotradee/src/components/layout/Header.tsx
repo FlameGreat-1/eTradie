@@ -549,8 +549,7 @@ function marginLevelClass(equity: number | undefined, margin: number | undefined
   if (margin <= 0) return 'text-success';
   const pct = (equity / margin) * 100;
   if (!Number.isFinite(pct)) return 'text-success';
-  if (pct < 100) return 'text-danger';
-  if (pct < 300) return 'text-warning';
+  if (pct < 300) return 'text-danger';
   return 'text-success';
 }
 

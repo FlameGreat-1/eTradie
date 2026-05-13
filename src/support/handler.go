@@ -414,7 +414,16 @@ func (h *Handler) handleListTickets(w http.ResponseWriter, r *http.Request) {
 	limit := parseIntQuery(r, "limit", 25)
 	offset := parseIntQuery(r, "offset", 0)
 
-	tickets, err := h.store.ListByUser(r.Context(), uid, limit, offset)
+	var (
+		tickets []Ticket
+		err     error
+	)
+	if auth.IsAdminContext(r.Context()) {
+		tickets, err = h.store.ListAll(r.Context(), limit, offset)
+	} else {
+		tickets, err = h.store.ListByUser(r.Context(), uid, limit, offset)
+	}
+
 	if err != nil {
 		h.log.Error().Err(err).Msg("support_list_tickets_failed")
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
@@ -582,7 +591,16 @@ func (h *Handler) handleTicketsItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGetTicket(w http.ResponseWriter, r *http.Request, ticketID, uid string) {
-	t, err := h.store.GetWithMessages(r.Context(), ticketID, uid)
+	var (
+		t   *Ticket
+		err error
+	)
+	if auth.IsAdminContext(r.Context()) {
+		t, err = h.store.GetWithMessagesAll(r.Context(), ticketID)
+	} else {
+		t, err = h.store.GetWithMessages(r.Context(), ticketID, uid)
+	}
+
 	if err != nil {
 		if errors.Is(err, ErrTicketNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "ticket not found"})
@@ -616,7 +634,12 @@ func (h *Handler) handleAppendMessage(w http.ResponseWriter, r *http.Request, ti
 		return
 	}
 
-	msg, ticket, err := h.store.AppendMessage(r.Context(), ticketID, uid, AuthorKindUser, body)
+	authorKind := AuthorKindUser
+	if auth.IsAdminContext(r.Context()) {
+		authorKind = AuthorKindStaff
+	}
+
+	msg, ticket, err := h.store.AppendMessage(r.Context(), ticketID, uid, authorKind, body)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrTicketNotFound):
@@ -677,7 +700,15 @@ func (h *Handler) handleAppendMessage(w http.ResponseWriter, r *http.Request, ti
 }
 
 func (h *Handler) handleCloseTicket(w http.ResponseWriter, r *http.Request, ticketID, uid string) {
-	t, err := h.store.CloseTicket(r.Context(), ticketID, uid)
+	var (
+		t   *Ticket
+		err error
+	)
+	if auth.IsAdminContext(r.Context()) {
+		t, err = h.store.CloseTicketAll(r.Context(), ticketID)
+	} else {
+		t, err = h.store.CloseTicket(r.Context(), ticketID, uid)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrTicketNotFound):

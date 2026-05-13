@@ -9,40 +9,36 @@
    `<alpha-value>` modifier (e.g. `bg-brand/20`).
    ═══════════════════════════════════════════════════════════════════ */
 :root {
-  /* Brand */
-  --brand-rgb: 232 81 2;
+  /* Brand (NVIDIA Green) */
+  --brand-rgb: 118 185 0;
   --brand: rgb(var(--brand-rgb));
-  --brand-hover-rgb: 255 90 10;
+  --brand-hover-rgb: 130 200 0;
   --brand-hover: rgb(var(--brand-hover-rgb));
-  --brand-active-rgb: 217 72 2;
+  --brand-active-rgb: 100 160 0;
   --brand-active: rgb(var(--brand-active-rgb));
   --brand-soft: rgb(var(--brand-rgb) / 0.12);
   --brand-soft-strong: rgb(var(--brand-rgb) / 0.22);
   --brand-glow: 0 0 0 1px rgb(var(--brand-rgb) / 0.35), 0 0 20px rgb(var(--brand-rgb) / 0.25);
 
-  /* Semantic colours */
-  --success-rgb: 47 215 123;
+  /* Semantic colours (Precision Profit & Loss) */
+  --success-rgb: 0 230 118;
   --success: rgb(var(--success-rgb));
   --success-soft: rgb(var(--success-rgb) / 0.14);
 
-  --danger-rgb: 255 59 48;
+  --danger-rgb: 255 23 68;
   --danger: rgb(var(--danger-rgb));
   --danger-soft: rgb(var(--danger-rgb) / 0.14);
 
-  --warning-rgb: 255 204 0;
+  /* Warning is now a neutral/brand blend to avoid YELLOW */
+  --warning-rgb: 118 185 0;
   --warning: rgb(var(--warning-rgb));
   --warning-soft: rgb(var(--warning-rgb) / 0.14);
 
-  --info-rgb: 59 130 246;
+  --info-rgb: 41 121 255;
   --info: rgb(var(--info-rgb));
   --info-soft: rgb(var(--info-rgb) / 0.14);
 
-  /* Social platform brand colours (theme-aware).
-     Published as RGB triplets so the Tailwind <alpha-value> modifier
-     (e.g. bg-social-discord/14) compiles to a valid rgb(... / N) rule.
-     The dark and light themes override these below; the shared block
-     here gives the dark canonical values as a sensible default for any
-     surface rendered before the theme class is applied. */
+  /* Social platform brand colours (theme-aware) */
   --social-facebook-rgb: 24 119 242;
   --social-discord-rgb: 88 101 242;
   --social-telegram-rgb: 38 165 228;
@@ -70,132 +66,127 @@
   --z-modal: 100;
   --z-toast: 200;
   --z-overlay: 300;
+
+  /* Landing Aliases */
+  --landing-text: var(--content);
+  --landing-text-muted: var(--content-secondary);
+  --landing-text-faint: var(--content-faint);
+  --landing-card-bg: var(--surface-1);
+  --landing-card-border: var(--border);
+  --landing-card-hover-border: var(--brand);
+  --landing-card-shadow: var(--shadow-md);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   DARK THEME (default) — applied via `.dark` on <html>.
+   DARK THEME (Noir Mode)
    ═══════════════════════════════════════════════════════════════════ */
 .dark,
 :root {
-  --surface-0-rgb: 5 5 7;
+  --surface-0-rgb: 0 0 0;
   --surface-0: rgb(var(--surface-0-rgb));
-  --surface-1-rgb: 11 11 16;
+  --surface-1-rgb: 8 8 8;
   --surface-1: rgb(var(--surface-1-rgb));
-  --surface-2-rgb: 19 19 25;
+  --surface-2-rgb: 16 16 16;
   --surface-2: rgb(var(--surface-2-rgb));
-  --surface-3-rgb: 28 28 36;
+  --surface-3-rgb: 24 24 24;
   --surface-3: rgb(var(--surface-3-rgb));
-  --surface-elevated-rgb: 31 31 40;
+  --surface-elevated-rgb: 28 28 28;
   --surface-elevated: rgb(var(--surface-elevated-rgb));
-  --surface-glass: rgb(11 11 16 / 0.72);
+  --surface-glass: rgb(0 0 0 / 0.85);
 
-  --border-rgb: 35 35 48;
+  --border-rgb: 32 32 32;
   --border: rgb(var(--border-rgb));
-  --border-strong-rgb: 44 44 58;
+  --border-strong-rgb: 48 48 48;
   --border-strong: rgb(var(--border-strong-rgb));
-  --border-subtle-rgb: 26 26 34;
+  --border-subtle-rgb: 20 20 20;
   --border-subtle: rgb(var(--border-subtle-rgb));
 
-  --content-rgb: 245 245 247;
+  --content-rgb: 255 255 255;
   --content: rgb(var(--content-rgb));
-  --content-secondary-rgb: 199 199 209;
+  --content-secondary-rgb: 180 180 180;
   --content-secondary: rgb(var(--content-secondary-rgb));
-  --content-muted-rgb: 138 138 150;
+  --content-muted-rgb: 120 120 120;
   --content-muted: rgb(var(--content-muted-rgb));
-  --content-faint-rgb: 91 91 102;
+  --content-faint-rgb: 80 80 80;
   --content-faint: rgb(var(--content-faint-rgb));
 
-  --focus-ring: rgb(var(--brand-rgb) / 0.55);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.40);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
-  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
+  --focus-ring: rgb(var(--brand-rgb) / 0.6);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.6);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.7);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.8);
 
-  --gradient-header: linear-gradient(90deg, rgb(26 26 34) 0%, rgb(19 19 25) 50%, rgb(26 26 34) 100%);
-  --gradient-sidebar: linear-gradient(180deg, rgb(11 11 16) 0%, rgb(26 26 34) 100%);
+  --gradient-header: linear-gradient(90deg, #000000 0%, #080808 50%, #000000 100%);
+  --gradient-sidebar: linear-gradient(180deg, #000000 0%, #080808 100%);
 
-  --chart-bg: #0a0a0f;
-  --chart-text: #9ca3af;
-  --chart-grid: rgb(255 255 255 / 0.04);
-  --chart-border: rgb(255 255 255 / 0.08);
-  --chart-crosshair: rgb(255 255 255 / 0.18);
-  --chart-up: #22c55e;
-  --chart-down: #ef4444;
-  --chart-axis-label-bg: rgb(20 20 25 / 0.92);
+  --chart-bg: #000000;
+  --chart-text: #e0e0e0;
+  --chart-grid: rgba(255, 255, 255, 0.08);
+  --chart-border: rgba(255, 255, 255, 0.12);
+  --chart-crosshair: rgba(255, 255, 255, 0.3);
+  --chart-up: #00e676;
+  --chart-down: #ff1744;
+  --chart-axis-label-bg: rgb(0 0 0 / 0.95);
   --chart-axis-label-text: #ffffff;
-  --chart-tooltip-bg: #1f2937;
-
-  /* Social platform brand colours — dark theme: canonical hex values.
-     Kept identical to the :root defaults so the dashboard renders
-     correctly during the brief window before the .dark class is
-     applied (e.g. server-rendered HTML hydration on the landing page). */
-  --social-facebook-rgb: 24 119 242;
-  --social-discord-rgb: 88 101 242;
-  --social-telegram-rgb: 38 165 228;
-  --social-whatsapp-rgb: 37 211 102;
+  --chart-tooltip-bg: #080808;
+  
+  --social-facebook-rgb: 255 255 255;
+  --social-discord-rgb: 255 255 255;
+  --social-telegram-rgb: 255 255 255;
+  --social-whatsapp-rgb: 118 185 0;
 
   color-scheme: dark;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   LIGHT THEME — applied via `.light` on <html>.
+   LIGHT THEME (Pure Mode)
    ═══════════════════════════════════════════════════════════════════ */
 .light {
-  --surface-0-rgb: 247 248 250;
+  --surface-0-rgb: 255 255 255;
   --surface-0: rgb(var(--surface-0-rgb));
-  --surface-1-rgb: 255 255 255;
+  --surface-1-rgb: 250 250 250;
   --surface-1: rgb(var(--surface-1-rgb));
-  --surface-2-rgb: 241 243 247;
+  --surface-2-rgb: 245 245 245;
   --surface-2: rgb(var(--surface-2-rgb));
-  --surface-3-rgb: 230 233 239;
+  --surface-3-rgb: 235 235 235;
   --surface-3: rgb(var(--surface-3-rgb));
   --surface-elevated-rgb: 255 255 255;
   --surface-elevated: rgb(var(--surface-elevated-rgb));
-  --surface-glass: rgb(255 255 255 / 0.78);
+  --surface-glass: rgb(255 255 255 / 0.85);
 
-  --border-rgb: 223 227 234;
+  --border-rgb: 220 220 220;
   --border: rgb(var(--border-rgb));
-  --border-strong-rgb: 200 205 214;
+  --border-strong-rgb: 190 190 190;
   --border-strong: rgb(var(--border-strong-rgb));
-  --border-subtle-rgb: 235 238 243;
+  --border-subtle-rgb: 240 240 240;
   --border-subtle: rgb(var(--border-subtle-rgb));
 
-  --content-rgb: 13 17 23;
+  --content-rgb: 0 0 0;
   --content: rgb(var(--content-rgb));
-  --content-secondary-rgb: 44 51 64;
+  --content-secondary-rgb: 50 50 50;
   --content-secondary: rgb(var(--content-secondary-rgb));
-  --content-muted-rgb: 92 101 115;
+  --content-muted-rgb: 110 110 110;
   --content-muted: rgb(var(--content-muted-rgb));
-  --content-faint-rgb: 152 160 173;
+  --content-faint-rgb: 160 160 160;
   --content-faint: rgb(var(--content-faint-rgb));
 
-  --focus-ring: rgb(var(--brand-rgb) / 0.45);
-  --shadow-sm: 0 1px 2px rgb(20 30 50 / 0.06);
-  --shadow-md: 0 6px 20px rgb(20 30 50 / 0.08);
-  --shadow-lg: 0 18px 40px rgb(20 30 50 / 0.12);
+  --focus-ring: rgb(var(--brand-rgb) / 0.5);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 18px 40px rgb(0 0 0 / 0.12);
 
-  --gradient-header: linear-gradient(90deg, rgb(255 255 255) 0%, rgb(247 248 250) 50%, rgb(255 255 255) 100%);
-  --gradient-sidebar: linear-gradient(180deg, rgb(255 255 255) 0%, rgb(241 243 247) 100%);
+  --gradient-header: linear-gradient(90deg, #ffffff 0%, #fafafa 50%, #ffffff 100%);
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
 
   --chart-bg: #ffffff;
-  --chart-text: #475569;
-  --chart-grid: rgb(15 23 42 / 0.05);
-  --chart-border: rgb(15 23 42 / 0.10);
-  --chart-crosshair: rgb(15 23 42 / 0.18);
-  --chart-up: #16a34a;
-  --chart-down: #dc2626;
-  --chart-axis-label-bg: rgb(15 23 42 / 0.92);
+  --chart-text: #131722;
+  --chart-grid: rgba(42, 46, 57, 0.06);
+  --chart-border: #e0e3eb;
+  --chart-crosshair: #787b86;
+  --chart-up: #089981;
+  --chart-down: #f23645;
+  --chart-axis-label-bg: #131722;
   --chart-axis-label-text: #ffffff;
-  --chart-tooltip-bg: #f1f5f9;
-
-  /* Social platform brand colours — light theme: slightly darkened so
-     the /14 soft pill retains enough contrast against a white card.
-     The shift is minimal (~5–10 RGB points per channel) so the colour
-     is still instantly recognisable as Facebook blue / Discord blurple
-     / Telegram cyan / WhatsApp green. */
-  --social-facebook-rgb: 22 109 220;
-  --social-discord-rgb: 78 90 220;
-  --social-telegram-rgb: 22 150 220;
-  --social-whatsapp-rgb: 22 184 88;
+  --chart-tooltip-bg: #ffffff;
 
   color-scheme: light;
 }
@@ -337,8 +328,8 @@
   .text-faint  { color: var(--content-faint); }
   
   .bg-active-icon {
-    background: linear-gradient(135deg, #333333 0%, #111111 49%, #6E2600 100%);
-    border: 1px solid rgba(146, 146, 146, 0.2);
+    background: linear-gradient(135deg, #1A1A1A 0%, #000000 49%, #0D1A00 100%);
+    border: 1px solid rgba(118, 185, 0, 0.15);
   }
 
   .text-gradient {
@@ -393,5 +384,115 @@
     .light {
       --border: var(--border-strong);
     }
+  }
+
+  /* ── Feature Cards — Shared Branding Component ────────────────────── */
+  .feature-card {
+    background: var(--landing-card-bg);
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(255, 255, 255, 0.00) 100%
+    );
+    border: 1px solid var(--landing-card-border);
+    border-radius: 24px;
+    padding: 24px;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    cursor: default;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.02),
+      0 8px 24px var(--landing-card-shadow);
+  }
+
+  .light .feature-card {
+    background-image: none;
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.03);
+  }
+
+  .feature-card:hover {
+    border-color: var(--landing-card-hover-border);
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 12px 32px var(--landing-card-shadow);
+  }
+
+  .light .feature-card:hover {
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.05);
+  }
+
+  .feature-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .feature-card-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #76B900;
+    flex-shrink: 0;
+  }
+
+  .feature-card-publisher {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--landing-text);
+    opacity: 0.82;
+  }
+
+  .feature-card-title {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--landing-text);
+    margin-bottom: 14px;
+  }
+
+  .feature-card-desc {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--landing-text);
+    opacity: 0.68;
+    margin-bottom: 18px;
+  }
+
+  .feature-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  .feature-card-chip {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    display: inline-flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--landing-text);
+    opacity: 0.85;
+  }
+
+  .light .feature-card-chip {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.10);
   }
 }

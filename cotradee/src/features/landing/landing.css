@@ -74,6 +74,36 @@
   transition: background-color 300ms ease, color 300ms ease;
   user-select: none;
   -webkit-user-select: none;
+
+  /* 
+    Force dashboard tokens to adapt to the dark landing theme so that 
+    shared components (ContactForm, CommunityLinks) render correctly 
+    regardless of the user's global theme setting.
+  */
+  --brand-rgb: 118 185 0;
+  --content-rgb: 255 255 255;
+  --content-secondary-rgb: 255 255 255;
+  --content-muted-rgb: 255 255 255;
+  --content-faint-rgb: 255 255 255;
+  --surface-0-rgb: 0 0 0;
+  --surface-1-rgb: 17 17 17;
+  --surface-2-rgb: 10 10 10;
+  --surface-3-rgb: 26 26 26;
+  --border-rgb: 255 255 255;
+  --border-strong-rgb: 255 255 255;
+}
+
+.light .landing-page {
+  --content-rgb: 10 10 10;
+  --content-secondary-rgb: 60 60 60;
+  --content-muted-rgb: 100 100 100;
+  --content-faint-rgb: 140 140 140;
+  --surface-0-rgb: 255 255 255;
+  --surface-1-rgb: 248 249 250;
+  --surface-2-rgb: 240 242 245;
+  --surface-3-rgb: 232 235 238;
+  --border-rgb: 0 0 0;
+  --border-strong-rgb: 0 0 0;
 }
 
 /* Allow text selection inside inputs and textareas */
@@ -319,120 +349,6 @@
   gap: 16px;
 }
 
-/* ── Feature Cards — NVIDIA Build Marketplace Replica ────────────────────── */
-.feature-card {
-  background: var(--landing-card-bg);
-  background-image: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.02) 0%,
-    rgba(255, 255, 255, 0.00) 100%
-  );
-  border: 1px solid var(--landing-card-border);
-  border-radius: 24px;
-  padding: 24px;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-  cursor: default;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.02),
-    0 8px 24px var(--landing-card-shadow);
-}
-
-.light .feature-card {
-  background-image: none;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    0 4px 16px rgba(0, 0, 0, 0.03);
-}
-
-.feature-card:hover {
-  border-color: var(--landing-card-hover-border);
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 12px 32px var(--landing-card-shadow);
-}
-
-.light .feature-card:hover {
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.06),
-    0 8px 24px rgba(0, 0, 0, 0.05);
-}
-
-/* Card header row: icon + publisher name */
-.feature-card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.feature-card-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #76B900;
-  flex-shrink: 0;
-}
-
-.feature-card-publisher {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--landing-text);
-  opacity: 0.82;
-}
-
-/* Card title */
-.feature-card-title {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--landing-text);
-  margin-bottom: 14px;
-}
-
-/* Card description */
-.feature-card-desc {
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--landing-text);
-  opacity: 0.68;
-  margin-bottom: 18px;
-}
-
-/* Card chip / tag row */
-.feature-card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.feature-card-chip {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  display: inline-flex;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--landing-text);
-  opacity: 0.85;
-}
-
-.light .feature-card-chip {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.10);
-}
-
 /* ── CTA Button ──────────────────────────────────────────────────────────── */
 .btn-cta {
   display: inline-flex;
@@ -638,13 +554,34 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: #76B900 !important;
-  box-shadow: 0 0 0 2px rgba(118, 185, 0, 0.2) !important;
+  box-shadow: 0 0 0 2px rgba(118, 185, 0, 0.25) !important;
+  outline: none !important;
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   opacity: 0.25;
+}
+
+/* ── Dropdowns (Select/Option) ──────────────────────────── */
+.landing-page select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+
+.landing-page select option {
+  background-color: var(--landing-card-bg);
+  color: var(--landing-text);
+  padding: 10px;
 }
 
 /* ── Utilities ──────────────────────────────────────────── */

@@ -15,19 +15,22 @@ import { COMMUNITY_LABELS, useCommunityLinks, type CommunityLink, type Community
 function CommunityLinks({
   heading = 'Join our community',
   description = 'Connect with other Exoper users and get real-time updates on the public channels below. These are distinct from our private support channels.',
+  variant = 'card',
   className = '',
 }: {
   heading?: string;
   description?: string;
+  variant?: 'card' | 'bare';
   className?: string;
 }) {
   const { data, isLoading } = useCommunityLinks();
 
   if (isLoading) {
+    const shell = variant === 'card' ? `rounded-xl border border-border bg-surface-1 p-4 sm:p-6 ${className}` : className;
     return (
-      <section className={`rounded-xl border border-border bg-surface-1 p-4 sm:p-6 ${className}`}>
+      <section className={shell}>
         <h2 className="text-sm font-bold text-content mb-1">{heading}</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="h-24 rounded-xl border border-border bg-surface-2 animate-pulse" />
           ))}
@@ -41,13 +44,15 @@ function CommunityLinks({
     return null;
   }
 
+  const shell = variant === 'card' ? `rounded-xl border border-border bg-surface-1 p-4 sm:p-6 ${className}` : className;
+
   return (
-    <section className={`rounded-xl border border-border bg-surface-1 p-4 sm:p-6 ${className}`} aria-labelledby="community-heading">
+    <section className={shell} aria-labelledby="community-heading">
       <h2 id="community-heading" className="text-sm font-bold text-content mb-1">
         {heading}
       </h2>
       <p className="text-xs text-content-muted mb-4">{description}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {links.map((link) => (
           <CommunityCard key={link.platform} link={link} />
         ))}
@@ -98,21 +103,30 @@ function CommunityCard({ link }: { link: CommunityLink }) {
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex flex-col gap-2.5 rounded-xl border border-border bg-surface-2 p-4
-                 hover:border-brand transition-colors duration-fast focus-ring"
+      className="feature-card group h-full"
     >
-      <div className="flex items-center justify-between">
-        <span className={`flex items-center justify-center w-9 h-9 rounded-lg ${meta.iconBg} ${meta.iconColor}`}>
+      <div className="feature-card-header">
+        <span className={`feature-card-icon ${meta.iconColor}`}>
           {meta.icon}
         </span>
-        <ExternalLink
-          size={12}
-          className="text-content-muted group-hover:text-brand transition-colors duration-fast"
-          aria-hidden
-        />
+        <span className="feature-card-publisher">Official Community</span>
       </div>
-      <span className="text-sm font-bold text-content">{COMMUNITY_LABELS[link.platform]}</span>
-      <span className="text-[11px] text-content-muted leading-relaxed">{meta.tagline}</span>
+
+      <div className="flex-1">
+        <h3 className="feature-card-title">{COMMUNITY_LABELS[link.platform]}</h3>
+        <p className="feature-card-desc">{meta.tagline}</p>
+      </div>
+
+      <div className="feature-card-tags">
+        <span className="feature-card-chip">community</span>
+        <span className="feature-card-chip">real-time</span>
+      </div>
+
+      <ExternalLink
+        size={14}
+        className="absolute top-6 right-6 text-content-faint group-hover:text-brand transition-colors duration-fast"
+        aria-hidden
+      />
     </a>
   );
 }

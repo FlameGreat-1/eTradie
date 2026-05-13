@@ -228,7 +228,7 @@ function FAQPage() {
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search the FAQs\u2026"
+                  placeholder="Search the FAQs…"
                   aria-label="Search the FAQs"
                   className="faq-search-input"
                 />
@@ -250,9 +250,9 @@ function FAQPage() {
                 <div className="faq-empty">
                   <p style={{ marginBottom: '0.75rem' }}>
                     We could not find anything matching
-                    {' \u201C'}
+                    {' “'}
                     <strong style={{ color: 'var(--landing-text)' }}>{search.trim()}</strong>
-                    {'\u201D'}
+                    {'”'}
                     .
                   </p>
                   <p style={{ marginBottom: '1.25rem' }}>

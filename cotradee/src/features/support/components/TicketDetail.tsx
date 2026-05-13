@@ -22,9 +22,11 @@ import { StatusBadge, relativeTime } from './TicketList';
 function TicketDetail({
   ticketId,
   onClose,
+  isAdmin,
 }: {
   ticketId: string;
   onClose?: () => void;
+  isAdmin?: boolean;
 }) {
   const { data: ticket, isLoading, isError } = useTicket(ticketId);
   const reply = useReplyToTicket();
@@ -85,6 +87,14 @@ function TicketDetail({
               <Hash size={10} aria-hidden />
               {ticket.public_ref}
             </span>
+            {isAdmin && (
+              <>
+                <span className="opacity-40">·</span>
+                <span className="text-brand text-[10px] font-medium truncate">
+                  {ticket.name || ticket.email}
+                </span>
+              </>
+            )}
           </div>
           <h1 className="text-sm font-bold text-content truncate">{ticket.subject}</h1>
           <p className="text-[11px] text-content-muted mt-1">
@@ -107,7 +117,7 @@ function TicketDetail({
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {(ticket.messages ?? []).map((m) => (
-          <MessageBubble key={m.id} message={m} />
+          <MessageBubble key={m.id} message={m} isAdmin={isAdmin} />
         ))}
       </div>
 
@@ -125,16 +135,23 @@ function TicketDetail({
           <label htmlFor="reply-body" className="sr-only">
             Reply
           </label>
-          <textarea
-            id="reply-body"
-            value={replyBody}
-            onChange={(e) => setReplyBody(e.target.value)}
-            placeholder="Type your reply…"
-            rows={3}
-            maxLength={8000}
-            className="px-3 py-2 rounded-md bg-surface-2 border border-border text-xs text-content
-                       placeholder:text-content-muted focus-ring outline-none resize-y"
-          />
+          <div className="relative">
+            {isAdmin && (
+              <div className="mb-1 text-[10px] font-bold text-brand uppercase tracking-wider">
+                Staff Reply
+              </div>
+            )}
+            <textarea
+              id="reply-body"
+              value={replyBody}
+              onChange={(e) => setReplyBody(e.target.value)}
+              placeholder={isAdmin ? "Type your official response..." : "Type your reply…"}
+              rows={3}
+              maxLength={8000}
+              className="w-full px-3 py-2 rounded-md bg-surface-2 border border-border text-xs text-content
+                         placeholder:text-content-muted focus-ring outline-none resize-y"
+            />
+          </div>
           <div className="flex items-center justify-between gap-2">
             {confirmingClose ? (
               <div className="flex items-center gap-2">
@@ -185,26 +202,27 @@ function TicketDetail({
   );
 }
 
-function MessageBubble({ message }: { message: TicketMessage }) {
-  const isUser = message.author_kind === 'user';
-  const isStaff = message.author_kind === 'staff';
+function MessageBubble({ message, isAdmin }: { message: TicketMessage, isAdmin?: boolean }) {
+  const isMe = isAdmin ? message.author_kind === 'staff' : message.author_kind === 'user';
+  const isOther = isAdmin ? message.author_kind === 'user' : message.author_kind === 'staff';
   const isSystem = message.author_kind === 'system';
+
   return (
-    <div className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+    <div className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
       <div
         className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words
           ${
-            isUser
+            isMe
               ? 'bg-brand text-white'
-              : isStaff
+              : isOther
                 ? 'bg-surface-2 text-content border border-border'
                 : 'bg-surface-2/60 text-content-muted border border-border italic'
           }`}
       >
-        {!isUser && (
+        {!isMe && (
           <div className="flex items-center gap-1 mb-1 text-[10px] font-bold uppercase tracking-wide">
             <MessageSquare size={10} aria-hidden />
-            {isStaff ? 'Exoper support' : isSystem ? 'System' : 'You'}
+            {isOther ? (isAdmin ? 'User' : 'Staff Support') : isSystem ? 'System' : ''}
           </div>
         )}
         {message.body}

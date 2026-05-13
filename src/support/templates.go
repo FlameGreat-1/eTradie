@@ -89,10 +89,10 @@ func renderButton(label, href string) string {
 
 // dashboardLinkFor renders the dashboard URL for a given ticket. If
 // the ticket has no signed-in owner (anonymous contact form), the
-// link points at the public site root instead.
+// link is empty as guests cannot access the Support Centre.
 func dashboardLinkFor(t *Ticket, siteURL string) string {
 	if t.UserID == nil {
-		return siteURL
+		return ""
 	}
 	return fmt.Sprintf("%s/dashboard/support?ticket=%s", siteURL, t.ID)
 }
@@ -128,13 +128,24 @@ func newTicketStaffHTML(t *Ticket, siteURL string) string {
 	return emailShell("New support ticket", main)
 }
 
-// newTicketUserHTML renders the acknowledgement sent to the user who
-// just opened a ticket.
 func newTicketUserHTML(t *Ticket, siteURL string) string {
 	body := ""
 	if len(t.Messages) > 0 {
 		body = t.Messages[0].Body
 	}
+
+	button := ""
+	if link := dashboardLinkFor(t, siteURL); link != "" {
+		button = renderButton("View ticket", link)
+	}
+
+	guestNote := ""
+	if t.UserID == nil {
+		guestNote = `<p style="margin:16px 0 0 0;font-size:13px;color:#d1d5db;line-height:1.6;">
+      Since you contacted us as a guest, our team will reply directly to this email address. Please keep the reference ID above for any follow-up.
+    </p>`
+	}
+
 	main := `
     <h1 style="margin:0 0 8px 0;font-size:18px;font-weight:700;color:#ffffff;">We received your request</h1>
     <p style="margin:0 0 16px 0;font-size:13px;color:#d1d5db;line-height:1.6;">
@@ -149,7 +160,8 @@ func newTicketUserHTML(t *Ticket, siteURL string) string {
 	) + `
     <p style="margin:24px 0 8px 0;font-size:13px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">Your message</p>
     ` + renderBodyBlock(body) +
-		renderButton("View ticket", dashboardLinkFor(t, siteURL)) + `
+		button +
+		guestNote + `
     <p style="margin:16px 0 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
       If you did not open this ticket, please ignore this email.
     </p>`

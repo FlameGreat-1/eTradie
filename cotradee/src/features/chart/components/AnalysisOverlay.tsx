@@ -112,7 +112,7 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
             className="px-4 py-3 max-h-[60vh] overflow-y-auto scrollbar-thin"
           >
             {stream.error ? (
-              <div className="text-xs text-warning leading-relaxed font-mono pl-3 border-l-2 border-warning whitespace-pre-wrap">
+              <div className="text-xs text-danger leading-relaxed font-mono pl-3 border-l-2 border-danger whitespace-pre-wrap">
                 {stream.error}
               </div>
             ) : stream.reasoning ? (

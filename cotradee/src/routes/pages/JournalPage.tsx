@@ -156,7 +156,7 @@ export default function JournalPage() {
                   className={`border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors duration-fast
                               ${i % 2 === 1 ? 'bg-surface-2/40' : ''}`}
                 >
-                  <Td className="font-bold text-brand">{e.symbol}</Td>
+                  <Td className="font-bold text-content">{e.symbol}</Td>
                   <Td>{e.direction}</Td>
                   <Td className="text-content-muted">{e.trading_style}</Td>
                   <Td align="right">{formatAssetPrice(e.symbol, Number(e.entry_price))}</Td>
@@ -208,7 +208,7 @@ export default function JournalPage() {
             className="rounded-xl border border-border bg-surface-1 p-3"
           >
             <div className="flex items-center justify-between">
-              <span className="font-bold text-brand text-sm">{e.symbol}</span>
+              <span className="font-bold text-content text-sm">{e.symbol}</span>
               <OutcomeChip outcome={e.outcome} />
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2 text-[11px]">

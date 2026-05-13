@@ -23,10 +23,12 @@ function TicketList({
   selectedId,
   onSelect,
   onNewTicket,
+  isAdmin,
 }: {
   selectedId?: string | null;
   onSelect: (ticketId: string) => void;
   onNewTicket: () => void;
+  isAdmin?: boolean;
 }) {
   const { data, isLoading, isError } = useMyTickets();
 
@@ -39,18 +41,20 @@ function TicketList({
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-brand" />
           <h2 className="text-xs font-bold text-content uppercase tracking-wide">
-            Your tickets
+            {isAdmin ? 'Inbound tickets' : 'Your tickets'}
           </h2>
         </div>
-        <button
-          type="button"
-          onClick={onNewTicket}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand px-2.5 h-7 text-[11px] font-semibold
-                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
-        >
-          <Plus size={12} />
-          New
-        </button>
+        {!isAdmin && (
+          <button
+            type="button"
+            onClick={onNewTicket}
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand px-2.5 h-7 text-[11px] font-semibold
+                       text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+          >
+            <Plus size={12} />
+            New
+          </button>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -75,7 +79,7 @@ function TicketList({
                   className={`w-full text-left px-4 py-3 hover:bg-surface-2 transition-colors duration-fast focus-ring
                               ${selectedId === t.id ? 'bg-surface-2' : ''}`}
                 >
-                  <TicketRow ticket={t} />
+                  <TicketRow ticket={t} isAdmin={isAdmin} />
                 </button>
               </li>
             ))}
@@ -86,30 +90,36 @@ function TicketList({
   );
 }
 
-function EmptyState({ onNewTicket }: { onNewTicket: () => void }) {
+function EmptyState({ onNewTicket, isAdmin }: { onNewTicket: () => void, isAdmin?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
       <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
         <MessageSquare size={20} />
       </span>
-      <p className="text-sm font-bold text-content mb-1">No tickets yet</p>
-      <p className="text-xs text-content-muted mb-4 max-w-xs">
-        When you open a support ticket, you'll find it here along with the full conversation history.
+      <p className="text-sm font-bold text-content mb-1">
+        {isAdmin ? 'Inbox is empty' : 'No tickets yet'}
       </p>
-      <button
-        type="button"
-        onClick={onNewTicket}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
-                   text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
-      >
-        <Plus size={14} />
-        Open a ticket
-      </button>
+      <p className="text-xs text-content-muted mb-4 max-w-xs">
+        {isAdmin
+          ? 'There are currently no active support tickets from users.'
+          : "When you open a support ticket, you'll find it here along with the full conversation history."}
+      </p>
+      {!isAdmin && (
+        <button
+          type="button"
+          onClick={onNewTicket}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
+                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+        >
+          <Plus size={14} />
+          Open a ticket
+        </button>
+      )}
     </div>
   );
 }
 
-function TicketRow({ ticket }: { ticket: Ticket }) {
+function TicketRow({ ticket, isAdmin }: { ticket: Ticket, isAdmin?: boolean }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
@@ -117,6 +127,11 @@ function TicketRow({ ticket }: { ticket: Ticket }) {
         <span className="font-mono text-[10px] text-content-muted">{ticket.public_ref}</span>
       </div>
       <p className="text-xs font-semibold text-content line-clamp-1">{ticket.subject}</p>
+      {isAdmin && (
+        <p className="text-[10px] font-medium text-brand truncate -mt-1">
+          {ticket.name || ticket.email}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] text-content-muted">
           {CATEGORY_LABELS[ticket.category]} · {PRIORITY_LABELS[ticket.priority]}
@@ -149,7 +164,7 @@ export function StatusBadge({ status }: { status: Ticket['status'] }) {
 // dark and light themes without per-component overrides.
 const STATUS_BADGE_CLASS: Record<Ticket['status'], string> = {
   open: 'bg-info-soft text-info',
-  pending: 'bg-warning-soft text-warning',
+  pending: 'bg-content/10 text-content',
   resolved: 'bg-success-soft text-success',
   closed: 'bg-content-muted/10 text-content-muted',
 };

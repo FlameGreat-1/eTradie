@@ -6,6 +6,7 @@ import { RealtimeProvider } from '@/features/realtime';
 import { ConsentProvider } from '@/features/consent/ConsentContext';
 import ConsentAuthBridge from '@/features/consent/ConsentAuthBridge';
 import { ThemeProvider } from './ThemeProvider';
+import ScrollToTop from '@/components/layout/ScrollToTop';
 import type { ReactNode } from 'react';
 
 /**
@@ -38,6 +39,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         v7_startTransition: true,
       }}
     >
+      <ScrollToTop />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ConsentProvider>

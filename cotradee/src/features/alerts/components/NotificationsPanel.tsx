@@ -44,11 +44,11 @@ function severityIcon(sev?: string) {
     case 'error':
       return <AlertCircle size={14} className="text-danger" />;
     case 'warning':
-      return <AlertTriangle size={14} className="text-warning" />;
+      return <AlertTriangle size={14} className="text-danger" />;
     case 'success':
       return <CheckCircle2 size={14} className="text-success" />;
     default:
-      return <Info size={14} className="text-info" />;
+      return <Info size={14} className="text-success" />;
   }
 }
 
@@ -58,11 +58,11 @@ function severityDotClass(sev?: string): string {
     case 'error':
       return 'bg-danger';
     case 'warning':
-      return 'bg-warning';
+      return 'bg-danger';
     case 'success':
       return 'bg-success';
     default:
-      return 'bg-info';
+      return 'bg-success';
   }
 }
 
@@ -198,7 +198,7 @@ function NotificationsPanelInner() {
             transform: 'translateX(-50%)',
             width: 'min(360px, calc(100vw - 1rem))',
           }}
-          className="rounded-lg bg-surface-elevated border border-border
+          className="rounded-lg bg-surface-0 border border-border
                      shadow-pop animate-fade-in z-[9999] overflow-hidden"
         >
           {/* Header */}
@@ -235,7 +235,7 @@ function NotificationsPanelInner() {
 
             {!isLoading && isError && (
               <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
-                <AlertTriangle size={20} className="text-warning" />
+                <AlertTriangle size={20} className="text-danger" />
                 <span className="text-xs text-content-muted">
                   Couldn&apos;t load notifications.
                 </span>
@@ -264,8 +264,8 @@ function NotificationsPanelInner() {
                   return (
                     <li
                       key={id}
-                      className={`px-4 py-2.5 flex gap-2.5 items-start hover:bg-surface-2 transition-colors duration-fast ${
-                        isUnread ? 'bg-surface-1' : ''
+                      className={`px-4 py-2.5 flex gap-2.5 items-start hover:bg-surface-1 transition-colors duration-fast ${
+                        isUnread ? 'bg-surface-0 border-l-2 border-brand' : ''
                       }`}
                     >
                       <span className="mt-0.5 flex-shrink-0">{severityIcon(e.severity)}</span>

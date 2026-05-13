@@ -8,7 +8,9 @@ import LandingFooter from '@/features/landing/components/LandingFooter';
 import { useAuth } from '@/features/auth';
 // Pulls in the .brand-icon-help mask utility so the page-hero icon
 // can render the in-house helpAndFaq.svg tinted with the brand token.
+import '@/features/landing/landing.css';
 import '@/features/faq/faq.css';
+import ParticlesCanvas from '@/features/landing/components/ParticlesCanvas';
 
 /**
  * Public /contact page.
@@ -23,94 +25,156 @@ function ContactPage() {
   const { isAuthenticated, user } = useAuth();
 
   return (
-    <div className="min-h-screen flex flex-col bg-app">
-      <LandingHeader />
+    <div className="landing-page">
+      <ParticlesCanvas />
+      <div className="landing-content">
+        <LandingHeader forceScrolled />
 
-      <main className="flex-1">
-        <section className="max-w-4xl mx-auto px-6 md:px-8 py-12 md:py-16">
-          <header className="flex flex-col items-center text-center mb-10">
-            <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
-              <span className="brand-icon-help" style={{ width: 22, height: 22 }} aria-hidden />
+        <main className="w-full max-w-[900px] mx-auto px-6 pt-32 pb-32">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-xs mb-10" aria-label="Breadcrumb">
+            <Link
+              to="/landing"
+              className="transition-colors duration-150"
+              style={{ color: 'var(--landing-text-faint)' }}
+            >
+              Home
+            </Link>
+            <span style={{ color: 'var(--landing-text-faint)' }}>›</span>
+            <span style={{ color: 'var(--landing-text)' }}>Contact us</span>
+          </nav>
+
+          <header className="flex flex-col items-center text-center mb-12">
+            <span
+              className="flex items-center justify-center w-12 h-12 rounded-full mb-4"
+              style={{
+                background: 'rgba(118,185,0,0.12)',
+                border: '1px solid rgba(118,185,0,0.25)',
+              }}
+            >
+              <span
+                className="brand-icon-help"
+                style={{ color: '#76b900', width: 22, height: 22 }}
+                aria-hidden
+              />
             </span>
-            <h1 className="text-2xl md:text-3xl font-bold text-content mb-2 tracking-tight">
+            <h1
+              className="text-3xl md:text-4xl font-bold tracking-tight mb-3"
+              style={{ color: 'var(--landing-text)' }}
+            >
               Contact us
             </h1>
-            <p className="text-sm text-content-muted max-w-xl">
+            <p
+              className="text-base max-w-xl mx-auto"
+              style={{ color: 'var(--landing-text-faint)' }}
+            >
               Have a question, a bug to report, or feedback about Exoper? Send us a message and our team will get back to you.
             </p>
           </header>
 
-          {isAuthenticated && (
-            <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface-1 px-4 py-3">
-              <div>
-                <p className="text-xs font-semibold text-content">You're signed in</p>
-                <p className="text-[11px] text-content-muted">
-                  Manage your existing tickets in the Support Centre.
-                </p>
+          <div className="space-y-6">
+            {isAuthenticated && (
+              <div
+                className="flex items-center justify-between gap-4 rounded-xl px-6 py-4"
+                style={{
+                  background: 'var(--landing-card-bg)',
+                  border: '1px solid var(--landing-card-border)',
+                }}
+              >
+                <div>
+                  <p className="text-sm font-bold" style={{ color: 'var(--landing-text)' }}>
+                    You're signed in
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--landing-text-faint)' }}>
+                    Manage your existing tickets in the Support Centre.
+                  </p>
+                </div>
+                <Link
+                  to="/dashboard/support"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-4 h-9 text-xs font-semibold"
+                  style={{ background: '#76b900', color: '#0a0a0a' }}
+                >
+                  Open Support Centre
+                  <ArrowRight size={12} />
+                </Link>
+              </div>
+            )}
+
+            <div
+              className="flex items-center justify-between gap-4 rounded-xl px-6 py-4"
+              style={{
+                background: 'var(--landing-card-bg)',
+                border: '1px solid var(--landing-card-border)',
+              }}
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <span
+                  className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0"
+                  style={{
+                    background: 'rgba(118,185,0,0.1)',
+                    color: '#76b900',
+                  }}
+                >
+                  <BookOpen size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold" style={{ color: 'var(--landing-text)' }}>
+                    Have a quick question first?
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--landing-text-faint)' }}>
+                    Browse the FAQs — most common questions are answered there.
+                  </p>
+                </div>
               </div>
               <Link
-                to="/dashboard/support"
-                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 h-8 text-xs font-semibold
-                           text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+                to="/faq"
+                className="inline-flex items-center gap-1.5 rounded-lg border px-4 h-9 text-xs font-semibold shrink-0"
+                style={{
+                  borderColor: 'var(--landing-card-border)',
+                  color: 'var(--landing-text)',
+                  background: 'rgba(255,255,255,0.03)',
+                }}
               >
-                Open Support Centre
+                View FAQs
                 <ArrowRight size={12} />
               </Link>
             </div>
-          )}
 
-          {/*
-            Self-service nudge. Many incoming tickets are answered by
-            the FAQ catalogue already; surfacing the FAQs above the
-            form lets the user resolve common questions without an
-            email round-trip. The card is intentionally compact so it
-            does not push the form below the fold.
-          */}
-          <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface-1 px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand-soft text-brand shrink-0">
-                <BookOpen size={16} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-content">Have a quick question first?</p>
-                <p className="text-[11px] text-content-muted">
-                  Browse the FAQs \u2014 most common questions are answered there.
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/faq"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 h-8 text-xs font-semibold
-                         text-content hover:border-brand transition-colors duration-fast focus-ring shrink-0"
+            <div
+              className="rounded-2xl p-8"
+              style={{
+                background: 'var(--landing-card-bg)',
+                border: '1px solid var(--landing-card-border)',
+              }}
             >
-              View FAQs
-              <ArrowRight size={12} />
-            </Link>
+              <ContactForm
+                defaultEmail={user?.email ?? ''}
+                defaultName={user?.username ?? ''}
+                variant="bare"
+                heading="Send us a message"
+              />
+            </div>
+
+            <CommunityLinks variant="bare" />
+
+            {!isAuthenticated && (
+              <p className="text-xs text-center pt-4" style={{ color: 'var(--landing-text-faint)' }}>
+                Already have an account?{' '}
+                <Link
+                  to="/login?returnTo=/dashboard/support"
+                  className="font-bold"
+                  style={{ color: '#76b900' }}
+                >
+                  Sign in to view your tickets
+                </Link>
+                .
+              </p>
+            )}
           </div>
+        </main>
 
-          <ContactForm
-            defaultEmail={user?.email ?? ''}
-            defaultName={user?.username ?? ''}
-            heading="Send us a message"
-          />
-
-          <div className="mt-6">
-            <CommunityLinks />
-          </div>
-
-          {!isAuthenticated && (
-            <p className="text-[11px] text-content-muted text-center mt-8">
-              Already have an account?{' '}
-              <Link to="/login?returnTo=/dashboard/support" className="text-brand hover:underline font-semibold">
-                Sign in to view your tickets
-              </Link>
-              .
-            </p>
-          )}
-        </section>
-      </main>
-
-      <LandingFooter />
+        <LandingFooter />
+      </div>
     </div>
   );
 }

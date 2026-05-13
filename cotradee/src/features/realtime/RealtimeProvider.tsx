@@ -71,7 +71,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         toast({
           title: event.type.replace(/_/g, ' '),
           description: event.message || 'An important event occurred.',
-          variant: event.severity === 'ERROR' ? 'destructive' : 'warning',
+          variant: 'destructive',
         });
       }
 

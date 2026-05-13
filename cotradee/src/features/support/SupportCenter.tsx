@@ -11,6 +11,7 @@ import CommunityLinks from './components/CommunityLinks';
 import NewTicketModal from './components/NewTicketModal';
 import TicketDetail from './components/TicketDetail';
 import TicketList from './components/TicketList';
+import { useAuth } from '@/features/auth';
 
 // Mirrors src/support/handler.go isValidIDFormat. A 32-char lowercase
 // hex string is the ONLY shape a real ticket id can take; rejecting
@@ -41,6 +42,8 @@ function isValidTicketID(raw: string): boolean {
 type Panel = { kind: 'empty' } | { kind: 'detail'; ticketId: string } | { kind: 'new' };
 
 function SupportCenter() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [panel, setPanel] = useState<Panel>({ kind: 'empty' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -95,9 +98,13 @@ function SupportCenter() {
             <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-content">Support Centre</h1>
+            <h1 className="text-lg font-bold text-content">
+              {isAdmin ? 'Support Management' : 'Support Centre'}
+            </h1>
             <p className="text-xs text-content-muted">
-              Open a ticket, follow the conversation, or join the community.
+              {isAdmin 
+                ? 'Manage inbound user tickets and official platform communication.' 
+                : 'Open a ticket, follow the conversation, or join the community.'}
             </p>
           </div>
         </header>
@@ -108,12 +115,17 @@ function SupportCenter() {
               selectedId={selectedId}
               onSelect={openTicket}
               onNewTicket={openNew}
+              isAdmin={isAdmin}
             />
           </div>
 
           <div className={`${mobileShowDetail ? 'block' : 'hidden lg:block'} lg:h-full min-h-[420px]`}>
             {panel.kind === 'detail' ? (
-              <TicketDetail ticketId={panel.ticketId} onClose={closeDetail} />
+              <TicketDetail 
+                ticketId={panel.ticketId} 
+                onClose={closeDetail} 
+                isAdmin={isAdmin} 
+              />
             ) : panel.kind === 'new' ? (
               <NewTicketModal
                 onCancel={closeDetail}
@@ -123,35 +135,43 @@ function SupportCenter() {
                 }}
               />
             ) : (
-              <EmptyDetail onNewTicket={openNew} />
+              <EmptyDetail onNewTicket={openNew} isAdmin={isAdmin} />
             )}
           </div>
         </div>
 
-        <CommunityLinks />
+        <div className="mt-8">
+          <CommunityLinks />
+        </div>
       </div>
     </div>
   );
 }
 
-function EmptyDetail({ onNewTicket }: { onNewTicket: () => void }) {
+function EmptyDetail({ onNewTicket, isAdmin }: { onNewTicket: () => void, isAdmin?: boolean }) {
   return (
     <section className="flex flex-col items-center justify-center h-full rounded-xl border border-border bg-surface-1 px-6 py-12 text-center">
       <span className="flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-brand mb-4">
         <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
       </span>
-      <p className="text-sm font-bold text-content mb-1">Select a ticket</p>
-      <p className="text-xs text-content-muted max-w-sm mb-4">
-        Pick an existing ticket from the list to see its conversation, or open a new one to get help from our team.
+      <p className="text-sm font-bold text-content mb-1">
+        {isAdmin ? 'Inbound Management' : 'Select a ticket'}
       </p>
-      <button
-        type="button"
-        onClick={onNewTicket}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
-                   text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
-      >
-        Open a new ticket
-      </button>
+      <p className="text-xs text-content-muted max-w-sm mb-4">
+        {isAdmin
+          ? 'Select a ticket from the left to review the conversation and respond as staff.'
+          : 'Pick an existing ticket from the list to see its conversation, or open a new one to get help from our team.'}
+      </p>
+      {!isAdmin && (
+        <button
+          type="button"
+          onClick={onNewTicket}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
+                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+        >
+          Open a new ticket
+        </button>
+      )}
     </section>
   );
 }

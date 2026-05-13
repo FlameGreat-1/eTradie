@@ -193,8 +193,8 @@ function TradingChartInner({
           horzLines: { color: colors.gridColor },
         },
         crosshair: {
-          vertLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
-          horzLine: { color: colors.crosshair, labelBackgroundColor: colors.tooltipBg },
+          vertLine: { color: colors.crosshair, labelBackgroundColor: colors.axisLabelBg },
+          horzLine: { color: colors.crosshair, labelBackgroundColor: colors.axisLabelBg },
         },
         rightPriceScale: { borderColor: colors.borderColor },
         timeScale: { borderColor: colors.borderColor },
@@ -243,14 +243,14 @@ function TradingChartInner({
             vertLine: {
               color: colors.crosshair,
               width: 1,
-              style: lwc.LineStyle.Dashed,
-              labelBackgroundColor: colors.tooltipBg,
+              style: lwc.LineStyle.Solid,
+              labelBackgroundColor: colors.axisLabelBg,
             },
             horzLine: {
               color: colors.crosshair,
               width: 1,
-              style: lwc.LineStyle.Dashed,
-              labelBackgroundColor: colors.tooltipBg,
+              style: lwc.LineStyle.Solid,
+              labelBackgroundColor: colors.axisLabelBg,
             },
           },
           rightPriceScale: {
@@ -583,7 +583,7 @@ function TradingChartInner({
     return (
       <div className="relative w-full h-full bg-[var(--chart-bg)] flex items-center justify-center px-6">
         <div className="max-w-sm text-center flex flex-col items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-warning-soft text-warning">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-danger-soft text-danger">
             <AlertTriangle size={18} />
           </div>
           <h3 className="text-sm font-bold text-content">Chart unavailable</h3>

@@ -66,8 +66,13 @@ function SmartSuspenseLoader() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
   if (isLoading) return <DashboardLoader />;
-  if (!isAuthenticated) return <Navigate to="/landing" replace />;
+  if (!isAuthenticated) {
+    const returnTo = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
+  }
   return <>{children}</>;
 }
 

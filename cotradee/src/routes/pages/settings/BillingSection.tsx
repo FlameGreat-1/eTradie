@@ -52,8 +52,8 @@ const TIER_DISPLAY: Record<
 const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   active:    { label: 'Active',    color: 'text-success', icon: ShieldCheck },
   trialing:  { label: 'Trial',     color: 'text-brand',   icon: Zap },
-  past_due:  { label: 'Past Due',  color: 'text-warning', icon: AlertCircle },
-  paused:    { label: 'Paused',    color: 'text-warning', icon: Pause },
+  past_due:  { label: 'Past Due',  color: 'text-danger',  icon: AlertCircle },
+  paused:    { label: 'Paused',    color: 'text-content-muted', icon: Pause },
   canceled:  { label: 'Canceled',  color: 'text-danger',  icon: XCircle },
   refunded:  { label: 'Refunded',  color: 'text-danger',  icon: RefreshCw },
   unpaid:    { label: 'Unpaid',    color: 'text-danger',  icon: AlertCircle },
@@ -233,7 +233,7 @@ function LimitRow({
       <span className="text-xs text-content-muted">{label}</span>
       <span
         className={`text-xs font-semibold ${
-          isRestricted ? 'text-warning' : 'text-success'
+          isRestricted ? 'text-danger' : 'text-success'
         }`}
       >
         {value}

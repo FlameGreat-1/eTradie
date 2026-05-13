@@ -27,6 +27,7 @@ export function isHelpVisibleOnPath(pathname: string): boolean {
   // (header menu, footer link, /contact CTA) cover navigation TO
   // /faq so users still reach it from everywhere else.
   if (path === '/faq' || path === '/faqs') return false;
+  if (path === '/dashboard/journal') return false;
   return true;
 }
 

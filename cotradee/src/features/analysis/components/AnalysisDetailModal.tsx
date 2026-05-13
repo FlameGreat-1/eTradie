@@ -115,12 +115,12 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
 
         {/* Rejection Rules */}
         {raw.rejection_rules?.length > 0 && (
-          <section className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-warning mb-1">
+          <section className="rounded-lg border border-danger/30 bg-danger/5 p-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-danger mb-1">
               <AlertTriangle size={12} /> Rejection Rules Triggered
             </div>
             {raw.rejection_rules.map((r: string, i: number) => (
-              <div key={i} className="text-xs text-warning/80 ml-4">• {r}</div>
+              <div key={i} className="text-xs text-danger/80 ml-4">• {r}</div>
             ))}
           </section>
         )}

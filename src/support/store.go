@@ -228,6 +228,47 @@ func (s *Store) AppendMessage(
 	}, t, nil
 }
 
+// GetWithMessagesAll returns a ticket and its full conversation log
+// without enforcing ownership. Used by platform administrators.
+func (s *Store) GetWithMessagesAll(
+	ctx context.Context,
+	ticketID string,
+) (*Ticket, error) {
+	t, err := s.getTicketCore(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, ticket_id, author_kind, author_id, body, created_at
+		   FROM support_ticket_messages
+		  WHERE ticket_id = $1
+		  ORDER BY created_at ASC`,
+		ticketID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("support: messages query: %w", err)
+	}
+	defer rows.Close()
+
+	t.Messages = make([]Message, 0, 4)
+	for rows.Next() {
+		var (
+			m          Message
+			authorKind string
+		)
+		if err := rows.Scan(&m.ID, &m.TicketID, &authorKind, &m.AuthorID, &m.Body, &m.CreatedAt); err != nil {
+			return nil, fmt.Errorf("support: messages scan: %w", err)
+		}
+		m.AuthorKind = MessageAuthorKind(authorKind)
+		t.Messages = append(t.Messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("support: messages iterate: %w", err)
+	}
+	return t, nil
+}
+
 // GetWithMessages returns a ticket and its full conversation log,
 // scoped to the caller's user_id.
 func (s *Store) GetWithMessages(
@@ -321,6 +362,49 @@ func (s *Store) ListByUser(
 	return out, nil
 }
 
+// ListAll returns a bounded, newest-first list of every ticket in the
+// system. Used by platform administrators.
+func (s *Store) ListAll(
+	ctx context.Context,
+	limit, offset int,
+) ([]Ticket, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, public_ref, user_id, email, name, subject, category,
+		        priority, status, channel, created_at, updated_at, closed_at
+		   FROM support_tickets
+		  ORDER BY updated_at DESC
+		  LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("support: list all query: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Ticket, 0, limit)
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("support: list all iterate: %w", err)
+	}
+	return out, nil
+}
+
 // CloseTicket transitions a ticket to the closed state.
 func (s *Store) CloseTicket(ctx context.Context, ticketID, userID string) (*Ticket, error) {
 	now := time.Now().UTC()
@@ -342,6 +426,34 @@ func (s *Store) CloseTicket(ctx context.Context, ticketID, userID string) (*Tick
 			return nil, ErrTicketNotFound
 		}
 		if t.UserID == nil || *t.UserID != userID {
+			return nil, ErrTicketNotFound
+		}
+		if t.Status == StatusClosed {
+			return nil, ErrTicketClosed
+		}
+		return nil, ErrTicketNotFound
+	}
+	return s.getTicketCore(ctx, ticketID)
+}
+
+// CloseTicketAll transitions a ticket to the closed state without
+// enforcing ownership. Used by platform administrators.
+func (s *Store) CloseTicketAll(ctx context.Context, ticketID string) (*Ticket, error) {
+	now := time.Now().UTC()
+
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE support_tickets
+		    SET status = $1, closed_at = $2, updated_at = $2
+		  WHERE id = $3
+		    AND status <> $1`,
+		string(StatusClosed), now, ticketID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("support: close ticket all: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		t, err := s.getTicketCore(ctx, ticketID)
+		if err != nil {
 			return nil, ErrTicketNotFound
 		}
 		if t.Status == StatusClosed {

@@ -60,10 +60,9 @@ export function useBillingPortal() {
       } else if (err instanceof Error) {
         message = err.message;
       }
-      toast({
         title: isMissingSub ? 'No active subscription' : 'Billing portal unavailable',
         description: message,
-        variant: isMissingSub ? 'warning' : 'destructive',
+        variant: 'destructive',
       });
     },
   });
