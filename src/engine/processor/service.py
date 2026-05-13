@@ -4,7 +4,7 @@ The AnalysisProcessor is the single entry point for the gateway.
 It implements ProcessorPort.process() and orchestrates the full
 processor pipeline:
 
-    ProcessorInput -> Prompt -> Claude API -> Parse -> Validate ->
+    ProcessorInput -> Prompt -> LLM API -> Parse -> Validate ->
     Map to ProcessorOutput -> Persist audit -> Return
 
 This service is stateless. All dependencies are injected.
@@ -13,8 +13,9 @@ This service is stateless. All dependencies are injected.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
-from typing import Optional, AsyncGenerator
+from typing import Any, Optional
 
 import orjson
 
@@ -46,19 +47,28 @@ from engine.processor.prompts.system_prompt import (
     compute_prompt_hash,
 )
 from engine.processor.storage.uow import ProcessorUOWFactory
+from engine.processor.streaming import stream_channel_for_user
 from engine.processor.models.analysis import AnalysisOutput as AO
 from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
 
 logger = get_logger(__name__)
+
+# Regex used to progressively extract the `explainable_reasoning` field
+# from the partial LLM JSON stream so the dashboard SSE consumer can
+# render tokens as they arrive. Compiled once at module load to avoid
+# re-compiling on every chunk of every analysis cycle.
+_REASONING_RE = re.compile(
+    r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)'
+)
 
 
 class AnalysisProcessor(ProcessorPort):
     """Concrete implementation of the gateway's ProcessorPort.
 
     Receives the fully assembled context from the gateway, sends it
-    to Claude for reasoning, parses and validates the response,
-    maps it to the gateway's ProcessorOutput, and persists the
-    audit trail.
+    to the configured LLM for reasoning, parses and validates the
+    response, maps it to the gateway's ProcessorOutput, and persists
+    the audit trail.
     """
 
     def __init__(
@@ -88,12 +98,16 @@ class AnalysisProcessor(ProcessorPort):
 
         Args:
             context: Full TA + Macro + RAG context from gateway.
+            user_id: Authenticated user id used for metering and audit.
             trace_id: Distributed trace ID for correlation.
 
         Returns:
             ProcessorOutput for guard evaluation and routing.
 
         Raises:
+            QuotaExceededError: When the metering layer rejects the
+                reservation. Propagated unchanged so the internal
+                router can map it to HTTP 429 with Retry-After.
             ProcessorError: On LLM call failure after retries.
             ProcessorInsufficientDataError: On insufficient context.
         """
@@ -202,10 +216,10 @@ class AnalysisProcessor(ProcessorPort):
         """Core execution pipeline."""
         symbol = context.symbol
 
-        # Step 1: Validate sufficient data
+        # Step 1: Validate sufficient data.
         self._validate_context(context, trace_id=trace_id)
 
-        # Step 2: Build prompt
+        # Step 2: Build prompt.
         system_prompt = build_system_prompt()
         user_message = build_user_message(context)
         prompt_hash = compute_prompt_hash(system_prompt, user_message)
@@ -253,7 +267,6 @@ class AnalysisProcessor(ProcessorPort):
         # (see engine.processor.streaming). This is what the dashboard's
         # SSE consumer subscribes to. On cache failure the publish is a
         # no-op so the processor never blocks on streaming being broken.
-        from engine.processor.streaming import stream_channel_for_user
         stream_channel = (
             stream_channel_for_user(user_id) if self._cache and user_id else None
         )
@@ -272,9 +285,8 @@ class AnalysisProcessor(ProcessorPort):
                     },
                 )
 
-            import re
             last_published_reasoning = ""
-            usage_dict = {}
+            usage_dict: dict = {}
             async for chunk in self._llm.stream_call(
                 system_prompt=system_prompt,
                 user_message=user_message,
@@ -284,16 +296,14 @@ class AnalysisProcessor(ProcessorPort):
                 full_text += chunk
                 output_tokens += 1
 
-                # Progressively extract explainable_reasoning using regex
-                # that handles escaped quotes so partial JSON still yields
-                # clean, displayable reasoning text to the dashboard.
-                match = re.search(
-                    r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)',
-                    full_text,
-                )
+                # Progressively extract explainable_reasoning using a
+                # regex that handles escaped quotes so partial JSON
+                # still yields clean, displayable reasoning text to the
+                # dashboard.
+                match = _REASONING_RE.search(full_text)
                 if match:
                     current_extracted = match.group(1)
-                    # Unescape json newlines and quotes progressively
+                    # Unescape json newlines and quotes progressively.
                     current_extracted = current_extracted.replace(
                         "\\n", "\n"
                     ).replace('\\"', '"')
@@ -326,7 +336,6 @@ class AnalysisProcessor(ProcessorPort):
                     },
                 )
 
-            from engine.processor.llm.client import LLMResponse
             return LLMResponse(
                 text=full_text,
                 model=self._config.model_name,
@@ -372,14 +381,14 @@ class AnalysisProcessor(ProcessorPort):
                 },
             )
 
-        # Step 4: Parse response into AnalysisOutput
+        # Step 6: Parse response into AnalysisOutput.
         analysis_output, validation_warnings = parse_llm_response(
             llm_response.text,
             require_citations=self._config.require_citations,
             trace_id=trace_id,
         )
 
-        # Step 5: Build raw response dict for audit (include provider metadata)
+        # Step 7: Build raw response dict for audit (include provider metadata).
         try:
             text = llm_response.text.strip()
             if text.startswith("```json"):
@@ -395,7 +404,7 @@ class AnalysisProcessor(ProcessorPort):
         raw_dict["_llm_provider"] = llm_response.provider
         raw_dict["_llm_model"] = llm_response.model
 
-        # Step 6: Map to gateway's ProcessorOutput
+        # Step 8: Map to gateway's ProcessorOutput.
         processor_output = map_to_processor_output(
             analysis_output,
             raw_response=raw_dict,
@@ -403,7 +412,7 @@ class AnalysisProcessor(ProcessorPort):
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
-        # Step 7: Determine status
+        # Step 9: Determine status, emit metrics, persist audit trail.
         if analysis_output.direction == "NO SETUP":
             status = ProcessorStatus.NO_SETUP
         else:
@@ -417,7 +426,6 @@ class AnalysisProcessor(ProcessorPort):
             processor=PROCESSOR_NAME,
         ).observe(elapsed_ms / 1000)
 
-        # Step 8: Persist audit trail
         if self._config.persist_audit_logs:
             await self._persist_success(
                 user_id=user_id,
@@ -639,5 +647,3 @@ class AnalysisProcessor(ProcessorPort):
                 },
                 exc_info=True,
             )
-
-
