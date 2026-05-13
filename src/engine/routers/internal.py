@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
 from engine.processor.models.io import ProcessorInput
+from engine.shared.exceptions import QuotaExceededError
 from engine.schemas import (
     InternalDebugRunCycleRequest,
     InternalLTFConfirmRequest,
@@ -327,6 +328,25 @@ async def internal_processor_process(
         if isinstance(result, dict):
             return result
         return {"raw": str(result)}
+
+    except QuotaExceededError as exc:
+        # Map the typed quota error to a 429 with a Retry-After header
+        # and a structured body so the gateway can surface it to the
+        # SPA's axios interceptor (which already handles 429 toasts).
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(exc.retry_after)},
+            content={
+                "error": "llm quota exceeded",
+                "dimension": exc.dimension,
+                "limit": exc.limit,
+                "used": exc.used,
+                "requested": exc.requested,
+                "resets_at": exc.resets_at,
+                "retry_after": exc.retry_after,
+            },
+        )
 
     except Exception as exc:
         logger.error(

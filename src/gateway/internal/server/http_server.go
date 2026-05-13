@@ -99,7 +99,7 @@ func NewHTTPServer(
 	mux.Handle("/events/recent", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport)))))
 	mux.Handle("/events/since", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport)))))
 
-	api := NewAPIHandler(cfg, orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
+	api := NewAPIHandler(cfg, authHandler.AuthConfig(), orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
 	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
 	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)

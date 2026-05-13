@@ -192,6 +192,12 @@ func main() {
 	// Janitor: prune expired billing_checkout_intents on every tick.
 	reconciler.WithCheckoutIntents(intentStore)
 
+	// Janitor: reap stale LLM reservations (held + TTL elapsed) and
+	// reset monthly token counters on period-end renewal. The usage
+	// store shares the same pool as every other billing store.
+	usageStore := store.NewUsageStore(pool)
+	reconciler.WithUsageStore(usageStore)
+
 	srv := server.New(server.Options{
 		DB:                  pool,
 		Log:                 log.With().Str("component", "billing_http").Logger(),

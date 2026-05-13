@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import UpgradeModal from '@/features/settings/components/UpgradeModal';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
+import UsagePanel from '@/features/settings/components/UsagePanel';
 
 const TIER_DISPLAY: Record<
   string,
@@ -76,6 +77,9 @@ export default function BillingSection() {
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* LLM Token Usage (Pro Managed only; renders nothing for other tiers) */}
+      <UsagePanel />
+
       {/* Current Plan */}
       <div className="rounded-xl border border-border bg-surface-1 p-6">
         <div className="flex items-center justify-between mb-4">
