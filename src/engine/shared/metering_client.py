@@ -11,7 +11,7 @@ exceptions, and returns the reservation ID. All policy logic lives in
 the gateway (src/gateway/internal/server/metering_handler.go) and the
 billing store (src/billing/store/usage.go).
 
-Configuration (read from environment at import time):
+Configuration (read lazily on first reserve / commit / refund call):
 
     METERING_GATEWAY_URL
         Base URL of the gateway HTTP server, e.g.
@@ -28,12 +28,23 @@ Configuration (read from environment at import time):
         The shared secret sent in X-Internal-Auth. Must match
         GATEWAY_ENGINE_INTERNAL_SHARED_SECRET. Required when
         METERING_ENABLED=true in prod/staging.
+
+Lazy-load rationale: a module-import-time env read crashes the entire
+engine process on a misconfigured deploy, before any health probe can
+run. Deferring the read to first call surfaces the same error against
+the specific request that needs metering, which the existing
+retry_llm_call wrapper maps to a clean HTTP 500. The operator sees
+the error in the logs of the failed request instead of in a startup
+crash loop.
 """
 
 from __future__ import annotations
 
 import os
+import threading
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 
@@ -43,14 +54,50 @@ from engine.shared.logging import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration (read once at module import)
+# Configuration (lazily resolved on first call; cached thereafter)
 # ---------------------------------------------------------------------------
 
 _ENABLED_TRUTHY = {"1", "true", "yes", "on"}
 
+# Timeout for metering calls. These are synchronous on the hot path so
+# they must be fast. 3 s is generous; the gateway does a single DB
+# upsert + insert inside a transaction.
+_TIMEOUT_SECONDS = 3.0
 
-def _load_config() -> tuple[bool, str, str]:
-    """Return (enabled, gateway_url, secret)."""
+
+@dataclass(frozen=True)
+class MeteringConfig:
+    """Snapshot of the env-var configuration consumed by this module.
+
+    Immutable so a concurrent reserve()/commit() race can never observe
+    a half-written config. Built once by _build_config() and cached
+    by get_config() under a lock.
+    """
+
+    enabled: bool
+    gateway_url: str
+    secret: str
+
+
+# Module-private cache. None means "not yet resolved".
+_config: Optional[MeteringConfig] = None
+_config_lock = threading.Lock()
+
+
+def _build_config() -> MeteringConfig:
+    """Read env vars and assemble a MeteringConfig.
+
+    Raises RuntimeError when METERING_ENABLED=true in a prod-like env
+    (production, prod, staging) but METERING_GATEWAY_URL or
+    ENGINE_INTERNAL_SHARED_SECRET is unset. This raise propagates up
+    through reserve()/commit()/refund() to the caller (retry_llm_call
+    in processor.service) which maps it to HTTP 500.
+
+    In non-prod-like envs (dev, test, empty APP_ENV) a missing
+    gateway_url silently disables metering with a warning log line,
+    so a local developer never needs to set METERING_* to get a
+    working engine.
+    """
     raw = os.environ.get("METERING_ENABLED", "true").strip().lower()
     enabled = raw in _ENABLED_TRUTHY
 
@@ -79,17 +126,38 @@ def _load_config() -> tuple[bool, str, str]:
         )
         enabled = False
 
-    return enabled, gateway_url, secret
+    return MeteringConfig(enabled=enabled, gateway_url=gateway_url, secret=secret)
 
 
-_METERING_ENABLED, _GATEWAY_URL, _INTERNAL_SECRET = _load_config()
+def get_config() -> MeteringConfig:
+    """Return the cached MeteringConfig, building it on first call.
 
-# ---------------------------------------------------------------------------
-# Timeout for metering calls. These are synchronous on the hot path so
-# they must be fast. 3 s is generous; the gateway does a single DB
-# upsert + insert inside a transaction.
-# ---------------------------------------------------------------------------
-_TIMEOUT_SECONDS = 3.0
+    Thread-safe: the build path holds _config_lock so two parallel
+    first-call reserves cannot both pay the env-read cost. Subsequent
+    calls take the fast path (no lock acquisition) because the cached
+    config is an immutable frozen dataclass and a stale read of the
+    module-level binding is acceptable.
+    """
+    global _config
+    cfg = _config
+    if cfg is not None:
+        return cfg
+    with _config_lock:
+        if _config is None:
+            _config = _build_config()
+        return _config
+
+
+def reset_config_for_tests() -> None:
+    """Clear the cached config so the next get_config() call re-reads env.
+
+    Test-only helper. Production code must never call this; the cache
+    is intentional and re-reading env in steady state would be a perf
+    regression on the LLM hot path.
+    """
+    global _config
+    with _config_lock:
+        _config = None
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +181,18 @@ async def reserve(
     without branching on a flag.
 
     Raises:
+        RuntimeError: when METERING_ENABLED=true in prod-like env but
+            METERING_GATEWAY_URL or ENGINE_INTERNAL_SHARED_SECRET is
+            missing. Surfaced lazily on the first metering call so a
+            misconfig does not crash the engine on import.
         QuotaExceededError: when the user has hit a per-tier cap. The
             caller should propagate this as a 429 to the gateway.
         httpx.HTTPError: on transport failure. The caller should treat
             this as a transient error and NOT proceed with the LLM call
             (fail closed: if we cannot meter, we cannot charge).
     """
-    if not _METERING_ENABLED:
+    cfg = get_config()
+    if not cfg.enabled:
         return ""
     if not user_id:
         logger.warning("metering_reserve_skipped_no_user_id")
@@ -135,10 +208,10 @@ async def reserve(
 
     async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.post(
-            f"{_GATEWAY_URL}/internal/metering/reserve",
+            f"{cfg.gateway_url}/internal/metering/reserve",
             json=payload,
             headers={
-                "X-Internal-Auth": _INTERNAL_SECRET,
+                "X-Internal-Auth": cfg.secret,
                 "X-User-Id": user_id,
                 "Content-Type": "application/json",
             },
@@ -204,7 +277,8 @@ async def commit(
     transient commit failure does not roll back an already-completed
     LLM call from the user's perspective.
     """
-    if not _METERING_ENABLED or not reservation_id:
+    cfg = get_config()
+    if not cfg.enabled or not reservation_id:
         return
 
     payload = {
@@ -216,10 +290,10 @@ async def commit(
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
             resp = await client.post(
-                f"{_GATEWAY_URL}/internal/metering/commit",
+                f"{cfg.gateway_url}/internal/metering/commit",
                 json=payload,
                 headers={
-                    "X-Internal-Auth": _INTERNAL_SECRET,
+                    "X-Internal-Auth": cfg.secret,
                     "Content-Type": "application/json",
                 },
             )
@@ -257,7 +331,8 @@ async def refund(*, reservation_id: str) -> None:
     Idempotent. Errors are logged but NOT re-raised; the janitor will
     reap the reservation after its TTL if the refund never lands.
     """
-    if not _METERING_ENABLED or not reservation_id:
+    cfg = get_config()
+    if not cfg.enabled or not reservation_id:
         return
 
     payload = {"reservation_id": reservation_id}
@@ -265,10 +340,10 @@ async def refund(*, reservation_id: str) -> None:
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
             resp = await client.post(
-                f"{_GATEWAY_URL}/internal/metering/refund",
+                f"{cfg.gateway_url}/internal/metering/refund",
                 json=payload,
                 headers={
-                    "X-Internal-Auth": _INTERNAL_SECRET,
+                    "X-Internal-Auth": cfg.secret,
                     "Content-Type": "application/json",
                 },
             )
