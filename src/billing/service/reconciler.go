@@ -64,6 +64,9 @@ type ReconcilerConfig struct {
 // signature stays stable for existing callers):
 //   - intents: when non-nil, the janitor also prunes
 //     billing_checkout_intents rows whose expires_at has elapsed.
+//   - usage: when non-nil, the janitor reaps stale LLM reservations
+//     (status='held' AND expires_at <= NOW()) and calls MonthlyReset
+//     on every subscription that just renewed.
 type Reconciler struct {
 	subs      *store.SubscriptionStore
 	processed *store.ProcessedEventStore
@@ -74,6 +77,7 @@ type Reconciler struct {
 	cfg       ReconcilerConfig
 
 	intents *store.CheckoutIntentStore // optional; nil disables intent prune
+	usage   *store.UsageStore          // optional; nil disables LLM janitor
 }
 
 // WithCheckoutIntents attaches the checkout-intent store so the janitor
@@ -81,6 +85,15 @@ type Reconciler struct {
 // NewReconciler so the constructor signature does not change.
 func (r *Reconciler) WithCheckoutIntents(intents *store.CheckoutIntentStore) {
 	r.intents = intents
+}
+
+// WithUsageStore attaches the usage store so the reconciler can:
+//  1. Reap stale LLM reservations (held + expired) as Refunds.
+//  2. Call MonthlyReset on every user whose subscription just renewed.
+//
+// Optional; main.go wires it after NewReconciler.
+func (r *Reconciler) WithUsageStore(usage *store.UsageStore) {
+	r.usage = usage
 }
 
 // NewReconciler wires the dependencies. All parameters except metrics are
@@ -293,14 +306,28 @@ func (r *Reconciler) demoteOne(ctx context.Context, e store.ExpiredSubscription,
 	if err := r.revoker.RevokeAllUserSessions(revokeCtx, e.UserID); err != nil {
 		r.log.Error().Err(err).Str("user_id", e.UserID).Msg("billing_reconciler_revoke_failed")
 	}
+
+	// Post-commit: reset the monthly LLM token counters so the user's
+	// quota window starts fresh on their next billing period. Best-effort;
+	// a failure here does not roll back the already-committed demotion.
+	if r.usage != nil {
+		resetCtx, resetCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer resetCancel()
+		if err := r.usage.MonthlyReset(resetCtx, e.UserID, now); err != nil {
+			r.log.Error().Err(err).Str("user_id", e.UserID).Msg("billing_reconciler_monthly_reset_failed")
+		} else {
+			r.log.Info().Str("user_id", e.UserID).Msg("billing_reconciler_monthly_reset_applied")
+		}
+	}
+
 	return true
 }
 
 // pruneIdempotency deletes processed_webhook_events older than the
-// retention window, and (when the intent store is wired) deletes
-// expired billing_checkout_intents rows. The DELETEs are index-scanned
-// so the wall-clock cost is bounded even against a multi-million-row
-// table.
+// retention window, expired billing_checkout_intents rows (when the
+// intent store is wired), and stale LLM reservations (when the usage
+// store is wired). The DELETEs are index-scanned so the wall-clock
+// cost is bounded even against a multi-million-row table.
 func (r *Reconciler) pruneIdempotency(ctx context.Context) (int64, error) {
 	cutoff := time.Now().UTC().Add(-time.Duration(r.cfg.IdempotencyRetentionDays) * 24 * time.Hour)
 	n, err := r.processed.PruneOlderThan(ctx, cutoff)
@@ -327,5 +354,23 @@ func (r *Reconciler) pruneIdempotency(ctx context.Context) (int64, error) {
 			r.log.Info().Int64("rows", intentRows).Msg("billing_reconciler_intent_pruned")
 		}
 	}
+
+	// Optional: reap stale LLM reservations (held + TTL elapsed).
+	// These are reservations where the engine called Reserve but never
+	// called Commit or Refund (engine crash, network partition, etc.).
+	// Treating them as Refunds returns the provisional debit to the
+	// user's quota so they are not permanently penalised for a failed
+	// call. The janitor runs at most 500 rows per tick to bound the
+	// wall-clock cost.
+	if r.usage != nil {
+		reaped, reapErr := r.usage.JanitorReapStaleReservations(ctx)
+		if reapErr != nil {
+			r.metrics.IncReconcilerError("prune")
+			r.log.Error().Err(reapErr).Msg("billing_reconciler_llm_reservation_reap_failed")
+		} else if reaped > 0 {
+			r.log.Info().Int64("rows", reaped).Msg("billing_reconciler_llm_reservations_reaped")
+		}
+	}
+
 	return n, nil
 }
