@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
 from engine.processor.models.io import ProcessorInput
+from engine.shared.exceptions import QuotaExceededError
 from engine.schemas import (
     InternalDebugRunCycleRequest,
     InternalLTFConfirmRequest,
