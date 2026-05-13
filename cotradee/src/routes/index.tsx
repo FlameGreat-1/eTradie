@@ -10,6 +10,8 @@ const PricingPage  = lazy(() => import('./pages/PricingPage'));
 const ProcessPage  = lazy(() => import('./pages/ProcessPage'));
 const LoginPage    = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage  = lazy(() => import('./pages/ResetPasswordPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
 const OAuthLinkCallbackPage = lazy(() => import('./pages/OAuthLinkCallbackPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -128,6 +130,28 @@ export default function AppRoutes() {
           element={
             <GuestRoute>
               <AuthLayout><RegisterPage /></AuthLayout>
+            </GuestRoute>
+          }
+        />
+        {/* ── Forgot / reset password (public, guest-only) ──────────
+            Both pages live under GuestRoute so an already-authenticated
+            user is bounced to /dashboard; a signed-in user who wants to
+            change their password uses Settings → Profile, not this
+            flow. AuthLayout reuses the marketing-side chrome so the
+            visual language matches /login and /register. */}
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestRoute>
+              <AuthLayout><ForgotPasswordPage /></AuthLayout>
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <GuestRoute>
+              <AuthLayout><ResetPasswordPage /></AuthLayout>
             </GuestRoute>
           }
         />
