@@ -116,3 +116,36 @@ export interface OAuthLinkCallbackResponse {
   /** Echoed back from the start-step record; safe to navigate to. */
   return_to: string;
 }
+
+/* ── Forgot / reset password ─────────────────────────────────────── */
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+/**
+ * Gateway returns the same envelope whether the email exists or not,
+ * so the SPA must NOT branch on the response to infer account state.
+ * `status` is always 'accepted' on the happy path.
+ */
+export interface ForgotPasswordResponse {
+  message: string;
+  status: 'accepted';
+}
+
+export interface ValidateResetTokenRequest {
+  token: string;
+}
+
+export interface ValidateResetTokenResponse {
+  valid: boolean;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
