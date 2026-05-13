@@ -78,44 +78,42 @@ function TicketDetail({
   };
 
   return (
-    <section className="flex flex-col h-full rounded-xl border border-border bg-surface-1 overflow-hidden">
-      <header className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+    <section className="flex flex-col h-full overflow-hidden">
+      <header className="flex items-start justify-between gap-4 px-6 py-4 border-b border-border/30">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 flex-1">
+          <div className="flex items-center gap-3 shrink-0 w-full mb-1 sm:mb-0 sm:w-auto">
             <StatusBadge status={ticket.status} />
-            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-content-muted">
-              <Hash size={10} aria-hidden />
-              {ticket.public_ref}
-            </span>
-            {isAdmin && (
-              <>
-                <span className="opacity-40">·</span>
-                <span className="text-brand text-[10px] font-medium truncate">
-                  {ticket.name || ticket.email}
-                </span>
-              </>
+            <h1 className="text-sm font-bold text-content truncate flex-1">
+              {ticket.subject}
+            </h1>
+          </div>
+          
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="font-mono text-[10px] text-content-muted opacity-60 mr-1">
+                {ticket.public_ref}
+              </span>
+              <span className="text-[10px] font-medium text-brand px-2 py-0.5 rounded-full bg-brand-soft/10 border border-brand/20 whitespace-nowrap">
+                {CATEGORY_LABELS[ticket.category]} · {PRIORITY_LABELS[ticket.priority]}
+              </span>
+            </div>
+
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="lg:hidden shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full
+                           text-content-muted hover:text-content hover:bg-surface-2
+                           transition-colors duration-fast"
+              >
+                <X size={16} />
+              </button>
             )}
           </div>
-          <h1 className="text-sm font-bold text-content truncate">{ticket.subject}</h1>
-          <p className="text-[11px] text-content-muted mt-1">
-            {CATEGORY_LABELS[ticket.category]} · {PRIORITY_LABELS[ticket.priority]} · opened {relativeTime(ticket.created_at)}
-          </p>
         </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md
-                       text-content-muted hover:text-content hover:bg-surface-2
-                       transition-colors duration-fast focus-ring"
-            aria-label="Close detail panel"
-          >
-            <X size={14} />
-          </button>
-        )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
         {(ticket.messages ?? []).map((m) => (
           <MessageBubble key={m.id} message={m} isAdmin={isAdmin} />
         ))}
@@ -130,48 +128,36 @@ function TicketDetail({
       ) : (
         <form
           onSubmit={onSubmitReply}
-          className="flex flex-col gap-2 px-4 py-3 border-t border-border bg-surface-1"
+          className="flex flex-col gap-3 px-6 py-6 border-t border-border/30"
         >
-          <label htmlFor="reply-body" className="sr-only">
-            Reply
-          </label>
-          <div className="relative">
-            {isAdmin && (
-              <div className="mb-1 text-[10px] font-bold text-brand uppercase tracking-wider">
-                Staff Reply
-              </div>
-            )}
+          <div className="relative group">
             <textarea
               id="reply-body"
               value={replyBody}
               onChange={(e) => setReplyBody(e.target.value)}
               placeholder={isAdmin ? "Type your official response..." : "Type your reply…"}
-              rows={3}
+              rows={2}
               maxLength={8000}
-              className="w-full px-3 py-2 rounded-md bg-surface-2 border border-border text-xs text-content
-                         placeholder:text-content-muted focus-ring outline-none resize-y"
+              className="w-full px-4 py-3 rounded-2xl bg-surface-2/50 border border-border/50 text-xs text-content
+                         placeholder:text-content-muted/50 focus:border-brand/50 focus:bg-surface-2 transition-all outline-none resize-none"
             />
           </div>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-4">
             {confirmingClose ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-content-muted">Close this ticket?</span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-danger uppercase tracking-wider">Close Ticket?</span>
                 <button
                   type="button"
                   onClick={onConfirmClose}
                   disabled={closeTicket.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-danger-soft text-danger
-                             hover:bg-danger/20 px-2 h-7 text-[11px] font-semibold
-                             transition-colors duration-fast focus-ring
-                             disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="text-[10px] font-bold text-content hover:text-danger transition-colors"
                 >
-                  {closeTicket.isPending ? <Loader2 size={11} className="animate-spin" /> : null}
-                  Yes, close
+                  Confirm
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingClose(false)}
-                  className="text-[11px] text-content-muted hover:text-content focus-ring"
+                  className="text-[10px] font-bold text-content-muted hover:text-content transition-colors"
                 >
                   Cancel
                 </button>
@@ -180,20 +166,20 @@ function TicketDetail({
               <button
                 type="button"
                 onClick={() => setConfirmingClose(true)}
-                className="text-[11px] text-content-muted hover:text-danger transition-colors duration-fast focus-ring"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-danger/10 border border-danger/20 px-3 h-8 text-[11px] font-bold
+                           text-danger hover:bg-danger/20 transition-all duration-fast uppercase tracking-widest"
               >
-                Close ticket
+                Close Ticket
               </button>
             )}
             <button
               type="submit"
               disabled={reply.isPending || replyBody.trim().length < 5}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 h-7 text-[11px] font-semibold
-                         text-white hover:bg-brand-hover transition-colors duration-fast focus-ring
-                         disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-full bg-brand px-5 h-8 text-[11px] font-bold
+                         text-white hover:bg-brand-hover transition-all duration-fast disabled:opacity-30"
             >
-              {reply.isPending ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-              {reply.isPending ? 'Sending…' : 'Send reply'}
+              {reply.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+              Send
             </button>
           </div>
         </form>
@@ -208,19 +194,19 @@ function MessageBubble({ message, isAdmin }: { message: TicketMessage, isAdmin?:
   const isSystem = message.author_kind === 'system';
 
   return (
-    <div className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+    <div className={`flex flex-col gap-1.5 ${isMe ? 'items-end' : 'items-start'}`}>
       <div
-        className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words
+        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed break-words
           ${
             isMe
-              ? 'bg-brand text-white'
+              ? 'bg-transparent text-content border border-brand'
               : isOther
-                ? 'bg-surface-2 text-content border border-border'
-                : 'bg-surface-2/60 text-content-muted border border-border italic'
+                ? 'bg-surface-2 text-content border border-border/40'
+                : 'text-content-muted italic opacity-60'
           }`}
       >
         {!isMe && (
-          <div className="flex items-center gap-1 mb-1 text-[10px] font-bold uppercase tracking-wide">
+          <div className="flex items-center gap-1.5 mb-2 text-[10px] font-bold uppercase tracking-wider opacity-70">
             <MessageSquare size={10} aria-hidden />
             {isOther ? (isAdmin ? 'User' : 'Staff Support') : isSystem ? 'System' : ''}
           </div>
@@ -228,9 +214,8 @@ function MessageBubble({ message, isAdmin }: { message: TicketMessage, isAdmin?:
         {message.body}
       </div>
       <time
-        className="text-[10px] text-content-muted"
+        className="text-[10px] text-content-muted opacity-40 px-1"
         dateTime={message.created_at}
-        title={new Date(message.created_at).toLocaleString()}
       >
         {relativeTime(message.created_at)}
       </time>

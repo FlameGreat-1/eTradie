@@ -177,8 +177,8 @@ function NewTicketModal({
           type="submit"
           form="new-ticket-form"
           disabled={mutation.isPending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand px-4 h-8 text-xs font-semibold
-                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring
+          className="inline-flex items-center gap-1.5 rounded-md border border-brand px-4 h-8 text-xs font-semibold
+                     text-brand hover:bg-brand/5 transition-colors duration-fast focus-ring
                      disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {mutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}

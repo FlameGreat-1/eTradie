@@ -69,8 +69,8 @@ export default function ProFeatureLock({
       <button
         type="button"
         onClick={openUpgradeModal}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[11px]
-                   font-semibold text-black hover:bg-brand-dark transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-1.5 text-[11px]
+                   font-semibold text-brand hover:bg-brand/5 transition-colors"
       >
         <Lock size={11} /> Upgrade to Pro
       </button>

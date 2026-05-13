@@ -3,6 +3,7 @@ package support
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -34,6 +35,15 @@ type Config struct {
 	CommunityTelegramURL  string `envconfig:"COMMUNITY_TELEGRAM_URL" default:""`
 	CommunityWhatsAppURL  string `envconfig:"COMMUNITY_WHATSAPP_URL" default:""`
 	PublicSiteURL         string `envconfig:"PUBLIC_SITE_URL" default:"https://exoper.com"`
+	// AutoCloseAfterRaw is the human-readable duration string for the
+	// inactivity window after which a 'resolved' ticket is automatically
+	// transitioned to 'closed' by the background janitor. Parsed into
+	// AutoCloseAfter in LoadConfig. Set to "0" to disable auto-close.
+	AutoCloseAfterRaw string `envconfig:"AUTO_CLOSE_AFTER" default:"72h"`
+
+	// AutoCloseAfter is the parsed duration. Not populated by envconfig;
+	// set by LoadConfig after parsing AutoCloseAfterRaw.
+	AutoCloseAfter time.Duration `envconfig:"-"`
 }
 
 // LoadConfig reads SUPPORT_-prefixed env vars and trims whitespace.
@@ -59,6 +69,22 @@ func LoadConfig() (*Config, error) {
 	if cfg.PublicSiteURL == "" {
 		cfg.PublicSiteURL = "https://exoper.com"
 	}
+
+	// Parse the auto-close duration. "0" or empty disables auto-close.
+	raw := strings.TrimSpace(cfg.AutoCloseAfterRaw)
+	if raw == "" || raw == "0" {
+		cfg.AutoCloseAfter = 0
+	} else {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("support config: invalid AUTO_CLOSE_AFTER %q: %w", raw, err)
+		}
+		if d < 0 {
+			return nil, fmt.Errorf("support config: AUTO_CLOSE_AFTER must be non-negative, got %v", d)
+		}
+		cfg.AutoCloseAfter = d
+	}
+
 	return &cfg, nil
 }
 
@@ -103,4 +129,10 @@ func (c *Config) RouteInbox(category TicketCategory) string {
 		}
 	}
 	return c.InboxEmail
+}
+
+// AutoCloseEnabled reports whether the background janitor should
+// transition resolved tickets to closed after inactivity.
+func (c *Config) AutoCloseEnabled() bool {
+	return c.AutoCloseAfter > 0
 }

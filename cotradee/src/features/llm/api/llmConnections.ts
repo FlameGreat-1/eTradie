@@ -8,7 +8,7 @@ export function useLlmProviders() {
     queryKey: ['llm', 'providers'],
     queryFn: async () => {
       const { data } = await api.engine.get('/api/llm/providers');
-      return data.providers;
+      return data;
     },
     enabled: isAuthenticated,
   });

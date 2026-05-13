@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from engine.dependencies import Container
 from engine.helpers import _rate_limit
-from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider
+from engine.processor.constants import MODEL_CATALOG, DEFAULT_MODELS, LLMProvider
 from engine.processor.storage.repositories.llm_connection_repository import (
     LLMConnectionRepository,
 )
@@ -33,20 +33,20 @@ async def get_llm_providers(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
-    """List available LLM providers and their models.
+    """List available LLM models and providers.
 
     Used by the dashboard "Connect LLM" modal to populate the
-    provider dropdown and model selector.
+    enterprise model catalog.
     """
     return {
+        "catalog": MODEL_CATALOG,
         "providers": {
-            provider: {
-                "models": models,
-                "default_model": DEFAULT_MODELS.get(provider, ""),
+            provider.value: {
+                "default_model": DEFAULT_MODELS.get(provider.value, ""),
                 "accepts_custom": provider == LLMProvider.SELF_HOSTED,
                 "requires_base_url": provider == LLMProvider.SELF_HOSTED,
             }
-            for provider, models in AVAILABLE_MODELS.items()
+            for provider in LLMProvider
         },
         "self_hosted": {
             "models": [],
@@ -159,15 +159,13 @@ async def create_llm_connection(
     if not body.api_key.strip():
         raise HTTPException(status_code=400, detail="api_key must not be empty")
 
-    # Auto-resolve model: use the platform's curated default for the
-    # provider when the frontend does not send a specific model.
+    # Enterprise rule: explicit model selection is required.
+    # No fallbacks to platform defaults to ensure cost and precision predictability.
     resolved_model = body.model_name
     if not resolved_model or not resolved_model.strip():
-        resolved_model = DEFAULT_MODELS.get(body.provider, "")
-    if not resolved_model:
         raise HTTPException(
             status_code=400,
-            detail=f"No default model configured for provider '{body.provider}'. Please contact support.",
+            detail="Model name is required for enterprise-grade connections.",
         )
 
     # Temperature is locked to 0.0 for deterministic trading analysis.

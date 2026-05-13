@@ -139,7 +139,7 @@ export default function SymbolsSection() {
             <button
               type="button"
               onClick={openUpgradeModal}
-              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:text-brand-dark transition-colors"
+              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline transition-colors"
             >
               Upgrade to Pro →
             </button>
@@ -230,8 +230,8 @@ export default function SymbolsSection() {
                 updateSymbols.mutate(payload);
               }}
               disabled={updateSymbols.isPending || selected.length === 0}
-              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white
-                         hover:bg-brand-dark disabled:opacity-50 transition-colors w-full justify-center"
+              className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand
+                         hover:bg-brand/5 disabled:opacity-50 transition-colors w-full justify-center"
             >
               <Save size={14} /> {updateSymbols.isPending ? 'Saving…' : 'Save Changes'}
             </button>

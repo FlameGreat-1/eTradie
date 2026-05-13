@@ -32,7 +32,7 @@ export default function LlmSection() {
     useTierGate();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ provider: '', api_key: '' });
+  const [form, setForm] = useState({ provider: '', model_id: '', api_key: '' });
 
   // The Platform Key toggle is ON exactly when:
   //   - the user is pro_managed AND
@@ -51,11 +51,12 @@ export default function LlmSection() {
   const handleCreate = async () => {
     await createConn.mutateAsync({
       provider: form.provider,
+      model_name: form.model_id,
       api_key: form.api_key,
       activate: true,
     });
     setShowForm(false);
-    setForm({ provider: '', api_key: '' });
+    setForm({ provider: '', model_id: '', api_key: '' });
   };
 
   const handleToggleClick = async () => {
@@ -108,7 +109,7 @@ export default function LlmSection() {
         </div>
         <button
           onClick={() => setShowForm((p) => !p)}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-dark transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/5 transition-colors"
         >
           <Plus size={12} /> Add Connection
         </button>
@@ -148,17 +149,17 @@ export default function LlmSection() {
             disabled={deactivate.isPending}
             className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border transition-colors
                        focus:outline-none focus:ring-2 focus:ring-brand/60 disabled:opacity-50
-                       ${
-                         platformKeyOn
-                           ? 'bg-brand border-brand'
-                           : isProManaged
-                           ? 'bg-surface-2 border-border'
-                           : 'bg-surface-2 border-border cursor-not-allowed'
-                       }`}
+                        ${
+                          platformKeyOn
+                            ? 'bg-transparent border-brand'
+                            : isProManaged
+                            ? 'bg-surface-2 border-border'
+                            : 'bg-surface-2 border-border cursor-not-allowed'
+                        }`}
           >
             <span
-              className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
-                platformKeyOn ? 'translate-x-6' : 'translate-x-1'
+              className={`inline-block h-4 w-4 rounded-full shadow transform transition-transform ${
+                platformKeyOn ? 'translate-x-6 bg-brand' : 'translate-x-1 bg-white'
               }`}
             />
           </button>
@@ -178,36 +179,42 @@ export default function LlmSection() {
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4">
+        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-content">
-              1. Select AI Provider
+              1. Select Enterprise Model
             </label>
             <select
-              value={form.provider}
-              onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
+              value={form.model_id}
+              onChange={(e) => {
+                const modelId = e.target.value;
+                const model = Array.isArray(providers?.catalog) 
+                  ? providers.catalog.find((m: any) => m.id === modelId)
+                  : null;
+                setForm((f) => ({ ...f, model_id: modelId, provider: model?.provider || '' }));
+              }}
               className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-content focus:outline-none focus:border-brand"
             >
-              <option value="">Choose a provider…</option>
-              {providerList.map((p) => (
-                <option key={p} value={p}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+              <option value="" disabled hidden>Choose a model…</option>
+              {Array.isArray(providers?.catalog) && providers.catalog.map((m: any) => (
+                <option key={m.id} value={m.id}>
+                  {m.display_name}
                 </option>
               ))}
             </select>
           </div>
 
-          {form.provider && (
-            <div className="space-y-1.5">
+          {form.model_id && (
+            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
               <label className="text-xs font-medium text-content">
-                2. Paste your API Key
+                2. Paste {form.provider.toUpperCase()} API Key
               </label>
               <input
                 type="password"
                 autoComplete="off"
                 value={form.api_key}
                 onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
-                placeholder={`Enter your ${form.provider} API key`}
+                placeholder={`sk-...`}
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-content
                            focus:outline-none focus:border-brand placeholder:text-content-muted"
               />
@@ -216,11 +223,11 @@ export default function LlmSection() {
 
           <button
             onClick={handleCreate}
-            disabled={createConn.isPending || !form.provider || !form.api_key}
-            className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white
-                       hover:bg-brand-dark disabled:opacity-40 transition-colors"
+            disabled={createConn.isPending || !form.model_id || !form.api_key}
+            className="w-full rounded-lg bg-transparent border border-brand px-4 py-2.5 text-sm font-semibold text-brand
+                       hover:bg-brand/5 disabled:opacity-40 transition-colors"
           >
-            {createConn.isPending ? 'Connecting…' : 'Activate'}
+            {createConn.isPending ? 'Connecting…' : 'Activate Connection'}
           </button>
         </div>
       )}
@@ -243,10 +250,10 @@ export default function LlmSection() {
                 {isActive && <span className="w-2 h-2 rounded-full bg-success" />}
                 <div>
                   <span className="text-xs font-bold text-content">
-                    {String(c.provider)} / {String(c.model_name)}
+                    {(providers?.catalog as any[])?.find(m => m.id === c.model_name)?.display_name || String(c.model_name)}
                   </span>
                   <span className="block text-[10px] text-content-muted">
-                    Temp: {String(c.temperature)}
+                    Provider: {String(c.provider).toUpperCase()}
                   </span>
                 </div>
               </div>

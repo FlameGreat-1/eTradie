@@ -51,8 +51,8 @@ export default function ExecutionSection() {
                   onClick={() => setForm((f) => ({ ...f, execution_mode: mode }))}
                   className={`px-3 py-1 text-[10px] font-medium rounded-md transition-colors ${
                     form.execution_mode === mode
-                      ? 'bg-brand text-white shadow-sm'
-                      : 'text-content-muted hover:text-content hover:bg-surface-3'
+                      ? 'bg-transparent border border-brand text-brand shadow-sm'
+                      : 'text-content-muted hover:text-content hover:bg-surface-3 border border-transparent'
                   }`}
                 >
                   {mode}
@@ -93,8 +93,8 @@ export default function ExecutionSection() {
           <button
             onClick={handleSave}
             disabled={updateSettings.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white
-                       hover:bg-brand-dark disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand
+                       hover:bg-brand/5 disabled:opacity-50 transition-colors"
           >
             <Save size={12} /> {updateSettings.isPending ? 'Saving…' : 'Save Settings'}
           </button>

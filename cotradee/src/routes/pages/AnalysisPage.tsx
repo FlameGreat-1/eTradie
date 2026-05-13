@@ -74,8 +74,8 @@ export default function AnalysisPage() {
           <button
             onClick={handleRerun}
             disabled={rerun.isPending || !rerunSymbol.trim()}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white
-                       hover:bg-brand-hover disabled:opacity-50 transition-colors duration-fast focus-ring"
+            className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand
+                       hover:bg-brand/5 disabled:opacity-50 transition-colors duration-fast focus-ring"
           >
             <RefreshCw size={12} className={rerun.isPending ? 'animate-spin' : ''} />
             Re-analyze
@@ -148,25 +148,25 @@ export default function AnalysisPage() {
               <span className="text-right text-content-muted">
                 {a.created_at ? formatRelativeTime(String(a.created_at)) : ''}
               </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setSelectedId(id);
-                }}
-                disabled={!id}
-                aria-expanded={isOpen}
-                aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
-                className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
-                            transition-all duration-300 focus-ring
-                            ${
-                              isOpen
-                                ? 'bg-brand text-white rotate-180'
-                                : 'bg-surface-2 text-content-muted group-hover:bg-surface-3'
-                            }`}
-              >
-                <ChevronDown size={14} strokeWidth={2.5} />
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (id) setSelectedId(id);
+                  }}
+                  disabled={!id}
+                  aria-expanded={isOpen}
+                  aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
+                  className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
+                              transition-all duration-300 focus-ring border
+                              ${
+                                isOpen
+                                  ? 'bg-transparent border-brand text-brand'
+                                  : 'bg-surface-2 border-transparent text-content-muted group-hover:bg-surface-3'
+                              }`}
+                >
+                  <ChevronDown size={14} strokeWidth={2.5} className={isOpen ? 'rotate-180' : ''} />
+                </button>
             </div>
           );
         })}
@@ -222,14 +222,14 @@ export default function AnalysisPage() {
                     aria-expanded={isOpen}
                     aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
                     className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
-                                transition-all duration-300 focus-ring
+                                transition-all duration-300 focus-ring border
                                 ${
                                   isOpen
-                                    ? 'bg-brand text-white rotate-180'
-                                    : 'bg-surface-2 text-content-muted'
+                                    ? 'bg-transparent border-brand text-brand'
+                                    : 'bg-surface-2 border-transparent text-content-muted'
                                 }`}
                   >
-                    <ChevronDown size={14} strokeWidth={2.5} />
+                    <ChevronDown size={14} strokeWidth={2.5} className={isOpen ? 'rotate-180' : ''} />
                   </button>
                 </div>
               </div>

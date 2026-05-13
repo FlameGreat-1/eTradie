@@ -92,8 +92,8 @@ const softCapTemplate = `<!DOCTYPE html>
 <body style="margin:0;padding:0;background-color:#0b0b0f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#e6e6ea;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0b0b0f;">
     <tr>
-      <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;width:100%;background-color:#141419;border:1px solid #25252d;border-radius:12px;overflow:hidden;">
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background-color:#141419;border:1px solid #25252d;border-radius:12px;overflow:hidden;margin: 0 auto;">
           <tr>
             <td style="padding:32px 32px 16px 32px;">
               <p style="margin:0 0 8px 0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#f5a623;">Usage warning</p>

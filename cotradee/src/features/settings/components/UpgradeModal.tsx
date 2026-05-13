@@ -196,15 +196,15 @@ export default function UpgradeModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 px-4">
-      <div className="relative w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 px-4 py-8 overflow-y-auto">
+      <div className="relative w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 my-auto">
         {/* NVIDIA-style Glow */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#76b900]/10 blur-[80px] rounded-full pointer-events-none" />
 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="bg-[#76b900]/20 p-2 rounded-lg border border-[#76b900]/20">
+            <div className="bg-transparent p-2 rounded-lg border border-[#76b900]">
               <Zap className="text-[#76b900] w-5 h-5" />
             </div>
             <div>
@@ -397,16 +397,16 @@ function TierCard({
       <button
         onClick={onUpgrade}
         disabled={isLoading || isCurrent}
-        className="w-full btn-cta-brand py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+        className="w-full py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 rounded-xl bg-transparent border border-[#76b900] text-white hover:bg-[#76b900]/5 transition-colors font-semibold"
       >
         {isCurrent ? (
           'Current Plan'
         ) : isLoading ? (
-          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-[#76b900]/20 border-t-[#76b900] rounded-full animate-spin" />
         ) : (
           <>
             Proceed to Checkout
-            <ExternalLink size={14} />
+            <ExternalLink size={14} className="text-[#76b900]" />
           </>
         )}
       </button>

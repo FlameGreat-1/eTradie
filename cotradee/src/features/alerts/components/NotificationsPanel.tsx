@@ -176,7 +176,7 @@ function NotificationsPanelInner() {
         <img src="/assets/dashboard/icons/bellIcon.svg" alt="Notifications" className="w-[18px] h-[18px] object-contain" />
         {unreadCount > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand
+            className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger
                        text-[9px] font-bold text-white flex items-center justify-center leading-none
                        border border-surface-2"
             aria-label={`${unreadCount} unread notifications`}

@@ -86,10 +86,10 @@ const passwordResetTemplate = `<!DOCTYPE html>
   <title>Reset your Exoper password</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#e6e6e6;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%%" style="background-color:#0a0a0a;padding:40px 16px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#0a0a0a;">
     <tr>
-      <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;background-color:#111;border:1px solid #1f1f1f;border-radius:12px;padding:32px;">
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background-color:#111;border:1px solid #1f1f1f;border-radius:12px;padding:32px;margin: 0 auto;">
           <tr>
             <td style="padding-bottom:24px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">

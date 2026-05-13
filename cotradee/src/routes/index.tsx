@@ -20,6 +20,7 @@ const TradesPage    = lazy(() => import('./pages/TradesPage'));
 const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 
 /* ─── Legal & compliance pages (public, reachable by guests and authed users) ─── */
 const TermsPage           = lazy(() => import('./pages/TermsPage'));
@@ -214,6 +215,7 @@ export default function AppRoutes() {
                     />
                     <Route path="settings/*" element={<SettingsPage />} />
                     <Route path="support"    element={<SupportPage />} />
+                    <Route path="community"  element={<CommunityPage />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Suspense>

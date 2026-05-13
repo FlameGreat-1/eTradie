@@ -62,7 +62,7 @@ export default function ProfileSection() {
                          focus:border-brand focus:outline-none transition-colors" />
           </div>
           <button type="submit" disabled={loading}
-            className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50 transition-colors">
+            className="rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand hover:bg-brand/5 disabled:opacity-50 transition-colors">
             {loading ? 'Updating…' : 'Update Password'}
           </button>
         </form>
@@ -193,8 +193,8 @@ function ConnectedAccountsPanel() {
                 onClick={handleConnect}
                 disabled={isLinking}
                 aria-busy={isLinking}
-                className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white
-                           hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed
+                className="rounded-lg bg-transparent border border-brand px-3 py-1.5 text-xs font-semibold text-brand
+                           hover:bg-brand/5 disabled:opacity-60 disabled:cursor-not-allowed
                            transition-colors"
               >
                 {isLinking ? 'Redirecting…' : 'Connect'}

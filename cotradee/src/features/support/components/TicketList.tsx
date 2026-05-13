@@ -34,25 +34,26 @@ function TicketList({
 
   return (
     <section
-      className="flex flex-col h-full rounded-xl border border-border bg-surface-1 overflow-hidden"
+      className="flex flex-col h-full overflow-hidden"
       aria-label="Your support tickets"
     >
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={14} className="text-brand" />
-          <h2 className="text-xs font-bold text-content uppercase tracking-wide">
-            {isAdmin ? 'Inbound tickets' : 'Your tickets'}
-          </h2>
-        </div>
+      <header className="flex items-center justify-between px-4 py-4">
+        <h2 className="text-[11px] font-bold text-content uppercase tracking-widest opacity-60">
+          {isAdmin ? 'Inbound' : 'History'}
+        </h2>
         {!isAdmin && (
           <button
             type="button"
             onClick={onNewTicket}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand px-2.5 h-7 text-[11px] font-semibold
-                       text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+            className="group relative flex items-center h-8 w-8 rounded-full border border-brand/40 
+                       text-content hover:w-28 hover:bg-brand/10 hover:border-brand transition-all duration-300 overflow-hidden"
           >
-            <Plus size={12} />
-            New
+            <div className="absolute inset-0 flex items-center justify-center w-8">
+              <Plus size={16} strokeWidth={3} />
+            </div>
+            <div className="ml-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap px-2">
+              <span className="text-[10px] font-bold">New Ticket</span>
+            </div>
           </button>
         )}
       </header>
@@ -70,16 +71,18 @@ function TicketList({
         ) : !data || data.tickets.length === 0 ? (
           <EmptyState onNewTicket={onNewTicket} />
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="space-y-1 px-2">
             {data.tickets.map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => onSelect(t.id)}
-                  className={`w-full text-left px-4 py-3 hover:bg-surface-2 transition-colors duration-fast focus-ring
-                              ${selectedId === t.id ? 'bg-surface-2' : ''}`}
+                  className={`w-full text-left px-3 py-3 rounded-lg transition-all duration-fast focus-ring
+                              ${selectedId === t.id 
+                                ? 'bg-surface-2 text-content' 
+                                : 'text-content-muted hover:bg-surface-2/50 hover:text-content'}`}
                 >
-                  <TicketRow ticket={t} isAdmin={isAdmin} />
+                  <TicketRow ticket={t} isAdmin={isAdmin} isActive={selectedId === t.id} />
                 </button>
               </li>
             ))}
@@ -108,8 +111,8 @@ function EmptyState({ onNewTicket, isAdmin }: { onNewTicket: () => void, isAdmin
         <button
           type="button"
           onClick={onNewTicket}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
-                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 h-9 text-xs font-semibold
+                     text-brand hover:bg-brand/5 transition-colors duration-fast focus-ring"
         >
           <Plus size={14} />
           Open a ticket
@@ -119,30 +122,28 @@ function EmptyState({ onNewTicket, isAdmin }: { onNewTicket: () => void, isAdmin
   );
 }
 
-function TicketRow({ ticket, isAdmin }: { ticket: Ticket, isAdmin?: boolean }) {
+function TicketRow({ ticket, isAdmin, isActive }: { ticket: Ticket, isAdmin?: boolean, isActive?: boolean }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <StatusBadge status={ticket.status} />
-        <span className="font-mono text-[10px] text-content-muted">{ticket.public_ref}</span>
-      </div>
-      <p className="text-xs font-semibold text-content line-clamp-1">{ticket.subject}</p>
-      {isAdmin && (
-        <p className="text-[10px] font-medium text-brand truncate -mt-1">
-          {ticket.name || ticket.email}
-        </p>
-      )}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-content-muted">
-          {CATEGORY_LABELS[ticket.category]} · {PRIORITY_LABELS[ticket.priority]}
-        </span>
-        <time
-          className="text-[10px] text-content-muted shrink-0"
-          dateTime={ticket.updated_at}
-          title={new Date(ticket.updated_at).toLocaleString()}
-        >
+        <p className={`text-xs font-semibold truncate ${isActive ? 'text-content' : 'text-content-muted hover:text-content'}`}>
+          {ticket.subject}
+        </p>
+        <time className="text-[10px] text-content-muted opacity-60 shrink-0">
           {relativeTime(ticket.updated_at)}
         </time>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 opacity-60">
+          <span className="font-mono text-[10px] text-content-muted">{ticket.public_ref}</span>
+          <span className="text-[10px] text-content-muted">·</span>
+          <span className="text-[10px] text-content-muted truncate">
+            {isAdmin ? (ticket.name || ticket.email) : CATEGORY_LABELS[ticket.category]}
+          </span>
+        </div>
+        <span className="text-[9px] font-bold text-brand uppercase tracking-tighter opacity-80">
+          {PRIORITY_LABELS[ticket.priority]}
+        </span>
       </div>
     </div>
   );

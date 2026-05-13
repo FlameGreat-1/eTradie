@@ -228,7 +228,7 @@ function Header({ onMenuClick }: HeaderProps) {
               onClick={onMenuClick}
               className="flex items-center justify-center w-9 h-9 rounded-md
                          bg-surface-2 border border-border text-content focus-ring
-                         transition-colors duration-fast hover:border-brand"
+                         transition-colors duration-fast hover:border-brand hover:bg-brand/5"
               aria-label="Open navigation menu"
             >
               <Menu size={16} />
@@ -238,7 +238,7 @@ function Header({ onMenuClick }: HeaderProps) {
             onClick={() => setShowStatsDrawer((p) => !p)}
             className="flex items-center justify-center w-9 h-9 rounded-md
                        bg-surface-2 border border-border text-content focus-ring
-                       transition-colors duration-fast hover:border-brand"
+                       transition-colors duration-fast hover:border-brand hover:bg-brand/5"
             aria-label="Toggle account stats"
             aria-expanded={showStatsDrawer}
           >
@@ -502,7 +502,7 @@ function IconButton({
       onClick={onClick}
       disabled={disabled}
       className={`flex items-center justify-center w-9 h-9 rounded-full
-                  bg-surface-2 border border-border hover:border-brand transition-colors duration-fast
+                  bg-surface-2 border border-border hover:border-brand hover:bg-brand/5 transition-colors duration-fast
                   disabled:opacity-50 disabled:hover:border-border focus-ring ${className ?? ''}`}
     >
       {children}

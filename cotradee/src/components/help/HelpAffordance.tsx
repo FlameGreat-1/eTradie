@@ -28,6 +28,7 @@ export function isHelpVisibleOnPath(pathname: string): boolean {
   // /faq so users still reach it from everywhere else.
   if (path === '/faq' || path === '/faqs') return false;
   if (path === '/dashboard/journal') return false;
+  if (path.startsWith('/dashboard/support')) return false;
   return true;
 }
 

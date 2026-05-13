@@ -481,6 +481,102 @@ func (s *Store) CountOpenByEmail(ctx context.Context, email string) (int64, erro
 	return n, nil
 }
 
+// autoCloseChunkSize bounds the number of tickets processed per
+// AutoCloseInactiveTickets call. Each ticket gets its own audit row
+// so we cap the batch to avoid holding a transaction open too long.
+const autoCloseChunkSize = 500
+
+// AutoCloseInactiveTickets transitions tickets in the 'resolved'
+// state whose updated_at is at or before the given cutoff to the
+// terminal 'closed' state. For each transitioned ticket an audit
+// row is written with actor_kind='system' and action='auto_closed'
+// so the compliance trail is complete.
+//
+// The operation runs inside a single transaction: if the audit
+// inserts fail, no tickets are closed — the two tables stay
+// consistent. The method is designed to be called periodically by
+// the gateway's background janitor (every hour).
+//
+// Returns the number of tickets closed.
+func (s *Store) AutoCloseInactiveTickets(ctx context.Context, cutoff time.Time) (int64, error) {
+	now := time.Now().UTC()
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("support: auto-close begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Step 1: Identify and transition resolved tickets that have been
+	// inactive past the cutoff. The LIMIT caps the batch size so a
+	// single janitor tick cannot monopolise the connection pool.
+	rows, err := tx.Query(ctx,
+		`UPDATE support_tickets
+		    SET status    = $1,
+		        closed_at = $2,
+		        updated_at = $2
+		  WHERE id IN (
+		    SELECT id
+		      FROM support_tickets
+		     WHERE status = $3
+		       AND updated_at <= $4
+		     LIMIT $5
+		  )
+		  RETURNING id`,
+		string(StatusClosed), now,
+		string(StatusResolved), cutoff,
+		autoCloseChunkSize,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("support: auto-close update: %w", err)
+	}
+
+	var closedIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("support: auto-close scan: %w", err)
+		}
+		closedIDs = append(closedIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("support: auto-close iterate: %w", err)
+	}
+
+	if len(closedIDs) == 0 {
+		return 0, nil
+	}
+
+	// Step 2: Write one audit row per closed ticket. The audit table
+	// is append-only and the rows are small, so a batch insert via a
+	// single multi-value INSERT is efficient and atomic.
+	for _, ticketID := range closedIDs {
+		auditID := generateID()
+		tid := ticketID // capture for pointer
+		_, err := tx.Exec(ctx,
+			`INSERT INTO support_ticket_audit
+			   (id, ticket_id, action, actor_kind, actor_id,
+			    ip_address, user_agent, metadata, created_at)
+			 VALUES ($1, $2, $3, $4, '', '', '', '{"reason":"inactivity_timeout"}'::jsonb, $5)`,
+			auditID, &tid,
+			string(ActionAutoClosed), string(ActorSystem),
+			now,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("support: auto-close audit insert: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("support: auto-close commit: %w", err)
+	}
+
+	return int64(len(closedIDs)), nil
+}
+
+
 // ----------------------------------------------------------------------
 // Internal helpers
 // ----------------------------------------------------------------------

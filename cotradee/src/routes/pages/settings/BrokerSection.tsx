@@ -72,7 +72,7 @@ export default function BrokerSection() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-content">Broker Connections</h3>
         <button onClick={() => setShowForm((p) => !p)}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-dark transition-colors">
+          className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/5 transition-colors">
           <Plus size={12} /> Add Connection
         </button>
       </div>
@@ -145,7 +145,7 @@ export default function BrokerSection() {
             )}
           </div>
           <button onClick={handleCreate} disabled={createConn.isPending}
-            className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50 transition-colors">
+            className="rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand hover:bg-brand/5 disabled:opacity-50 transition-colors">
             {createConn.isPending ? 'Creating…' : 'Create Connection'}
           </button>
         </div>

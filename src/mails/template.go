@@ -29,9 +29,9 @@ const waitlistTemplate = `<!DOCTYPE html>
 <title>Welcome to Exoper</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;padding:40px 20px;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#111111;border-radius:16px;border:1px solid rgba(255,255,255,0.06);overflow:hidden;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">
+<tr><td align="center" style="padding: 20px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#111111;border-radius:16px;border:1px solid rgba(255,255,255,0.06);overflow:hidden;margin: 0 auto;">
 
   <!-- Header with Logo -->
   <tr><td style="padding:40px 40px 24px 40px;text-align:center;">

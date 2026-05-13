@@ -234,13 +234,19 @@ const (
 	// but no ticket is persisted; this row is the only durable
 	// record of the event for forensics.
 	ActionHoneypotDropped TicketAction = "honeypot_dropped"
+
+	// ActionAutoClosed fires when the background janitor transitions
+	// a resolved ticket to closed after the configured inactivity
+	// period (SUPPORT_AUTO_CLOSE_AFTER) has elapsed without any new
+	// user reply. The audit row's actor_kind is always 'system'.
+	ActionAutoClosed TicketAction = "auto_closed"
 )
 
 // IsValid returns true for the closed enum of TicketAction values.
 func (a TicketAction) IsValid() bool {
 	switch a {
 	case ActionCreated, ActionReplied, ActionClosed,
-		ActionReopened, ActionHoneypotDropped:
+		ActionReopened, ActionHoneypotDropped, ActionAutoClosed:
 		return true
 	}
 	return false

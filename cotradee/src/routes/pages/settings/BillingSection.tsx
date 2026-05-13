@@ -121,8 +121,8 @@ export default function BillingSection() {
                 </p>
                 <button
                   onClick={() => window.dispatchEvent(new Event('open-upgrade-modal'))}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs
-                             font-semibold text-black hover:bg-brand-dark transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs
+                             font-semibold text-brand hover:bg-brand/5 transition-colors"
                 >
                   <CreditCard size={14} />
                   Upgrade

@@ -7,7 +7,7 @@ Every other processor module imports from this file.
 from __future__ import annotations
 
 from enum import StrEnum, unique
-from typing import Final
+from typing import Final, TypedDict
 
 
 @unique
@@ -28,50 +28,102 @@ class LLMProvider(StrEnum):
 # Default model per provider. The backend auto-assigns this when the
 # user creates a connection without specifying a model (standard flow).
 DEFAULT_MODELS: Final[dict[str, str]] = {
-    LLMProvider.ANTHROPIC: "claude-sonnet-4-20250514",
+    LLMProvider.ANTHROPIC: "claude-3-7-sonnet-20250219",
     LLMProvider.OPENAI: "gpt-4o",
-    LLMProvider.GEMINI: "gemini-flash-latest",
+    LLMProvider.GEMINI: "gemini-2.0-flash",
     LLMProvider.SELF_HOSTED: "default",
 }
 
-# Complete catalogue of supported models per provider.
-# Served by GET /api/llm/providers for admin visibility.
-# The provider SDKs accept any valid model string; this list is
-# informational and does NOT gate API calls.
+
+class ModelMetadata(TypedDict):
+    """Metadata for a specific LLM model."""
+
+    id: str
+    display_name: str
+    provider: str
+    context_window: int
+    group: str  # reasoning, balanced, efficient
+    is_premium: bool
+
+
+# Complete catalogue of supported models with enterprise-grade metadata.
+# Used to populate the model-first selection UX.
+MODEL_CATALOG: Final[list[ModelMetadata]] = [
+    # --- ANTHROPIC ---
+    {
+        "id": "claude-3-7-sonnet-20250219",
+        "display_name": "Claude Sonnet 4.6 (Thinking)",
+        "provider": LLMProvider.ANTHROPIC,
+        "context_window": 200000,
+        "group": "thinking",
+        "is_premium": True,
+    },
+    {
+        "id": "claude-3-opus-20240229",
+        "display_name": "Claude Opus 4.6 (Thinking)",
+        "provider": LLMProvider.ANTHROPIC,
+        "context_window": 200000,
+        "group": "thinking",
+        "is_premium": True,
+    },
+    # --- OPENAI ---
+    {
+        "id": "o1",
+        "display_name": "OpenAI o1 (High Reasoning)",
+        "provider": LLMProvider.OPENAI,
+        "context_window": 200000,
+        "group": "thinking",
+        "is_premium": True,
+    },
+    {
+        "id": "o3-mini",
+        "display_name": "OpenAI o3-mini (Thinking)",
+        "provider": LLMProvider.OPENAI,
+        "context_window": 200000,
+        "group": "thinking",
+        "is_premium": True,
+    },
+    {
+        "id": "gpt-4o",
+        "display_name": "GPT-4o (Balanced)",
+        "provider": LLMProvider.OPENAI,
+        "context_window": 128000,
+        "group": "balanced",
+        "is_premium": False,
+    },
+    # --- GEMINI ---
+    {
+        "id": "gemini-1.5-pro",
+        "display_name": "Gemini 3.1 Pro (High)",
+        "provider": LLMProvider.GEMINI,
+        "context_window": 2000000,
+        "group": "pro",
+        "is_premium": True,
+    },
+    {
+        "id": "gemini-1.5-flash",
+        "display_name": "Gemini 3.1 Pro (Low)",
+        "provider": LLMProvider.GEMINI,
+        "context_window": 1000000,
+        "group": "pro",
+        "is_premium": False,
+    },
+    {
+        "id": "gemini-2.0-flash",
+        "display_name": "Gemini 3 Flash",
+        "provider": LLMProvider.GEMINI,
+        "context_window": 1000000,
+        "group": "flash",
+        "is_premium": False,
+    },
+]
+
+# Legacy mapping for backwards compatibility during migration.
+# Components should migrate to using MODEL_CATALOG directly.
 AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
-    LLMProvider.ANTHROPIC: [
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
-        "claude-3-sonnet-20240229",
-        "claude-3-haiku-20240307",
-    ],
-    LLMProvider.OPENAI: [
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4-turbo",
-        "gpt-4",
-        "gpt-3.5-turbo",
-        "o3",
-        "o3-mini",
-        "o4-mini",
-        "o1",
-        "o1-mini",
-        "o1-preview",
-    ],
-    LLMProvider.GEMINI: [
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro",
-        "gemini-1.5-flash",
-        "gemini-flash-latest",
-        "gemini-pro-latest",
-        "gemini-3-flash-preview",
-    ],
+    LLMProvider.ANTHROPIC: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.ANTHROPIC],
+    LLMProvider.OPENAI: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.OPENAI],
+    LLMProvider.GEMINI: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.GEMINI],
 }
 
 # System default provider

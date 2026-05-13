@@ -92,4 +92,15 @@ var (
 		Name: "support_audit_write_failures_total",
 		Help: "Failed inserts into the append-only support_ticket_audit table, partitioned by action.",
 	}, []string{"action"})
+
+	// SupportTicketsAutoClosedTotal counts every ticket transitioned
+	// from 'resolved' to 'closed' by the background inactivity
+	// janitor. A flat-line in this counter while resolved tickets
+	// exist indicates the janitor is not running; a sudden spike may
+	// indicate a mass-resolution event upstream. No labels — the
+	// cardinality is always 1.
+	SupportTicketsAutoClosedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "support_tickets_auto_closed_total",
+		Help: "Tickets auto-closed by the background inactivity janitor.",
+	})
 )

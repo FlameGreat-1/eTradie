@@ -230,6 +230,8 @@ func main() {
 		Bool("telegram_enabled", supportCfg.TelegramEnabled()).
 		Bool("whatsapp_enabled", supportCfg.WhatsAppEnabled()).
 		Bool("community_links_configured", supportCfg.HasCommunityLinks()).
+		Bool("auto_close_enabled", supportCfg.AutoCloseEnabled()).
+		Dur("auto_close_after", supportCfg.AutoCloseAfter).
 		Msg("support_service_initialized")
 
 	// Initialize OpenTelemetry tracing. When GATEWAY_OTEL_ENDPOINT is
@@ -345,6 +347,21 @@ func main() {
 					log.Error().Err(err).Msg("consent_retention_cleanup_failed")
 				} else if consentDeleted > 0 {
 					log.Info().Int64("deleted", consentDeleted).Msg("consent_expired_rows_cleaned")
+				}
+				// Auto-close resolved support tickets that have been
+				// inactive for longer than SUPPORT_AUTO_CLOSE_AFTER.
+				// Only runs when the feature is enabled (duration > 0).
+				// Each closed ticket gets an audit row with actor='system'
+				// and action='auto_closed' for compliance traceability.
+				if supportCfg.AutoCloseEnabled() {
+					autoCloseCutoff := time.Now().UTC().Add(-supportCfg.AutoCloseAfter)
+					autoClosed, err := supportStore.AutoCloseInactiveTickets(cleanupCtx, autoCloseCutoff)
+					if err != nil {
+						log.Error().Err(err).Msg("support_auto_close_failed")
+					} else if autoClosed > 0 {
+						support.SupportTicketsAutoClosedTotal.Add(float64(autoClosed))
+						log.Info().Int64("closed", autoClosed).Dur("after", supportCfg.AutoCloseAfter).Msg("support_tickets_auto_closed")
+					}
 				}
 				cancel()
 			}

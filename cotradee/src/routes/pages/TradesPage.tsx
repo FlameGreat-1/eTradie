@@ -179,7 +179,7 @@ export default function TradesPage() {
                       />
                     </Td>
                     <Td align="center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand-soft text-brand">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-transparent border border-brand text-brand">
                         {t.status}
                       </span>
                     </Td>
@@ -229,7 +229,7 @@ export default function TradesPage() {
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <ProgressDots be={t.breakeven_set} tp1={t.tp1_hit} tp2={t.tp2_hit} />
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand-soft text-brand">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-transparent border border-brand text-brand">
                   {t.status}
                 </span>
               </div>
@@ -377,7 +377,7 @@ function DirectionPill({ dir }: { dir: string }) {
   const isBuy = norm === 'BUY' || norm === 'LONG';
   const isSell = norm === 'SELL' || norm === 'SHORT';
   const cls = isBuy
-    ? 'bg-success-soft text-success'
+    ? 'bg-transparent text-success border border-success'
     : isSell
     ? 'bg-danger-soft text-danger'
     : 'bg-surface-3 text-content-muted';

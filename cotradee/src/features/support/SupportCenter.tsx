@@ -91,8 +91,8 @@ function SupportCenter() {
   const selectedId = panel.kind === 'detail' ? panel.ticketId : null;
 
   return (
-    <div className="h-full overflow-auto p-4 sm:p-6 animate-fade-in">
-      <div className="max-w-6xl mx-auto flex flex-col gap-4">
+    <div className="h-full flex flex-col animate-fade-in bg-surface-1">
+      <div className="flex-none px-6 py-4 border-b border-border/30">
         <header className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand-soft text-brand">
             <span className="brand-icon-help" style={{ width: 20, height: 20 }} aria-hidden />
@@ -108,9 +108,11 @@ function SupportCenter() {
             </p>
           </div>
         </header>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] gap-4 lg:h-[70vh]">
-          <div className={`${mobileShowDetail ? 'hidden lg:block' : 'block'} lg:h-full min-h-[420px]`}>
+      <div className="flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] h-full">
+          <div className={`${mobileShowDetail ? 'hidden lg:block' : 'block'} h-full border-r border-border/50 bg-surface-1`}>
             <TicketList
               selectedId={selectedId}
               onSelect={openTicket}
@@ -119,7 +121,7 @@ function SupportCenter() {
             />
           </div>
 
-          <div className={`${mobileShowDetail ? 'block' : 'hidden lg:block'} lg:h-full min-h-[420px]`}>
+          <div className={`${mobileShowDetail ? 'block' : 'hidden lg:block'} h-full bg-surface-1/50`}>
             {panel.kind === 'detail' ? (
               <TicketDetail 
                 ticketId={panel.ticketId} 
@@ -138,10 +140,6 @@ function SupportCenter() {
               <EmptyDetail onNewTicket={openNew} isAdmin={isAdmin} />
             )}
           </div>
-        </div>
-
-        <div className="mt-8">
-          <CommunityLinks />
         </div>
       </div>
     </div>
@@ -166,8 +164,8 @@ function EmptyDetail({ onNewTicket, isAdmin }: { onNewTicket: () => void, isAdmi
         <button
           type="button"
           onClick={onNewTicket}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-xs font-semibold
-                     text-white hover:bg-brand-hover transition-colors duration-fast focus-ring"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 h-9 text-xs font-semibold
+                     text-brand hover:bg-brand/5 transition-colors duration-fast focus-ring"
         >
           Open a new ticket
         </button>
