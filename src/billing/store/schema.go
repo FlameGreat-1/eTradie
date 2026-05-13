@@ -76,6 +76,7 @@ ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_quota_blocked_count_today
 ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_quota_blocked_count_month INT    NOT NULL DEFAULT 0;
 ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS monthly_window_start          TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS llm_last_metered_at           TIMESTAMPTZ;
+ALTER TABLE billing_usage ADD COLUMN IF NOT EXISTS soft_cap_notified_at          TIMESTAMPTZ;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- LLM token reservations.
