@@ -11,6 +11,7 @@ import {
   useTradingPlanStatus,
   useUpdateTradingPlan,
   type TradingPlan,
+  type TradingPlanStatus,
 } from '..';
 import { TraderProfileSection } from './sections/TraderProfileSection';
 import { AccountParametersSection } from './sections/AccountParametersSection';
@@ -54,7 +55,7 @@ export function TradingPlanView() {
   // SPA fetches the freshly-persisted workbook without waiting for
   // the 30-second staleTime to elapse. Tracked via a ref so the
   // invalidation fires once per transition, not on every render.
-  const lastStatusRef = useRef<typeof statusView extends undefined ? undefined : string | undefined>(undefined);
+  const lastStatusRef = useRef<TradingPlanStatus | undefined>(undefined);
   useEffect(() => {
     const current = statusView?.status;
     const previous = lastStatusRef.current;
