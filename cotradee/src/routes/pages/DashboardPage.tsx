@@ -10,7 +10,7 @@ import {
   type TradeLevels,
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
-import { OnboardingChecklist } from '@/features/tradingsystem/components/OnboardingChecklist';
+import { WelcomeSetupCard } from '@/features/tradingsystem/components/WelcomeSetupCard';
 import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
 
 /**
@@ -257,7 +257,7 @@ export default function DashboardPage() {
               symbolMeta={symbolMeta}
             />
           ) : needsOnboarding ? (
-            <OnboardingChecklist />
+            <WelcomeSetupCard />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-content-muted">
               Add a symbol from the watchlist to begin charting.
