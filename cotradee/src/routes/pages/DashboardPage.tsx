@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
@@ -11,6 +11,7 @@ import {
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
 import { OnboardingChecklist } from '@/features/tradingsystem/components/OnboardingChecklist';
+import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
 
 /**
  * Dashboard.
@@ -121,6 +122,15 @@ export default function DashboardPage() {
   const broker = useActiveBrokerConnection();
   const needsOnboarding =
     !broker.isLoading && !broker.data && symbols.length === 0;
+
+  // Partially-onboarded state: the user has a broker and a symbol
+  // (so the chart renders) but has not finished every functional
+  // step. We surface a small Resume Setup pill so they can resume
+  // the checklist without losing their chart context.
+  const onboarding = useOnboardingProgress();
+  const navigate = useNavigate();
+  const showResumeSetupPill =
+    !needsOnboarding && !onboarding.loading && !onboarding.ready;
 
   // Chart state from URL (synced with Header controls).
   // On login redirect the URL has no params, so we fall back to the
@@ -252,6 +262,25 @@ export default function DashboardPage() {
             <div className="flex items-center justify-center h-full text-sm text-content-muted">
               Add a symbol from the watchlist to begin charting.
             </div>
+          )}
+          {showResumeSetupPill && (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/setup')}
+              className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 rounded-full
+                         border border-border bg-surface px-3 py-1.5 text-xs font-semibold
+                         text-content shadow-sm hover:border-content-muted focus-ring"
+              aria-label="Resume onboarding setup"
+            >
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full bg-brand"
+                aria-hidden
+              />
+              Resume setup
+              <span className="text-content-muted tabular-nums">
+                {onboarding.completed}/{onboarding.total}
+              </span>
+            </button>
           )}
         </div>
       </div>

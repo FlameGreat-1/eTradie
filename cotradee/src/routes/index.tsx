@@ -19,6 +19,7 @@ const AnalysisPage  = lazy(() => import('./pages/AnalysisPage'));
 const TradesPage    = lazy(() => import('./pages/TradesPage'));
 const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const TradingSystemPage = lazy(() => import('./pages/TradingSystemPage'));
+const SetupPage = lazy(() => import('./pages/SetupPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
@@ -203,6 +204,7 @@ export default function AppRoutes() {
                     <Route path="trades"          element={<TradesPage />} />
                     <Route path="journal"         element={<JournalPage />} />
                     <Route path="trading-system"  element={<TradingSystemPage />} />
+                    <Route path="setup"           element={<SetupPage />} />
                     {/*
                       Authenticated Google-link callback. Must live
                       inside ProtectedRoute so the bearer token is

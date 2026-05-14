@@ -153,7 +153,24 @@ func (s *Scheduler) issueUserServiceContext(ctx context.Context, user *auth.User
 		return nil
 	}
 
-	return auth.InjectTokenIntoContext(ctx, serviceToken)
+	// Inject BOTH the raw token (so downstream HTTP callers can
+	// forward it as a Bearer for the engine's user-facing /api/*
+	// surface) AND the parsed claims (so UserIDFromContext,
+	// RoleFromContext, and ClaimsFromContext work for the gateway's
+	// own /internal/* path — these readers look up the claimsKey,
+	// NOT the rawTokenKey). Without the claims injection the gateway
+	// never sets X-User-Id on /internal/processor/process and the
+	// engine never fetches the user Trading System.
+	claims := &auth.Claims{
+		UserID:   user.ID,
+		Username: user.Username,
+		Role:     user.Role,
+		Tier:     user.Tier,
+		Status:   user.Status,
+	}
+	ctx = auth.InjectTokenIntoContext(ctx, serviceToken)
+	ctx = auth.InjectClaimsIntoContext(ctx, claims)
+	return ctx
 }
 
 // Start begins the scheduler. Blocks until ctx is cancelled.

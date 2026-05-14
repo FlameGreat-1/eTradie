@@ -26,7 +26,12 @@ const internalAuthHeader = "X-Internal-Auth"
 // internalUserIDHeader carries the authenticated user's ID on internal
 // calls so the engine can resolve the correct per-user broker connection
 // without requiring a full JWT on the internal path.
-const internalUserIDHeader = "X-User-Id"
+const (
+	internalUserIDHeader       = "X-User-Id"
+	internalUserTierHeader     = "X-User-Tier"
+	internalUserRoleHeader     = "X-User-Role"
+	internalUserUsernameHeader = "X-User-Username"
+)
 
 // EngineHTTPClient communicates with the Python engine's internal HTTP endpoints.
 type EngineHTTPClient struct {
@@ -116,7 +121,28 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 			if c.internalSecret != "" {
 				req.Header.Set(internalAuthHeader, c.internalSecret)
 			}
-			if userID := auth.UserIDFromContext(ctx); userID != "" {
+			// Forward the full authenticated identity. The engine's
+			// /internal/processor/process handler reads all four to
+			// construct an AuthenticatedUser for LLM connection
+			// resolution (tier governs whether the platform key
+			// fallback is allowed). Empty values are not sent so the
+			// engine sees an absent header rather than an empty one.
+			if claims := auth.ClaimsFromContext(ctx); claims != nil {
+				if claims.UserID != "" {
+					req.Header.Set(internalUserIDHeader, claims.UserID)
+				}
+				if claims.Tier != "" {
+					req.Header.Set(internalUserTierHeader, claims.Tier)
+				}
+				if claims.Role != "" {
+					req.Header.Set(internalUserRoleHeader, string(claims.Role))
+				}
+				if claims.Username != "" {
+					req.Header.Set(internalUserUsernameHeader, claims.Username)
+				}
+			} else if userID := auth.UserIDFromContext(ctx); userID != "" {
+				// Defensive fallback: a future caller that injects only
+				// user_id (no full claims) still gets the user_id header.
 				req.Header.Set(internalUserIDHeader, userID)
 			}
 		} else {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
@@ -34,6 +35,28 @@ func (a *HTTPProcessorAdapter) Process(ctx context.Context, input *models.Proces
 
 	if traceID, ok := input.Metadata["trace_id"]; ok {
 		reqBody["trace_id"] = traceID
+	}
+
+	// Defense-in-depth: even though EngineHTTPClient also sets the
+	// X-User-Id / X-User-Tier / X-User-Role / X-User-Username headers,
+	// we mirror the same fields in the JSON body. A misconfigured
+	// proxy that strips custom headers would otherwise silently drop
+	// the user identity and the engine would 400 us, or worse,
+	// silently personalise against the wrong user. With body fallback
+	// the engine reconciles header-first, body-second.
+	if claims := auth.ClaimsFromContext(ctx); claims != nil {
+		if claims.UserID != "" {
+			reqBody["user_id"] = claims.UserID
+		}
+		if claims.Tier != "" {
+			reqBody["tier"] = claims.Tier
+		}
+		if claims.Role != "" {
+			reqBody["role"] = string(claims.Role)
+		}
+		if claims.Username != "" {
+			reqBody["username"] = claims.Username
+		}
 	}
 
 	resp, err := a.engine.PostJSON(ctx, "/internal/processor/process", reqBody)

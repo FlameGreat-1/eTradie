@@ -93,8 +93,20 @@ class InternalRAGRequest(BaseModel):
 
 
 class InternalProcessorRequest(BaseModel):
+    """Payload for POST /internal/processor/process.
+
+    user_id, tier, role, username are OPTIONAL because the gateway
+    forwards them via X-User-Id / X-User-Tier / X-User-Role /
+    X-User-Username headers as the canonical channel. The body
+    fields exist for callers that prefer a single transport (the
+    handler resolves header-first, body-second).
+    """
     processor_input: dict
     trace_id: Optional[str] = None
+    user_id: Optional[str] = None
+    tier: Optional[str] = None
+    role: Optional[str] = None
+    username: Optional[str] = None
 
 
 class InternalDebugRunCycleRequest(BaseModel):

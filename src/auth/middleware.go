@@ -48,6 +48,22 @@ func InjectTokenIntoContext(ctx context.Context, rawToken string) context.Contex
 	return context.WithValue(ctx, rawTokenKey, rawToken)
 }
 
+// InjectClaimsIntoContext creates a new context with parsed *Claims
+// stored under the auth package's context key. Symmetric with
+// InjectTokenIntoContext; used by background goroutines that need
+// downstream context readers (UserIDFromContext, RoleFromContext,
+// ClaimsFromContext) to resolve the identity exactly as they would
+// for a request-derived context.
+//
+// A nil claims argument is a no-op (returns ctx unchanged) so
+// callers do not have to branch on the claim-issuance result.
+func InjectClaimsIntoContext(ctx context.Context, claims *Claims) context.Context {
+	if claims == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, claimsKey, claims)
+}
+
 // UserIDFromContext extracts the user ID from the request context.
 // Returns empty string if not authenticated.
 func UserIDFromContext(ctx context.Context) string {
