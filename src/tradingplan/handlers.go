@@ -571,7 +571,6 @@ func (h *Handler) handleInternalCallback(w http.ResponseWriter, r *http.Request)
 	if !body.Plan.GenerationStartedAt.IsZero() {
 		TradingPlanLLMCallDuration.Observe(time.Since(body.Plan.GenerationStartedAt).Seconds())
 	}
-	_ = rec
 
 	TradingPlanCallbackTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().
