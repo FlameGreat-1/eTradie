@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from engine.config import get_settings
 from engine.shared.cache import RedisCache
 from engine.shared.concurrency import BackgroundTaskCoordinator
@@ -82,6 +84,7 @@ from engine.processor.service import AnalysisProcessor
 from engine.processor.storage.uow import processor_uow_factory
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
+from engine.processor.user_os.client import UserOSClient
 
 from engine.shared.logging import get_logger
 
@@ -149,6 +152,14 @@ class Container:
         # Per-user broker client cache. Keyed by user_id.
         # Invalidated when user changes their broker connection.
         self._user_brokers: dict[str, BrokerBase] = {}
+
+        # PRACTICE.md Layer 2: optional client to fetch the
+        # authenticated user's Trading Operating System from the
+        # gateway. None when ENGINE_GATEWAY_URL or the shared secret
+        # are unset (local dev / unit tests); the processor handles
+        # the None case by falling back to the default institutional
+        # profile so missing configuration never blocks analysis.
+        self.user_os_client: Optional[UserOSClient] = UserOSClient.from_env()
 
     def _build_providers(self) -> None:
         s = self.settings
@@ -632,6 +643,7 @@ class Container:
             llm_client=self.processor_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
+            user_os_client=self.user_os_client,
         )
 
     async def resolve_user_processor(self, user: "AuthenticatedUser") -> "AnalysisProcessor":
@@ -677,6 +689,7 @@ class Container:
             llm_client=user_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
+            user_os_client=self.user_os_client,
         )
 
         self._user_processors[user.user_id] = user_processor
@@ -848,6 +861,15 @@ class Container:
         # Close the global system-level processor LLM client.
         if hasattr(self, "processor_llm_client"):
             await self.processor_llm_client.close()
+
+        # Close the user-OS HTTP client (if built). Best-effort — a
+        # transient close failure should not block shutdown.
+        if getattr(self, "user_os_client", None) is not None:
+            try:
+                await self.user_os_client.close()
+            except Exception:
+                pass
+
         await self.http_client.close()
         await self.cache.close()
         await self.db.close()
