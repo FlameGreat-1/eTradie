@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -663,7 +662,3 @@ func writeJSON(w http.ResponseWriter, status int, body interface{}) {
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
-
-// Used by string formatting in a future log line; declared here to
-// avoid an unused import lint when fmt would otherwise be removed.
-var _ = fmt.Sprintf
