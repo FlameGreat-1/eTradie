@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
+import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
 import { useSymbols } from '@/features/symbols/api/symbols';
 import { useManagedTrades, useTradeJournal } from '@/features/journal/api/journal';
@@ -9,6 +10,7 @@ import {
   type TradeLevels,
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
+import { OnboardingChecklist } from '@/features/tradingsystem/components/OnboardingChecklist';
 
 /**
  * Dashboard.
@@ -111,6 +113,14 @@ export default function DashboardPage() {
   const symbols = symbolData?.symbols ?? [];
   const analyses = latest?.analyses ?? [];
   const journalTrades = Array.isArray(journalData?.trades) ? journalData.trades : [];
+
+  // Onboarding state: a freshly-signed-up user with no broker and no
+  // symbols sees the 7-step checklist card instead of the empty
+  // "add a symbol" placeholder. The moment they connect a broker AND
+  // pick a symbol the chart takes over, exactly as today.
+  const broker = useActiveBrokerConnection();
+  const needsOnboarding =
+    !broker.isLoading && !broker.data && symbols.length === 0;
 
   // Chart state from URL (synced with Header controls).
   // On login redirect the URL has no params, so we fall back to the
@@ -236,6 +246,8 @@ export default function DashboardPage() {
               activeTrades={activeTrades}
               symbolMeta={symbolMeta}
             />
+          ) : needsOnboarding ? (
+            <OnboardingChecklist />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-content-muted">
               Add a symbol from the watchlist to begin charting.
