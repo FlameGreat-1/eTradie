@@ -208,6 +208,101 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 	return result, nil
 }
 
+// GetJSON sends a GET request and returns the decoded JSON response.
+//
+// Mirrors PostJSON's auth header logic (internal-secret + user-id for
+// /internal/* paths, JWT for public paths), error redaction, retry
+// policy, and logging. The trading-plan balance lookup is a GET-only
+// engine endpoint, so this helper is required; future callers should
+// prefer it over building a raw http.Request.
+func (c *EngineHTTPClient) GetJSON(ctx context.Context, path string) (map[string]interface{}, error) {
+	url := c.baseURL + path
+
+	var result map[string]interface{}
+
+	operation := func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("engine_http: create request for %s: %w", path, err)
+		}
+
+		if isInternalPath(path) {
+			if c.internalSecret != "" {
+				req.Header.Set(internalAuthHeader, c.internalSecret)
+			}
+			if claims := auth.ClaimsFromContext(ctx); claims != nil {
+				if claims.UserID != "" {
+					req.Header.Set(internalUserIDHeader, claims.UserID)
+				}
+				if claims.Tier != "" {
+					req.Header.Set(internalUserTierHeader, claims.Tier)
+				}
+				if claims.Role != "" {
+					req.Header.Set(internalUserRoleHeader, string(claims.Role))
+				}
+				if claims.Username != "" {
+					req.Header.Set(internalUserUsernameHeader, claims.Username)
+				}
+			} else if userID := auth.UserIDFromContext(ctx); userID != "" {
+				req.Header.Set(internalUserIDHeader, userID)
+			}
+		} else {
+			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+				req.Header.Set("Authorization", "Bearer "+rawToken)
+			}
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			c.log.Error().
+				Str("path", path).
+				Err(err).
+				Msg("engine_http_get_failed")
+			return fmt.Errorf("engine_http: request %s: %w", path, err)
+		}
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("engine_http: read response from %s: %w", path, err)
+		}
+
+		if resp.StatusCode >= 400 {
+			safeBody := redactSensitiveJSON(respBody, 500)
+			c.log.Error().
+				Str("path", path).
+				Int("status", resp.StatusCode).
+				Str("body", safeBody).
+				Msg("engine_http_get_error_response")
+			if len(safeBody) > 200 {
+				safeBody = safeBody[:200]
+			}
+			return fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, safeBody)
+		}
+
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return fmt.Errorf("engine_http: unmarshal response from %s: %w", path, err)
+		}
+		return nil
+	}
+
+	isRetryable := func(err error) bool {
+		if strings.Contains(err.Error(), "connection refused") || ctx.Err() != nil {
+			return false
+		}
+		if strings.Contains(err.Error(), "returned 5") {
+			return true
+		}
+		return strings.Contains(err.Error(), "engine_http: request")
+	}
+
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // HealthCheck checks the Python engine's health endpoint.
 func (c *EngineHTTPClient) HealthCheck(ctx context.Context) bool {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
