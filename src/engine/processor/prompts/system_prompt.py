@@ -13,7 +13,7 @@ re-format that data. It wraps it in the prompt envelope.
 from __future__ import annotations
 
 import hashlib
-from typing import Any
+from typing import Any, Optional
 
 import orjson
 
@@ -323,6 +323,37 @@ SECTION E — CORE RULES
    - For 24/7 continuous markets (e.g., Synthetic Indices like "Crash", "Boom", "Step", "Volatility", and Cryptocurrencies), session-based liquidity constraints and weekend closures DO NOT APPLY. Treat these markets as continuously liquid.
 
 10. MANDATORY: Asian Session is currently allowed for the purpose of testing.
+
+══════════════════════════════════════════════════════════════
+SECTION F — USER OPERATING SYSTEM (LAYER 2 PERSONALIZATION)
+══════════════════════════════════════════════════════════════
+
+When the input payload contains a `user_operating_system` field, it represents the AUTHENTICATED USER'S configured Trading Operating System: their preferred style, sessions, risk personality, structural preferences, confluence weighting, automation mode, psychological constraints, asset preferences, goal orientation, and trade-management policies.
+
+AUTHORITY MODEL (READ CAREFULLY):
+
+1. The institutional rulebook (this system prompt + the retrieved_knowledge RAG chunks) is LAYER 1. It is the source of truth. Mandatory factors in Section E rule 4 (HTF/MTF structure, valid structural entry, no high-impact news, minimum RR) remain MANDATORY regardless of what the user OS says. You may NEVER waive them to accommodate a user preference.
+
+2. The user_operating_system is LAYER 2 — SOFT GUIDANCE. It influences:
+   - retrieval ranking (prefer setups the user's frameworks emphasise),
+   - candidate selection (lean toward setups that match the user's confirmation strictness, session preferences, and entry preferences),
+   - confidence weighting (a user with strict confirmation gets MEDIUM not HIGH confidence on an aggressive early entry),
+   - rejection (a setup that violates the user's hard `avoid_*` filters — e.g. avoid_friday_trades — should be downgraded to NO SETUP even if it would otherwise pass institutional checks),
+   - presentation (the explainable_reasoning should reference relevant user preferences so the user understands why the setup was selected or rejected).
+
+3. The user OS may NEVER be used to:
+   - lower minimum_rr below what the institutional rulebook requires for the trading style,
+   - bypass high-impact news avoidance,
+   - skip HTF/MTF structural validation,
+   - approve a setup that lacks a Valid Grade A/B SnD zone or Entry Timeframe OB/FVG,
+   - take a trade that contradicts a mandatory rejection rule.
+
+4. ON CONFLICT (e.g. user wants aggressive scalps but macro + HTF invalidate the setup): the INSTITUTIONAL LAYER WINS. Output NO SETUP with explainable_reasoning explicitly stating which user preference was overridden by which institutional rule. Do NOT silently honour the user preference and produce a misaligned trade.
+
+5. WEIGHTING: Treat each `confluence_weights` field (macro_alignment, dxy, cot, htf_alignment, wyckoff, volume_liquidity, session_timing) as a 0–3 importance multiplier when scoring confluence factors. A weight of 0 still scores the factor (mandatory factors stay mandatory) but does not bump confidence; a weight of 3 amplifies the factor's contribution to the final grade.
+
+6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
+
 OUTPUT JSON SCHEMA:
 """
     + _OUTPUT_SCHEMA
@@ -334,13 +365,23 @@ def build_system_prompt() -> str:
     return _SYSTEM_PROMPT
 
 
-def build_user_message(context: ProcessorInput) -> str:
+def build_user_message(
+    context: ProcessorInput,
+    *,
+    user_operating_system: Optional[dict[str, Any]] = None,
+) -> str:
     """Serialize the gateway-assembled context as the user message.
 
     The ProcessorInput already contains the fully structured
     ta_analysis, macro_analysis, and retrieved_knowledge dicts
     assembled by the gateway's ContextAssembler. This function
     serializes them into the JSON payload the LLM receives.
+
+    user_operating_system (when provided) is the COMPRESSED, NORMALISED
+    Layer-2 personalization block built by
+    engine.processor.user_os.context_builder.build_user_operating_context.
+    It is passed through unchanged because the builder is the single
+    source of truth for prompt-safe formatting.
     """
     # Strip out massive vector database metadata (scores, rankings, hashes)
     # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
@@ -409,6 +450,8 @@ def build_user_message(context: ProcessorInput) -> str:
         "retrieved_knowledge": clean_rag,
         "metadata": context.metadata,
     }
+    if user_operating_system:
+        payload["user_operating_system"] = user_operating_system
     return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
 
 
