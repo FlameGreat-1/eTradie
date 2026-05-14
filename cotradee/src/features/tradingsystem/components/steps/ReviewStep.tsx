@@ -7,6 +7,7 @@ interface Props {
   onEditStep: (stepIndex: number) => void;
   stepNumber: number;
   totalSteps: number;
+  hideHeader?: boolean;
 }
 
 /**
@@ -58,15 +59,11 @@ function joinList(items: string[]): string {
   return items.join(', ');
 }
 
-function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps }: Props) {
+function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHeader }: Props) {
   const { identity, sessions, risk, structural, entry, filtering, psychology, confluence, automation, assets, management } = profile;
-  return (
-    <StepShell
-      stepNumber={stepNumber}
-      totalSteps={totalSteps}
-      title="Review & Confirm"
-      description="Final check. Click any section to edit. When you save, Exoper starts using these preferences immediately."
-    >
+  
+  const content = (
+    <div className="space-y-4">
       <Section title="1. Identity" onEdit={() => onEditStep(0)}>
         <ReviewRow label="Experience" value={identity.experience} />
         <ReviewRow label="Execution" value={identity.automation} />
@@ -173,6 +170,21 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps }: Props)
         <ReviewRow label="Hold runners" value={yesNo(management.hold_runners)} />
         <ReviewRow label="Close before news" value={yesNo(management.close_before_news)} />
       </Section>
+    </div>
+  );
+
+  if (hideHeader) {
+    return content;
+  }
+
+  return (
+    <StepShell
+      stepNumber={stepNumber}
+      totalSteps={totalSteps}
+      title="Review & Confirm"
+      description="Final check. Click any section to edit. When you save, Exoper starts using these preferences immediately."
+    >
+      {content}
     </StepShell>
   );
 }

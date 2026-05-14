@@ -111,13 +111,10 @@ export default function TradingSystemPage() {
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">
         <ReviewStep
           profile={data!.profile!}
-          // In view mode, clicking Edit on any section jumps into the
-          // builder. The builder hydrates from the existing profile
-          // and the user lands on step 0; the section-level edit is
-          // a future enhancement.
           onEditStep={() => setMode('edit')}
           stepNumber={1}
           totalSteps={1}
+          hideHeader={true}
         />
       </div>
     </div>
