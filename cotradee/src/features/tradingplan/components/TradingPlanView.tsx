@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/useToast';
 import { LogoLoader } from '@/components/ui/LogoLoader';
 import {
   downloadPlanAsExcel,
+  tradingPlanKeys,
   useGenerateTradingPlan,
   useResetTradingPlan,
   useTradingPlan,
@@ -37,6 +39,7 @@ import { GenerateBanner } from './GenerateBanner';
  * the draft via useUpdateTradingPlan (no LLM call, version unchanged).
  */
 export function TradingPlanView() {
+  const qc = useQueryClient();
   const { data: planRec, isLoading } = useTradingPlan();
   const { data: statusView } = useTradingPlanStatus();
   const generate = useGenerateTradingPlan();
@@ -45,6 +48,21 @@ export function TradingPlanView() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TradingPlan | null>(null);
+
+  // When the polling status transitions OUT of 'generating' (either
+  // to 'active' or 'failed'), invalidate the full-plan query so the
+  // SPA fetches the freshly-persisted workbook without waiting for
+  // the 30-second staleTime to elapse. Tracked via a ref so the
+  // invalidation fires once per transition, not on every render.
+  const lastStatusRef = useRef<typeof statusView extends undefined ? undefined : string | undefined>(undefined);
+  useEffect(() => {
+    const current = statusView?.status;
+    const previous = lastStatusRef.current;
+    if (previous === 'generating' && (current === 'active' || current === 'failed')) {
+      qc.invalidateQueries({ queryKey: tradingPlanKeys.plan() });
+    }
+    lastStatusRef.current = current;
+  }, [statusView?.status, qc]);
 
   // Sync the draft from the server-side plan whenever it changes
   // (initial load, regenerate, reset). We deliberately do NOT sync
