@@ -60,7 +60,7 @@ export function useTradingSystemStatus(
   return useQuery<TradingSystemStatusView>({
     queryKey: tradingSystemKeys.status(),
     queryFn: getTradingSystemStatus,
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000, // 10s
     ...options,
   });
 }

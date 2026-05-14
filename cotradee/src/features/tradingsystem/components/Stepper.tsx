@@ -16,8 +16,8 @@ interface Props {
 function StepperInner({ current, total, furthest, labels, onJump }: Props) {
   const pct = Math.round(((current + 1) / total) * 100);
   return (
-    <div className="border-b border-border bg-surface px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="border-b border-border bg-app px-4 py-1.5">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-content-muted">
           {labels[current]}
         </span>
@@ -33,7 +33,7 @@ function StepperInner({ current, total, furthest, labels, onJump }: Props) {
           aria-valuemax={100}
         />
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-1 flex flex-wrap gap-1.5">
         {labels.map((label, idx) => {
           const reachable = idx <= furthest;
           const active = idx === current;

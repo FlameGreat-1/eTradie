@@ -18,7 +18,7 @@ export function Step10Confluence({ value, onChange, stepNumber, totalSteps }: Pr
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Confluence Preferences"
-      description="How much weight the AI should give to each confluence factor when scoring setups. The institutional rulebook still enforces mandatory factors regardless."
+      description="How much weight Exoper should give to each confluence factor when scoring setups. The institutional rulebook still enforces mandatory factors regardless."
     >
       <WeightSlider
         label="Macro alignment"

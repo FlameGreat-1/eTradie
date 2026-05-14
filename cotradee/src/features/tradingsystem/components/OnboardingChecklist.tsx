@@ -64,7 +64,7 @@ export function OnboardingChecklist() {
         id: 'broker',
         title: 'Connect your broker',
         description:
-          'Link your MT4 or MT5 account so the AI can read prices and place trades on your behalf.',
+          'Link your MT4 or MT5 account so the system can read prices and place trades on your behalf.',
         done: brokerDone,
         loading: broker.isLoading,
         cta: {
@@ -75,7 +75,7 @@ export function OnboardingChecklist() {
       {
         id: 'symbols',
         title: 'Select favorite symbols',
-        description: 'Choose the instruments you want the AI to analyse for you.',
+        description: 'Choose the instruments you want Exoper to analyse for you.',
         done: symbolsDone,
         loading: symbols.isLoading,
         cta: {
@@ -87,7 +87,7 @@ export function OnboardingChecklist() {
         id: 'trading_system',
         title: 'Build your Exoper Trading System',
         description:
-          'A 2–3 minute questionnaire that personalises every AI decision to your style, risk, and goals.',
+          'A 2–3 minute questionnaire that personalises every Exoper decision to your style, risk, and goals.',
         done: tradingSystemDone,
         loading: tradingSystem.isLoading,
         cta: {
@@ -100,7 +100,7 @@ export function OnboardingChecklist() {
         id: 'billing',
         title: 'Add billing',
         description:
-          'Pick a plan so the AI can run autonomously and access premium institutional data.',
+          'Pick a plan so Exoper can run autonomously and access premium institutional data.',
         done: billingDone,
         loading: false,
         cta: {
@@ -111,7 +111,7 @@ export function OnboardingChecklist() {
       },
       {
         id: 'llm',
-        title: 'Add your AI API key',
+        title: 'Add your Exoper API key',
         description:
           'BYOK: bring your own OpenAI / Anthropic / Gemini key, or upgrade to Pro Managed to use ours.',
         done: llmDone,
@@ -141,7 +141,7 @@ export function OnboardingChecklist() {
         title: "You're in",
         description: readyDone
           ? 'Everything is wired up. The chart on the right is now live.'
-          : 'Complete the steps above to start trading with personalised AI.',
+          : 'Complete the steps above to start trading with personalised Exoper.',
         done: readyDone,
         loading: false,
         cta: {
@@ -163,12 +163,12 @@ export function OnboardingChecklist() {
   const progressPct = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-4 py-6">
-      <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-5 shadow-sm">
+    <div className="w-full max-w-3xl mx-auto px-2 py-8 sm:py-12 lg:py-16">
+      <div className="w-full rounded-xl border border-border bg-surface p-4 sm:p-7 shadow-sm">
         <header className="mb-4">
           <h2 className="text-lg font-semibold text-content">Let&apos;s get you set up</h2>
           <p className="mt-1 text-sm text-content-secondary">
-            Seven quick steps to your personalised AI trading desk.
+            Seven quick steps to your personalised Exoper trading desk.
           </p>
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-content-muted mb-1.5">
@@ -245,7 +245,7 @@ function ChecklistRow({
           : 'border-border bg-app hover:border-content-muted'}`}
     >
       <div
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5
           ${step.done
             ? 'bg-success text-white'
             : 'bg-surface text-content-secondary border border-border'}`}
@@ -254,9 +254,9 @@ function ChecklistRow({
         {step.done ? '✓' : index}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <h3
-            className={`text-sm font-semibold ${
+            className={`text-sm font-semibold leading-snug pt-1 ${
               step.done ? 'text-content-secondary line-through' : 'text-content'
             }`}
           >
@@ -267,14 +267,14 @@ function ChecklistRow({
               type="button"
               onClick={handleClick}
               disabled={step.loading}
-              className="shrink-0 rounded bg-brand px-3 py-1 text-xs font-semibold text-white
-                         hover:bg-brand/90 focus-ring disabled:opacity-50"
+              className="shrink-0 rounded bg-brand px-3 py-1.5 text-xs font-semibold text-white
+                         hover:bg-brand/90 focus-ring disabled:opacity-50 mt-0.5"
             >
               {step.loading ? 'Checking…' : step.cta.label}
             </button>
           )}
         </div>
-        <p className="mt-1 text-xs text-content-muted">{step.description}</p>
+        <p className="mt-1.5 text-xs text-content-muted leading-relaxed">{step.description}</p>
       </div>
     </li>
   );

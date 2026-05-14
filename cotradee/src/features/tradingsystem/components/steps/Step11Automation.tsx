@@ -20,7 +20,7 @@ export function Step11Automation({ value, onChange, errors, stepNumber, totalSte
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Automation"
-      description="How much control you delegate to the AI. You can change this later from Settings."
+      description="How much control you delegate to Exoper. You can change this later from Settings."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Execution automation mode</div>
@@ -39,14 +39,14 @@ export function Step11Automation({ value, onChange, errors, stepNumber, totalSte
       </div>
       <CheckboxToggle
         label="Require final user confirmation"
-        description="Even with semi/fully automatic, the AI waits for your tap before firing."
+        description="Even with semi/fully automatic, Exoper waits for your tap before firing."
         checked={value.require_final_confirmation}
         onChange={(v) => set('require_final_confirmation', v)}
       />
       <FieldError message={errors['automation.require_final_confirmation']} />
       <CheckboxToggle
         label="Allow unattended execution"
-        description="Allow the AI to fire trades when you are not logged in."
+        description="Allow Exoper to fire trades when you are not logged in."
         checked={value.allow_unattended_execution}
         onChange={(v) => set('allow_unattended_execution', v)}
       />

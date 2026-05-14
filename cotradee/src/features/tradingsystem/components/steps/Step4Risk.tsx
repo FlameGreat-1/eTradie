@@ -22,7 +22,7 @@ export function Step4Risk({ value, onChange, errors, stepNumber, totalSteps }: P
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Risk Personality"
-      description="How much capital you risk per trade and the drawdown limits the AI must respect."
+      description="How much capital you risk per trade and the drawdown limits Exoper must respect."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Risk model</div>

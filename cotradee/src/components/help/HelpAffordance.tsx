@@ -18,18 +18,10 @@ import { useAuth } from '@/features/auth';
  */
 export function isHelpVisibleOnPath(pathname: string): boolean {
   const path = pathname.toLowerCase();
-  if (path === '/login' || path.startsWith('/login/')) return false;
-  if (path === '/register' || path.startsWith('/register/')) return false;
-  if (path.startsWith('/auth/')) return false;
-  if (path === '/contact') return false;
-  // /faq itself is the self-service surface; a floating button on
-  // top of the page would be redundant. The other discovery routes
-  // (header menu, footer link, /contact CTA) cover navigation TO
-  // /faq so users still reach it from everywhere else.
-  if (path === '/faq' || path === '/faqs') return false;
-  if (path === '/dashboard/journal') return false;
-  if (path.startsWith('/dashboard/support')) return false;
-  return true;
+  // The floating help button is now hidden globally, 
+  // except for the Settings page per the user's request.
+  if (path.startsWith('/dashboard/settings')) return true;
+  return false;
 }
 
 /**

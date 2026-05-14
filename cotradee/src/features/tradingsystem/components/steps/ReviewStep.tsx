@@ -65,7 +65,7 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps }: Props)
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Review & Confirm"
-      description="Final check. Click any section to edit. When you save, the AI starts using these preferences immediately."
+      description="Final check. Click any section to edit. When you save, Exoper starts using these preferences immediately."
     >
       <Section title="1. Identity" onEdit={() => onEditStep(0)}>
         <ReviewRow label="Experience" value={identity.experience} />

@@ -18,7 +18,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Trading Identity"
-      description="Define who you are operationally. These answers shape how the AI prioritises setups for you."
+      description="Define who you are operationally. These answers shape how Exoper prioritises setups for you."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Experience level</div>
@@ -43,8 +43,8 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
           onChange={(v) => set('automation', v)}
           options={[
             { value: 'manual', label: 'Manual', description: 'I execute every trade myself' },
-            { value: 'semi_automated', label: 'Semi-Automated', description: 'AI assists, I confirm' },
-            { value: 'fully_automated', label: 'Fully Automated', description: 'AI executes for me' },
+            { value: 'semi_automated', label: 'Semi-Automated', description: 'Exoper assists, I confirm' },
+            { value: 'fully_automated', label: 'Fully Automated', description: 'Exoper executes for me' },
           ]}
         />
         <FieldError message={errors['identity.automation']} />

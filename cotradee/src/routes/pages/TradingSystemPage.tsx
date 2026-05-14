@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { toast } from '@/hooks/useToast';
+import { LogoLoader } from '@/components/ui/LogoLoader';
 import BuilderPage from '@/features/tradingsystem/components/BuilderPage';
 import { ReviewStep } from '@/features/tradingsystem/components/steps/ReviewStep';
 import {
@@ -27,8 +28,10 @@ export default function TradingSystemPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-sm text-content-muted">
-        Loading your trading system…
+      <div className="flex flex-col h-full bg-app">
+        <div className="flex-1 flex items-center justify-center lg:max-w-5xl lg:mx-auto lg:w-full">
+          <LogoLoader size={48} />
+        </div>
       </div>
     );
   }
@@ -78,7 +81,7 @@ export default function TradingSystemPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-app">
+    <div className="flex flex-col h-full bg-app lg:max-w-5xl lg:mx-auto lg:border-x lg:border-border">
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
         <div>
           <h1 className="text-base font-semibold text-content">Your Trading System</h1>
@@ -105,7 +108,7 @@ export default function TradingSystemPage() {
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">
         <ReviewStep
           profile={data!.profile!}
           // In view mode, clicking Edit on any section jumps into the

@@ -48,21 +48,21 @@ export function BuilderModal({ open, onClose, onComplete, onSkip }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-modal flex items-center justify-center bg-black/55 px-4 py-6 animate-fade-in"
+      className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 px-2 py-6 sm:py-10 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-label="Build Your Trading System"
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-full max-w-2xl max-h-[92vh] overflow-hidden rounded-xl
-                   border border-border bg-surface shadow-pop"
+        className="relative flex flex-col w-full max-w-4xl max-h-[96vh] min-h-0 overflow-hidden rounded-xl
+                   border border-border bg-app shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-2.5 bg-app z-10">
           <div>
-            <h2 className="text-base font-semibold text-content">Build Your Exoper Trading System</h2>
-            <p className="text-xs text-content-muted">
+            <h2 className="text-lg font-bold text-content">Build Your Exoper Trading System</h2>
+            <p className="text-xs text-content-muted mt-0.5">
               2–3 minutes. Every answer can be changed later from the Trading System page.
             </p>
           </div>
@@ -75,7 +75,7 @@ export function BuilderModal({ open, onClose, onComplete, onSkip }: Props) {
             ✕
           </button>
         </header>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <BuilderPage
             embedded
             onComplete={(profile) => {

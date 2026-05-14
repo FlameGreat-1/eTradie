@@ -17,7 +17,7 @@ export function Step5Confirmation({ value, onChange, errors, stepNumber, totalSt
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Confirmation Strictness"
-      description="How much evidence the AI needs before flagging a setup as tradeable."
+      description="How much evidence Exoper needs before flagging a setup as tradeable."
     >
       <RadioCardGroup
         name="confirmation"

@@ -19,7 +19,7 @@ export function Step6Structural({ value, onChange, errors, stepNumber, totalStep
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Structural Preferences"
-      description="The structural frameworks and patterns you want the AI to prioritise in retrieval."
+      description="The structural frameworks and patterns you want Exoper to prioritise in retrieval."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Structural frameworks</div>

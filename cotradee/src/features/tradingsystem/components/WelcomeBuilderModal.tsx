@@ -116,12 +116,12 @@ export function WelcomeBuilderModal() {
               Spare 2&ndash;3 minutes to configure your personal trading
               identity &mdash; your style, risk personality, session
               preferences, and execution rules. Exoper uses this to
-              personalise every AI analysis to your exact approach.
+              personalise every Exoper analysis to your exact approach.
             </p>
 
             <ul className="mb-6 space-y-2 text-sm text-content-secondary">
               {[
-                'Tailored AI analysis to your trading style',
+                'Tailored Exoper analysis to your trading style',
                 'Risk guardrails that match your personality',
                 'Execution preferences respected on every cycle',
               ].map((point) => (

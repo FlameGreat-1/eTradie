@@ -59,7 +59,7 @@ function NumberSliderInner({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(clamp(parseFloat(e.target.value)))}
-          className="flex-1 accent-brand"
+          className="flex-1 accent-brand focus:!outline-none focus:!ring-0 focus-visible:!outline-none focus-visible:!ring-0"
           aria-label={label}
         />
         <input

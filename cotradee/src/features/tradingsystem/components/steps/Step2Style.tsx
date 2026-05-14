@@ -17,7 +17,7 @@ export function Step2Style({ value, onChange, errors, stepNumber, totalSteps }: 
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Trading Style"
-      description="Your operating style determines which timeframes the AI prioritises and how long trades typically run."
+      description="Your operating style determines which timeframes Exoper prioritises and how long trades typically run."
     >
       <RadioCardGroup
         name="style"

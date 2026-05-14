@@ -18,7 +18,7 @@ export function Step3Sessions({ value, onChange, errors, stepNumber, totalSteps 
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Session Preferences"
-      description="Trading sessions you participate in. Pick at least one; the AI will weight setups in your chosen windows higher."
+      description="Trading sessions you participate in. Pick at least one; Exoper will weight setups in your chosen windows higher."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Preferred sessions</div>

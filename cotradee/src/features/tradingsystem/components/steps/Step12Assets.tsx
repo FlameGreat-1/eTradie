@@ -19,7 +19,7 @@ export function Step12Assets({ value, onChange, errors, stepNumber, totalSteps }
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Asset Preferences"
-      description="The asset classes you want the AI to analyse for you, plus optional pinned pairs."
+      description="The asset classes you want Exoper to analyse for you, plus optional pinned pairs."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Asset classes</div>
@@ -40,7 +40,7 @@ export function Step12Assets({ value, onChange, errors, stepNumber, totalSteps }
       </div>
       <TagInput
         label="Preferred pairs (optional)"
-        description="Pinned symbols the AI should prioritise. Enter or comma to add."
+        description="Pinned symbols Exoper should prioritise. Enter or comma to add."
         value={value.preferred_pairs}
         onChange={(v) => onChange({ ...value, preferred_pairs: v })}
       />

@@ -17,7 +17,7 @@ export function Step13Goal({ value, onChange, errors, stepNumber, totalSteps }: 
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Goal Orientation"
-      description="The single guiding objective that shapes how the AI ranks trade-offs."
+      description="The single guiding objective that shapes how Exoper ranks trade-offs."
     >
       <RadioCardGroup
         name="goal"

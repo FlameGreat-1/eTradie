@@ -20,7 +20,7 @@ export function Step8Filtering({ value, onChange, errors, stepNumber, totalSteps
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Trade Filtering"
-      description="Setups the AI should automatically discard, even when other confluence is present."
+      description="Setups Exoper should automatically discard, even when other confluence is present."
     >
       <NumberSlider
         label="Minimum reward-to-risk"

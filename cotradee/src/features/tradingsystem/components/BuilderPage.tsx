@@ -116,23 +116,7 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
   // silently fall back to the default profile and risk overwriting an
   // existing one. Fires exactly once per error to avoid spamming the
   // toast queue on retries.
-  const [errorReported, setErrorReported] = useState(false);
-  useEffect(() => {
-    if (!isError || errorReported) return;
-    setErrorReported(true);
-    toast({
-      title: 'Could not load your existing trading system',
-      description:
-        'Saving now would overwrite any prior version. Please refresh or contact support if this persists.',
-      variant: 'destructive',
-    });
-    // loadError is referenced for completeness in extra/debugging; the
-    // shared axios interceptor already routes 401s to /login.
-    if (loadError) {
-      // eslint-disable-next-line no-console
-      console.warn('useTradingSystem load error', loadError);
-    }
-  }, [isError, errorReported, loadError]);
+
 
   const canSubmit = current === TOTAL_STEPS - 1 && !saveMutation.isPending;
 
@@ -341,14 +325,27 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-sm text-content-muted">
-        Loading your trading system…
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center justify-center pointer-events-none gap-3">
+          <img 
+            src="/assets/sidebar/icons/logo.svg" 
+            alt="Loading" 
+            className="w-10 h-10"
+            style={{ animation: 'logoZoom 1.2s ease-in-out infinite' }}
+          />
+          <style>{`
+            @keyframes logoZoom {
+              0%, 100% { transform: scale(0.9); opacity: 0.7; }
+              50% { transform: scale(1.15); opacity: 1; }
+            }
+          `}</style>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-app">
+    <div className={`flex flex-col h-full min-h-0 bg-app ${!embedded ? 'lg:max-w-5xl lg:mx-auto lg:w-full lg:border-x lg:border-border' : ''}`}>
       {!embedded && (
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
           <div>
@@ -374,9 +371,9 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
         onJump={handleJump}
       />
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">{stepContent}</div>
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">{stepContent}</div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-t border-border bg-app px-4 py-3">
         <button
           type="button"
           onClick={handleBack}

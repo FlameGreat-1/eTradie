@@ -20,7 +20,7 @@ export function Step14Management({ value, onChange, errors, stepNumber, totalSte
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Trade Management"
-      description="How the AI manages the trade once it's live — partial closes, trailing, break-even, and runners."
+      description="How Exoper manages the trade once it's live — partial closes, trailing, break-even, and runners."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Partial take-profit style</div>

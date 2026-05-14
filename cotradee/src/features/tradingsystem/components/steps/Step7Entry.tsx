@@ -18,7 +18,7 @@ export function Step7Entry({ value, onChange, errors, stepNumber, totalSteps }: 
       stepNumber={stepNumber}
       totalSteps={totalSteps}
       title="Entry Preferences"
-      description="How and when the AI should fire the entry order."
+      description="How and when Exoper should fire the entry order."
     >
       <div>
         <div className="text-sm font-medium text-content mb-2">Execution mode</div>
