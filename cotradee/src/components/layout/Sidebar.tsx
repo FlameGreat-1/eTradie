@@ -14,11 +14,12 @@ interface NavItem {
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { path: '/dashboard',          icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',     iconSize: 36 },
-  { path: '/dashboard/analysis', icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',      iconSize: 36 },
-  { path: '/dashboard/trades',   icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades', iconSize: 36 },
-  { path: '/dashboard/journal',  icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',       iconSize: 36 },
-  { path: '/dashboard/community',icon: '/assets/sidebar/icons/support.svg',   label: 'Community',     iconSize: 28 },
+  { path: '/dashboard',                icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',      iconSize: 36 },
+  { path: '/dashboard/analysis',       icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',       iconSize: 36 },
+  { path: '/dashboard/trades',         icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades',  iconSize: 36 },
+  { path: '/dashboard/journal',        icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',        iconSize: 36 },
+  { path: '/dashboard/trading-system', icon: '/assets/sidebar/icons/widget.svg',    label: 'Trading System', iconSize: 36 },
+  { path: '/dashboard/community',      icon: '/assets/sidebar/icons/support.svg',   label: 'Community',      iconSize: 28 },
 ];
 
 const FOOTER_NAV: NavItem[] = [
@@ -182,7 +183,7 @@ function DrawerNavButton({
   onNavigate: (p: string) => void;
 }) {
   const isSplit = item.splitPaths && item.splitPaths.length > 0;
-  const needsBackground = ['Analysis', 'Active Trades', 'Journal'].includes(item.label);
+  const needsBackground = ['Analysis', 'Active Trades', 'Journal', 'Trading System'].includes(item.label);
 
   return (
     <div
@@ -306,7 +307,7 @@ function RailButton({
   onLeave: () => void;
 }) {
   const isSplit = item.splitPaths && item.splitPaths.length > 0;
-  const needsBackground = ['Analysis', 'Active Trades', 'Journal'].includes(item.label);
+  const needsBackground = ['Analysis', 'Active Trades', 'Journal', 'Trading System'].includes(item.label);
 
   return (
     <div
