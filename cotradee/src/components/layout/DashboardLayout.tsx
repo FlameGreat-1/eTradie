@@ -6,6 +6,7 @@ import Header from './Header';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
 import { AnalysisOverlay } from '@/features/chart/components/AnalysisOverlay';
+import { WelcomeBuilderModal } from '@/features/tradingsystem/components/WelcomeBuilderModal';
 
 interface Props {
   children: ReactNode;
@@ -60,6 +61,14 @@ function DashboardLayout({ children }: Props) {
         <ErrorBoundary>
           {children}
         </ErrorBoundary>
+
+        {/* PRACTICE.md first-login popup: shown once when the user's
+            trading system status is 'none'. Mounts at the layout
+            level (not the page level) so it appears regardless of
+            which dashboard sub-route the user lands on after signup.
+            Suppressed automatically once status becomes 'active' or
+            'skipped' (server-side source of truth, no localStorage). */}
+        <WelcomeBuilderModal />
 
         {/* Live reasoning overlay — only on the dashboard route.
             `dismissed_analysis_id` is a UI preference (see

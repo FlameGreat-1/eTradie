@@ -126,6 +126,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         model=container.processor_config.model_name,
     )
 
+    # Start the user OS cache invalidation listener. This subscribes
+    # to the Redis pub/sub channel that the gateway publishes to after
+    # every profile mutation (save/skip/reset). On each event the
+    # listener busts the engine-side Redis negative-cache sentinel and
+    # the in-process version cache for the affected user so the next
+    # analysis cycle fetches the fresh profile immediately.
+    #
+    # The listener is optional: when user_os_client is None (no
+    # gateway URL configured) or Redis is unavailable, the listener
+    # is a no-op and cache invalidation falls back to TTL expiry.
+    from engine.processor.user_os.invalidation_listener import (
+        UserOSInvalidationListener,
+    )
+    user_os_invalidation_listener = UserOSInvalidationListener(
+        cache=container.cache,
+        user_os_client=container.user_os_client,
+    )
+    await user_os_invalidation_listener.start()
+
     # The Go gateway owns the symbol selection via Redis.
     # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
     symbol_reader = RedisSymbolReader(cache=container.cache)
@@ -190,6 +209,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    await user_os_invalidation_listener.stop()
     await container.shutdown()
     logger.info("application_stopped")
 
