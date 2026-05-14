@@ -24,6 +24,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 
@@ -59,6 +60,7 @@ func NewHTTPServer(
 	userStore *auth.UserStore,
 	meteringHandler *MeteringHandler,
 	tradingSystemHandler *tradingsystem.Handler,
+	tradingPlanHandler *tradingplan.Handler,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
@@ -139,6 +141,14 @@ func NewHTTPServer(
 	if tradingSystemHandler != nil {
 		tradingSystemHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 		tradingSystemHandler.RegisterInternalRoutes(mux)
+	}
+
+	// Trading Plan (PRACTICE.md “HOW I OPERATE” — 90-day workbook).
+	// Same middleware pattern as Trading System: dashboard REST under
+	// auth+csrf, engine callback under the shared-secret HMAC path.
+	if tradingPlanHandler != nil {
+		tradingPlanHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+		tradingPlanHandler.RegisterInternalRoutes(mux)
 	}
 
 	// CORS allowlist is validated at startup so a misconfig fails

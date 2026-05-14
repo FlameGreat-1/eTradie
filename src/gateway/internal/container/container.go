@@ -27,6 +27,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
 
 )
@@ -77,6 +78,7 @@ func New(
 	subStore *store.SubscriptionStore,
 	portalAudStore *store.PortalAuditStore,
 	tradingSystemHandler *tradingsystem.Handler,
+	tradingPlanHandler *tradingplan.Handler,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -177,7 +179,7 @@ func New(
 	meteringHandler.WithSoftCapMailer(emailSender, dashboardURL)
 
 	// Servers (now with auth + consent support + metering + tradingsystem).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
