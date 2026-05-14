@@ -90,7 +90,7 @@ interface Props {
 }
 
 export default function BuilderPage({ onComplete, onSkip, embedded = false }: Props) {
-  const { data: existing, isLoading } = useTradingSystem();
+  const { data: existing, isLoading, isError, error: loadError } = useTradingSystem();
   const saveMutation = useSaveTradingSystem();
   const skipMutation = useSkipTradingSystem();
 
@@ -111,6 +111,28 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
     }
     setHydrated(true);
   }, [existing, isLoading, hydrated]);
+
+  // Surface a load failure to the user. Without this they would
+  // silently fall back to the default profile and risk overwriting an
+  // existing one. Fires exactly once per error to avoid spamming the
+  // toast queue on retries.
+  const [errorReported, setErrorReported] = useState(false);
+  useEffect(() => {
+    if (!isError || errorReported) return;
+    setErrorReported(true);
+    toast({
+      title: 'Could not load your existing trading system',
+      description:
+        'Saving now would overwrite any prior version. Please refresh or contact support if this persists.',
+      variant: 'destructive',
+    });
+    // loadError is referenced for completeness in extra/debugging; the
+    // shared axios interceptor already routes 401s to /login.
+    if (loadError) {
+      // eslint-disable-next-line no-console
+      console.warn('useTradingSystem load error', loadError);
+    }
+  }, [isError, errorReported, loadError]);
 
   const canSubmit = current === TOTAL_STEPS - 1 && !saveMutation.isPending;
 

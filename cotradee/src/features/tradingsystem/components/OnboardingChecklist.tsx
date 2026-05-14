@@ -46,6 +46,26 @@ export function OnboardingChecklist() {
 
   const [builderOpen, setBuilderOpen] = useState(false);
 
+  // Live state probes. The trading-system check is structural: the
+  // builder forces the user to pick an automation mode, so a saved
+  // active profile implies execution has been configured.
+  const brokerDone = !!broker.data;
+  const symbolsDone = (symbols.data?.symbols?.length ?? 0) > 0;
+  const tradingSystemDone = tradingSystem.data?.status === 'active';
+  const llmDone = !!llm.data;
+  // Execution mode is implied by an active trading system (Section 11
+  // of the builder is mandatory). When billing wires its status hook,
+  // billingDone can flip from placeholder-false to a real probe.
+  const executionDone = tradingSystemDone;
+  const billingDone = false; // placeholder until billing exposes status
+
+  // The final "You're in" step gates on every functional pre-req
+  // (excluding the billing placeholder). The user is genuinely ready
+  // to trade as soon as broker + symbols + trading system + LLM are
+  // wired up; billing affects subscription tier but not capability.
+  const readyDone =
+    brokerDone && symbolsDone && tradingSystemDone && llmDone;
+
   const steps: ChecklistStep[] = useMemo(
     () => [
       {
@@ -53,7 +73,7 @@ export function OnboardingChecklist() {
         title: 'Connect your broker',
         description:
           'Link your MT4 or MT5 account so the AI can read prices and place trades on your behalf.',
-        done: !!broker.data,
+        done: brokerDone,
         loading: broker.isLoading,
         cta: {
           label: 'Connect broker',
@@ -64,7 +84,7 @@ export function OnboardingChecklist() {
         id: 'symbols',
         title: 'Select favorite symbols',
         description: 'Choose the instruments you want the AI to analyse for you.',
-        done: (symbols.data?.symbols?.length ?? 0) > 0,
+        done: symbolsDone,
         loading: symbols.isLoading,
         cta: {
           label: 'Pick symbols',
@@ -76,7 +96,7 @@ export function OnboardingChecklist() {
         title: 'Build your Exoper Trading System',
         description:
           'A 2–3 minute questionnaire that personalises every AI decision to your style, risk, and goals.',
-        done: tradingSystem.data?.status === 'active',
+        done: tradingSystemDone,
         loading: tradingSystem.isLoading,
         cta: {
           label:
@@ -89,7 +109,7 @@ export function OnboardingChecklist() {
         title: 'Add billing',
         description:
           'Pick a plan so the AI can run autonomously and access premium institutional data.',
-        done: false,
+        done: billingDone,
         loading: false,
         cta: {
           label: 'Open billing',
@@ -102,7 +122,7 @@ export function OnboardingChecklist() {
         title: 'Add your AI API key',
         description:
           'BYOK: bring your own OpenAI / Anthropic / Gemini key, or upgrade to Pro Managed to use ours.',
-        done: !!llm.data,
+        done: llmDone,
         loading: llm.isLoading,
         cta: {
           label: llm.data ? 'Manage key' : 'Add API key',
@@ -114,29 +134,37 @@ export function OnboardingChecklist() {
         title: 'Configure execution',
         description:
           'Pick how much control you delegate — alert-only, manual approval, semi-automatic, or fully automatic.',
-        done: false,
-        loading: false,
+        done: executionDone,
+        loading: tradingSystem.isLoading,
         cta: {
-          label: 'Configure',
-          onClick: () => navigate('/dashboard/settings'),
+          label: tradingSystemDone ? 'Adjust' : 'Configure',
+          onClick: () => navigate('/dashboard/trading-system'),
         },
-        placeholder: true,
+        // No longer a placeholder — the CTA deep-links into the
+        // existing Trading System page, where the user adjusts
+        // Section 11 (Automation).
       },
       {
         id: 'ready',
         title: "You're in",
-        description:
-          "You're ready to trade. The chart will replace this card the moment any prior step is complete.",
-        done: false,
+        description: readyDone
+          ? 'Everything is wired up. The chart on the right is now live.'
+          : 'Complete the steps above to start trading with personalised AI.',
+        done: readyDone,
         loading: false,
         cta: {
           label: 'Go to chart',
           onClick: () => navigate('/dashboard'),
         },
-        placeholder: true,
       },
     ],
-    [broker, llm, symbols, tradingSystem, navigate],
+    [
+      brokerDone, symbolsDone, tradingSystemDone, llmDone, billingDone,
+      executionDone, readyDone,
+      broker.isLoading, llm.isLoading, symbols.isLoading,
+      tradingSystem.isLoading, tradingSystem.data, llm.data,
+      navigate,
+    ],
   );
 
   const completedCount = steps.filter((s) => s.done).length;
@@ -179,7 +207,7 @@ export function OnboardingChecklist() {
               onPlaceholder={() =>
                 toast({
                   title: `${step.title} — coming soon`,
-                  description: 'This step is part of onboarding. Wiring lands in a follow-up release.',
+                  description: 'This onboarding step is coming soon.',
                   variant: 'default',
                 })
               }

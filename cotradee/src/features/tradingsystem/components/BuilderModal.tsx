@@ -22,13 +22,24 @@ export function BuilderModal({ open, onClose, onComplete, onSkip }: Props) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        // Consume the keystroke so any parent-level ESC listener
+        // (e.g. a sidebar drawer or a confirmation dialog above this
+        // modal) does not fire alongside ours.
+        e.stopPropagation();
+        e.preventDefault();
+        onClose();
+      }
     };
-    document.addEventListener('keydown', handler);
+    // capture: true so we run BEFORE any document-level listener
+    // installed by a parent (React's synthetic event system bubbles
+    // through a single root listener; native capture-phase fires
+    // before it).
+    document.addEventListener('keydown', handler, { capture: true });
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('keydown', handler);
+      document.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
       document.body.style.overflow = prev;
     };
   }, [open, onClose]);

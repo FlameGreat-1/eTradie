@@ -283,6 +283,10 @@ func main() {
 		cfg.EngineInternalSharedSecret,
 		observability.Logger("tradingsystem"),
 	)
+	// Reap the per-user rate-limiter background goroutines on
+	// graceful shutdown. Mirrors the pattern used by every other
+	// rate-limited handler in the gateway (auth, consent, support).
+	defer tradingSystemHandler.Close()
 	log.Info().
 		Int("schema_version", tradingsystem.CurrentSchemaVersion).
 		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
