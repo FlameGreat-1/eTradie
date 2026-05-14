@@ -305,17 +305,36 @@ class TradingPlanGenerator:
         def _journal_row(src: Any) -> dict[str, str]:
             if not isinstance(src, dict):
                 src = {}
+            # The 25 columns mirror src/tradingplan/models.go::JournalRow
+            # field-for-field. Every cell defaults to an empty string
+            # so a sparse LLM response still produces a structurally
+            # valid row the gateway validator accepts.
             return {
-                "date":      str(src.get("date", "")),
-                "pair":      str(src.get("pair", "")),
-                "direction": str(src.get("direction", "")),
-                "style":     str(src.get("style", "")),
-                "entry":     str(src.get("entry", "")),
-                "exit":      str(src.get("exit", "")),
-                "rr":        str(src.get("rr", "")),
-                "pnl":       str(src.get("pnl", "")),
-                "outcome":   str(src.get("outcome", "")),
-                "notes":     str(src.get("notes", "")),
+                "date":                 str(src.get("date", "")),
+                "session":              str(src.get("session", "")),
+                "pair":                 str(src.get("pair", "")),
+                "direction":            str(src.get("direction", "")),
+                "style":                str(src.get("style", "")),
+                "setup_type":           str(src.get("setup_type", "")),
+                "htf_bias":             str(src.get("htf_bias", "")),
+                "entry":                str(src.get("entry", "")),
+                "stop_loss":            str(src.get("stop_loss", "")),
+                "take_profit":          str(src.get("take_profit", "")),
+                "risk_percent":         str(src.get("risk_percent", "")),
+                "position_size":        str(src.get("position_size", "")),
+                "exit":                 str(src.get("exit", "")),
+                "rr_planned":           str(src.get("rr_planned", "")),
+                "rr_achieved":          str(src.get("rr_achieved", "")),
+                "pnl":                  str(src.get("pnl", "")),
+                "outcome":              str(src.get("outcome", "")),
+                "rule_followed":        str(src.get("rule_followed", "")),
+                "emotion_before_trade": str(src.get("emotion_before_trade", "")),
+                "emotion_after_trade":  str(src.get("emotion_after_trade", "")),
+                "trade_quality":        str(src.get("trade_quality", "")),
+                "mistake_category":     str(src.get("mistake_category", "")),
+                "news_present":         str(src.get("news_present", "")),
+                "screenshot_link":      str(src.get("screenshot_link", "")),
+                "notes":                str(src.get("notes", "")),
             }
 
         journal: list[dict[str, str]] = [

@@ -94,11 +94,22 @@ RESPONSE SCHEMA (every field is REQUIRED)
   }},
   "journal": [
     {{
-      "date": "", "pair": "", "direction": "", "style": "",
-      "entry": "", "exit": "", "rr": "", "pnl": "",
-      "outcome": "", "notes": ""
+      "date": "", "session": "", "pair": "", "direction": "",
+      "style": "", "setup_type": "", "htf_bias": "",
+      "entry": "", "stop_loss": "", "take_profit": "",
+      "risk_percent": "", "position_size": "", "exit": "",
+      "rr_planned": "", "rr_achieved": "", "pnl": "",
+      "outcome": "", "rule_followed": "",
+      "emotion_before_trade": "", "emotion_after_trade": "",
+      "trade_quality": "", "mistake_category": "",
+      "news_present": "", "screenshot_link": "", "notes": ""
     }}
-    // Exactly {JOURNAL_SEED_ROWS} empty rows. The trader fills these in manually.
+    // Exactly {JOURNAL_SEED_ROWS} empty rows (25 columns each).
+    // The trader fills these in manually as they trade through the
+    // 90-day window. Leave every cell blank on seed — do NOT pre-fill
+    // categorical columns (session, setup_type, htf_bias, outcome,
+    // rule_followed, emotion_*, trade_quality, mistake_category,
+    // news_present); the trader picks the appropriate value per trade.
   ],
   "weekly_review": {{
     "prompts": [
