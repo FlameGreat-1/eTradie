@@ -24,6 +24,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,
@@ -57,6 +58,7 @@ func NewHTTPServer(
 	billingClient *BillingClient,
 	userStore *auth.UserStore,
 	meteringHandler *MeteringHandler,
+	tradingSystemHandler *tradingsystem.Handler,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
@@ -127,6 +129,17 @@ func NewHTTPServer(
 	// auth + CSRF middleware chain. The handler internally splits the
 	// two surfaces so a single RegisterRoutes call is enough.
 	supportHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+
+	// Trading System (PRACTICE.md Layer 2 — user personalization).
+	// Public REST surface for the SPA + an internal endpoint the
+	// Python engine calls when assembling the processor context. The
+	// internal endpoint is guarded by the engine shared secret, not
+	// the auth middleware, because the engine is the only legitimate
+	// caller and it cannot hold a user JWT in background workers.
+	if tradingSystemHandler != nil {
+		tradingSystemHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+		tradingSystemHandler.RegisterInternalRoutes(mux)
+	}
 
 	// CORS allowlist is validated at startup so a misconfig fails
 	// the deploy loudly rather than silently producing 403s or, worse,

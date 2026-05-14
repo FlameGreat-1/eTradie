@@ -20,6 +20,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 
 func main() {
@@ -269,7 +270,25 @@ func main() {
 	subStore := store.NewSubscriptionStore(authPool)
 	portalAudStore := store.NewPortalAuditStore(authPool)
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore)
+	// ── Trading System (PRACTICE.md user personalization layer) ────────
+	// Same authPool: keeps every per-user feature in one Postgres
+	// instance with one connection budget. The store DDL is idempotent
+	// so a fresh database boots without any external migration step.
+	if _, err := authPool.Exec(ctx, tradingsystem.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("trading_system_schema_creation_failed")
+	}
+	tradingSystemStore := tradingsystem.NewStore(authPool)
+	tradingSystemHandler := tradingsystem.NewHandler(
+		tradingSystemStore,
+		cfg.EngineInternalSharedSecret,
+		observability.Logger("tradingsystem"),
+	)
+	log.Info().
+		Int("schema_version", tradingsystem.CurrentSchemaVersion).
+		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
+		Msg("trading_system_initialized")
+
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore, tradingSystemHandler)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}
