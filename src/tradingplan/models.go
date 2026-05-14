@@ -107,22 +107,45 @@ type AccountParameters struct {
 // Section 3 — Daily Execution Journal (the core operational table)
 // ---------------------------------------------------------------------------
 
-// JournalRow is one row of the Daily Execution Journal. Columns are
-// exactly the ten PRACTICE.md specifies. Strings everywhere because
-// the table is a manual journal — the user types whatever they want.
-// The backend never math-evaluates these fields; the LLM produces
-// blank rows on initial generation and the user fills them in.
+// JournalRow is one row of the Daily Execution Journal. The 25
+// columns mirror PRACTICE.md's final specification exactly:
+//
+//   Date, Session, Pair, Direction, Style, SetupType, HTFBias,
+//   Entry, StopLoss, TakeProfit, RiskPercent, PositionSize, Exit,
+//   RRPlanned, RRAchieved, PnL, Outcome, RuleFollowed,
+//   EmotionBeforeTrade, EmotionAfterTrade, TradeQuality,
+//   MistakeCategory, NewsPresent, ScreenshotLink, Notes.
+//
+// Strings everywhere because the table is a manual journal — the
+// user types whatever they want. The backend never math-evaluates
+// these fields; the LLM seeds blank rows on initial generation and
+// the user fills them in.
 type JournalRow struct {
-	Date      string `json:"date"`
-	Pair      string `json:"pair"`
-	Direction string `json:"direction"`
-	Style     string `json:"style"`
-	Entry     string `json:"entry"`
-	Exit      string `json:"exit"`
-	RR        string `json:"rr"`
-	PnL       string `json:"pnl"`
-	Outcome   string `json:"outcome"`
-	Notes     string `json:"notes"`
+	Date               string `json:"date"`
+	Session            string `json:"session"`
+	Pair               string `json:"pair"`
+	Direction          string `json:"direction"`
+	Style              string `json:"style"`
+	SetupType          string `json:"setup_type"`
+	HTFBias            string `json:"htf_bias"`
+	Entry              string `json:"entry"`
+	StopLoss           string `json:"stop_loss"`
+	TakeProfit         string `json:"take_profit"`
+	RiskPercent        string `json:"risk_percent"`
+	PositionSize       string `json:"position_size"`
+	Exit               string `json:"exit"`
+	RRPlanned          string `json:"rr_planned"`
+	RRAchieved         string `json:"rr_achieved"`
+	PnL                string `json:"pnl"`
+	Outcome            string `json:"outcome"`
+	RuleFollowed       string `json:"rule_followed"`
+	EmotionBeforeTrade string `json:"emotion_before_trade"`
+	EmotionAfterTrade  string `json:"emotion_after_trade"`
+	TradeQuality       string `json:"trade_quality"`
+	MistakeCategory    string `json:"mistake_category"`
+	NewsPresent        string `json:"news_present"`
+	ScreenshotLink     string `json:"screenshot_link"`
+	Notes              string `json:"notes"`
 }
 
 // ---------------------------------------------------------------------------
