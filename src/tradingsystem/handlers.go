@@ -32,10 +32,16 @@ const (
 // must not share a budget across users on a shared NAT). Three
 // independent limiters so a save burst does not exhaust the skip
 // budget and vice versa.
+//
+// invalidation publishes Redis pub/sub events after every profile
+// mutation so the engine can bust its in-process + Redis cache for
+// the affected user. When nil (no Redis configured), mutations still
+// succeed; the engine's cache expires naturally via TTL.
 type Handler struct {
 	store          *Store
 	internalSecret string
 	log            zerolog.Logger
+	invalidation   *InvalidationPublisher
 
 	saveLimiter  *userRateLimiter
 	skipLimiter  *userRateLimiter
@@ -46,11 +52,18 @@ type Handler struct {
 // engine sends in X-Internal-Auth; pass an empty string only in
 // tests. A deployed gateway with an empty secret refuses every
 // internal call (safe by default).
-func NewHandler(store *Store, internalSecret string, log zerolog.Logger) *Handler {
+// invalidation may be nil when Redis is not configured.
+func NewHandler(
+	store *Store,
+	internalSecret string,
+	log zerolog.Logger,
+	invalidation *InvalidationPublisher,
+) *Handler {
 	return &Handler{
 		store:          store,
 		internalSecret: strings.TrimSpace(internalSecret),
 		log:            log,
+		invalidation:   invalidation,
 		saveLimiter:    newUserRateLimiter(30, time.Minute),
 		skipLimiter:    newUserRateLimiter(10, time.Minute),
 		resetLimiter:   newUserRateLimiter(10, time.Minute),
@@ -220,6 +233,10 @@ func (h *Handler) putProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invalidate the engine's Redis cache for this user so the next
+	// analysis cycle uses the updated profile without waiting for TTL.
+	h.invalidation.Publish(r.Context(), userID, "save")
+
 	TradingSystemSaveTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().
 		Str("user_id", userID).
@@ -288,6 +305,9 @@ func (h *Handler) handleSkip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to skip")
 		return
 	}
+	// Invalidate the engine's cache so a user who previously had an
+	// active profile and then skips is not served stale data.
+	h.invalidation.Publish(r.Context(), userID, "skip")
 	TradingSystemSkipTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().Str("user_id", userID).Str("status", string(view.Status)).Msg("trading_system_skipped")
 	writeJSON(w, http.StatusOK, view)
@@ -319,6 +339,9 @@ func (h *Handler) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to reset")
 		return
 	}
+	// Invalidate the engine's cache so the next cycle falls back to
+	// the default institutional profile immediately.
+	h.invalidation.Publish(r.Context(), userID, "reset")
 	TradingSystemResetTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().Str("user_id", userID).Msg("trading_system_reset")
 	writeJSON(w, http.StatusOK, map[string]interface{}{
