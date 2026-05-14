@@ -189,17 +189,24 @@ func Validate(p *Profile) error {
 	}
 
 	// -- Section 10: Confluence weights (0..3 each) ---------------------
-	for name, val := range map[string]int{
-		"confluence.macro_alignment":  p.Confluence.MacroAlignment,
-		"confluence.dxy":              p.Confluence.DXY,
-		"confluence.cot":              p.Confluence.COT,
-		"confluence.htf_alignment":    p.Confluence.HTFAlignment,
-		"confluence.wyckoff":          p.Confluence.Wyckoff,
-		"confluence.volume_liquidity": p.Confluence.VolumeLiquidity,
-		"confluence.session_timing":   p.Confluence.SessionTiming,
-	} {
-		if val < 0 || val > 3 {
-			errs.add(name, "weight must be between 0 and 3")
+	// Fixed-order slice (not a map literal) so the resulting ValidationError
+	// Fields are populated deterministically; map iteration order in Go is
+	// randomised and produced flaky test golden files.
+	confluenceWeights := []struct {
+		name string
+		val  int
+	}{
+		{"confluence.macro_alignment", p.Confluence.MacroAlignment},
+		{"confluence.dxy", p.Confluence.DXY},
+		{"confluence.cot", p.Confluence.COT},
+		{"confluence.htf_alignment", p.Confluence.HTFAlignment},
+		{"confluence.wyckoff", p.Confluence.Wyckoff},
+		{"confluence.volume_liquidity", p.Confluence.VolumeLiquidity},
+		{"confluence.session_timing", p.Confluence.SessionTiming},
+	}
+	for _, w := range confluenceWeights {
+		if w.val < 0 || w.val > 3 {
+			errs.add(w.name, "weight must be between 0 and 3")
 		}
 	}
 
@@ -315,11 +322,19 @@ func Validate(p *Profile) error {
 			"cannot require final user confirmation when mode is fully_automatic")
 	}
 
-	// Trailing-stop preference disagreement between risk and management
-	// sections.
+	// Trailing-stop preference must agree across Section 4 (Risk
+	// Personality) and Section 14 (Trade Management). The asymmetric
+	// version of this check would have allowed Risk.TrailingStopEnabled=false
+	// paired with a non-disabled Management.TrailingStop, producing
+	// incoherent soft constraints for the LLM. We enforce BOTH
+	// directions so the stored profile is always coherent.
 	if p.Risk.TrailingStopEnabled && p.Management.TrailingStop == TrailingDisabled {
 		errs.add("management.trailing_stop",
 			"risk profile enables trailing stop but management section disables it")
+	}
+	if !p.Risk.TrailingStopEnabled && p.Management.TrailingStop != TrailingDisabled {
+		errs.add("management.trailing_stop",
+			"risk profile disables trailing stop; set management.trailing_stop to 'disabled' to match")
 	}
 
 	if errs.hasFields() {

@@ -3,10 +3,10 @@ package tradingsystem
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -45,13 +45,16 @@ func NewHandler(store *Store, internalSecret string, log zerolog.Logger) *Handle
 
 // RegisterRoutes mounts the public REST surface. The middleware chain
 // matches the rest of the dashboard API (auth -> csrf -> handler).
+// Every handler is wrapped in withPanicRecovery so a goroutine panic
+// is converted to a structured JSON 500 instead of crashing the
+// goroutine and returning a Go-default response.
 func (h *Handler) RegisterRoutes(
 	mux *http.ServeMux,
 	authMiddleware func(http.Handler) http.Handler,
 	csrfMiddleware func(http.Handler) http.Handler,
 ) {
 	wrap := func(handler http.HandlerFunc) http.Handler {
-		return authMiddleware(csrfMiddleware(http.HandlerFunc(handler)))
+		return authMiddleware(csrfMiddleware(h.withPanicRecovery(handler)))
 	}
 
 	mux.Handle("/api/v1/trading-system", wrap(h.handleProfile))
@@ -61,9 +64,31 @@ func (h *Handler) RegisterRoutes(
 	mux.Handle("/api/v1/trading-system/schema", wrap(h.handleSchema))
 }
 
-// RegisterInternalRoutes mounts the engine-callable surface.
+// RegisterInternalRoutes mounts the engine-callable surface. Panic
+// recovery is applied here too — a panic on the internal surface must
+// not crash the engine's connection pool.
 func (h *Handler) RegisterInternalRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/internal/trading-system/get", h.handleInternalGet)
+	mux.Handle("/internal/trading-system/get", h.withPanicRecovery(h.handleInternalGet))
+}
+
+// withPanicRecovery converts a panic in any handler into a structured
+// JSON 500 with a stack-trace log line. Mirrors the pattern used by
+// api_handlers.go::APIHandler.withPanicRecovery.
+func (h *Handler) withPanicRecovery(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				h.log.Error().
+					Interface("panic", rec).
+					Str("path", r.URL.Path).
+					Str("method", r.Method).
+					Bytes("stack", debug.Stack()).
+					Msg("trading_system_panic_recovered")
+				writeError(w, http.StatusInternalServerError, "internal server error")
+			}
+		}()
+		next(w, r)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -315,7 +340,16 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		var body internalGetRequest
 		if r.ContentLength > 0 {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				// A misconfigured engine deployment would otherwise silently
+				// fall through to "user_id is required" with no diagnostic
+				// breadcrumb. Log at warn so the operator sees the decode
+				// failure before chasing a phantom 400.
+				h.log.Warn().
+					Err(err).
+					Int64("content_length", r.ContentLength).
+					Msg("trading_system_internal_body_decode_failed")
+			}
 		}
 		userID = strings.TrimSpace(body.UserID)
 	}
@@ -355,6 +389,13 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 // X-Internal-Auth header against the configured shared secret. An
 // unconfigured secret always returns false so a misconfigured
 // gateway never exposes the internal surface.
+//
+// We hash both sides with SHA-256 to obtain fixed-length 32-byte
+// digests and compare with hmac.Equal. The fixed-length pre-hash
+// closes the side-channel of leaking the secret length via timing
+// (raw strings of differing lengths would short-circuit hmac.Equal).
+// No hex encoding round-trip — hmac.Equal operates correctly on raw
+// byte slices, which is the canonical Go pattern.
 func (h *Handler) verifyInternalSecret(r *http.Request) bool {
 	if h.internalSecret == "" {
 		return false
@@ -365,9 +406,7 @@ func (h *Handler) verifyInternalSecret(r *http.Request) bool {
 	}
 	want := sha256.Sum256([]byte(h.internalSecret))
 	got := sha256.Sum256([]byte(provided))
-	wantHex := hex.EncodeToString(want[:])
-	gotHex := hex.EncodeToString(got[:])
-	return hmac.Equal([]byte(wantHex), []byte(gotHex))
+	return hmac.Equal(want[:], got[:])
 }
 
 // ---------------------------------------------------------------------------

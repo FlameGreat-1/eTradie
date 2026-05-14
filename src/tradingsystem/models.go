@@ -396,9 +396,14 @@ type Record struct {
 // /api/v1/trading-system/status. It deliberately omits the heavy
 // profile blob so the dashboard onboarding checklist can poll cheaply
 // on every mount without hydrating a multi-kilobyte JSON document.
+//
+// UpdatedAt is a *time.Time, not a value-type time.Time, because Go's
+// encoding/json does NOT honour json:",omitempty" for value-type
+// time.Time (the zero value 0001-01-01T00:00:00Z still serialises).
+// A nil pointer correctly omits the field for users who have no row.
 type StatusView struct {
-	Status     Status    `json:"status"`
-	Version    int       `json:"version"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
-	HasProfile bool      `json:"has_profile"`
+	Status     Status     `json:"status"`
+	Version    int        `json:"version"`
+	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
+	HasProfile bool       `json:"has_profile"`
 }

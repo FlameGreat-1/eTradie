@@ -63,22 +63,36 @@ func (s *Store) Get(ctx context.Context, userID string) (*Record, error) {
 // it stays cheap on every page load.
 func (s *Store) GetStatus(ctx context.Context, userID string) (*StatusView, error) {
 	var (
-		view       StatusView
+		status     Status
+		version    int
+		updatedAt  time.Time
 		hasProfile bool
 	)
 	err := s.pool.QueryRow(ctx,
 		`SELECT status, version, updated_at, profile IS NOT NULL
 		   FROM user_trading_systems
 		  WHERE user_id = $1`, userID,
-	).Scan(&view.Status, &view.Version, &view.UpdatedAt, &hasProfile)
+	).Scan(&status, &version, &updatedAt, &hasProfile)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &StatusView{Status: StatusNone, Version: 0, HasProfile: false}, nil
+			// No row: status='none' with a nil UpdatedAt so the JSON
+			// response omits the field entirely (rather than emitting
+			// the Go zero-value 0001-01-01T00:00:00Z).
+			return &StatusView{
+				Status:     StatusNone,
+				Version:    0,
+				UpdatedAt:  nil,
+				HasProfile: false,
+			}, nil
 		}
 		return nil, fmt.Errorf("tradingsystem.GetStatus: %w", err)
 	}
-	view.HasProfile = hasProfile
-	return &view, nil
+	return &StatusView{
+		Status:     status,
+		Version:    version,
+		UpdatedAt:  &updatedAt,
+		HasProfile: hasProfile,
+	}, nil
 }
 
 // Save upserts an ACTIVE profile for the user, bumping the version
