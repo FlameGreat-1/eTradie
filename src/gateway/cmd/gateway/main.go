@@ -20,6 +20,8 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingplan"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 
@@ -318,7 +320,51 @@ func main() {
 		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
 		Msg("trading_system_initialized")
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore, tradingSystemHandler)
+	// ── Trading Plan (PRACTICE.md “HOW I OPERATE” — 90-day workbook) ──
+	// Same authPool as every other gateway store; idempotent DDL so
+	// a fresh database boots without an external migration step.
+	if _, err := authPool.Exec(ctx, tradingplan.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("trading_plan_schema_creation_failed")
+	}
+	tradingPlanStore := tradingplan.NewStore(authPool)
+
+	// The handler needs an engine HTTP client to dispatch the LLM call
+	// and to look up the user's broker balance. The container builds
+	// its own engine client further down, but the handler must exist
+	// *before* container.New because it is one of its inputs. A second
+	// long-lived client costs ~one keep-alive pool and avoids any
+	// changes to container.New's signature semantics.
+	tradingPlanEngine := infra.NewEngineHTTPClient(
+		cfg.EngineHTTPURL,
+		cfg.EngineInternalSharedSecret,
+		cfg.CycleTimeoutSeconds,
+	)
+	tradingPlanDispatcher := tradingplanadapter.NewDispatcher(
+		tradingPlanEngine,
+		observability.Logger("tradingplan_dispatcher"),
+	)
+	tradingPlanBalance := tradingplanadapter.NewBalance(
+		tradingPlanEngine,
+		observability.Logger("tradingplan_balance"),
+	)
+	tradingPlanHandler := tradingplan.NewHandler(
+		tradingPlanStore,
+		tradingSystemStore,
+		tradingPlanDispatcher,
+		tradingPlanBalance,
+		cfg.EngineInternalSharedSecret,
+		observability.Logger("tradingplan"),
+	)
+	// Reap the per-user rate-limiter background goroutines on graceful
+	// shutdown. Mirrors every other rate-limited handler in the gateway.
+	defer tradingPlanHandler.Close()
+	defer tradingPlanEngine.Close()
+	log.Info().
+		Int("schema_version", tradingplan.CurrentSchemaVersion).
+		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
+		Msg("trading_plan_initialized")
+
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore, tradingSystemHandler, tradingPlanHandler)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}
