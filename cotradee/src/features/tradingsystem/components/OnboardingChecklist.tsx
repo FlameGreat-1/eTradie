@@ -5,6 +5,7 @@ import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnectio
 import { useActiveLlmConnection } from '@/features/llm/api/llmConnections';
 import { useSymbols } from '@/features/symbols/api/symbols';
 import { useTradingSystemStatus } from '../api/hooks';
+import { useOnboardingProgress } from '../hooks/useOnboardingProgress';
 import { BuilderModal } from './BuilderModal';
 
 interface ChecklistStep {
@@ -39,32 +40,23 @@ interface ChecklistStep {
 export function OnboardingChecklist() {
   const navigate = useNavigate();
 
+  // Underlying probes (re-used here for loading/CTA-label state; the
+  // boolean done-flags come from useOnboardingProgress so the card
+  // and the dashboard's Resume Setup pill share one rule set).
   const broker = useActiveBrokerConnection();
   const llm = useActiveLlmConnection();
   const symbols = useSymbols();
   const tradingSystem = useTradingSystemStatus();
 
+  const { perStep, ready: readyDone } = useOnboardingProgress();
+  const brokerDone = perStep.broker;
+  const symbolsDone = perStep.symbols;
+  const tradingSystemDone = perStep.tradingSystem;
+  const llmDone = perStep.llm;
+  const executionDone = perStep.execution;
+  const billingDone = perStep.billing;
+
   const [builderOpen, setBuilderOpen] = useState(false);
-
-  // Live state probes. The trading-system check is structural: the
-  // builder forces the user to pick an automation mode, so a saved
-  // active profile implies execution has been configured.
-  const brokerDone = !!broker.data;
-  const symbolsDone = (symbols.data?.symbols?.length ?? 0) > 0;
-  const tradingSystemDone = tradingSystem.data?.status === 'active';
-  const llmDone = !!llm.data;
-  // Execution mode is implied by an active trading system (Section 11
-  // of the builder is mandatory). When billing wires its status hook,
-  // billingDone can flip from placeholder-false to a real probe.
-  const executionDone = tradingSystemDone;
-  const billingDone = false; // placeholder until billing exposes status
-
-  // The final "You're in" step gates on every functional pre-req
-  // (excluding the billing placeholder). The user is genuinely ready
-  // to trade as soon as broker + symbols + trading system + LLM are
-  // wired up; billing affects subscription tier but not capability.
-  const readyDone =
-    brokerDone && symbolsDone && tradingSystemDone && llmDone;
 
   const steps: ChecklistStep[] = useMemo(
     () => [
