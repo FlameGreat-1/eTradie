@@ -48,9 +48,6 @@ from engine.processor.prompts.system_prompt import (
 )
 from engine.processor.storage.uow import ProcessorUOWFactory
 from engine.processor.user_os.client import UserOSClient
-from engine.processor.user_os.context_builder import (
-    build_user_operating_context,
-)
 from engine.processor.streaming import stream_channel_for_user
 from engine.processor.models.analysis import AnalysisOutput as AO
 from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
@@ -238,10 +235,25 @@ class AnalysisProcessor(ProcessorPort):
         # configured) means we fall back to the default institutional
         # profile — PRACTICE.md is explicit that a missing user OS must
         # never block analysis.
+        # Fetch the user's Trading Operating System via the cache-aware
+        # client method. On a cache hit this is a single Redis GET
+        # (~0.1 ms). On a miss it falls through to the gateway HTTP
+        # fetch and then writes the result to Redis. Either way the
+        # call is scheduled as a task in parallel with prompt
+        # construction so the network round-trip adds zero serial
+        # latency to the LLM pipeline.
+        #
+        # A None result (user skipped onboarding, gateway transiently
+        # unavailable, or client not configured) means we fall back to
+        # the default institutional profile -- PRACTICE.md is explicit
+        # that a missing user OS must never block analysis.
         user_os_task: Optional[asyncio.Task] = None
         if self._user_os_client is not None and user_id:
             user_os_task = asyncio.create_task(
-                self._user_os_client.get(user_id),
+                self._user_os_client.get_compressed_context(
+                    user_id,
+                    trace_id=trace_id,
+                ),
                 name=f"user_os_fetch:{user_id}",
             )
 
@@ -250,9 +262,7 @@ class AnalysisProcessor(ProcessorPort):
         user_os_context: Optional[dict] = None
         if user_os_task is not None:
             try:
-                record = await user_os_task
-                if record is not None and record.is_active:
-                    user_os_context = build_user_operating_context(record.profile)
+                user_os_context = await user_os_task
             except Exception as exc:
                 # Defensive: a malformed profile or unexpected exception
                 # in the fetcher must never abort the LLM call.

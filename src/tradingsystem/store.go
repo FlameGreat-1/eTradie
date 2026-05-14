@@ -173,7 +173,7 @@ func (s *Store) Skip(ctx context.Context, userID string) (*StatusView, error) {
 	return &StatusView{
 		Status:     outStatus,
 		Version:    outVersion,
-		UpdatedAt:  outUpdatedAt,
+		UpdatedAt:  &outUpdatedAt,
 		HasProfile: hasProfile,
 	}, nil
 }

@@ -278,10 +278,21 @@ func main() {
 		log.Fatal().Err(err).Msg("trading_system_schema_creation_failed")
 	}
 	tradingSystemStore := tradingsystem.NewStore(authPool)
+	// Build the invalidation publisher. When Redis is available (which
+	// it always is in production since the container already requires
+	// it), profile mutations publish a cache-bust event to the engine
+	// via Redis pub/sub so the engine's in-process + Redis cache for
+	// the affected user is invalidated immediately rather than waiting
+	// for the 1-hour positive-cache TTL.
+	tradingSystemInvalidation := tradingsystem.NewInvalidationPublisher(
+		c.Redis,
+		observability.Logger("tradingsystem_invalidation"),
+	)
 	tradingSystemHandler := tradingsystem.NewHandler(
 		tradingSystemStore,
 		cfg.EngineInternalSharedSecret,
 		observability.Logger("tradingsystem"),
+		tradingSystemInvalidation,
 	)
 	// Reap the per-user rate-limiter background goroutines on
 	// graceful shutdown. Mirrors the pattern used by every other

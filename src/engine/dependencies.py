@@ -159,7 +159,12 @@ class Container:
         # are unset (local dev / unit tests); the processor handles
         # the None case by falling back to the default institutional
         # profile so missing configuration never blocks analysis.
-        self.user_os_client: Optional[UserOSClient] = UserOSClient.from_env()
+        # The shared RedisCache is passed in so the client can cache
+        # the compressed instruction block and avoid a gateway HTTP
+        # round-trip on every analysis cycle.
+        self.user_os_client: Optional[UserOSClient] = UserOSClient.from_env(
+            cache=self.cache,
+        )
 
     def _build_providers(self) -> None:
         s = self.settings

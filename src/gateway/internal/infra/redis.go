@@ -151,6 +151,20 @@ func (r *RedisClient) Delete(ctx context.Context, namespace, key string) error {
 	return fmt.Errorf("redis: delete %s after %d retries: %w", fullKey, maxRetries, lastErr)
 }
 
+// Publish sends a message to a Redis pub/sub channel. Used by the
+// trading-system invalidation publisher to notify the engine that a
+// user's profile has changed so the engine can bust its Redis cache.
+// Best-effort: errors are logged but not returned so a Redis outage
+// never blocks the HTTP response that triggered the publish.
+func (r *RedisClient) Publish(ctx context.Context, channel string, payload []byte) {
+	if err := r.client.Publish(ctx, channel, payload).Err(); err != nil {
+		r.log.Warn().
+			Str("channel", channel).
+			Err(err).
+			Msg("redis_publish_failed")
+	}
+}
+
 // HealthCheck pings Redis and returns true if healthy.
 func (r *RedisClient) HealthCheck(ctx context.Context) bool {
 	err := r.client.Ping(ctx).Err()

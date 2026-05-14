@@ -1,21 +1,19 @@
-"""User Operating System (Layer 2 personalization) for the processor.
+"""User Trading Operating System integration.
 
-Per PRACTICE.md, the user's Trading Operating System is a structured
-JSON profile stored in the gateway. The engine fetches it on every
-analysis cycle and injects a *compressed, normalised* instruction
-block into the LLM user message — NOT the raw JSON, to avoid prompt
-bloat and prompt-injection-through-profile.
-
-The institutional RAG (Layer 1) remains the source of truth. The user
-OS biases reasoning; it never overrides the rulebook.
+Fetches the authenticated user's structured profile from the gateway
+and compresses it into a deterministic, prompt-safe instruction block
+that the processor injects into the LLM user message. See PRACTICE.md
+Layer 2 for the architectural rationale.
 """
 
+from engine.processor.user_os.cache import UserOSCache
 from engine.processor.user_os.client import UserOSClient, UserOSRecord
 from engine.processor.user_os.context_builder import (
     build_user_operating_context,
 )
 
 __all__ = [
+    "UserOSCache",
     "UserOSClient",
     "UserOSRecord",
     "build_user_operating_context",

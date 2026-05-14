@@ -20,18 +20,18 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram, Info
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Application Info
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 APP_INFO = Info(
     "etradie_engine",
     "eTradie engine build information",
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Provider / HTTP Client Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 PROVIDER_FETCH_TOTAL = Counter(
     "etradie_provider_fetch_total",
@@ -65,9 +65,9 @@ ACTIVE_PROVIDERS = Gauge(
     ["category"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Collector Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 COLLECTOR_RUN_TOTAL = Counter(
     "etradie_collector_run_total",
@@ -88,9 +88,9 @@ COLLECTOR_ITEMS_STORED = Counter(
     ["collector"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Processor Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 PROCESSOR_RUN_TOTAL = Counter(
     "etradie_processor_run_total",
@@ -105,9 +105,9 @@ PROCESSOR_RUN_DURATION = Histogram(
     buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Pipeline Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 PIPELINE_CYCLE_TOTAL = Counter(
     "etradie_pipeline_cycle_total",
@@ -121,9 +121,9 @@ PIPELINE_CYCLE_DURATION = Histogram(
     buckets=(5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Cache Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 CACHE_OPERATIONS_TOTAL = Counter(
     "etradie_cache_operations_total",
@@ -151,9 +151,9 @@ CACHE_HIT_RATIO = Gauge(
     ["namespace"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Database Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 DB_QUERY_DURATION = Histogram(
     "etradie_db_query_duration_seconds",
@@ -194,9 +194,9 @@ DB_CONNECTION_POOL_SIZE = Gauge(
     ["state"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Scheduler Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 SCHEDULER_JOB_TOTAL = Counter(
     "etradie_scheduler_job_total",
@@ -221,9 +221,9 @@ SCHEDULER_ACTIVE_JOBS = Gauge(
     "Number of currently executing jobs",
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Tracing Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 TRACING_SPANS_CREATED = Counter(
     "etradie_tracing_spans_created_total",
@@ -237,9 +237,9 @@ TRACING_SPANS_ERRORS = Counter(
     ["span_name", "error_type"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Generic Provider Request Metrics (broker-agnostic)
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 PROVIDER_REQUEST_DURATION = Histogram(
     "etradie_provider_request_duration_seconds",
@@ -254,9 +254,9 @@ PROVIDER_REQUEST_ERRORS = Counter(
     ["provider", "operation", "error_type"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Logging Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 LOG_ENTRIES_TOTAL = Counter(
     "etradie_log_entries_total",
@@ -264,9 +264,9 @@ LOG_ENTRIES_TOTAL = Counter(
     ["level", "logger"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Technical Analysis (TA) Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
@@ -313,9 +313,9 @@ TA_VALIDATION_FAILURES = Counter(
     ["framework", "validator", "reason"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # RAG (Retrieval-Augmented Generation) Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 RAG_QUERY_TOTAL = Counter(
     "etradie_rag_query_total",
@@ -420,9 +420,9 @@ RAG_ACTIVE_CHUNKS = Gauge(
     ["collection"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # LLM / Processor (Module A) Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 LLM_REQUEST_TOTAL = Counter(
     "etradie_llm_request_total",
@@ -461,9 +461,26 @@ TRADE_PLAN_VALIDATION_FAILURES = Counter(
     ["rule"],
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
+# User Operating System (Layer 2 Personalization) Cache Metrics
+# Tracks cache hit/miss/error rates for the compressed user OS
+# context block. Operators can alert on:
+#   - high miss rate  -> Redis connectivity issue or cache not warming
+#   - high error rate -> Redis degraded
+#   - invalidation failures -> pub/sub listener not running
+# ==============================================================
+
+USER_OS_CACHE_OPS_TOTAL = Counter(
+    "etradie_user_os_cache_ops_total",
+    "User OS cache operations by type and outcome. "
+    "operation: positive_get | negative_get | positive_set | negative_set | invalidate. "
+    "outcome: hit | miss | error | success.",
+    ["operation", "outcome"],
+)
+
+# ==============================================================
 # System Resource Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 SYSTEM_CPU_USAGE = Gauge(
     "etradie_system_cpu_usage_percent",
@@ -482,9 +499,9 @@ SYSTEM_DISK_USAGE = Gauge(
     ["mount_point", "type"],  # used, available, total
 )
 
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 # Rate Limiting Metrics
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
 
 RATE_LIMIT_HITS_TOTAL = Counter(
     "etradie_rate_limit_hits_total",
