@@ -29,6 +29,7 @@ from engine.routers import (
     internal,
     llm_connections,
     processor_config,
+    trading_plan,
 )
 
 logger = get_logger(__name__)
@@ -233,6 +234,7 @@ def create_app() -> FastAPI:
     app.include_router(broker_connections.router)
     app.include_router(broker_bridge.router)
     app.include_router(chart.router)
+    app.include_router(trading_plan.router)
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
