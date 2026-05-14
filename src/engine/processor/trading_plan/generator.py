@@ -19,6 +19,7 @@ client or LLM client, so unit tests can swap both with fakes.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -39,7 +40,26 @@ logger = get_logger(__name__)
 
 _INTERNAL_AUTH_HEADER = "X-Internal-Auth"
 _INTERNAL_USER_ID_HEADER = "X-User-Id"
-_CALLBACK_TIMEOUT_S = 5.0
+
+# Per-attempt timeout. The callback path is gateway-internal traffic
+# (Redis-adjacent infra, sub-millisecond RTT in steady state) so 10s
+# is generous headroom for warm-up jitter without dragging the user's
+# end-to-end wait if the gateway is genuinely down.
+_CALLBACK_TIMEOUT_S = 10.0
+
+# Retry policy for the gateway callback. Exponential backoff caps
+# the total wait at ~3.5s across three attempts; after that we
+# escalate to _post_fail so the row flips to 'failed' instead of
+# being stranded in 'generating'.
+_CALLBACK_MAX_ATTEMPTS = 3
+_CALLBACK_BACKOFF_S = (0.5, 1.0, 2.0)
+
+# Retry policy for the LLM call inside _generate. We retry on
+# transient httpx transport errors and httpx.HTTPStatusError when
+# the provider returned a 5xx. Non-transient errors (auth, bad
+# request) fail fast.
+_LLM_MAX_ATTEMPTS = 3
+_LLM_BACKOFF_S = (1.0, 2.0)
 
 # Regex used to strip a stray JSON fence the model occasionally
 # wraps the response in (despite the prompt's instruction). We do
@@ -200,23 +220,64 @@ class TradingPlanGenerator:
             balance_source=req.balance_source,
         )
 
-        try:
-            response = await self._llm.call(
-                system_prompt=SYSTEM_PROMPT,
-                user_message=user_prompt,
-                trace_id=f"trading-plan:{req.user_id}",
-            )
-        except Exception as exc:
-            # LLM provider error envelopes can carry sensitive
-            # information (account IDs, internal routing hints); we
-            # log full detail server-side and surface a generic
-            # message to the user.
+        # Bounded retry loop for the LLM call. Transient transport
+        # errors and provider 5xx responses get one or two retries
+        # with exponential backoff; non-transient errors (auth, bad
+        # request, malformed prompt) raise on the first attempt so
+        # we do not waste time or tokens.
+        response = None
+        last_exc: Optional[Exception] = None
+        for attempt in range(_LLM_MAX_ATTEMPTS):
+            try:
+                response = await self._llm.call(
+                    system_prompt=SYSTEM_PROMPT,
+                    user_message=user_prompt,
+                    trace_id=f"trading-plan:{req.user_id}:{attempt}",
+                )
+                break
+            except Exception as exc:  # noqa: BLE001 — see below
+                last_exc = exc
+                # Heuristic transient classification. Provider SDKs
+                # raise their own error types (anthropic.APIError,
+                # openai.APIStatusError, etc.); we identify transient
+                # ones by name to avoid importing every provider.
+                name = type(exc).__name__.lower()
+                msg = str(exc).lower()
+                is_transient = (
+                    isinstance(exc, (httpx.TimeoutException, httpx.HTTPError))
+                    or "timeout" in name
+                    or "timeout" in msg
+                    or "rate limit" in msg
+                    or "ratelimit" in name
+                    or " 429" in msg
+                    or " 500" in msg
+                    or " 502" in msg
+                    or " 503" in msg
+                    or " 504" in msg
+                )
+                logger.warning(
+                    "trading_plan_llm_call_attempt_failed",
+                    extra={
+                        "user_id": req.user_id,
+                        "attempt": attempt + 1,
+                        "max_attempts": _LLM_MAX_ATTEMPTS,
+                        "transient": is_transient,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                if not is_transient or attempt == _LLM_MAX_ATTEMPTS - 1:
+                    break
+                await asyncio.sleep(_LLM_BACKOFF_S[attempt])
+        if response is None:
+            # Every attempt failed. Surface a generic message so we
+            # never leak provider-specific routing hints to the SPA.
             logger.warning(
                 "trading_plan_llm_call_failed",
                 extra={
                     "user_id": req.user_id,
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
+                    "error": str(last_exc) if last_exc else "unknown",
+                    "error_type": type(last_exc).__name__ if last_exc else "unknown",
                 },
             )
             raise TradingPlanGenerationError(
@@ -399,41 +460,134 @@ class TradingPlanGenerator:
     # -- Gateway HTTP --------------------------------------------------------
 
     async def _post_callback(self, user_id: str, plan: dict[str, Any]) -> None:
-        url = f"{self._base_url}/internal/trading-plan/callback"
-        try:
-            resp = await self._http.post(
-                url,
-                json={"user_id": user_id, "plan": plan},
-                headers={
-                    _INTERNAL_AUTH_HEADER: self._secret,
-                    _INTERNAL_USER_ID_HEADER: user_id,
-                },
-            )
-        except (httpx.TimeoutException, httpx.HTTPError) as exc:
-            logger.error(
-                "trading_plan_callback_post_failed",
-                extra={"user_id": user_id, "error": str(exc)},
-            )
-            return
+        """POST the generated plan to the gateway callback with bounded retries.
 
-        if resp.status_code != 200:
+        Retry policy:
+          * Transport errors (timeout, network) — retry up to
+            _CALLBACK_MAX_ATTEMPTS with exponential backoff.
+          * 5xx responses — retried under the same policy.
+          * 4xx responses other than 422 — fail fast and mark
+            the gateway row failed (these indicate a contract bug).
+          * 422 response — fail fast and mark failed (the gateway's
+            validator rejected the LLM payload; a retry will not fix
+            it).
+          * 200 — success.
+
+        If every retry exhausts we call _post_fail so the gateway
+        row transitions out of 'generating' and the SPA's polling
+        terminates.
+        """
+        url = f"{self._base_url}/internal/trading-plan/callback"
+        headers = {
+            _INTERNAL_AUTH_HEADER: self._secret,
+            _INTERNAL_USER_ID_HEADER: user_id,
+        }
+
+        last_status: Optional[int] = None
+        last_body_preview: str = ""
+        for attempt in range(_CALLBACK_MAX_ATTEMPTS):
+            try:
+                resp = await self._http.post(
+                    url,
+                    json={"user_id": user_id, "plan": plan},
+                    headers=headers,
+                )
+            except (httpx.TimeoutException, httpx.HTTPError) as exc:
+                logger.warning(
+                    "trading_plan_callback_attempt_failed_transport",
+                    extra={
+                        "user_id": user_id,
+                        "attempt": attempt + 1,
+                        "max_attempts": _CALLBACK_MAX_ATTEMPTS,
+                        "error": str(exc),
+                    },
+                )
+                if attempt < _CALLBACK_MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(_CALLBACK_BACKOFF_S[attempt])
+                    continue
+                # Exhausted retries on transport errors. The gateway
+                # row is still 'generating'; escalate to _post_fail.
+                await self._post_fail(
+                    user_id,
+                    "could not deliver plan to the gateway; please regenerate",
+                )
+                return
+
+            last_status = resp.status_code
+            last_body_preview = resp.text[:300]
+
+            if resp.status_code == 200:
+                logger.info(
+                    "trading_plan_callback_persisted",
+                    extra={"user_id": user_id, "attempt": attempt + 1},
+                )
+                return
+
+            # 422 — validator rejection; retry will not fix it.
+            if resp.status_code == 422:
+                logger.error(
+                    "trading_plan_callback_rejected_validation",
+                    extra={
+                        "user_id": user_id,
+                        "body_preview": last_body_preview,
+                    },
+                )
+                await self._post_fail(
+                    user_id,
+                    "AI produced an invalid plan structure; please regenerate",
+                )
+                return
+
+            # 5xx — transient on the gateway side, retry.
+            if 500 <= resp.status_code < 600:
+                logger.warning(
+                    "trading_plan_callback_attempt_failed_5xx",
+                    extra={
+                        "user_id": user_id,
+                        "attempt": attempt + 1,
+                        "max_attempts": _CALLBACK_MAX_ATTEMPTS,
+                        "status": resp.status_code,
+                        "body_preview": last_body_preview,
+                    },
+                )
+                if attempt < _CALLBACK_MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(_CALLBACK_BACKOFF_S[attempt])
+                    continue
+                # Exhausted retries on 5xx.
+                await self._post_fail(
+                    user_id,
+                    "gateway is temporarily unavailable; please regenerate",
+                )
+                return
+
+            # Other 4xx — contract bug; do not retry, escalate.
             logger.error(
-                "trading_plan_callback_rejected",
+                "trading_plan_callback_rejected_unexpected",
                 extra={
                     "user_id": user_id,
                     "status": resp.status_code,
-                    "body_preview": resp.text[:300],
+                    "body_preview": last_body_preview,
                 },
             )
             await self._post_fail(
                 user_id,
-                "AI produced an invalid plan structure; please regenerate",
+                "plan delivery rejected; please contact support",
             )
             return
 
-        logger.info(
-            "trading_plan_callback_persisted",
-            extra={"user_id": user_id},
+        # Should be unreachable (loop above always returns), but the
+        # belt-and-braces escalation guards against a future refactor.
+        logger.error(
+            "trading_plan_callback_loop_exited_unexpectedly",
+            extra={
+                "user_id": user_id,
+                "last_status": last_status,
+                "last_body_preview": last_body_preview,
+            },
+        )
+        await self._post_fail(
+            user_id,
+            "plan delivery failed; please regenerate",
         )
 
     async def _post_fail(self, user_id: str, message: str) -> None:

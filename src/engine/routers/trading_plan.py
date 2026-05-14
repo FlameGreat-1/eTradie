@@ -35,6 +35,7 @@ Responses:
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -70,7 +71,7 @@ _COOLDOWN_S = 60.0
 _TIMEOUT_S = 150.0
 
 
-def _resolve_generator(container: Container) -> Optional[TradingPlanGenerator]:
+async def _resolve_generator(container: Container) -> Optional[TradingPlanGenerator]:
     """Lazily build (and cache on the container) the generator instance.
 
     The generator depends on the platform LLM client which is built
@@ -78,15 +79,40 @@ def _resolve_generator(container: Container) -> Optional[TradingPlanGenerator]:
     cannot build it inside Container.__init__. Caching the result on
     the container keeps the construction cost (httpx client setup) a
     one-time event per process.
+
+    Concurrency: two simultaneous dispatch requests arriving before
+    the cache is populated would otherwise both build a generator;
+    one wins the final assignment and the other leaks an httpx pool.
+    We guard the build with an asyncio.Lock attached to the container
+    (created lazily on first call) so the second arrival awaits the
+    first and reuses its result. The lock is cheap (~0 cost after the
+    first build) and avoids the resource leak under cold-start bursts.
     """
     gen = getattr(container, "_trading_plan_generator", None)
     if gen is not None:
         return gen
-    gen = TradingPlanGenerator.from_container(container)
-    # Always assign (even when None) so we do not retry the env-var
-    # lookup on every request.
-    container._trading_plan_generator = gen  # type: ignore[attr-defined]
-    return gen
+
+    # Attach the lock on first access. We do NOT need a meta-lock on
+    # the attribute assignment because Python's GIL guarantees the
+    # check-and-set sequence below is atomic at the bytecode level
+    # for a simple attribute write; the worst case is two coroutines
+    # creating two locks in the same tick, after which one is GC'd.
+    lock: asyncio.Lock = getattr(container, "_trading_plan_generator_lock", None)
+    if lock is None:
+        lock = asyncio.Lock()
+        container._trading_plan_generator_lock = lock  # type: ignore[attr-defined]
+
+    async with lock:
+        # Re-check inside the lock so the loser of the race does not
+        # rebuild after the winner already cached.
+        gen = getattr(container, "_trading_plan_generator", None)
+        if gen is not None:
+            return gen
+        gen = TradingPlanGenerator.from_container(container)
+        # Always assign (even when None) so we do not retry the
+        # env-var lookup on every request.
+        container._trading_plan_generator = gen  # type: ignore[attr-defined]
+        return gen
 
 
 @router.post("/internal/trading-plan/dispatch", status_code=202)
@@ -97,7 +123,7 @@ async def dispatch_trading_plan_generation(
 ) -> dict:
     container: Container = request.app.state.container
 
-    generator = _resolve_generator(container)
+    generator = await _resolve_generator(container)
     if generator is None:
         logger.warning(
             "trading_plan_dispatch_generator_unavailable",
