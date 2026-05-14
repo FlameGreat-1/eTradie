@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -25,10 +26,20 @@ const (
 // csrfMiddleware chain owned by the gateway HTTP server, identical
 // to billing, support, and consent. The internal surface uses a
 // constant-time HMAC check against the engine's shared secret.
+//
+// Per-user rate limiters key on the authenticated user_id (NOT the
+// IP, because authenticated mutating endpoints behind cookie auth
+// must not share a budget across users on a shared NAT). Three
+// independent limiters so a save burst does not exhaust the skip
+// budget and vice versa.
 type Handler struct {
 	store          *Store
 	internalSecret string
 	log            zerolog.Logger
+
+	saveLimiter  *userRateLimiter
+	skipLimiter  *userRateLimiter
+	resetLimiter *userRateLimiter
 }
 
 // NewHandler builds a Handler. internalSecret is the same value the
@@ -40,7 +51,18 @@ func NewHandler(store *Store, internalSecret string, log zerolog.Logger) *Handle
 		store:          store,
 		internalSecret: strings.TrimSpace(internalSecret),
 		log:            log,
+		saveLimiter:    newUserRateLimiter(30, time.Minute),
+		skipLimiter:    newUserRateLimiter(10, time.Minute),
+		resetLimiter:   newUserRateLimiter(10, time.Minute),
 	}
+}
+
+// Close releases the background goroutines owned by the rate
+// limiters. Called from container shutdown; safe to call once.
+func (h *Handler) Close() {
+	h.saveLimiter.Close()
+	h.skipLimiter.Close()
+	h.resetLimiter.Close()
 }
 
 // RegisterRoutes mounts the public REST surface. The middleware chain
@@ -115,6 +137,7 @@ func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 	rec, err := h.store.Get(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			TradingSystemFetchTotal.WithLabelValues(outcomeEmpty).Inc()
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"status":      string(StatusNone),
 				"version":     0,
@@ -123,9 +146,15 @@ func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		TradingSystemFetchTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("trading_system_get_failed")
 		writeError(w, http.StatusInternalServerError, "failed to load trading system")
 		return
+	}
+	if rec.Profile != nil {
+		TradingSystemFetchTotal.WithLabelValues(outcomeHit).Inc()
+	} else {
+		TradingSystemFetchTotal.WithLabelValues(outcomeEmpty).Inc()
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      string(rec.Status),
@@ -143,6 +172,17 @@ func (h *Handler) putProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !h.saveLimiter.Allow(userID) {
+		TradingSystemRateLimitedTotal.WithLabelValues(endpointSave).Inc()
+		w.Header().Set("Retry-After", "60")
+		writeError(w, http.StatusTooManyRequests, "too many save requests; try again in a minute")
+		return
+	}
+
+	start := time.Now()
+	defer func() {
+		TradingSystemSaveDuration.Observe(time.Since(start).Seconds())
+	}()
 
 	// 64 KB is generous for the worst-case 14-section profile (~5 KB)
 	// and small enough to defeat trivial memory-exhaustion attempts.
@@ -152,6 +192,7 @@ func (h *Handler) putProfile(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
+		TradingSystemSaveTotal.WithLabelValues(outcomeValidationError).Inc()
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
@@ -159,23 +200,27 @@ func (h *Handler) putProfile(w http.ResponseWriter, r *http.Request) {
 	if err := Validate(&p); err != nil {
 		var verr *ValidationError
 		if errors.As(err, &verr) {
+			TradingSystemSaveTotal.WithLabelValues(outcomeValidationError).Inc()
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
 				"error":  verr.Message,
 				"fields": verr.Fields,
 			})
 			return
 		}
+		TradingSystemSaveTotal.WithLabelValues(outcomeValidationError).Inc()
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	rec, err := h.store.Save(r.Context(), userID, &p)
 	if err != nil {
+		TradingSystemSaveTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("trading_system_save_failed")
 		writeError(w, http.StatusInternalServerError, "failed to save trading system")
 		return
 	}
 
+	TradingSystemSaveTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().
 		Str("user_id", userID).
 		Int("version", rec.Version).
@@ -230,12 +275,20 @@ func (h *Handler) handleSkip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !h.skipLimiter.Allow(userID) {
+		TradingSystemRateLimitedTotal.WithLabelValues(endpointSkip).Inc()
+		w.Header().Set("Retry-After", "60")
+		writeError(w, http.StatusTooManyRequests, "too many skip requests; try again in a minute")
+		return
+	}
 	view, err := h.store.Skip(r.Context(), userID)
 	if err != nil {
+		TradingSystemSkipTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("trading_system_skip_failed")
 		writeError(w, http.StatusInternalServerError, "failed to skip")
 		return
 	}
+	TradingSystemSkipTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().Str("user_id", userID).Str("status", string(view.Status)).Msg("trading_system_skipped")
 	writeJSON(w, http.StatusOK, view)
 }
@@ -254,11 +307,19 @@ func (h *Handler) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !h.resetLimiter.Allow(userID) {
+		TradingSystemRateLimitedTotal.WithLabelValues(endpointReset).Inc()
+		w.Header().Set("Retry-After", "60")
+		writeError(w, http.StatusTooManyRequests, "too many reset requests; try again in a minute")
+		return
+	}
 	if err := h.store.Reset(r.Context(), userID); err != nil {
+		TradingSystemResetTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("trading_system_reset_failed")
 		writeError(w, http.StatusInternalServerError, "failed to reset")
 		return
 	}
+	TradingSystemResetTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().Str("user_id", userID).Msg("trading_system_reset")
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      string(StatusNone),
@@ -331,7 +392,12 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	start := time.Now()
+	defer func() {
+		TradingSystemInternalFetchDuration.Observe(time.Since(start).Seconds())
+	}()
 	if !h.verifyInternalSecret(r) {
+		TradingSystemInternalFetchTotal.WithLabelValues(outcomeUnauthorized).Inc()
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -361,6 +427,7 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 	rec, err := h.store.Get(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			TradingSystemInternalFetchTotal.WithLabelValues(outcomeEmpty).Inc()
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"user_id":     userID,
 				"status":      string(StatusNone),
@@ -370,11 +437,17 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		TradingSystemInternalFetchTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("trading_system_internal_get_failed")
 		writeError(w, http.StatusInternalServerError, "failed to load trading system")
 		return
 	}
 
+	if rec.Profile != nil {
+		TradingSystemInternalFetchTotal.WithLabelValues(outcomeHit).Inc()
+	} else {
+		TradingSystemInternalFetchTotal.WithLabelValues(outcomeEmpty).Inc()
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"user_id":     rec.UserID,
 		"status":      string(rec.Status),
