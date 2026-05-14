@@ -7,6 +7,7 @@ import {
   useTradingSystem,
   type TradingSystemProfile,
 } from '..';
+import { useGenerateTradingPlan } from '@/features/tradingplan';
 import { toast } from '@/hooks/useToast';
 import { Stepper } from './Stepper';
 import { Step1Identity } from './steps/Step1Identity';
@@ -93,6 +94,13 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
   const { data: existing, isLoading, isError, error: loadError } = useTradingSystem();
   const saveMutation = useSaveTradingSystem();
   const skipMutation = useSkipTradingSystem();
+  // Post-save plan trigger. Fires in the background once the trading
+  // system is saved & activated so the workbook is ready (or close to
+  // ready) by the time the user opens the Trading Plan view. The
+  // mutation uses the platform LLM key unconditionally on the engine
+  // side, so users still on the free tier get a plan without needing
+  // to add their own API key first.
+  const triggerPlanGeneration = useGenerateTradingPlan();
 
   const [profile, setProfile] = useState<TradingSystemProfile>(defaultTradingSystem);
   const [current, setCurrent] = useState(0);
@@ -144,10 +152,22 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
       onSuccess: (rec) => {
         toast({
           title: 'Trading system saved',
-          description: `Version ${rec.version} is now active.`,
+          description: `Version ${rec.version} is now active. Generating your 90-day plan…`,
           variant: 'success',
         });
         setErrors({});
+        // Fire-and-forget plan generation. Failure is non-fatal: the
+        // user can retry from the Trading Plan view at any time. We
+        // do NOT await this so the builder closes immediately on a
+        // successful save; the plan view subscribes to /status and
+        // will reflect the generating -> active transition on its own.
+        triggerPlanGeneration.mutate(undefined, {
+          onError: () => {
+            // Silent failure: a competing toast would distract from the
+            // successful Save above. The Trading Plan view shows a
+            // retry banner if the user navigates to it.
+          },
+        });
         onComplete?.(rec.profile ?? profile);
       },
       onError: (err) => {
