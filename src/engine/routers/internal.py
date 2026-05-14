@@ -312,6 +312,13 @@ async def internal_processor_process(
     The processor_input dict contains ta_analysis, macro_analysis,
     retrieved_knowledge, and metadata.
 
+    The gateway forwards the authenticated user identity via four
+    headers: X-User-Id, X-User-Tier, X-User-Role, X-User-Username.
+    These are read first; the matching body fields are honoured as a
+    fallback for callers that prefer a single transport. The user_id
+    is REQUIRED — a missing value yields 400 so a misconfigured deploy
+    fails loudly instead of silently dropping the user OS personalization.
+
     The return type is the FastAPI Response base class because the
     happy path returns a plain dict (FastAPI auto-encodes to JSON) but
     the QuotaExceededError branch returns a JSONResponse with custom
@@ -319,14 +326,47 @@ async def internal_processor_process(
     keeps static analysers honest about both code paths.
     """
     container: Container = request.app.state.container
-    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
-    processor = await _resolve_user_processor(container, user_id)
+
+    # Header-first resolution (canonical channel — mirrors the
+    # LTF-confirm handler). Body fields are a fallback for callers
+    # that prefer a single transport.
+    user_id = (request.headers.get("X-User-Id") or body.user_id or "").strip()
+    if not user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="X-User-Id header (or user_id body field) is required",
+        )
+
+    # Tier and role default to safe non-privileged values so a missing
+    # header NEVER elevates a user to admin or pro_managed. The
+    # downstream _load_active_llm_connection guard enforces this again
+    # as defense-in-depth.
+    tier = (request.headers.get("X-User-Tier") or body.tier or "free").strip().lower()
+    role = (request.headers.get("X-User-Role") or body.role or "etradie").strip().lower()
+    username = (request.headers.get("X-User-Username") or body.username or user_id).strip()
+    if role not in ("admin", "etradie"):
+        # Reject unknown roles defensively rather than coercing them to
+        # the safer 'etradie' — a typo in a future deploy should fail
+        # loudly, not silently downgrade.
+        raise HTTPException(
+            status_code=400,
+            detail=f"X-User-Role must be 'admin' or 'etradie', got {role!r}",
+        )
+
+    user = AuthenticatedUser(
+        user_id=user_id,
+        username=username,
+        role=role,
+        tier=tier,
+        status="active",  # The gateway only forwards calls for active users.
+    )
+    processor = await _resolve_user_processor(container, user)
 
     try:
         processor_input = ProcessorInput(**body.processor_input)
         result = await processor.process(
             processor_input,
-            user_id=user_id,
+            user_id=user.user_id,
             trace_id=body.trace_id,
         )
 
@@ -345,7 +385,8 @@ async def internal_processor_process(
         logger.warning(
             "internal_processor_quota_exceeded",
             extra={
-                "user_id": user_id,
+                "user_id": user.user_id,
+                "tier": user.tier,
                 "trace_id": body.trace_id,
                 "dimension": exc.dimension,
                 "limit": exc.limit,
