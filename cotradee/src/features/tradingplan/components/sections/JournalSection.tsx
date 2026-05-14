@@ -57,9 +57,12 @@ function emptyRow(): JournalRow {
 /**
  * Section 3 — Daily Execution Journal.
  *
- * The core operational table. 10 columns mirror PRACTICE.md:
- *
- *   Date | Pair | Direction | Style | Entry | Exit | RR | P&L | Outcome | Notes
+ * The core operational table. 25 columns mirror PRACTICE.md's final
+ * spec (Date, Session, Pair, Direction, Style, Setup Type, HTF Bias,
+ * Entry, Stop Loss, Take Profit, Risk %, Position Size, Exit,
+ * RR Planned, RR Achieved, P&L, Outcome, Rule Followed?,
+ * Emotion Before Trade, Emotion After Trade, Trade Quality,
+ * Mistake Category, News Present?, Screenshot Link, Notes).
  *
  * The LLM seeds blank rows on generation; the trader fills them in
  * manually as they trade through the 90-day window. Add/remove

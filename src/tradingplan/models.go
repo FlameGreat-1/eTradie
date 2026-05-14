@@ -223,6 +223,14 @@ type Plan struct {
 	BalanceUsed       float64   `json:"balance_used"`        // numeric balance the LLM saw
 	BalanceCurrency   string    `json:"balance_currency"`    // ISO 4217
 	BalanceSourceKind string    `json:"balance_source_kind"` // "broker" | "fallback"
+
+	// GenerationStartedAt is stamped by the engine at the moment the
+	// LLM call is dispatched. The gateway uses it on callback to
+	// record TradingPlanLLMCallDuration accurately. Optional on the
+	// wire (older callbacks may omit it); when zero the metric is
+	// skipped rather than reporting a misleading value derived from
+	// row CreatedAt.
+	GenerationStartedAt time.Time `json:"generation_started_at,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

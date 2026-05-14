@@ -186,6 +186,13 @@ class TradingPlanGenerator:
                 "trading system profile is missing"
             )
 
+        # Stamp the LLM-call start time so the gateway can record
+        # TradingPlanLLMCallDuration accurately on the callback. The
+        # gateway falls back to skipping the metric if this field is
+        # missing, so deploys mid-flight stay backward-compatible.
+        from datetime import datetime, timezone
+        generation_started_at = datetime.now(timezone.utc).isoformat()
+
         user_prompt = build_user_prompt(
             profile=req.profile,
             balance=req.balance,
@@ -224,6 +231,7 @@ class TradingPlanGenerator:
             balance_source=req.balance_source,
             profile_version=req.profile_version,
         )
+        plan["generation_started_at"] = generation_started_at
         return plan
 
     @staticmethod

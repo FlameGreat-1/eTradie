@@ -13,7 +13,7 @@ import type { TradingPlan } from '../types';
  *
  *   Sheet 1 — Trader Profile     (headline + bullets)
  *   Sheet 2 — Account Parameters (parameter / value table)
- *   Sheet 3 — Daily Journal      (10-column journal table)
+ *   Sheet 3 — Daily Journal      (25-column journal table)
  *   Sheet 4 — Weekly Review      (numbered reflection prompts)
  *   Sheet 5 — Discipline         (metric / score table)
  *   Sheet 6 — Objectives         (numbered objectives)

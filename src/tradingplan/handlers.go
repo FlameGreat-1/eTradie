@@ -562,12 +562,16 @@ func (h *Handler) handleInternalCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Track end-to-end LLM call duration: callback time minus the
-	// row's last update (which the dispatch path stamps as it flips
-	// the row to 'generating').
-	if !rec.UpdatedAt.IsZero() && !rec.CreatedAt.IsZero() {
-		TradingPlanLLMCallDuration.Observe(time.Since(rec.CreatedAt).Seconds())
+	// Track end-to-end LLM call duration using the engine-supplied
+	// generation_started_at stamp. Falls back to skipping the
+	// observation when the field is missing (older callback shape)
+	// rather than reporting a wildly inaccurate value derived from
+	// the row's CreatedAt (which would be days/weeks old on a
+	// regenerate).
+	if !body.Plan.GenerationStartedAt.IsZero() {
+		TradingPlanLLMCallDuration.Observe(time.Since(body.Plan.GenerationStartedAt).Seconds())
 	}
+	_ = rec
 
 	TradingPlanCallbackTotal.WithLabelValues(outcomeSuccess).Inc()
 	h.log.Info().
