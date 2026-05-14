@@ -67,12 +67,15 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req tradingplan.GenerationReq
 		"profile":          profile,
 	}
 
-	// Inject the user_id into the request context so the
-	// EngineHTTPClient sets the X-User-Id header automatically on
-	// the /internal path. We do NOT have a JWT here (this is
-	// gateway-internal background work), so the user_id is the
-	// only identity signal the engine receives.
-	ctx = auth.ContextWithUserID(ctx, req.UserID)
+	// Inject minimal claims so the EngineHTTPClient attaches the
+	// X-User-Id header automatically on the /internal path. We do
+	// NOT have a full JWT here (this is gateway-internal background
+	// work fired from the handler's goroutine), so we synthesise a
+	// claims object with only the user_id populated. The engine's
+	// verify_internal_auth dependency authenticates against the
+	// shared secret; it does not inspect the JWT itself on this
+	// surface, so additional claim fields would be unused.
+	ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: req.UserID})
 
 	if _, err := d.engine.PostJSON(ctx, "/internal/trading-plan/dispatch", body); err != nil {
 		d.log.Warn().
@@ -117,9 +120,9 @@ func (b *Balance) GetBalance(
 		return 0, "", tradingplan.BalanceSourceFallback, nil
 	}
 
-	// Same trick as Dispatch: inject user_id into the ctx so the
-	// shared engine client attaches the X-User-Id header.
-	ctx = auth.ContextWithUserID(ctx, userID)
+	// Same trick as Dispatch: inject minimal claims so the shared
+	// engine client attaches the X-User-Id header.
+	ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: userID})
 
 	resp, callErr := b.engine.GetJSON(ctx, "/internal/broker/account_info")
 	if callErr != nil {
