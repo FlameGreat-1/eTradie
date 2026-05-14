@@ -284,8 +284,23 @@ func main() {
 	// via Redis pub/sub so the engine's in-process + Redis cache for
 	// the affected user is invalidated immediately rather than waiting
 	// for the 1-hour positive-cache TTL.
+	//
+	// The container builds its own Redis client further down, but the
+	// tradingSystemHandler must be constructed *before* container.New
+	// because it is one of its inputs. We therefore build a dedicated
+	// Redis client here pointing at the same Redis instance; pub/sub
+	// events from this client are received by every subscriber
+	// (including the engine), so a second connection does not change
+	// semantics. On failure we degrade gracefully to nil, which the
+	// InvalidationPublisher tolerates as a documented no-op path.
+	var tradingSystemRedis tradingsystem.RedisPublisher
+	if tsRedisClient, tsRedisErr := infra.NewRedisClient(cfg.RedisURL, cfg.RedisMaxConnections); tsRedisErr != nil {
+		log.Warn().Err(tsRedisErr).Msg("tradingsystem_invalidation_redis_unavailable_continuing_without_pubsub")
+	} else {
+		tradingSystemRedis = tsRedisClient
+	}
 	tradingSystemInvalidation := tradingsystem.NewInvalidationPublisher(
-		c.Redis,
+		tradingSystemRedis,
 		observability.Logger("tradingsystem_invalidation"),
 	)
 	tradingSystemHandler := tradingsystem.NewHandler(
