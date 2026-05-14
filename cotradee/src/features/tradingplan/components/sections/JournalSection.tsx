@@ -7,24 +7,50 @@ interface Props {
   onChange: (next: JournalRow[]) => void;
 }
 
+// 25-column layout, lockstep with PRACTICE.md's final spec. Widths
+// are tuned per column so the table stays readable on a wide screen
+// and scrolls horizontally on narrow ones (the table container
+// already wraps the body in overflow-x-auto). Categorical columns
+// (Session, Setup Type, HTF Bias, Outcome, Rule Followed?, etc.)
+// get a moderate width to fit single-word values; numeric cells
+// stay tight; Notes and Screenshot Link get extra room.
 const COLUMNS: Array<{ key: keyof JournalRow; label: string; width: string }> = [
-  { key: 'date',      label: 'Date',      width: 'w-24' },
-  { key: 'pair',      label: 'Pair',      width: 'w-20' },
-  { key: 'direction', label: 'Direction', width: 'w-24' },
-  { key: 'style',     label: 'Style',     width: 'w-24' },
-  { key: 'entry',     label: 'Entry',     width: 'w-24' },
-  { key: 'exit',      label: 'Exit',      width: 'w-24' },
-  { key: 'rr',        label: 'RR',        width: 'w-16' },
-  { key: 'pnl',       label: 'P&L',       width: 'w-20' },
-  { key: 'outcome',   label: 'Outcome',   width: 'w-24' },
-  { key: 'notes',     label: 'Notes',     width: 'min-w-[10rem]' },
+  { key: 'date',                 label: 'Date',                 width: 'w-24'              },
+  { key: 'session',              label: 'Session',              width: 'w-24'              },
+  { key: 'pair',                 label: 'Pair',                 width: 'w-20'              },
+  { key: 'direction',            label: 'Direction',            width: 'w-24'              },
+  { key: 'style',                label: 'Style',                width: 'w-24'              },
+  { key: 'setup_type',           label: 'Setup Type',           width: 'w-28'              },
+  { key: 'htf_bias',             label: 'HTF Bias',             width: 'w-24'              },
+  { key: 'entry',                label: 'Entry',                width: 'w-24'              },
+  { key: 'stop_loss',            label: 'Stop Loss',            width: 'w-24'              },
+  { key: 'take_profit',          label: 'Take Profit',          width: 'w-24'              },
+  { key: 'risk_percent',         label: 'Risk %',               width: 'w-20'              },
+  { key: 'position_size',        label: 'Position Size',        width: 'w-28'              },
+  { key: 'exit',                 label: 'Exit',                 width: 'w-24'              },
+  { key: 'rr_planned',           label: 'RR Planned',           width: 'w-24'              },
+  { key: 'rr_achieved',          label: 'RR Achieved',          width: 'w-24'              },
+  { key: 'pnl',                  label: 'P&L',                  width: 'w-20'              },
+  { key: 'outcome',              label: 'Outcome',              width: 'w-20'              },
+  { key: 'rule_followed',        label: 'Rule Followed?',       width: 'w-28'              },
+  { key: 'emotion_before_trade', label: 'Emotion Before Trade', width: 'w-32'              },
+  { key: 'emotion_after_trade',  label: 'Emotion After Trade',  width: 'w-32'              },
+  { key: 'trade_quality',        label: 'Trade Quality',        width: 'w-24'              },
+  { key: 'mistake_category',     label: 'Mistake Category',     width: 'w-36'              },
+  { key: 'news_present',         label: 'News Present?',        width: 'w-28'              },
+  { key: 'screenshot_link',      label: 'Screenshot Link',      width: 'min-w-[12rem]'     },
+  { key: 'notes',                label: 'Notes',                width: 'min-w-[14rem]'     },
 ];
 
 function emptyRow(): JournalRow {
   return {
-    date: '', pair: '', direction: '', style: '',
-    entry: '', exit: '', rr: '', pnl: '',
-    outcome: '', notes: '',
+    date: '', session: '', pair: '', direction: '', style: '',
+    setup_type: '', htf_bias: '', entry: '', stop_loss: '',
+    take_profit: '', risk_percent: '', position_size: '', exit: '',
+    rr_planned: '', rr_achieved: '', pnl: '', outcome: '',
+    rule_followed: '', emotion_before_trade: '', emotion_after_trade: '',
+    trade_quality: '', mistake_category: '', news_present: '',
+    screenshot_link: '', notes: '',
   };
 }
 

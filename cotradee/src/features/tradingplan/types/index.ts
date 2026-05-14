@@ -33,16 +33,33 @@ export interface AccountParameters {
 }
 
 // -- Section 3 --------------------------------------------------------------
+// 25-column Daily Execution Journal. Field names lockstep with
+// src/tradingplan/models.go::JournalRow.
 export interface JournalRow {
   date: string;
+  session: string;
   pair: string;
   direction: string;
   style: string;
+  setup_type: string;
+  htf_bias: string;
   entry: string;
+  stop_loss: string;
+  take_profit: string;
+  risk_percent: string;
+  position_size: string;
   exit: string;
-  rr: string;
+  rr_planned: string;
+  rr_achieved: string;
   pnl: string;
   outcome: string;
+  rule_followed: string;
+  emotion_before_trade: string;
+  emotion_after_trade: string;
+  trade_quality: string;
+  mistake_category: string;
+  news_present: string;
+  screenshot_link: string;
   notes: string;
 }
 
