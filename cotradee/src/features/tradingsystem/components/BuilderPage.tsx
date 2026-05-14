@@ -162,7 +162,7 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
         toast({
           title: 'Could not save your trading system',
           description: 'Please try again in a moment.',
-          variant: 'error',
+          variant: 'destructive',
         });
       },
     });
@@ -174,7 +174,7 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
         toast({
           title: 'Skipped for now',
           description: 'You can build your trading system any time from the sidebar.',
-          variant: 'info',
+          variant: 'default',
         });
         onSkip?.();
       },
