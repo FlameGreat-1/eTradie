@@ -2,6 +2,9 @@ package watcher
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,8 +32,14 @@ type TickCache struct {
 	subRefs map[string]int
 	pollers map[string]context.CancelFunc
 
-	tokenMu   sync.RWMutex
-	authToken string
+	// Identity used to authenticate broker tick-price calls. The
+	// engine resolves the per-user broker from X-User-Id (read from
+	// auth.UserIDFromContext), so this cache MUST run with a real
+	// user identity. Bootstrapped at startup and refreshed when
+	// watchers are armed (see Manager.Arm).
+	identMu     sync.RWMutex
+	identClaims *auth.Claims
+	identToken  string
 }
 
 // NewTickCache creates a shared tick price cache for watchers.
@@ -45,11 +54,24 @@ func NewTickCache(bp broker.Port, pollMs int) *TickCache {
 	}
 }
 
-// SetAuthToken sets the JWT token used for broker tick price calls.
+// SetServiceIdentity sets the identity used to authenticate broker
+// tick-price calls. Driven by Manager.Arm so the cache always uses
+// the latest known identity for the symbol's owner.
+func (tc *TickCache) SetServiceIdentity(claims *auth.Claims, rawToken string) {
+	tc.identMu.Lock()
+	tc.identClaims = claims
+	tc.identToken = rawToken
+	tc.identMu.Unlock()
+}
+
+// SetAuthToken is the legacy entry point retained for callers that
+// pass only a raw JWT. Builds Claims from the local-mint token
+// payload (we minted it in-process so no signature check needed)
+// and delegates to SetServiceIdentity. Malformed tokens are dropped
+// silently; the cache stays un-armed until the next set call.
 func (tc *TickCache) SetAuthToken(token string) {
-	tc.tokenMu.Lock()
-	tc.authToken = token
-	tc.tokenMu.Unlock()
+	claims := parseLocalServiceToken(token)
+	tc.SetServiceIdentity(claims, token)
 }
 
 // GetTickPrice returns the cached tick price for a symbol.
@@ -133,11 +155,21 @@ func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
 		return // No broker port available (test mode).
 	}
 
-	tc.tokenMu.RLock()
-	token := tc.authToken
-	tc.tokenMu.RUnlock()
+	tc.identMu.RLock()
+	claims := tc.identClaims
+	token := tc.identToken
+	tc.identMu.RUnlock()
 
-	authCtx := auth.InjectTokenIntoContext(ctx, token)
+	if claims == nil {
+		// Identity not yet configured. The next Arm call will set it
+		// and the next ticker beat will pick up the new identity.
+		return
+	}
+
+	authCtx := auth.InjectClaimsIntoContext(ctx, claims)
+	if token != "" {
+		authCtx = auth.InjectTokenIntoContext(authCtx, token)
+	}
 
 	tick, err := tc.bp.GetTickPrice(authCtx, symbol)
 	if err != nil {
@@ -148,4 +180,30 @@ func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
 	tc.mu.Lock()
 	tc.prices[symbol] = tick
 	tc.mu.Unlock()
+}
+
+// parseLocalServiceToken decodes the payload of a JWT minted by THIS
+// service's TokenService. Signature is not verified because the
+// token was produced in-process; the parse only recovers claims for
+// context injection. Returns nil for malformed tokens.
+func parseLocalServiceToken(token string) *auth.Claims {
+	if token == "" {
+		return nil
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil
+	}
+	var c auth.Claims
+	if err := json.Unmarshal(payload, &c); err != nil {
+		return nil
+	}
+	if c.UserID == "" {
+		return nil
+	}
+	return &c
 }

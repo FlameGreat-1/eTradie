@@ -357,9 +357,18 @@ func main() {
 	log.Info().Msg("execution_engine_stopped")
 }
 
-// restoreOrderFromRecord reconstructs an Order from a persisted watcher record.
-// Used on service restart to resume monitoring of pending orders.
-func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string) *models.Order {
+// restoreOrderFromRecord reconstructs an Order from a persisted
+// watcher record. Identity fields (Username, Role, Tier, StatusJWT)
+// come from the cached *auth.User we already fetched to mint the
+// service token, so no extra DB round trip is paid here.
+func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string, user *auth.User) *models.Order {
+	var username, role, tier, statusJWT string
+	if user != nil {
+		username = user.Username
+		role = string(user.Role)
+		tier = user.Tier
+		statusJWT = user.Status
+	}
 	return &models.Order{
 		OrderID:            rec.OrderID,
 		Symbol:             rec.Symbol,
@@ -393,6 +402,10 @@ func restoreOrderFromRecord(rec *store.PendingWatcherRecord, authToken string) *
 		BrokerOrderID:      rec.BrokerOrderID,
 		CreatedAt:          rec.CreatedAt,
 		UserID:             rec.UserID,
+		Username:           username,
+		Role:               role,
+		Tier:               tier,
+		StatusJWT:          statusJWT,
 		AuthToken:          authToken,
 	}
 }
