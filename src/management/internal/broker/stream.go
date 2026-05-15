@@ -327,7 +327,14 @@ func (s *Stream) WatchPositions(
 // emitPositions performs a coalescing send on the position channel.
 // If the consumer has not yet read the previous snapshot, that
 // stale snapshot is discarded and replaced by the newer one.
-func (s *Stream) emitPositions(ctx context.Context, ch chan<- []PositionInfo, snapshot []PositionInfo) {
+//
+// The channel parameter is intentionally bidirectional rather than
+// send-only so the helper can drain a stale snapshot from the buffer
+// before retrying the send. The caller (WatchPositions) constructs
+// the channel bidirectionally and narrows it to <-chan []PositionInfo
+// only in its public return value, so widening the parameter here
+// does not loosen the external API surface.
+func (s *Stream) emitPositions(ctx context.Context, ch chan []PositionInfo, snapshot []PositionInfo) {
 	for {
 		select {
 		case ch <- snapshot:
