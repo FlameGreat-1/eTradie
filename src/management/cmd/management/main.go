@@ -158,15 +158,19 @@ func main() {
 			case alert.TypeCandleClosed:
 				trades := mgr.GetAllTrades()
 				for _, t := range trades {
+					// Snapshot identity-derived ctx + matching fields
+					// under one RLock window so concurrent token /
+					// identity refreshes cannot race against this read.
 					t.RLock()
 					sym := t.Symbol
 					st := t.Status
-					token := t.AuthToken
+					var tradeCtx context.Context
+					if sym == evt.Symbol && st != constants.StatusClosed {
+						tradeCtx = t.IdentityCtx(ctx)
+					}
 					t.RUnlock()
 
-					if sym == evt.Symbol && st != constants.StatusClosed {
-						_ = token // legacy var, no longer used directly
-						tradeCtx := t.IdentityCtx(ctx)
+					if tradeCtx != nil {
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							structuralEngine.EvaluateStructuralBreak(tradeCtx, t, evt.Direction, price)
@@ -179,12 +183,13 @@ func main() {
 					t.RLock()
 					sym := t.Symbol
 					st := t.Status
-					token := t.AuthToken
+					var tradeCtx context.Context
+					if sym == evt.Symbol && st != constants.StatusClosed {
+						tradeCtx = t.IdentityCtx(ctx)
+					}
 					t.RUnlock()
 
-					if sym == evt.Symbol && st != constants.StatusClosed {
-						_ = token // legacy var, no longer used directly
-						tradeCtx := t.IdentityCtx(ctx)
+					if tradeCtx != nil {
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							macroEngine.EvaluateCOTFlip(tradeCtx, t, evt.Direction, price)
@@ -209,12 +214,13 @@ func main() {
 						t.RLock()
 						st := t.Status
 						sym := t.Symbol
-						token := t.AuthToken
+						var tradeCtx context.Context
+						if st != constants.StatusClosed {
+							tradeCtx = t.IdentityCtx(ctx)
+						}
 						t.RUnlock()
 
-						if st != constants.StatusClosed {
-							_ = token // legacy var, no longer used directly
-							tradeCtx := t.IdentityCtx(ctx)
+						if tradeCtx != nil {
 							price, err := mgr.GetPriceForSymbol(tradeCtx, sym)
 							if err == nil {
 								exposureEngine.EvaluateCorrelationShock(tradeCtx, t, stoppedSymbol, price)
