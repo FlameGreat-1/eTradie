@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // ErrNoBrokerConfigured is returned by StreamPositions when the Engine
@@ -73,9 +74,34 @@ type Port interface {
 	// Used by the startup reconciler to backfill missing closed trades.
 	GetHistory(ctx context.Context, days int) ([]HistoryDealInfo, error)
 
-	// StreamPositions opens a persistent WebSocket connection to the broker bridge
-	// and streams real-time updates for all open positions.
-	StreamPositions(ctx context.Context, ch chan<- []PositionInfo) error
+	// WatchPositions returns two channels driven by a background
+	// goroutine that polls GetPositions at the supplied interval and
+	// emits a new snapshot ONLY when it differs from the previous one.
+	//
+	// Channels:
+	//   positions  - structurally-changed position snapshots. Size-1
+	//                with coalescing semantics: if the consumer falls
+	//                behind, an older unconsumed snapshot is dropped
+	//                and replaced by the newer one. The consumer
+	//                therefore always sees the LATEST state, never a
+	//                stale backlog.
+	//   errors     - fatal errors from the watcher. Receiving on this
+	//                channel ends the watch. ErrNoBrokerConfigured
+	//                signals "user has no active broker connection"
+	//                and the consumer should apply exponential backoff
+	//                before re-arming the watcher. Other errors are
+	//                transient broker / network failures.
+	//
+	// Both channels are closed when ctx is cancelled or a fatal error
+	// occurs. The goroutine is leak-free under shutdown.
+	//
+	// This is the architecturally correct shape for MT5 / MetaAPI
+	// position data: the broker API is request/response with no
+	// server-initiated push, so polling at the system boundary is
+	// the truthful design. A future broker that exposes a real
+	// streaming API can be added by writing a new Port implementation
+	// without touching the consumer.
+	WatchPositions(ctx context.Context, interval time.Duration) (<-chan []PositionInfo, <-chan error)
 
 	// ModifyPosition changes the SL and/or TP on an existing position.
 	// Called for break-even moves, trailing stop adjustments, and

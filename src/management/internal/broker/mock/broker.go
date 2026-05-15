@@ -82,30 +82,57 @@ func (b *Broker) GetHistory(_ context.Context, days int) ([]broker.HistoryDealIn
 	return []broker.HistoryDealInfo{}, nil
 }
 
-func (b *Broker) StreamPositions(ctx context.Context, ch chan<- []broker.PositionInfo) error {
-	// For testing, just send the current state once, or loop periodically.
+// WatchPositions implements broker.Port.WatchPositions for the mock.
+// Emits the current in-memory positions at the configured interval.
+// Used in tests and the BROKER_MODE=mock dev path.
+func (b *Broker) WatchPositions(
+	ctx context.Context,
+	interval time.Duration,
+) (<-chan []broker.PositionInfo, <-chan error) {
+	positions := make(chan []broker.PositionInfo, 1)
+	errors := make(chan error, 1)
+
+	if interval <= 0 {
+		interval = time.Second
+	}
+
 	go func() {
+		defer close(positions)
+		defer close(errors)
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		emit := func() {
+			snap, _ := b.GetPositions(ctx)
+			select {
+			case positions <- snap:
+			case <-ctx.Done():
+			default:
+				// Drain stale snapshot, then send.
+				select {
+				case <-positions:
+				default:
+				}
+				select {
+				case positions <- snap:
+				case <-ctx.Done():
+				}
+			}
+		}
+
+		emit() // Prime
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
-			}
-			pos, _ := b.GetPositions(ctx)
-			select {
-			case ch <- pos:
-			case <-ctx.Done():
-				return
-			}
-			// wait before sending again
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(5 * time.Second):
+			case <-ticker.C:
+				emit()
 			}
 		}
 	}()
-	return nil
+
+	return positions, errors
 }
 
 func (b *Broker) ModifyPosition(_ context.Context, ticket string, newSL, newTP float64) error {
