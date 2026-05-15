@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,8 +11,10 @@ import {
   Box,
   ChevronRight,
   ChevronLeft,
+  ShieldCheck,
 } from 'lucide-react';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
+import { useAuth, isAdmin } from '@/features/auth';
 
 const EXPANDED_WIDTH = 200;
 const COLLAPSED_WIDTH = 48;
@@ -32,10 +34,20 @@ const PRIMARY_NAV: NavItem[] = [
   { path: '/dashboard/community',      icon: Users,           label: 'Community' },
 ];
 
-const FOOTER_NAV: NavItem[] = [
+const FOOTER_NAV_BASE: NavItem[] = [
   { path: '/dashboard/settings', icon: Settings,   label: 'Settings' },
   { path: '/dashboard/support',  icon: HelpCircle, label: 'Support' },
 ];
+
+// Admin-only nav item. Appended to FOOTER_NAV at render time when
+// the authenticated user has role === 'admin'. Filtered out for
+// every other user so the DOM never contains a link non-admins
+// cannot use — defence-in-depth on top of the AdminRoute guard.
+const ADMIN_NAV: NavItem = {
+  path: '/dashboard/admin',
+  icon: ShieldCheck,
+  label: 'Admin',
+};
 
 interface SidebarProps {
   isMobileOpen?: boolean;
@@ -45,9 +57,17 @@ interface SidebarProps {
 function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [hovered, setHovered] = useState<string | null>(null);
   const [tooltipTop, setTooltipTop] = useState(0);
+
+  // Build the footer nav once per auth change. Admins get the Admin
+  // entry appended; every other user sees only Settings + Support.
+  const footerNav = useMemo<NavItem[]>(
+    () => (isAdmin(user) ? [...FOOTER_NAV_BASE, ADMIN_NAV] : FOOTER_NAV_BASE),
+    [user],
+  );
 
   useEffect(() => {
     const width = isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
@@ -98,6 +118,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
           onNavigate={handleNavigate}
           onHover={handleMouseEnter}
           onLeave={() => setHovered(null)}
+          footerNav={footerNav}
         />
 
         <button
@@ -160,7 +181,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
               ))}
             </nav>
             <div className="border-t border-black/5 dark:border-white/5 p-4 space-y-1">
-              {FOOTER_NAV.map((item, idx) => (
+              {footerNav.map((item, idx) => (
                 <DrawerNavButton
                   key={item.path || idx}
                   item={item}
@@ -216,12 +237,14 @@ function SidebarContents({
   onNavigate,
   onHover,
   onLeave,
+  footerNav,
 }: {
   isCollapsed: boolean;
   isActive: (p: string) => boolean;
   onNavigate: (p: string) => void;
   onHover: (label: string, e: React.MouseEvent) => void;
   onLeave: () => void;
+  footerNav: NavItem[];
 }) {
   return (
     <>
@@ -259,7 +282,7 @@ function SidebarContents({
       </nav>
 
       <div className={`flex flex-col pt-4 pb-6 ${isCollapsed ? 'px-1.5' : 'px-3'} space-y-1 border-t border-black/5 dark:border-white/5 overflow-x-hidden`} aria-label="Account">
-        {FOOTER_NAV.map((item) => (
+        {footerNav.map((item) => (
           <SidebarButton
             key={item.path || item.label}
             item={item}
