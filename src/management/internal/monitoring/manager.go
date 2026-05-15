@@ -102,21 +102,11 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancels[trade.TradeID] = cancel
 
-	// Subscribe to tick cache for this symbol. Starts a poller if
-	// this is the first trade on this symbol.
-	m.tickCache.Subscribe(trade.Symbol)
-
-	// Ensure the tick cache has a valid identity for broker calls.
-	// Engine /internal/broker/* resolves the per-user broker from
-	// X-User-Id (= claims.UserID), so the cache MUST run with a
-	// real parsed *auth.Claims, not a token-only context.
-	//
-	// Prefer the trade's stamped identity fields. When all five are
-	// non-empty we hand the cache a fully-built *auth.Claims with no
-	// parsing. When the trade was restored from a pre-upgrade DB row
-	// that lacks those fields, fall through to the legacy
-	// SetAuthToken shim which parses the token payload to recover
-	// the same data.
+	// Set this user's identity in the per-user identity map BEFORE
+	// subscribing, so the first poll for the (user, symbol) pair has
+	// a non-nil identity to authenticate with. When the trade was
+	// restored from a pre-upgrade DB row missing identity fields,
+	// fall back to the parse-the-token shim.
 	if trade.UserID != "" {
 		m.tickCache.SetServiceIdentity(&auth.Claims{
 			UserID:   trade.UserID,
@@ -128,6 +118,11 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 	} else if trade.AuthToken != "" {
 		m.tickCache.SetAuthToken(trade.AuthToken)
 	}
+
+	// Subscribe to the per-(user, symbol) cache slot. Starts a
+	// dedicated poller for this user when it's the first
+	// subscription for that (user, symbol) pair.
+	m.tickCache.Subscribe(trade.UserID, trade.Symbol)
 
 	m.wg.Add(1)
 	go m.runWorker(ctx, trade)
@@ -176,9 +171,10 @@ func (m *Manager) updateGauges(ctx context.Context) {
 func (m *Manager) RemoveTrade(tradeID string) {
 	m.mu.Lock()
 
-	// Get symbol before deleting for cache unsubscribe.
-	var symbol string
+	// Capture (userID, symbol) before deleting for cache unsubscribe.
+	var userID, symbol string
 	if t, ok := m.trades[tradeID]; ok {
+		userID = t.UserID
 		symbol = t.Symbol
 	}
 
@@ -189,10 +185,10 @@ func (m *Manager) RemoveTrade(tradeID string) {
 	delete(m.trades, tradeID)
 	m.mu.Unlock()
 
-	// Unsubscribe from tick cache. Stops the poller if this was the
-	// last trade on this symbol.
+	// Unsubscribe the (user, symbol) pair. Stops the dedicated poller
+	// for this user when this was the last trade on that symbol.
 	if symbol != "" {
-		m.tickCache.Unsubscribe(symbol)
+		m.tickCache.Unsubscribe(userID, symbol)
 	}
 
 	observability.ManagedTradesGauge.Dec()
@@ -316,15 +312,15 @@ func (m *Manager) Shutdown() {
 	m.log.Info().Msg("monitoring_manager_shutdown_complete")
 }
 
-// GetPriceForSymbol returns the current check price for a symbol
-// from the shared tick cache. No HTTP call is made; the cache is
-// populated by background pollers.
-// Exposed for the EOD scheduler, news engine, and alert hub subscriber.
-func (m *Manager) GetPriceForSymbol(ctx context.Context, symbol string) (float64, error) {
-	tick := m.tickCache.GetTickPrice(symbol)
+// GetPriceForSymbol returns the current check price for (userID,
+// symbol) from the per-(user, symbol) tick cache. No HTTP call is
+// made when the cache is populated; falls back to a direct
+// authenticated broker call on cache miss using the supplied ctx,
+// which the caller is expected to have stamped with the user's
+// identity (Trade.IdentityCtx).
+func (m *Manager) GetPriceForSymbol(ctx context.Context, userID, symbol string) (float64, error) {
+	tick := m.tickCache.GetTickPrice(userID, symbol)
 	if tick == nil {
-		// Cache miss: symbol not yet polled or poller hasn't completed
-		// first fetch. Fall back to direct broker call.
 		var err error
 		tick, err = m.bp.GetTickPrice(ctx, symbol)
 		if err != nil {

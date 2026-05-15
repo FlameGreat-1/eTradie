@@ -46,25 +46,21 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 				return
 			}
 
-			// Build a fresh auth context on every tick cycle using the
-			// trade's current identity. Critical because:
-			//   - Service tokens are set on startup for restored trades
-			//   - User session tokens / identity replace service tokens
-			//     on login via RefreshUserTradeTokens / RefreshUserTradeIdentity
-			//   - The worker must always use the most recent identity
-			// IdentityCtx injects both parsed *Claims and the raw token,
-			// so the bridge's stampInternalAuth (which reads claims via
-			// auth.UserIDFromContext) sees a real user id, and any legacy
-			// callee that still reads RawTokenFromContext keeps working.
+			// Build a fresh auth context AND snapshot the user-id for the
+			// tick-cache lookup under the same RLock window. Trade.UserID
+			// is in principle immutable after RegisterTrade, but we still
+			// read it under the lock to be consistent with the identity
+			// fields that DO get refreshed via RefreshUserTradeIdentity.
 			trade.RLock()
 			authCtx := trade.IdentityCtx(ctx)
+			userID := trade.UserID
 			trade.RUnlock()
 
-			// Read tick price from the shared cache. The cache is populated
-			// by a single poller per symbol, eliminating redundant HTTP calls.
-			// With 3,000 trades on 30 symbols, this is 30 HTTP calls/sec
-			// instead of 3,000.
-			tick := m.tickCache.GetTickPrice(symbol)
+			// Read tick price from the per-(user, symbol) cache. The cache
+			// has a dedicated poller for this user's quotes on this symbol,
+			// authenticated with that user's broker connection on the
+			// engine side. No cross-tenant price contamination.
+			tick := m.tickCache.GetTickPrice(userID, symbol)
 			if tick == nil {
 				// Cache not yet populated (first poll hasn't completed).
 				// Skip this cycle; the cache will be ready on the next tick.
