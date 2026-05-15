@@ -507,18 +507,20 @@ func main() {
 						continue
 					}
 
-					// Also refresh the tick cache identity. The user row
-					// we just loaded has the current tier/status, which
-					// may have changed since the previous renewal cycle.
-					mgr.TickCache().SetServiceIdentity(&auth.Claims{
+					// Build the renewed claims once and propagate them to
+					// BOTH the tick cache AND every active Trade for this
+					// user, so tier/status changes between renewal cycles
+					// are picked up in lock-step.
+					renewedClaims := &auth.Claims{
 						UserID:   user.ID,
 						Username: user.Username,
 						Role:     user.Role,
 						Tier:     user.Tier,
 						Status:   user.Status,
-					}, svcToken)
+					}
+					mgr.TickCache().SetServiceIdentity(renewedClaims, svcToken)
 
-					count := mgr.RefreshUserTradeTokens(uid, svcToken)
+					count := mgr.RefreshUserTradeIdentity(renewedClaims, svcToken)
 					if count > 0 {
 						renewed += count
 						renewalLog.Info().
