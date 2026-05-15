@@ -61,6 +61,7 @@ func NewHTTPServer(
 	meteringHandler *MeteringHandler,
 	tradingSystemHandler *tradingsystem.Handler,
 	tradingPlanHandler *tradingplan.Handler,
+	adminBillingHandler *AdminBillingHandler,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
@@ -149,6 +150,16 @@ func NewHTTPServer(
 	if tradingPlanHandler != nil {
 		tradingPlanHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 		tradingPlanHandler.RegisterInternalRoutes(mux)
+	}
+
+	// Admin-only billing read surface (read-only views over
+	// billing_subscriptions, billing_subscription_events, billing_usage).
+	// Every route is gated by auth -> RequireAdmin -> CSRF inside the
+	// handler's own RegisterRoutes so the HTTP server only forwards
+	// the middleware factories. A non-admin authenticated user gets a
+	// clean 403 from RequireAdmin; the handler body never runs.
+	if adminBillingHandler != nil {
+		adminBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
 	// CORS allowlist is validated at startup so a misconfig fails
