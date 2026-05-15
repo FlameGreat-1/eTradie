@@ -2,7 +2,8 @@ package monitoring
 
 import (
 	"context"
-	"errors"
+	goerrors "errors"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,36 +17,82 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
-// StateReconciler is responsible for ensuring the Management engine's internal
-// memory exactly matches the MT5 broker's reality. It performs a startup sync
-// and listens to real-time websocket updates.
+// StateReconciler keeps the Management engine's in-memory trade state
+// aligned with the MT5 broker's reality. It performs a startup sync
+// and watches positions via broker.Port.WatchPositions (polling under
+// the hood, diff-detected at the broker boundary).
+//
+// One instance per (user_id, broker) pair. Identity is stamped at
+// construction so background calls build claims-bearing contexts
+// without re-parsing the JWT.
 type StateReconciler struct {
 	mgr       *Manager
 	bp        broker.Port
 	repo      *journal.Repository
 	transport AlertTransport
+
 	userID    string
+	username  string
+	role      string
+	tier      string
+	statusJWT string
 	authToken string
-	log       zerolog.Logger
+
+	watchInterval time.Duration
+	log           zerolog.Logger
 }
 
 // NewStateReconciler creates a reconciler for a specific user.
+// `user` provides the identity; pass nil only when running unit tests
+// against the mock broker. `watchInterval <= 0` falls back to 1s.
 func NewStateReconciler(
 	mgr *Manager,
 	bp broker.Port,
 	repo *journal.Repository,
 	transport AlertTransport,
-	userID, authToken string,
+	user *auth.User,
+	authToken string,
+	watchInterval time.Duration,
 ) *StateReconciler {
-	return &StateReconciler{
-		mgr:       mgr,
-		bp:        bp,
-		repo:      repo,
-		transport: transport,
-		userID:    userID,
-		authToken: authToken,
-		log:       observability.Logger("state_reconciler").With().Str("user_id", userID).Logger(),
+	var userID, username, role, tier, statusJWT string
+	if user != nil {
+		userID = user.ID
+		username = user.Username
+		role = string(user.Role)
+		tier = user.Tier
+		statusJWT = user.Status
 	}
+	if watchInterval <= 0 {
+		watchInterval = time.Second
+	}
+	return &StateReconciler{
+		mgr:           mgr,
+		bp:            bp,
+		repo:          repo,
+		transport:     transport,
+		userID:        userID,
+		username:      username,
+		role:          role,
+		tier:          tier,
+		statusJWT:     statusJWT,
+		authToken:     authToken,
+		watchInterval: watchInterval,
+		log:           observability.Logger("state_reconciler").With().Str("user_id", userID).Logger(),
+	}
+}
+
+// authContext returns a context with the reconciler's owner identity
+// injected as parsed *auth.Claims plus the raw service token for
+// any legacy callee that still reads RawTokenFromContext.
+func (s *StateReconciler) authContext(parent context.Context) context.Context {
+	ctx := auth.InjectIdentity(
+		parent,
+		s.userID, s.username, auth.Role(s.role), s.tier, s.statusJWT,
+	)
+	if s.authToken != "" {
+		ctx = auth.InjectTokenIntoContext(ctx, s.authToken)
+	}
+	return ctx
 }
 
 // RunStartupSync fetches all currently open MT5 positions for this user.
@@ -53,7 +100,7 @@ func NewStateReconciler(
 func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 	s.log.Info().Msg("starting_startup_sync_for_user")
 
-	tradeCtx := auth.InjectTokenIntoContext(ctx, s.authToken)
+	tradeCtx := s.authContext(ctx)
 
 	positions, err := s.bp.GetPositions(tradeCtx)
 	if err != nil {
