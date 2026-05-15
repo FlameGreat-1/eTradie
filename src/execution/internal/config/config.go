@@ -26,6 +26,27 @@ type Config struct {
 	BrokerBridgeURL string `envconfig:"BROKER_BRIDGE_URL" default:"http://localhost:8000"`
 	BrokerTimeoutMs int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
 
+	// Shared secret for the engine's /internal/* surface.
+	//
+	// The Python engine's broker bridge endpoints
+	// (src/engine/routers/broker_bridge.py) are protected by
+	// engine.shared.internal_auth.verify_internal_auth, which compares
+	// the X-Internal-Auth header against ENGINE_INTERNAL_SHARED_SECRET
+	// in constant time. Without a matching secret the bridge cannot
+	// fetch live broker state and the dashboard header reads empty.
+	//
+	// Must match the engine's ENGINE_INTERNAL_SHARED_SECRET. Minimum
+	// length 32 characters (same policy as the engine and billing
+	// services). Required in production/staging when BROKER_MODE=mt5;
+	// optional in development (a warning is logged at startup).
+	EngineInternalSecret string `envconfig:"ENGINE_INTERNAL_SHARED_SECRET"`
+
+	// Application environment. Used to decide whether the engine
+	// internal secret is mandatory (production/staging) or optional
+	// (development / local). Mirrors the engine's APP_ENV variable so
+	// a single deploy-time value flips both services in lockstep.
+	AppEnv string `envconfig:"APP_ENV" default:"development"`
+
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
 
@@ -114,6 +135,33 @@ func (c *Config) validate() error {
 	if c.BrokerTimeoutMs < 500 || c.BrokerTimeoutMs > 30000 {
 		return fmt.Errorf("BROKER_TIMEOUT_MS must be 500..30000, got %d", c.BrokerTimeoutMs)
 	}
+
+	// Engine internal shared secret: required for MT5 mode in
+	// production/staging because every /internal/broker/* call needs
+	// it. In development we allow an empty value so a local docker-
+	// compose run without secrets-management still boots; the bridge
+	// will log a warning and every call will 401, which surfaces the
+	// misconfiguration quickly at the dashboard layer.
+	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
+	isProdLike := env == "production" || env == "prod" || env == "staging"
+	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
+	if mode == "mt5" {
+		if c.EngineInternalSecret == "" {
+			if isProdLike {
+				return fmt.Errorf(
+					"ENGINE_INTERNAL_SHARED_SECRET must be set in %s when BROKER_MODE=mt5; "+
+						"the value must match the engine's ENGINE_INTERNAL_SHARED_SECRET",
+					env,
+				)
+			}
+		} else if len(c.EngineInternalSecret) < 32 {
+			return fmt.Errorf(
+				"ENGINE_INTERNAL_SHARED_SECRET must be at least 32 characters, got %d",
+				len(c.EngineInternalSecret),
+			)
+		}
+	}
+	c.AppEnv = env
 
 	execMode := strings.ToUpper(c.DefaultExecutionMode)
 	if execMode != string(constants.ModeLimit) && execMode != string(constants.ModeInstant) {

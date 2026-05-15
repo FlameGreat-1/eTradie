@@ -98,8 +98,14 @@ func main() {
 	// ── Broker implementation ──────────────────────────────────────────────
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
-		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
-		log.Info().Str("url", cfg.BrokerBridgeURL).Msg("broker_mt5_bridge_configured")
+		// EngineInternalSecret is validated by Config.validate(): in
+		// production/staging it is required, in development an empty
+		// value is allowed but the bridge logs a warning at construction.
+		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+		log.Info().
+			Str("url", cfg.BrokerBridgeURL).
+			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
+			Msg("broker_mt5_bridge_configured")
 	} else {
 		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
 		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")

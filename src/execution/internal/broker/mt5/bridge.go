@@ -25,21 +25,74 @@ import (
 // This leverages the existing MT5 connection managed by
 // src/engine/ta/broker/mt5/client.py. The bridge service extends
 // that client with execution-specific operations.
+//
+// Authentication contract with the engine:
+//
+//	The engine's /internal/broker/* routes are protected by
+//	engine.shared.internal_auth.verify_internal_auth, which compares
+//	the X-Internal-Auth header to ENGINE_INTERNAL_SHARED_SECRET using
+//	constant-time comparison. Each request must ALSO carry an
+//	X-User-Id header so the engine can resolve the per-user broker
+//	connection from the database. The bridge stamps both headers on
+//	every call; without them the engine returns 401 and the dashboard
+//	header's Balance / Equity / Margin read "---".
 type Bridge struct {
-	baseURL    string
-	httpClient *http.Client
-	log        zerolog.Logger
+	baseURL        string
+	httpClient     *http.Client
+	internalSecret string
+	log            zerolog.Logger
 }
 
-// NewBridge creates an MT5 bridge client.
-func NewBridge(baseURL string, timeoutMs int) *Bridge {
-	return &Bridge{
+// Header names mirror the engine constants. Kept as local consts so a
+// rename on either side is a one-place edit.
+const (
+	headerInternalAuth = "X-Internal-Auth"
+	headerUserID       = "X-User-Id"
+)
+
+// NewBridge creates an MT5 bridge client. internalSecret must match
+// the engine's ENGINE_INTERNAL_SHARED_SECRET. An empty string is
+// allowed for development convenience: every call will then 401 at
+// the engine and the caller surfaces the failure to the operator.
+func NewBridge(baseURL string, timeoutMs int, internalSecret string) *Bridge {
+	b := &Bridge{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
 			Timeout: time.Duration(timeoutMs) * time.Millisecond,
 		},
-		log: observability.Logger("mt5_bridge"),
+		internalSecret: strings.TrimSpace(internalSecret),
+		log:            observability.Logger("mt5_bridge"),
 	}
+	if b.internalSecret == "" {
+		b.log.Warn().Msg(
+			"engine_internal_secret_missing: every /internal/broker/* call " +
+				"will be rejected with 401 by the engine. Set " +
+				"EXECUTION_ENGINE_INTERNAL_SHARED_SECRET to match the engine.",
+		)
+	}
+	return b
+}
+
+// stampInternalAuth attaches the X-Internal-Auth shared secret and
+// X-User-Id headers required by the engine's internal-auth gate.
+// Returns an error when the request would be definitely rejected, so
+// the caller can short-circuit before paying the network cost.
+func (b *Bridge) stampInternalAuth(ctx context.Context, req *http.Request) error {
+	if b.internalSecret == "" {
+		return fmt.Errorf("engine internal secret is not configured")
+	}
+	req.Header.Set(headerInternalAuth, b.internalSecret)
+
+	userID := strings.TrimSpace(auth.UserIDFromContext(ctx))
+	if userID == "" {
+		// The engine resolves the broker per-user; without a user
+		// id it cannot decide which connection to use. Surface the
+		// failure here rather than letting the engine respond with
+		// an opaque 503.
+		return fmt.Errorf("missing user id in request context")
+	}
+	req.Header.Set(headerUserID, userID)
+	return nil
 }
 
 func (b *Bridge) GetAccountInfo(ctx context.Context) (*models.AccountInfo, error) {
@@ -327,9 +380,13 @@ func (b *Bridge) get(ctx context.Context, path string, dest interface{}) error {
 		return fmt.Errorf("build request: %w", err)
 	}
 
-	// Forward JWT token from gRPC context to Python engine.
-	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-		req.Header.Set("Authorization", "Bearer "+rawToken)
+	// The engine's /internal/* routes use X-Internal-Auth + X-User-Id,
+	// not the user JWT. The Bearer token is intentionally NOT forwarded:
+	// the engine ignores it on these routes and forwarding it would
+	// widen the blast radius of a leaked token to no benefit.
+	if err := b.stampInternalAuth(ctx, req); err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "auth_error").Inc()
+		return fmt.Errorf("http get %s: %w", path, err)
 	}
 
 	resp, err := b.httpClient.Do(req)
@@ -372,9 +429,10 @@ func (b *Bridge) post(ctx context.Context, path string, payload interface{}, des
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Forward JWT token from gRPC context to Python engine.
-	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-		req.Header.Set("Authorization", "Bearer "+rawToken)
+	// Same internal-auth contract as `get()`. See stampInternalAuth.
+	if err := b.stampInternalAuth(ctx, req); err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "auth_error").Inc()
+		return fmt.Errorf("http post %s: %w", path, err)
 	}
 
 	resp, err := b.httpClient.Do(req)
