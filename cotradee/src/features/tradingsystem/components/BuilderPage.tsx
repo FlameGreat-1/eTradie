@@ -345,11 +345,11 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full bg-black items-center justify-center p-6">
+      <div className="flex flex-col h-full bg-app items-center justify-center p-6">
         <div className="relative h-24 w-24">
-          <div className="absolute inset-0 rounded-full border-4 border-white/5 border-t-brand animate-spin" />
+          <div className="absolute inset-0 rounded-full border-4 border-border border-t-brand animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <img src="/assets/sidebar/icons/logo.svg" alt="Loading" className="w-8 h-8 opacity-50" />
+            <img src="/assets/sidebar/icons/logo.svg" alt="Loading" className="w-8 h-8 opacity-20" />
           </div>
         </div>
       </div>
@@ -359,13 +359,8 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
   return (
     <div className={`flex flex-col h-full min-h-0 bg-white dark:bg-black transition-colors duration-300 ${!embedded ? 'pt-2 lg:px-10 pb-2 lg:pb-8' : ''}`}>
       {!embedded && (
-        <div className="flex items-center justify-between gap-4 px-6 py-1.5 shrink-0">
+        <div className="flex items-center justify-between gap-4 px-6 py-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10">
-              <svg className="h-4 w-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
             <div>
               <h1 className="text-sm font-bold text-black dark:text-white uppercase tracking-wider">Trading System Builder</h1>
               <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest font-bold mt-0.5">Optimized Execution Engine</p>

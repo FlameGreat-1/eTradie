@@ -204,9 +204,6 @@ export default function UpgradeModal() {
         {/* Header */}
         <div className="flex items-center justify-between p-8 border-b border-black/5 dark:border-white/5">
           <div className="flex items-center gap-4">
-            <div className="bg-brand/10 p-2.5 rounded-2xl border border-brand/20 shadow-lg shadow-brand/10">
-              <Zap className="text-brand w-5 h-5" strokeWidth={3} />
-            </div>
             <div className="space-y-0.5">
               <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">Upgrade to Pro</h2>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Unlock institutional-grade trading tools</p>

@@ -73,7 +73,7 @@ export function formatVolume(value: number | string | null | undefined): string 
   return formatNumber(value, DECIMAL_PLACES.VOLUME);
 }
 
-export function formatAssetPrice(symbol: string, value: number | string | null | undefined): string {
+export function formatAssetPrice(_symbol: string, value: number | string | null | undefined): string {
   const n = safeNumber(value);
   if (n === null) return PLACEHOLDER;
   

@@ -35,6 +35,24 @@ import { useAuth } from '@/features/auth';
  * is dismissed, so the reasoning stays visible until the user X's
  * it.
  */
+/**
+ * A single row in the Thinking Terminal. Each row represents one
+ * hacker-verb phase (SHARDING, DETECTING, etc.) with a rapidly
+ * updating sub-step message.
+ */
+export interface PulseEntry {
+  /** Hacker-verb category (SHARDING, DETECTING, CLAUDING, …). */
+  phase: string;
+  /** Current sub-step text that updates in-place. */
+  message: string;
+  /** Origin component: ta, macro, rag, processor. */
+  source: string;
+  /** True when this phase has finished processing. */
+  completed: boolean;
+  /** Monotonic counter for render-key stability. */
+  seq: number;
+}
+
 export interface LiveStreamState {
   /** true while at least one status/reasoning_chunk frame has been seen and no terminal frame yet. */
   isStreaming: boolean;
@@ -48,13 +66,16 @@ export interface LiveStreamState {
   error: string | null;
   /** ID of the analysis (populated when hydrating from DB) so it can be dismissed. */
   analysisId: string | null;
+  /** Active Thinking Terminal rows — in-place updated by pulse frames. */
+  pulses: PulseEntry[];
 }
 
 type ServerFrame =
   | { type: 'status'; message: string; symbol?: string }
   | { type: 'reasoning_chunk'; text: string; symbol?: string }
   | { type: 'final'; message?: string; symbol?: string }
-  | { type: 'error'; message: string; symbol?: string };
+  | { type: 'error'; message: string; symbol?: string }
+  | { type: 'pulse'; phase: string; message: string; source: string; completed: boolean; symbol?: string };
 
 type Action =
   | { kind: 'reset' }
@@ -68,7 +89,11 @@ const INITIAL_STATE: LiveStreamState = {
   reasoning: '',
   error: null,
   analysisId: null,
+  pulses: [],
 };
+
+/** Monotonic sequence counter for PulseEntry render keys. */
+let _pulseSeq = 0;
 
 function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   if (action.kind === 'reset') return INITIAL_STATE;
@@ -88,15 +113,39 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   const { frame } = action;
   const symbol = frame.symbol ?? state.symbol;
 
+  // Handle pulse frames: update existing phase row in-place or append new.
+  if (frame.type === 'pulse') {
+    const { phase, message, source, completed } = frame;
+    const existing = state.pulses.findIndex(
+      (p) => p.phase === phase && p.source === source,
+    );
+    let nextPulses: PulseEntry[];
+    if (existing >= 0) {
+      // In-place update: swap the sub-step text.
+      nextPulses = state.pulses.map((p, i) =>
+        i === existing ? { ...p, message, completed } : p,
+      );
+    } else {
+      // New phase row.
+      nextPulses = [
+        ...state.pulses,
+        { phase, message, source, completed, seq: ++_pulseSeq },
+      ];
+    }
+    return { ...state, isStreaming: true, symbol, pulses: nextPulses, error: null };
+  }
+
   // If the stream switches to a new symbol, or signals the start of a new analysis 
   // with a 'status' frame, we must reset the progressively accumulated text.
   const isNewStream = frame.type === 'status' || (frame.symbol && state.symbol && frame.symbol !== state.symbol);
   const currentReasoning = isNewStream ? '' : state.reasoning;
   const currentAnalysisId = isNewStream ? null : state.analysisId;
+  // Reset pulses on new stream start.
+  const currentPulses = isNewStream ? [] : state.pulses;
 
   switch (frame.type) {
     case 'status':
-      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
+      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
     case 'reasoning_chunk':
       return {
         ...state,
@@ -106,13 +155,14 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
         status: 'Generating AI Strategy...',
         error: null,
         analysisId: currentAnalysisId,
+        pulses: currentPulses,
       };
     case 'final':
       // Keep the final reasoning on screen; the overlay stays visible
       // until the user dismisses it or a new cycle replaces the state.
-      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
+      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
     case 'error':
-      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
+      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
     default:
       return state;
   }

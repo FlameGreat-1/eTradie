@@ -1,5 +1,5 @@
 import { memo, useState, type FormEvent } from 'react';
-import { Loader2, Send, X, MessageSquare, Hash, AlertCircle } from 'lucide-react';
+import { Loader2, Send, X, MessageSquare, AlertCircle } from 'lucide-react';
 import {
   CATEGORY_LABELS,
   PRIORITY_LABELS,

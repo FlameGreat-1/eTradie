@@ -7,7 +7,6 @@ import { useSearchParams } from 'react-router-dom';
 // dashboard surface that mounts SupportCenter without any per-route
 // CSS plumbing.
 import '@/features/faq/faq.css';
-import CommunityLinks from './components/CommunityLinks';
 import NewTicketModal from './components/NewTicketModal';
 import TicketDetail from './components/TicketDetail';
 import TicketList from './components/TicketList';

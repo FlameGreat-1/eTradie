@@ -156,7 +156,7 @@ export default function BrokerSection() {
             )}
           </div>
           <button onClick={handleCreate} disabled={createConn.isPending}
-            className="w-full rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40">
+            className="w-fit rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40">
             {createConn.isPending ? 'Creating…' : 'Create Connection'}
           </button>
         </div>

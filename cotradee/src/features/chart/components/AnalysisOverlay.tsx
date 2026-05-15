@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink } from 'lucide-react';
 import type { LiveStreamState } from '@/features/alerts/hooks/useLiveReasoningStream';
+import { ThinkingTerminal } from './ThinkingTerminal';
 
 /**
  * Floating analysis overlay shown over the chart while a cycle
@@ -49,6 +50,10 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
   };
 
   const streamSymbol = stream.symbol ?? '—';
+
+  // The ThinkingTerminal is visible when we have pulse events OR
+  // when the stream is active but reasoning hasn't started yet.
+  const showTerminal = stream.pulses.length > 0 || (stream.isStreaming && !stream.reasoning);
 
   return (
     <div
@@ -109,7 +114,15 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
             </div>
           </div>
 
-          {/* Body */}
+          {/* Thinking Terminal — real-time analysis pipeline visualiser */}
+          {showTerminal && (
+            <ThinkingTerminal
+              pulses={stream.pulses}
+              isActive={stream.isStreaming}
+            />
+          )}
+
+          {/* Body — reasoning text / error / waiting */}
           <div
             ref={scrollRef}
             className="px-6 py-5 max-h-[60vh] overflow-y-auto no-scrollbar"
@@ -125,14 +138,14 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
                   <span className="inline-block w-1.5 h-4 bg-brand animate-pulse ml-1 align-middle" />
                 )}
               </div>
-            ) : (
+            ) : !showTerminal ? (
               <div className="text-[12px] text-content-muted font-mono pl-4 border-l-2 border-border">
                 Waiting for analysis data…
                 {stream.isStreaming && (
                   <span className="inline-block w-1.5 h-4 bg-brand animate-pulse ml-1 align-middle" />
                 )}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Live progress strip */}
@@ -148,3 +161,4 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
 }
 
 export const AnalysisOverlay = memo(AnalysisOverlayInner);
+

@@ -167,7 +167,7 @@ export function useReplyToTicket() {
       );
       return data;
     },
-    onSuccess: (resp, vars) => {
+    onSuccess: (_resp, vars) => {
       qc.invalidateQueries({ queryKey: supportKeys.ticket(vars.ticketId) });
       qc.invalidateQueries({ queryKey: supportKeys.tickets() });
     },

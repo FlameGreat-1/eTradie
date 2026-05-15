@@ -145,6 +145,7 @@ class TAOrchestrator:
         *,
         broker_client: BrokerBase,
         user_id: str,
+        pulse=None,
     ) -> dict:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
@@ -158,6 +159,8 @@ class TAOrchestrator:
             user_id: The authenticated user's ID. Required. All storage
                 operations (candle reads, snapshot writes, candidate
                 writes) are scoped to this user.
+            pulse: Optional PulsePublisher for real-time status updates.
+                Fire-and-forget; ``None`` silently disables all pulses.
 
         Returns:
             Structured multi-timeframe analysis result dict.
@@ -201,6 +204,8 @@ class TAOrchestrator:
             # ── Phase 1: Fetch candles for every timeframe ───────────
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
+                if pulse:
+                    await pulse.emit("SHARDING", f"Fetching {tf.value} candle data")
                 adaptive_lookback = self._get_adaptive_lookback(tf, lookback_periods)
                 seq = await self._fetch_sequence(symbol, tf, adaptive_lookback, active_broker, user_id=user_id)
                 if seq is not None:
@@ -219,8 +224,12 @@ class TAOrchestrator:
                 )
 
             # ── Phase 2: Per-timeframe structural detection + snapshot
+            if pulse:
+                await pulse.emit("SHARDING", "Candle acquisition complete", completed=True)
             snapshots: dict[Timeframe, TechnicalSnapshot] = {}
             for tf, seq in sequences.items():
+                if pulse:
+                    await pulse.emit("DETECTING", f"Analyzing {tf.value} market structure")
                 snapshot = self._build_enriched_snapshot(seq)
                 if snapshot is not None:
                     snapshots[tf] = snapshot
@@ -238,6 +247,8 @@ class TAOrchestrator:
                 )
 
             # ── Phase 3: Run pattern detection on HTF pairs ──────────
+            if pulse:
+                await pulse.emit("DETECTING", "Structural analysis complete", completed=True)
             all_smc: list[SMCCandidate] = []
             all_snd: list[SnDCandidate] = []
 
@@ -245,10 +256,14 @@ class TAOrchestrator:
             for i in range(len(available_htfs) - 1):
                 higher_tf = available_htfs[i]
                 lower_tf = available_htfs[i + 1]
+                if pulse:
+                    await pulse.emit("SHIMMING", f"Scanning {higher_tf.value}→{lower_tf.value} SMC zones")
                 smc = self._run_smc_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
                 )
+                if pulse:
+                    await pulse.emit("SHIMMING", f"Scanning {higher_tf.value}→{lower_tf.value} SnD zones")
                 snd = self._run_snd_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
@@ -261,6 +276,8 @@ class TAOrchestrator:
             for i in range(len(available_ltfs) - 1):
                 higher_tf = available_ltfs[i]
                 lower_tf = available_ltfs[i + 1]
+                if pulse:
+                    await pulse.emit("PONTIFICATING", f"LTF confirmation {higher_tf.value}→{lower_tf.value}")
                 smc = self._run_smc_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
@@ -296,6 +313,9 @@ class TAOrchestrator:
                     all_snd.extend(snd)
 
             # ── Phase 6: Align adjacent snapshots ────────────────────
+            if pulse:
+                await pulse.emit("SHIMMING", "Zone scanning complete", completed=True)
+                await pulse.emit("FERMENTING", "Performing multi-timeframe trend alignment")
             alignments: dict[str, dict] = {}
             ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
             for i in range(len(ordered_tfs) - 1):
@@ -323,16 +343,27 @@ class TAOrchestrator:
             )
 
             # ── Phase 8: Deduplicate candidates across timeframe pairs ─
+            if pulse:
+                await pulse.emit("FERMENTING", "Deduplicating candidates")
             all_smc = self._deduplicate_smc_candidates(all_smc)
             all_snd = self._deduplicate_snd_candidates(all_snd)
 
             # ── Phase 9: Persist all results ─────────────────────────
+            if pulse:
+                await pulse.emit("ACTIONING", "Persisting analysis results")
             await self._persist_all_results(
                 snapshots,
                 all_smc,
                 all_snd,
                 user_id=user_id,
             )
+
+            if pulse:
+                await pulse.emit(
+                    "FERMENTING",
+                    f"TA complete — {len(all_smc)} SMC, {len(all_snd)} SnD candidates",
+                    completed=True,
+                )
 
             self._logger.info(
                 "ta_mtf_analysis_completed",

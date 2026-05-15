@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	goredis "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/pulse"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/routing"
 )
@@ -41,6 +43,7 @@ type Orchestrator struct {
 	engineHTTP     *infra.EngineHTTPClient
 	transport      *alertredis.Transport
 	execution      ports.ExecutionPort
+	redisRaw       *goredis.Client // For pulse broadcasting; nil disables.
 	log            zerolog.Logger
 }
 
@@ -56,8 +59,9 @@ func NewOrchestrator(
 	engineHTTP *infra.EngineHTTPClient,
 	transport *alertredis.Transport,
 	execution ports.ExecutionPort,
+	opts ...OrchestratorOption,
 ) *Orchestrator {
-	return &Orchestrator{
+	o := &Orchestrator{
 		cfg:            cfg,
 		taCollector:    taCollector,
 		macroCollector: macroCollector,
@@ -69,6 +73,22 @@ func NewOrchestrator(
 		transport:      transport,
 		execution:      execution,
 		log:            observability.Logger("orchestrator"),
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// OrchestratorOption configures optional Orchestrator dependencies.
+type OrchestratorOption func(*Orchestrator)
+
+// WithRedisRaw enables pulse broadcasting via the given Redis client.
+// When not set, the Orchestrator operates normally but without
+// emitting real-time status updates to the user's SSE channel.
+func WithRedisRaw(client *goredis.Client) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.redisRaw = client
 	}
 }
 
@@ -377,6 +397,14 @@ func (o *Orchestrator) executePipeline(
 	tracker.TransitionTo(constants.PhaseCollectParallel)
 	phaseStart := time.Now()
 
+	// Create a pulse publisher for this user's SSE channel.
+	userID := auth.UserIDFromContext(ctx)
+	var p *pulse.Publisher
+	if o.redisRaw != nil && userID != "" {
+		p = pulse.NewPublisher(o.redisRaw, userID, strings.Join(filteredSymbols, ","), o.log)
+		p.Emit(ctx, "LOADING", "Preparing scheduled analysis cycle", "gateway", false)
+	}
+
 	collectCtx, collectSpan := observability.StartSpan(ctx, "pipeline.collect_parallel",
 		attribute.StringSlice("symbols", filteredSymbols),
 		attribute.String("trace_id", traceID),
@@ -393,13 +421,24 @@ func (o *Orchestrator) executePipeline(
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+		if p != nil {
+			p.Emit(parallelCtx, "SHARDING", "Collecting TA candle data", "ta", false)
+		}
 		taResult, taErr = o.taCollector.Collect(parallelCtx, filteredSymbols, traceID, false)
 	}()
 	go func() {
 		defer wg.Done()
+		if p != nil {
+			p.Emit(parallelCtx, "CLAUDING", "Collecting macro intelligence", "macro", false)
+		}
 		macroResult, macroErr = o.macroCollector.Collect(parallelCtx, traceID)
 	}()
 	wg.Wait()
+
+	if p != nil {
+		p.Emit(ctx, "SHARDING", "TA data collection complete", "ta", true)
+		p.Emit(ctx, "CLAUDING", "Macro intelligence complete", "macro", true)
+	}
 
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseCollectParallel.String()).Observe(time.Since(phaseStart).Seconds())
 

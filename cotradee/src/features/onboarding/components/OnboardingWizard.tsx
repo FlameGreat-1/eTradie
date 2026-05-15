@@ -48,20 +48,15 @@ export function OnboardingWizard() {
   if (loading) return <div className="flex h-64 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" /></div>;
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto min-h-[500px] flex flex-col bg-black text-white rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-      <header className="flex items-center justify-between px-6 py-5 border-b border-white/5 shrink-0">
+    <div className="relative w-full max-w-4xl mx-auto min-h-[500px] flex flex-col bg-surface-1 text-content rounded-3xl border border-border overflow-hidden shadow-2xl">
+      <header className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10">
-            <svg className="h-4 w-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="text-sm font-bold tracking-tight text-white/90 uppercase tracking-widest">Setup Wizard</span>
+          <span className="text-sm font-bold tracking-tight text-content uppercase tracking-widest opacity-90">Setup Wizard</span>
         </div>
         <div className="flex items-center gap-4">
           <ProgressRing current={current} total={TOTAL_STEPS} size={38} />
           {current < TOTAL_STEPS - 1 && (
-            <button onClick={handleSkip} className="text-xs font-medium text-white/40 hover:text-white/70 transition-colors uppercase tracking-widest">
+            <button onClick={handleSkip} className="text-xs font-medium text-content-muted hover:text-content transition-colors uppercase tracking-widest">
               Skip
             </button>
           )}
@@ -73,9 +68,9 @@ export function OnboardingWizard() {
         </div>
       </main>
       {current > 0 && current < TOTAL_STEPS - 1 && (
-        <footer className="flex items-center justify-between px-6 py-4 border-t border-white/5 shrink-0">
-          <button onClick={goBack} className="inline-flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-white/80"><ArrowLeft size={14} /> Back</button>
-          <div className="text-[11px] text-white/20">Step {current + 1} of {TOTAL_STEPS}</div>
+        <footer className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+          <button onClick={goBack} className="inline-flex items-center gap-1.5 text-xs font-medium text-content-muted hover:text-content"><ArrowLeft size={14} /> Back</button>
+          <div className="text-[11px] text-content-faint">Step {current + 1} of {TOTAL_STEPS}</div>
         </footer>
       )}
     </div>

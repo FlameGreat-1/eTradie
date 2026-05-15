@@ -41,18 +41,18 @@ export function WelcomeBuilderModal() {
     <>
       {welcomeVisible && (
         <div
-          className="fixed inset-0 z-modal flex items-center justify-center bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-md px-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-black p-10 shadow-2xl mx-4 text-center">
+          <div className="relative w-full max-w-md rounded-3xl border border-border bg-surface-1 p-10 shadow-2xl text-center">
             {/* Brand accent */}
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 border border-brand/20">
-              <Cpu className="h-8 w-8 text-brand" />
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 border border-brand/20 overflow-hidden">
+              <img src="/assets/sidebar/icons/logo.svg" alt="Exoper" className="h-8 w-8" />
             </div>
 
-            <h2 className="text-2xl font-bold text-white tracking-tight">Build Your Trading System</h2>
-            <p className="mt-3 text-sm text-white/50 leading-relaxed max-w-sm mx-auto">
+            <h2 className="text-2xl font-bold text-content tracking-tight">Build Your Trading System</h2>
+            <p className="mt-3 text-sm text-content-secondary leading-relaxed max-w-sm mx-auto">
               Spare 2&ndash;3 minutes to configure your personal trading
               identity. This personalises every Exoper analysis to your exact approach.
             </p>
@@ -69,7 +69,7 @@ export function WelcomeBuilderModal() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <span className="text-sm text-white/70">{point}</span>
+                  <span className="text-sm text-content-secondary">{point}</span>
                 </div>
               ))}
             </div>
@@ -78,16 +78,16 @@ export function WelcomeBuilderModal() {
               <button
                 type="button"
                 onClick={handleStartBuilder}
-                className="w-full rounded-2xl bg-white px-6 py-4 text-sm font-bold text-black shadow-xl
-                           hover:bg-white/90 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full rounded-2xl bg-black dark:bg-white px-6 py-4 text-sm font-bold text-white dark:text-black shadow-xl
+                           hover:opacity-90 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
               >
                 Start the builder <ArrowRight size={18} />
               </button>
               <button
                 type="button"
                 onClick={handleMaybeLater}
-                className="w-full rounded-2xl border border-white/10 px-6 py-4 text-sm font-semibold
-                           text-white/50 hover:border-white/20 hover:text-white transition-all duration-200"
+                className="w-full rounded-2xl border border-border bg-surface-2 px-6 py-4 text-sm font-semibold
+                           text-content-muted hover:text-content hover:border-border-strong transition-all duration-200"
               >
                 Maybe later
               </button>

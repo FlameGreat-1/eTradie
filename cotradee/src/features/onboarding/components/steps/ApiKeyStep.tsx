@@ -43,7 +43,7 @@ export function ApiKeyStep({ onComplete }: Props) {
           </p>
         </div>
         <button type="button" onClick={onComplete}
-          className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90 transition-colors duration-200">
+          className="inline-flex items-center gap-2 rounded-xl bg-black dark:bg-white px-6 py-3 text-sm font-semibold text-white dark:text-black hover:opacity-90 transition-colors duration-200">
           Continue <ChevronRight size={16} />
         </button>
       </div>
@@ -74,7 +74,7 @@ export function ApiKeyStep({ onComplete }: Props) {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 border border-border">
           <Key className="h-6 w-6 text-content" />
         </div>
         <h2 className="text-xl font-bold text-content">Add your AI key</h2>
@@ -94,15 +94,15 @@ export function ApiKeyStep({ onComplete }: Props) {
                 const model = catalog.find((m: any) => m.id === modelId);
                 setForm((f) => ({ ...f, model_id: modelId, provider: model?.provider || '' }));
               }}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-content
-                         focus:outline-none focus:border-white/30 transition-colors duration-200 appearance-none"
+              className="w-full rounded-lg border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-content
+                         focus:outline-none focus:border-brand transition-colors duration-200 appearance-none"
             >
               <option value="" disabled hidden>Choose a model…</option>
               {catalog.map((m: any) => (
                 <option key={m.id} value={m.id}>{m.display_name}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" size={16} strokeWidth={3} />
+            <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-content-faint pointer-events-none" size={16} strokeWidth={3} />
           </div>
         </div>
 
@@ -117,8 +117,8 @@ export function ApiKeyStep({ onComplete }: Props) {
               value={form.api_key}
               onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
               placeholder="sk-..."
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-content
-                         placeholder:text-content-muted/50 focus:outline-none focus:border-white/30
+              className="w-full rounded-lg border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-content
+                         placeholder:text-content-muted/50 focus:outline-none focus:border-brand
                          transition-colors duration-200"
             />
           </div>
@@ -131,8 +131,8 @@ export function ApiKeyStep({ onComplete }: Props) {
         <button
           type="submit"
           disabled={createConn.isPending || !form.model_id || !form.api_key}
-          className="w-full rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-black
-                     hover:bg-white/90 disabled:opacity-50 transition-colors duration-200
+          className="w-full rounded-xl bg-black dark:bg-white px-4 py-3.5 text-sm font-semibold text-white dark:text-black
+                     hover:opacity-90 disabled:opacity-50 transition-colors duration-200
                      flex items-center justify-center gap-2"
         >
           {createConn.isPending ? (

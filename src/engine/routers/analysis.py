@@ -31,6 +31,7 @@ from engine.processor.streaming import (
 from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.exceptions import ProcessorInsufficientDataError
 from engine.shared.logging import get_logger
+from engine.shared.pulse import PulsePublisher
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
 
 logger = get_logger(__name__)
@@ -561,11 +562,14 @@ async def rerun_analysis(
         await billing_repo.increment_usage_metric(user.user_id, "macro_cycles_used")
 
     # Step 1: Run TA analysis for the symbol using the user's broker.
+    pulse = PulsePublisher(cache=container.cache, user_id=user.user_id, symbol=symbol)
+    await pulse.emit("LOADING", f"Preparing analysis for {symbol}")
     try:
         ta_result = await container.ta_orchestrator.analyze(
             symbol=symbol,
             broker_client=user_broker,
             user_id=user.user_id,
+            pulse=pulse,
         )
     except Exception as exc:
         logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})
@@ -602,6 +606,7 @@ async def rerun_analysis(
     # Step 2: Run macro collection.
     macro_analysis: dict = {}
     try:
+        await pulse.emit("CLAUDING", "Collecting macro intelligence", source="macro")
         collector_map = {
             "central_bank": container.cb_collector,
             "cot": container.cot_collector,
@@ -623,6 +628,7 @@ async def rerun_analysis(
                 macro_analysis[name] = result.model_dump(mode="json")
             else:
                 macro_analysis[name] = {"raw": str(result)}
+        await pulse.emit("CLAUDING", "Macro intelligence collected", source="macro", completed=True)
     except Exception as exc:
         logger.error(
             "rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)}
@@ -713,6 +719,7 @@ async def rerun_analysis(
         )
 
     try:
+        await pulse.emit("GERMINATING", "Retrieving rulebook context", source="rag")
         bundle = await container.rag_orchestrator.retrieve_context(
             query_text,
             user.user_id,
@@ -769,6 +776,9 @@ async def rerun_analysis(
             status_code=500,
             detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
         )
+
+    await pulse.emit("GERMINATING", "Knowledge retrieval complete", source="rag", completed=True)
+    await pulse.emit("REASONING", "Preparing AI processor", source="processor")
 
     # --- rerun_analysis continues in _rerun_process_and_return below ---
     return await _rerun_process_and_return(

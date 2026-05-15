@@ -227,8 +227,8 @@ export default function SymbolsSection() {
                 updateSymbols.mutate(payload);
               }}
               disabled={updateSymbols.isPending || selected.length === 0}
-              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
-                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40 w-full justify-center"
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
+                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40 w-fit"
             >
               <Save size={14} strokeWidth={3} /> {updateSymbols.isPending ? 'Saving…' : 'Save Changes'}
             </button>
@@ -257,7 +257,7 @@ export default function SymbolsSection() {
             <button
               onClick={() => updateInterval.mutate(intervalMins * 60)}
               disabled={updateInterval.isPending}
-              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
                          hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
             >
               <Save size={14} strokeWidth={3} /> {updateInterval.isPending ? 'Saving…' : 'Update Interval'}

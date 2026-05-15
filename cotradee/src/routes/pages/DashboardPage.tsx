@@ -11,6 +11,7 @@ import {
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
 import { WelcomeSetupCard } from '@/features/tradingsystem/components/WelcomeSetupCard';
+import { OnboardingWizard } from '@/features/onboarding/components/OnboardingWizard';
 import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
 
 /**
@@ -123,7 +124,6 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   const noBroker = !broker.isLoading && !broker.data;
-  const noSymbols = symbols.length === 0;
 
   const hasSkippedOnboarding = sessionStorage.getItem('exoper_onboarding_skipped') === 'true';
 

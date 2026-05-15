@@ -1,4 +1,4 @@
-import React from 'react';
+// ProcessFlow — interactive pipeline visualisation for the landing page.
 import { Network, Key, Sliders, BrainCircuit, ShieldCheck, LineChart, Globe, Zap, Briefcase, Cpu, Settings, Server } from 'lucide-react';
 
 const LEFT_INPUTS = [
@@ -42,7 +42,6 @@ export default function ProcessFlow() {
               {LEFT_INPUTS.map((input, i) => {
                 let pathData = "";
                 let dur = 3;
-                let strokeColor = "#06b6d4"; // Cyan for config and data entering engine
 
                 if (i < 3) {
                   // Top 3 -> Settings Node

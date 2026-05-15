@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Network, Globe, BrainCircuit, Eye, LineChart, ShieldCheck,
+  BrainCircuit, Eye,
   BookOpen, PieChart, ShieldAlert, Zap, Cpu, Lock 
 } from 'lucide-react';
 

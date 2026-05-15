@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTradeJournal, usePerformanceMetrics } from '@/features/journal/api/journal';
 import { formatCurrency, formatPercentage, formatDateTime, formatAssetPrice } from '@/utils/formatters';
-import { BookOpen, CalendarDays } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import PnLCalendar from '@/features/journal/components/PnLCalendar';
 
 type Period = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ALL_TIME';

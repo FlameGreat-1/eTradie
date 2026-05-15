@@ -1,0 +1,183 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ThinkingTerminal — Elite Analysis Pipeline Visualiser
+   ═══════════════════════════════════════════════════════════════════
+   High-performance, terminal-style rolling log that visualises
+   real-time backend analysis milestones. Each phase row updates
+   its sub-step text in-place for a "command center" aesthetic.
+
+   Design language:
+     • Monospaced typography for technical credibility
+     • Brand-green (#76B900) phase verbs with high contrast
+     • Subtle scan-line animation for active rows
+     • Smooth entry animations for new phase rows
+     • Pulsing terminal caret for active processing
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Container ───────────────────────────────────────────────────── */
+.thinking-terminal {
+  position: relative;
+  border-top: 1px solid rgb(var(--border-rgb) / 0.6);
+  background: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0.95) 0%,
+    rgb(4 4 4 / 0.98) 100%
+  );
+}
+
+.thinking-terminal__scroll {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 12px 20px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.thinking-terminal__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Row ─────────────────────────────────────────────────────────── */
+.thinking-terminal__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  animation: pulseRowIn 200ms var(--ease-out, ease-out) both;
+  will-change: opacity, transform;
+}
+
+.thinking-terminal__row--active {
+  color: rgb(var(--content-secondary-rgb, 180 180 180));
+}
+
+.thinking-terminal__row--done {
+  color: rgb(var(--content-muted-rgb, 120 120 120));
+}
+
+/* ── Status indicator ────────────────────────────────────────────── */
+.thinking-terminal__indicator {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pulsing terminal caret for active phases */
+.thinking-terminal__caret {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: rgb(var(--brand-rgb, 118 185 0));
+  animation: caretPulse 800ms ease-in-out infinite;
+  box-shadow: 0 0 6px rgb(var(--brand-rgb, 118 185 0) / 0.4);
+}
+
+/* Completion checkmark */
+.thinking-terminal__check {
+  color: rgb(var(--brand-rgb, 118 185 0));
+  opacity: 0.7;
+}
+
+/* ── Phase verb ──────────────────────────────────────────────────── */
+.thinking-terminal__phase {
+  flex-shrink: 0;
+  color: rgb(var(--brand-rgb, 118 185 0));
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  min-width: 120px;
+  opacity: 0.9;
+}
+
+.thinking-terminal__row--done .thinking-terminal__phase {
+  opacity: 0.5;
+}
+
+/* ── Sub-step message ────────────────────────────────────────────── */
+.thinking-terminal__message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.thinking-terminal__row--active .thinking-terminal__message {
+  color: rgb(var(--content-secondary-rgb, 180 180 180));
+}
+
+.thinking-terminal__row--done .thinking-terminal__message {
+  color: rgb(var(--content-muted-rgb, 120 120 120));
+  opacity: 0.7;
+}
+
+/* ── Bottom glow bar ─────────────────────────────────────────────── */
+.thinking-terminal__glow {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--brand-rgb, 118 185 0) / 0.6) 30%,
+    rgb(var(--brand-rgb, 118 185 0)) 50%,
+    rgb(var(--brand-rgb, 118 185 0) / 0.6) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: glowSweep 1.8s ease-in-out infinite;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────── */
+@keyframes pulseRowIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes caretPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes glowSweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-terminal__row {
+    animation: none;
+  }
+  .thinking-terminal__caret {
+    animation: none;
+    opacity: 0.7;
+  }
+  .thinking-terminal__glow {
+    animation: none;
+    opacity: 0.5;
+  }
+}

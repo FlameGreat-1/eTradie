@@ -134,6 +134,7 @@ func New(
 	orchestrator := pipeline.NewOrchestrator(
 		cfg, taCollector, macroCollector, qb, assembler,
 		processor, router, engineHTTP, transport, execution,
+		pipeline.WithRedisRaw(redisClient.RawClient()),
 	)
 
 	// Scheduler (with SettingsStore for persisted interval overrides).

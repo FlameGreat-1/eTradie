@@ -29,7 +29,7 @@ export function ExecutionStep({ onComplete }: Props) {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 border border-border">
           <Settings2 className="h-6 w-6 text-content" />
         </div>
         <h2 className="text-xl font-bold text-content">Risk & Execution</h2>
@@ -38,14 +38,14 @@ export function ExecutionStep({ onComplete }: Props) {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-6">
+      <div className="rounded-2xl border border-border bg-surface-2 p-6 space-y-6">
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">Mode</label>
             <select
               value={form.execution_mode}
               onChange={(e) => setForm(f => ({ ...f, execution_mode: e.target.value }))}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-content focus:outline-none focus:border-white/30"
+              className="w-full rounded-xl border border-border bg-surface-3 px-4 py-3 text-sm text-content focus:outline-none focus:border-brand"
             >
               <option value="AUTO">Automatic</option>
               <option value="MANUAL">Manual Approval</option>
@@ -58,7 +58,7 @@ export function ExecutionStep({ onComplete }: Props) {
               type="number"
               value={form.max_concurrent_trades}
               onChange={(e) => setForm(f => ({ ...f, max_concurrent_trades: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-content focus:outline-none focus:border-white/30"
+              className="w-full rounded-xl border border-border bg-surface-3 px-4 py-3 text-sm text-content focus:outline-none focus:border-brand"
             />
           </div>
 
@@ -69,7 +69,7 @@ export function ExecutionStep({ onComplete }: Props) {
               step="0.1"
               value={form.daily_loss_limit_pct}
               onChange={(e) => setForm(f => ({ ...f, daily_loss_limit_pct: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-content focus:outline-none focus:border-white/30"
+              className="w-full rounded-xl border border-border bg-surface-3 px-4 py-3 text-sm text-content focus:outline-none focus:border-brand"
             />
           </div>
         </div>
@@ -77,7 +77,7 @@ export function ExecutionStep({ onComplete }: Props) {
         <button
           onClick={handleSave}
           disabled={updateSettings.isPending}
-          className="w-full rounded-xl bg-white p-3.5 text-sm font-bold text-black hover:bg-white/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+          className="w-full rounded-xl bg-black dark:bg-white p-3.5 text-sm font-bold text-white dark:text-black hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           {updateSettings.isPending ? 'Saving...' : <>Save configuration <ChevronRight size={16} /></>}
         </button>

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Zap } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 /**
  * WelcomeSetupCard
@@ -13,15 +13,15 @@ export function WelcomeSetupCard() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-4 py-8 bg-black">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/[0.03] p-8 sm:p-12 text-center shadow-2xl">
+    <div className="flex h-full w-full items-center justify-center px-4 py-8 bg-app">
+      <div className="w-full max-w-lg rounded-3xl border border-border bg-surface-1 p-8 sm:p-12 text-center shadow-2xl">
         {/* Brand accent */}
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 border border-brand/20">
-          <Zap className="h-8 w-8 text-brand" />
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 border border-brand/20 overflow-hidden">
+          <img src="/assets/sidebar/icons/logo.svg" alt="Exoper" className="h-8 w-8" />
         </div>
 
-        <h2 className="text-2xl font-bold text-white tracking-tight">Welcome to Exoper</h2>
-        <p className="mt-3 text-sm text-white/50 leading-relaxed max-w-sm mx-auto">
+        <h2 className="text-2xl font-bold text-content tracking-tight">Welcome to Exoper</h2>
+        <p className="mt-3 text-sm text-content-secondary leading-relaxed max-w-sm mx-auto">
           Setup and configure your account to start trading. It only
           takes a few minutes, and you can revisit any step later.
         </p>
@@ -38,7 +38,7 @@ export function WelcomeSetupCard() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <span className="text-sm text-white/70">{point}</span>
+              <span className="text-sm text-content-secondary">{point}</span>
             </div>
           ))}
         </div>
@@ -46,14 +46,14 @@ export function WelcomeSetupCard() {
         <button
           type="button"
           onClick={() => navigate('/onboarding')}
-          className="mt-10 w-full rounded-2xl bg-white px-6 py-4 text-sm font-bold text-black shadow-xl
-                     hover:bg-white/90 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+          className="mt-10 w-full rounded-2xl bg-black dark:bg-white px-6 py-4 text-sm font-bold text-white dark:text-black shadow-xl
+                     hover:opacity-90 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
         >
           Get started <ArrowRight size={18} />
         </button>
 
-        <p className="mt-5 text-[11px] text-white/20">
-          You can also configure everything later from <span className="text-white/40">Settings</span>.
+        <p className="mt-5 text-[11px] text-content-faint">
+          You can also configure everything later from <span className="text-content">Settings</span>.
         </p>
       </div>
     </div>
