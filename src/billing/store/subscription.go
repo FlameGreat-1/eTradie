@@ -163,6 +163,50 @@ func (s *SubscriptionStore) UpsertSubscriptionTx(
 	return appliedCount > 0, previousTier, previousStatus, previousPeriodEnd, nil
 }
 
+// UpdateCardSnapshotTx overwrites the four card_* columns on the user's
+// billing_subscriptions row with the supplied snapshot. Used by the
+// service applier whenever a NormalizedEvent carries fresh card
+// metadata; the Payment Methods card on the dashboard reads from these
+// columns so they must always reflect the most recently-charged method.
+//
+// Race-safe: only applies when the row's existing event_timestamp is
+// older-or-equal to the supplied one, so an out-of-order older webhook
+// cannot regress the snapshot. Returns (applied, error). applied=false
+// indicates a newer event already arrived; the caller's snapshot was
+// older and was discarded — same convention as UpsertSubscriptionTx.
+//
+// All four parameters are non-nil string/int values: callers must check
+// before invoking. A separate apply-only call site keeps the SQL simple
+// (no conditional COALESCE branches that would have to handle
+// 'overwrite with one field, leave the others alone').
+func (s *SubscriptionStore) UpdateCardSnapshotTx(
+	ctx context.Context, tx pgx.Tx,
+	userID, brand, last4 string, expMonth, expYear int,
+	eventTimestamp time.Time,
+) (applied bool, err error) {
+	const query = `
+		UPDATE billing_subscriptions
+		SET card_brand     = $2,
+		    card_last4     = $3,
+		    card_exp_month = $4,
+		    card_exp_year  = $5,
+		    updated_at     = NOW()
+		WHERE user_id = $1
+		  AND event_timestamp <= $6
+		RETURNING 1
+	`
+	var one int
+	if err := tx.QueryRow(ctx, query,
+		userID, brand, last4, expMonth, expYear, eventTimestamp,
+	).Scan(&one); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // ListExpiredForDemotion returns subscriptions in a tentative-loss status
 // (paused, past_due, canceled, refunded) whose current_period_end has
 // elapsed. These users have lost entitlement to their Pro tier but the

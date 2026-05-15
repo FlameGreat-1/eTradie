@@ -73,6 +73,11 @@ func NewSubscriptionEventStore(db *pgxpool.Pool) *SubscriptionEventStore {
 }
 
 // SubscriptionEvent is the audit-row payload for an applied subscription change.
+//
+// Payment-metadata fields (AmountCents, Currency, InvoiceURL, Card*) are
+// nullable pointers so 'absent' is unambiguous on tier-change events that
+// carry no money or card. They map one-for-one onto the matching nullable
+// columns added to billing_subscription_events in the schema migration.
 type SubscriptionEvent struct {
 	UserID         string
 	Provider       string
@@ -83,9 +88,23 @@ type SubscriptionEvent struct {
 	PreviousStatus string
 	NewStatus      string
 	EventTimestamp time.Time
+
+	AmountCents *int64
+	Currency    *string
+	InvoiceURL  *string
+
+	CardBrand    *string
+	CardLast4    *string
+	CardExpMonth *int
+	CardExpYear  *int
 }
 
 // AppendTx writes one immutable audit row inside the supplied transaction.
+//
+// Pointer fields that are nil land as SQL NULL via the nullable* helpers
+// below; this is the only place those columns are ever populated, so a
+// tier-change-only event produces an audit row whose financial columns
+// remain NULL forever (the SPA's Invoice History filter then skips them).
 func (s *SubscriptionEventStore) AppendTx(
 	ctx context.Context, tx pgx.Tx, ev *SubscriptionEvent,
 ) error {
@@ -93,16 +112,56 @@ func (s *SubscriptionEventStore) AppendTx(
 		INSERT INTO billing_subscription_events (
 			user_id, provider, event_name, event_id,
 			previous_tier, new_tier, previous_status, new_status,
-			event_timestamp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			event_timestamp,
+			amount_cents, currency, invoice_url,
+			card_brand, card_last4, card_exp_month, card_exp_year
+		) VALUES (
+			$1, $2, $3, $4,
+			$5, $6, $7, $8,
+			$9,
+			$10, $11, $12,
+			$13, $14, $15, $16
+		)
 	`
 	_, err := tx.Exec(ctx, q,
 		ev.UserID, ev.Provider, ev.EventName, ev.EventID,
 		nullableString(ev.PreviousTier), ev.NewTier,
 		nullableString(ev.PreviousStatus), ev.NewStatus,
 		ev.EventTimestamp,
+		nullableInt64Ptr(ev.AmountCents),
+		nullableStringPtr(ev.Currency),
+		nullableStringPtr(ev.InvoiceURL),
+		nullableStringPtr(ev.CardBrand),
+		nullableStringPtr(ev.CardLast4),
+		nullableIntPtr(ev.CardExpMonth),
+		nullableIntPtr(ev.CardExpYear),
 	)
 	return err
+}
+
+// nullableStringPtr / nullableInt64Ptr / nullableIntPtr convert pointer
+// fields on SubscriptionEvent into the explicit nil pgx needs to write
+// SQL NULL. Returning any rather than the underlying type lets pgx pick
+// the wire format.
+func nullableStringPtr(p *string) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func nullableInt64Ptr(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func nullableIntPtr(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // nullableString converts an empty string to a nil SQL parameter so audit

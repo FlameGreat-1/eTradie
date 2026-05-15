@@ -169,8 +169,35 @@ func (s *Service) HandleEvent(ctx context.Context, ev *events.NormalizedEvent) (
 			PreviousStatus: prevStatus,
 			NewStatus:      string(ev.Status),
 			EventTimestamp: ev.EventTimestamp,
+			AmountCents:    ev.AmountCents,
+			Currency:       ev.Currency,
+			InvoiceURL:     ev.InvoiceURL,
+			CardBrand:      ev.CardBrand,
+			CardLast4:      ev.CardLast4,
+			CardExpMonth:   ev.CardExpMonth,
+			CardExpYear:    ev.CardExpYear,
 		}); err != nil {
 			return Outcome{}, fmt.Errorf("billing: append audit: %w", err)
+		}
+
+		// Mirror the card snapshot onto billing_subscriptions so the
+		// Payment Methods card on the dashboard reflects the most
+		// recently-charged method without scanning the events table on
+		// every request. Only fires when the parser surfaced a complete
+		// card snapshot (brand + last4 + both expiry components) so a
+		// partial provider payload cannot leave the row in a half-NULL
+		// state. Race-safety is enforced inside UpdateCardSnapshotTx
+		// against the same event_timestamp the subscription upsert used.
+		if ev.CardBrand != nil && ev.CardLast4 != nil &&
+			ev.CardExpMonth != nil && ev.CardExpYear != nil {
+			if _, err := s.subs.UpdateCardSnapshotTx(
+				ctx, tx, ev.UserID,
+				*ev.CardBrand, *ev.CardLast4,
+				*ev.CardExpMonth, *ev.CardExpYear,
+				ev.EventTimestamp,
+			); err != nil {
+				return Outcome{}, fmt.Errorf("billing: update card snapshot: %w", err)
+			}
 		}
 	}
 
