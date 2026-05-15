@@ -15,22 +15,58 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
-// Client handles broker execution actions (Modify, Close) over HTTP to the MT5 bridge.
+// Client handles broker execution actions (Modify, Close) over HTTP
+// to the engine's /internal/broker/* surface. Authentication is by
+// shared secret + X-User-Id, NOT the user JWT; see the engine's
+// engine.shared.internal_auth.verify_internal_auth dependency.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	log        zerolog.Logger
+	baseURL        string
+	httpClient     *http.Client
+	internalSecret string
+	log            zerolog.Logger
 }
 
-// NewClient creates an MT5 broker client.
-func NewClient(baseURL string, timeoutMs int) *Client {
-	return &Client{
+// Header names mirror the engine constants. Kept as local consts so a
+// rename on either side is a one-place edit.
+const (
+	headerInternalAuth = "X-Internal-Auth"
+	headerUserID       = "X-User-Id"
+)
+
+// NewClient creates an MT5 broker client. See NewMT5Broker for the
+// internalSecret contract.
+func NewClient(baseURL string, timeoutMs int, internalSecret string) *Client {
+	c := &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
 			Timeout: time.Duration(timeoutMs) * time.Millisecond,
 		},
-		log: observability.Logger("broker_client"),
+		internalSecret: strings.TrimSpace(internalSecret),
+		log:            observability.Logger("broker_client"),
 	}
+	if c.internalSecret == "" {
+		c.log.Warn().Msg(
+			"engine_internal_secret_missing: every /internal/broker/* call " +
+				"will be rejected with 401 by the engine. Set " +
+				"MANAGEMENT_ENGINE_INTERNAL_SHARED_SECRET to match the engine.",
+		)
+	}
+	return c
+}
+
+// stampInternalAuth attaches the X-Internal-Auth shared secret and
+// X-User-Id headers required by the engine's internal-auth gate.
+func (c *Client) stampInternalAuth(ctx context.Context, req *http.Request) error {
+	if c.internalSecret == "" {
+		return fmt.Errorf("engine internal secret is not configured")
+	}
+	req.Header.Set(headerInternalAuth, c.internalSecret)
+	userID := strings.TrimSpace(auth.UserIDFromContext(ctx))
+	if userID == "" {
+		return fmt.Errorf("missing user id in request context")
+	}
+	req.Header.Set(headerUserID, userID)
+	return nil
 }
 
 func (c *Client) ModifyPosition(ctx context.Context, ticket string, newSL, newTP float64) error {
@@ -133,10 +169,11 @@ func (c *Client) post(ctx context.Context, path string, payload interface{}, des
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Forward JWT token from context to Python engine so it can resolve
-	// the correct user's broker connection (multi-tenant isolation).
-	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-		req.Header.Set("Authorization", "Bearer "+rawToken)
+	// The engine's /internal/* surface uses X-Internal-Auth + X-User-Id,
+	// not the user JWT. Bearer token is intentionally not forwarded.
+	if err := c.stampInternalAuth(ctx, req); err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "auth_error").Inc()
+		return fmt.Errorf("http post %s: %w", path, err)
 	}
 
 	resp, err := c.httpClient.Do(req)

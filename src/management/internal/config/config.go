@@ -22,6 +22,22 @@ type Config struct {
 	BrokerBridgeURL string `envconfig:"BROKER_BRIDGE_URL" default:"http://localhost:8000"`
 	BrokerTimeoutMs int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
 
+	// Shared secret for the engine's /internal/* surface.
+	//
+	// The Python engine's broker bridge endpoints
+	// (src/engine/routers/broker_bridge.py) are protected by
+	// engine.shared.internal_auth.verify_internal_auth, which compares
+	// the X-Internal-Auth header against ENGINE_INTERNAL_SHARED_SECRET
+	// in constant time. Must match the engine's value. Minimum length
+	// 32 characters. Required in production/staging when
+	// BROKER_MODE=mt5; optional (with a startup warning) in
+	// development.
+	EngineInternalSecret string `envconfig:"ENGINE_INTERNAL_SHARED_SECRET"`
+
+	// Application environment. Mirrors the engine's APP_ENV to flip
+	// the production-grade validation on EngineInternalSecret.
+	AppEnv string `envconfig:"APP_ENV" default:"development"`
+
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
 
@@ -85,6 +101,27 @@ func (c *Config) validate() error {
 	if c.BrokerTimeoutMs < 500 || c.BrokerTimeoutMs > 30000 {
 		return fmt.Errorf("BROKER_TIMEOUT_MS must be 500..30000, got %d", c.BrokerTimeoutMs)
 	}
+
+	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
+	isProdLike := env == "production" || env == "prod" || env == "staging"
+	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
+	if mode == "mt5" {
+		if c.EngineInternalSecret == "" {
+			if isProdLike {
+				return fmt.Errorf(
+					"ENGINE_INTERNAL_SHARED_SECRET must be set in %s when BROKER_MODE=mt5; "+
+						"the value must match the engine's ENGINE_INTERNAL_SHARED_SECRET",
+					env,
+				)
+			}
+		} else if len(c.EngineInternalSecret) < 32 {
+			return fmt.Errorf(
+				"ENGINE_INTERNAL_SHARED_SECRET must be at least 32 characters, got %d",
+				len(c.EngineInternalSecret),
+			)
+		}
+	}
+	c.AppEnv = env
 
 	if c.TickPollIntervalMs < 100 || c.TickPollIntervalMs > 10000 {
 		return fmt.Errorf("TICK_POLL_INTERVAL_MS must be 100..10000, got %d", c.TickPollIntervalMs)

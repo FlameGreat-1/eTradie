@@ -17,22 +17,43 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
 )
 
-// Stream handles fetching live tick prices and position info from the MT5 bridge.
+// Stream handles fetching live tick prices and position info from the
+// MT5 bridge. Authentication contract matches Client (see NewClient).
 type Stream struct {
-	baseURL    string
-	httpClient *http.Client
-	log        zerolog.Logger
+	baseURL        string
+	httpClient     *http.Client
+	internalSecret string
+	log            zerolog.Logger
 }
 
-// NewStream creates a stream connection.
-func NewStream(baseURL string, timeoutMs int) *Stream {
-	return &Stream{
+// NewStream creates a stream connection. internalSecret must match
+// the engine's ENGINE_INTERNAL_SHARED_SECRET (see NewMT5Broker).
+func NewStream(baseURL string, timeoutMs int, internalSecret string) *Stream {
+	s := &Stream{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
 			Timeout: time.Duration(timeoutMs) * time.Millisecond,
 		},
-		log: observability.Logger("broker_stream"),
+		internalSecret: strings.TrimSpace(internalSecret),
+		log:            observability.Logger("broker_stream"),
 	}
+	// Warning logged once by Client; avoid double-logging here.
+	return s
+}
+
+// stampInternalAuth attaches the X-Internal-Auth + X-User-Id headers
+// required by the engine's internal-auth gate.
+func (s *Stream) stampInternalAuth(ctx context.Context, req *http.Request) error {
+	if s.internalSecret == "" {
+		return fmt.Errorf("engine internal secret is not configured")
+	}
+	req.Header.Set(headerInternalAuth, s.internalSecret)
+	userID := strings.TrimSpace(auth.UserIDFromContext(ctx))
+	if userID == "" {
+		return fmt.Errorf("missing user id in request context")
+	}
+	req.Header.Set(headerUserID, userID)
+	return nil
 }
 
 func (s *Stream) GetTickPrice(ctx context.Context, symbol string) (*TickPrice, error) {
@@ -184,10 +205,10 @@ func (s *Stream) get(ctx context.Context, path string, dest interface{}) error {
 		return fmt.Errorf("build request: %w", err)
 	}
 
-	// Forward JWT token from context to Python engine so it can resolve
-	// the correct user's broker connection (multi-tenant isolation).
-	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-		req.Header.Set("Authorization", "Bearer "+rawToken)
+	// Engine /internal/* uses X-Internal-Auth + X-User-Id, not Bearer.
+	if err := s.stampInternalAuth(ctx, req); err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "auth_error").Inc()
+		return fmt.Errorf("http get %s: %w", path, err)
 	}
 
 	resp, err := s.httpClient.Do(req)

@@ -96,8 +96,11 @@ func main() {
 	// -- Broker implementation ---------------------------------------------
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
-		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs)
-		log.Info().Str("url", cfg.BrokerBridgeURL).Msg("broker_mt5_bridge_configured")
+		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+		log.Info().
+			Str("url", cfg.BrokerBridgeURL).
+			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
+			Msg("broker_mt5_bridge_configured")
 	} else {
 		bp = mock.NewBroker()
 		log.Info().Msg("broker_mock_configured")

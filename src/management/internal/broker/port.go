@@ -99,10 +99,14 @@ type MT5Broker struct {
 	*Stream
 }
 
-// NewMT5Broker creates an MT5 broker connection composing action and stream clients.
-func NewMT5Broker(baseURL string, timeoutMs int) *MT5Broker {
+// NewMT5Broker creates an MT5 broker connection composing action and
+// stream clients. internalSecret must match the engine's
+// ENGINE_INTERNAL_SHARED_SECRET; an empty value is allowed for
+// development but every /internal/broker/* call will 401 at the
+// engine, which surfaces the misconfiguration in the operator's logs.
+func NewMT5Broker(baseURL string, timeoutMs int, internalSecret string) *MT5Broker {
 	return &MT5Broker{
-		Client: NewClient(baseURL, timeoutMs),
-		Stream: NewStream(baseURL, timeoutMs),
+		Client: NewClient(baseURL, timeoutMs, internalSecret),
+		Stream: NewStream(baseURL, timeoutMs, internalSecret),
 	}
 }
