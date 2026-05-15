@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
@@ -105,12 +106,26 @@ func (m *Manager) RegisterTrade(trade *types.Trade) {
 	// this is the first trade on this symbol.
 	m.tickCache.Subscribe(trade.Symbol)
 
-	// Ensure the tick cache has a valid auth token for broker calls.
-	// Tick prices are not user-scoped, so any valid token works.
-	// This is critical when the service starts with zero active trades
-	// and the first trade arrives via gRPC — without this, the tick
-	// cache poller would have no token and get 401 on every request.
-	if trade.AuthToken != "" {
+	// Ensure the tick cache has a valid identity for broker calls.
+	// Engine /internal/broker/* resolves the per-user broker from
+	// X-User-Id (= claims.UserID), so the cache MUST run with a
+	// real parsed *auth.Claims, not a token-only context.
+	//
+	// Prefer the trade's stamped identity fields. When all five are
+	// non-empty we hand the cache a fully-built *auth.Claims with no
+	// parsing. When the trade was restored from a pre-upgrade DB row
+	// that lacks those fields, fall through to the legacy
+	// SetAuthToken shim which parses the token payload to recover
+	// the same data.
+	if trade.UserID != "" {
+		m.tickCache.SetServiceIdentity(&auth.Claims{
+			UserID:   trade.UserID,
+			Username: trade.Username,
+			Role:     auth.Role(trade.Role),
+			Tier:     trade.Tier,
+			Status:   trade.StatusJWT,
+		}, trade.AuthToken)
+	} else if trade.AuthToken != "" {
 		m.tickCache.SetAuthToken(trade.AuthToken)
 	}
 

@@ -335,11 +335,22 @@ func main() {
 			mgr.RegisterTrade(trade)
 		}
 
-		// Set the tick cache auth token. Any valid service token works
-		// since tick prices are not user-scoped.
-		for _, svcToken := range serviceTokens {
-			mgr.TickCache().SetAuthToken(svcToken)
-			break // Only need one token.
+		// Arm the tick cache with the first available identity.
+		// The cache needs a real *auth.Claims to resolve the engine's
+		// per-user broker on each poll.
+		for uid, svcToken := range serviceTokens {
+			u := userByID[uid]
+			if u == nil {
+				continue
+			}
+			mgr.TickCache().SetServiceIdentity(&auth.Claims{
+				UserID:   u.ID,
+				Username: u.Username,
+				Role:     u.Role,
+				Tier:     u.Tier,
+				Status:   u.Status,
+			}, svcToken)
+			break
 		}
 
 		log.Info().
@@ -362,11 +373,17 @@ func main() {
 				svcToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
 				if tokenErr == nil {
 					if !firstSet {
-						mgr.TickCache().SetAuthToken(svcToken)
+						mgr.TickCache().SetServiceIdentity(&auth.Claims{
+							UserID:   u.ID,
+							Username: u.Username,
+							Role:     u.Role,
+							Tier:     u.Tier,
+							Status:   u.Status,
+						}, svcToken)
 						log.Info().
 							Str("user_id", u.ID).
 							Str("username", u.Username).
-							Msg("startup_tick_cache_token_issued")
+							Msg("startup_tick_cache_identity_issued")
 						firstSet = true
 					}
 
@@ -484,8 +501,16 @@ func main() {
 						continue
 					}
 
-					// Also refresh the tick cache token.
-					mgr.TickCache().SetAuthToken(svcToken)
+					// Also refresh the tick cache identity. The user row
+					// we just loaded has the current tier/status, which
+					// may have changed since the previous renewal cycle.
+					mgr.TickCache().SetServiceIdentity(&auth.Claims{
+						UserID:   user.ID,
+						Username: user.Username,
+						Role:     user.Role,
+						Tier:     user.Tier,
+						Status:   user.Status,
+					}, svcToken)
 
 					count := mgr.RefreshUserTradeTokens(uid, svcToken)
 					if count > 0 {
