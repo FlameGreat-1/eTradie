@@ -179,8 +179,17 @@ func New(
 	}
 	meteringHandler.WithSoftCapMailer(emailSender, dashboardURL)
 
-	// Servers (now with auth + consent support + metering + tradingsystem).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler)
+	// Admin billing handler. Reads-only views over billing_subscriptions,
+	// billing_subscription_events, and billing_usage joined with
+	// auth_users. Used by the admin dashboard's Transactions and
+	// AI-Token-Usage pages. The queries surface is a thin wrapper over
+	// the same *pgxpool.Pool every other billing store uses so it
+	// inherits the connection-pool lifecycle automatically.
+	adminQueries := store.NewAdminQueries(subStore.Pool())
+	adminBillingHandler := server.NewAdminBillingHandler(adminQueries)
+
+	// Servers (now with auth + consent support + metering + tradingsystem + admin billing).
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, adminBillingHandler)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
