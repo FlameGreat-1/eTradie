@@ -70,15 +70,11 @@ const REFRESH_LOCK_NAME = 'etradie:auth:refresh';
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 
 /**
- * URL prefixes that are NEVER tier-gated. A 403 from these paths is
- * either a CSRF mismatch (always remediable by retry after refresh)
- * or a server bug; in neither case should the SPA show an
- * "Upgrade Required" toast to the user. PRACTICE.md #2.
- *
- * Exported so a future unit-test suite (when one is added to the SPA)
- * can lock the membership of this list down in CI. The runtime code
- * inside this module imports the same constant so there is one
- * source of truth.
+ * URL prefixes that NEVER produce a toast on 403. These are the
+ * auth / consent / health endpoints whose 403s always indicate a
+ * CSRF mismatch or a server bug, never a tier denial. Kept as a
+ * defence-in-depth even though the structured `error_code` check
+ * below is the primary discriminator.
  */
 export const NON_TIER_GATED_403_PREFIXES = [
   '/auth/',
@@ -88,15 +84,39 @@ export const NON_TIER_GATED_403_PREFIXES = [
 ] as const;
 
 /**
- * Pure predicate: returns true when `url` starts with any prefix in
- * NON_TIER_GATED_403_PREFIXES. No side effects, no closure captures,
- * deterministic for the same input. Exported for testability
- * (audit finding I) and for any future endpoint client that wants to
- * apply the same toast-suppression rule.
+ * Pure predicate: true when `url` starts with any prefix in
+ * NON_TIER_GATED_403_PREFIXES. Exported for testability and so any
+ * future endpoint client can re-use the same toast-suppression rule.
  */
 export function isNonTierGated403(url: string | undefined): boolean {
   if (!url) return false;
   return NON_TIER_GATED_403_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+/**
+ * Shape of a tier-denial response body emitted by the gateway after
+ * the structured-403 migration. See writeTierRequired in
+ * src/gateway/internal/server/api_handlers.go. Exported as a type
+ * helper so any component that wants to deep-link the upsell can
+ * read the same fields without re-deriving them.
+ */
+export interface TierRequiredBody {
+  error?: string;
+  error_code?: string;
+  required_tier?: 'pro_byok' | 'pro_managed' | string;
+  feature?: string;
+}
+
+/**
+ * Pure predicate: returns true when the parsed JSON body of a 403
+ * response carries the structured tier-denial envelope. Any other
+ * shape (plain {"error": "..."} CSRF failures, generic forbidden
+ * responses, foreign-key violations) returns false.
+ */
+export function is403TierDenial(body: unknown): body is TierRequiredBody {
+  if (!body || typeof body !== 'object') return false;
+  const code = (body as { error_code?: unknown }).error_code;
+  return typeof code === 'string' && code === 'tier_required';
 }
 
 /**
@@ -280,21 +300,48 @@ function createClient(baseURL: string): AxiosInstance {
     async (error: AxiosError) => {
       const original = error.config;
 
-      // Global interceptor for tier restrictions. A 403 from a
-      // tier-gated endpoint surfaces an "Upgrade Required" toast so
-      // the user knows their plan does not include the requested
-      // action. Public / non-tier-gated endpoints (auth, consent,
-      // health) must NOT show this toast — a 403 from them is
-      // either a server bug or a CSRF mismatch and the upgrade
-      // prompt would be actively misleading. PRACTICE.md #2.
-      if (error.response?.status === 403 && !isNonTierGated403(original?.url)) {
-        const data = error.response.data as { error?: string } | undefined;
-        const msg = data?.error || 'Action restricted by your subscription tier.';
-        toast({
-          title: 'Upgrade Required',
-          description: msg,
-          variant: 'warning',
-        });
+      // Global interceptor for 403 responses.
+      //
+      // Pre-fix behaviour: every 403 from a non-allowlisted URL
+      // produced an "Upgrade Required" toast. That was a false
+      // positive: CSRF mismatches, expired-cookie races,
+      // foreign-key violations, and any other server-side 403 on
+      // /api/broker/* or /api/llm/* would surface as a tier upsell
+      // unrelated to the user's plan.
+      //
+      // New behaviour: surface the upgrade prompt ONLY when the
+      // server explicitly says so via the structured envelope
+      //   { error_code: "tier_required", required_tier, feature }
+      // emitted by writeTierRequired() on the gateway. Every other
+      // 403 renders a neutral "Forbidden" toast carrying the
+      // server's message, OR nothing at all when the message is
+      // empty so the calling component can render its own UI.
+      //
+      // The allowlist of paths that never produce ANY toast is
+      // kept as a hard guard for the auth / consent / health
+      // surfaces whose 403s are always remediable by retry-after-
+      // refresh and should never surprise the user with a popup.
+      if (
+        error.response?.status === 403 &&
+        !isNonTierGated403(original?.url)
+      ) {
+        const data = error.response.data as TierRequiredBody | undefined;
+        if (is403TierDenial(data)) {
+          toast({
+            title: 'Upgrade Required',
+            description:
+              data?.error || 'Action restricted by your subscription tier.',
+            variant: 'warning',
+          });
+        } else if (data?.error) {
+          // Surface the server's real reason instead of guessing.
+          toast({
+            title: 'Forbidden',
+            description: data.error,
+            variant: 'destructive',
+          });
+        }
+        // No body / empty error: let the calling component decide.
       }
 
       if (error.response?.status === 429) {
