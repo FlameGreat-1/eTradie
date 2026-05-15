@@ -340,9 +340,16 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 	order := builder.BuildWithMode(tradeReq, sizingResult, s.cfg, execMode)
 
-	// Set auth context on the order so the watcher goroutine can make
-	// authenticated calls to the Python engine and Gateway.
+	// Stamp the full identity on the order so the watcher goroutine
+	// can build claims-bearing contexts (Order.IdentityCtx) without
+	// re-parsing the JWT. The four identity fields and the raw token
+	// all originate at the trust boundary (auth interceptor) and flow
+	// top-down.
 	order.UserID = userID
+	order.Username = claims.Username
+	order.Role = string(claims.Role)
+	order.Tier = claims.Tier
+	order.StatusJWT = claims.Status
 	order.AuthToken = auth.RawTokenFromContext(ctx)
 
 	// Step 5: Execute.
