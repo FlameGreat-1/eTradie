@@ -366,11 +366,16 @@ func main() {
 	}
 
 	// ── Startup tick-cache token (fallback for zero-trade cold starts) ──
-	// When no active trades exist at startup, the tick cache has no auth
-	// token and every tick_price request gets 401 Unauthorized. Issue a
-	// service token from any active user so the tick cache can authenticate
-	// immediately. The token will be refreshed when the first trade arrives
-	// (RegisterTrade sets it) or by the 24h renewal goroutine.
+	//
+	// When no active trades exist at startup, the tick cache has no
+	// identity and every tick_price request would 401. Seed with the
+	// first active user so the cache can authenticate immediately.
+	//
+	// Same caveat as the execution-side seed: the chosen user may
+	// lack a configured broker, in which case every poll 503s at the
+	// engine until a real trade arrives via gRPC and RegisterTrade
+	// overwrites the identity. Benign because nothing reads the cache
+	// before that point.
 	{
 		users, userErr := userStore.ListActiveUsers(ctx)
 		if userErr == nil && len(users) > 0 {

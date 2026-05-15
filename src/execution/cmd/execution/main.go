@@ -324,13 +324,22 @@ func main() {
 	}
 
 	// ── Startup tick-cache token (fallback for zero-watcher cold starts) ──
-	// When no pending watchers exist at startup, the tick cache has no auth
-	// token and every tick_price request gets 401 Unauthorized. Issue a
-	// service token from any active user so the tick cache can authenticate
-	// immediately. The token carries the user's real tier/status (NOT a
-	// silent "free" default) so downstream tier checks see correct claims.
-	// The token will be refreshed when the first watcher is armed (Arm sets
-	// it via the order's AuthToken) or by the execution gRPC handler.
+	//
+	// When no pending watchers exist at startup, the tick cache has no
+	// identity and every tick_price request would 401 at the engine.
+	// Seed the cache with the first active user's identity so it can
+	// authenticate immediately. The token carries the user's real
+	// tier/status (NOT a silent "free" default) so downstream tier
+	// checks see correct claims.
+	//
+	// Caveat: the chosen user may not have a configured broker. In that
+	// case the engine returns 503 "No broker connection configured" on
+	// every poll until a watcher arms with a broker'd user via gRPC,
+	// which then overwrites the identity (see Manager.Arm). This is
+	// benign because nothing reads the cache before that point. We
+	// deliberately do NOT scan broker_connections at startup to find a
+	// broker'd user — that would push DB load onto the boot path for
+	// marginal log-noise reduction.
 	{
 		users, userErr := userStore.ListActiveUsers(ctx)
 		if userErr == nil && len(users) > 0 {
