@@ -97,14 +97,27 @@ func (e *NewsEngine) pollCalendar(ctx context.Context, getTrades func() []*types
 			if timeToEvent >= 4*time.Minute && timeToEvent <= 16*time.Minute {
 				trades := getTrades()
 				for _, t := range trades {
-					if t.Status == constants.StatusActive {
-						// Inject the trade's auth token into context so broker
-						// HTTP calls are authenticated for the correct user.
-						tradeCtx := auth.InjectTokenIntoContext(ctx, t.AuthToken)
-						price, err := getPrice(tradeCtx, t.Symbol)
-						if err == nil {
-							e.EvaluatePreNewsRiskOff(tradeCtx, t, evt.EventName, timeToEvent, price)
-						}
+					// Snapshot status + build identity-bearing ctx in one
+					// RLock window so concurrent token / identity
+					// refreshes do not race against this read. Without the
+					// lock the previous code raced with
+					// RefreshUserTradeIdentity, and any reader of t.* was
+					// formally undefined.
+					t.RLock()
+					isActive := t.Status == constants.StatusActive
+					var tradeCtx context.Context
+					if isActive {
+						tradeCtx = t.IdentityCtx(ctx)
+					}
+					symbol := t.Symbol
+					t.RUnlock()
+
+					if !isActive {
+						continue
+					}
+					price, err := getPrice(tradeCtx, symbol)
+					if err == nil {
+						e.EvaluatePreNewsRiskOff(tradeCtx, t, evt.EventName, timeToEvent, price)
 					}
 				}
 			}

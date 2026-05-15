@@ -96,12 +96,11 @@ func (s *Scheduler) runChecks(ctx context.Context) {
 	for _, trade := range trades {
 		trade.RLock()
 		style := trade.TradingStyle
-		authToken := trade.AuthToken
+		// IdentityCtx must be called under RLock so concurrent identity
+		// refreshes (RefreshUserTradeIdentity) do not race against the
+		// read of UserID/Username/Role/Tier/StatusJWT/AuthToken.
+		tradeCtx := trade.IdentityCtx(ctx)
 		trade.RUnlock()
-
-		// Inject the trade's auth token into context so broker HTTP calls
-		// are authenticated for the correct user's broker connection.
-		tradeCtx := auth.InjectTokenIntoContext(ctx, authToken)
 
 		price, err := s.getPrice(tradeCtx, trade.Symbol)
 		if err != nil {

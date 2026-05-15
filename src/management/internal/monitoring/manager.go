@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -312,13 +313,20 @@ func (m *Manager) Shutdown() {
 	m.log.Info().Msg("monitoring_manager_shutdown_complete")
 }
 
-// GetPriceForSymbol returns the current check price for (userID,
-// symbol) from the per-(user, symbol) tick cache. No HTTP call is
-// made when the cache is populated; falls back to a direct
-// authenticated broker call on cache miss using the supplied ctx,
-// which the caller is expected to have stamped with the user's
-// identity (Trade.IdentityCtx).
-func (m *Manager) GetPriceForSymbol(ctx context.Context, userID, symbol string) (float64, error) {
+// GetPriceForSymbol returns the current check price for the user
+// identified by ctx (via auth.UserIDFromContext) and the given symbol
+// from the per-(user, symbol) tick cache. No HTTP call is made when
+// the cache is populated; falls back to a direct authenticated
+// broker call on cache miss.
+//
+// Caller MUST stamp ctx with the trade's identity (Trade.IdentityCtx)
+// before calling so the broker resolves to the right per-user
+// connection. An empty UserID in ctx is reported as ErrNoIdentityInCtx.
+func (m *Manager) GetPriceForSymbol(ctx context.Context, symbol string) (float64, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return 0, ErrNoIdentityInCtx
+	}
 	tick := m.tickCache.GetTickPrice(userID, symbol)
 	if tick == nil {
 		var err error
@@ -329,6 +337,12 @@ func (m *Manager) GetPriceForSymbol(ctx context.Context, userID, symbol string) 
 	}
 	return (tick.Bid + tick.Ask) / 2.0, nil
 }
+
+// ErrNoIdentityInCtx is returned by GetPriceForSymbol when the caller
+// did not stamp the context with a user identity. Always a bug at the
+// call site; the user_id is required to look up the correct per-user
+// broker on the engine.
+var ErrNoIdentityInCtx = fmt.Errorf("no user identity in context (call Trade.IdentityCtx first)")
 
 // TickCache returns the shared tick price cache. Exposed so that
 // main.go can set the auth token on startup.
