@@ -58,21 +58,21 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
 
   return (
     <Overlay onClose={onClose}>
-      <div className="max-h-[85vh] overflow-y-auto space-y-5">
+      <div className="max-h-[85vh] overflow-y-auto space-y-6 no-scrollbar">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${dirBg} ${dirColor} font-bold text-sm`}>
-              {isLong ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+        <div className="flex items-center justify-between pb-2">
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${dirBg} ${dirColor} font-black text-xs uppercase tracking-wider`}>
+              {isLong ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
               {direction}
             </div>
-            <h2 className="text-lg font-bold text-content">{data.pair}</h2>
+            <h2 className="text-xl font-black text-content tracking-tight">{data.pair}</h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-surface-2 text-content-muted"><X size={18} /></button>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-2xl hover:bg-surface-3 text-content-muted transition-all"><X size={20} /></button>
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <MetricBadge label="Grade" value={data.setup_grade ?? raw.grade ?? raw.setup_grade ?? '-'} highlight />
           <MetricBadge label="Confidence" value={confDisplay} />
           <MetricBadge label="R:R Ratio" value={data.rr_ratio != null ? `${data.rr_ratio}:1` : raw.rr_ratio != null ? `${raw.rr_ratio}:1` : '-'} />
@@ -83,21 +83,21 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
         {(entryPrice || stopLoss || tp1) && (
           <section>
             <SectionTitle>Price Levels</SectionTitle>
-            <div className="rounded-lg border border-border bg-surface-2 divide-y divide-border">
+            <div className="rounded-2xl border border-border bg-black divide-y divide-border overflow-hidden">
               {entryPrice != null && (
-                <PriceRow icon={<Target size={13} className="text-brand" />} label="Entry Price" value={entryPrice} />
+                <PriceRow icon={<Target size={14} className="text-brand" />} label="Entry Price" value={entryPrice} />
               )}
               {entryLow != null && entryHigh != null && (
-                <PriceRow icon={<Target size={13} className="text-brand/60" />} label="Entry Zone" value={`${entryLow} – ${entryHigh}`} />
+                <PriceRow icon={<Target size={14} className="text-brand/60" />} label="Entry Zone" value={`${entryLow} – ${entryHigh}`} />
               )}
               {stopLoss != null && (
-                <PriceRow icon={<Shield size={13} className="text-danger" />} label="Stop Loss" value={stopLoss} />
+                <PriceRow icon={<Shield size={14} className="text-danger" />} label="Stop Loss" value={stopLoss} />
               )}
-              {tp1 != null && <PriceRow icon={<Target size={13} className="text-success" />} label={`TP1 ${tp1_pct ? `(${tp1_pct}%)` : ''}`} value={tp1} />}
-              {tp2 != null && <PriceRow icon={<Target size={13} className="text-success/80" />} label={`TP2 ${tp2_pct ? `(${tp2_pct}%)` : ''}`} value={tp2} />}
-              {tp3 != null && <PriceRow icon={<Target size={13} className="text-success/60" />} label={`TP3 ${tp3_pct ? `(${tp3_pct}%)` : ''}`} value={tp3} />}
+              {tp1 != null && <PriceRow icon={<Target size={14} className="text-success" />} label={`TP1 ${tp1_pct ? `(${tp1_pct}%)` : ''}`} value={tp1} />}
+              {tp2 != null && <PriceRow icon={<Target size={14} className="text-success/80" />} label={`TP2 ${tp2_pct ? `(${tp2_pct}%)` : ''}`} value={tp2} />}
+              {tp3 != null && <PriceRow icon={<Target size={14} className="text-success/60" />} label={`TP3 ${tp3_pct ? `(${tp3_pct}%)` : ''}`} value={tp3} />}
               {takeProfit != null && !tp1 && (
-                <PriceRow icon={<Target size={13} className="text-success" />} label="Take Profit" value={takeProfit} />
+                <PriceRow icon={<Target size={14} className="text-success" />} label="Take Profit" value={takeProfit} />
               )}
             </div>
           </section>
@@ -107,7 +107,7 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
         {reasoning && (
           <section>
             <SectionTitle>AI Reasoning</SectionTitle>
-            <div className="rounded-lg border border-border bg-surface-2 p-4 text-xs text-content leading-relaxed whitespace-pre-wrap">
+            <div className="rounded-2xl border border-border bg-black p-5 text-[13px] font-medium text-content-secondary leading-relaxed whitespace-pre-wrap border-l-4 border-l-brand/50">
               {reasoning}
             </div>
           </section>
@@ -115,27 +115,25 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
 
         {/* Rejection Rules */}
         {raw.rejection_rules?.length > 0 && (
-          <section className="rounded-lg border border-danger/30 bg-danger/5 p-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-danger mb-1">
-              <AlertTriangle size={12} /> Rejection Rules Triggered
+          <section className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+            <div className="flex items-center gap-2 text-[11px] font-black text-danger uppercase tracking-wider mb-2">
+              <AlertTriangle size={14} /> Rejection Rules Triggered
             </div>
             {raw.rejection_rules.map((r: string, i: number) => (
-              <div key={i} className="text-xs text-danger/80 ml-4">• {r}</div>
+              <div key={i} className="text-[11px] font-bold text-danger/80 ml-6 list-item">{r}</div>
             ))}
           </section>
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between text-[10px] text-content-muted pt-2 border-t border-border mt-4">
-          <div className="flex items-center gap-3">
-            {(data.trading_style || raw.trading_style) && <span>{data.trading_style ?? raw.trading_style}</span>}
-            {(data.session || raw.session) && <span>• {data.session ?? raw.session}</span>}
-            {raw.execution_mode && <span>• {raw.execution_mode}</span>}
-            {raw.risk_percentage != null && <span>• Risk: {raw.risk_percentage}%</span>}
+        <div className="flex items-center justify-between text-[11px] font-bold text-content-muted pt-4 border-t border-border mt-6">
+          <div className="flex items-center gap-4">
+            {(data.trading_style || raw.trading_style) && <span className="uppercase tracking-wider">{data.trading_style ?? raw.trading_style}</span>}
+            {(data.session || raw.session) && <span className="uppercase tracking-wider">• {data.session ?? raw.session}</span>}
           </div>
           {data.created_at && (
-            <span className="flex items-center gap-1">
-              <Clock size={10} /> {new Date(data.created_at).toLocaleString()}
+            <span className="flex items-center gap-1.5 opacity-70">
+              <Clock size={12} /> {new Date(data.created_at).toLocaleString()}
             </span>
           )}
         </div>
@@ -148,9 +146,9 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
 
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl mx-4 rounded-2xl border border-border bg-surface-0 p-6 shadow-2xl animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-black rounded-[2rem] border border-border p-8 shadow-2xl animate-fade-in ring-1 ring-white/5">
         {children}
       </div>
     </div>
@@ -158,26 +156,26 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-xs font-semibold text-content-muted uppercase tracking-wide mb-2">{children}</h3>;
+  return <h3 className="text-[11px] font-black text-content-muted uppercase tracking-widest mb-3 ml-1">{children}</h3>;
 }
 
 function MetricBadge({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-2 p-3 text-center">
-      <span className="block text-[10px] text-content-muted uppercase tracking-wide">{label}</span>
-      <span className={`block text-base font-bold mt-0.5 ${highlight ? 'text-brand' : 'text-content'}`}>{value}</span>
+    <div className="rounded-2xl border border-border bg-surface-2 p-4 text-center group hover:border-brand/50 transition-all">
+      <span className="block text-[10px] font-black text-content-muted uppercase tracking-widest mb-1">{label}</span>
+      <span className={`block text-lg font-black tracking-tight ${highlight ? 'text-brand' : 'text-content'}`}>{value}</span>
     </div>
   );
 }
 
 function PriceRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-3 transition-colors">
+      <div className="flex items-center gap-3">
         {icon}
-        <span className="text-xs text-content-muted">{label}</span>
+        <span className="text-[11px] font-bold text-content-muted uppercase tracking-wider">{label}</span>
       </div>
-      <span className="text-xs font-mono font-semibold text-content">{String(value)}</span>
+      <span className="text-[13px] font-mono font-black text-content">{String(value)}</span>
     </div>
   );
 }

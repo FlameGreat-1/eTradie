@@ -67,41 +67,44 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto"
         style={{ width: 'min(800px, calc(100% - 32px))' }}
       >
-        <div className="rounded-xl border border-border overflow-hidden shadow-modal bg-surface-glass">
+        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl bg-black">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-1/50">
+            <div className="flex items-center gap-3 min-w-0">
               {stream.isStreaming && (
                 <span className="relative flex h-2 w-2 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
                 </span>
               )}
-              <span className="text-xs font-bold text-brand tracking-wide truncate">
-                {streamSymbol}
-              </span>
-              <span className="text-[10px] font-semibold text-content-secondary uppercase truncate">
-                {stream.status || 'New analysis'}
-              </span>
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-[13px] font-black text-brand tracking-wide uppercase">
+                  {streamSymbol}
+                </span>
+                <span className="w-1 h-1 rounded-full bg-border" />
+                <span className="text-[11px] font-bold text-content-muted uppercase tracking-wider">
+                  {stream.status || 'New analysis'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleCheckAnalysis}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold
-                           text-brand bg-brand-soft hover:bg-brand-soft-strong transition-colors duration-fast focus-ring"
+                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black
+                           text-brand bg-brand/10 hover:bg-brand/20 transition-all duration-fast focus-ring uppercase tracking-wider"
                 title="View in Analysis History"
               >
-                <ExternalLink size={10} />
+                <ExternalLink size={12} />
                 Check
               </button>
               <button
                 onClick={onDismiss}
-                className="flex items-center justify-center w-6 h-6 rounded-md
-                           text-content-muted hover:text-content hover:bg-surface-3 transition-colors duration-fast focus-ring"
+                className="flex items-center justify-center w-8 h-8 rounded-xl
+                           text-content-muted hover:text-content hover:bg-surface-3 transition-all duration-fast focus-ring"
                 title="Close"
                 aria-label="Close analysis overlay"
               >
-                <X size={14} />
+                <X size={18} />
               </button>
             </div>
           </div>
@@ -109,24 +112,24 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
           {/* Body */}
           <div
             ref={scrollRef}
-            className="px-4 py-3 max-h-[60vh] overflow-y-auto scrollbar-thin"
+            className="px-6 py-5 max-h-[60vh] overflow-y-auto no-scrollbar"
           >
             {stream.error ? (
-              <div className="text-xs text-danger leading-relaxed font-mono pl-3 border-l-2 border-danger whitespace-pre-wrap">
+              <div className="text-[12px] text-danger leading-relaxed font-mono pl-4 border-l-2 border-danger whitespace-pre-wrap">
                 {stream.error}
               </div>
             ) : stream.reasoning ? (
-              <div className="text-xs text-content leading-relaxed font-mono pl-3 border-l-2 border-brand whitespace-pre-wrap">
+              <div className="text-[12px] text-content-secondary leading-relaxed font-mono pl-4 border-l-2 border-brand/50 whitespace-pre-wrap">
                 {stream.reasoning}
                 {stream.isStreaming && (
-                  <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-0.5 align-middle" />
+                  <span className="inline-block w-1.5 h-4 bg-brand animate-pulse ml-1 align-middle" />
                 )}
               </div>
             ) : (
-              <div className="text-xs text-content-muted font-mono pl-3 border-l-2 border-border">
+              <div className="text-[12px] text-content-muted font-mono pl-4 border-l-2 border-border">
                 Waiting for analysis data…
                 {stream.isStreaming && (
-                  <span className="inline-block w-1.5 h-3.5 bg-brand animate-pulse ml-1 align-middle" />
+                  <span className="inline-block w-1.5 h-4 bg-brand animate-pulse ml-1 align-middle" />
                 )}
               </div>
             )}

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LifeBuoy, MessageSquarePlus, Inbox, Users, X, BookOpen } from 'lucide-react';
+import { LifeBuoy, MessageSquarePlus, Inbox, Users, X, BookOpen, HelpCircle } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 
 /**
@@ -119,54 +119,56 @@ function HelpAffordance() {
   if (!isHelpVisibleOnPath(location.pathname)) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-overlay" aria-live="polite">
+    <div className="fixed bottom-6 right-6 z-overlay" aria-live="polite">
       {open && isAuthenticated && (
         <div
           ref={popoverRef}
           role="menu"
           aria-label="Help and support"
-          className="absolute bottom-full right-0 mb-3 w-64 rounded-xl border border-border
-                     bg-surface-elevated shadow-pop overflow-hidden animate-fade-in"
+          className="absolute bottom-full right-0 mb-4 w-72 rounded-2xl border border-border
+                     bg-black shadow-2xl overflow-hidden animate-fade-in ring-1 ring-white/5"
         >
-          <header className="flex items-center justify-between px-3 py-2 border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-content-muted">
+          <header className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-1/50">
+            <span className="text-[11px] font-black uppercase tracking-widest text-content-muted">
               Help & Support
             </span>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex items-center justify-center w-6 h-6 rounded-md
-                         text-content-muted hover:text-content hover:bg-surface-2
-                         transition-colors duration-fast focus-ring"
+              className="flex items-center justify-center w-8 h-8 rounded-xl
+                         text-content-muted hover:text-content hover:bg-surface-3
+                         transition-all duration-fast focus-ring"
               aria-label="Close help menu"
             >
-              <X size={12} />
+              <X size={16} />
             </button>
           </header>
-          <ActionRow
-            icon={<MessageSquarePlus size={14} />}
-            label="Open a new ticket"
-            description="Reach our support team"
-            onClick={goNewTicket}
-          />
-          <ActionRow
-            icon={<Inbox size={14} />}
-            label="My tickets"
-            description="View your conversation history"
-            onClick={goMyTickets}
-          />
-          <ActionRow
-            icon={<BookOpen size={14} />}
-            label="Browse FAQs"
-            description="Self-serve answers to common questions"
-            onClick={goFAQ}
-          />
-          <ActionRow
-            icon={<Users size={14} />}
-            label="Community channels"
-            description="Facebook, Discord, Telegram, WhatsApp"
-            onClick={goCommunity}
-          />
+          <div className="py-2">
+            <ActionRow
+              icon={<MessageSquarePlus size={16} />}
+              label="Open a new ticket"
+              description="Reach our support team"
+              onClick={goNewTicket}
+            />
+            <ActionRow
+              icon={<Inbox size={16} />}
+              label="My tickets"
+              description="View your history"
+              onClick={goMyTickets}
+            />
+            <ActionRow
+              icon={<BookOpen size={16} />}
+              label="Browse FAQs"
+              description="Self-serve answers"
+              onClick={goFAQ}
+            />
+            <ActionRow
+              icon={<Users size={16} />}
+              label="Community channels"
+              description="Facebook, Discord, Telegram"
+              onClick={goCommunity}
+            />
+          </div>
         </div>
       )}
       <button
@@ -175,11 +177,12 @@ function HelpAffordance() {
         onClick={handleClick}
         aria-label={isAuthenticated ? 'Open help menu' : 'Contact support'}
         aria-expanded={open}
-        className="flex items-center justify-center w-12 h-12 rounded-full bg-brand text-white
-                   shadow-pop hover:bg-brand-hover transition-colors duration-fast focus-ring"
+        className={`flex items-center justify-center w-12 h-12 rounded-2xl bg-white text-black
+                   shadow-2xl hover:scale-105 active:scale-95 transition-all duration-fast focus-ring
+                   ${open ? 'ring-2 ring-brand ring-offset-2 ring-offset-black' : ''}`}
         title={isAuthenticated ? 'Help & Support' : 'Contact us'}
       >
-        <LifeBuoy size={20} />
+        <HelpCircle size={24} strokeWidth={2.5} />
       </button>
     </div>
   );
@@ -201,15 +204,15 @@ function ActionRow({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="w-full flex items-start gap-3 px-3 py-3 text-left
-                 hover:bg-surface-2 transition-colors duration-fast focus-ring"
+      className="w-full flex items-start gap-4 px-5 py-3.5 text-left
+                 hover:bg-surface-2 transition-all duration-fast focus-ring group"
     >
-      <span className="flex items-center justify-center w-7 h-7 rounded-md bg-brand-soft text-brand shrink-0 mt-0.5">
+      <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-brand/10 text-brand shrink-0 mt-0.5 group-hover:bg-brand/20 transition-colors">
         {icon}
       </span>
       <span className="flex flex-col min-w-0">
-        <span className="text-xs font-bold text-content leading-tight">{label}</span>
-        <span className="text-[11px] text-content-muted leading-relaxed">{description}</span>
+        <span className="text-[13px] font-black text-content tracking-tight">{label}</span>
+        <span className="text-[11px] font-bold text-content-muted leading-tight mt-0.5">{description}</span>
       </span>
     </button>
   );
