@@ -28,10 +28,24 @@ type JournalStore interface {
 }
 
 // TradeMonitor defines the active trade tracking operations required by the gRPC server.
+//
+// Two refresh entry points exist on purpose:
+//   - RefreshUserTradeIdentity is the canonical path used when *auth.Claims
+//     is already in scope (e.g. RegisterFilledTrade): it overwrites the
+//     full identity (UserID match, plus Username/Role/Tier/StatusJWT/AuthToken)
+//     atomically under each Trade's write lock.
+//   - RefreshUserTradeTokens is the lighter path used when only the raw
+//     bearer token is available (e.g. GetManagedTrades pulling the token
+//     out of auth.RawTokenFromContext). It internally parses the local-mint
+//     JWT to recover the claims and delegates to RefreshUserTradeIdentity.
+//
+// Implementations MUST keep the two methods consistent: a call to either
+// must converge on the same in-memory state for the matching trades.
 type TradeMonitor interface {
 	RegisterTrade(t *types.Trade)
 	GetAllTrades() []*types.Trade
 	TradeCount() int
+	RefreshUserTradeIdentity(claims *auth.Claims, newToken string) int
 	RefreshUserTradeTokens(userID, newToken string) int
 }
 
