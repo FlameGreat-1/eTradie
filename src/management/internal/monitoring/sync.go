@@ -129,13 +129,19 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 
 		s.log.Info().Str("ticket", pos.Ticket).Str("symbol", pos.Symbol).Msg("discovered_orphaned_position_importing")
 
-		// Construct a Trade from the raw position.
+		// Construct a Trade from the raw position. Identity fields are
+		// copied from the reconciler so the worker's IdentityCtx builds
+		// the same claims-bearing context a gRPC-registered trade would.
 		trade := &types.Trade{
 			TradeID:          GenerateTradeID(),
 			Symbol:           pos.Symbol,
 			Direction:        constants.Direction(pos.Direction),
 			BrokerOrderID:    pos.Ticket,
 			UserID:           s.userID,
+			Username:         s.username,
+			Role:             s.role,
+			Tier:             s.tier,
+			StatusJWT:        s.statusJWT,
 			AuthToken:        s.authToken,
 			TradingStyle:     constants.StyleIntraday, // Default fallback
 			Grade:            "MANUAL/RECONCILED",
@@ -180,7 +186,8 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 	s.log.Info().Int("imported_trades", imported).Msg("startup_sync_complete_for_active_positions")
 
 	// ---- Phase 2: History Sync ----
-	// Fetch last 30 days of closed deals to rebuild the Journal if wiped
+	// Fetch last 30 days of closed deals to rebuild the Journal if wiped.
+	// Same tradeCtx so the bridge sees the identity-bearing context.
 	history, err := s.bp.GetHistory(tradeCtx, 30)
 	if err != nil {
 		s.log.Error().Err(err).Msg("failed_to_fetch_broker_history_for_sync")
@@ -242,21 +249,27 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 	return nil
 }
 
-// RunStreamListener opens the WebSocket to the Python engine and listens
-// for real-time changes to the MT5 positions (e.g. user manually drags SL).
+// RunStreamListener watches the user's broker positions via
+// broker.Port.WatchPositions and reconciles every structurally-changed
+// snapshot with in-memory trade state. WatchPositions polls under the
+// hood; diff-detection at the broker boundary ensures this loop only
+// does real work when something moved.
 //
-// Uses exponential backoff when the Engine returns ErrNoBrokerConfigured
-// (close code 4004), capping at maxBackoff. The backoff resets to the
-// base interval on any successful data frame, so a user who configures
-// their broker connection later will resume fast polling immediately.
+// Backoff strategy:
+//   - ErrNoBrokerConfigured: exponential backoff up to 5m before
+//     re-arming the watcher. Hammering the engine when the user has
+//     not configured a broker is wasted load.
+//   - Other errors: same exponential backoff, treated as transient.
+//   - Successful frame: backoff resets to base.
 func (s *StateReconciler) RunStreamListener(ctx context.Context) {
-	s.log.Info().Msg("starting_position_stream_listener")
+	s.log.Info().
+		Dur("watch_interval", s.watchInterval).
+		Msg("starting_position_watcher")
 
 	const baseBackoff = 2 * time.Second
 	const maxBackoff = 5 * time.Minute
 	backoff := baseBackoff
 
-	// Retry loop for websocket connection
 	for {
 		select {
 		case <-ctx.Done():
@@ -264,49 +277,29 @@ func (s *StateReconciler) RunStreamListener(ctx context.Context) {
 		default:
 		}
 
-		tradeCtx := auth.InjectTokenIntoContext(ctx, s.authToken)
+		tradeCtx := s.authContext(ctx)
+		watchCtx, cancel := context.WithCancel(tradeCtx)
+		positions, errCh := s.bp.WatchPositions(watchCtx, s.watchInterval)
 
-		ch := make(chan []broker.PositionInfo, 10)
-		errCh := make(chan error, 1)
-
-		go func() {
-			err := s.bp.StreamPositions(tradeCtx, ch)
-			errCh <- err
-			close(ch)
-		}()
-
-		// Process stream
-		for positions := range ch {
-			s.processPositionUpdate(tradeCtx, positions)
-			// Reset backoff on successful data flow.
+		cycleErr := s.consumeWatch(tradeCtx, positions, errCh, func() {
 			backoff = baseBackoff
+		})
+		cancel()
+
+		if cycleErr == nil {
+			// Parent context done; exit cleanly.
+			return
 		}
 
-		// Retrieve the stream error. The channel is buffered (cap 1)
-		// and always receives a value before close(ch), so this is
-		// guaranteed to not block after the range loop exits.
-		streamErr := <-errCh
-
-		if streamErr != nil {
-			if errors.Is(streamErr, broker.ErrNoBrokerConfigured) {
-				// User has no broker connection configured. Exponential
-				// backoff avoids hammering the Engine with futile
-				// connect/auth/close cycles every 5 seconds.
-				s.log.Info().
-					Dur("backoff", backoff).
-					Msg("no_broker_configured_backing_off")
-			} else {
-				// Transient network error or unexpected disconnect.
-				// Log at Warn and retry with the current backoff.
-				s.log.Warn().
-					Err(streamErr).
-					Dur("retry_in", backoff).
-					Msg("position_stream_disconnected")
-			}
+		if goerrors.Is(cycleErr, broker.ErrNoBrokerConfigured) {
+			s.log.Info().
+				Dur("backoff", backoff).
+				Msg("no_broker_configured_backing_off")
 		} else {
 			s.log.Warn().
+				Err(cycleErr).
 				Dur("retry_in", backoff).
-				Msg("position_stream_ended_reconnecting")
+				Msg("position_watcher_failed_retrying")
 		}
 
 		select {
@@ -315,13 +308,51 @@ func (s *StateReconciler) RunStreamListener(ctx context.Context) {
 		case <-time.After(backoff):
 		}
 
-		// Grow backoff for repeated failures (capped at maxBackoff).
-		// Resets to baseBackoff inside the data-processing loop above
-		// when we receive at least one successful position frame.
 		if backoff < maxBackoff {
 			backoff *= 2
 			if backoff > maxBackoff {
 				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+// consumeWatch reads from a single (positions, errors) channel pair
+// until one side closes or yields an error. Returns nil when the
+// parent context cancelled (clean shutdown), or the watcher error
+// for the caller's backoff logic.
+func (s *StateReconciler) consumeWatch(
+	ctx context.Context,
+	positions <-chan []broker.PositionInfo,
+	errCh <-chan error,
+	onFrame func(),
+) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+
+		case err, ok := <-errCh:
+			if !ok {
+				return fmt.Errorf("position watcher ended unexpectedly")
+			}
+			return err
+
+		case snapshot, ok := <-positions:
+			if !ok {
+				// Position channel closed; drain the error side once.
+				select {
+				case err := <-errCh:
+					if err != nil {
+						return err
+					}
+				default:
+				}
+				return fmt.Errorf("position channel closed")
+			}
+			s.processPositionUpdate(ctx, snapshot)
+			if onFrame != nil {
+				onFrame()
 			}
 		}
 	}
@@ -418,6 +449,10 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			Direction:        constants.Direction(pos.Direction),
 			BrokerOrderID:    pos.Ticket,
 			UserID:           s.userID,
+			Username:         s.username,
+			Role:             s.role,
+			Tier:             s.tier,
+			StatusJWT:        s.statusJWT,
 			AuthToken:        s.authToken,
 			TradingStyle:     constants.StyleIntraday,
 			Grade:            "MANUAL/RECONCILED",

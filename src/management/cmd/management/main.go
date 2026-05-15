@@ -371,14 +371,20 @@ func main() {
 					}
 
 					// Start the state reconciler for this user to import orphaned trades
-					// and listen for real-time MT5 modifications.
-					reconciler := monitoring.NewStateReconciler(mgr, bp, journalRepo, alertTransport, u.ID, svcToken)
+					// and watch broker positions for manual modifications / external closes.
+					// Watch cadence mirrors the manager's tick-poll cadence so the
+					// dashboard's position-line UI updates at the same rate.
+					watchInterval := time.Duration(cfg.TickPollIntervalMs) * time.Millisecond
+					reconciler := monitoring.NewStateReconciler(
+						mgr, bp, journalRepo, alertTransport,
+						u, svcToken, watchInterval,
+					)
 
-					// Run startup sync asynchronously so it doesn't block boot
+					// Run startup sync asynchronously so it doesn't block boot.
 					go func(r *monitoring.StateReconciler) {
-						// 1. Sync orphaned MT5 positions
+						// 1. Sync orphaned MT5 positions.
 						_ = r.RunStartupSync(context.Background())
-						// 2. Fall into websocket listening loop
+						// 2. Fall into position-watcher loop.
 						r.RunStreamListener(context.Background())
 					}(reconciler)
 				}
