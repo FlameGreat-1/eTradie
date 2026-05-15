@@ -19,6 +19,7 @@ import {
   useLlmProviders,
 } from '@/features/llm/api/llmConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
+import { useAuth, isAdmin } from '@/features/auth';
 
 export default function LlmSection() {
   const { data: connections } = useLlmConnections();
@@ -31,17 +32,26 @@ export default function LlmSection() {
 
   const { tier, isProManaged, isProBYOK, isFree, copy, openUpgradeModal } =
     useTierGate();
+  const { user } = useAuth();
+  const admin = isAdmin(user);
+
+  // The Platform Key toggle is available to admins and Pro Managed users.
+  // Backend parity: auth.Config.LLMQuotaPolicyForTier maps "admin" to the
+  // same managed-tier policy as "pro_managed", and the engine's
+  // _load_active_llm_connection falls through to the platform env-var
+  // key whenever no user-owned connection is active for an admin or a
+  // pro_managed user. Free + pro_byok users still cannot use the
+  // platform key (the engine rejects it for them) so the toggle stays
+  // locked behind the upgrade prompt for those tiers.
+  const platformKeyAvailable = admin || isProManaged;
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ provider: '', model_id: '', api_key: '' });
 
   // The Platform Key toggle is ON exactly when:
-  //   - the user is pro_managed AND
+  //   - the user is permitted to use it (admin or pro_managed) AND
   //   - no user-owned LLM connection is currently active.
-  // The engine's _load_active_llm_connection treats 'no active row +
-  // pro_managed' as the signal to fall back to the platform env-var key
-  // (defense-in-depth there; this toggle is the matching UX surface).
-  const platformKeyOn = isProManaged && !active;
+  const platformKeyOn = platformKeyAvailable && !active;
 
   const conns: Record<string, unknown>[] = Array.isArray(connections) ? connections : [];
   const providerMap: Record<string, unknown> = providers ?? {};
@@ -61,17 +71,17 @@ export default function LlmSection() {
 
   const handleToggleClick = async () => {
     // Tier-aware behaviour for the Platform Key toggle.
-    if (!isProManaged) {
+    if (!platformKeyAvailable) {
       // The engine WILL reject any pro_byok or free user that tries to
-      // run analysis with no active row, so we keep parity in the UX.
+      // run analysis on the platform key, so we keep parity in the UX.
       openUpgradeModal();
       return;
     }
 
-    // Pro Managed: toggling OFF means activating a user-owned connection
-    // (the user must have one already — we don't auto-create here).
-    // Toggling ON means deactivating whatever's currently active so the
-    // engine falls through to the platform env-var key.
+    // Admin / Pro Managed: toggling OFF means activating a user-owned
+    // connection (the user must have one already — we don't auto-create
+    // here). Toggling ON means deactivating whatever's currently active
+    // so the engine falls through to the platform env-var key.
     if (platformKeyOn) {
       // Currently using platform key — nothing to toggle off without an
       // alternative connection. Open the 'add connection' form so the
@@ -91,7 +101,12 @@ export default function LlmSection() {
         <div className="flex flex-col gap-0.5">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Intelligence</div>
           <h3 className="text-base font-bold text-black dark:text-white tracking-tight">API Key Connections</h3>
-          {isProManaged ? (
+          {admin ? (
+            <p className="text-[11px] font-bold text-black/40 dark:text-white/40 mt-1 flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-brand" strokeWidth={3} />
+              Admin: Platform AI is available. Toggle below or add a custom override.
+            </p>
+          ) : isProManaged ? (
             <p className="text-[11px] font-bold text-black/40 dark:text-white/40 mt-1 flex items-center gap-1.5">
               <ShieldCheck size={12} className="text-brand" strokeWidth={3} />
               Pro Managed: Platform AI is available. Toggle below or add a custom override.
@@ -118,7 +133,7 @@ export default function LlmSection() {
 
       <div
         className={`rounded-2xl border p-6 transition-all shadow-sm ${
-          isProManaged
+          platformKeyAvailable
             ? 'border-brand/20 bg-brand/5'
             : 'border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02]'
         }`}
@@ -133,7 +148,7 @@ export default function LlmSection() {
                 Use Platform AI Key
               </p>
               <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
-                {isProManaged
+                {platformKeyAvailable
                   ? 'Skip provider-key setup. The platform supplies and manages the API key for you.'
                   : platformKeyCopy.body}
               </p>
@@ -152,7 +167,7 @@ export default function LlmSection() {
                         ${
                           platformKeyOn
                             ? 'bg-brand/10 border-brand shadow-lg shadow-brand/10'
-                            : isProManaged
+                            : platformKeyAvailable
                             ? 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10'
                             : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 cursor-not-allowed opacity-40'
                         }`}
@@ -165,7 +180,7 @@ export default function LlmSection() {
           </button>
         </div>
 
-        {!isProManaged && (
+        {!platformKeyAvailable && (
           <div className="mt-4 flex items-center justify-end">
             <button
               type="button"

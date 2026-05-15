@@ -113,6 +113,16 @@ export default function BillingSection() {
           </div>
         </div>
 
+        {/* Admin's own personal AI token usage. The backend treats
+            admin tier as pro_managed for LLM metering (see
+            auth.Config.LLMQuotaPolicyForTier and metering_handler.tierFor),
+            so /api/v1/billing/usage returns quota_enforced=true for admins
+            and UsagePanel renders the admin's individual monthly + daily
+            token consumption exactly as it does for a Pro Managed user. */}
+        <div className="max-w-2xl">
+          <UsagePanel />
+        </div>
+
         {/* Admin-only inline panels: global AI token usage + global subscriptions roster.
             Regular users never reach this branch — the admin check above gates the
             entire render path. */}
