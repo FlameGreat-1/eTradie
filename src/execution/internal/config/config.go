@@ -46,7 +46,12 @@ type Config struct {
 	// internal secret is mandatory (production/staging) or optional
 	// (development / local). Mirrors the engine's APP_ENV variable so
 	// a single deploy-time value flips both services in lockstep.
-	AppEnv string `envconfig:"APP_ENV" default:"development"`
+	//
+	// Note: envconfig.Process with prefix "EXECUTION" looks up the
+	// env var EXECUTION_APP_ENV (prefix + tag). Production deployments
+	// generally export only root APP_ENV, so validate() falls back to
+	// os.Getenv("APP_ENV") when this field is empty / left at default.
+	AppEnv string `envconfig:"APP_ENV" default:""`
 
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
@@ -143,8 +148,21 @@ func (c *Config) validate() error {
 	// compose run without secrets-management still boots; the bridge
 	// will log a warning and every call will 401, which surfaces the
 	// misconfiguration quickly at the dashboard layer.
+	// Resolve the effective environment. Prefer the prefixed value
+	// (EXECUTION_APP_ENV) when set explicitly; otherwise fall back to
+	// the shared root APP_ENV. Default to "development" only when
+	// neither is set, so a production deploy that exports only the
+	// root variable still flips this service into prod mode and the
+	// secret-required check below is enforced rather than warned.
 	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+	if env == "" {
+		env = "development"
+	}
 	isProdLike := env == "production" || env == "prod" || env == "staging"
+
 	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
 	// Fall back to the root ENGINE_INTERNAL_SHARED_SECRET when the
 	// prefixed override (EXECUTION_ENGINE_INTERNAL_SHARED_SECRET) is

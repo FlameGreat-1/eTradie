@@ -37,7 +37,12 @@ type Config struct {
 
 	// Application environment. Mirrors the engine's APP_ENV to flip
 	// the production-grade validation on EngineInternalSecret.
-	AppEnv string `envconfig:"APP_ENV" default:"development"`
+	//
+	// Note: envconfig.Process with prefix "MANAGEMENT" looks up the
+	// env var MANAGEMENT_APP_ENV (prefix + tag). Production deployments
+	// generally export only root APP_ENV, so validate() falls back to
+	// os.Getenv("APP_ENV") when this field is empty.
+	AppEnv string `envconfig:"APP_ENV" default:""`
 
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
@@ -103,8 +108,20 @@ func (c *Config) validate() error {
 		return fmt.Errorf("BROKER_TIMEOUT_MS must be 500..30000, got %d", c.BrokerTimeoutMs)
 	}
 
+	// Resolve the effective environment with the same precedence used
+	// in the execution config: prefixed override → root APP_ENV →
+	// development. Prevents a prod deploy that exports only root
+	// APP_ENV from silently treating this service as development and
+	// reducing the secret-required check to a warning.
 	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+	if env == "" {
+		env = "development"
+	}
 	isProdLike := env == "production" || env == "prod" || env == "staging"
+
 	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
 	// Fall back to the root ENGINE_INTERNAL_SHARED_SECRET when the
 	// prefixed override is empty; mirrors the execution config logic.
