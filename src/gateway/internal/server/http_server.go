@@ -62,6 +62,7 @@ func NewHTTPServer(
 	tradingSystemHandler *tradingsystem.Handler,
 	tradingPlanHandler *tradingplan.Handler,
 	adminBillingHandler *AdminBillingHandler,
+	userBillingHandler *UserBillingHandler,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
 		redis:  redis,
@@ -160,6 +161,15 @@ func NewHTTPServer(
 	// clean 403 from RequireAdmin; the handler body never runs.
 	if adminBillingHandler != nil {
 		adminBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+	}
+
+	// User-facing billing read surface (Payment Methods card + Invoice
+	// History feed). Every route is gated by auth -> CSRF and binds the
+	// authenticated user_id server-side, so a forged caller cannot iterate
+	// over another user's data. Nil-tolerant so future builds that skip
+	// this surface still start up cleanly.
+	if userBillingHandler != nil {
+		userBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
 	// CORS allowlist is validated at startup so a misconfig fails

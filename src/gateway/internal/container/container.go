@@ -188,8 +188,17 @@ func New(
 	adminQueries := store.NewAdminQueries(subStore.Pool())
 	adminBillingHandler := server.NewAdminBillingHandler(adminQueries)
 
-	// Servers (now with auth + consent support + metering + tradingsystem + admin billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, adminBillingHandler)
+	// User billing handler. Read-only, user-scoped views over
+	// billing_subscriptions (card snapshot) and billing_subscription_events
+	// (per-user financial history) for the dashboard's Payment Methods
+	// and Invoice History panels. Same pool, same lifecycle, separate
+	// query surface so the user-facing fast path is not polluted with
+	// admin-only joins and the SQL stays trivially user_id-bound.
+	userQueries := store.NewUserQueries(subStore.Pool())
+	userBillingHandler := server.NewUserBillingHandler(userQueries)
+
+	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, adminBillingHandler, userBillingHandler)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
