@@ -41,8 +41,16 @@ const CATEGORIES = [
 export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const [isMobile, setIsMobile] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const toggle = () => {
     if (!isOpen && menuRef.current) {
@@ -102,13 +110,15 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
           role="listbox"
           style={{
             position: 'fixed',
-            top: `${coords.top + 6}px`,
-            left: `${coords.left}px`,
+            top: isMobile ? '64px' : `${coords.top + 6}px`,
+            left: isMobile ? '50%' : `${coords.left}px`,
             transform: 'translateX(-50%)',
-            width: '12rem',
+            width: isMobile ? 'min(calc(100vw - 32px), 14rem)' : '12rem',
+            maxHeight: isMobile ? 'calc(100vh - 100px)' : 'none',
+            overflowY: 'auto',
           }}
           className="bg-white dark:bg-black border border-border
-                     rounded-2xl shadow-pop py-1.5 z-[9999] animate-fade-in overflow-hidden"
+                     rounded-2xl shadow-pop py-1.5 z-[9999] animate-fade-in no-scrollbar"
         >
           {CATEGORIES.map((cat, i) => (
             <div key={cat.name}>
