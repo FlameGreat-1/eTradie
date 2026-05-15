@@ -488,10 +488,10 @@ func (w *Watcher) runInstant(ctx context.Context) {
 	// we skip the waiting/polling loop and fire the market order immediately.
 	if w.order.LTFConfirmed {
 		w.log.Info().Msg("watcher_pre_confirmed_firing_market_order_immediately")
+		// IdentityCtx injects claims AND token under one snapshot.
 		w.order.RLock()
-		token := w.order.AuthToken
+		authCtx := w.order.IdentityCtx(ctx)
 		w.order.RUnlock()
-		authCtx := auth.InjectTokenIntoContext(ctx, token)
 		w.fireMarketOrder(authCtx)
 		return
 	}
@@ -505,16 +505,16 @@ func (w *Watcher) runInstant(ctx context.Context) {
 			w.log.Info().Msg("watcher_disarmed_externally")
 			return
 		case <-ticker.C:
-			// Build a fresh auth context on every tick cycle using the
-			// order's current AuthToken. The token may be refreshed by
-			// RefreshUserOrderTokens (user login or service token renewal).
-			// The watcher timeout (default 45 min) can exceed the access
-			// token TTL (default 15 min), so we must always use the
-			// latest token to avoid 401 errors on broker calls.
+			// Build a fresh auth context on every tick cycle from the
+			// order's current identity + token. The token may be
+			// refreshed by RefreshUserOrderTokens (user login or service
+			// token renewal); since the watcher timeout (default 45m)
+			// can exceed the access-token TTL (15m), the latest value
+			// MUST be read every tick to avoid 401s.
+			// IdentityCtx injects claims (resolves X-User-Id) AND token.
 			w.order.RLock()
-			currentToken := w.order.AuthToken
+			authCtx := w.order.IdentityCtx(ctx)
 			w.order.RUnlock()
-			authCtx := auth.InjectTokenIntoContext(ctx, currentToken)
 
 			if w.checkAndExecute(authCtx) {
 				return
