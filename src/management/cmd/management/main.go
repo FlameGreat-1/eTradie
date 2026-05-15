@@ -165,7 +165,8 @@ func main() {
 					t.RUnlock()
 
 					if sym == evt.Symbol && st != constants.StatusClosed {
-						tradeCtx := auth.InjectTokenIntoContext(ctx, token)
+						_ = token // legacy var, no longer used directly
+						tradeCtx := t.IdentityCtx(ctx)
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							structuralEngine.EvaluateStructuralBreak(tradeCtx, t, evt.Direction, price)
@@ -182,7 +183,8 @@ func main() {
 					t.RUnlock()
 
 					if sym == evt.Symbol && st != constants.StatusClosed {
-						tradeCtx := auth.InjectTokenIntoContext(ctx, token)
+						_ = token // legacy var, no longer used directly
+						tradeCtx := t.IdentityCtx(ctx)
 						price, err := mgr.GetPriceForSymbol(tradeCtx, evt.Symbol)
 						if err == nil {
 							macroEngine.EvaluateCOTFlip(tradeCtx, t, evt.Direction, price)
@@ -211,7 +213,8 @@ func main() {
 						t.RUnlock()
 
 						if st != constants.StatusClosed {
-							tradeCtx := auth.InjectTokenIntoContext(ctx, token)
+							_ = token // legacy var, no longer used directly
+							tradeCtx := t.IdentityCtx(ctx)
 							price, err := mgr.GetPriceForSymbol(tradeCtx, sym)
 							if err == nil {
 								exposureEngine.EvaluateCorrelationShock(tradeCtx, t, stoppedSymbol, price)

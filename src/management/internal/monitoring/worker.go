@@ -39,7 +39,6 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 		case <-ticker.C:
 			trade.RLock()
 			status := trade.Status
-			currentToken := trade.AuthToken
 			trade.RUnlock()
 
 			if status == constants.StatusClosed {
@@ -49,14 +48,18 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 			}
 
 			// Build a fresh auth context on every tick cycle using the
-			// trade's current AuthToken. This is critical because:
-			// - Service tokens are set on startup for restored trades
-			// - User session tokens replace service tokens on login
-			//   via RefreshUserTradeTokens
-			// - The worker must always use the most recent token
-			// Go contexts are immutable, so we cannot update a frozen
-			// authCtx created once at worker start.
-			authCtx := auth.InjectTokenIntoContext(ctx, currentToken)
+			// trade's current identity. Critical because:
+			//   - Service tokens are set on startup for restored trades
+			//   - User session tokens / identity replace service tokens
+			//     on login via RefreshUserTradeTokens / RefreshUserTradeIdentity
+			//   - The worker must always use the most recent identity
+			// IdentityCtx injects both parsed *Claims and the raw token,
+			// so the bridge's stampInternalAuth (which reads claims via
+			// auth.UserIDFromContext) sees a real user id, and any legacy
+			// callee that still reads RawTokenFromContext keeps working.
+			trade.RLock()
+			authCtx := trade.IdentityCtx(ctx)
+			trade.RUnlock()
 
 			// Read tick price from the shared cache. The cache is populated
 			// by a single poller per symbol, eliminating redundant HTTP calls.

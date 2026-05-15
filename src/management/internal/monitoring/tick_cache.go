@@ -2,6 +2,9 @@ package monitoring
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,10 +37,16 @@ type TickCache struct {
 	subRefs map[string]int
 	pollers map[string]context.CancelFunc
 
-	// Auth token for broker calls. Tick prices are not user-scoped
-	// (EURUSD bid/ask is the same for all users), so any valid token works.
-	tokenMu  sync.RWMutex
-	authToken string
+	// Identity for broker calls. Tick prices come from a specific
+	// user's broker connection on the engine side, so the cache MUST
+	// run with a real user identity (UserID drives broker resolution
+	// in engine.helpers._resolve_user_broker). The chosen identity is
+	// set once at startup by management/cmd/main.go (the first user
+	// with a configured broker connection) and refreshed when a new
+	// trade is registered.
+	identMu      sync.RWMutex
+	identClaims  *auth.Claims
+	identToken   string
 }
 
 // NewTickCache creates a shared tick price cache.
@@ -52,14 +61,29 @@ func NewTickCache(bp broker.Port, pollMs int) *TickCache {
 	}
 }
 
-// SetAuthToken sets the JWT token used for broker tick price calls.
-// Called with a service token on startup and refreshed when users
-// authenticate. Any valid token works since tick prices are not
-// user-scoped.
+// SetServiceIdentity sets the identity used to authenticate broker
+// tick-price calls. The claims drive auth.InjectClaimsIntoContext
+// inside fetchAndCache, so the bridge's X-User-Id header resolves
+// to a real user with a configured broker connection.
+//
+// rawToken is stored alongside the claims so any callee that still
+// reads RawTokenFromContext keeps working; new code should rely on
+// the claims only.
+func (tc *TickCache) SetServiceIdentity(claims *auth.Claims, rawToken string) {
+	tc.identMu.Lock()
+	tc.identClaims = claims
+	tc.identToken = rawToken
+	tc.identMu.Unlock()
+}
+
+// SetAuthToken is the legacy entry point retained for callers that
+// have not been migrated to SetServiceIdentity. Building Claims from
+// a raw JWT without verifying the signature is acceptable here
+// because the JWT was just minted by THIS service's TokenService
+// (we're parsing our own token, not a remote one).
 func (tc *TickCache) SetAuthToken(token string) {
-	tc.tokenMu.Lock()
-	tc.authToken = token
-	tc.tokenMu.Unlock()
+	claims := parseLocalServiceToken(token)
+	tc.SetServiceIdentity(claims, token)
 }
 
 // GetTickPrice returns the cached tick price for a symbol.
@@ -150,11 +174,22 @@ func (tc *TickCache) pollSymbol(ctx context.Context, symbol string) {
 }
 
 func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
-	tc.tokenMu.RLock()
-	token := tc.authToken
-	tc.tokenMu.RUnlock()
+	tc.identMu.RLock()
+	claims := tc.identClaims
+	token := tc.identToken
+	tc.identMu.RUnlock()
 
-	authCtx := auth.InjectTokenIntoContext(ctx, token)
+	if claims == nil {
+		// No identity configured yet (cold start before any user has
+		// been resolved). Skip this poll; the next Subscribe call by
+		// the manager will populate identity via SetServiceIdentity.
+		return
+	}
+
+	authCtx := auth.InjectClaimsIntoContext(ctx, claims)
+	if token != "" {
+		authCtx = auth.InjectTokenIntoContext(authCtx, token)
+	}
 
 	tick, err := tc.bp.GetTickPrice(authCtx, symbol)
 	if err != nil {
@@ -166,4 +201,32 @@ func (tc *TickCache) fetchAndCache(ctx context.Context, symbol string) {
 	tc.mu.Lock()
 	tc.prices[symbol] = tick
 	tc.mu.Unlock()
+}
+
+// parseLocalServiceToken extracts Claims from a JWT minted by THIS
+// service's TokenService. We trust the signature only because we
+// just produced the token in-process; the parse here only decodes
+// the payload to recover the claims for context injection. If the
+// token is malformed, returns nil and the cache stays un-armed
+// until the next SetServiceIdentity call.
+func parseLocalServiceToken(token string) *auth.Claims {
+	if token == "" {
+		return nil
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil
+	}
+	var c auth.Claims
+	if err := json.Unmarshal(payload, &c); err != nil {
+		return nil
+	}
+	if c.UserID == "" {
+		return nil
+	}
+	return &c
 }
