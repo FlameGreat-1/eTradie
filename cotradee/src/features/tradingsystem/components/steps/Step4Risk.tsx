@@ -24,19 +24,20 @@ export function Step4Risk({ value, onChange, errors, stepNumber, totalSteps }: P
       title="Risk Personality"
       description="How much capital you risk per trade and the drawdown limits Exoper must respect."
     >
-      <div>
-        <div className="text-sm font-medium text-content mb-2">Risk model</div>
-        <RadioCardGroup
-          name="risk_model"
-          value={value.risk_model}
-          onChange={(v) => set('risk_model', v)}
-          options={[
-            { value: 'fixed', label: 'Fixed %', description: 'Same % per trade always' },
-            { value: 'adaptive', label: 'Adaptive %', description: 'Scaled by setup grade' },
-          ]}
-        />
-        <FieldError message={errors['risk.risk_model']} />
-      </div>
+      <div className="space-y-8">
+        <div>
+          <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">1. Risk model</div>
+          <RadioCardGroup
+            name="risk_model"
+            value={value.risk_model}
+            onChange={(v) => set('risk_model', v)}
+            options={[
+              { value: 'fixed', label: 'Fixed %', description: 'Same % per trade always' },
+              { value: 'adaptive', label: 'Adaptive %', description: 'Scaled by setup grade' },
+            ]}
+          />
+          <FieldError message={errors['risk.risk_model']} />
+        </div>
 
       <NumberSlider
         label="Risk per trade"
@@ -114,6 +115,7 @@ export function Step4Risk({ value, onChange, errors, stepNumber, totalSteps }: P
         checked={value.trailing_stop_enabled}
         onChange={(v) => set('trailing_stop_enabled', v)}
       />
+      </div>
     </StepShell>
   );
 }

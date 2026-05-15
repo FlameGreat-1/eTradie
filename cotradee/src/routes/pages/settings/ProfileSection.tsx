@@ -27,10 +27,13 @@ export default function ProfileSection() {
   };
 
   return (
-    <div className="space-y-8 max-w-lg">
+    <div className="space-y-10 max-w-lg">
       <section>
-        <h3 className="text-sm font-semibold text-content mb-4">Account Information</h3>
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-3">
+        <div className="flex flex-col gap-0.5 mb-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Identity</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Account Information</h3>
+        </div>
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-4 shadow-sm">
           <InfoRow label="Username" value={user?.username ?? '-'} />
           <InfoRow label="Email" value={user?.email ?? '-'} />
           <InfoRow label="Role" value={user?.role ?? '-'} />
@@ -42,27 +45,31 @@ export default function ProfileSection() {
       {env.googleOAuthEnabled && <ConnectedAccountsPanel />}
 
       <section>
-        <h3 className="text-sm font-semibold text-content mb-4">Change Password</h3>
-        <form onSubmit={handlePasswordChange} className="rounded-xl border border-border bg-surface-1 p-5 space-y-4">
+        <div className="flex flex-col gap-0.5 mb-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Security</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Change Password</h3>
+        </div>
+        <form onSubmit={handlePasswordChange} className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
           {msg && (
-            <div className={`rounded-lg px-3 py-2 text-xs ${msg.includes('success') ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+            <div className={`rounded-xl px-4 py-3 text-[11px] font-bold tracking-tight leading-relaxed ${msg.includes('success') ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+              <span className="uppercase text-[9px] font-black tracking-widest bg-current/10 px-2 py-0.5 rounded-full mr-2">
+                {msg.includes('success') ? 'Success' : 'Error'}
+              </span>
               {msg}
             </div>
           )}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-content-secondary">Current Password</label>
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Current Password</label>
             <input type="password" autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
-                         focus:border-brand focus:outline-none transition-colors" />
+              className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
           </div>
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-content-secondary">New Password</label>
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">New Password</label>
             <input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={8}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
-                         focus:border-brand focus:outline-none transition-colors" />
+              className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
           </div>
           <button type="submit" disabled={loading}
-            className="rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand hover:bg-brand/5 disabled:opacity-50 transition-colors">
+            className="rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40">
             {loading ? 'Updating…' : 'Update Password'}
           </button>
         </form>
@@ -73,28 +80,13 @@ export default function ProfileSection() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-content-muted">{label}</span>
-      <span className="text-xs font-medium text-content">{value}</span>
+    <div className="flex items-center justify-between py-1">
+      <span className="text-[11px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">{label}</span>
+      <span className="text-sm font-bold text-black dark:text-white tracking-tight">{value}</span>
     </div>
   );
 }
 
-/**
- * Connected accounts panel.
- *
- * Surfaces the Google identity binding for the current user and is
- * the dashboard counterpart to the gateway's
- *   "please sign in with your password and link Google from settings"
- * error. Renders one of three states:
- *
- *   - Not linked        → "Connect Google account" button.
- *   - Linked (local)    → status + "Disconnect" button.
- *   - Linked (google)   → status only; disconnecting a Google-only
- *                         account would leave it with no credential.
- *
- * The disconnect action is gated by an inline confirmation prompt.
- */
 function ConnectedAccountsPanel() {
   const { user } = useAuth();
   const {
@@ -108,17 +100,10 @@ function ConnectedAccountsPanel() {
   const [success, setSuccess] = useState('');
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
 
-  // Treat the user as linked when their auth_provider is 'google'
-  // OR the gateway has flagged the email as identity-provider
-  // verified. Older gateway builds may omit auth_provider, so the
-  // email_verified fallback keeps the UI useful in that window.
   const isLinked =
     user?.auth_provider === 'google' ||
     user?.email_verified === true;
 
-  // A user whose only credential is Google must not be allowed to
-  // unlink, because doing so would leave them with no way to sign in.
-  // They need to set a local password first (separate flow).
   const canDisconnect = isLinked && user?.auth_provider !== 'google';
 
   const handleConnect = async () => {
@@ -153,34 +138,31 @@ function ConnectedAccountsPanel() {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-content mb-4">
-        Connected accounts
-      </h3>
-      <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4">
+      <div className="flex flex-col gap-0.5 mb-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Connections</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Connected Accounts</h3>
+      </div>
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
         {error && (
-          <div
-            role="alert"
-            className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger"
-          >
+          <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] font-bold text-red-500 tracking-tight">
+            <span className="uppercase text-[9px] font-black tracking-widest bg-red-500/10 px-2 py-0.5 rounded-full mr-2">Error</span>
             {error}
           </div>
         )}
         {success && (
-          <div
-            role="status"
-            className="rounded-lg bg-success/10 border border-success/20 px-3 py-2 text-xs text-success"
-          >
+          <div role="status" className="rounded-xl border border-green-500/20 bg-green-500/5 p-4 text-[11px] font-bold text-green-500 tracking-tight">
+            <span className="uppercase text-[9px] font-black tracking-widest bg-green-500/10 px-2 py-0.5 rounded-full mr-2">Success</span>
             {success}
           </div>
         )}
 
-        <div className="flex items-center gap-3">
-          <div className="flex-shrink-0 w-10 h-10 rounded-lg border border-border bg-white flex items-center justify-center">
+        <div className="flex items-center gap-4">
+          <div className="flex-shrink-0 w-12 h-12 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-white/5 flex items-center justify-center shadow-sm">
             <GoogleGlyph />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-content">Google</div>
-            <div className="text-xs text-content-muted truncate">
+            <div className="text-sm font-bold text-black dark:text-white tracking-tight">Google</div>
+            <div className="text-[11px] font-medium text-black/40 dark:text-white/40 truncate mt-0.5">
               {isLinked
                 ? `Connected · ${user?.email ?? ''}`
                 : 'Sign in faster by connecting your Google account.'}
@@ -192,10 +174,7 @@ function ConnectedAccountsPanel() {
                 type="button"
                 onClick={handleConnect}
                 disabled={isLinking}
-                aria-busy={isLinking}
-                className="rounded-lg bg-transparent border border-brand px-3 py-1.5 text-xs font-semibold text-brand
-                           hover:bg-brand/5 disabled:opacity-60 disabled:cursor-not-allowed
-                           transition-colors"
+                className="rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-20"
               >
                 {isLinking ? 'Redirecting…' : 'Connect'}
               </button>
@@ -204,14 +183,13 @@ function ConnectedAccountsPanel() {
               <button
                 type="button"
                 onClick={() => setConfirmingDisconnect(true)}
-                className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold text-content
-                           hover:bg-surface-3 transition-colors"
+                className="rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-all"
               >
                 Disconnect
               </button>
             )}
             {isLinked && !canDisconnect && (
-              <span className="inline-flex items-center rounded-lg bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
+              <span className="inline-flex items-center rounded-full bg-green-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 border border-green-500/20">
                 Linked
               </span>
             )}
@@ -219,8 +197,8 @@ function ConnectedAccountsPanel() {
         </div>
 
         {confirmingDisconnect && (
-          <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-2">
-            <p className="text-xs text-content">
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5 space-y-4 animate-in fade-in slide-in-from-top-2">
+            <p className="text-xs font-bold text-red-500/80 leading-relaxed">
               Disconnect Google? You’ll need to sign in with your
               username and password afterwards.
             </p>
@@ -229,10 +207,7 @@ function ConnectedAccountsPanel() {
                 type="button"
                 onClick={handleDisconnect}
                 disabled={isUnlinking}
-                aria-busy={isUnlinking}
-                className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white
-                           hover:bg-danger/90 disabled:opacity-60 disabled:cursor-not-allowed
-                           transition-colors"
+                className="rounded-lg bg-red-500 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-red-600 transition-all disabled:opacity-50 shadow-lg shadow-red-500/10"
               >
                 {isUnlinking ? 'Disconnecting…' : 'Yes, disconnect'}
               </button>
@@ -240,8 +215,7 @@ function ConnectedAccountsPanel() {
                 type="button"
                 onClick={() => setConfirmingDisconnect(false)}
                 disabled={isUnlinking}
-                className="rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content
-                           hover:bg-surface-2 transition-colors"
+                className="rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-all"
               >
                 Cancel
               </button>

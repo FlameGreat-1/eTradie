@@ -1,44 +1,41 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Zap,
+  History,
+  BookOpen,
+  Settings,
+  HelpCircle,
+  Users,
+  Box,
+  ChevronRight,
+} from 'lucide-react';
 import { SIDEBAR_WIDTH } from '@/utils/constants';
 
 interface NavItem {
   path?: string;
-  icon: string;
+  icon: any;
   label: string;
-  iconSize?: number;
-  width?: number;
-  height?: number;
-  /** For consolidated icons that contain multiple targets (e.g. Settings & Support pill). */
   splitPaths?: { path: string; label: string }[];
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { path: '/dashboard',                icon: '/assets/sidebar/icons/menu.svg',      label: 'Dashboard',      iconSize: 36 },
-  { path: '/dashboard/analysis',       icon: '/assets/sidebar/icons/widget.svg',    label: 'Analysis',       iconSize: 36 },
-  { path: '/dashboard/trades',         icon: '/assets/sidebar/icons/Trade.svg',     label: 'Active Trades',  iconSize: 36 },
-  { path: '/dashboard/journal',        icon: '/assets/sidebar/icons/analytics.svg', label: 'Journal',        iconSize: 36 },
-  { path: '/dashboard/trading-system', icon: '/assets/sidebar/icons/widget.svg',    label: 'Trading System', iconSize: 36 },
-  { path: '/dashboard/community',      icon: '/assets/sidebar/icons/support.svg',   label: 'Community',      iconSize: 28 },
+  { path: '/dashboard',                icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/dashboard/analysis',       icon: Zap,             label: 'Analysis' },
+  { path: '/dashboard/trades',         icon: Box,             label: 'Active Trades' },
+  { path: '/dashboard/journal',        icon: History,         label: 'Journal' },
+  { path: '/dashboard/trading-system', icon: BookOpen,        label: 'Trading System' },
+  { path: '/dashboard/community',      icon: Users,           label: 'Community' },
 ];
 
 const FOOTER_NAV: NavItem[] = [
-  {
-    icon: '/assets/sidebar/icons/Setting-support.svg',
-    label: 'Settings & Support',
-    width: 37,
-    height: 82,
-    splitPaths: [
-      { path: '/dashboard/settings', label: 'Settings' },
-      { path: '/dashboard/support',  label: 'Support' },
-    ],
-  },
+  { path: '/dashboard/settings', icon: Settings,   label: 'Settings' },
+  { path: '/dashboard/support',  icon: HelpCircle, label: 'Support' },
 ];
 
 interface SidebarProps {
-  /** When true, the sidebar slides in over the page content (mobile drawer). */
   isMobileOpen?: boolean;
-  /** Called when the user dismisses the mobile drawer. */
   onMobileClose?: () => void;
 }
 
@@ -59,13 +56,10 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     setHovered(label);
   }, []);
 
-  // Close mobile drawer on route change.
   useEffect(() => {
     onMobileClose?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, onMobileClose]);
 
-  // Lock body scroll while mobile drawer is open.
   useEffect(() => {
     if (!isMobileOpen) return;
     const prev = document.body.style.overflow;
@@ -82,27 +76,23 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   return (
     <>
-      {/* Desktop rail */}
       <aside
         className="hidden md:flex fixed left-0 top-0 h-screen flex-col z-sidebar overflow-hidden
-                   border-r border-border"
-        style={{
-          width: SIDEBAR_WIDTH,
-          background: 'var(--gradient-sidebar)',
-        }}
+                   border-r border-black/10 dark:border-white/10 bg-white dark:bg-black shadow-2xl"
+        style={{ width: SIDEBAR_WIDTH }}
         aria-label="Primary navigation"
       >
         <RailContents
           isActive={isActive}
           onNavigate={handleNavigate}
-          onHover={(label, e) => handleMouseEnter(label, e)}
+          onHover={handleMouseEnter}
           onLeave={() => setHovered(null)}
         />
         {hovered && (
           <div
             role="tooltip"
-            className="fixed z-toast px-3 py-1.5 rounded-md text-xs font-medium text-content
-                       bg-surface-elevated border border-border shadow-pop pointer-events-none"
+            className="fixed z-toast px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-black dark:text-white
+                       bg-white/95 dark:bg-black/95 backdrop-blur-md border border-black/10 dark:border-white/10 shadow-2xl pointer-events-none animate-in fade-in slide-in-from-left-1 duration-300"
             style={{
               left: SIDEBAR_WIDTH + 12,
               top: tooltipTop,
@@ -114,35 +104,24 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
         )}
       </aside>
 
-      {/* Mobile drawer + scrim */}
       {isMobileOpen && (
         <>
           <div
             onClick={onMobileClose}
-            className="md:hidden fixed inset-0 z-modal bg-black/55 animate-fade-in"
+            className="md:hidden fixed inset-0 z-modal bg-black/80 backdrop-blur-sm animate-in fade-in duration-500"
             aria-hidden
           />
           <aside
             className="md:hidden fixed left-0 top-0 h-screen flex flex-col z-modal overflow-hidden
-                       border-r border-border animate-slide-right"
-            style={{
-              width: 220,
-              background: 'var(--gradient-sidebar)',
-            }}
+                       border-r border-black/10 dark:border-white/10 bg-white dark:bg-black rounded-r-[2.5rem] shadow-2xl animate-in slide-in-from-left duration-500"
+            style={{ width: 280 }}
             aria-label="Primary navigation"
           >
-            {/* Logo + label header */}
-            <div className="flex items-center gap-2 px-4 h-12 border-b border-border">
-              <img
-                src="/assets/sidebar/icons/logo.svg"
-                alt=""
-                width={28}
-                height={28}
-                className="select-none"
-              />
-              <span className="text-sm font-bold tracking-wide text-content">eTradie</span>
+            <div className="flex items-center gap-3 px-8 h-16 border-b border-black/5 dark:border-white/5">
+              <img src="/assets/sidebar/icons/logo.svg" alt="" width={32} height={32} />
+              <span className="text-lg font-black tracking-tighter text-black dark:text-white uppercase">eTradie</span>
             </div>
-            <nav className="flex-1 flex flex-col py-2 overflow-y-auto">
+            <nav className="flex-1 flex flex-col py-6 px-4 overflow-y-auto space-y-1">
               {PRIMARY_NAV.map((item) => (
                 <DrawerNavButton
                   key={item.path}
@@ -152,16 +131,12 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                 />
               ))}
             </nav>
-            <div className="border-t border-border py-2">
+            <div className="border-t border-black/5 dark:border-white/5 p-4 space-y-1">
               {FOOTER_NAV.map((item, idx) => (
                 <DrawerNavButton
                   key={item.path || idx}
                   item={item}
-                  active={
-                    item.path
-                      ? isActive(item.path)
-                      : item.splitPaths?.some((sp) => isActive(sp.path)) ?? false
-                  }
+                  active={isActive(item.path || '')}
                   onNavigate={handleNavigate}
                 />
               ))}
@@ -182,51 +157,27 @@ function DrawerNavButton({
   active: boolean;
   onNavigate: (p: string) => void;
 }) {
-  const isSplit = item.splitPaths && item.splitPaths.length > 0;
-  const needsBackground = ['Analysis', 'Active Trades', 'Journal', 'Trading System'].includes(item.label);
+  const Icon = item.icon;
 
   return (
-    <div
-      className={`relative flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                  transition-colors duration-fast border-l-2
-                  ${
-                    active
-                      ? 'border-l-brand text-brand'
-                      : 'border-l-transparent text-content-secondary hover:text-content'
-                  }`}
-    >
-      <div className="relative flex items-center justify-center w-9 h-9 shrink-0">
-        {active && needsBackground && (
-          <span className="absolute inset-0 rounded-full bg-active-icon shadow-sm" />
-        )}
-        <img
-          src={item.icon}
-          alt=""
-          width={item.width || item.iconSize || 22}
-          height={item.height || item.iconSize || 22}
-          className="select-none brightness-0 invert dark:brightness-100 dark:invert-0 relative z-[1]"
-        />
+    <div className="relative">
+      <div
+        className={`flex items-center gap-4 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300
+                    ${active
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-xl shadow-black/20 dark:shadow-white/20 translate-x-1'
+                      : 'text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+      >
+        <Icon size={18} strokeWidth={active ? 3 : 2} className="transition-all" />
+        <span className="flex-1">{item.label}</span>
+        {active && <ChevronRight size={14} strokeWidth={4} className="opacity-40" />}
       </div>
-      <span className="relative z-[1]">{item.label}</span>
 
-      {isSplit ? (
-        <div className="absolute inset-0 z-[2] flex flex-col">
-          {item.splitPaths?.map((sp) => (
-            <button
-              key={sp.path}
-              onClick={() => onNavigate(sp.path)}
-              className="flex-1 w-full bg-transparent border-none cursor-pointer focus-ring"
-              aria-label={sp.label}
-            />
-          ))}
-        </div>
-      ) : (
-        <button
-          onClick={() => onNavigate(item.path || '')}
-          className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring"
-          aria-label={item.label}
-        />
-      )}
+      <button
+        onClick={() => onNavigate(item.path || '')}
+        className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring rounded-2xl"
+        aria-label={item.label}
+      />
     </div>
   );
 }
@@ -246,20 +197,13 @@ function RailContents({
     <>
       <button
         onClick={() => onNavigate('/dashboard')}
-        className="flex items-center justify-center w-full h-12 mb-2 cursor-pointer focus-ring"
+        className="flex items-center justify-center w-full h-16 mb-4 cursor-pointer focus-ring group"
         aria-label="Home"
       >
-        <img
-          src="/assets/sidebar/icons/logo.svg"
-          alt="eTradie"
-          width={32}
-          height={32}
-          className="select-none"
-        />
+        <img src="/assets/sidebar/icons/logo.svg" alt="eTradie" width={32} height={32} className="group-hover:scale-110 transition-transform duration-500" />
       </button>
 
-      {/* Primary navigation — fills available vertical space. */}
-      <nav className="flex flex-col flex-1" aria-label="Primary">
+      <nav className="flex flex-col flex-1 px-3 space-y-6" aria-label="Primary">
         {PRIMARY_NAV.map((item) => (
           <RailButton
             key={item.path}
@@ -272,17 +216,12 @@ function RailContents({
         ))}
       </nav>
 
-      {/* Footer navigation — anchored to the bottom of the rail. */}
-      <div className="flex flex-col pt-2 pb-2 border-t border-border" aria-label="Account">
+      <div className="flex flex-col pt-4 pb-6 px-3 space-y-6 border-t border-black/5 dark:border-white/5" aria-label="Account">
         {FOOTER_NAV.map((item) => (
           <RailButton
             key={item.path || item.label}
             item={item}
-            active={
-              item.path
-                ? isActive(item.path)
-                : item.splitPaths?.some((sp) => isActive(sp.path)) ?? false
-            }
+            active={isActive(item.path || '')}
             onNavigate={onNavigate}
             onHover={onHover}
             onLeave={onLeave}
@@ -306,55 +245,29 @@ function RailButton({
   onHover: (label: string, e: React.MouseEvent) => void;
   onLeave: () => void;
 }) {
-  const isSplit = item.splitPaths && item.splitPaths.length > 0;
-  const needsBackground = ['Analysis', 'Active Trades', 'Journal', 'Trading System'].includes(item.label);
+  const Icon = item.icon;
 
   return (
     <div
-      className="relative flex items-center justify-center w-full min-h-[3rem] h-auto mb-1 group/rail"
+      className="relative flex items-center justify-center w-full aspect-square group/rail"
       onMouseLeave={onLeave}
     >
-      {active && !isSplit && (
-        <>
-          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-brand rounded-full" />
-          {needsBackground && (
-            <span
-              className="absolute inset-1.5 rounded-full pointer-events-none bg-active-icon shadow-lg"
-              aria-hidden
-            />
-          )}
-        </>
-      )}
+      <div
+        className={`w-full h-full rounded-2xl flex items-center justify-center transition-all duration-500
+                    ${active
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-2xl shadow-black/20 dark:shadow-white/20'
+                      : 'text-black/30 dark:text-white/30 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+      >
+        <Icon size={22} strokeWidth={active ? 3 : 2} className="transition-all" />
+      </div>
 
-      <img
-        src={item.icon}
-        alt=""
-        width={item.width || item.iconSize || 28}
-        height={item.height || item.iconSize || 28}
-        className="select-none transition-transform duration-fast relative z-[1]
-                   brightness-0 invert dark:brightness-100 dark:invert-0"
+      <button
+        onClick={() => item.path && onNavigate(item.path)}
+        onMouseEnter={(e) => onHover(item.label, e)}
+        className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring rounded-2xl"
+        aria-label={item.label}
       />
-
-      {isSplit ? (
-        <div className="absolute inset-0 z-[2] flex flex-col">
-          {item.splitPaths?.map((sp) => (
-            <button
-              key={sp.path}
-              onClick={() => onNavigate(sp.path)}
-              onMouseEnter={(e) => onHover(sp.label, e)}
-              className="flex-1 w-full bg-transparent border-none cursor-pointer focus-ring rounded-lg"
-              aria-label={sp.label}
-            />
-          ))}
-        </div>
-      ) : (
-        <button
-          onClick={() => item.path && onNavigate(item.path)}
-          onMouseEnter={(e) => onHover(item.label, e)}
-          className="absolute inset-0 z-[2] bg-transparent border-none cursor-pointer focus-ring"
-          aria-label={item.label}
-        />
-      )}
     </div>
   );
 }

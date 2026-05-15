@@ -15,44 +15,43 @@ interface Props {
  */
 function StepperInner({ current, total, furthest, labels, onJump }: Props) {
   const pct = Math.round(((current + 1) / total) * 100);
+  
   return (
-    <div className="border-b border-border bg-app px-4 py-1.5">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-content-muted">
-          {labels[current]}
-        </span>
-        <span className="text-xs font-medium text-content tabular-nums">{pct}%</span>
+    <div className="py-1">
+      <div className="flex items-center justify-between mb-2 px-1">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-black text-brand uppercase tracking-[0.2em]">
+            Step {current + 1}
+          </span>
+          <span className="text-[10px] font-bold text-black/30 dark:text-white/30 uppercase tracking-widest">
+            {labels[current]}
+          </span>
+        </div>
+        <span className="text-[10px] font-black text-black/50 dark:text-white/50 tabular-nums tracking-widest">{pct}% Complete</span>
       </div>
-      <div className="relative h-1.5 w-full rounded-full bg-app overflow-hidden">
-        <div
-          className="h-full bg-brand transition-all duration-fast"
-          style={{ width: `${pct}%` }}
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        />
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {labels.map((label, idx) => {
-          const reachable = idx <= furthest;
-          const active = idx === current;
+      
+      <div className="flex gap-1 h-1">
+        {Array.from({ length: total }).map((_, idx) => {
+          const isPast = idx < current;
+          const isActive = idx === current;
+          const isReachable = idx <= furthest;
+          
           return (
             <button
-              key={label}
+              key={idx}
               type="button"
-              disabled={!reachable}
-              onClick={() => reachable && onJump(idx)}
-              className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors focus-ring
-                ${active
-                  ? 'bg-brand text-white'
-                  : reachable
-                    ? 'bg-app text-content-secondary hover:text-content cursor-pointer'
-                    : 'bg-app text-content-muted cursor-not-allowed opacity-60'}`}
-              aria-current={active ? 'step' : undefined}
-            >
-              {idx + 1}
-            </button>
+              disabled={!isReachable}
+              onClick={() => isReachable && onJump(idx)}
+              className={`flex-1 rounded-full transition-all duration-300 h-full
+                ${isActive 
+                  ? 'bg-brand' 
+                  : isPast 
+                    ? 'bg-brand/30 hover:bg-brand/50' 
+                    : isReachable 
+                      ? 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:border-white/20' 
+                      : 'bg-black/5 dark:bg-white/5'}`}
+              title={labels[idx]}
+            />
           );
         })}
       </div>

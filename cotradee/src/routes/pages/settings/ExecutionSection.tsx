@@ -38,21 +38,24 @@ export default function ExecutionSection() {
   // 'replace' variant is intentional: the dimmed-children variant
   // would still show editable inputs which is misleading.
   return (
-    <div className="space-y-6 max-w-lg">
-      <h3 className="text-sm font-semibold text-content">Execution Settings</h3>
-      <ProFeatureLock feature="execution" variant="replace">
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4">
+    <div className="space-y-10 max-w-lg">
+      <div className="flex flex-col gap-0.5">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Automation</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Execution Settings</h3>
+      </div>
+      <ProFeatureLock feature="execution" variant="overlay">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-content">Execution Mode</span>
-            <div className="flex items-center bg-surface-2 rounded-lg p-0.5 border border-border">
+            <span className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Execution Mode</span>
+            <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-xl p-1 border border-black/10 dark:border-white/10">
               {['AUTO', 'LIMIT', 'INSTANT'].map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setForm((f) => ({ ...f, execution_mode: mode }))}
-                  className={`px-3 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                  className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${
                     form.execution_mode === mode
-                      ? 'bg-transparent border border-brand text-brand shadow-sm'
-                      : 'text-content-muted hover:text-content hover:bg-surface-3 border border-transparent'
+                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 dark:shadow-white/10'
+                      : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
                   }`}
                 >
                   {mode}
@@ -61,7 +64,7 @@ export default function ExecutionSection() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <Field
               label="Max Concurrent Trades"
               type="number"
@@ -93,10 +96,9 @@ export default function ExecutionSection() {
           <button
             onClick={handleSave}
             disabled={updateSettings.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand
-                       hover:bg-brand/5 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
           >
-            <Save size={12} /> {updateSettings.isPending ? 'Saving…' : 'Save Settings'}
+            <Save size={14} strokeWidth={3} /> {updateSettings.isPending ? 'Saving…' : 'Save Settings'}
           </button>
         </div>
       </ProFeatureLock>
@@ -118,15 +120,14 @@ function Field({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs text-content-muted">{label}</label>
+    <div className="space-y-2">
+      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">{label}</label>
       <input
         type={type}
         value={value}
         step={step}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
-                   focus:border-brand focus:outline-none transition-colors"
+        className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
       />
     </div>
   );

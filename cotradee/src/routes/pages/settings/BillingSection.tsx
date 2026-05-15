@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
-import UpgradeModal from '@/features/settings/components/UpgradeModal';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
 import UsagePanel from '@/features/settings/components/UsagePanel';
 
@@ -76,56 +75,57 @@ export default function BillingSection() {
   const isFree = tier === 'free';
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-10 max-w-2xl">
       {/* LLM Token Usage (Pro Managed only; renders nothing for other tiers) */}
       <UsagePanel />
 
       {/* Current Plan */}
-      <div className="rounded-xl border border-border bg-surface-1 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-content">Current Plan</h3>
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Subscription</div>
+            <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Current Plan</h3>
+          </div>
           <span
-            className={`inline-flex items-center gap-1 text-xs font-semibold ${statusInfo.color}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${statusInfo.color.replace('text-', 'bg-').replace('text-', 'bg-')}/10 ${statusInfo.color} border-current/20 shadow-sm`}
           >
-            <StatusIcon size={12} />
+            <StatusIcon size={12} strokeWidth={3} />
             {statusInfo.label}
           </span>
         </div>
 
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-6 mb-8">
           <div
-            className={`flex items-center justify-center w-12 h-12 rounded-xl ${
-              isFree ? 'bg-surface-2' : 'bg-brand/10'
+            className={`flex items-center justify-center w-16 h-16 rounded-2xl border shadow-sm ${
+              isFree ? 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10' : 'bg-brand/10 border-brand/20'
             }`}
           >
-            <TierIcon size={24} className={tierInfo.color} />
+            <TierIcon size={32} className={tierInfo.color} strokeWidth={2.5} />
           </div>
-          <div>
-            <p className={`text-lg font-bold ${tierInfo.color}`}>{tierInfo.label}</p>
-            <p className="text-xs text-content-muted">{tierInfo.description}</p>
+          <div className="flex flex-col gap-1">
+            <p className={`text-2xl font-black tracking-tight ${tierInfo.color}`}>{tierInfo.label}</p>
+            <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed max-w-sm">{tierInfo.description}</p>
           </div>
         </div>
 
         {isFree && (
-          <div className="rounded-lg border border-brand/20 bg-brand/5 p-4">
-            <div className="flex items-start gap-3">
-              <ShieldCheck
-                size={18}
-                className="text-brand mt-0.5 flex-shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-content">Upgrade to Pro</p>
-                <p className="text-xs text-content-muted mt-1">
-                  Unlock unlimited symbols, unlimited analyses, automated trade execution,
+          <div className="rounded-2xl border border-brand/20 bg-brand/5 p-6 animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className="flex items-start gap-4">
+              <div className="mt-1 rounded-xl bg-brand/10 p-2 border border-brand/20 shadow-sm">
+                <ShieldCheck size={20} className="text-brand" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-black dark:text-white tracking-tight">Unlock Professional Grade Intelligence</p>
+                <p className="text-xs font-medium text-black/50 dark:text-white/50 mt-1 leading-relaxed">
+                  Upgrade to Pro to unlock unlimited symbols, unlimited analyses, automated trade execution,
                   and institutional-grade guard protection.
                 </p>
                 <button
                   onClick={() => window.dispatchEvent(new Event('open-upgrade-modal'))}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs
-                             font-semibold text-brand hover:bg-brand/5 transition-colors"
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black dark:bg-white px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
                 >
-                  <CreditCard size={14} />
-                  Upgrade
+                  <CreditCard size={14} strokeWidth={3} />
+                  Upgrade to Pro
                 </button>
               </div>
             </div>
@@ -134,9 +134,12 @@ export default function BillingSection() {
       </div>
 
       {/* Plan Limits Overview */}
-      <div className="rounded-xl border border-border bg-surface-1 p-6">
-        <h3 className="text-sm font-semibold text-content mb-4">Plan Limits</h3>
-        <div className="space-y-3">
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+        <div className="flex flex-col gap-0.5 mb-6">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Capabilities</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Plan Limits</h3>
+        </div>
+        <div className="grid grid-cols-1 gap-1">
           <LimitRow label="Active Symbols" value={isFree ? '1' : 'Unlimited'} isFree={isFree} />
           <LimitRow label="Analyses per Day" value={isFree ? '1' : 'Unlimited'} isFree={isFree} />
           <LimitRow
@@ -159,40 +162,38 @@ export default function BillingSection() {
 
       {/* Subscription Details (only for paying users) */}
       {!isFree && (
-        <div className="rounded-xl border border-border bg-surface-1 p-6">
-          <h3 className="text-sm font-semibold text-content mb-4">
-            Subscription Details
-          </h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-content-muted">Tier</span>
-              <span className="font-medium text-content">{tierInfo.label}</span>
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+          <div className="flex flex-col gap-0.5 mb-6">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Governance</div>
+            <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Subscription Details</h3>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between py-3 border-b border-black/5 dark:border-white/5">
+              <span className="text-[11px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">Tier</span>
+              <span className="text-sm font-bold text-black dark:text-white tracking-tight">{tierInfo.label}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-content-muted">Status</span>
-              <span className={`font-medium ${statusInfo.color}`}>
+            <div className="flex items-center justify-between py-3 border-b border-black/5 dark:border-white/5">
+              <span className="text-[11px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">Status</span>
+              <span className={`text-sm font-bold tracking-tight ${statusInfo.color}`}>
                 {statusInfo.label}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-3 mt-8">
             <button
               onClick={() => openPortal.mutate()}
               disabled={openPortal.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2
-                         text-xs font-medium text-content hover:bg-surface-3 transition-colors
-                         disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
             >
-              <ExternalLink size={12} />
-              {openPortal.isPending ? 'Opening portal…' : 'Manage Subscription'}
+              <ExternalLink size={14} strokeWidth={3} />
+              {openPortal.isPending ? 'Redirecting…' : 'Manage Subscription'}
             </button>
             <button
               onClick={() => window.dispatchEvent(new Event('open-upgrade-modal'))}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2
-                         text-xs font-medium text-content hover:bg-surface-3 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-all shadow-sm"
             >
-              <CreditCard size={12} />
+              <CreditCard size={14} strokeWidth={3} />
               Change Plan
             </button>
           </div>
@@ -201,18 +202,17 @@ export default function BillingSection() {
 
       {/* Always-visible policy strip. Subscribers need one-click
           access to the documents that govern their subscription. */}
-      <div className="rounded-xl border border-border bg-surface-1 p-4">
-        <p className="text-[11px] text-content-muted leading-relaxed">
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+        <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
           Subscription governed by our{' '}
-          <Link to="/billing-policy" className="text-content hover:text-brand underline underline-offset-2">Billing Policy</Link>,{' '}
-          <Link to="/refund" className="text-content hover:text-brand underline underline-offset-2">Refund Policy</Link>,{' '}
-          <Link to="/terms" className="text-content hover:text-brand underline underline-offset-2">Terms of Service</Link>, and{' '}
-          <Link to="/complaints" className="text-content hover:text-brand underline underline-offset-2">Complaints Policy</Link>.
-          Payments are processed by Paddle or Lemon Squeezy, acting as Merchant of Record.
+          <Link to="/billing-policy" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Billing Policy</Link>,{' '}
+          <Link to="/refund" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Refund Policy</Link>,{' '}
+          <Link to="/terms" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Terms of Service</Link>, and{' '}
+          <Link to="/complaints" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Complaints Policy</Link>.
+          <span className="block mt-2 opacity-60">Payments are processed by Paddle or Lemon Squeezy, acting as Merchant of Record.</span>
         </p>
       </div>
 
-      <UpgradeModal />
     </div>
   );
 }
@@ -229,11 +229,11 @@ function LimitRow({
   const isRestricted =
     isFree && (value === '1' || value === 'Blocked' || value === 'Disabled');
   return (
-    <div className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
-      <span className="text-xs text-content-muted">{label}</span>
+    <div className="flex items-center justify-between py-3 border-b border-black/5 dark:border-white/5 last:border-b-0">
+      <span className="text-[11px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">{label}</span>
       <span
-        className={`text-xs font-semibold ${
-          isRestricted ? 'text-danger' : 'text-success'
+        className={`text-sm font-bold tracking-tight ${
+          isRestricted ? 'text-red-500' : 'text-green-500'
         }`}
       >
         {value}

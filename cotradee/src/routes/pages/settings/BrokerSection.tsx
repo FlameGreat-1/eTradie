@@ -3,7 +3,7 @@ import {
   useBrokerConnections, useActiveBrokerConnection,
   useCreateBrokerConnection, useActivateBroker, useTestBrokerConnection, useDeleteBrokerConnection,
 } from '@/features/broker/api/brokerConnections';
-import { Plus, Trash2, Zap, Check, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Zap, Check, AlertCircle, ChevronDown } from 'lucide-react';
 
 type BrokerForm = {
   connection_type: 'ea' | 'metaapi' | 'hosted';
@@ -68,125 +68,134 @@ export default function BrokerSection() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-content">Broker Connections</h3>
+    <div className="space-y-10 max-w-2xl">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-0.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Connectivity</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Broker Connections</h3>
+        </div>
         <button onClick={() => setShowForm((p) => !p)}
-          className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/5 transition-colors">
-          <Plus size={12} /> Add Connection
+          className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all">
+          <Plus size={14} strokeWidth={3} /> Add Connection
         </button>
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-content-muted">Type</label>
-              <select
-                value={form.connection_type}
-                onChange={(e) => setForm((f) => ({ ...f, connection_type: e.target.value as BrokerForm['connection_type'] }))}
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand">
-                <option value="ea">ZeroMQ</option>
-                <option value="metaapi">MetaAPI</option>
-                <option value="hosted">Exoper</option>
-              </select>
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Type</label>
+              <div className="relative">
+                <select
+                  value={form.connection_type}
+                  onChange={(e) => setForm((f) => ({ ...f, connection_type: e.target.value as BrokerForm['connection_type'] }))}
+                  className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white focus:border-brand transition-all outline-none appearance-none"
+                >
+                  <option value="ea">ZeroMQ</option>
+                  <option value="metaapi">MetaAPI</option>
+                  <option value="hosted">Exoper</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 pointer-events-none" size={16} strokeWidth={3} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-content-muted">Name</label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Name</label>
               <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="My Broker" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                placeholder="My Broker" className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
             </div>
             {(form.connection_type === 'metaapi' || form.connection_type === 'hosted') && (
-              <div className="space-y-1">
-                <label className="text-xs text-content-muted">Platform</label>
-                <select
-                  value={form.platform}
-                  onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value as 'mt4' | 'mt5' }))}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand">
-                  <option value="mt5">MetaTrader 5</option>
-                  <option value="mt4">MetaTrader 4</option>
-                </select>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Platform</label>
+                <div className="relative">
+                  <select
+                    value={form.platform}
+                    onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value as 'mt4' | 'mt5' }))}
+                    className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white focus:border-brand transition-all outline-none appearance-none"
+                  >
+                    <option value="mt5">MetaTrader 5</option>
+                    <option value="mt4">MetaTrader 4</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 pointer-events-none" size={16} strokeWidth={3} />
+                </div>
               </div>
             )}
             {form.connection_type === 'ea' && (
               <>
-                <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MT5 Server</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">MT5 Server</label>
                   <input type="text" value={form.mt5_server} onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
-                    placeholder="Exness-MT5Trial9" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                    placeholder="Exness-MT5Trial9" className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-content-muted">MT5 Login</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">MT5 Login</label>
                   <input type="text" value={form.mt5_login} onChange={(e) => setForm((f) => ({ ...f, mt5_login: e.target.value }))}
-                    placeholder="12345678" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                    placeholder="12345678" className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
                 </div>
               </>
             )}
             {(form.connection_type === 'metaapi' || form.connection_type === 'hosted') && (
               <>
-                <div className="space-y-1">
-                  <label className="text-xs text-content-muted">Server Name</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Server Name</label>
                   <input type="text" value={form.mt5_server} onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
-                    placeholder="Exness-MT5Trial9" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                    placeholder="Exness-MT5Trial9" className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-content-muted">Login</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Login</label>
                   <input type="text" value={form.mt5_login} onChange={(e) => setForm((f) => ({ ...f, mt5_login: e.target.value }))}
-                    placeholder="12345678" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                    placeholder="12345678" className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-content-muted">Password</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Password</label>
                   <input type="password" autoComplete="new-password" value={form.mt5_password}
                     onChange={(e) => setForm((f) => ({ ...f, mt5_password: e.target.value }))}
                     placeholder="Trading password"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand" />
+                    className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none" />
                 </div>
               </>
             )}
           </div>
           <button onClick={handleCreate} disabled={createConn.isPending}
-            className="rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand hover:bg-brand/5 disabled:opacity-50 transition-colors">
+            className="w-full rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40">
             {createConn.isPending ? 'Creating…' : 'Create Connection'}
           </button>
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-surface-1 overflow-hidden">
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] overflow-hidden shadow-sm">
         {conns.length === 0 && (
-          <div className="p-8 text-center text-sm text-content-muted">No broker connections configured</div>
+          <div className="p-10 text-center text-[11px] font-bold text-black/20 dark:text-white/20 italic">No broker connections configured</div>
         )}
         {conns.map((c) => {
           const id = String(c.id);
           const isActive = c.is_active === true || String(active?.id) === id;
-          // Show the broker info the user actually recognises (server + login)
-          // instead of raw infrastructure values (ea_host or metaapi_account_id).
           const subtitleParts = [String(c.connection_type), String(c.platform || 'mt5').toUpperCase()];
           if (c.mt5_server) subtitleParts.push(String(c.mt5_server));
           if (c.mt5_login) subtitleParts.push(String(c.mt5_login));
           const subtitle = subtitleParts.join(' · ');
           return (
-            <div key={id} className="flex items-center justify-between px-4 py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors">
-              <div className="flex items-center gap-3">
-                {isActive && <span className="w-2 h-2 rounded-full bg-success" />}
-                <div>
-                  <span className="text-xs font-bold text-content">{String(c.name)}</span>
-                  <span className="block text-[10px] text-content-muted">{subtitle}</span>
+            <div key={id} className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 last:border-b-0 hover:bg-black/5 dark:hover:bg-white/5 transition-all group">
+              <div className="flex items-center gap-4">
+                <div className={`w-3 h-3 rounded-full transition-all duration-500 ${isActive ? 'bg-green-500 shadow-lg shadow-green-500/40 scale-110' : 'bg-black/10 dark:bg-white/10 scale-90'}`} />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-bold text-black dark:text-white tracking-tight">{String(c.name)}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">{subtitle}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <button onClick={() => testConn.mutate(id)}
-                  className="p-1.5 rounded text-content-muted hover:text-brand hover:bg-surface-3 transition-colors" title="Test">
-                  {testConn.isPending ? <AlertCircle size={14} /> : <Check size={14} />}
+                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-brand hover:bg-brand/10 transition-all opacity-40 group-hover:opacity-100" title="Test">
+                  {testConn.isPending ? <AlertCircle size={16} strokeWidth={3} className="animate-pulse" /> : <Check size={16} strokeWidth={3} />}
                 </button>
                 {!isActive && (
                   <button onClick={() => activateBroker.mutate(id)}
-                    className="p-1.5 rounded text-success hover:bg-surface-3 transition-colors" title="Activate">
-                    <Zap size={14} />
+                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-40 group-hover:opacity-100" title="Activate">
+                    <Zap size={16} strokeWidth={3} />
                   </button>
                 )}
                 <button onClick={() => deleteConn.mutate(id)}
-                  className="p-1.5 rounded text-danger hover:bg-surface-3 transition-colors" title="Delete">
-                  <Trash2 size={14} />
+                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100" title="Delete">
+                  <Trash2 size={16} strokeWidth={3} />
                 </button>
               </div>
             </div>

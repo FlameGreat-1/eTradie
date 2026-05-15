@@ -117,11 +117,14 @@ export default function SymbolsSection() {
   };
 
   return (
-    <div className="space-y-8 max-w-lg">
+    <div className="space-y-10 max-w-lg">
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-content">Active Symbols</h3>
-          <span className="text-xs text-content-muted">
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Configuration</div>
+            <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Active Symbols</h3>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-black/20 dark:text-white/20">
             {isFree
               ? `${selected.length} / 1 selected`
               : 'Add exact broker symbols'}
@@ -131,54 +134,51 @@ export default function SymbolsSection() {
         {isFree && (
           <div
             role="status"
-            className="mb-4 rounded-lg border border-brand/30 bg-brand/5 px-4 py-3"
+            className="mb-6 rounded-2xl border border-brand/20 bg-brand/5 p-4 shadow-sm"
           >
-            <p className="text-[11px] text-content leading-relaxed">
+            <p className="text-[11px] font-bold text-black/60 dark:text-white/60 leading-relaxed">
               {gateCopy.body}
             </p>
             <button
               type="button"
               onClick={openUpgradeModal}
-              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline transition-colors"
+              className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-80 transition-all"
             >
-              Upgrade to Pro →
+              Upgrade to Pro <Plus size={10} strokeWidth={4} />
             </button>
           </div>
         )}
 
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-5">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
           <form onSubmit={addCustomSymbol} className="flex items-center gap-2">
             <input
               type="text"
               value={newSymbol}
               onChange={(e) => setNewSymbol(e.target.value)}
               placeholder="e.g. USDCHFm"
-              className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
-                         focus:border-brand focus:outline-none"
+              className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
             />
             <button
               type="submit"
               disabled={!newSymbol.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-surface-2 border border-border px-4 py-2 text-xs font-semibold text-content
-                         hover:bg-surface-3 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white border border-transparent px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
+                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-20"
             >
-              <Plus size={14} /> Add
+              <Plus size={14} strokeWidth={3} /> Add
             </button>
           </form>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             {pool.map((s) => {
               const isSelected = selected.includes(s);
-              // A Free user with the cap reached cannot tick a second box.
-              // The current selection's box stays togglable so they can swap.
               const disabledForCap = isFree && !isSelected && limitReached;
               return (
-                <div key={s} className="flex items-center justify-between group">
+                <div key={s} className="flex items-center justify-between group p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
                   <label
-                    className={`flex items-center gap-2 text-xs flex-1 ${
+                    className={`flex items-center gap-3 text-xs flex-1 ${
                       disabledForCap
-                        ? 'cursor-not-allowed text-content-muted'
-                        : 'cursor-pointer text-content'
+                        ? 'cursor-not-allowed text-black/20 dark:text-white/20'
+                        : 'cursor-pointer text-black/60 dark:text-white/60 font-bold'
                     }`}
                     title={
                       disabledForCap
@@ -197,22 +197,22 @@ export default function SymbolsSection() {
                         }
                         toggleSymbol(s);
                       }}
-                      className="rounded border-border text-brand focus:ring-brand disabled:opacity-50"
+                      className="h-4 w-4 rounded border-black/10 dark:border-white/10 text-brand focus:ring-brand disabled:opacity-20 transition-all cursor-pointer"
                     />
-                    {s}
+                    <span className="tracking-tight">{s}</span>
                   </label>
                   <button
                     onClick={() => removeSymbolFromPool(s)}
-                    className="text-content-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                    className="text-black/20 dark:text-white/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-md hover:bg-red-500/10"
                     title="Remove from pool"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={12} strokeWidth={3} />
                   </button>
                 </div>
               );
             })}
             {pool.length === 0 && (
-              <div className="col-span-2 text-center text-xs text-content-muted py-4">
+              <div className="col-span-2 text-center text-[11px] font-bold text-black/20 dark:text-white/20 py-8 italic bg-black/5 dark:bg-white/5 rounded-xl border border-dashed border-black/10 dark:border-white/10">
                 No symbols added yet.
               </div>
             )}
@@ -221,28 +221,28 @@ export default function SymbolsSection() {
           <div className="pt-2">
             <button
               onClick={() => {
-                // Final client-side guard: never PUT more than the cap.
-                // The server enforces the same rule and is authoritative,
-                // but pre-trimming gives the user a faster, clearer round-trip.
                 const payload = isFree
                   ? selected.slice(0, maxActiveSymbols)
                   : selected;
                 updateSymbols.mutate(payload);
               }}
               disabled={updateSymbols.isPending || selected.length === 0}
-              className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-4 py-2 text-xs font-semibold text-brand
-                         hover:bg-brand/5 disabled:opacity-50 transition-colors w-full justify-center"
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
+                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40 w-full justify-center"
             >
-              <Save size={14} /> {updateSymbols.isPending ? 'Saving…' : 'Save Changes'}
+              <Save size={14} strokeWidth={3} /> {updateSymbols.isPending ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>
       </section>
 
       <section>
-        <h3 className="text-sm font-semibold text-content mb-4">Cycle Interval</h3>
+        <div className="flex flex-col gap-0.5 mb-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Schedules</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Cycle Interval</h3>
+        </div>
         <ProFeatureLock feature="scheduling" variant="overlay">
-          <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-3">
+          <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-4 shadow-sm">
             <div className="flex items-center gap-3">
               <input
                 type="number"
@@ -250,18 +250,17 @@ export default function SymbolsSection() {
                 max={1440}
                 value={intervalMins}
                 onChange={(e) => setIntervalMins(Number(e.target.value))}
-                className="w-24 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-content
-                           focus:border-brand focus:outline-none"
+                className="w-24 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
               />
-              <span className="text-xs text-content-muted">minutes</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">minutes</span>
             </div>
             <button
               onClick={() => updateInterval.mutate(intervalMins * 60)}
               disabled={updateInterval.isPending}
-              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white
-                         hover:bg-brand-dark disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
+                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
             >
-              <Save size={12} /> {updateInterval.isPending ? 'Saving…' : 'Update Interval'}
+              <Save size={14} strokeWidth={3} /> {updateInterval.isPending ? 'Saving…' : 'Update Interval'}
             </button>
           </div>
         </ProFeatureLock>

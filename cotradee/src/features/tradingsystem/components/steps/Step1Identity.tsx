@@ -20,8 +20,9 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       title="Trading Identity"
       description="Define who you are operationally. These answers shape how Exoper prioritises setups for you."
     >
+      <div className="space-y-8">
       <div>
-        <div className="text-sm font-medium text-content mb-2">Experience level</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">1. Experience level</div>
         <RadioCardGroup
           name="experience"
           value={value.experience}
@@ -36,7 +37,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       </div>
 
       <div>
-        <div className="text-sm font-medium text-content mb-2">Execution preference</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">2. Execution preference</div>
         <RadioCardGroup
           name="automation"
           value={value.automation}
@@ -51,7 +52,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       </div>
 
       <div>
-        <div className="text-sm font-medium text-content mb-2">Risk appetite</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">3. Risk appetite</div>
         <RadioCardGroup
           name="risk_appetite"
           value={value.risk_appetite}
@@ -66,7 +67,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       </div>
 
       <div>
-        <div className="text-sm font-medium text-content mb-2">Trader type</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">4. Trader type</div>
         <RadioCardGroup
           name="trader_type"
           value={value.trader_type}
@@ -80,7 +81,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
       </div>
 
       <div>
-        <div className="text-sm font-medium text-content mb-2">Discipline style</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">5. Discipline style</div>
         <RadioCardGroup
           name="discipline"
           value={value.discipline}
@@ -91,6 +92,7 @@ export function Step1Identity({ value, onChange, errors, stepNumber, totalSteps 
           ]}
         />
         <FieldError message={errors['identity.discipline']} />
+      </div>
       </div>
     </StepShell>
   );

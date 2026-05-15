@@ -181,13 +181,21 @@ export function TradingPlanView() {
   const hasPlan = !!draft;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6 pb-20">
       {/* Action bar (only when a plan exists) */}
       {hasPlan && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-          <div className="text-xs text-content-muted">
-            <span className="font-semibold text-content">Trading Plan</span> · version{' '}
-            <span className="tabular-nums text-content">{planRec?.version ?? 0}</span>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] px-6 py-4 shadow-sm backdrop-blur-sm transition-all duration-300">
+          <div className="flex flex-col gap-1">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40">
+              Active Strategy
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-black dark:text-white tracking-tight">Trading Plan</span>
+              <span className="h-1 w-1 rounded-full bg-black/20 dark:bg-white/20" />
+              <span className="text-xs font-black text-brand uppercase tracking-widest bg-brand/10 px-2 py-0.5 rounded-full">
+                v{planRec?.version ?? 0}
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {editing ? (
@@ -196,7 +204,7 @@ export function TradingPlanView() {
                   type="button"
                   onClick={handleCancel}
                   disabled={update.isPending}
-                  className="rounded border border-border bg-app px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-content focus-ring disabled:opacity-50"
+                  className="rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
                 >
                   Cancel
                 </button>
@@ -204,7 +212,7 @@ export function TradingPlanView() {
                   type="button"
                   onClick={handleSave}
                   disabled={update.isPending}
-                  className="rounded bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90 focus-ring disabled:opacity-60"
+                  className="rounded-xl bg-black dark:bg-white px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
                 >
                   {update.isPending ? 'Saving…' : 'Save changes'}
                 </button>
@@ -214,7 +222,7 @@ export function TradingPlanView() {
                 <button
                   type="button"
                   onClick={handleExport}
-                  className="rounded border border-border bg-app px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-content focus-ring"
+                  className="rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all"
                 >
                   Export Excel
                 </button>
@@ -222,14 +230,14 @@ export function TradingPlanView() {
                   type="button"
                   onClick={handleRegenerate}
                   disabled={generate.isPending || status === 'generating'}
-                  className="rounded border border-border bg-app px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-content focus-ring disabled:opacity-50"
+                  className="rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
                 >
                   Regenerate
                 </button>
                 <button
                   type="button"
                   onClick={handleEdit}
-                  className="rounded bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90 focus-ring"
+                  className="rounded-xl bg-black dark:bg-white px-8 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
                 >
                   Edit
                 </button>
@@ -237,7 +245,7 @@ export function TradingPlanView() {
                   type="button"
                   onClick={handleReset}
                   disabled={reset.isPending}
-                  className="rounded border border-border bg-app px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-danger focus-ring disabled:opacity-50"
+                  className="rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-red-500/60 hover:text-red-500 hover:border-red-500/40 transition-all disabled:opacity-20"
                 >
                   Reset
                 </button>

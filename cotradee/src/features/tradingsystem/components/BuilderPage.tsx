@@ -345,85 +345,101 @@ export default function BuilderPage({ onComplete, onSkip, embedded = false }: Pr
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center justify-center pointer-events-none gap-3">
-          <img 
-            src="/assets/sidebar/icons/logo.svg" 
-            alt="Loading" 
-            className="w-10 h-10"
-            style={{ animation: 'logoZoom 1.2s ease-in-out infinite' }}
-          />
-          <style>{`
-            @keyframes logoZoom {
-              0%, 100% { transform: scale(0.9); opacity: 0.7; }
-              50% { transform: scale(1.15); opacity: 1; }
-            }
-          `}</style>
+      <div className="flex flex-col h-full bg-black items-center justify-center p-6">
+        <div className="relative h-24 w-24">
+          <div className="absolute inset-0 rounded-full border-4 border-white/5 border-t-brand animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <img src="/assets/sidebar/icons/logo.svg" alt="Loading" className="w-8 h-8 opacity-50" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-col h-full min-h-0 bg-app ${!embedded ? 'lg:max-w-5xl lg:mx-auto lg:w-full lg:border-x lg:border-border' : ''}`}>
+    <div className={`flex flex-col h-full min-h-0 bg-white dark:bg-black transition-colors duration-300 ${!embedded ? 'pt-2 lg:px-10 pb-2 lg:pb-8' : ''}`}>
       {!embedded && (
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
-          <div>
-            <h1 className="text-base font-semibold text-content">Build Your Exoper Trading System</h1>
-            <p className="text-xs text-content-muted">Takes 2–3 minutes. You can change every answer later.</p>
+        <div className="flex items-center justify-between gap-4 px-6 py-1.5 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10">
+              <svg className="h-4 w-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-sm font-bold text-black dark:text-white uppercase tracking-wider">Trading System Builder</h1>
+              <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest font-bold mt-0.5">Optimized Execution Engine</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={handleSkip}
             disabled={skipMutation.isPending}
-            className="text-xs font-medium text-content-secondary hover:text-content focus-ring rounded px-2 py-1"
+            className="text-[10px] font-black text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white uppercase tracking-[0.2em] transition-colors"
           >
-            Skip for now
+            Skip
           </button>
         </div>
       )}
 
-      <Stepper
-        current={current}
-        total={TOTAL_STEPS}
-        furthest={furthest}
-        labels={STEP_LABELS}
-        onJump={handleJump}
-      />
+      <div className="flex-1 min-h-0 w-full lg:max-w-7xl mx-auto flex flex-col bg-black/[0.02] dark:bg-white/[0.02] rounded-3xl border border-black/10 dark:border-white/10 overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-700">
+        <header className="px-6 py-2 border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
+          <Stepper
+            current={current}
+            total={TOTAL_STEPS}
+            furthest={furthest}
+            labels={STEP_LABELS}
+            onJump={handleJump}
+          />
+        </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">{stepContent}</div>
+        <div className="flex-1 overflow-y-auto px-4 lg:px-12 py-6">
+          <div className="w-full">
+            {stepContent}
+          </div>
+        </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-app px-4 py-3">
-        <button
-          type="button"
-          onClick={handleBack}
-          disabled={current === 0}
-          className="rounded border border-border bg-surface px-3 py-1.5 text-sm font-medium text-content-secondary
-                     hover:text-content disabled:opacity-40 disabled:cursor-not-allowed focus-ring"
-        >
-          Back
-        </button>
-        {canSubmit ? (
+        <footer className="flex items-center justify-between gap-4 px-8 py-3 border-t border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
           <button
             type="button"
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand/90
-                       disabled:opacity-60 disabled:cursor-not-allowed focus-ring"
+            onClick={handleBack}
+            disabled={current === 0}
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl border border-black/10 dark:border-white/10 text-sm font-bold text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 disabled:opacity-20 transition-all"
           >
-            {saveMutation.isPending ? 'Saving…' : 'Save & Activate'}
+            <svg className="h-4 w-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={current >= TOTAL_STEPS - 1}
-            className="rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand/90
-                       disabled:opacity-60 disabled:cursor-not-allowed focus-ring"
-          >
-            Next
-          </button>
-        )}
+          
+          <div className="flex items-center gap-3">
+            {canSubmit ? (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+                className="group flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-2.5 text-sm font-bold text-white dark:text-black hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-black/10 dark:shadow-white/10"
+              >
+                {saveMutation.isPending ? 'Activating...' : 'Activate System'}
+                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={current >= TOTAL_STEPS - 1}
+                className="group flex items-center gap-2 rounded-xl bg-black dark:bg-white px-8 py-2.5 text-sm font-bold text-white dark:text-black hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-black/10 dark:shadow-white/10"
+              >
+                Continue
+                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </footer>
       </div>
     </div>
   );

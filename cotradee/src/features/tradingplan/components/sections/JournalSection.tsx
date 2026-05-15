@@ -92,11 +92,12 @@ export function JournalSection({ value, editing, onChange }: Props) {
   );
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <header className="mb-3 flex items-start justify-between gap-3">
+    <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm overflow-hidden transition-all duration-300">
+      <header className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-content">Daily Execution Journal</h3>
-          <p className="mt-0.5 text-xs text-content-muted">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 03</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Daily Execution Journal</h3>
+          <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed max-w-xl">
             Record every trade. Add rows as you trade through the quarter.
           </p>
         </div>
@@ -104,53 +105,53 @@ export function JournalSection({ value, editing, onChange }: Props) {
           <button
             type="button"
             onClick={addRow}
-            className="shrink-0 rounded bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90 focus-ring"
+            className="shrink-0 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
           >
             + Add row
           </button>
         )}
       </header>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-xs">
+      <div className="overflow-x-auto -mx-1 px-1">
+        <table className="w-full border-collapse text-[11px]">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-content-muted">
+            <tr className="text-left text-[10px] font-black uppercase tracking-[0.2em] text-black/20 dark:text-white/20">
               {COLUMNS.map((c) => (
                 <th
                   key={c.key}
-                  className={`${c.width} border-b border-border px-2 py-1.5 font-medium`}
+                  className={`${c.width} border-b border-black/5 dark:border-white/5 px-3 py-3 font-black`}
                 >
                   {c.label}
                 </th>
               ))}
-              {editing && <th className="w-10 border-b border-border" aria-label="actions" />}
+              {editing && <th className="w-12 border-b border-black/5 dark:border-white/5" aria-label="actions" />}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-black/5 dark:divide-white/5">
             {value.length === 0 && (
               <tr>
                 <td
                   colSpan={editing ? COLUMNS.length + 1 : COLUMNS.length}
-                  className="py-8 text-center text-content-muted"
+                  className="py-12 text-center text-black/30 dark:text-white/30 font-bold italic"
                 >
                   No journal rows yet. {editing ? 'Click + Add row to start.' : ''}
                 </td>
               </tr>
             )}
             {value.map((row, idx) => (
-              <tr key={idx} className="border-b border-border/60">
+              <tr key={idx} className="group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                 {COLUMNS.map((c) => (
-                  <td key={c.key} className="px-1 py-0.5">
+                  <td key={c.key} className="px-1 py-1.5">
                     {editing ? (
                       <input
                         type="text"
                         value={row[c.key]}
                         onChange={(e) => setCell(idx, c.key, e.target.value)}
-                        className="w-full rounded border border-transparent bg-app px-1.5 py-1 text-content placeholder:text-content-muted focus:border-border focus-ring"
+                        className="w-full rounded border border-transparent bg-white dark:bg-black px-2 py-1.5 text-[11px] font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
                         aria-label={`${c.label} row ${idx + 1}`}
                       />
                     ) : (
-                      <span className="block px-1.5 py-1 text-content">
-                        {row[c.key] || ''}
+                      <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
+                        {row[c.key] || '—'}
                       </span>
                     )}
                   </td>
@@ -160,7 +161,7 @@ export function JournalSection({ value, editing, onChange }: Props) {
                     <button
                       type="button"
                       onClick={() => removeRow(idx)}
-                      className="rounded p-1 text-content-muted hover:text-danger focus-ring"
+                      className="rounded-lg p-2 text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all font-black text-sm"
                       aria-label={`Remove row ${idx + 1}`}
                       title="Remove row"
                     >

@@ -97,7 +97,11 @@ export default function TradingSystemPage() {
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
         <div>
           <h1 className="text-base font-semibold text-content">
-            {view === 'system' ? 'Your Trading System' : 'Your 90-Day Trading Plan'}
+            {view === 'system' ? (
+              <><span className="hidden sm:inline">Your </span>Trading System</>
+            ) : (
+              <><span className="hidden sm:inline">Your </span>90-Day Trading Plan</>
+            )}
           </h1>
           <p className="text-xs text-content-muted">
             {view === 'system'
@@ -113,7 +117,8 @@ export default function TradingSystemPage() {
             className="rounded border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-content hover:border-content-muted focus-ring"
             aria-label={toggleLabel}
           >
-            {toggleLabel}
+            <span className="hidden sm:inline">{togglingToPlan ? 'View ' : 'View '}</span>
+            {togglingToPlan ? 'Trading Plan' : 'Trading System'}
           </button>
           {view === 'system' && (
             <>
@@ -155,6 +160,7 @@ export default function TradingSystemPage() {
               stepNumber={1}
               totalSteps={1}
               hideHeader={true}
+              hideSectionEdits={true}
             />
           </div>
           {/* Pane 2: new Trading Plan workbook */}

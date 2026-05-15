@@ -20,8 +20,9 @@ export function Step3Sessions({ value, onChange, errors, stepNumber, totalSteps 
       title="Session Preferences"
       description="Trading sessions you participate in. Pick at least one; Exoper will weight setups in your chosen windows higher."
     >
+      <div className="space-y-8">
       <div>
-        <div className="text-sm font-medium text-content mb-2">Preferred sessions</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">1. Preferred sessions</div>
         <MultiSelectChips
           name="preferred_sessions"
           value={value.preferred_sessions}
@@ -49,6 +50,7 @@ export function Step3Sessions({ value, onChange, errors, stepNumber, totalSteps 
         checked={value.high_volatility_windows_only}
         onChange={(v) => onChange({ ...value, high_volatility_windows_only: v })}
       />
+      </div>
     </StepShell>
   );
 }

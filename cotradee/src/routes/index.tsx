@@ -20,6 +20,7 @@ const TradesPage    = lazy(() => import('./pages/TradesPage'));
 const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const TradingSystemPage = lazy(() => import('./pages/TradingSystemPage'));
 const SetupPage = lazy(() => import('./pages/SetupPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
@@ -192,6 +193,17 @@ export default function AppRoutes() {
         */}
         <Route path="/faq"              element={<FAQPage />} />
         <Route path="/faqs"             element={<Navigate to="/faq" replace />} />
+        {/* ── Onboarding wizard (protected, outside DashboardLayout) ── */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLoader />}>
+                <OnboardingPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard/*"
           element={

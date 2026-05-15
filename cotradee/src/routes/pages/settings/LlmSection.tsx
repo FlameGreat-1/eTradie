@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  ChevronDown,
 } from 'lucide-react';
 import {
   useActivateLlm,
@@ -86,53 +87,53 @@ export default function LlmSection() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-10 max-w-2xl">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-semibold text-content">API Key Connections</h3>
+        <div className="flex flex-col gap-0.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Intelligence</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">API Key Connections</h3>
           {isProManaged ? (
-            <p className="text-[11px] text-content-muted mt-1 flex items-center gap-1">
-              <ShieldCheck size={12} className="text-brand" />
+            <p className="text-[11px] font-bold text-black/40 dark:text-white/40 mt-1 flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-brand" strokeWidth={3} />
               Pro Managed: Platform AI is available. Toggle below or add a custom override.
             </p>
           ) : isProBYOK ? (
-            <p className="text-[11px] text-warning mt-1 flex items-center gap-1">
-              <AlertCircle size={12} />
+            <p className="text-[11px] font-bold text-yellow-500/80 mt-1 flex items-center gap-1.5">
+              <AlertCircle size={12} strokeWidth={3} />
               Pro BYOK: You must configure an API key to run analysis.
             </p>
           ) : (
-            <p className="text-[11px] text-warning mt-1 flex items-center gap-1">
-              <AlertCircle size={12} />
+            <p className="text-[11px] font-bold text-yellow-500/80 mt-1 flex items-center gap-1.5">
+              <AlertCircle size={12} strokeWidth={3} />
               Free Tier: You must configure an API key to run analysis.
             </p>
           )}
         </div>
         <button
           onClick={() => setShowForm((p) => !p)}
-          className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/5 transition-colors"
+          className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
         >
-          <Plus size={12} /> Add Connection
+          <Plus size={14} strokeWidth={3} /> Add Connection
         </button>
       </div>
 
-      {/* Platform Key toggle card. Visible to every tier; only pro_managed can toggle ON. */}
       <div
-        className={`rounded-xl border p-4 transition-colors ${
+        className={`rounded-2xl border p-6 transition-all shadow-sm ${
           isProManaged
-            ? 'border-brand/30 bg-brand/5'
-            : 'border-border bg-surface-1'
+            ? 'border-brand/20 bg-brand/5'
+            : 'border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02]'
         }`}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg bg-brand/15 p-1.5">
-              <Sparkles size={14} className="text-brand" />
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 rounded-xl bg-brand/10 p-2 border border-brand/20 shadow-sm">
+              <Sparkles size={16} className="text-brand" strokeWidth={2.5} />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-content">
+              <p className="text-sm font-bold text-black dark:text-white tracking-tight">
                 Use Platform AI Key
               </p>
-              <p className="text-[11px] text-content-muted leading-relaxed">
+              <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
                 {isProManaged
                   ? 'Skip provider-key setup. The platform supplies and manages the API key for you.'
                   : platformKeyCopy.body}
@@ -147,30 +148,30 @@ export default function LlmSection() {
             aria-label={`Use Platform AI Key (${tier})`}
             onClick={handleToggleClick}
             disabled={deactivate.isPending}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border transition-colors
-                       focus:outline-none focus:ring-2 focus:ring-brand/60 disabled:opacity-50
+            className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full border-2 transition-all duration-300
+                       focus:outline-none disabled:opacity-20
                         ${
                           platformKeyOn
-                            ? 'bg-transparent border-brand'
+                            ? 'bg-brand/10 border-brand shadow-lg shadow-brand/10'
                             : isProManaged
-                            ? 'bg-surface-2 border-border'
-                            : 'bg-surface-2 border-border cursor-not-allowed'
+                            ? 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10'
+                            : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 cursor-not-allowed opacity-40'
                         }`}
           >
             <span
-              className={`inline-block h-4 w-4 rounded-full shadow transform transition-transform ${
-                platformKeyOn ? 'translate-x-6 bg-brand' : 'translate-x-1 bg-white'
+              className={`inline-block h-5 w-5 rounded-full shadow-md transform transition-all duration-300 ${
+                platformKeyOn ? 'translate-x-6 bg-brand' : 'translate-x-1 bg-black/20 dark:bg-white/20'
               }`}
             />
           </button>
         </div>
 
         {!isProManaged && (
-          <div className="mt-3 flex items-center justify-end">
+          <div className="mt-4 flex items-center justify-end">
             <button
               type="button"
               onClick={openUpgradeModal}
-              className="text-[11px] font-semibold text-brand hover:text-brand-dark transition-colors"
+              className="text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-80 transition-all"
             >
               {isFree ? 'Upgrade to Pro →' : 'Upgrade to Pro Managed →'}
             </button>
@@ -179,34 +180,37 @@ export default function LlmSection() {
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-border bg-surface-1 p-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-content">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">
               1. Select Enterprise Model
             </label>
-            <select
-              value={form.model_id}
-              onChange={(e) => {
-                const modelId = e.target.value;
-                const model = Array.isArray(providers?.catalog) 
-                  ? providers.catalog.find((m: any) => m.id === modelId)
-                  : null;
-                setForm((f) => ({ ...f, model_id: modelId, provider: model?.provider || '' }));
-              }}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-content focus:outline-none focus:border-brand"
-            >
-              <option value="" disabled hidden>Choose a model…</option>
-              {Array.isArray(providers?.catalog) && providers.catalog.map((m: any) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={form.model_id}
+                onChange={(e) => {
+                  const modelId = e.target.value;
+                  const model = Array.isArray(providers?.catalog) 
+                    ? providers.catalog.find((m: any) => m.id === modelId)
+                    : null;
+                  setForm((f) => ({ ...f, model_id: modelId, provider: model?.provider || '' }));
+                }}
+                className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white focus:border-brand transition-all outline-none appearance-none"
+              >
+                <option value="" disabled hidden>Choose a model…</option>
+                {Array.isArray(providers?.catalog) && providers.catalog.map((m: any) => (
+                  <option key={m.id} value={m.id}>
+                    {m.display_name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 pointer-events-none" size={16} strokeWidth={3} />
+            </div>
           </div>
 
           {form.model_id && (
-            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-              <label className="text-xs font-medium text-content">
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">
                 2. Paste {form.provider.toUpperCase()} API Key
               </label>
               <input
@@ -215,8 +219,7 @@ export default function LlmSection() {
                 value={form.api_key}
                 onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
                 placeholder={`sk-...`}
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-content
-                           focus:outline-none focus:border-brand placeholder:text-content-muted"
+                className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
               />
             </div>
           )}
@@ -224,17 +227,16 @@ export default function LlmSection() {
           <button
             onClick={handleCreate}
             disabled={createConn.isPending || !form.model_id || !form.api_key}
-            className="w-full rounded-lg bg-transparent border border-brand px-4 py-2.5 text-sm font-semibold text-brand
-                       hover:bg-brand/5 disabled:opacity-40 transition-colors"
+            className="w-full rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
           >
             {createConn.isPending ? 'Connecting…' : 'Activate Connection'}
           </button>
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-surface-1 overflow-hidden">
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] overflow-hidden shadow-sm">
         {conns.length === 0 && (
-          <div className="p-8 text-center text-sm text-content-muted">
+          <div className="p-10 text-center text-[11px] font-bold text-black/20 dark:text-white/20 italic italic">
             No API Key connections configured yet
           </div>
         )}
@@ -244,43 +246,43 @@ export default function LlmSection() {
           return (
             <div
               key={id}
-              className="flex items-center justify-between px-4 py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors"
+              className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 last:border-b-0 hover:bg-black/5 dark:hover:bg-white/5 transition-all group"
             >
-              <div className="flex items-center gap-3">
-                {isActive && <span className="w-2 h-2 rounded-full bg-success" />}
-                <div>
-                  <span className="text-xs font-bold text-content">
+              <div className="flex items-center gap-4">
+                <div className={`w-3 h-3 rounded-full transition-all duration-500 ${isActive ? 'bg-green-500 shadow-lg shadow-green-500/40 scale-110' : 'bg-black/10 dark:bg-white/10 scale-90'}`} />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-bold text-black dark:text-white tracking-tight">
                     {(providers?.catalog as any[])?.find(m => m.id === c.model_name)?.display_name || String(c.model_name)}
                   </span>
-                  <span className="block text-[10px] text-content-muted">
-                    Provider: {String(c.provider).toUpperCase()}
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">
+                    {String(c.provider).toUpperCase()}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 {isActive ? (
                   <button
                     onClick={() => deactivate.mutate(id)}
-                    className="p-1.5 rounded text-danger hover:bg-surface-3 transition-colors"
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100"
                     title="Deactivate"
                   >
-                    <PowerOff size={14} />
+                    <PowerOff size={16} strokeWidth={3} />
                   </button>
                 ) : (
                   <button
                     onClick={() => activate.mutate(id)}
-                    className="p-1.5 rounded text-success hover:bg-surface-3 transition-colors"
+                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-40 group-hover:opacity-100"
                     title="Activate"
                   >
-                    <Power size={14} />
+                    <Power size={16} strokeWidth={3} />
                   </button>
                 )}
                 <button
                   onClick={() => deleteConn.mutate(id)}
-                  className="p-1.5 rounded text-danger hover:bg-surface-3 transition-colors"
+                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100"
                   title="Delete"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={16} strokeWidth={3} />
                 </button>
               </div>
             </div>

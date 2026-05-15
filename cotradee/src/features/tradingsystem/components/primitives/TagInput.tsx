@@ -57,7 +57,7 @@ function TagInputInner({
       {description && (
         <div className="text-xs text-content-muted mb-2">{description}</div>
       )}
-      <div className="flex flex-wrap items-center gap-1.5 rounded border border-border bg-app px-2 py-1.5 focus-within:border-brand">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] px-3 py-2.5 transition-all focus-within:border-black/40 dark:focus-within:border-white/40">
         {value.map((sym, idx) => (
           <span
             key={sym}

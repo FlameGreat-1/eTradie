@@ -39,18 +39,21 @@ function NumberSliderInner({
   );
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <div className="text-sm font-medium text-content">{label}</div>
-        <div className="text-sm font-semibold text-brand tabular-nums">
+    <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-5 shadow-sm transition-all duration-300 hover:bg-black/[0.02] dark:hover:bg-white/[0.04]">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <div className="text-sm font-bold text-black dark:text-white tracking-tight">{label}</div>
+          {description && (
+            <div className="text-[11px] text-black/40 dark:text-white/40 font-medium leading-relaxed mt-1">{description}</div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-sm font-black text-brand tabular-nums bg-brand/10 px-2 py-1 rounded-lg border border-brand/20">
           {value}
           {suffix ?? ''}
         </div>
       </div>
-      {description && (
-        <div className="text-xs text-content-muted mb-2">{description}</div>
-      )}
-      <div className="flex items-center gap-3">
+      
+      <div className="flex items-center gap-4 mt-4">
         <input
           type="range"
           min={min}
@@ -59,7 +62,7 @@ function NumberSliderInner({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(clamp(parseFloat(e.target.value)))}
-          className="flex-1 accent-brand focus:!outline-none focus:!ring-0 focus-visible:!outline-none focus-visible:!ring-0"
+          className="flex-1 accent-brand h-1.5 rounded-full bg-black/10 dark:bg-white/10 appearance-none cursor-pointer"
           aria-label={label}
         />
         <input
@@ -70,8 +73,8 @@ function NumberSliderInner({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(clamp(parseFloat(e.target.value)))}
-          className="w-20 rounded border border-border bg-surface px-2 py-1 text-right text-sm tabular-nums
-                     focus:border-brand focus:outline-none"
+          className="w-16 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-2 text-center text-xs font-bold text-black dark:text-white tabular-nums
+                     focus:border-brand/40 focus:bg-black/10 dark:focus:bg-white/10 focus:outline-none transition-all"
           aria-label={`${label} numeric`}
         />
       </div>

@@ -6,6 +6,7 @@ import Header from './Header';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useLiveReasoningStream } from '@/features/alerts/hooks/useLiveReasoningStream';
 import { AnalysisOverlay } from '@/features/chart/components/AnalysisOverlay';
+import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { WelcomeBuilderModal } from '@/features/tradingsystem/components/WelcomeBuilderModal';
 
 interface Props {
@@ -20,6 +21,7 @@ function DashboardLayout({ children }: Props) {
 
   const onDashboard = location.pathname === '/dashboard';
 
+  const broker = useActiveBrokerConnection();
   const stream = useLiveReasoningStream(() => {
     void queryClient.invalidateQueries({ queryKey: ['analysis'] });
   });
@@ -68,7 +70,11 @@ function DashboardLayout({ children }: Props) {
             which dashboard sub-route the user lands on after signup.
             Suppressed automatically once status becomes 'active' or
             'skipped' (server-side source of truth, no localStorage). */}
-        <WelcomeBuilderModal />
+        {/* Suppress the Step 3 nudge popup while the user is looking at
+            the 7-step master WelcomeSetupCard on the dashboard. */}
+        {!(onDashboard && !broker.isLoading && !broker.data) && (
+          <WelcomeBuilderModal />
+        )}
 
         {/* Live reasoning overlay — only on the dashboard route.
             `dismissed_analysis_id` is a UI preference (see

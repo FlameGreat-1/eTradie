@@ -14,20 +14,21 @@ interface Props {
  */
 export function WeeklyReviewSection({ value }: Props) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <header className="mb-3">
-        <h3 className="text-base font-semibold text-content">Weekly Review</h3>
-        <p className="mt-0.5 text-xs text-content-muted">
+    <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+      <header className="mb-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 04</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Weekly Review</h3>
+        <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
           Use these prompts every Friday to audit your discipline.
         </p>
       </header>
-      <ol className="space-y-2 text-sm">
+      <ol className="space-y-4">
         {value.prompts.map((p, i) => (
-          <li key={`${i}-${p}`} className="flex gap-3">
-            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-semibold text-brand">
-              {i + 1}
+          <li key={`${i}-${p}`} className="flex gap-4">
+            <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-[10px] font-black text-black dark:text-white">
+              {String(i + 1).padStart(2, '0')}
             </span>
-            <span className="text-content-secondary">{p}</span>
+            <span className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed">{p}</span>
           </li>
         ))}
       </ol>

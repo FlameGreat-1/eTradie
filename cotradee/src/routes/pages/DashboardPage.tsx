@@ -115,20 +115,23 @@ export default function DashboardPage() {
   const analyses = latest?.analyses ?? [];
   const journalTrades = Array.isArray(journalData?.trades) ? journalData.trades : [];
 
-  // Onboarding state: a freshly-signed-up user with no broker and no
-  // symbols sees the 7-step checklist card instead of the empty
-  // "add a symbol" placeholder. The moment they connect a broker AND
-  // pick a symbol the chart takes over, exactly as today.
+  // Onboarding: fresh users (no broker + no symbols) are auto-redirected
+  // to the full-screen /onboarding wizard. Users who "skipped" the wizard
+  // (have no broker but landed here intentionally) see the WelcomeSetupCard.
   const broker = useActiveBrokerConnection();
-  const needsOnboarding =
-    !broker.isLoading && !broker.data && symbols.length === 0;
-
-  // Partially-onboarded state: the user has a broker and a symbol
-  // (so the chart renders) but has not finished every functional
-  // step. We surface a small Resume Setup pill so they can resume
-  // the checklist without losing their chart context.
   const onboarding = useOnboardingProgress();
   const navigate = useNavigate();
+
+  const noBroker = !broker.isLoading && !broker.data;
+  const noSymbols = symbols.length === 0;
+
+  const hasSkippedOnboarding = sessionStorage.getItem('exoper_onboarding_skipped') === 'true';
+
+  // Show WelcomeSetupCard for users who skipped onboarding (no broker)
+  const needsOnboarding = noBroker;
+
+  // Partially-onboarded: broker connected but not all steps done.
+  // Show Resume Setup pill pointing to /onboarding.
   const showResumeSetupPill =
     !needsOnboarding && !onboarding.loading && !onboarding.ready;
 
@@ -248,7 +251,13 @@ export default function DashboardPage() {
     <div className="flex h-full w-full overflow-hidden animate-fade-in bg-surface-1">
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 relative min-h-0">
-          {activeSymbol ? (
+          {needsOnboarding && !hasSkippedOnboarding ? (
+            <div className="flex h-full w-full items-center justify-center p-6">
+              <OnboardingWizard />
+            </div>
+          ) : needsOnboarding && hasSkippedOnboarding ? (
+            <WelcomeSetupCard />
+          ) : activeSymbol ? (
             <TradingChart
               symbol={activeSymbol}
               timeframe={timeframe}
@@ -256,8 +265,6 @@ export default function DashboardPage() {
               activeTrades={activeTrades}
               symbolMeta={symbolMeta}
             />
-          ) : needsOnboarding ? (
-            <WelcomeSetupCard />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-content-muted">
               Add a symbol from the watchlist to begin charting.
@@ -266,7 +273,7 @@ export default function DashboardPage() {
           {showResumeSetupPill && (
             <button
               type="button"
-              onClick={() => navigate('/dashboard/setup')}
+              onClick={() => navigate('/onboarding')}
               className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 rounded-full
                          border border-border bg-surface px-3 py-1.5 text-xs font-semibold
                          text-content shadow-sm hover:border-content-muted focus-ring"

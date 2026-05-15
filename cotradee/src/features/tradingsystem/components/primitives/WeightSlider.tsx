@@ -22,15 +22,15 @@ const LEVELS: ReadonlyArray<{ value: number; label: string }> = [
  */
 function WeightSliderInner({ label, description, value, onChange, disabled = false }: Props) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <div className="text-sm font-medium text-content">{label}</div>
-        <div className="text-xs text-content-muted">{LEVELS[value]?.label ?? ''}</div>
+    <div className="rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-4 transition-all duration-300">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-sm font-bold text-black dark:text-white tracking-tight">{label}</div>
+        <div className="text-[10px] font-black text-brand uppercase tracking-widest bg-brand/10 px-2 py-0.5 rounded-full">{LEVELS[value]?.label ?? ''}</div>
       </div>
       {description && (
-        <div className="text-xs text-content-muted mb-2">{description}</div>
+        <div className="text-[11px] text-black/40 dark:text-white/40 font-medium leading-relaxed mb-4">{description}</div>
       )}
-      <div role="radiogroup" aria-label={label} className="grid grid-cols-4 gap-1.5">
+      <div role="radiogroup" aria-label={label} className="grid grid-cols-4 gap-2">
         {LEVELS.map((lv) => {
           const active = lv.value === value;
           return (
@@ -41,11 +41,11 @@ function WeightSliderInner({ label, description, value, onChange, disabled = fal
               aria-checked={active}
               disabled={disabled}
               onClick={() => onChange(lv.value)}
-              className={`rounded border px-2 py-1.5 text-xs font-medium transition-colors focus-ring
+              className={`rounded-lg border px-2 py-2 text-[10px] font-black uppercase tracking-widest transition-all duration-200
                 ${active
-                  ? 'border-brand bg-brand/15 text-content'
-                  : 'border-border bg-surface text-content-secondary hover:text-content hover:border-content-muted'}
-                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  ? 'border-black/40 dark:border-white/40 bg-black/10 dark:bg-white/10 text-black dark:text-white shadow-sm'
+                  : 'border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.02] text-black/30 dark:text-white/30 hover:border-black/10 dark:hover:border-white/10 hover:text-black/60 dark:hover:text-white/60'}
+                ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               {lv.label}
             </button>

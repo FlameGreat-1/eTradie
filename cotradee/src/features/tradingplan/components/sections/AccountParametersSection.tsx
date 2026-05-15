@@ -33,36 +33,37 @@ export function AccountParametersSection({ value, editing, onChange }: Props) {
   );
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <header className="mb-3">
-        <h3 className="text-base font-semibold text-content">Account Parameters</h3>
-        <p className="mt-0.5 text-xs text-content-muted">
+    <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+      <header className="mb-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 02</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Account Parameters</h3>
+        <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
           Your live risk envelope for the next 90 days.
         </p>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-content-muted">
-              <th className="w-1/2 py-1.5 pr-3 font-medium">Parameter</th>
-              <th className="py-1.5 font-medium">Value</th>
+            <tr className="text-left text-[10px] font-black uppercase tracking-widest text-black/20 dark:text-white/20">
+              <th className="w-1/2 py-2 pr-3">Parameter</th>
+              <th className="py-2">Value</th>
             </tr>
           </thead>
           <tbody>
             {ROWS.map(({ key, label }) => (
-              <tr key={key} className="border-t border-border">
-                <td className="py-2 pr-3 text-content-secondary">{label}</td>
+              <tr key={key} className="border-t border-black/5 dark:border-white/5">
+                <td className="py-3 pr-3 text-[11px] font-black uppercase tracking-wider text-black/40 dark:text-white/40">{label}</td>
                 <td className="py-2">
                   {editing ? (
                     <input
                       type="text"
                       value={value[key]}
                       onChange={handle(key)}
-                      className="w-full rounded border border-border bg-app px-2 py-1 text-content focus-ring"
+                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black px-3 py-1.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
                       aria-label={label}
                     />
                   ) : (
-                    <span className="text-content">{value[key] || '—'}</span>
+                    <span className="text-sm font-bold text-black dark:text-white tracking-tight">{value[key] || '—'}</span>
                   )}
                 </td>
               </tr>

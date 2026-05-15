@@ -22,8 +22,9 @@ export function Step14Management({ value, onChange, errors, stepNumber, totalSte
       title="Trade Management"
       description="How Exoper manages the trade once it's live — partial closes, trailing, break-even, and runners."
     >
+      <div className="space-y-8">
       <div>
-        <div className="text-sm font-medium text-content mb-2">Partial take-profit style</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">1. Partial take-profit style</div>
         <RadioCardGroup
           name="partial_tp_style"
           value={value.partial_tp_style}
@@ -38,7 +39,7 @@ export function Step14Management({ value, onChange, errors, stepNumber, totalSte
         <FieldError message={errors['management.partial_tp_style']} />
       </div>
       <div>
-        <div className="text-sm font-medium text-content mb-2">Trailing stop</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">2. Trailing stop</div>
         <RadioCardGroup
           name="trailing_stop"
           value={value.trailing_stop}
@@ -53,7 +54,7 @@ export function Step14Management({ value, onChange, errors, stepNumber, totalSte
         <FieldError message={errors['management.trailing_stop']} />
       </div>
       <div>
-        <div className="text-sm font-medium text-content mb-2">Break-even trigger</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">3. Break-even trigger</div>
         <RadioCardGroup
           name="break_even_trigger"
           value={value.break_even_trigger}
@@ -91,6 +92,7 @@ export function Step14Management({ value, onChange, errors, stepNumber, totalSte
         checked={value.close_before_news}
         onChange={(v) => set('close_before_news', v)}
       />
+      </div>
     </StepShell>
   );
 }

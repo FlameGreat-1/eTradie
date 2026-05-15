@@ -16,20 +16,23 @@ interface Props {
 function CheckboxToggleInner({ label, description, checked, onChange, disabled = false }: Props) {
   return (
     <label
-      className={`flex items-start gap-3 rounded-lg border border-border bg-surface p-3 transition-colors
-                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-content-muted'}`}
+      className={`flex items-start gap-4 rounded-2xl border p-4 transition-all duration-300
+                  ${checked ? 'border-black/40 dark:border-white/40 bg-black/10 dark:bg-white/10 shadow-lg' : 'border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] hover:bg-black/[0.02] dark:hover:bg-white/[0.04]'}
+                  ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
     >
-      <input
-        type="checkbox"
-        className="mt-0.5 h-4 w-4 rounded border-border text-brand focus:ring-brand cursor-pointer"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+      <div className="relative flex items-center mt-0.5">
+        <input
+          type="checkbox"
+          className="h-5 w-5 rounded-lg border-black/20 dark:border-white/20 bg-white dark:bg-black text-brand focus:ring-0 focus:ring-offset-0 cursor-pointer transition-colors checked:border-brand"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+      </div>
       <div className="flex-1">
-        <div className="text-sm font-medium text-content">{label}</div>
+        <div className={`text-sm font-bold ${checked ? 'text-black dark:text-white' : 'text-black/70 dark:text-white/70'}`}>{label}</div>
         {description && (
-          <div className="text-xs text-content-muted mt-0.5">{description}</div>
+          <div className="text-[11px] text-black/40 dark:text-white/40 font-medium leading-relaxed mt-1">{description}</div>
         )}
       </div>
     </label>

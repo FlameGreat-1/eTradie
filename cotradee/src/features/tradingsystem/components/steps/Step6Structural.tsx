@@ -21,8 +21,9 @@ export function Step6Structural({ value, onChange, errors, stepNumber, totalStep
       title="Structural Preferences"
       description="The structural frameworks and patterns you want Exoper to prioritise in retrieval."
     >
+      <div className="space-y-8">
       <div>
-        <div className="text-sm font-medium text-content mb-2">Structural frameworks</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">1. Structural frameworks</div>
         <MultiSelectChips
           name="frameworks"
           value={value.frameworks}
@@ -62,7 +63,7 @@ export function Step6Structural({ value, onChange, errors, stepNumber, totalStep
       />
 
       <div>
-        <div className="text-sm font-medium text-content mb-2">Structure emphasis</div>
+        <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">2. Structure emphasis</div>
         <RadioCardGroup
           name="structure_emphasis"
           value={value.structure_emphasis}
@@ -74,6 +75,7 @@ export function Step6Structural({ value, onChange, errors, stepNumber, totalStep
           ]}
         />
         <FieldError message={errors['structural.structure_emphasis']} />
+      </div>
       </div>
     </StepShell>
   );

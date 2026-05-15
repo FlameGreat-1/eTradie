@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server } from 'lucide-react';
+import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server, Sparkles } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
@@ -196,33 +196,33 @@ export default function UpgradeModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 px-4 py-8 overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 my-auto">
-        {/* NVIDIA-style Glow */}
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#76b900]/10 blur-[80px] rounded-full pointer-events-none" />
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-500 px-4 py-8 overflow-y-auto selection:bg-brand selection:text-black">
+      <div className="relative w-full max-w-3xl bg-white dark:bg-black border border-black/10 dark:border-white/10 rounded-[2.5rem] shadow-[0_0_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500 my-auto">
+        {/* Brand Accent Glow */}
+        <div className="absolute -top-32 -right-32 w-80 h-80 bg-brand/5 blur-[120px] rounded-full pointer-events-none" />
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="bg-transparent p-2 rounded-lg border border-[#76b900]">
-              <Zap className="text-[#76b900] w-5 h-5" />
+        <div className="flex items-center justify-between p-8 border-b border-black/5 dark:border-white/5">
+          <div className="flex items-center gap-4">
+            <div className="bg-brand/10 p-2.5 rounded-2xl border border-brand/20 shadow-lg shadow-brand/10">
+              <Zap className="text-brand w-5 h-5" strokeWidth={3} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Upgrade to Pro</h2>
-              <p className="text-xs text-white/40">Unlock institutional-grade trading tools</p>
+            <div className="space-y-0.5">
+              <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">Upgrade to Pro</h2>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Unlock institutional-grade trading tools</p>
             </div>
           </div>
-          <button onClick={handleClose} className="text-white/40 hover:text-white transition-colors p-1" aria-label="Close">
-            <X size={20} />
+          <button onClick={handleClose} className="text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-all p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5" aria-label="Close">
+            <X size={20} strokeWidth={3} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-8 space-y-8">
+        <div className="p-8 md:p-10 space-y-10">
           {/* Provider selector */}
-          <div>
-            <h3 className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-3">Payment Provider</h3>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black text-black/30 dark:text-white/30 uppercase tracking-[0.3em] ml-1">Payment Provider</h3>
+            <div className="grid grid-cols-2 gap-4">
               <ProviderOption
                 value="paddle"
                 selected={provider}
@@ -235,7 +235,7 @@ export default function UpgradeModal() {
                 selected={provider}
                 onSelect={setProvider}
                 title="Lemon Squeezy"
-                subtitle="Cards, PayPal, regional methods"
+                subtitle="Cards, PayPal, Regional"
               />
             </div>
           </div>
@@ -246,10 +246,10 @@ export default function UpgradeModal() {
               tier="pro_byok"
               title="Pro BYOK"
               priceLabel="$29"
-              icon={<KeyRound className="text-[#76b900] w-4 h-4" />}
+              icon={<KeyRound className="text-brand w-4 h-4" strokeWidth={3} />}
               tagline="Bring your own AI key"
-              description="Full Pro access using your own Anthropic / OpenAI / Gemini API key. Best for power users with existing LLM credits."
-              features={['Unlimited symbols', 'Automated execution', 'Trade management', 'Use your own LLM key']}
+              description="Full Pro access using your own Anthropic, OpenAI, or Gemini keys. Best for heavy-volume power users."
+              features={['Unlimited symbols', 'Automated execution', 'Trade management', 'Custom LLM usage']}
               currentTier={currentSub?.tier}
               isLoading={isLoading && loadingTier === 'pro_byok'}
               onUpgrade={() => handleUpgrade('pro_byok')}
@@ -258,10 +258,10 @@ export default function UpgradeModal() {
               tier="pro_managed"
               title="Pro Managed"
               priceLabel="$49"
-              icon={<Server className="text-[#76b900] w-4 h-4" />}
+              icon={<Server className="text-brand w-4 h-4" strokeWidth={3} />}
               tagline="We provide the AI key"
-              description="Everything in Pro BYOK, plus the platform-managed AI key. No external accounts to set up."
-              features={['Everything in Pro BYOK', 'Platform-managed LLM key', 'Higher rate limits', 'Priority 24/7 support']}
+              description="Everything in Pro BYOK, plus our internal platform-managed AI keys. No external accounts required."
+              features={['Everything in Pro BYOK', 'Managed LLM keys', 'Higher rate limits', 'Priority 24/7 support']}
               currentTier={currentSub?.tier}
               isLoading={isLoading && loadingTier === 'pro_managed'}
               onUpgrade={() => handleUpgrade('pro_managed')}
@@ -269,32 +269,36 @@ export default function UpgradeModal() {
             />
           </div>
 
-          <div className="flex items-center gap-2 text-[10px] text-white/40 justify-center">
-            <ShieldCheck size={12} className="text-[#76b900]" />
-            Secure payments handled by Paddle &amp; Lemon Squeezy. You can cancel anytime from this page.
-          </div>
+          {/* Security & Compliance */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3 text-[10px] font-bold text-black/40 dark:text-white/40 justify-center bg-black/5 dark:bg-white/5 py-3 px-6 rounded-2xl border border-black/5 dark:border-white/5">
+              <ShieldCheck size={14} className="text-brand" strokeWidth={3} />
+              Secure payments via encrypted gateways. Cancel anytime from this dashboard.
+            </div>
 
-          {/* Checkout-time compliance footnote. Required for Paddle /
-              Lemon Squeezy Merchant-of-Record platforms: the user
-              must be able to reach the Terms, Billing Policy, Refund
-              Policy, and Risk Disclosure at the moment of purchase. */}
-          <p className="text-[10px] text-white/40 leading-relaxed text-center max-w-md mx-auto">
-            By proceeding to checkout you agree to our{' '}
-            <Link to="/terms" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Terms of Service</Link>,{' '}
-            <Link to="/billing-policy" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Billing Policy</Link>,{' '}
-            <Link to="/refund" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Refund Policy</Link>, and{' '}
-            <Link to="/risk-disclosure" className="underline decoration-[#76b900]/60 underline-offset-2 hover:text-white/80" onClick={handleClose}>Risk Disclosure</Link>.
-          </p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-black/20 dark:text-white/20 leading-relaxed text-center max-w-lg mx-auto">
+              By proceeding to checkout you agree to our{' '}
+              <Link to="/terms" className="text-black/40 dark:text-white/40 underline decoration-black/10 dark:decoration-white/10 underline-offset-4 hover:text-brand transition-colors" onClick={handleClose}>Terms</Link>,{' '}
+              <Link to="/billing-policy" className="text-black/40 dark:text-white/40 underline decoration-black/10 dark:decoration-white/10 underline-offset-4 hover:text-brand transition-colors" onClick={handleClose}>Billing</Link>,{' '}
+              <Link to="/refund" className="text-black/40 dark:text-white/40 underline decoration-black/10 dark:decoration-white/10 underline-offset-4 hover:text-brand transition-colors" onClick={handleClose}>Refund Policy</Link>, and{' '}
+              <Link to="/risk-disclosure" className="text-black/40 dark:text-white/40 underline decoration-black/10 dark:decoration-white/10 underline-offset-4 hover:text-brand transition-colors" onClick={handleClose}>Risk Disclosure</Link>.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="bg-white/[0.02] border-t border-white/5 p-4 flex items-center justify-center gap-6">
-          <div className="flex items-center gap-2 grayscale opacity-40">
-            <CreditCard size={14} className="text-white" />
-            <span className="text-[10px] text-white font-medium">VISA / MASTERCARD</span>
+        <div className="bg-black dark:bg-white p-6 flex items-center justify-between px-10">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <CreditCard size={14} className="text-white/40 dark:text-black/40" strokeWidth={3} />
+              <span className="text-[9px] text-white/60 dark:text-black/60 font-black uppercase tracking-widest">VISA / MASTERCARD</span>
+            </div>
+            <div className="h-4 w-[1px] bg-white/10 dark:bg-black/10" />
+            <div className="text-[9px] text-white/60 dark:text-black/60 font-black uppercase tracking-widest">NO COMMITMENT</div>
           </div>
-          <div className="h-3 w-[1px] bg-white/10" />
-          <div className="text-[10px] text-white/40 font-medium">CANCEL ANYTIME</div>
+          <div className="text-[10px] text-white dark:text-black font-black uppercase tracking-widest opacity-40">
+            Secure Terminal
+          </div>
         </div>
       </div>
     </div>
@@ -315,22 +319,22 @@ function ProviderOption({ value, selected, onSelect, title, subtitle }: Provider
     <button
       type="button"
       onClick={() => onSelect(value)}
-      className={`text-left rounded-xl p-4 border transition-colors ${
+      className={`text-left rounded-2xl p-5 border transition-all duration-300 ${
         isSelected
-          ? 'bg-[#76b900]/10 border-[#76b900]/50'
-          : 'bg-white/5 border-white/10 hover:border-white/30'
+          ? 'bg-black dark:bg-white border-transparent shadow-2xl shadow-brand/20 -translate-y-0.5'
+          : 'bg-black/[0.02] dark:bg-white/[0.02] border-black/10 dark:border-white/10 hover:border-black/30 dark:hover:border-white/30'
       }`}
       aria-pressed={isSelected}
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-semibold text-white">{title}</span>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-xs font-black uppercase tracking-widest ${isSelected ? 'text-white dark:text-black' : 'text-black/60 dark:text-white/60'}`}>{title}</span>
         {isSelected && (
-          <div className="bg-[#76b900]/20 rounded-full p-0.5">
-            <Check size={10} className="text-[#76b900]" />
+          <div className="bg-brand rounded-full p-0.5">
+            <Check size={10} className="text-black" strokeWidth={4} />
           </div>
         )}
       </div>
-      <p className="text-[11px] text-white/50">{subtitle}</p>
+      <p className={`text-[10px] font-bold tracking-tight ${isSelected ? 'text-white/60 dark:text-black/60' : 'text-black/30 dark:text-white/30'}`}>{subtitle}</p>
     </button>
   );
 }
@@ -365,51 +369,90 @@ function TierCard({
   const isCurrent = currentTier === tier;
   return (
     <div
-      className={`relative bg-white/5 rounded-xl p-5 border transition-colors ${
-        highlight ? 'border-[#76b900]/40 hover:border-[#76b900]/70' : 'border-white/10 hover:border-white/30'
+      className={`relative rounded-[2rem] p-6 border transition-all duration-500 overflow-hidden ${
+        highlight 
+          ? 'bg-black/[0.03] dark:bg-white/[0.03] border-brand/20 shadow-2xl shadow-brand/5' 
+          : 'bg-black/[0.01] dark:bg-white/[0.01] border-black/10 dark:border-white/10'
       }`}
     >
       {highlight && (
-        <span className="absolute -top-2 right-4 text-[10px] font-bold text-black bg-[#76b900] px-2 py-0.5 rounded-full uppercase tracking-widest">
-          Most Popular
-        </span>
+        <div className="absolute top-4 right-6">
+          <div className="flex items-center gap-1.5 bg-brand px-3 py-1 rounded-full shadow-lg shadow-brand/20">
+            <Sparkles size={10} className="text-black" strokeWidth={4} />
+            <span className="text-[9px] font-black text-black uppercase tracking-widest">
+              Most Popular
+            </span>
+          </div>
+        </div>
       )}
-      <div className="flex items-center gap-2 mb-1">
-        {icon}
-        <h4 className="text-lg font-bold text-white">{title}</h4>
+      
+      <div className="flex items-center gap-3 mb-2">
+        <div className="p-2 rounded-xl bg-black/5 dark:bg-white/5">
+          {icon}
+        </div>
+        <h4 className="text-base font-black text-black dark:text-white uppercase tracking-tight">{title}</h4>
       </div>
-      <p className="text-xs text-[#76b900] mb-3">{tagline}</p>
-      <div className="flex items-baseline gap-1 mb-4">
-        <span className="text-2xl font-bold text-white">{priceLabel}</span>
-        <span className="text-xs text-white/40">/mo</span>
+      
+      <p className="text-[10px] font-black text-brand uppercase tracking-widest mb-4">{tagline}</p>
+      
+      <div className="flex items-baseline gap-1.5 mb-6">
+        <span className="text-4xl font-black text-black dark:text-white tracking-tighter">{priceLabel}</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-black/20 dark:text-white/20">/ MONTH</span>
       </div>
-      <p className="text-xs text-white/60 mb-5 leading-relaxed">{description}</p>
-      <ul className="space-y-2 mb-6">
+      
+      <p className="text-xs font-bold text-black/40 dark:text-white/40 mb-8 leading-relaxed">{description}</p>
+      
+      <ul className="space-y-3 mb-10">
         {features.map((f) => (
-          <li key={f} className="flex items-start gap-2 text-sm text-white/80">
-            <div className="mt-1 bg-[#76b900]/20 rounded-full p-0.5">
-              <Check size={10} className="text-[#76b900]" />
+          <li key={f} className="flex items-center gap-3 text-[11px] font-bold text-black/60 dark:text-white/60">
+            <div className="bg-brand/10 rounded-lg p-1">
+              <Check size={12} className="text-brand" strokeWidth={4} />
             </div>
             {f}
           </li>
         ))}
       </ul>
+      
       <button
         onClick={onUpgrade}
         disabled={isLoading || isCurrent}
-        className="w-full py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 rounded-xl bg-transparent border border-[#76b900] text-white hover:bg-[#76b900]/5 transition-colors font-semibold"
+        className={`w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 rounded-2xl transition-all duration-300 disabled:opacity-40 active:scale-[0.98]
+                   ${isCurrent 
+                     ? 'bg-black/5 dark:bg-white/5 text-black/20 dark:text-white/20 cursor-default' 
+                     : 'bg-black dark:bg-white text-white dark:text-black shadow-xl shadow-black/10 dark:shadow-white/10 hover:opacity-90'
+                   }`}
       >
         {isCurrent ? (
-          'Current Plan'
+          'Active Plan'
         ) : isLoading ? (
-          <div className="w-4 h-4 border-2 border-[#76b900]/20 border-t-[#76b900] rounded-full animate-spin" />
+          <Loader2 size={16} className="animate-spin" strokeWidth={3} />
         ) : (
           <>
             Proceed to Checkout
-            <ExternalLink size={14} className="text-[#76b900]" />
+            <ExternalLink size={14} strokeWidth={3} />
           </>
         )}
       </button>
     </div>
   );
 }
+
+function Loader2({ className, size, strokeWidth }: { className?: string; size?: number; strokeWidth?: number }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth || 2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+}
+

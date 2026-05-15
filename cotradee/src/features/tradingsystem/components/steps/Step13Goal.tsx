@@ -19,6 +19,9 @@ export function Step13Goal({ value, onChange, errors, stepNumber, totalSteps }: 
       title="Goal Orientation"
       description="The single guiding objective that shapes how Exoper ranks trade-offs."
     >
+      <div className="space-y-8">
+        <div>
+          <div className="text-[10px] text-black/30 dark:text-white/30 uppercase font-bold tracking-[0.15em] mb-3">Goal orientation</div>
       <RadioCardGroup
         name="goal"
         value={value}
@@ -33,6 +36,8 @@ export function Step13Goal({ value, onChange, errors, stepNumber, totalSteps }: 
         ]}
       />
       <FieldError message={errors['goal']} />
+      </div>
+      </div>
     </StepShell>
   );
 }

@@ -41,7 +41,7 @@ function MultiSelectChipsInner<T extends string>({
   };
 
   return (
-    <div role="group" aria-label={name} className="flex flex-wrap gap-2">
+    <div role="group" aria-label={name} className="flex flex-wrap gap-2.5">
       {options.map((opt) => {
         const active = set.has(opt.value);
         return (
@@ -51,11 +51,11 @@ function MultiSelectChipsInner<T extends string>({
             aria-pressed={active}
             disabled={disabled}
             onClick={() => toggle(opt.value)}
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-ring
+            className={`rounded-xl border px-5 py-2.5 text-xs font-bold transition-all duration-200
               ${active
-                ? 'border-brand bg-brand/15 text-content'
-                : 'border-border bg-surface text-content-secondary hover:text-content hover:border-content-muted'}
-              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                ? 'border-black/40 dark:border-white/40 bg-black/10 dark:bg-white/10 text-black dark:text-white'
+                : 'border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20 hover:text-black/60 dark:hover:text-white/60'}
+              ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             {opt.label}
           </button>

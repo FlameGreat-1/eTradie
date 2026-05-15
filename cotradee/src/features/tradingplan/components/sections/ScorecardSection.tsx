@@ -40,11 +40,12 @@ export function ScorecardSection({ value, editing, onChange }: Props) {
   );
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <header className="mb-3 flex items-start justify-between gap-3">
+    <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+      <header className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-content">Discipline Scorecard</h3>
-          <p className="mt-0.5 text-xs text-content-muted">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 05</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Discipline Scorecard</h3>
+          <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
             Rate yourself weekly. Be honest — the table only works if you are.
           </p>
         </div>
@@ -52,7 +53,7 @@ export function ScorecardSection({ value, editing, onChange }: Props) {
           <button
             type="button"
             onClick={addItem}
-            className="shrink-0 rounded bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90 focus-ring"
+            className="shrink-0 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
           >
             + Add metric
           </button>
@@ -61,48 +62,48 @@ export function ScorecardSection({ value, editing, onChange }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-content-muted">
-              <th className="w-2/3 py-1.5 pr-3 font-medium">Metric</th>
-              <th className="py-1.5 font-medium">Score</th>
+            <tr className="text-left text-[10px] font-black uppercase tracking-widest text-black/20 dark:text-white/20">
+              <th className="w-2/3 py-2 pr-3">Metric</th>
+              <th className="py-2">Score</th>
               {editing && <th className="w-10" aria-label="actions" />}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-black/5 dark:divide-white/5">
             {value.items.map((it, idx) => (
-              <tr key={idx} className="border-t border-border">
-                <td className="py-1.5 pr-3">
+              <tr key={idx}>
+                <td className="py-3 pr-3">
                   {editing ? (
                     <input
                       type="text"
                       value={it.metric}
                       onChange={(e) => setItem(idx, { metric: e.target.value })}
-                      className="w-full rounded border border-border bg-app px-2 py-1 text-content focus-ring"
+                      className="w-full rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black px-3 py-1.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
                       aria-label={`Metric ${idx + 1}`}
                     />
                   ) : (
-                    <span className="text-content-secondary">{it.metric}</span>
+                    <span className="text-sm font-bold text-black/60 dark:text-white/60 tracking-tight">{it.metric}</span>
                   )}
                 </td>
-                <td className="py-1.5">
+                <td className="py-2">
                   {editing ? (
                     <input
                       type="text"
                       value={it.score}
                       placeholder="e.g. 8/10"
                       onChange={(e) => setItem(idx, { score: e.target.value })}
-                      className="w-32 rounded border border-border bg-app px-2 py-1 text-content focus-ring"
+                      className="w-32 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black px-3 py-1.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
                       aria-label={`Score ${idx + 1}`}
                     />
                   ) : (
-                    <span className="text-content tabular-nums">{it.score || '—'}</span>
+                    <span className="text-sm font-bold text-black dark:text-white tabular-nums tracking-tighter">{it.score || '—'}</span>
                   )}
                 </td>
                 {editing && (
-                  <td className="text-right">
+                  <td className="text-right py-2">
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      className="rounded p-1 text-content-muted hover:text-danger focus-ring"
+                      className="rounded-lg p-2 text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all font-black text-sm"
                       aria-label={`Remove ${it.metric || `metric ${idx + 1}`}`}
                       title="Remove"
                     >

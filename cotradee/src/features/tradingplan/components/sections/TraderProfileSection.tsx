@@ -15,25 +15,28 @@ interface Props {
  */
 export function TraderProfileSection({ value }: Props) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <header className="mb-3">
-        <h3 className="text-base font-semibold text-content">Trader Profile</h3>
-        <p className="mt-0.5 text-xs text-content-muted">
-          AI-generated summary of how you trade. Regenerate to refresh.
+    <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+      <header className="mb-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 01</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Trader Profile</h3>
+        <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
+          AI-generated summary of your unique edge. Regenerate to refresh.
         </p>
       </header>
-      <p className="text-sm font-medium text-content">{value.headline}</p>
-      <ul className="mt-3 space-y-1.5">
-        {value.bullets.map((b, i) => (
-          <li
-            key={`${i}-${b}`}
-            className="flex items-start gap-2 text-sm text-content-secondary"
-          >
-            <span aria-hidden className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="space-y-4">
+        <p className="text-sm font-bold text-black dark:text-white leading-relaxed">{value.headline}</p>
+        <ul className="space-y-3">
+          {value.bullets.map((b, i) => (
+            <li
+              key={`${i}-${b}`}
+              className="flex items-start gap-3 text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed"
+            >
+              <span aria-hidden className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
