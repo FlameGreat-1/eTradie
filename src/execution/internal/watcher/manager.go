@@ -194,12 +194,10 @@ func (m *Manager) Arm(order *models.Order) {
 	// INSTANT orders need tick price monitoring; LIMIT orders only
 	// need TTL enforcement (the broker handles the fill).
 	if order.ExecutionMode == constants.ModeInstant {
-		m.tickCache.Subscribe(order.Symbol)
-
-		// Ensure the tick cache has a real identity for broker calls.
-		// Engine /internal/broker/* resolves the per-user broker from
-		// X-User-Id (= claims.UserID); a token-only context would be
-		// treated as anonymous and rejected with 401.
+		// Set this user's identity BEFORE subscribing so the first poll
+		// for the (user, symbol) pair has a non-nil identity to
+		// authenticate with. Pre-upgrade restored orders without
+		// identity fields fall back to the parse-the-token shim.
 		if order.UserID != "" {
 			m.tickCache.SetServiceIdentity(&auth.Claims{
 				UserID:   order.UserID,
@@ -209,10 +207,15 @@ func (m *Manager) Arm(order *models.Order) {
 				Status:   order.StatusJWT,
 			}, order.AuthToken)
 		} else if order.AuthToken != "" {
-			// Pre-upgrade restored order without identity fields:
-			// fall back to the parse-the-token shim.
 			m.tickCache.SetAuthToken(order.AuthToken)
 		}
+
+		// Subscribe the (user, symbol) pair. Each pair gets its own
+		// dedicated poller running with that user's identity, so
+		// multi-tenant correctness is preserved when two users hold
+		// pending watchers on the same symbol but trade against
+		// different brokers.
+		m.tickCache.Subscribe(order.UserID, order.Symbol)
 	}
 
 	observability.OrderPlacementTotal.WithLabelValues(modeLabel, "armed").Inc()
@@ -324,7 +327,7 @@ func (m *Manager) onWatcherDone(watcherID string) {
 	// Only unsubscribe from tick cache for INSTANT orders;
 	// LIMIT orders never subscribed.
 	if symbol != "" && mode == constants.ModeInstant {
-		m.tickCache.Unsubscribe(symbol)
+		m.tickCache.Unsubscribe(userID, symbol)
 	}
 
 	// Remove persistence record (order filled, timed out, or disarmed).
@@ -557,9 +560,11 @@ func (w *Watcher) runInstant(ctx context.Context) {
 // zone, and if so, triggers the confirmation + execution flow.
 // Returns true if the watcher should stop (order placed or fatal error).
 func (w *Watcher) checkAndExecute(ctx context.Context) bool {
-	// Read tick price from the shared cache. The cache is populated
-	// by a single poller per symbol, eliminating redundant HTTP calls.
-	tick := w.tickCache.GetTickPrice(w.order.Symbol)
+	// Read tick price from the per-(user, symbol) cache. Each pair has
+	// a dedicated poller authenticated with its owner's broker on the
+	// engine side, so this lookup is always isolated to this user's
+	// quotes.
+	tick := w.tickCache.GetTickPrice(w.order.UserID, w.order.Symbol)
 	if tick == nil {
 		// Cache not yet populated. Skip this cycle.
 		return false
