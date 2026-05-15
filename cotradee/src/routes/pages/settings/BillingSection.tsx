@@ -14,6 +14,10 @@ import { Link } from 'react-router-dom';
 import { useAuth, isAdmin } from '@/features/auth';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
 import UsagePanel from '@/features/settings/components/UsagePanel';
+import {
+  AdminLLMUsagePanel,
+  AdminSubscriptionsPanel,
+} from '@/features/settings/components/AdminBillingPanels';
 
 const TIER_DISPLAY: Record<
   string,
@@ -77,12 +81,14 @@ export default function BillingSection() {
 
   // Admins do not have a subscription record. The backend exempts
   // them from every tier check (see api_handlers.go / router.go).
-  // Render an "Unrestricted Access" surface instead of the upgrade
-  // funnel + plan-limits comparison that targets free users.
+  // Render the "Unrestricted Access" surface AND, inline beneath it,
+  // the admin-only global views (AI token usage across every user,
+  // subscriptions roster across every user). Regular users never
+  // reach this branch.
   if (admin) {
     return (
-      <div className="space-y-10 max-w-2xl">
-        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+      <div className="space-y-10 w-full max-w-7xl">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm max-w-2xl">
           <div className="flex items-center justify-between mb-6">
             <div className="flex flex-col gap-0.5">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Account</div>
@@ -107,7 +113,13 @@ export default function BillingSection() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+        {/* Admin-only inline panels: global AI token usage + global subscriptions roster.
+            Regular users never reach this branch — the admin check above gates the
+            entire render path. */}
+        <AdminLLMUsagePanel />
+        <AdminSubscriptionsPanel />
+
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm max-w-2xl">
           <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
             Platform terms still apply. See our{' '}
             <Link to="/terms" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Terms of Service</Link>{' '}and{' '}
