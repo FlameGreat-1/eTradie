@@ -12,6 +12,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// (strings is used by InjectIdentity above, but Go's import block has
+//  already pulled it in for extractWebSocketToken / extractBearerToken.)
+
 // ---------------------------------------------------------------------------
 // Context keys
 // ---------------------------------------------------------------------------
@@ -62,6 +65,38 @@ func InjectClaimsIntoContext(ctx context.Context, claims *Claims) context.Contex
 		return ctx
 	}
 	return context.WithValue(ctx, claimsKey, claims)
+}
+
+// InjectIdentity is a convenience wrapper around InjectClaimsIntoContext
+// for background workers that already know the user fields (because they
+// just minted a service token for that user). It builds a minimal
+// *Claims and injects it. The userID argument is mandatory; empty
+// userID is a no-op so callers don't have to branch on missing data.
+//
+// This is the canonical helper for any goroutine that:
+//   - did not come through RequireAuth middleware, and
+//   - needs downstream code (e.g. the engine internal-auth bridge) to
+//     resolve who it's acting for via auth.UserIDFromContext(ctx).
+//
+// Identity flows top-down from the trust boundary; this helper just
+// repackages an identity the caller ALREADY has into the shape that
+// the rest of the codebase reads from context.
+func InjectIdentity(
+	ctx context.Context,
+	userID, username string,
+	role Role,
+	tier, status string,
+) context.Context {
+	if strings.TrimSpace(userID) == "" {
+		return ctx
+	}
+	return InjectClaimsIntoContext(ctx, &Claims{
+		UserID:   userID,
+		Username: username,
+		Role:     role,
+		Tier:     tier,
+		Status:   status,
+	})
 }
 
 // UserIDFromContext extracts the user ID from the request context.
