@@ -278,7 +278,11 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 					"attempted_symbols": len(req.Symbols),
 				}),
 		)
-		writeJSONError(w, http.StatusForbidden, "Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.")
+		writeTierRequired(w,
+			"Free tier is restricted to 1 active symbol. Upgrade to Pro for unlimited tracking.",
+			"pro_byok",
+			"unlimited_symbols",
+		)
 		return
 	}
 
@@ -420,7 +424,11 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	// Free tier users do not get automated scheduling — block interval changes.
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims != nil && claims.Role != "admin" && claims.Tier == "free" {
-		writeJSONError(w, http.StatusForbidden, "Automated scheduling is not available on the Free tier. Upgrade to Pro to configure cycle intervals.")
+		writeTierRequired(w,
+			"Automated scheduling is not available on the Free tier. Upgrade to Pro to configure cycle intervals.",
+			"pro_byok",
+			"automated_scheduling",
+		)
 		return
 	}
 
@@ -514,4 +522,26 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// writeTierRequired writes a structured 403 response the SPA can
+// match exactly to decide whether to surface the "Upgrade Required"
+// modal. PRACTICE.md #2: a 403 from any non-tier-gated endpoint
+// (CSRF mismatch, expired cookie race, server bug) must NOT trigger
+// an upgrade prompt; the SPA distinguishes by `error_code` rather
+// than guessing from the URL prefix.
+//
+// requiredTier is the smallest paid tier that unlocks the feature
+// (currently "pro_byok" or "pro_managed"). featureKey is a short,
+// stable identifier the SPA can use to deep-link the upsell to the
+// right tier card; it is not localised text.
+func writeTierRequired(w http.ResponseWriter, message, requiredTier, featureKey string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"error":         message,
+		"error_code":    "tier_required",
+		"required_tier": requiredTier,
+		"feature":       featureKey,
+	})
 }

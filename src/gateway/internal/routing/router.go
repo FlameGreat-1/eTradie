@@ -223,7 +223,13 @@ func (r *Router) executeTrade(
 			)
 		}
 
-		return map[string]interface{}{"status": "blocked", "reason": "Trade execution is not available on the Free tier. Upgrade to Pro."}
+		return map[string]interface{}{
+			"status":         "blocked",
+			"reason":         "Trade execution is not available on the Free tier. Upgrade to Pro.",
+			"error_code":     "tier_required",
+			"required_tier":  "pro_byok",
+			"feature":        "automated_execution",
+		}
 	}
 
 	if r.execution == nil {
