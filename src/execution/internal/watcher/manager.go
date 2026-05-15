@@ -338,17 +338,16 @@ func (m *Manager) onWatcherDone(watcherID string) {
 	m.trackDisarm(userID)
 }
 
-// RefreshUserOrderTokens updates the AuthToken on all active watchers
-// owned by the given user. Called when the user makes any authenticated
-// request so that watchers can make authenticated broker calls even
-// after the original session token expires.
+// RefreshUserOrderIdentity updates the full identity (UserID is the
+// matching key; Username, Role, Tier, StatusJWT, and AuthToken are
+// the writable fields) on every active watcher owned by
+// claims.UserID. Every field is overwritten atomically under the
+// per-Order write lock so the watcher goroutine never observes a
+// partial update.
 //
-// This is critical because the watcher timeout (default 45 min) can
-// exceed the access token TTL (default 15 min). Without token refresh,
-// broker calls fail with 401 after the token expires, causing missed
-// trade entries on valid setups.
-func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
-	if userID == "" || newToken == "" {
+// Called whenever the auth interceptor produced a fresh *auth.Claims.
+func (m *Manager) RefreshUserOrderIdentity(claims *auth.Claims, newToken string) int {
+	if claims == nil || claims.UserID == "" || newToken == "" {
 		return 0
 	}
 
@@ -358,26 +357,57 @@ func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
 	refreshed := 0
 	for _, w := range m.watchers {
 		w.order.RLock()
-		ownerMatch := w.order.UserID == userID
+		ownerMatch := w.order.UserID == claims.UserID
 		currentToken := w.order.AuthToken
+		currentTier := w.order.Tier
+		currentStatus := w.order.StatusJWT
 		w.order.RUnlock()
 
-		if ownerMatch && currentToken != newToken {
-			w.order.Lock()
-			w.order.AuthToken = newToken
-			w.order.Unlock()
-			refreshed++
+		if !ownerMatch {
+			continue
 		}
+		if currentToken == newToken && currentTier == claims.Tier && currentStatus == claims.Status {
+			continue
+		}
+
+		w.order.Lock()
+		w.order.Username = claims.Username
+		w.order.Role = string(claims.Role)
+		w.order.Tier = claims.Tier
+		w.order.StatusJWT = claims.Status
+		w.order.AuthToken = newToken
+		w.order.Unlock()
+		refreshed++
 	}
 
 	if refreshed > 0 {
 		m.log.Info().
-			Str("user_id", userID).
+			Str("user_id", claims.UserID).
+			Str("tier", claims.Tier).
+			Str("status", claims.Status).
 			Int("watchers_refreshed", refreshed).
-			Msg("watcher_auth_tokens_refreshed")
+			Msg("watcher_identity_refreshed")
 	}
 
 	return refreshed
+}
+
+// RefreshUserOrderTokens is the legacy entry point retained for the
+// (rare) caller that has only a token. Parses the local-mint JWT and
+// delegates to RefreshUserOrderIdentity. Returns 0 on parse failure or
+// claim mismatch.
+func (m *Manager) RefreshUserOrderTokens(userID, newToken string) int {
+	if userID == "" || newToken == "" {
+		return 0
+	}
+	claims := parseLocalServiceToken(newToken)
+	if claims == nil || claims.UserID != userID {
+		m.log.Warn().
+			Str("expected_user_id", userID).
+			Msg("watcher_token_refresh_skipped_claim_mismatch")
+		return 0
+	}
+	return m.RefreshUserOrderIdentity(claims, newToken)
 }
 
 // TickCache returns the shared tick price cache. Exposed so that

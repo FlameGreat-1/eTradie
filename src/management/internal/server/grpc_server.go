@@ -209,9 +209,11 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 	// Register with monitoring manager \u2014 spawns the worker goroutine.
 	s.monitor.RegisterTrade(trade)
 
-	// Refresh auth tokens on all of this user's existing trades so that
-	// restored trades (from a service restart) regain broker access.
-	s.monitor.RefreshUserTradeTokens(userID, authToken)
+	// Refresh identity (tier, status, username) AND token on every
+	// active trade owned by this user. Critical for the post-restart
+	// path (restored trades have empty AuthTokens) and after a tier
+	// change mid-session so that in-memory claims track the JWT.
+	s.monitor.RefreshUserTradeIdentity(claims, authToken)
 
 	observability.TradeRegisteredTotal.WithLabelValues(trade.Symbol, string(trade.TradingStyle)).Inc()
 

@@ -217,16 +217,17 @@ func (m *Manager) GetTrade(tradeID string) *types.Trade {
 	return m.trades[tradeID]
 }
 
-// RefreshUserTradeTokens updates the AuthToken on all active trades
-// owned by the given user. Called when the user makes any authenticated
-// request (gRPC or HTTP) so that background workers (monitoring, EOD,
-// news) can make authenticated broker calls on the user's behalf.
+// RefreshUserTradeIdentity updates the full identity (UserID is the
+// matching key; Username, Role, Tier, StatusJWT, and AuthToken are
+// the writable fields) on every active trade owned by claims.UserID.
 //
-// This is critical after a service restart: restored trades have empty
-// AuthTokens because the original JWT expired. The first authenticated
-// action by the user refreshes all their trades with the new token.
-func (m *Manager) RefreshUserTradeTokens(userID, newToken string) int {
-	if userID == "" || newToken == "" {
+// Called by every gRPC handler after the auth interceptor produced a
+// fresh *auth.Claims, and by the 24h service-token renewal goroutine
+// after issuing a renewed token. Every identity field is overwritten
+// atomically under the per-Trade write lock so a concurrent worker
+// reading via Trade.IdentityCtx never sees a partial update.
+func (m *Manager) RefreshUserTradeIdentity(claims *auth.Claims, newToken string) int {
+	if claims == nil || claims.UserID == "" || newToken == "" {
 		return 0
 	}
 
@@ -236,26 +237,62 @@ func (m *Manager) RefreshUserTradeTokens(userID, newToken string) int {
 	refreshed := 0
 	for _, t := range m.trades {
 		t.RLock()
-		ownerMatch := t.UserID == userID
+		ownerMatch := t.UserID == claims.UserID
 		currentToken := t.AuthToken
+		currentTier := t.Tier
+		currentStatus := t.StatusJWT
 		t.RUnlock()
 
-		if ownerMatch && currentToken != newToken {
-			t.Lock()
-			t.AuthToken = newToken
-			t.Unlock()
-			refreshed++
+		if !ownerMatch {
+			continue
 		}
+		if currentToken == newToken && currentTier == claims.Tier && currentStatus == claims.Status {
+			continue // nothing to update
+		}
+
+		t.Lock()
+		t.Username = claims.Username
+		t.Role = string(claims.Role)
+		t.Tier = claims.Tier
+		t.StatusJWT = claims.Status
+		t.AuthToken = newToken
+		t.Unlock()
+		refreshed++
 	}
 
 	if refreshed > 0 {
 		m.log.Info().
-			Str("user_id", userID).
+			Str("user_id", claims.UserID).
+			Str("tier", claims.Tier).
+			Str("status", claims.Status).
 			Int("trades_refreshed", refreshed).
-			Msg("trade_auth_tokens_refreshed")
+			Msg("trade_identity_refreshed")
 	}
 
 	return refreshed
+}
+
+// RefreshUserTradeTokens is the legacy entry point retained for the
+// (rare) caller that has only a token. It parses the local-mint JWT
+// payload to recover the full *auth.Claims and delegates to
+// RefreshUserTradeIdentity. A malformed token is a no-op (returns 0).
+//
+// Prefer RefreshUserTradeIdentity in any new code path that already
+// has *auth.Claims in hand — it avoids the parse and the parse's
+// failure modes.
+func (m *Manager) RefreshUserTradeTokens(userID, newToken string) int {
+	if userID == "" || newToken == "" {
+		return 0
+	}
+	claims := parseLocalServiceToken(newToken)
+	if claims == nil || claims.UserID != userID {
+		// Token doesn't match expected user; refuse to update.
+		m.log.Warn().
+			Str("expected_user_id", userID).
+			Msg("trade_token_refresh_skipped_claim_mismatch")
+		return 0
+	}
+	return m.RefreshUserTradeIdentity(claims, newToken)
 }
 
 // TradeCount returns the number of active trades.

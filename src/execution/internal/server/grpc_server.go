@@ -253,11 +253,13 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	tradeReq := parseRequest(req)
 	tradeReq.UserID = userID
 
-	// Refresh auth tokens on all active watchers for this user so that
-	// watchers armed with an older token get the fresh session JWT.
-	// This is critical because watcher timeout (45 min) > token TTL (15 min).
+	// Refresh identity (tier, status, username) AND token on every
+	// active watcher owned by this user. Critical because watcher
+	// timeouts (default 45m) exceed access-token TTLs (default 15m),
+	// and because tier changes mid-session must reach the watcher's
+	// IdentityCtx in lock-step with the new JWT.
 	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
-		s.watcher.RefreshUserOrderTokens(userID, rawToken)
+		s.watcher.RefreshUserOrderIdentity(claims, rawToken)
 	}
 
 	// Step 1: Refresh broker state.
