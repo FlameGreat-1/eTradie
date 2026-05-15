@@ -226,7 +226,12 @@ func main() {
 			}
 		}
 
+		// Issue service tokens AND cache the User row for each owner
+		// of a pending watcher. The User row drives the identity
+		// fields stamped onto the restored Order so the watcher's
+		// IdentityCtx works without a second DB round trip.
 		serviceTokens := make(map[string]string)
+		usersByID := make(map[string]*auth.User)
 		for uid := range userIDs {
 			user, err := userStore.GetUserByID(ctx, uid)
 			if err != nil || user == nil {
@@ -243,6 +248,7 @@ func main() {
 				continue
 			}
 			serviceTokens[uid] = svcToken
+			usersByID[uid] = user
 			log.Info().Str("user_id", uid).Str("username", user.Username).Msg("service_token_issued_for_watcher_restoration")
 		}
 
@@ -278,7 +284,7 @@ func main() {
 				continue
 			}
 
-			order := restoreOrderFromRecord(rec, token)
+			order := restoreOrderFromRecord(rec, token, usersByID[rec.UserID])
 			order.TimeoutOverride = remaining
 			wm.Arm(order)
 			restoredCount++
@@ -291,10 +297,22 @@ func main() {
 				Msg("watcher_restored")
 		}
 
-		// Set the tick cache auth token. Any valid service token works
-		// since tick prices are not user-scoped.
-		for _, svcToken := range serviceTokens {
-			wm.TickCache().SetAuthToken(svcToken)
+		// Arm the tick cache with the first available identity. The
+		// cache needs a real parsed *auth.Claims (not just a token)
+		// because the engine resolves the per-user broker from
+		// X-User-Id. Both Claims and the raw token are stored.
+		for uid, svcToken := range serviceTokens {
+			u := usersByID[uid]
+			if u == nil {
+				continue
+			}
+			wm.TickCache().SetServiceIdentity(&auth.Claims{
+				UserID:   u.ID,
+				Username: u.Username,
+				Role:     u.Role,
+				Tier:     u.Tier,
+				Status:   u.Status,
+			}, svcToken)
 			break
 		}
 
@@ -319,11 +337,17 @@ func main() {
 			for _, u := range users {
 				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
 				if tokenErr == nil {
-					wm.TickCache().SetAuthToken(startupToken)
+					wm.TickCache().SetServiceIdentity(&auth.Claims{
+						UserID:   u.ID,
+						Username: u.Username,
+						Role:     u.Role,
+						Tier:     u.Tier,
+						Status:   u.Status,
+					}, startupToken)
 					log.Info().
 						Str("user_id", u.ID).
 						Str("username", u.Username).
-						Msg("startup_tick_cache_token_issued")
+						Msg("startup_tick_cache_identity_issued")
 					break
 				}
 			}
