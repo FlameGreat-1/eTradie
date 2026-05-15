@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -105,6 +106,11 @@ func (c *Config) validate() error {
 	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
 	isProdLike := env == "production" || env == "prod" || env == "staging"
 	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
+	// Fall back to the root ENGINE_INTERNAL_SHARED_SECRET when the
+	// prefixed override is empty; mirrors the execution config logic.
+	if c.EngineInternalSecret == "" {
+		c.EngineInternalSecret = strings.TrimSpace(os.Getenv("ENGINE_INTERNAL_SHARED_SECRET"))
+	}
 	if mode == "mt5" {
 		if c.EngineInternalSecret == "" {
 			if isProdLike {

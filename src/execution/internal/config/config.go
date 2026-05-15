@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -145,6 +146,15 @@ func (c *Config) validate() error {
 	env := strings.ToLower(strings.TrimSpace(c.AppEnv))
 	isProdLike := env == "production" || env == "prod" || env == "staging"
 	c.EngineInternalSecret = strings.TrimSpace(c.EngineInternalSecret)
+	// Fall back to the root ENGINE_INTERNAL_SHARED_SECRET when the
+	// prefixed override (EXECUTION_ENGINE_INTERNAL_SHARED_SECRET) is
+	// empty. Production deploy templates have always exported one
+	// root value shared with the engine and gateway; the prefixed
+	// form is only useful when an operator deliberately wants per-
+	// service secrets, which is unusual.
+	if c.EngineInternalSecret == "" {
+		c.EngineInternalSecret = strings.TrimSpace(os.Getenv("ENGINE_INTERNAL_SHARED_SECRET"))
+	}
 	if mode == "mt5" {
 		if c.EngineInternalSecret == "" {
 			if isProdLike {
