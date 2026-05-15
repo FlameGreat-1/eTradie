@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useAuth, isAdmin } from '@/features/auth';
+import { useAuth } from '@/features/auth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
 
@@ -24,7 +24,6 @@ const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
 const SupportPage   = lazy(() => import('./pages/SupportPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
-const AdminPage     = lazy(() => import('./pages/admin/AdminPage'));
 
 /* ─── Legal & compliance pages (public, reachable by guests and authed users) ─── */
 const TermsPage           = lazy(() => import('./pages/TermsPage'));
@@ -78,21 +77,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const returnTo = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
   }
-  return <>{children}</>;
-}
-
-// AdminRoute gates the /dashboard/admin/* subtree to admin users only.
-// Defence-in-depth: the backend RequireAdmin middleware is the actual
-// source of truth (every /api/v1/admin/* call 403s for non-admins).
-// This wrapper is purely a UX guard so a non-admin who somehow lands
-// on the route is bounced to /dashboard without rendering the
-// admin shell's network calls. A loading auth state shows the same
-// DashboardLoader every other protected route uses so the transition
-// from cold-load to gated decision is visually consistent.
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <DashboardLoader />;
-  if (!isAdmin(user)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -248,14 +232,6 @@ export default function AppRoutes() {
                     <Route path="settings/*" element={<SettingsPage />} />
                     <Route path="support"    element={<SupportPage />} />
                     <Route path="community"  element={<CommunityPage />} />
-                    <Route
-                      path="admin/*"
-                      element={
-                        <AdminRoute>
-                          <AdminPage />
-                        </AdminRoute>
-                      }
-                    />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Suspense>
