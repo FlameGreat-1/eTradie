@@ -84,8 +84,8 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
         onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-bold transition-colors duration-fast focus-ring
-                    ${isOpen ? 'bg-surface-3 text-content' : 'text-content hover:bg-surface-3'}`}
+        className={`flex items-center gap-1.5 px-3 h-8 rounded-2xl border border-border text-[11px] font-black uppercase tracking-wider transition-all duration-fast focus-ring
+                    ${isOpen ? 'bg-surface-3 text-content' : 'bg-surface-2 text-content hover:bg-surface-3'}`}
       >
         <span>{value}</span>
         <ChevronDown
@@ -103,17 +103,17 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
           style={{
             position: 'fixed',
             top: `${coords.top + 6}px`,
-            left: '50%',
+            left: `${coords.left}px`,
             transform: 'translateX(-50%)',
-            width: '12rem', // Restore original w-48
+            width: '12rem',
           }}
-          className="bg-surface-elevated border border-border
-                     rounded-md shadow-pop py-1 z-[9999] animate-fade-in"
+          className="bg-white dark:bg-black border border-border
+                     rounded-2xl shadow-pop py-1.5 z-[9999] animate-fade-in overflow-hidden"
         >
           {CATEGORIES.map((cat, i) => (
             <div key={cat.name}>
-              {i > 0 && <div className="h-px bg-border my-1" />}
-              <div className="px-3 py-1 text-[10px] font-bold text-content-muted uppercase tracking-wider">
+              {i > 0 && <div className="h-px bg-border my-1.5" />}
+              <div className="px-4 py-1 text-[10px] font-black text-content-muted uppercase tracking-widest">
                 {cat.name}
               </div>
               {cat.items.map((item) => (
@@ -121,13 +121,13 @@ export function TimeframeDropdown({ value, onChange }: TimeframeDropdownProps) {
                   type="button"
                   key={item.id}
                   onClick={() => handleSelect(item.id)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left
+                  className="w-full flex items-center justify-between px-4 py-2 text-[11px] font-bold uppercase tracking-wider
                              hover:bg-surface-2 text-content transition-colors duration-fast focus-ring"
                   role="option"
                   aria-selected={value === item.id}
                 >
                   <span>{item.label}</span>
-                  {value === item.id && <Check size={14} className="text-brand" />}
+                  {value === item.id && <Check size={14} strokeWidth={3} className="text-brand" />}
                 </button>
               ))}
             </div>

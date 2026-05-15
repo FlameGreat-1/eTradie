@@ -169,8 +169,8 @@ function NotificationsPanelInner() {
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={toggle}
-        className="relative flex items-center justify-center w-9 h-9 rounded-full
-                   bg-surface-2 border border-border hover:border-brand transition-colors duration-fast
+        className="relative flex items-center justify-center w-9 h-9 rounded-2xl
+                   bg-surface-2 border border-border hover:border-brand transition-all duration-fast
                    focus-ring"
       >
         <img src="/assets/dashboard/icons/bellIcon.svg" alt="Notifications" className="w-[18px] h-[18px] object-contain" />
@@ -198,17 +198,17 @@ function NotificationsPanelInner() {
             transform: 'translateX(-50%)',
             width: 'min(360px, calc(100vw - 1rem))',
           }}
-          className="rounded-lg bg-surface-0 border border-border
+          className="rounded-2xl bg-white dark:bg-black border border-border
                      shadow-pop animate-fade-in z-[9999] overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-content">
+              <span className="text-[10px] font-black uppercase tracking-widest text-content">
                 Notifications
               </span>
               {unreadCount > 0 && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-brand">
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-brand-soft text-brand">
                   {unreadCount}
                 </span>
               )}
@@ -217,7 +217,7 @@ function NotificationsPanelInner() {
               type="button"
               onClick={markAllAsRead}
               disabled={unreadCount === 0}
-              className="text-[11px] font-medium text-brand hover:underline
+              className="text-[10px] font-black uppercase tracking-wider text-brand hover:underline
                          disabled:text-content-muted disabled:no-underline disabled:cursor-default
                          focus-ring rounded"
             >
@@ -264,28 +264,28 @@ function NotificationsPanelInner() {
                   return (
                     <li
                       key={id}
-                      className={`px-4 py-2.5 flex gap-2.5 items-start hover:bg-surface-1 transition-colors duration-fast ${
-                        isUnread ? 'bg-surface-0 border-l-2 border-brand' : ''
+                      className={`px-4 py-3 flex gap-3 items-start hover:bg-surface-2 transition-all duration-fast ${
+                        isUnread ? 'bg-surface-1 border-l-2 border-brand' : ''
                       }`}
                     >
                       <span className="mt-0.5 flex-shrink-0">{severityIcon(e.severity)}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-content truncate">
+                          <span className="text-[11px] font-bold text-content truncate uppercase tracking-tight">
                             {getEventTitle(e)}
                           </span>
                           {e.symbol && (
-                            <span className="text-[10px] font-medium text-content-muted px-1.5 py-0.5 rounded bg-surface-3">
+                            <span className="text-[9px] font-black text-content-muted px-1.5 py-0.5 rounded bg-surface-3 uppercase">
                               {e.symbol}
                             </span>
                           )}
                         </div>
                         {e.message && (
-                          <p className="text-[11px] text-content-secondary mt-0.5 line-clamp-2">
+                          <p className="text-[11px] font-medium text-content-secondary mt-1 line-clamp-2">
                             {e.message}
                           </p>
                         )}
-                        <span className="text-[10px] text-content-muted mt-1 inline-block">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-content-muted mt-2 inline-block">
                           {formatRelativeTime(getEventTime(e))}
                         </span>
                       </div>

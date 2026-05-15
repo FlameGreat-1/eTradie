@@ -93,12 +93,12 @@ export default function TradesPage() {
       </div>
 
       {trades.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface-1 px-4 py-2 flex items-center justify-between">
-          <span className="text-xs text-content-muted uppercase tracking-wider">
+        <div className="rounded-2xl border border-border bg-white dark:bg-black px-5 py-3 flex items-center justify-between shadow-sm">
+          <span className="text-[13px] font-bold text-content-muted">
             Aggregate Unrealised P&L
           </span>
           <span
-            className={`text-base font-bold ${
+            className={`text-lg font-bold ${
               totalUnrealized >= 0 ? 'text-success' : 'text-danger'
             }`}
           >
@@ -114,10 +114,10 @@ export default function TradesPage() {
           Active Managed Trades
         </h2>
 
-        <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
+        <div className="hidden md:block rounded-2xl border border-border bg-white dark:bg-black overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-surface-2">
+              <thead className="sticky top-0 z-10 bg-surface-1">
                 <tr className="border-b border-border text-content-muted">
                   <Th>Symbol</Th>
                   <Th>Dir</Th>
@@ -143,7 +143,7 @@ export default function TradesPage() {
                   <tr
                     key={t.trade_id}
                     className={`border-b border-border last:border-b-0 hover:bg-surface-2 transition-colors duration-fast
-                                ${i % 2 === 1 ? 'bg-surface-2/40' : ''}`}
+                                 ${i % 2 === 1 ? 'bg-surface-2/40' : ''}`}
                   >
                     <Td className="font-bold text-brand">{t.symbol}</Td>
                     <Td>
@@ -190,16 +190,16 @@ export default function TradesPage() {
           </div>
         </div>
 
-        <div className="md:hidden space-y-2">
+        <div className="md:hidden space-y-3">
           {trades.length === 0 && (
-            <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-content-muted">
+            <div className="rounded-2xl border border-border bg-white dark:bg-black p-8 text-center text-[13px] font-bold text-content-muted">
               No active trades
             </div>
           )}
           {trades.map((t) => (
             <div
               key={t.trade_id}
-              className="rounded-xl border border-border bg-surface-1 p-3"
+              className="rounded-2xl border border-border bg-white dark:bg-black p-4 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <span className="font-bold text-brand text-sm">{t.symbol}</span>
@@ -244,10 +244,10 @@ export default function TradesPage() {
           Pending Orders
         </h2>
 
-        <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
+        <div className="hidden md:block rounded-2xl border border-border bg-white dark:bg-black overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-surface-2">
+              <thead className="sticky top-0 z-10 bg-surface-1">
                 <tr className="border-b border-border text-content-muted">
                   <Th>Symbol</Th>
                   <Th>Dir</Th>
@@ -302,16 +302,16 @@ export default function TradesPage() {
           </div>
         </div>
 
-        <div className="md:hidden space-y-2">
+        <div className="md:hidden space-y-3">
           {pending.length === 0 && (
-            <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-content-muted">
+            <div className="rounded-2xl border border-border bg-white dark:bg-black p-8 text-center text-[13px] font-bold text-content-muted">
               No pending orders
             </div>
           )}
           {pending.map((o) => (
             <div
               key={o.order_id}
-              className="rounded-xl border border-border bg-surface-1 p-3"
+              className="rounded-2xl border border-border bg-white dark:bg-black p-4 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <span className="font-bold text-brand text-sm">{o.symbol}</span>
@@ -355,16 +355,16 @@ function MetricCard({
   accessory?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface-1 p-3 sm:p-4 flex items-start gap-3 shadow-card">
-      <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand-soft text-brand flex-shrink-0">
+    <div className="rounded-2xl border border-border bg-white dark:bg-black p-4 flex items-start gap-3 shadow-card transition-all hover:border-brand/30">
+      <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-brand-soft text-brand flex-shrink-0">
         {icon}
       </div>
       <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-[10px] font-medium text-content-muted uppercase tracking-wide">
+        <span className="text-[11px] font-bold text-content-muted">
           {label}
         </span>
         <div className="flex items-center gap-2">
-          <span className={`text-base sm:text-lg font-bold ${valueClass}`}>{value}</span>
+          <span className={`text-base sm:text-lg font-black ${valueClass}`}>{value}</span>
           {accessory}
         </div>
       </div>
@@ -382,7 +382,7 @@ function DirectionPill({ dir }: { dir: string }) {
     ? 'bg-danger-soft text-danger'
     : 'bg-surface-3 text-content-muted';
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${cls}`}>
       {norm || '—'}
     </span>
   );
@@ -391,18 +391,18 @@ function DirectionPill({ dir }: { dir: string }) {
 function ProgressDots({ be, tp1, tp2 }: { be: boolean; tp1: boolean; tp2: boolean }) {
   const dot = (active: boolean, label: string) => (
     <span
-      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider
+      className={`flex items-center gap-1.5 text-[10px] font-bold
                   ${active ? 'text-success' : 'text-content-faint'}`}
       title={label}
     >
       <span
-        className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-success' : 'bg-content-faint/40'}`}
+        className={`w-2 h-2 rounded-full ${active ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-content-faint/30'}`}
       />
       {label}
     </span>
   );
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-3">
       {dot(be, 'BE')}
       {dot(tp1, 'TP1')}
       {dot(tp2, 'TP2')}
@@ -419,7 +419,7 @@ function Th({
 }) {
   return (
     <th
-      className={`px-4 py-2.5 font-medium text-[10px] uppercase tracking-wider whitespace-nowrap
+      className={`px-4 py-3 font-bold text-[11px] text-content-muted tracking-tight whitespace-nowrap
                    text-${align}`}
     >
       {children}
@@ -455,11 +455,11 @@ function Field({
   valueClass?: string;
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-content-muted">
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-bold text-content-muted">
         {label}
       </span>
-      <span className={`font-medium ${valueClass}`}>{value}</span>
+      <span className={`font-black text-xs ${valueClass}`}>{value}</span>
     </div>
   );
 }

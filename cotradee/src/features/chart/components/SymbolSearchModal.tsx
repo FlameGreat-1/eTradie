@@ -110,9 +110,9 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-surface-1 rounded-xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-black rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         {/* Header / Search Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-surface-2/50">
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-border bg-surface-1">
           <Search size={20} className="text-content-muted" />
           <input
             ref={inputRef}
@@ -120,26 +120,26 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Symbol search..."
-            className="flex-1 bg-transparent border-none outline-none text-lg text-content placeholder:text-content-muted"
+            className="flex-1 bg-transparent border-none outline-none text-base font-bold text-content placeholder:text-content-muted"
           />
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface-3 text-content-muted hover:text-content transition-colors"
+            className="p-1.5 rounded-xl hover:bg-surface-3 text-content-muted hover:text-content transition-all"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Categories / Tabs */}
-        <div className="flex items-center gap-6 px-4 border-b border-border text-sm overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-6 px-4 border-b border-border bg-surface-1 overflow-x-auto no-scrollbar">
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveTab(cat)}
-              className={`py-2 whitespace-nowrap transition-colors ${
+              className={`py-3 whitespace-nowrap transition-all text-xs font-bold border-b-2 ${
                 activeTab === cat
-                  ? 'text-brand font-medium border-b-2 border-brand'
-                  : 'text-content-muted hover:text-content'
+                  ? 'text-brand border-brand'
+                  : 'text-content-muted border-transparent hover:text-content'
               }`}
             >
               {cat}

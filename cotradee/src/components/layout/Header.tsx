@@ -309,10 +309,10 @@ function Header({ onMenuClick }: HeaderProps) {
           <div className="flex items-center gap-2.5 flex-shrink-0">
             <button
               onClick={() => setIsSymbolModalOpen(true)}
-              className="px-3 h-8 rounded-md text-xs font-bold text-content border border-border
-                         hover:bg-surface-3 transition-colors duration-fast flex items-center gap-2 focus-ring"
+              className="px-3 h-8 rounded-2xl text-[11px] font-bold text-content border border-border bg-surface-2
+                         hover:bg-surface-3 transition-all duration-fast flex items-center gap-2 focus-ring"
             >
-              {symbol || 'Select Symbol'}
+              <span className="truncate max-w-[120px]">{symbol || 'Select Symbol'}</span>
               <ChevronDown size={14} className="text-content-muted" />
             </button>
             <TimeframeDropdown
@@ -320,14 +320,14 @@ function Header({ onMenuClick }: HeaderProps) {
               onChange={(tf) => updateActive(undefined, tf)}
             />
 
-            <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-surface-2 border border-border px-3 h-8">
+            <div className="hidden lg:flex items-center gap-1.5 rounded-2xl bg-surface-2 border border-border px-3 h-8">
               <Search size={14} className="text-content-muted" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…"
-                className="bg-transparent border-none outline-none text-xs text-content placeholder:text-content-muted w-24"
+                className="bg-transparent border-none outline-none text-[11px] font-medium text-content placeholder:text-content-muted w-24"
                 aria-label="Search"
               />
             </div>
@@ -359,17 +359,17 @@ function Header({ onMenuClick }: HeaderProps) {
             <button
               title="User menu"
               onClick={toggleUserMenu}
-              className="flex items-center gap-2 rounded-full bg-surface-2 border border-border
-                         px-2 h-9 hover:border-brand transition-colors duration-fast focus-ring"
+              className="flex items-center gap-2 rounded-2xl bg-surface-2 border border-border
+                         px-2 h-9 hover:border-brand transition-all duration-fast focus-ring"
               aria-haspopup="menu"
               aria-expanded={showUserMenu}
             >
               <img src="/assets/dashboard/icons/profilePic.png" alt={user?.username || 'Profile'} className="w-7 h-7 rounded-full object-cover" />
-              <div className="hidden sm:flex flex-col items-start">
-                <span className="text-xs font-medium text-content leading-none">
+              <div className="hidden sm:flex flex-col items-start mr-1">
+                <span className="text-xs font-bold text-content leading-none">
                   {user?.username || 'User'}
                 </span>
-                <span className="text-[10px] text-content-muted leading-none">
+                <span className="text-[10px] font-bold text-content-muted leading-none mt-0.5">
                   {user?.role || ''}
                 </span>
               </div>
@@ -388,38 +388,38 @@ function Header({ onMenuClick }: HeaderProps) {
             top: `${userMenuCoords.top + 8}px`,
             right: `${userMenuCoords.right}px`,
           }}
-          className="w-48 rounded-lg bg-surface-elevated border border-border
-                     shadow-pop animate-fade-in z-portal"
+          className="w-52 rounded-2xl bg-white dark:bg-black border border-border
+                     shadow-pop animate-fade-in z-portal overflow-hidden"
         >
-          <MenuItem onClick={() => { navigate('/dashboard/settings/profile'); setShowUserMenu(false); }}>
-            My Profile
-          </MenuItem>
-          <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
-            Settings
-          </MenuItem>
-          <MenuItem onClick={() => { navigate('/dashboard/support'); setShowUserMenu(false); }}>
-            <LifeBuoy size={12} /> Help & Support
-          </MenuItem>
-          {/*
-            The Cookie Preferences entry is rendered reactively: it
-            tracks the presence of ConsentProvider, so on a navigation
-            into a surface without that provider (e.g. a future
-            maintenance route) the item disappears. Audit finding E.
-          */}
-          {consent && (
-            <MenuItem
-              onClick={() => {
-                consent.openPreferences();
-                setShowUserMenu(false);
-              }}
-            >
-              <Cookie size={12} /> Cookie Preferences
+          <div className="px-4 py-3 border-b border-border bg-surface-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-content-muted">Account</p>
+            <p className="text-xs font-bold text-content truncate mt-1">{user?.email}</p>
+          </div>
+          <div className="p-1.5">
+            <MenuItem onClick={() => { navigate('/dashboard/settings/profile'); setShowUserMenu(false); }}>
+              My Profile
             </MenuItem>
-          )}
-          <div className="border-t border-border" />
-          <MenuItem onClick={handleLogout} danger>
-            <LogOut size={12} /> Sign out
-          </MenuItem>
+            <MenuItem onClick={() => { navigate('/dashboard/settings'); setShowUserMenu(false); }}>
+              Settings
+            </MenuItem>
+            <MenuItem onClick={() => { navigate('/dashboard/support'); setShowUserMenu(false); }}>
+              <LifeBuoy size={12} strokeWidth={3} /> Help & Support
+            </MenuItem>
+            {consent && (
+              <MenuItem
+                onClick={() => {
+                  consent.openPreferences();
+                  setShowUserMenu(false);
+                }}
+              >
+                <Cookie size={12} strokeWidth={3} /> Cookie Preferences
+              </MenuItem>
+            )}
+            <div className="h-px bg-border my-1.5" />
+            <MenuItem onClick={handleLogout} danger>
+              <LogOut size={12} strokeWidth={3} /> Sign out
+            </MenuItem>
+          </div>
         </div>,
         document.body
       )}
@@ -501,8 +501,8 @@ function IconButton({
       aria-label={title}
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center w-9 h-9 rounded-full
-                  bg-surface-2 border border-border hover:border-brand hover:bg-brand/5 transition-colors duration-fast
+      className={`flex items-center justify-center w-9 h-9 rounded-2xl
+                  bg-surface-2 border border-border hover:border-brand hover:bg-brand/5 transition-all duration-fast
                   disabled:opacity-50 disabled:hover:border-border focus-ring ${className ?? ''}`}
     >
       {children}
@@ -522,8 +522,8 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-4 py-2.5 text-xs transition-colors duration-fast
-                  flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg
+      className={`w-full text-left px-4 py-2 text-xs font-bold transition-all duration-fast
+                  flex items-center gap-2 rounded-xl mb-0.5 last:mb-0
                   ${
                     danger
                       ? 'text-danger hover:bg-danger-soft'

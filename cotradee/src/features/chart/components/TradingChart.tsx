@@ -616,28 +616,28 @@ function TradingChartInner({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           className={`absolute top-0 left-0 z-10 flex items-center gap-3 px-3 py-2
-                     rounded-lg border border-border bg-surface-glass
-                     shadow-card text-xs select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                     rounded-2xl border border-border bg-white dark:bg-black
+                     shadow-pop text-xs select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           style={{ transform: `translate(${overlayPos.x}px, ${overlayPos.y}px)` }}
         >
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-wider text-content-muted">
+            <span className="text-[10px] font-bold text-content-muted">
               {symbol}
             </span>
             <span
-              className={`font-bold ${overlay.tone === 'BUY' ? 'text-success' : 'text-danger'
+              className={`font-black ${overlay.tone === 'BUY' ? 'text-success' : 'text-danger'
                 }`}
             >
               {overlay.tone}
             </span>
           </div>
           <div className="w-px h-8 bg-border" />
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-wider text-content-muted">
-              P&L
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-bold text-content-muted">
+              P&amp;L
             </span>
             <span
-              className={`font-bold ${overlay.profit >= 0 ? 'text-success' : 'text-danger'
+              className={`font-black ${overlay.profit >= 0 ? 'text-success' : 'text-danger'
                 }`}
             >
               {overlay.profit >= 0 ? '+' : ''}
@@ -647,11 +647,11 @@ function TradingChartInner({
           {overlay.pipsToTp != null && (
             <>
               <div className="w-px h-8 bg-border" />
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wider text-content-muted">
-                  to TP
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold text-content-muted">
+                  To TP
                 </span>
-                <span className="font-semibold text-success">
+                <span className="font-black text-success">
                   {overlay.pipsToTp.toFixed(1)} pips
                 </span>
               </div>
@@ -660,11 +660,11 @@ function TradingChartInner({
           {overlay.pipsToSl != null && (
             <>
               <div className="w-px h-8 bg-border" />
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wider text-content-muted">
-                  to SL
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold text-content-muted">
+                  To SL
                 </span>
-                <span className="font-semibold text-danger">
+                <span className="font-black text-danger">
                   {overlay.pipsToSl.toFixed(1)} pips
                 </span>
               </div>

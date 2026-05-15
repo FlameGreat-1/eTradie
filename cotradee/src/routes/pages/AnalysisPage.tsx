@@ -61,23 +61,23 @@ export default function AnalysisPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-lg font-bold text-content">Analysis History</h1>
+        <h1 className="text-xl font-black tracking-tight text-content">Analysis History</h1>
         <div className="flex items-center gap-2">
           <input
             type="text"
             value={rerunSymbol}
             onChange={(e) => setRerunSymbol(e.target.value)}
             placeholder="AUDUSDm"
-            className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content
-                       placeholder:text-content-muted focus:border-brand focus:outline-none w-32 focus-ring"
+            className="rounded-2xl border border-border bg-white dark:bg-black px-4 py-2 text-xs font-bold text-content
+                       placeholder:text-content-muted focus:border-brand focus:outline-none w-36 shadow-sm focus-ring"
           />
           <button
             onClick={handleRerun}
             disabled={rerun.isPending || !rerunSymbol.trim()}
-            className="flex items-center gap-1.5 rounded-lg bg-transparent border border-brand px-3 py-2 text-xs font-semibold text-brand
-                       hover:bg-brand/5 disabled:opacity-50 transition-colors duration-fast focus-ring"
+            className="flex items-center gap-2 rounded-2xl bg-white dark:bg-black border border-brand px-4 py-2 text-xs font-bold text-brand
+                       hover:bg-brand/5 disabled:opacity-50 transition-all duration-fast shadow-sm focus-ring"
           >
-            <RefreshCw size={12} className={rerun.isPending ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={rerun.isPending ? 'animate-spin' : ''} />
             Re-analyze
           </button>
         </div>
@@ -87,9 +87,9 @@ export default function AnalysisPage() {
       <AnalysisCountdown />
 
       {/* Desktop grid */}
-      <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
-        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-4 py-2 border-b border-border bg-surface-2
-                        text-[10px] font-semibold text-content-muted uppercase tracking-wider">
+      <div className="hidden md:block rounded-2xl border border-border bg-white dark:bg-black overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-3 border-b border-border bg-surface-1
+                        text-[11px] font-bold text-content-muted tracking-tight">
           <span>Pair</span>
           <span>Direction</span>
           <span>Grade</span>
@@ -120,32 +120,30 @@ export default function AnalysisPage() {
             <div
               key={id || i}
               onClick={() => id && setSelectedId(id)}
-              className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-4 py-3 border-b border-border last:border-b-0
-                         hover:bg-surface-2 transition-colors duration-fast text-xs cursor-pointer group"
+              className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-4 border-b border-border last:border-b-0
+                         hover:bg-surface-1 transition-all duration-fast text-xs cursor-pointer group"
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (id && (e.key === 'Enter' || e.key === ' ')) setSelectedId(id);
               }}
             >
-              <span className="font-bold text-brand truncate">{String(a.pair ?? '')}</span>
-              <span className={isLong ? 'text-success font-medium' : 'text-danger font-medium'}>
+              <span className="font-black text-brand truncate tracking-tight">{String(a.pair ?? '')}</span>
+              <span className={isLong ? 'text-success font-bold' : 'text-danger font-bold'}>
                 {dir}
               </span>
-              <span className="font-semibold text-content">{String(a.setup_grade ?? '-')}</span>
+              <span className="font-bold text-content">{String(a.setup_grade ?? '-')}</span>
               <span
-                className={`font-medium ${
+                className={`font-bold ${
                   a.status === 'success'
                     ? 'text-success'
-                    : a.status === 'no_setup'
-                    ? 'text-content-muted'
                     : 'text-content-muted'
                 }`}
               >
                 {String(a.status ?? '-')}
               </span>
-              <span className="text-content-muted truncate">{String(a.trading_style ?? '')}</span>
-              <span className="text-right text-content-muted">
+              <span className="text-content-muted font-medium truncate">{String(a.trading_style ?? '')}</span>
+              <span className="text-right text-content-muted font-medium">
                 {a.created_at ? formatRelativeTime(String(a.created_at)) : ''}
               </span>
                 <button
@@ -157,7 +155,7 @@ export default function AnalysisPage() {
                   disabled={!id}
                   aria-expanded={isOpen}
                   aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
-                  className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
+                  className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-2xl
                               transition-all duration-300 focus-ring border
                               ${
                                 isOpen
@@ -199,8 +197,8 @@ export default function AnalysisPage() {
               onKeyDown={(e) => {
                 if (id && (e.key === 'Enter' || e.key === ' ')) setSelectedId(id);
               }}
-              className="w-full text-left rounded-xl border border-border bg-surface-1 p-3 hover:bg-surface-2
-                         transition-colors duration-fast focus-ring cursor-pointer"
+              className="w-full text-left rounded-2xl border border-border bg-white dark:bg-black p-4 hover:bg-surface-1
+                         transition-all duration-fast focus-ring cursor-pointer shadow-sm"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-brand text-sm">{a.pair ?? ''}</span>
@@ -212,25 +210,25 @@ export default function AnalysisPage() {
                   >
                     {dir}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (id) setSelectedId(id);
-                    }}
-                    disabled={!id}
-                    aria-expanded={isOpen}
-                    aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
-                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-full
-                                transition-all duration-300 focus-ring border
-                                ${
-                                  isOpen
-                                    ? 'bg-transparent border-brand text-brand'
-                                    : 'bg-surface-2 border-transparent text-content-muted'
-                                }`}
-                  >
-                    <ChevronDown size={14} strokeWidth={2.5} className={isOpen ? 'rotate-180' : ''} />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (id) setSelectedId(id);
+                      }}
+                      disabled={!id}
+                      aria-expanded={isOpen}
+                      aria-label={isOpen ? 'Close analysis details' : 'Open analysis details'}
+                      className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-2xl
+                                  transition-all duration-300 focus-ring border
+                                  ${
+                                    isOpen
+                                      ? 'bg-transparent border-brand text-brand'
+                                      : 'bg-surface-1 border-transparent text-content-muted'
+                                  }`}
+                    >
+                      <ChevronDown size={14} strokeWidth={2.5} className={isOpen ? 'rotate-180' : ''} />
+                    </button>
                 </div>
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px]">
@@ -292,11 +290,11 @@ export default function AnalysisPage() {
                   <button
                     key={item}
                     onClick={() => setPage(item as number)}
-                    className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-medium transition-colors duration-fast focus-ring
+                    className={`flex items-center justify-center w-8 h-8 rounded-2xl text-xs font-bold transition-all duration-fast focus-ring
                                 ${
                                   currentPage === item
-                                    ? 'bg-brand text-white border border-brand'
-                                    : 'border border-border bg-surface-2 text-content-muted hover:bg-surface-3 hover:text-content'
+                                    ? 'bg-brand text-white border border-brand shadow-sm'
+                                    : 'border border-border bg-white dark:bg-black text-content-muted hover:bg-surface-2 hover:text-content'
                                 }`}
                   >
                     {item}
@@ -328,9 +326,9 @@ function PageBtn({
   return (
     <button
       {...props}
-      className="flex items-center justify-center w-8 h-8 rounded-lg border border-border bg-surface-2
-                 text-content-muted hover:bg-surface-3 hover:text-content disabled:opacity-30
-                 disabled:cursor-not-allowed transition-colors duration-fast focus-ring"
+      className="flex items-center justify-center w-8 h-8 rounded-2xl border border-border bg-white dark:bg-black
+                 text-content-muted hover:bg-surface-2 hover:text-content disabled:opacity-30
+                 disabled:cursor-not-allowed transition-all duration-fast focus-ring shadow-sm"
     >
       {children}
     </button>
@@ -347,11 +345,11 @@ function Field({
   valueClass?: string;
 }) {
   return (
-    <div className="flex flex-col min-w-0">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-content-muted truncate">
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] font-bold text-content-muted truncate">
         {label}
       </span>
-      <span className={`font-medium truncate ${valueClass}`}>{value}</span>
+      <span className={`font-black text-xs truncate ${valueClass}`}>{value}</span>
     </div>
   );
 }

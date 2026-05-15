@@ -66,14 +66,14 @@ export default function JournalPage() {
     <div className="p-4 sm:p-6 space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold text-content">Trade Journal</h1>
-          <span className="text-xs text-content-muted">({total})</span>
+          <h1 className="text-xl font-black tracking-tight text-content">Trade Journal</h1>
+          <span className="text-xs font-bold text-content-muted">({total})</span>
         </div>
         <select
           value={period}
           onChange={(e) => setPeriod(e.target.value as Period)}
-          className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-content
-                     focus-ring focus:border-brand transition-colors duration-fast w-full sm:w-auto"
+          className="rounded-2xl border border-border bg-white dark:bg-black px-4 py-2 text-xs font-bold text-content
+                     shadow-sm focus-ring focus:border-brand transition-all duration-fast w-full sm:w-auto"
           aria-label="Performance period"
         >
           <option value="DAILY">Daily</option>
@@ -114,10 +114,10 @@ export default function JournalPage() {
       {calendarOpen && <PnLCalendar onClose={() => setCalendarOpen(false)} />}
 
       {/* Desktop table */}
-      <div className="hidden md:block rounded-xl border border-border bg-surface-1 overflow-hidden">
+      <div className="hidden md:block rounded-2xl border border-border bg-white dark:bg-black overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-surface-2">
+            <thead className="sticky top-0 z-10 bg-surface-1">
               <tr className="border-b border-border text-content-muted">
                 <Th className="w-[12%]">Symbol</Th>
                 <Th className="w-[8%]">Dir</Th>
@@ -184,28 +184,24 @@ export default function JournalPage() {
       </div>
 
       {/* Mobile card list */}
-      <div className="md:hidden space-y-2">
+      <div className="md:hidden space-y-3">
         {isLoading && (
           <>
-            <div className="rounded-xl border border-border bg-surface-1 p-4">
-              <div className="h-3 skeleton w-1/3 mb-2" />
-              <div className="h-3 skeleton w-2/3" />
-            </div>
-            <div className="rounded-xl border border-border bg-surface-1 p-4">
+            <div className="rounded-2xl border border-border bg-white dark:bg-black p-5 shadow-sm">
               <div className="h-3 skeleton w-1/3 mb-2" />
               <div className="h-3 skeleton w-2/3" />
             </div>
           </>
         )}
         {!isLoading && entries.length === 0 && (
-          <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-content-muted">
+          <div className="rounded-2xl border border-border bg-white dark:bg-black p-8 text-center text-[13px] font-bold text-content-muted">
             No closed trades yet.
           </div>
         )}
         {entries.map((e) => (
           <div
             key={e.trade_id}
-            className="rounded-xl border border-border bg-surface-1 p-3"
+            className="rounded-2xl border border-border bg-white dark:bg-black p-4 shadow-sm"
           >
             <div className="flex items-center justify-between">
               <span className="font-bold text-content text-sm">{e.symbol}</span>
@@ -240,11 +236,11 @@ export default function JournalPage() {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          className="flex items-center justify-center w-14 h-14 rounded-full border-[2px] border-[#CCCCCC] dark:border-[#CCCCCC] bg-white dark:bg-[#050505] text-slate-900 dark:text-white shadow-lg hover:scale-105 transition-transform duration-300 group cursor-grab active:cursor-grabbing"
+          className="flex items-center justify-center w-14 h-14 rounded-2xl border border-border bg-white dark:bg-black text-content shadow-pop hover:scale-105 transition-all duration-300 group cursor-grab active:cursor-grabbing"
           aria-label="Open PnL Calendar"
           id="pnl-calendar-fab"
         >
-          <CalendarDays size={24} className="group-hover:animate-pulse pointer-events-none" />
+          <CalendarDays size={24} className="group-hover:animate-pulse pointer-events-none text-brand" />
         </button>
       </div>
     </div>
@@ -255,7 +251,7 @@ function OutcomeChip({ outcome }: { outcome: string }) {
   const isWin = String(outcome).toUpperCase() === 'WIN';
   return (
     <span
-      className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
         isWin ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'
       }`}
     >
@@ -274,11 +270,11 @@ function StatBox({
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface-1 p-3 sm:p-4 shadow-card">
-      <span className="text-[10px] font-medium text-content-muted uppercase tracking-wide block mb-1">
+    <div className="rounded-2xl border border-border bg-white dark:bg-black p-4 shadow-sm transition-all hover:border-brand/30">
+      <span className="text-[11px] font-bold text-content-muted block mb-1.5">
         {label}
       </span>
-      <span className={`text-base sm:text-xl font-bold ${valueClass}`}>{value}</span>
+      <span className={`text-base sm:text-lg font-black ${valueClass}`}>{value}</span>
     </div>
   );
 }
@@ -294,7 +290,7 @@ function Th({
 }) {
   return (
     <th
-      className={`px-4 py-3 font-semibold text-[10px] uppercase tracking-wider whitespace-nowrap text-${align} ${className ?? ''}`}
+      className={`px-4 py-3 font-bold text-[11px] text-content-muted tracking-tight whitespace-nowrap text-${align} ${className ?? ''}`}
     >
       {children}
     </th>
@@ -327,11 +323,11 @@ function Field({
   valueClass?: string;
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-content-muted">
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-bold text-content-muted">
         {label}
       </span>
-      <span className={`font-medium ${valueClass}`}>{value}</span>
+      <span className={`font-black text-xs ${valueClass}`}>{value}</span>
     </div>
   );
 }
