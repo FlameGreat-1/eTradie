@@ -257,7 +257,7 @@ func (m *Manager) Disarm(watcherID string) {
 		// Only unsubscribe from tick cache for INSTANT orders;
 		// LIMIT orders never subscribed.
 		if w.order.ExecutionMode == constants.ModeInstant {
-			m.tickCache.Unsubscribe(w.order.Symbol)
+			m.tickCache.Unsubscribe(w.order.UserID, w.order.Symbol)
 		}
 		// Remove persistence record.
 		if m.store != nil {
