@@ -124,30 +124,178 @@ func (h *AdminBillingHandler) handleSubscriptionPath(w http.ResponseWriter, r *h
 }
 
 // ---------------------------------------------------------------------------
-// Stubs landed in the next commit
+// Handler methods
 // ---------------------------------------------------------------------------
-//
-// The following handler methods are introduced as compiling stubs
-// here and replaced with real implementations in the next commit.
-// Splitting the file keeps each commit reviewable and prevents one
-// over-large diff from being merged without inspection.
 
+// guard is the common preamble for every method: enforce GET, apply
+// the per-admin rate limit, and resolve the admin's user_id. Returns
+// the admin user_id and ok=true to proceed; on false the response has
+// already been written.
+func (h *AdminBillingHandler) guard(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if r.Method != http.MethodGet {
+		rejectMethod(w, http.MethodGet)
+		return "", false
+	}
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	if !h.allowAdmin(claims.UserID) {
+		w.Header().Set("Retry-After", "30")
+		writeJSONError(w, http.StatusTooManyRequests, "too many admin requests; please slow down")
+		return "", false
+	}
+	return claims.UserID, true
+}
+
+// GET /api/v1/admin/billing/subscriptions
 func (h *AdminBillingHandler) handleListSubscriptions(w http.ResponseWriter, r *http.Request) {
-	writeJSONError(w, http.StatusNotImplemented, "not implemented yet")
+	adminID, ok := h.guard(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	filter := billingstore.SubscriptionFilter{
+		Tier:     strings.TrimSpace(q.Get("tier")),
+		Status:   strings.TrimSpace(q.Get("status")),
+		Provider: strings.TrimSpace(q.Get("provider")),
+		Search:   strings.TrimSpace(q.Get("search")),
+	}
+	page := parsePage(r)
+	rows, total, err := h.queries.ListSubscriptions(r.Context(), filter, page)
+	if err != nil {
+		h.log.Error().Err(err).Str("admin_id", adminID).Msg("admin_list_subscriptions_failed")
+		writeJSONError(w, http.StatusInternalServerError, "failed to list subscriptions")
+		return
+	}
+	if rows == nil {
+		rows = []billingstore.AdminSubscriptionRow{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rows":  rows,
+		"total": total,
+		"page":  effectivePage(page),
+		"size":  effectiveSize(page),
+	})
 }
 
+// GET /api/v1/admin/billing/transactions
 func (h *AdminBillingHandler) handleListTransactions(w http.ResponseWriter, r *http.Request) {
-	writeJSONError(w, http.StatusNotImplemented, "not implemented yet")
+	adminID, ok := h.guard(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	filter := billingstore.EventFilter{
+		Provider:  strings.TrimSpace(q.Get("provider")),
+		EventName: strings.TrimSpace(q.Get("event_name")),
+		UserID:    strings.TrimSpace(q.Get("user_id")),
+		Search:    strings.TrimSpace(q.Get("search")),
+	}
+	page := parsePage(r)
+	rows, total, err := h.queries.ListSubscriptionEvents(r.Context(), filter, page)
+	if err != nil {
+		h.log.Error().Err(err).Str("admin_id", adminID).Msg("admin_list_transactions_failed")
+		writeJSONError(w, http.StatusInternalServerError, "failed to list transactions")
+		return
+	}
+	if rows == nil {
+		rows = []billingstore.AdminSubscriptionEventRow{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rows":  rows,
+		"total": total,
+		"page":  effectivePage(page),
+		"size":  effectiveSize(page),
+	})
 }
 
+// GET /api/v1/admin/billing/subscriptions/{user_id}/events
 func (h *AdminBillingHandler) handleUserTransactionHistory(w http.ResponseWriter, r *http.Request, userID string) {
-	writeJSONError(w, http.StatusNotImplemented, "not implemented yet")
+	adminID, ok := h.guard(w, r)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("limit")))
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := h.queries.GetUserSubscriptionEvents(r.Context(), userID, limit)
+	if err != nil {
+		h.log.Error().
+			Err(err).
+			Str("admin_id", adminID).
+			Str("target_user_id", userID).
+			Msg("admin_user_transactions_failed")
+		writeJSONError(w, http.StatusInternalServerError, "failed to list user transactions")
+		return
+	}
+	if rows == nil {
+		rows = []billingstore.AdminSubscriptionEventRow{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rows":    rows,
+		"user_id": userID,
+	})
 }
 
+// GET /api/v1/admin/billing/llm-usage
 func (h *AdminBillingHandler) handleListLLMUsage(w http.ResponseWriter, r *http.Request) {
-	writeJSONError(w, http.StatusNotImplemented, "not implemented yet")
+	adminID, ok := h.guard(w, r)
+	if !ok {
+		return
+	}
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	page := parsePage(r)
+	rows, total, err := h.queries.ListLLMUsage(r.Context(), search, page)
+	if err != nil {
+		h.log.Error().Err(err).Str("admin_id", adminID).Msg("admin_list_llm_usage_failed")
+		writeJSONError(w, http.StatusInternalServerError, "failed to list LLM usage")
+		return
+	}
+	if rows == nil {
+		rows = []billingstore.AdminLLMUsageRow{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rows":  rows,
+		"total": total,
+		"page":  effectivePage(page),
+		"size":  effectiveSize(page),
+	})
 }
 
+// GET /api/v1/admin/billing/llm-usage/aggregate
 func (h *AdminBillingHandler) handleAggregateLLMUsage(w http.ResponseWriter, r *http.Request) {
-	writeJSONError(w, http.StatusNotImplemented, "not implemented yet")
+	adminID, ok := h.guard(w, r)
+	if !ok {
+		return
+	}
+	agg, err := h.queries.AggregateLLMUsage(r.Context())
+	if err != nil {
+		h.log.Error().Err(err).Str("admin_id", adminID).Msg("admin_aggregate_llm_usage_failed")
+		writeJSONError(w, http.StatusInternalServerError, "failed to aggregate LLM usage")
+		return
+	}
+	writeJSON(w, http.StatusOK, agg)
+}
+
+// effectivePage / effectiveSize echo back the post-normalisation
+// values so the SPA can render the page/size it actually got, not
+// what it asked for.
+func effectivePage(p billingstore.Page) int {
+	if p.Page <= 0 {
+		return 1
+	}
+	return p.Page
+}
+
+func effectiveSize(p billingstore.Page) int {
+	if p.Size <= 0 {
+		return 50
+	}
+	if p.Size > 200 {
+		return 200
+	}
+	return p.Size
 }
