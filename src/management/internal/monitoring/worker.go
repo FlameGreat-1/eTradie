@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/flamegreat-1/etradie/src/alert"
-	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/internal/observability"
