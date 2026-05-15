@@ -51,6 +51,29 @@ type rawData struct {
 	Attributes rawAttributes `json:"attributes"`
 }
 
+// rawAttributes is the union of fields we read off both resource families
+// (subscription and subscription_invoice). Unused fields on a given family
+// stay zero-valued; Go's struct-tag-based decoder is happy to skip them.
+//
+// subscription family fields
+//   StoreID..CustomData : pre-existing; consumed to map tier/status.
+//   CardBrand, CardLastFour
+//                       : Lemon Squeezy mirrors the latest card onto the
+//                         subscription resource so we can surface it on
+//                         the very first subscription_created event.
+//
+// subscription_invoice family fields
+//   SubscriptionID      : foreign key back to the subscription resource;
+//                         used as ProviderSubscriptionID for invoice events
+//                         because the invoice resource's own ID is the
+//                         invoice id, not the subscription id.
+//   Currency, Total     : ISO-4217 + integer minor units.
+//   Refunded, RefundedAmount
+//                       : on refund events Refunded=true and
+//                         RefundedAmount carries the amount moved back to
+//                         the customer; total still reflects the original
+//                         charge.
+//   URLs                : object containing invoice_url (PDF link).
 type rawAttributes struct {
 	StoreID    json.Number    `json:"store_id"`
 	CustomerID json.Number    `json:"customer_id"`
@@ -63,6 +86,33 @@ type rawAttributes struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 	Cancelled  bool           `json:"cancelled"`
 	CustomData map[string]any `json:"custom_data"`
+
+	CardBrand    string `json:"card_brand"`
+	CardLastFour string `json:"card_last_four"`
+
+	SubscriptionID  json.Number  `json:"subscription_id"`
+	Currency        string       `json:"currency"`
+	Total           json.Number  `json:"total"`
+	Refunded        bool         `json:"refunded"`
+	RefundedAmount  json.Number  `json:"refunded_amount"`
+	URLs            *rawURLs     `json:"urls"`
+}
+
+type rawURLs struct {
+	InvoiceURL string `json:"invoice_url"`
+}
+
+// isInvoiceEvent reports whether the event name carries a
+// subscription_invoice resource (rather than a subscription resource).
+// Drives how the parser interprets the data block.
+func isInvoiceEvent(name string) bool {
+	switch name {
+	case "subscription_payment_success",
+		"subscription_payment_failed",
+		"subscription_payment_refunded":
+		return true
+	}
+	return false
 }
 
 // Parse turns a verified Lemon Squeezy webhook delivery into a NormalizedEvent.
@@ -120,7 +170,7 @@ func Parse(r *http.Request, body []byte, variants VariantTierMap) (*events.Norma
 		eventTS = time.Now().UTC()
 	}
 
-	return &events.NormalizedEvent{
+	ne := &events.NormalizedEvent{
 		Provider:               Provider,
 		EventID:                eventID,
 		EventName:              eventName,
@@ -131,7 +181,80 @@ func Parse(r *http.Request, body []byte, variants VariantTierMap) (*events.Norma
 		CurrentPeriodEnd:       periodEnd,
 		Tier:                   tier,
 		Status:                 status,
-	}, nil
+	}
+
+	applyPaymentMetadata(ne, eventName, &env.Data.Attributes)
+
+	return ne, nil
+}
+
+// applyPaymentMetadata populates the payment-metadata pointer fields on ne
+// from a Lemon Squeezy data.attributes block. Behaviour depends on the
+// event family:
+//
+//   subscription_* events  : data is a subscription resource; mirror
+//                            attributes.card_brand and card_last_four
+//                            onto ne.Card{Brand,Last4}. Amount/currency/
+//                            invoice fields are not populated (there is
+//                            no money on a subscription state event).
+//
+//   subscription_payment_*: data is a subscription_invoice resource; the
+//                           subscription resource's id lives in
+//                           attributes.subscription_id, so override
+//                           ProviderSubscriptionID with that value (the
+//                           default code path used env.Data.ID which is
+//                           the invoice id, not the subscription id, on
+//                           these events). Populate amount, currency,
+//                           card snapshot and invoice URL.
+func applyPaymentMetadata(ne *events.NormalizedEvent, eventName string, a *rawAttributes) {
+	// Card snapshot is available on both resource families and is purely
+	// additive; do it unconditionally so subscription_created already
+	// populates the Payment Methods card.
+	if brand := strings.ToLower(strings.TrimSpace(a.CardBrand)); brand != "" {
+		ne.CardBrand = events.StringPtr(brand)
+	}
+	if l4 := strings.TrimSpace(a.CardLastFour); l4 != "" {
+		ne.CardLast4 = events.StringPtr(l4)
+	}
+
+	if !isInvoiceEvent(eventName) {
+		return
+	}
+
+	// Invoice events: the resource's id IS the invoice id; the actual
+	// subscription id lives on attributes.subscription_id. Overwrite the
+	// default to match the convention every other event follows.
+	if sid := strings.TrimSpace(a.SubscriptionID.String()); sid != "" {
+		ne.ProviderSubscriptionID = sid
+	}
+
+	// Amount + currency. On refund events we publish refunded_amount
+	// when present so the audit row reflects the money moved back to
+	// the customer; otherwise we publish total.
+	var amountStr string
+	if eventName == "subscription_payment_refunded" && a.Refunded {
+		if s := strings.TrimSpace(a.RefundedAmount.String()); s != "" && s != "0" {
+			amountStr = s
+		}
+	}
+	if amountStr == "" {
+		amountStr = strings.TrimSpace(a.Total.String())
+	}
+	if amountStr != "" {
+		if n, err := strconv.ParseInt(amountStr, 10, 64); err == nil {
+			ne.AmountCents = events.Int64Ptr(n)
+		}
+	}
+	if cur := strings.ToUpper(strings.TrimSpace(a.Currency)); cur != "" && ne.AmountCents != nil {
+		ne.Currency = events.StringPtr(cur)
+	}
+
+	// Invoice URL: direct PDF link hosted by Lemon Squeezy.
+	if a.URLs != nil {
+		if u := strings.TrimSpace(a.URLs.InvoiceURL); u != "" {
+			ne.InvoiceURL = events.StringPtr(u)
+		}
+	}
 }
 
 func extractUserID(cd map[string]any) string {
