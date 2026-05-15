@@ -1,3 +1,5 @@
+import type { AuthUser } from './types';
+
 export { AuthProvider, useAuth } from './context/AuthContext';
 export type {
   AuthUser,
@@ -9,7 +11,6 @@ export type {
   OAuthCallbackRequest,
   OAuthCallbackResponse,
 } from './types';
-import type { AuthUser } from './types';
 
 /**
  * Returns true when the user is exempt from all subscription-tier

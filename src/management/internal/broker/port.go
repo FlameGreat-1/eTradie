@@ -6,11 +6,13 @@ import (
 	"time"
 )
 
-// ErrNoBrokerConfigured is returned by StreamPositions when the Engine
-// indicates that the user has no active broker connection (WebSocket
-// close code 4004). Callers should apply exponential backoff rather
-// than retrying at a fixed interval, since the user must configure a
-// broker connection before streaming can succeed.
+// ErrNoBrokerConfigured is emitted on the errors channel of
+// WatchPositions when the engine responds with HTTP 503 and a body
+// indicating that the user has no active broker connection (see the
+// engine's `_resolve_user_broker` helper). Callers should apply
+// exponential backoff rather than retrying at a fixed interval,
+// since the user must configure a broker connection before the
+// watcher can produce data.
 var ErrNoBrokerConfigured = errors.New("no broker connection configured for user")
 
 // TickPrice holds the latest bid/ask for a symbol.

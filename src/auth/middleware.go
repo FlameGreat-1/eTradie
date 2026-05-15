@@ -12,9 +12,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// (strings is used by InjectIdentity above, but Go's import block has
-//  already pulled it in for extractWebSocketToken / extractBearerToken.)
-
 // ---------------------------------------------------------------------------
 // Context keys
 // ---------------------------------------------------------------------------
