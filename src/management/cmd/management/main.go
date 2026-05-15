@@ -293,7 +293,12 @@ func main() {
 		// the user's identity (sub, username, role) so the Python engine
 		// resolves the correct broker connection identically to a session
 		// token. The service token has a 30-day TTL for autonomous operation.
-		serviceTokens := make(map[string]string) // userID -> service JWT
+		//
+		// We also cache the full *auth.User row keyed by ID so the
+		// restoreTradeFromRecord call below can stamp Username/Role/Tier/
+		// StatusJWT onto each Trade without re-fetching the row.
+		serviceTokens := make(map[string]string)     // userID -> service JWT
+		userByID := make(map[string]*auth.User)      // userID -> User row
 		for userID := range userIDs {
 			user, err := userStore.GetUserByID(ctx, userID)
 			if err != nil || user == nil {
@@ -310,6 +315,7 @@ func main() {
 				continue
 			}
 			serviceTokens[userID] = svcToken
+			userByID[userID] = user
 			log.Info().
 				Str("user_id", userID).
 				Str("username", user.Username).
@@ -317,10 +323,12 @@ func main() {
 				Msg("service_token_issued_for_trade_restoration")
 		}
 
-		// Restore trades with their service tokens and register for monitoring.
+		// Restore trades with their service tokens AND identity fields
+		// so background workers can build claims-bearing contexts.
 		for _, rec := range activeTrades {
-			authToken := serviceTokens[rec.UserID] // empty string if lookup failed
-			trade := restoreTradeFromRecord(rec, authToken)
+			authToken := serviceTokens[rec.UserID] // empty if lookup failed
+			user := userByID[rec.UserID]           // nil if lookup failed
+			trade := restoreTradeFromRecord(rec, authToken, user)
 			mgr.RegisterTrade(trade)
 		}
 
@@ -520,11 +528,18 @@ func main() {
 
 // restoreTradeFromRecord reconstructs an in-memory Trade from a DB record.
 // Used on service restart to resume monitoring of active trades.
-// UserID is restored from the database. authToken is a long-lived service
-// token issued for the trade's owner so that background monitoring,
-// EOD checks, news protection, and invalidation engines can make
-// authenticated broker calls from second zero after restart.
-func restoreTradeFromRecord(rec *journal.TradeRecord, authToken string) *types.Trade {
+// UserID is restored from the database. The four extra identity fields
+// (Username, Role, Tier, StatusJWT) come from the cached User row we
+// already looked up to mint the service token, so no extra DB round
+// trip is paid here.
+func restoreTradeFromRecord(rec *journal.TradeRecord, authToken string, user *auth.User) *types.Trade {
+	var username, role, tier, statusJWT string
+	if user != nil {
+		username = user.Username
+		role = string(user.Role)
+		tier = user.Tier
+		statusJWT = user.Status
+	}
 	return &types.Trade{
 		TradeID:          rec.TradeID,
 		Symbol:           rec.Symbol,
@@ -532,6 +547,10 @@ func restoreTradeFromRecord(rec *journal.TradeRecord, authToken string) *types.T
 		BrokerOrderID:    rec.BrokerOrderID,
 		AnalysisID:       rec.AnalysisID,
 		UserID:           rec.UserID,
+		Username:         username,
+		Role:             role,
+		Tier:             tier,
+		StatusJWT:        statusJWT,
 		AuthToken:        authToken,
 		TradingStyle:     constants.TradingStyle(rec.TradingStyle),
 		Grade:            rec.Grade,

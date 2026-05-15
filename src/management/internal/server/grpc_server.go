@@ -134,6 +134,9 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		Msg("register_filled_trade_received")
 
 	// Build the in-memory trade object.
+	// Identity fields are stamped here, at the trust boundary; the
+	// monitoring worker reads them via Trade.IdentityCtx and never
+	// re-parses the JWT.
 	trade := &types.Trade{
 		TradeID:          tradeID,
 		Symbol:           req.GetSymbol(),
@@ -142,6 +145,10 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		AnalysisID:       req.GetAnalysisId(),
 		TraceID:          req.GetTraceId(),
 		UserID:           userID,
+		Username:         claims.Username,
+		Role:             string(claims.Role),
+		Tier:             claims.Tier,
+		StatusJWT:        claims.Status,
 		AuthToken:        authToken,
 		TradingStyle:     constants.TradingStyle(req.GetTradingStyle()),
 		Grade:            req.GetGrade(),
