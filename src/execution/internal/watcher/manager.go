@@ -196,9 +196,21 @@ func (m *Manager) Arm(order *models.Order) {
 	if order.ExecutionMode == constants.ModeInstant {
 		m.tickCache.Subscribe(order.Symbol)
 
-		// Ensure the tick cache has a valid auth token for broker calls.
-		// Tick prices are not user-scoped, so any valid token works.
-		if order.AuthToken != "" {
+		// Ensure the tick cache has a real identity for broker calls.
+		// Engine /internal/broker/* resolves the per-user broker from
+		// X-User-Id (= claims.UserID); a token-only context would be
+		// treated as anonymous and rejected with 401.
+		if order.UserID != "" {
+			m.tickCache.SetServiceIdentity(&auth.Claims{
+				UserID:   order.UserID,
+				Username: order.Username,
+				Role:     auth.Role(order.Role),
+				Tier:     order.Tier,
+				Status:   order.StatusJWT,
+			}, order.AuthToken)
+		} else if order.AuthToken != "" {
+			// Pre-upgrade restored order without identity fields:
+			// fall back to the parse-the-token shim.
 			m.tickCache.SetAuthToken(order.AuthToken)
 		}
 	}
