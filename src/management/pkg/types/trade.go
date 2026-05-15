@@ -1,9 +1,11 @@
 package types
 
 import (
+	"context"
 	"sync"
 	"time"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 )
 
@@ -26,7 +28,16 @@ type Trade struct {
 	// Auth context (for background monitoring worker goroutines).
 	// Set when the trade is registered via gRPC and used by the worker
 	// to make authenticated calls to the Python engine broker endpoints.
+	//
+	// All five fields originate at the trust boundary (TokenService
+	// in src/auth) and flow top-down. They are NEVER derived from the
+	// JWT inside hot paths; whoever mints the service token / receives
+	// the user request stamps them onto the Trade once.
 	UserID    string // Owner of this trade (auth user ID from JWT "sub" claim)
+	Username  string // Owner's username (auth user username from JWT "username" claim)
+	Role      string // Owner's role ("admin" / "etradie") from JWT "role" claim
+	Tier      string // Owner's tier ("free" / "pro_byok" / "pro_managed")
+	StatusJWT string // Owner's subscription status ("active" / "past_due" / ...). Named StatusJWT to avoid collision with Trade.Status (trade-state machine).
 	AuthToken string // Raw JWT token for authenticated downstream HTTP calls
 
 	// Execution context.
@@ -77,6 +88,28 @@ type Trade struct {
 	ClosedAt time.Time
 	SLMoves  int // Count of SL adjustments
 	Partials int // Count of partial closes
+}
+
+// IdentityCtx returns a context derived from `parent` with the
+// trade's owner identity injected as parsed *auth.Claims AND with
+// the raw JWT injected for back-compat with any callee that still
+// reads RawTokenFromContext.
+//
+// The caller must already hold (or not need) the read lock — this
+// helper does not lock the struct internally, matching the pattern
+// used by IsLong / IsSLHit / etc. across this package. In practice
+// every call site already takes a snapshot of the identity fields
+// under RLock and then calls IdentityCtx with those local copies
+// expanded — see runWorker in monitoring/worker.go.
+func (t *Trade) IdentityCtx(parent context.Context) context.Context {
+	ctx := auth.InjectIdentity(
+		parent,
+		t.UserID, t.Username, auth.Role(t.Role), t.Tier, t.StatusJWT,
+	)
+	if t.AuthToken != "" {
+		ctx = auth.InjectTokenIntoContext(ctx, t.AuthToken)
+	}
+	return ctx
 }
 
 // Lock acquires the write lock.
