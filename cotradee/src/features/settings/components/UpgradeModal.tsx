@@ -5,7 +5,7 @@ import { AxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 import { useToast } from '@/hooks/useToast';
-import { useAuth } from '@/features/auth';
+import { useAuth, isTierUnrestricted } from '@/features/auth';
 
 interface Subscription {
   tier: string;
@@ -94,6 +94,7 @@ export default function UpgradeModal() {
   const [loadingTier, setLoadingTier] = useState<Tier | null>(null);
   const [provider, setProvider] = useState<Provider>('paddle');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Read subscription state from the shared React Query cache. The
   // realtime event provider invalidates this key when a SUBSCRIPTION_*
@@ -101,8 +102,20 @@ export default function UpgradeModal() {
   // without any extra wiring.
   const { data: currentSub } = useBillingSubscription();
 
+  // Admins and paying tiers are exempt from the upgrade prompt.
+  // The modal still mounts globally (so other authenticated users
+  // can open it from any route), but the open event becomes a no-op
+  // for unrestricted users. This mirrors the backend, which never
+  // 403s these users with error_code=tier_required.
+  const isUnrestricted = isTierUnrestricted(user);
+
   useEffect(() => {
     const handleOpen = () => {
+      if (isUnrestricted) {
+        // No-op: admins do not have a subscription record and paying
+        // users already cleared the gate that triggers this event.
+        return;
+      }
       setIsOpen(true);
       document.body.style.overflow = 'hidden';
     };
@@ -112,7 +125,7 @@ export default function UpgradeModal() {
       window.removeEventListener('open-upgrade-modal', handleOpen);
       document.body.style.overflow = 'auto';
     };
-  }, []);
+  }, [isUnrestricted]);
 
   const handleClose = () => {
     setIsOpen(false);

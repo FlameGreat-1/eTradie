@@ -11,7 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/features/auth';
+import { useAuth, isAdmin } from '@/features/auth';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
 import UsagePanel from '@/features/settings/components/UsagePanel';
 
@@ -73,6 +73,50 @@ export default function BillingSection() {
   const StatusIcon = statusInfo.icon;
 
   const isFree = tier === 'free';
+  const admin = isAdmin(user);
+
+  // Admins do not have a subscription record. The backend exempts
+  // them from every tier check (see api_handlers.go / router.go).
+  // Render an "Unrestricted Access" surface instead of the upgrade
+  // funnel + plan-limits comparison that targets free users.
+  if (admin) {
+    return (
+      <div className="space-y-10 max-w-2xl">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col gap-0.5">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Account</div>
+              <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Subscription</h3>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-success/20 bg-success/10 text-success text-[10px] font-black uppercase tracking-widest shadow-sm">
+              <ShieldCheck size={12} strokeWidth={3} />
+              Admin
+            </span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl border border-success/20 bg-success/10 shadow-sm">
+              <Crown size={32} className="text-success" strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-2xl font-black tracking-tight text-success">Unrestricted Access</p>
+              <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed max-w-sm">
+                Administrator accounts bypass all subscription gating.
+                You have full access to every feature without a paid plan.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
+          <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
+            Platform terms still apply. See our{' '}
+            <Link to="/terms" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Terms of Service</Link>{' '}and{' '}
+            <Link to="/privacy" className="font-bold text-black dark:text-white hover:underline underline-offset-4">Privacy Policy</Link>.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 max-w-2xl">
