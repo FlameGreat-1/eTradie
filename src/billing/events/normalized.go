@@ -52,6 +52,14 @@ const (
 // parsers must reject events that lack it (the only legitimate exception is a
 // subscription_updated whose user_id can be recovered via
 // (provider, provider_subscription_id) lookup — the service handles that).
+//
+// Payment-metadata fields (Amount, Currency, InvoiceURL, Card*) are optional
+// pointers so 'absent' is unambiguous from 'zero'. A $0 refund must still be
+// representable. Only events that carry a real money movement populate
+// Amount/Currency/InvoiceURL; only events that carry card metadata populate
+// the Card* group. The applier writes these to billing_subscription_events
+// as-is and additionally mirrors the Card* group onto billing_subscriptions
+// so the Payment Methods card surfaces the active method.
 type NormalizedEvent struct {
 	Provider       string    // "paddle" | "lemonsqueezy"
 	EventID        string    // unique-per-event id (used for idempotency)
@@ -65,4 +73,35 @@ type NormalizedEvent struct {
 
 	Tier   Tier
 	Status Status
+
+	// Money moved on this event in integer minor units (e.g. 999 = $9.99).
+	// nil on non-financial events (subscription_updated, paused, etc.).
+	AmountCents *int64
+	// ISO-4217 alphabetic, uppercase. nil iff AmountCents is nil.
+	Currency *string
+	// Direct HTTPS link to the Merchant-of-Record-hosted invoice PDF.
+	// nil for events the provider does not link to a receipt.
+	InvoiceURL *string
+
+	// Card snapshot at the time of this event. Display-only. nil if the
+	// provider did not echo card metadata on this event type. Never
+	// contains a PAN or CVV — those stay with the MoR.
+	CardBrand    *string
+	CardLast4    *string
+	CardExpMonth *int
+	CardExpYear  *int
 }
+
+// Helper constructors for the parsers. They normalise empty strings
+// to nil so a provider returning '' is treated identically to a
+// provider returning a missing field.
+
+func StringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func Int64Ptr(v int64) *int64  { return &v }
+func IntPtr(v int) *int        { return &v }

@@ -159,10 +159,54 @@ CREATE TABLE IF NOT EXISTS billing_subscription_events (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Payment-event metadata (additive; populated only on events the
+-- provider links to a real money movement). Industry-standard SaaS
+-- invoice history reads these columns directly without any join.
+--   amount_cents : integer minor units (e.g. 999 = $9.99). Avoids the
+--                  rounding hazards of FLOAT for money. Nullable so
+--                  non-financial events (tier changes, paused, etc.)
+--                  do not pollute aggregates.
+--   currency     : ISO-4217 alphabetic, uppercase. NULL iff amount_cents
+--                  is NULL — enforced at write time by the applier.
+--   invoice_url  : direct provider-hosted PDF link (Paddle invoice_url,
+--                  Lemon Squeezy urls.invoice_url). We never proxy
+--                  this through our backend; users click straight
+--                  through to the Merchant of Record.
+--   card_brand   : lower-case provider value ('visa', 'mastercard', ...).
+--                  Display-only; PCI scope stays with the MoR.
+--   card_last4   : 4-digit string. We NEVER store PAN.
+--   card_exp_*   : month 1..12, year four-digit. Both nullable.
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS amount_cents   BIGINT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS currency       TEXT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS invoice_url    TEXT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS card_brand     TEXT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS card_last4     TEXT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS card_exp_month SMALLINT;
+ALTER TABLE billing_subscription_events ADD COLUMN IF NOT EXISTS card_exp_year  SMALLINT;
+
 CREATE INDEX IF NOT EXISTS idx_billing_subscription_events_user
     ON billing_subscription_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_billing_subscription_events_provider_event
     ON billing_subscription_events(provider, event_id);
+
+-- Drives the user-facing Invoice History feed:
+--   WHERE user_id = $1 AND event_name = ANY($2) ORDER BY created_at DESC
+-- The partial predicate keeps the index small (only ~5 event types
+-- count as 'financial' across both providers); the leading user_id
+-- column means every per-user query is a single index seek.
+CREATE INDEX IF NOT EXISTS idx_billing_subscription_events_user_event_name
+    ON billing_subscription_events(user_id, event_name, created_at DESC);
+
+-- Latest card snapshot per user. Populated by the applier from any
+-- event that carries card metadata; overwrites previous values so the
+-- Payment Methods card always renders the active method without a
+-- separate "payment_methods" table. NULL until the first event with
+-- card metadata lands (which is correct for free users — they have
+-- never paid, so there is no card).
+ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS card_brand     TEXT;
+ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS card_last4     TEXT;
+ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS card_exp_month SMALLINT;
+ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS card_exp_year  SMALLINT;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Checkout-intent idempotency: short-lived (user_id, provider, tier) cache
