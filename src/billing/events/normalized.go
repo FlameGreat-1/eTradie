@@ -77,7 +77,10 @@ type NormalizedEvent struct {
 	// Money moved on this event in integer minor units (e.g. 999 = $9.99).
 	// nil on non-financial events (subscription_updated, paused, etc.).
 	AmountCents *int64
-	// ISO-4217 alphabetic, uppercase. nil iff AmountCents is nil.
+	// ISO-4217 alphabetic, uppercase. Parsers only set Currency when
+	// AmountCents is non-nil; the converse is not enforced (a money
+	// movement without a currency code would be a provider bug, not a
+	// representable state).
 	Currency *string
 	// Direct HTTPS link to the Merchant-of-Record-hosted invoice PDF.
 	// nil for events the provider does not link to a receipt.

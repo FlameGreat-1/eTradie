@@ -545,6 +545,52 @@ feature flag.
 
 ---
 
+## 11a. Provider dashboard subscriptions (operational TODO)
+
+The billing service's parsers support every webhook event the
+dashboard's Invoice History feed needs, but the SaaS providers will
+only DELIVER an event we have subscribed to. Two operational steps
+are required after the binary is deployed; missing either leaves
+the Invoice History feed empty for that provider even though the
+code path is wired end-to-end.
+
+### Paddle (required for Invoice History on Paddle)
+
+`transaction.completed` is in `paddle.isHandledEvent` and the parser
+surfaces amount, currency, and card snapshot from it. But the Paddle
+dashboard does NOT subscribe newly-created webhook endpoints to
+`transaction.completed` by default — only to the `subscription.*`
+family.
+
+In the Paddle dashboard, for each environment (sandbox + production):
+
+1. Open **Developer Tools → Notifications → Settings** for the
+   billing-service webhook endpoint.
+2. Under **Events to notify**, enable the entry for
+   `transaction.completed` in addition to the existing
+   `subscription.created`, `subscription.activated`,
+   `subscription.updated`, `subscription.canceled`,
+   `subscription.paused`, `subscription.resumed`, and
+   `subscription.past_due` entries.
+3. Save. Trigger one test payment through Paddle's checkout sandbox
+   and confirm a `billing_subscription_events` row lands with
+   `event_name='transaction_completed'` and non-NULL `amount_cents`.
+
+Without this step, paying Paddle customers will see an empty Invoice
+History feed on the dashboard. Their subscription tier and status
+still update correctly (those come from the `subscription.*` events
+which are already subscribed); only the per-payment receipt rows are
+missing.
+
+### Lemon Squeezy (already configured by the existing rollout)
+
+The `subscription_payment_success`, `subscription_payment_failed`,
+and `subscription_payment_refunded` events are part of the standard
+Lemon Squeezy webhook subscription set and are already enabled on
+the production webhook endpoint. No additional step is required.
+
+---
+
 ## 12. Platform-wide auth posture (cookie-auth, complete)
 
 The frontend no longer stores any JWT in `localStorage`. The access
