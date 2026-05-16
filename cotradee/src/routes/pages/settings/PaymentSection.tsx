@@ -57,12 +57,18 @@ export default function PaymentSection() {
 
   return (
     <div className={wrapClass}>
-      {/* Payment Methods. The admin branch still shows the same
-          MoR-managed card render because admins also have personal
-          subscriptions; only the surrounding global panels change. */}
-      <PaymentMethodsCard />
+      {/* Payment Methods card is REGULAR-USER ONLY. Admins bypass all
+          subscription tier checks (see BillingSection's 'Unrestricted
+          Access' card and the backend RequireAdmin middleware), so a
+          Payment Methods card on the admin view would either render
+          an empty state or leak personal billing context into the
+          operator surface. */}
+      {!admin && <PaymentMethodsCard />}
 
-      {/* Admin-only: global payment-transactions audit feed. */}
+      {/* Admin-only: global payment-transactions audit feed. This is
+          the canonical admin surface on the Payment page — it
+          supersedes both the Payment Methods card and the per-user
+          Invoice History feed. */}
       {admin && <AdminTransactionsPanel />}
 
       {/* Invoice History (regular users only — admins see the global
