@@ -20,6 +20,7 @@ import {
 } from '@/features/llm/api/llmConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import { useAuth, isAdmin } from '@/features/auth';
+import { useToast } from '@/hooks/useToast';
 
 export default function LlmSection() {
   const { data: connections } = useLlmConnections();
@@ -34,6 +35,7 @@ export default function LlmSection() {
     useTierGate();
   const { user } = useAuth();
   const admin = isAdmin(user);
+  const { toast } = useToast();
 
   // The Platform Key toggle is available to admins and Pro Managed users.
   // Backend parity: auth.Config.LLMQuotaPolicyForTier maps "admin" to the
@@ -68,11 +70,6 @@ export default function LlmSection() {
     setShowForm(false);
     setForm({ provider: '', model_id: '', api_key: '' });
   };
-
-  // Lazy import of the toast hook keeps the component's import block
-  // unchanged at the top; we only need it on the no-platform-key
-  // branch so a per-render require is cheaper than reshuffling.
-  const { toast } = require('@/hooks/useToast');
 
   const handleToggleClick = async () => {
     // Tier-aware behaviour for the Platform Key toggle.
