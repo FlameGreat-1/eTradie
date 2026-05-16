@@ -10,18 +10,28 @@ import {
 const PAGE_SIZE = 20;
 
 const PROVIDERS = ['', 'paddle', 'lemonsqueezy'];
+// EVENT_NAMES mirrors the lowercase, snake_case event names actually
+// emitted by the Paddle and Lemon Squeezy parsers — see
+// src/billing/paddle/parser.go::normalizeEventName and
+// src/billing/lemonsqueezy/parser.go::isHandledEvent. Any value here
+// that does not match a real parser output silently returns zero rows
+// from the backend filter (e.event_name = $).
 const EVENT_NAMES = [
   '',
-  'SUBSCRIPTION_CREATED',
-  'SUBSCRIPTION_UPDATED',
-  'SUBSCRIPTION_RENEWED',
-  'SUBSCRIPTION_PAUSED',
-  'SUBSCRIPTION_RESUMED',
-  'SUBSCRIPTION_CANCELED',
-  'SUBSCRIPTION_REFUNDED',
-  'SUBSCRIPTION_PAST_DUE',
-  'PAYMENT_SUCCEEDED',
-  'PAYMENT_FAILED',
+  'subscription_created',
+  'subscription_updated',
+  'subscription_canceled',
+  'subscription_paused',
+  'subscription_resumed',
+  'subscription_activated',
+  'subscription_past_due',
+  'transaction_completed',
+  'subscription_cancelled',
+  'subscription_expired',
+  'subscription_unpaused',
+  'subscription_payment_success',
+  'subscription_payment_failed',
+  'subscription_payment_refunded',
 ];
 
 // AdminTransactionsPanel is rendered inline inside PaymentSection when
