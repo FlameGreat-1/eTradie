@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth, isAdmin } from '@/features/auth';
+import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import { AdminTransactionsPanel } from '@/features/settings/components/AdminTransactionsPanel';
 import { useBillingPortal } from '@/features/settings/api/billingPortal';
 import {
@@ -121,7 +122,10 @@ function PaymentMethodsCard() {
           </p>
         </div>
       ) : data === null ? (
-        <NoPaymentMethodState />
+        <NoPaymentMethodState
+          onUpdate={() => openPortal.mutate()}
+          portalPending={openPortal.isPending}
+        />
       ) : (
         <PaymentMethodPopulated
           method={data}
@@ -147,7 +151,48 @@ function PaymentMethodsSkeleton() {
   );
 }
 
-function NoPaymentMethodState() {
+// NoPaymentMethodState renders when /api/v1/billing/payment-method
+// returns 204 (no card snapshot stored on billing_subscriptions). The
+// CTA must branch on the resolved tier:
+//
+//   - free        : UpgradeModal (canonical subscribe flow).
+//   - pro_byok    : customer portal (already paid; a missing
+//                   snapshot is an administrative state, not a
+//                   fresh-subscribe gap).
+//   - pro_managed : customer portal (same reasoning).
+//
+// Previously the click unconditionally dispatched 'open-upgrade-modal'.
+// That event is consumed by UpgradeModal whose handler short-circuits
+// for paying tiers (isTierUnrestricted=true), producing a silent no-op
+// that 'felt stiff' from the user's perspective.
+function NoPaymentMethodState({
+  onUpdate,
+  portalPending,
+}: {
+  onUpdate: () => void;
+  portalPending: boolean;
+}) {
+  const { isProBYOK, isProManaged } = useTierGate();
+  const isPaid = isProBYOK || isProManaged;
+
+  const ctaLabel = isPaid
+    ? (portalPending ? 'Redirecting…' : 'Update payment method')
+    : 'Subscribe to a plan';
+
+  const handleClick = () => {
+    if (isPaid) {
+      // Paying user with no card snapshot stored — send them to the
+      // provider portal so they can add/update payment method. The
+      // resulting subscription_* webhook will repopulate the snapshot
+      // on billing_subscriptions and the empty state flips to the
+      // populated render on the next refetch.
+      onUpdate();
+      return;
+    }
+    // Free tier (or any restricted state): canonical upgrade flow.
+    window.dispatchEvent(new Event('open-upgrade-modal'));
+  };
+
   return (
     <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-black p-12 text-center shadow-sm">
       <CreditCard size={40} className="text-black/10 dark:text-white/10 mx-auto mb-4" strokeWidth={1.5} />
@@ -155,13 +200,18 @@ function NoPaymentMethodState() {
         No payment method on file
       </p>
       <p className="text-[11px] font-medium text-black/40 dark:text-white/40 mt-1 max-w-[280px] mx-auto leading-relaxed">
-        Payment methods are added during checkout and managed through our secure payment provider.
+        {isPaid
+          ? 'You are on a paid plan but no card is currently linked. Update your payment method through our secure provider.'
+          : 'Payment methods are added during checkout and managed through our secure payment provider.'}
       </p>
       <button
-        onClick={() => window.dispatchEvent(new Event('open-upgrade-modal'))}
-        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
+        type="button"
+        onClick={handleClick}
+        disabled={isPaid && portalPending}
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
       >
-        Subscribe to a plan
+        {isPaid && <ExternalLink size={12} strokeWidth={3} />}
+        {ctaLabel}
       </button>
     </div>
   );
