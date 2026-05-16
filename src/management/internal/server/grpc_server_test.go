@@ -101,6 +101,14 @@ func (m *mockMonitor) RefreshUserTradeTokens(userID, newToken string) int {
 	return 0
 }
 
+// RefreshUserTradeIdentity satisfies the TradeMonitor interface. The
+// production *monitoring.Manager overwrites the full identity on every
+// matching trade; the mock has no trades to mutate, so this is a no-op
+// that returns 0 ("zero trades refreshed") to keep the contract honest.
+func (m *mockMonitor) RefreshUserTradeIdentity(claims *auth.Claims, newToken string) int {
+	return 0
+}
+
 type mockMetrics struct{}
 
 func (m *mockMetrics) Calculate(ctx context.Context, userID, period string) (*analytics.PerformanceSummary, error) {
