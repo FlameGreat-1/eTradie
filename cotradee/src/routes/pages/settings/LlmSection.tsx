@@ -69,11 +69,33 @@ export default function LlmSection() {
     setForm({ provider: '', model_id: '', api_key: '' });
   };
 
+  // Lazy import of the toast hook keeps the component's import block
+  // unchanged at the top; we only need it on the no-platform-key
+  // branch so a per-render require is cheaper than reshuffling.
+  const { toast } = require('@/hooks/useToast');
+
   const handleToggleClick = async () => {
     // Tier-aware behaviour for the Platform Key toggle.
     if (!platformKeyAvailable) {
-      // The engine WILL reject any pro_byok or free user that tries to
-      // run analysis on the platform key, so we keep parity in the UX.
+      // Pro BYOK users are a paid tier (so isTierUnrestricted() is true
+      // for them and the shared UpgradeModal no-ops), but they cannot
+      // use the platform AI key — the engine rejects it for any tier
+      // other than pro_managed / admin. Previously this branch called
+      // openUpgradeModal() which silently did nothing for pro_byok
+      // users; the click 'felt stiff' because there was no UI signal
+      // at all. Surface a clear toast that explains the gate and
+      // points to the billing surface for an upgrade.
+      if (isProBYOK) {
+        toast({
+          title: 'Platform AI is a Pro Managed feature',
+          description:
+            'You are on Pro BYOK. Switch to Pro Managed from Settings → Billing to use the platform key.',
+          variant: 'warning',
+        });
+        return;
+      }
+      // Free tier (and any other restricted state): the canonical
+      // upgrade flow.
       openUpgradeModal();
       return;
     }
@@ -85,8 +107,15 @@ export default function LlmSection() {
     if (platformKeyOn) {
       // Currently using platform key — nothing to toggle off without an
       // alternative connection. Open the 'add connection' form so the
-      // user can attach a personal key first.
+      // user can attach a personal key first AND toast to explain
+      // why the form appeared (otherwise the toggle 'doing nothing'
+      // looks like a broken click).
       setShowForm(true);
+      toast({
+        title: 'Add a personal API key first',
+        description:
+          'To switch off Platform AI, add and activate your own API key below. Toggling will reactivate Platform AI.',
+      });
       return;
     }
 
@@ -124,6 +153,7 @@ export default function LlmSection() {
           )}
         </div>
         <button
+          type="button"
           onClick={() => setShowForm((p) => !p)}
           className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
         >
@@ -239,6 +269,7 @@ export default function LlmSection() {
           )}
 
           <button
+            type="button"
             onClick={handleCreate}
             disabled={createConn.isPending || !form.model_id || !form.api_key}
             className="w-fit rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
@@ -276,24 +307,30 @@ export default function LlmSection() {
               <div className="flex items-center gap-2">
                 {isActive ? (
                   <button
+                    type="button"
                     onClick={() => deactivate.mutate(id)}
-                    className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100"
+                    disabled={deactivate.isPending}
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-all opacity-100 disabled:opacity-40"
                     title="Deactivate"
                   >
                     <PowerOff size={16} strokeWidth={3} />
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => activate.mutate(id)}
-                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-40 group-hover:opacity-100"
+                    disabled={activate.isPending}
+                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-100 disabled:opacity-40"
                     title="Activate"
                   >
                     <Power size={16} strokeWidth={3} />
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => deleteConn.mutate(id)}
-                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100"
+                  disabled={deleteConn.isPending}
+                  className="p-2 rounded-lg text-black/40 dark:text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-100 disabled:opacity-40"
                   title="Delete"
                 >
                   <Trash2 size={16} strokeWidth={3} />
