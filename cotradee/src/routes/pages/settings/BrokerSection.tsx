@@ -3,7 +3,7 @@ import {
   useBrokerConnections, useActiveBrokerConnection,
   useCreateBrokerConnection, useActivateBroker, useTestBrokerConnection, useDeleteBrokerConnection,
 } from '@/features/broker/api/brokerConnections';
-import { Plus, Trash2, Zap, Check, AlertCircle, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Zap, Check, AlertCircle, ChevronDown, Loader2 } from 'lucide-react';
 
 type BrokerForm = {
   connection_type: 'ea' | 'metaapi' | 'hosted';
@@ -33,6 +33,21 @@ export default function BrokerSection() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<BrokerForm>(INITIAL_FORM);
+  // Per-row pending state for the Test button. The mutation hook's
+  // own isPending flag is global to the hook instance, so binding the
+  // row's spinner to it would light up every row's icon whenever
+  // ANY Test is in flight. A local Set<id> keyed by connection id
+  // gives us precise per-row feedback.
+  const [testingIds, setTestingIds] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set());
+
+  const setMember = (set: Set<string>, id: string, present: boolean): Set<string> => {
+    const next = new Set(set);
+    if (present) next.add(id);
+    else next.delete(id);
+    return next;
+  };
 
   const conns: Record<string, unknown>[] = Array.isArray(connections) ? connections : [];
 
@@ -74,7 +89,7 @@ export default function BrokerSection() {
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Connectivity</div>
           <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Broker Connections</h3>
         </div>
-        <button onClick={() => setShowForm((p) => !p)}
+        <button type="button" onClick={() => setShowForm((p) => !p)}
           className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all">
           <Plus size={14} strokeWidth={3} /> Add Connection
         </button>
@@ -155,7 +170,7 @@ export default function BrokerSection() {
               </>
             )}
           </div>
-          <button onClick={handleCreate} disabled={createConn.isPending}
+          <button type="button" onClick={handleCreate} disabled={createConn.isPending}
             className="w-fit rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40">
             {createConn.isPending ? 'Creating…' : 'Create Connection'}
           </button>
@@ -183,19 +198,55 @@ export default function BrokerSection() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => testConn.mutate(id)}
-                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-brand hover:bg-brand/10 transition-all opacity-40 group-hover:opacity-100" title="Test">
-                  {testConn.isPending ? <AlertCircle size={16} strokeWidth={3} className="animate-pulse" /> : <Check size={16} strokeWidth={3} />}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTestingIds((s) => setMember(s, id, true));
+                    testConn.mutate(id, {
+                      onSettled: () => setTestingIds((s) => setMember(s, id, false)),
+                    });
+                  }}
+                  disabled={testingIds.has(id)}
+                  className="p-2 rounded-lg text-black/40 dark:text-white/40 hover:text-brand hover:bg-brand/10 transition-all opacity-100 disabled:opacity-40"
+                  title="Test"
+                >
+                  {testingIds.has(id)
+                    ? <Loader2 size={16} strokeWidth={3} className="animate-spin" />
+                    : <Check size={16} strokeWidth={3} />}
                 </button>
                 {!isActive && (
-                  <button onClick={() => activateBroker.mutate(id)}
-                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-40 group-hover:opacity-100" title="Activate">
-                    <Zap size={16} strokeWidth={3} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActivatingIds((s) => setMember(s, id, true));
+                      activateBroker.mutate(id, {
+                        onSettled: () => setActivatingIds((s) => setMember(s, id, false)),
+                      });
+                    }}
+                    disabled={activatingIds.has(id)}
+                    className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-all opacity-100 disabled:opacity-40"
+                    title="Activate"
+                  >
+                    {activatingIds.has(id)
+                      ? <Loader2 size={16} strokeWidth={3} className="animate-spin" />
+                      : <Zap size={16} strokeWidth={3} />}
                   </button>
                 )}
-                <button onClick={() => deleteConn.mutate(id)}
-                  className="p-2 rounded-lg text-black/20 dark:text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-40 group-hover:opacity-100" title="Delete">
-                  <Trash2 size={16} strokeWidth={3} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeletingIds((s) => setMember(s, id, true));
+                    deleteConn.mutate(id, {
+                      onSettled: () => setDeletingIds((s) => setMember(s, id, false)),
+                    });
+                  }}
+                  disabled={deletingIds.has(id)}
+                  className="p-2 rounded-lg text-black/40 dark:text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-100 disabled:opacity-40"
+                  title="Delete"
+                >
+                  {deletingIds.has(id)
+                    ? <Loader2 size={16} strokeWidth={3} className="animate-spin" />
+                    : <Trash2 size={16} strokeWidth={3} />}
                 </button>
               </div>
             </div>
