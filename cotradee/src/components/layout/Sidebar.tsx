@@ -9,6 +9,7 @@ import {
   HelpCircle,
   Users,
   Box,
+  FileText,
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
@@ -29,12 +30,13 @@ const PRIMARY_NAV: NavItem[] = [
   { path: '/dashboard/trades',         icon: Box,             label: 'Active Trades' },
   { path: '/dashboard/journal',        icon: History,         label: 'Journal' },
   { path: '/dashboard/trading-system', icon: BookOpen,        label: 'Trading System' },
-  { path: '/dashboard/community',      icon: Users,           label: 'Community' },
+  { path: '/dashboard/trading-plan',   icon: FileText,        label: 'Trading Plan' },
 ];
 
 const FOOTER_NAV: NavItem[] = [
-  { path: '/dashboard/settings', icon: Settings,   label: 'Settings' },
-  { path: '/dashboard/support',  icon: HelpCircle, label: 'Support' },
+  { path: '/dashboard/settings',  icon: Settings,   label: 'Settings' },
+  { path: '/dashboard/support',   icon: HelpCircle, label: 'Support' },
+  { path: '/dashboard/community', icon: Users,      label: 'Community' },
 ];
 
 interface SidebarProps {

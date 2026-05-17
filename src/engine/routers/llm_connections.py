@@ -9,6 +9,9 @@ Routes:
     POST   /api/llm/connections/{connection_id}/activate
     POST   /api/llm/connections/{connection_id}/deactivate
     DELETE /api/llm/connections/{connection_id}
+    GET    /api/llm/platform/connection
+    POST   /api/llm/platform/connection
+    DELETE /api/llm/platform/connection
 """
 from __future__ import annotations
 
@@ -21,7 +24,7 @@ from engine.processor.storage.repositories.llm_connection_repository import (
     LLMConnectionRepository,
 )
 from engine.schemas import CreateLLMConnectionRequest, UpdateLLMConnectionRequest
-from engine.shared.auth import AuthenticatedUser, get_current_user
+from engine.shared.auth import AuthenticatedUser, get_current_user, get_admin_user
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -339,3 +342,121 @@ async def delete_llm_connection(
     await container.invalidate_user_processor(user.user_id)
 
     return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
+
+
+@router.get("/api/llm/platform/connection")
+async def get_platform_llm_connection(
+    request: Request,
+    admin: AuthenticatedUser = Depends(get_admin_user),
+) -> dict:
+    """Get the currently active Platform LLM connection from the DB."""
+    container: Container = request.app.state.container
+
+    async with container.db.read_session() as session:
+        repo = LLMConnectionRepository(session)
+        row = await repo.get_platform()
+
+    if row is None:
+        return {
+            "connection": None,
+            "message": "No database platform connection configured. Using .env fallback.",
+        }
+
+    return {
+        "connection": {
+            "id": str(row.id),
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "base_url": row.base_url,
+            "temperature": row.temperature,
+            "max_output_tokens": row.max_output_tokens,
+            "is_active": row.is_active,
+            "is_platform": row.is_platform,
+            "label": row.label,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        }
+    }
+
+
+@router.post("/api/llm/platform/connection")
+async def create_platform_llm_connection(
+    request: Request,
+    body: CreateLLMConnectionRequest,
+    admin: AuthenticatedUser = Depends(get_admin_user),
+) -> dict:
+    """Create or overwrite the Platform LLM connection."""
+    await _rate_limit(request, "llm_platform_create", max_requests=10, window_seconds=60)
+    container: Container = request.app.state.container
+
+    valid_providers = {p.value for p in LLMProvider}
+    if body.provider not in valid_providers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported provider '{body.provider}'. Supported: {sorted(valid_providers)}",
+        )
+
+    if body.provider == LLMProvider.SELF_HOSTED and not body.base_url:
+        raise HTTPException(
+            status_code=400,
+            detail="base_url is required for self_hosted provider",
+        )
+
+    if not body.api_key.strip():
+        raise HTTPException(status_code=400, detail="api_key must not be empty")
+
+    resolved_model = body.model_name
+    if not resolved_model or not resolved_model.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Model name is required for enterprise-grade connections.",
+        )
+
+    resolved_temperature = 0.0
+
+    async with container.db.session() as session:
+        repo = LLMConnectionRepository(session)
+        row = await repo.create_platform(
+            provider=body.provider,
+            model_name=resolved_model,
+            api_key=body.api_key,
+            base_url=body.base_url,
+            temperature=resolved_temperature,
+            max_output_tokens=body.max_output_tokens,
+        )
+
+        connection_id = str(row.id)
+
+    # Invalidate all processors for all admins and pro_managed users
+    # since the platform key just changed. For now, we clear the whole
+    # cache to be safe.
+    container._user_processors.clear()
+
+    return {
+        "id": connection_id,
+        "provider": body.provider,
+        "model_name": resolved_model,
+        "is_active": True,
+        "label": row.label,
+        "message": "Platform connection saved and activated.",
+    }
+
+
+@router.delete("/api/llm/platform/connection")
+async def delete_platform_llm_connection(
+    request: Request,
+    admin: AuthenticatedUser = Depends(get_admin_user),
+) -> dict:
+    """Delete the Platform LLM connection."""
+    container: Container = request.app.state.container
+
+    async with container.db.session() as session:
+        repo = LLMConnectionRepository(session)
+        deleted = await repo.delete_platform()
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Platform connection not found")
+
+    container._user_processors.clear()
+
+    return {"deleted": True, "message": "Platform connection deleted. Reverting to .env configuration."}

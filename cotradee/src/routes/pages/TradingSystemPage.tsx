@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@/hooks/useToast';
 import { LogoLoader } from '@/components/ui/LogoLoader';
 import BuilderPage from '@/features/tradingsystem/components/BuilderPage';
@@ -32,7 +33,21 @@ export default function TradingSystemPage() {
   const { data, isLoading, refetch } = useTradingSystem();
   const resetMutation = useResetTradingSystem();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
-  const [view, setView] = useState<DashboardView>('system');
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const justActivated = searchParams.get('just_activated') === 'true';
+  const view: DashboardView = location.pathname.endsWith('/trading-plan') ? 'plan' : 'system';
+
+  // Clear the just_activated param if the user switches to the plan view manually
+  useEffect(() => {
+    if (view === 'plan' && justActivated) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('just_activated');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [view, justActivated, searchParams, setSearchParams]);
 
   if (isLoading) {
     return (
@@ -46,14 +61,47 @@ export default function TradingSystemPage() {
 
   const isActive = data?.status === 'active' && data.profile != null;
 
+  if (!isActive && view === 'plan') {
+    return (
+      <div className="flex flex-col h-full bg-app lg:max-w-5xl lg:mx-auto lg:border-x lg:border-border">
+        <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
+          <div>
+            <h1 className="text-base font-semibold text-content">
+              <span className="hidden sm:inline">Your </span>90-Day Trading Plan
+            </h1>
+            <p className="text-xs text-content-muted">
+              How you operate — daily journal, weekly review, discipline scorecard.
+            </p>
+          </div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 mb-6 shadow-xl">
+            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-content mb-2 tracking-tight">System Required</h2>
+          <p className="text-sm text-content-muted max-w-md mx-auto mb-8 leading-relaxed">
+            Your personalized 90-Day Trading Plan requires a defined Trading System to generate. Build your system first, and our AI will automatically construct your plan.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard/trading-system')}
+            className="rounded-xl bg-black dark:bg-white px-8 py-3 text-[10px] font-black text-white dark:text-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-black/10 dark:shadow-white/10"
+          >
+            Build Trading System &rarr;
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === 'edit' || !isActive) {
     return (
       <BuilderPage
         onComplete={() => {
           setMode('view');
-          // BuilderPage already updates the cache via setQueryData;
-          // an extra refetch keeps updated_at fresh on the summary.
           void refetch();
+          navigate('/dashboard/trading-system?just_activated=true');
         }}
         onSkip={() => {
           setMode('view');
@@ -88,13 +136,12 @@ export default function TradingSystemPage() {
     });
   };
 
-  // Toggle button label flips with the active view.
   const togglingToPlan = view === 'system';
   const toggleLabel = togglingToPlan ? 'View Trading Plan' : 'View Trading System';
 
   return (
     <div className="flex flex-col h-full bg-app lg:max-w-5xl lg:mx-auto lg:border-x lg:border-border">
-      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
         <div>
           <h1 className="text-base font-semibold text-content">
             {view === 'system' ? (
@@ -110,11 +157,14 @@ export default function TradingSystemPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Swipe toggle: appears whenever the trading system is active. */}
           <button
             type="button"
-            onClick={() => setView(togglingToPlan ? 'plan' : 'system')}
-            className="rounded border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-content hover:border-content-muted focus-ring"
+            onClick={() => navigate(togglingToPlan ? '/dashboard/trading-plan' : '/dashboard/trading-system')}
+            className={`rounded border px-3 py-1.5 text-xs font-semibold focus-ring transition-all duration-500 ${
+              justActivated && togglingToPlan
+                ? 'border-brand bg-brand/10 text-brand shadow-[0_0_15px_rgba(var(--brand-rgb),0.4)] animate-pulse'
+                : 'border-border bg-surface text-content hover:border-content-muted'
+            }`}
             aria-label={toggleLabel}
           >
             <span className="hidden sm:inline">{togglingToPlan ? 'View ' : 'View '}</span>
@@ -142,6 +192,28 @@ export default function TradingSystemPage() {
           )}
         </div>
       </header>
+
+      {justActivated && view === 'system' && (
+        <div className="bg-brand/10 border-b border-brand/20 px-4 py-3 flex items-center justify-between shrink-0 animate-in slide-in-from-top-2 fade-in duration-500">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/20 text-brand">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-brand">Trading System Activated!</p>
+              <p className="text-[11px] text-content-muted mt-0.5">We are now using it to generate your personalized 90-Day Trading Plan.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/dashboard/trading-plan')}
+            className="text-[10px] font-black text-brand hover:text-brand/80 transition-colors uppercase tracking-widest shrink-0 ml-4"
+          >
+            View Generation &rarr;
+          </button>
+        </div>
+      )}
 
       {/* Swipe viewport. Two panes stacked side-by-side; the active
           one is translated to x=0 and the inactive one is parked at

@@ -128,14 +128,28 @@ def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes
     if not _constant_time_equal(c_mac, h_mac):
         return False
 
-    # Resolve the authenticated user from request state. The
-    # get_current_user dependency runs before this middleware for
-    # routes that declare it; for routes that don't, state.user is
-    # absent and we reject.
-    user = getattr(request.state, "user", None)
-    if user is None:
-        return False
-    user_id: str = getattr(user, "user_id", "") or ""
+    # Resolve the authenticated user from the request directly.
+    # Middleware runs BEFORE FastAPI dependencies, so request.state.user
+    # is not populated yet. We read the JWT from the cookie or header.
+    user_id = ""
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+            
+    if token:
+        import jwt
+        try:
+            # We skip full validation here because the get_current_user
+            # dependency will do it later. We just need the 'sub' claim
+            # to verify the CSRF HMAC. An attacker cannot forge the CSRF
+            # HMAC even if they forge the unverified JWT sub claim.
+            payload = jwt.decode(token, options={"verify_signature": False})
+            user_id = payload.get("sub", "")
+        except Exception:
+            pass
+
     if not user_id:
         return False
 

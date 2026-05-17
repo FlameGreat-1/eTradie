@@ -124,10 +124,12 @@ export default function SymbolsSection() {
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Configuration</div>
             <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Active Symbols</h3>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-black/20 dark:text-white/20">
-            {isFree
-              ? `${selected.length} / 1 selected`
-              : 'Add exact broker symbols'}
+          <span className="text-[10px] font-black uppercase tracking-widest">
+            {isFree ? (
+              <span className="text-black/20 dark:text-white/20">{selected.length} / 1 selected</span>
+            ) : (
+              <span className="text-brand border-b border-brand/30 pb-0.5">Add exact broker symbols</span>
+            )}
           </span>
         </div>
 

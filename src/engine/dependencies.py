@@ -769,10 +769,58 @@ class Container:
                 # and the caller raises a tier-aware error.
                 if user.is_admin or user.tier == "pro_managed":
                     _logger.info(
-                        "using_platform_llm_for_managed_or_admin",
+                        "falling_back_to_platform_llm",
+                        extra={"user_id": user.user_id, "tier": user.tier},
+                    )
+                    
+                    # 1. Try to load platform connection from database
+                    async with self.db.read_session() as session:
+                        repo = LLMConnectionRepository(session)
+                        platform_row = await repo.get_platform()
+                        
+                    if platform_row is not None:
+                        plat_api_key = decrypt_api_key(platform_row.api_key_encrypted)
+                        env_cfg = get_processor_config()
+                        
+                        overrides = {
+                            "llm_provider": platform_row.provider,
+                            "model_name": platform_row.model_name,
+                            "temperature": platform_row.temperature,
+                            "max_output_tokens": platform_row.max_output_tokens,
+                            # Carry forward non-connection settings from env.
+                            "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
+                            "total_timeout_seconds": env_cfg.total_timeout_seconds,
+                            "max_retries": env_cfg.max_retries,
+                            "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
+                            "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
+                            "strict_schema_validation": env_cfg.strict_schema_validation,
+                            "require_citations": env_cfg.require_citations,
+                            "persist_audit_logs": env_cfg.persist_audit_logs,
+                            "log_raw_llm_response": env_cfg.log_raw_llm_response,
+                            # Default all provider keys to env values.
+                            "anthropic_api_key": env_cfg.anthropic_api_key,
+                            "openai_api_key": env_cfg.openai_api_key,
+                            "gemini_api_key": env_cfg.gemini_api_key,
+                            "self_hosted_api_key": env_cfg.self_hosted_api_key,
+                            "api_base_url": platform_row.base_url or env_cfg.api_base_url,
+                        }
+                        key_field = f"{platform_row.provider}_api_key"
+                        if key_field in overrides:
+                            overrides[key_field] = SecretStr(plat_api_key)
+                        
+                        _logger.info(
+                            "using_platform_llm_from_db",
+                            extra={"user_id": user.user_id, "tier": user.tier, "provider": platform_row.provider},
+                        )
+                        return ProcessorConfig(**overrides)
+
+                    # 2. Fall back to environment variables
+                    _logger.info(
+                        "using_platform_llm_from_env",
                         extra={"user_id": user.user_id, "tier": user.tier},
                     )
                     return get_processor_config()
+
                 _logger.info(
                     "no_active_llm_connection_in_db_for_byok",
                     extra={"user_id": user.user_id, "tier": user.tier},

@@ -98,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await logoutApi();
     } finally {
       setUser(null);
+      try {
+        sessionStorage.removeItem('exoper_resume_pill_dismissed');
+      } catch {}
       // Notify every other tab on this origin that the session has
       // ended so they can route themselves to /login. The current
       // tab's navigation is owned by whoever called logout()

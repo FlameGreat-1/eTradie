@@ -17,12 +17,12 @@ class BillingRepository:
         # Ensure we reset daily limits if last_reset_at was yesterday
         # We handle the day check in Python logic for simplicity
         stmt = text(
-            \"\"\"
+            """
             INSERT INTO billing_usage (user_id) 
             VALUES (:user_id)
             ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
             RETURNING analyses_today, llm_tokens_used, execution_attempts, watcher_count, last_reset_at
-            \"\"\"
+            """
         )
         res = await self._session.execute(stmt, {"user_id": user_id})
         row = res.mappings().first()
@@ -39,7 +39,7 @@ class BillingRepository:
             # If the calendar day has changed
             if last_reset.date() != now.date():
                 stmt = text(
-                    \"\"\"
+                    """
                     UPDATE billing_usage
                     SET analyses_today = 0, last_reset_at = NOW()
                     WHERE user_id = :user_id
@@ -97,12 +97,12 @@ class BillingRepository:
             UPDATE billing_usage
             SET llm_tokens_used = llm_tokens_used + :tokens
             WHERE user_id = :user_id
-            \"\"\"
+            """
         )
         await self._session.execute(stmt, {"user_id": user_id, "tokens": tokens})
         await self._session.commit()
     async def increment_usage_metric(self, user_id: str, column: str, amount: int = 1):
-        \"\"\"Increment a specific usage metric column (e.g., ta_cycles_used).\"\"\"
+        """Increment a specific usage metric column (e.g., ta_cycles_used)."""
         # Validate column name to prevent SQL injection
         allowed = {
             "ta_cycles_used", "macro_cycles_used", "execution_attempts", 
@@ -112,11 +112,11 @@ class BillingRepository:
             return
 
         stmt = text(
-            f\"\"\"
+            f"""
             UPDATE billing_usage
             SET {column} = {column} + :amount
             WHERE user_id = :user_id
-            \"\"\"
+            """
         )
         await self._session.execute(stmt, {"user_id": user_id, "amount": amount})
         await self._session.commit()

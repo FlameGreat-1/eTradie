@@ -170,3 +170,56 @@ export function useDeleteLlmConnection() {
     },
   });
 }
+
+// -- Platform Admin Hooks ---------------------------------------------------
+
+export function usePlatformLlmConnection() {
+  const { isAuthenticated } = useAuth();
+  return useQuery({
+    queryKey: ['llm', 'platform', 'connection'],
+    queryFn: async () => {
+      const { data } = await api.engine.get('/api/llm/platform/connection');
+      return data.connection ?? null;
+    },
+    enabled: isAuthenticated,
+  });
+}
+
+export function useSetPlatformLlmConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await api.engine.post('/api/llm/platform/connection', payload);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['llm'] });
+      toastSuccess('Platform key saved', 'The system will now use this key.');
+    },
+    onError: (err) => {
+      toastError(
+        'Save failed',
+        errorMessage(err, 'Could not save the platform key. Try again.'),
+      );
+    },
+  });
+}
+
+export function useDeletePlatformLlmConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.engine.delete('/api/llm/platform/connection');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['llm'] });
+      toastSuccess('Platform key removed', 'Reverted to .env fallback.');
+    },
+    onError: (err) => {
+      toastError(
+        'Delete failed',
+        errorMessage(err, 'Could not delete the platform key. Try again.'),
+      );
+    },
+  });
+}

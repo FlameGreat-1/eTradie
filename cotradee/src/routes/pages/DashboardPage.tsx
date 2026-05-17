@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useLatestAnalysis } from '@/features/analysis/api/analysis';
@@ -11,7 +12,6 @@ import {
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
 import { WelcomeSetupCard } from '@/features/tradingsystem/components/WelcomeSetupCard';
-import { OnboardingWizard } from '@/features/onboarding/components/OnboardingWizard';
 import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
 
 /**
@@ -251,11 +251,7 @@ export default function DashboardPage() {
     <div className="flex h-full w-full overflow-hidden animate-fade-in bg-surface-1">
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 relative min-h-0">
-          {needsOnboarding && !hasSkippedOnboarding ? (
-            <div className="flex h-full w-full items-center justify-center p-6">
-              <OnboardingWizard />
-            </div>
-          ) : needsOnboarding && hasSkippedOnboarding ? (
+          {needsOnboarding ? (
             <WelcomeSetupCard />
           ) : activeSymbol ? (
             <TradingChart
@@ -271,26 +267,94 @@ export default function DashboardPage() {
             </div>
           )}
           {showResumeSetupPill && (
-            <button
-              type="button"
-              onClick={() => navigate('/onboarding')}
-              className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 rounded-full
-                         border border-border bg-surface px-3 py-1.5 text-xs font-semibold
-                         text-content shadow-sm hover:border-content-muted focus-ring"
-              aria-label="Resume onboarding setup"
-            >
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-brand"
-                aria-hidden
-              />
-              Resume setup
-              <span className="text-content-muted tabular-nums">
-                {onboarding.completed}/{onboarding.total}
-              </span>
-            </button>
+            <DraggableResumePill 
+              completed={onboarding.completed} 
+              total={onboarding.total} 
+              onResume={() => navigate('/onboarding')} 
+            />
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DraggableResumePill({ completed, total, onResume }: { completed: number; total: number; onResume: () => void }) {
+  const [isDismissed, setIsDismissed] = useState(() => sessionStorage.getItem('exoper_resume_pill_dismissed') === 'true');
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMove = (e: PointerEvent) => {
+      if (!isDragging.current) return;
+      e.preventDefault();
+      setPosition({
+        x: e.clientX - startPos.current.x,
+        y: e.clientY - startPos.current.y,
+      });
+    };
+
+    const handleUp = () => {
+      isDragging.current = false;
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('pointermove', handleMove, { passive: false });
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+  }, []);
+
+  if (isDismissed) return null;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Prevent dragging if they clicked a button
+    if ((e.target as HTMLElement).closest('button')) return;
+    
+    isDragging.current = true;
+    startPos.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+    document.body.style.userSelect = 'none'; // prevent text selection while dragging
+  };
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    sessionStorage.setItem('exoper_resume_pill_dismissed', 'true');
+    setIsDismissed(true);
+  };
+
+  return (
+    <div
+      onPointerDown={handlePointerDown}
+      style={{ transform: `translate(${position.x}px, ${position.y}px)`, touchAction: 'none' }}
+      className="absolute bottom-6 right-6 z-50 flex items-center gap-2 rounded-full border border-border bg-surface pl-4 pr-1.5 py-1.5 text-xs font-semibold text-content shadow-xl cursor-grab active:cursor-grabbing"
+    >
+      <button 
+        type="button" 
+        onClick={onResume} 
+        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+      >
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
+        Resume setup
+        <span className="text-content-muted tabular-nums">
+          {completed}/{total}
+        </span>
+      </button>
+      <div className="w-[1px] h-3 bg-border mx-1" />
+      <button 
+        type="button" 
+        onClick={handleDismiss}
+        className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-content-muted hover:text-content transition-colors"
+        aria-label="Close"
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 }

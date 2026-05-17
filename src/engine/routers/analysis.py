@@ -47,7 +47,7 @@ async def get_my_usage(
     container: Container = request.app.state.container
     from engine.processor.storage.repositories.billing_repository import BillingRepository
 
-    async with container.db.read_session() as session:
+    async with container.db.write_session() as session:
         billing_repo = BillingRepository(session)
         await billing_repo.reset_daily_usage_if_needed(user.user_id)
         usage = await billing_repo.get_usage_for_user(user.user_id)

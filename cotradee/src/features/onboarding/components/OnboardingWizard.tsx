@@ -9,7 +9,7 @@ import { BillingStep } from './steps/BillingStep';
 import { ApiKeyStep } from './steps/ApiKeyStep';
 import { ExecutionStep } from './steps/ExecutionStep';
 import { ReadyStep } from './steps/ReadyStep';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 
 const TOTAL_STEPS = 7;
 
@@ -30,7 +30,8 @@ export function OnboardingWizard() {
 
   const advance = useCallback(() => setCurrent(c => Math.min(c + 1, TOTAL_STEPS - 1)), []);
   const goBack = useCallback(() => setCurrent(c => Math.max(0, c - 1)), []);
-  const handleSkip = useCallback(() => { sessionStorage.setItem('exoper_onboarding_skipped', 'true'); navigate('/dashboard', { replace: true }); }, [navigate]);
+  const handleSkipStep = useCallback(() => advance(), [advance]);
+  const handleExit = useCallback(() => { sessionStorage.setItem('exoper_onboarding_skipped', 'true'); navigate('/dashboard', { replace: true }); }, [navigate]);
 
   const stepComponent = useMemo(() => {
     switch (current) {
@@ -56,14 +57,17 @@ export function OnboardingWizard() {
         <div className="flex items-center gap-4">
           <ProgressRing current={current} total={TOTAL_STEPS} size={38} />
           {current < TOTAL_STEPS - 1 && (
-            <button onClick={handleSkip} className="text-xs font-medium text-content-muted hover:text-content transition-colors uppercase tracking-widest">
-              Skip
+            <button onClick={handleSkipStep} className="text-xs font-medium text-brand hover:opacity-80 transition-colors uppercase tracking-widest">
+              Skip Step
             </button>
           )}
+          <button onClick={handleExit} className="p-1 text-content-muted hover:text-content transition-colors" title="Exit to Dashboard">
+            <X size={18} />
+          </button>
         </div>
       </header>
       <main className="flex-1 min-h-0 overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center px-6 py-12">
+        <div className="flex min-h-full items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
           <div key={current} className="w-full max-w-xl animate-in fade-in slide-in-from-bottom-2 duration-300">{stepComponent}</div>
         </div>
       </main>

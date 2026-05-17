@@ -110,6 +110,7 @@ class LLMConnectionRepository:
             temperature=temperature,
             max_output_tokens=max_output_tokens,
             is_active=activate,
+            is_platform=False,
             label=label,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
@@ -125,6 +126,52 @@ class LLMConnectionRepository:
                 "provider": provider,
                 "model": model_name,
                 "active": activate,
+                "is_platform": False,
+            },
+        )
+        return row
+
+    async def create_platform(
+        self,
+        *,
+        provider: str,
+        model_name: str,
+        api_key: str,
+        base_url: Optional[str] = None,
+        temperature: float = 0.0,
+        max_output_tokens: int = 16384,
+    ) -> LLMConnectionRow:
+        """Create or update the platform-level LLM connection.
+        
+        Overwrites the existing platform connection if one exists.
+        """
+        # Remove any existing platform connection
+        await self.delete_platform()
+
+        row = LLMConnectionRow(
+            id=str(uuid4()),
+            user_id=None,
+            provider=provider,
+            model_name=model_name,
+            api_key_encrypted=_encrypt(api_key),
+            base_url=base_url,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            is_active=True,
+            is_platform=True,
+            label=f"Platform: {provider} / {model_name}",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        self._session.add(row)
+        await self._session.flush()
+
+        logger.info(
+            "platform_llm_connection_created",
+            extra={
+                "id": row.id,
+                "provider": provider,
+                "model": model_name,
             },
         )
         return row
@@ -135,8 +182,19 @@ class LLMConnectionRepository:
             select(LLMConnectionRow)
             .where(
                 LLMConnectionRow.user_id == user_id,
+                LLMConnectionRow.is_platform.is_(False),
                 LLMConnectionRow.is_active.is_(True),
             )
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_platform(self) -> Optional[LLMConnectionRow]:
+        """Return the platform-level LLM connection, if any."""
+        stmt = (
+            select(LLMConnectionRow)
+            .where(LLMConnectionRow.is_platform.is_(True))
             .limit(1)
         )
         result = await self._session.execute(stmt)
@@ -146,7 +204,10 @@ class LLMConnectionRepository:
         """Return all LLM connections for this user, ordered by most recent first."""
         stmt = (
             select(LLMConnectionRow)
-            .where(LLMConnectionRow.user_id == user_id)
+            .where(
+                LLMConnectionRow.user_id == user_id,
+                LLMConnectionRow.is_platform.is_(False)
+            )
             .order_by(LLMConnectionRow.updated_at.desc())
         )
         result = await self._session.execute(stmt)
@@ -157,6 +218,7 @@ class LLMConnectionRepository:
         stmt = select(LLMConnectionRow).where(
             LLMConnectionRow.id == connection_id,
             LLMConnectionRow.user_id == user_id,
+            LLMConnectionRow.is_platform.is_(False),
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
@@ -205,6 +267,21 @@ class LLMConnectionRepository:
         logger.info(
             "llm_connection_deleted",
             extra={"id": connection_id, "user_id": user_id, "provider": row.provider},
+        )
+        return True
+
+    async def delete_platform(self) -> bool:
+        """Delete the platform-level connection. Returns True if found and deleted."""
+        row = await self.get_platform()
+        if row is None:
+            return False
+
+        await self._session.delete(row)
+        await self._session.flush()
+
+        logger.info(
+            "platform_llm_connection_deleted",
+            extra={"id": str(row.id), "provider": row.provider},
         )
         return True
 

@@ -81,21 +81,21 @@ export function SymbolsStep({ onComplete }: Props) {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface-2 p-6 space-y-6">
+      <div className="rounded-2xl border border-border bg-surface-2 p-4 sm:p-6 space-y-6">
         <form onSubmit={addCustomSymbol} className="flex gap-2">
             <input
               type="text"
               value={newSymbol}
               onChange={(e) => setNewSymbol(e.target.value)}
               placeholder="e.g. EURUSDm"
-              className="flex-1 rounded-xl border border-border bg-surface-3 px-4 py-2.5 text-sm text-content focus:border-brand focus:outline-none transition-colors"
+              className="flex-1 min-w-0 rounded-xl border border-border bg-surface-3 px-4 py-2.5 text-sm text-content focus:border-brand focus:outline-none transition-colors"
             />
-            <button type="submit" disabled={!newSymbol.trim()} className="rounded-xl bg-black dark:bg-white px-4 py-2 text-sm font-bold text-white dark:text-black hover:opacity-90 disabled:opacity-50 transition-colors">
+            <button type="submit" disabled={!newSymbol.trim()} className="shrink-0 rounded-xl bg-black dark:bg-white px-4 py-2 text-sm font-bold text-white dark:text-black hover:opacity-90 disabled:opacity-50 transition-colors">
               Add
             </button>
         </form>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {pool.map((s) => {
             const isSelected = selected.includes(s);
             return (
@@ -103,7 +103,7 @@ export function SymbolsStep({ onComplete }: Props) {
                 key={s}
                 type="button"
                 onClick={() => toggleSymbol(s)}
-                className={`flex items-center justify-between rounded-xl border p-3 transition-all duration-200
+                className={`flex items-center justify-between rounded-xl border p-2.5 sm:p-3 transition-all duration-200
                   ${isSelected ? 'border-brand bg-brand/10' : 'border-border bg-surface-1 hover:border-brand/30'}`}
               >
                 <span className={`text-xs font-semibold ${isSelected ? 'text-content' : 'text-content-muted'}`}>{s}</span>

@@ -360,3 +360,16 @@ Later this can evolve into:
 * institutional trader profiling
 
 That is much bigger than signals.
+
+
+
+
+
+
+
+
+docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM auth_users;"
+
+
+
+docker exec etradie-postgres psql -U etradie -d etradie -c "UPDATE auth_users SET role = 'admin' WHERE email = 'softverse.com@gmail.com';"

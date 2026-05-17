@@ -30,9 +30,16 @@ class LLMConnectionRow(ProcessorBase):
     # -- Owner (multi-tenant isolation) ----------------------------------------
     # References auth_users.id managed by the Go auth service.
     # Every query MUST filter by user_id to enforce data ownership.
-    user_id: Mapped[str] = mapped_column(
+    user_id: Mapped[str | None] = mapped_column(
         String(64),
+        nullable=True,
+        index=True,
+    )
+
+    is_platform: Mapped[bool] = mapped_column(
+        Boolean,
         nullable=False,
+        server_default="false",
         index=True,
     )
 

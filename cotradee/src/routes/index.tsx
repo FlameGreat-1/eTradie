@@ -216,6 +216,7 @@ export default function AppRoutes() {
                     <Route path="trades"          element={<TradesPage />} />
                     <Route path="journal"         element={<JournalPage />} />
                     <Route path="trading-system"  element={<TradingSystemPage />} />
+                    <Route path="trading-plan"    element={<TradingSystemPage />} />
                     <Route path="setup"           element={<SetupPage />} />
                     {/*
                       Authenticated Google-link callback. Must live

@@ -17,6 +17,9 @@ import {
   useDeleteLlmConnection,
   useLlmConnections,
   useLlmProviders,
+  usePlatformLlmConnection,
+  useSetPlatformLlmConnection,
+  useDeletePlatformLlmConnection,
 } from '@/features/llm/api/llmConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import { useAuth, isAdmin } from '@/features/auth';
@@ -30,6 +33,10 @@ export default function LlmSection() {
   const activate = useActivateLlm();
   const deactivate = useDeactivateLlm();
   const deleteConn = useDeleteLlmConnection();
+
+  const { data: platformConnection } = usePlatformLlmConnection();
+  const setPlatformConn = useSetPlatformLlmConnection();
+  const deletePlatformConn = useDeletePlatformLlmConnection();
 
   const { tier, isProManaged, isProBYOK, isFree, copy, openUpgradeModal } =
     useTierGate();
@@ -50,6 +57,9 @@ export default function LlmSection() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ provider: '', model_id: '', api_key: '' });
 
+  const [showPlatformForm, setShowPlatformForm] = useState(false);
+  const [platformForm, setPlatformForm] = useState({ provider: '', model_id: '', api_key: '' });
+
   // The Platform Key toggle is ON exactly when:
   //   - the user is permitted to use it (admin or pro_managed) AND
   //   - no user-owned LLM connection is currently active.
@@ -69,6 +79,16 @@ export default function LlmSection() {
     });
     setShowForm(false);
     setForm({ provider: '', model_id: '', api_key: '' });
+  };
+
+  const handlePlatformCreate = async () => {
+    await setPlatformConn.mutateAsync({
+      provider: platformForm.provider,
+      model_name: platformForm.model_id,
+      api_key: platformForm.api_key,
+    });
+    setShowPlatformForm(false);
+    setPlatformForm({ provider: '', model_id: '', api_key: '' });
   };
 
   const handleToggleClick = async () => {
@@ -123,6 +143,115 @@ export default function LlmSection() {
 
   return (
     <div className="space-y-10 max-w-2xl">
+      {admin && (
+        <div className="rounded-2xl border border-brand/20 bg-brand/5 p-6 shadow-sm mb-10">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="mt-0.5 rounded-xl bg-brand/10 p-2 border border-brand/20 shadow-sm">
+                <ShieldCheck size={16} className="text-brand" strokeWidth={2.5} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-black dark:text-white tracking-tight">
+                  Platform Administration: Global API Key
+                </p>
+                <p className="text-[11px] font-medium text-black/40 dark:text-white/40 leading-relaxed">
+                  As an admin, you can set the platform-wide fallback API key from the dashboard instead of using environment variables. 
+                  This key powers the Pro Managed tier and any Admin user without a personal connection.
+                </p>
+                {platformConnection && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-0.5 text-[10px] font-bold text-brand">
+                      Active
+                    </span>
+                    <span className="text-[11px] font-bold text-black/60 dark:text-white/60">
+                      {platformConnection.provider} / {platformConnection.model_name}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPlatformForm((p) => !p)}
+                className="rounded-xl bg-black dark:bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 transition-all shadow-sm"
+              >
+                {platformConnection ? 'Change Key' : 'Set Key'}
+              </button>
+              {platformConnection && (
+                <button
+                  type="button"
+                  onClick={() => deletePlatformConn.mutate()}
+                  disabled={deletePlatformConn.isPending}
+                  className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors uppercase tracking-wider flex items-center gap-1 mt-1"
+                >
+                  <Trash2 size={12} /> Remove
+                </button>
+              )}
+            </div>
+          </div>
+
+          {showPlatformForm && (
+            <div className="mt-6 pt-6 border-t border-brand/10 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 ml-1">
+                  1. Select Platform Provider & Model
+                </label>
+                <div className="relative">
+                  <select
+                    value={platformForm.model_id}
+                    onChange={(e) => {
+                      const modelId = e.target.value;
+                      const model = Array.isArray(providers?.catalog) 
+                        ? providers.catalog.find((m: any) => m.id === modelId)
+                        : null;
+                      setPlatformForm((f) => ({ ...f, model_id: modelId, provider: model?.provider || '' }));
+                    }}
+                    className="w-full rounded-xl border border-brand/20 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white focus:border-brand transition-all outline-none appearance-none"
+                  >
+                    <option value="" disabled hidden>Choose a model…</option>
+                    {Array.isArray(providers?.catalog) && providers.catalog.map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 pointer-events-none" size={16} strokeWidth={3} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 ml-1">
+                  2. Enter Platform API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="sk-..."
+                  value={platformForm.api_key}
+                  onChange={(e) => setPlatformForm((f) => ({ ...f, api_key: e.target.value }))}
+                  className="w-full rounded-xl border border-brand/20 bg-white dark:bg-black px-4 py-3 text-sm font-medium text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
+                />
+                <p className="text-[10px] font-medium text-black/40 dark:text-white/40 ml-1 mt-1">
+                  This key will be stored securely in the database and used for all users on the Pro Managed tier.
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handlePlatformCreate}
+                  disabled={!platformForm.provider || !platformForm.api_key || setPlatformConn.isPending}
+                  className="rounded-xl bg-black dark:bg-white px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-black/10 dark:shadow-white/10"
+                >
+                  {setPlatformConn.isPending ? 'Saving...' : 'Save Platform Key'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Intelligence</div>
