@@ -23,3 +23,4 @@ export {
   useGeneratePerformanceReview,
   performanceReviewKeys,
 } from './api/hooks';
+export { PerformanceReviewView } from './components/PerformanceReviewView';

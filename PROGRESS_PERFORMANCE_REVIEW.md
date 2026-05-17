@@ -96,7 +96,30 @@ These are read directly from the existing code, **not** assumed:
 | 6 | Engine — performance_review module (prompt + generator + types) | `src/engine/processor/performance_review/{__init__,prompt,generator,client}.py` | pending | |
 | 7 | Engine — internal router + scheduler jobs + main.py wiring | `src/engine/routers/performance_review.py`, `src/engine/macro/scheduler_jobs.py`, `src/engine/main.py` | pending | |
 | 8 | Frontend — feature module (types, api, hooks, components) | `cotradee/src/features/performance/{types,api,hooks,components}/...`, `index.ts` | pending | |
-| 9 | Frontend — page + sidebar + route registration | `cotradee/src/routes/pages/PerformancePage.tsx`, `cotradee/src/components/layout/Sidebar.tsx`, `cotradee/src/routes/index.tsx` | pending | |
+| 9 | Frontend — page + sidebar + route registration | `cotradee/src/routes/pages/PerformancePage.tsx`, `cotradee/src/components/layout/Sidebar.tsx`, `cotradee/src/routes/index.tsx` | done | this batch |
+
+---
+
+## Implementation complete
+
+All 9 batches landed on `main`. The feature is wired end-to-end:
+
+- Gateway domain (`src/performancereview/`): models, schema, validation, store, ratelimit, metrics, handlers + adapter.
+- Gateway wiring: main.go, container, http_server.
+- Management aggregator + `/internal/performance-review/aggregate`.
+- Engine generator (`src/engine/processor/performance_review/`): prompt, generator, scheduler.
+- Engine internal router + cron registration in `engine/main.py`.
+- Gateway internal endpoints: `/internal/performance-review/{callback,fail,prior,active-users}`.
+- Frontend feature module (`cotradee/src/features/performance/`): types, api, hooks, primitives, GenerationBanner, PerformanceReviewView, PerformanceReviewSections (all 14), PerformanceReviewHistory.
+- Frontend page + Sidebar entry + lazy route.
+
+**Cron cadence:** Weekly Mon 06:00 UTC (prior 7 days). Monthly 1st 06:00 UTC (prior calendar month).
+
+**Manual generation:** `POST /api/v1/performance-review/generate {period}` — enforced by tier + 5/h per-user rate limit, with cooldown + single-flight at the engine layer.
+
+**Tone enforcement:** System prompt + validator banned-phrase list reject motivational / guru language (PLAN.md 'Most Important Architectural Decision').
+
+**Confidence transparency:** Aggregator stamps a deterministic band; LLM is bound by it via prompt + post-shape overwrite; gateway validator double-checks (PLAN.md §11).
 
 ---
 

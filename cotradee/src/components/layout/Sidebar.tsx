@@ -10,6 +10,7 @@ import {
   Users,
   Box,
   FileText,
+  TrendingUp,
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ const PRIMARY_NAV: NavItem[] = [
   { path: '/dashboard/journal',        icon: History,         label: 'Journal' },
   { path: '/dashboard/trading-system', icon: BookOpen,        label: 'Trading System' },
   { path: '/dashboard/trading-plan',   icon: FileText,        label: 'Trading Plan' },
+  { path: '/dashboard/performance',    icon: TrendingUp,      label: 'Performance' },
 ];
 
 const FOOTER_NAV: NavItem[] = [

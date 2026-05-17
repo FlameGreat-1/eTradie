@@ -19,6 +19,7 @@ const AnalysisPage  = lazy(() => import('./pages/AnalysisPage'));
 const TradesPage    = lazy(() => import('./pages/TradesPage'));
 const JournalPage   = lazy(() => import('./pages/JournalPage'));
 const TradingSystemPage = lazy(() => import('./pages/TradingSystemPage'));
+const PerformancePage = lazy(() => import('./pages/PerformancePage'));
 const SetupPage = lazy(() => import('./pages/SetupPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const SettingsPage  = lazy(() => import('./pages/SettingsPage'));
@@ -217,6 +218,7 @@ export default function AppRoutes() {
                     <Route path="journal"         element={<JournalPage />} />
                     <Route path="trading-system"  element={<TradingSystemPage />} />
                     <Route path="trading-plan"    element={<TradingSystemPage />} />
+                    <Route path="performance"     element={<PerformancePage />} />
                     <Route path="setup"           element={<SetupPage />} />
                     {/*
                       Authenticated Google-link callback. Must live
