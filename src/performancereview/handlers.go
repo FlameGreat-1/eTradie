@@ -118,6 +118,8 @@ func (h *Handler) RegisterRoutes(
 func (h *Handler) RegisterInternalRoutes(mux *http.ServeMux) {
 	mux.Handle("/internal/performance-review/callback", h.withPanicRecovery(h.handleInternalCallback))
 	mux.Handle("/internal/performance-review/fail", h.withPanicRecovery(h.handleInternalFail))
+	mux.Handle("/internal/performance-review/prior", h.withPanicRecovery(h.handleInternalPrior))
+	mux.Handle("/internal/performance-review/active-users", h.withPanicRecovery(h.handleInternalActiveUsers))
 }
 
 func (h *Handler) withPanicRecovery(next http.HandlerFunc) http.Handler {
@@ -641,6 +643,99 @@ func (h *Handler) handleInternalFail(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Internal: GET /internal/performance-review/prior?user_id=&period=&before=
+//
+// Returns the most recent ready review row for (user_id, period)
+// strictly before the supplied RFC3339 `before` timestamp. Used by
+// the engine generator to compute trader-evolution deltas (PLAN.md
+// section 12) without re-running the LLM over the prior window.
+//
+// Returns 404 when no prior ready row exists; the engine treats this
+// as 'no comparison available' and forces trader_evolution.items to
+// be empty in the prompt.
+// ---------------------------------------------------------------------------
+
+func (h *Handler) handleInternalPrior(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.verifyInternalSecret(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	q := r.URL.Query()
+	userID := strings.TrimSpace(q.Get("user_id"))
+	if userID == "" {
+		userID = strings.TrimSpace(r.Header.Get(internalUserIDHeader))
+	}
+	if userID == "" {
+		writeError(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+	period := Period(strings.ToLower(strings.TrimSpace(q.Get("period"))))
+	if !period.IsValid() {
+		writeError(w, http.StatusBadRequest, "period must be 'weekly' or 'monthly'")
+		return
+	}
+	beforeStr := strings.TrimSpace(q.Get("before"))
+	if beforeStr == "" {
+		writeError(w, http.StatusBadRequest, "before is required")
+		return
+	}
+	before, err := time.Parse(time.RFC3339, beforeStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "before must be RFC3339")
+		return
+	}
+	rec, err := h.store.GetLatestReadyBefore(r.Context(), userID, period, before)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "no prior review")
+			return
+		}
+		h.log.Error().Err(err).Str("user_id", userID).Msg("performance_review_prior_failed")
+		writeError(w, http.StatusInternalServerError, "failed to load prior review")
+		return
+	}
+	writeJSON(w, http.StatusOK, recordResponse(rec))
+}
+
+// ---------------------------------------------------------------------------
+// Internal: GET /internal/performance-review/active-users
+//
+// Returns the list of user_ids that have an ACTIVE trading-system
+// profile. The engine scheduler iterates this list to dispatch one
+// review-generation job per user per cron tick (weekly Monday 06:00
+// UTC, monthly 1st 06:00 UTC).
+//
+// Users without an active trading system are excluded: the review
+// requires the system as its rulebook, so dispatching without one
+// would produce an immediate 'precondition failed' fail-callback.
+// ---------------------------------------------------------------------------
+
+func (h *Handler) handleInternalActiveUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.verifyInternalSecret(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	ids, err := h.store.ListActiveTradingSystemUserIDs(r.Context())
+	if err != nil {
+		h.log.Error().Err(err).Msg("performance_review_active_users_failed")
+		writeError(w, http.StatusInternalServerError, "failed to list active users")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"user_ids": ids,
+		"count":    len(ids),
+	})
+}
 
 // verifyInternalSecret performs a constant-time comparison of the
 // X-Internal-Auth header against the configured shared secret. Uses

@@ -28,6 +28,7 @@ from engine.routers import (
     health,
     internal,
     llm_connections,
+    performance_review,
     processor_config,
     trading_plan,
 )
@@ -85,6 +86,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             database=rag_health.database_connected,
             embedding=rag_health.embedding_provider_ready,
         )
+
+    # Performance Review cron jobs (weekly Mon 06:00 UTC, monthly 1st
+    # 06:00 UTC). Registered before the macro jobs so the scheduler
+    # has both trigger sets armed before .start() is called below.
+    from engine.processor.performance_review.scheduler import (
+        register_performance_review_jobs,
+    )
+    register_performance_review_jobs(container.scheduler)
 
     # Scheduler jobs bind to .refresh() (cache-bypass writer path) so
     # every scheduled interval unconditionally fetches from providers
@@ -235,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(broker_bridge.router)
     app.include_router(chart.router)
     app.include_router(trading_plan.router)
+    app.include_router(performance_review.router)
 
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)

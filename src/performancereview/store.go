@@ -357,6 +357,33 @@ func (s *Store) ListHistory(
 	return out, total, nil
 }
 
+// ListActiveTradingSystemUserIDs returns the list of user_ids that
+// currently have a Trading System in status='active'. Used by the
+// engine scheduler to iterate eligible users on each cron tick.
+// Empty slice when nobody has an active system; never returns an
+// error for an empty result.
+func (s *Store) ListActiveTradingSystemUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT user_id
+		  FROM user_trading_systems
+		 WHERE status = 'active'
+		   AND profile IS NOT NULL
+		 ORDER BY user_id`)
+	if err != nil {
+		return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUserIDs: %w", err)
+	}
+	defer rows.Close()
+	out := make([]string, 0, 64)
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUserIDs: scan: %w", err)
+		}
+		out = append(out, uid)
+	}
+	return out, nil
+}
+
 // GetLatestReadyBefore returns the most recent ready row strictly
 // before `before`. Used by the engine generator to compute trader-
 // evolution deltas (PLAN.md section 12) without re-running the LLM
