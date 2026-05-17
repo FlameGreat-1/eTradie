@@ -36,6 +36,8 @@ from engine.processor.performance_review.prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,
 )
+from engine.shared import metering_client as metering
+from engine.shared.exceptions import QuotaExceededError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -100,12 +102,21 @@ class PerformanceReviewGenerator:
         gateway_base_url: str,
         management_base_url: str,
         internal_secret: str,
+        model_name: str,
+        max_output_tokens: int,
     ) -> None:
         self._llm = llm_client
         self._http = http_client
         self._base_url = gateway_base_url.rstrip("/")
         self._management_url = management_base_url.rstrip("/")
         self._secret = internal_secret
+        # Model name + max-output cap are captured here (rather than
+        # being read off self._llm) so the metering reservation always
+        # matches what the LLM call is actually configured for. The
+        # platform config never changes mid-process, so reading the
+        # values once at construction time is correct.
+        self._model_name = model_name
+        self._max_output_tokens = max(1, int(max_output_tokens))
 
     @classmethod
     def from_container(cls, container: Any) -> Optional["PerformanceReviewGenerator"]:
@@ -144,12 +155,24 @@ class PerformanceReviewGenerator:
             timeout=_HTTP_TIMEOUT_S,
             headers={"Content-Type": "application/json"},
         )
+        # Pull the platform LLM identity off the container's processor
+        # config so the metering reservation can record provider, model,
+        # and the hard max-output cap. The generator only ever uses
+        # container.processor_llm_client (the platform key), so the
+        # platform config is the correct source of truth.
+        processor_config = getattr(container, "processor_config", None)
+        model_name = getattr(processor_config, "model_name", "") or "unknown"
+        max_output_tokens = int(
+            getattr(processor_config, "max_output_tokens", 16384) or 16384
+        )
         return cls(
             llm_client=container.processor_llm_client,
             http_client=client,
             gateway_base_url=base_url,
             management_base_url=management_url,
             internal_secret=secret,
+            model_name=model_name,
+            max_output_tokens=max_output_tokens,
         )
 
     async def aclose(self) -> None:
@@ -233,8 +256,51 @@ class PerformanceReviewGenerator:
             prior_review=prior_review,
         )
 
+        # Step: Metering reserve (Pro Managed / admin only).
+        # The estimated input is the prompt byte length divided by 4
+        # (a conservative approximation; commit() corrects to the real
+        # count). max_output_tokens is the hard ceiling the provider
+        # will honour.
+        #
+        # If metering is disabled (METERING_ENABLED=false or no gateway
+        # URL configured) reserve() returns '' and the call proceeds
+        # without any quota check. Same behaviour as the analysis path.
+        estimated_input = max(0, len(user_prompt.encode("utf-8")) // 4)
+        trace_id_metering = f"performance-review:{req.user_id}:{req.period}"
+        try:
+            reservation_id = await metering.reserve(
+                user_id=req.user_id,
+                provider=str(self._llm.PROVIDER),
+                model=self._model_name,
+                estimated_input_tokens=estimated_input,
+                max_output_tokens=self._max_output_tokens,
+                trace_id=trace_id_metering,
+            )
+        except QuotaExceededError as exc:
+            # User-safe message; the reservation was never created so
+            # nothing to refund. The fail callback flips the gateway
+            # row to 'failed' with this message so the SPA renders the
+            # actionable error instead of a generic AI unavailable.
+            logger.info(
+                "performance_review_quota_exceeded",
+                extra={
+                    "user_id": req.user_id,
+                    "period": req.period,
+                    "dimension": exc.dimension,
+                    "limit": exc.limit,
+                    "used": exc.used,
+                    "retry_after": exc.retry_after,
+                },
+            )
+            raise PerformanceReviewGenerationError(
+                f"LLM quota reached for your tier ({exc.dimension}); "
+                f"resets in {exc.retry_after} seconds"
+            )
+
         # Bounded retry loop for the LLM call. Same transient
-        # classification as trading_plan.
+        # classification as trading_plan. Every error path either
+        # retries (keeping the reservation alive) or refunds and
+        # re-raises so the held debit is released within its TTL.
         response = None
         last_exc: Optional[Exception] = None
         for attempt in range(_LLM_MAX_ATTEMPTS):
@@ -276,6 +342,11 @@ class PerformanceReviewGenerator:
                     break
                 await asyncio.sleep(_LLM_BACKOFF_S[attempt])
         if response is None:
+            # Every attempt failed. Refund the provisional debit so the
+            # user's quota is not permanently consumed for a call that
+            # never completed. Best-effort: the janitor reaps the
+            # reservation after its TTL if the refund itself fails.
+            await metering.refund(reservation_id=reservation_id)
             logger.warning(
                 "performance_review_llm_failed",
                 extra={
@@ -287,6 +358,16 @@ class PerformanceReviewGenerator:
             raise PerformanceReviewGenerationError(
                 "AI service is temporarily unavailable; please try again"
             )
+
+        # Commit the real token counts. The over-reservation on the
+        # output side (max_output - actual_output) is returned to the
+        # user's quota. Commit is best-effort; a transient failure does
+        # not roll back the completed LLM call.
+        await metering.commit(
+            reservation_id=reservation_id,
+            actual_input_tokens=response.input_tokens,
+            actual_output_tokens=response.output_tokens,
+        )
 
         parsed = self._parse_response(response.text)
         review = self._shape_review(
