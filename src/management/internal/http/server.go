@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,29 +31,44 @@ import (
 // All current /api/v1/management/* endpoints are GET, so RequireCSRF
 // short-circuits without doing any work. The wrap is uniform so the
 // next mutating route added to this server is automatically protected.
+//
+// Internal routes (/internal/*) are guarded by a separate constant-
+// time HMAC against the same engine shared secret the gateway uses.
+// No cookie auth on the internal surface — the engine cannot hold a
+// user JWT in background workers.
 type Server struct {
-	server  *http.Server
-	monitor *monitoring.Manager
-	journal *journal.Repository
-	metrics *analytics.Metrics
-	log     zerolog.Logger
+	server         *http.Server
+	monitor        *monitoring.Manager
+	journal        *journal.Repository
+	metrics        *analytics.Metrics
+	aggregator     *analytics.PerformanceAggregator
+	internalSecret string
+	log            zerolog.Logger
 }
 
 // NewServer creates the management HTTP API server.
 // All /api/v1/* routes require a valid JWT and pass the CSRF gate.
+//
+// aggregator and engineInternalSecret are optional: when either is
+// empty the /internal/performance-review/aggregate route is mounted
+// but refuses every request with 401 (safe default for dev).
 func NewServer(
 	port int,
 	monitor *monitoring.Manager,
 	journal *journal.Repository,
 	metrics *analytics.Metrics,
+	aggregator *analytics.PerformanceAggregator,
+	engineInternalSecret string,
 	tokenService *auth.TokenService,
 	authCfg *auth.Config,
 ) *Server {
 	s := &Server{
-		monitor: monitor,
-		journal: journal,
-		metrics: metrics,
-		log:     observability.Logger("http_server"),
+		monitor:        monitor,
+		journal:        journal,
+		metrics:        metrics,
+		aggregator:     aggregator,
+		internalSecret: strings.TrimSpace(engineInternalSecret),
+		log:            observability.Logger("http_server"),
 	}
 
 	mux := http.NewServeMux()
@@ -66,6 +83,12 @@ func NewServer(
 	mux.Handle("/api/v1/management/journal", wrap(s.handleGetJournal))
 	mux.Handle("/api/v1/management/metrics", wrap(s.handleGetMetrics))
 	mux.Handle("/api/v1/management/pnl-calendar", wrap(s.handleGetPnLCalendar))
+
+	// Internal (shared-secret) surface for the engine's performance
+	// review generator. No cookie auth here — the engine cannot hold
+	// a user JWT in background workers; verifyInternal does the HMAC
+	// gate per-request.
+	mux.HandleFunc("/internal/performance-review/aggregate", s.handlePerfReviewAggregate)
 
 	// Ops endpoints (public, no auth required).
 	mux.HandleFunc("/health", s.handleHealth)
@@ -320,6 +343,93 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// verifyInternal performs a constant-time comparison of the
+// X-Internal-Auth header against the configured engine shared
+// secret. Same SHA-256 pre-hash dance the gateway uses so the
+// secret length is never leaked via timing.
+func (s *Server) verifyInternal(r *http.Request) bool {
+	if s.internalSecret == "" {
+		return false
+	}
+	provided := strings.TrimSpace(r.Header.Get("X-Internal-Auth"))
+	if provided == "" {
+		return false
+	}
+	want := sha256.Sum256([]byte(s.internalSecret))
+	got := sha256.Sum256([]byte(provided))
+	return hmac.Equal(want[:], got[:])
+}
+
+// perfReviewAggregateBody is the engine's POST body.
+//
+// The user_id is taken from the body (the engine's per-user dispatch
+// already knows whose review this is); we do NOT trust
+// X-User-Id alone because the body is the contract and is signed by
+// the shared secret on every call.
+type perfReviewAggregateBody struct {
+	UserID      string `json:"user_id"`
+	Period      string `json:"period"`
+	PeriodStart string `json:"period_start"`
+	PeriodEnd   string `json:"period_end"`
+}
+
+// POST /internal/performance-review/aggregate
+//
+// Returns the deterministic per-window bundle the engine generator
+// feeds to the LLM. Idempotent; safe to retry.
+func (s *Server) handlePerfReviewAggregate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if !s.verifyInternal(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if s.aggregator == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "aggregator not configured"})
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
+	var body perfReviewAggregateBody
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+
+	userID := strings.TrimSpace(body.UserID)
+	if userID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		return
+	}
+	period := strings.ToLower(strings.TrimSpace(body.Period))
+	if period != "weekly" && period != "monthly" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "period must be 'weekly' or 'monthly'"})
+		return
+	}
+	periodStart, err := time.Parse(time.RFC3339, body.PeriodStart)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "period_start must be RFC3339"})
+		return
+	}
+	periodEnd, err := time.Parse(time.RFC3339, body.PeriodEnd)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "period_end must be RFC3339"})
+		return
+	}
+
+	bundle, err := s.aggregator.Aggregate(r.Context(), userID, period, periodStart, periodEnd)
+	if err != nil {
+		s.log.Error().Err(err).Str("user_id", userID).Str("period", period).Msg("perf_review_aggregate_failed")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to aggregate performance data"})
+		return
+	}
+	writeJSON(w, http.StatusOK, bundle)
 }
 
 // GET /api/v1/management/pnl-calendar - Daily PnL aggregation and streaks.
