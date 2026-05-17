@@ -34,6 +34,8 @@ from engine.processor.trading_plan.prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,
 )
+from engine.shared import metering_client as metering
+from engine.shared.exceptions import QuotaExceededError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -108,11 +110,20 @@ class TradingPlanGenerator:
         http_client: httpx.AsyncClient,
         gateway_base_url: str,
         internal_secret: str,
+        model_name: str,
+        max_output_tokens: int,
     ) -> None:
         self._llm = llm_client
         self._http = http_client
         self._base_url = gateway_base_url.rstrip("/")
         self._secret = internal_secret
+        # Model name + max-output cap are captured here (rather than
+        # being read off self._llm) so the metering reservation always
+        # matches what the LLM call is actually configured for. The
+        # platform config never changes mid-process, so reading the
+        # values once at construction time is correct.
+        self._model_name = model_name
+        self._max_output_tokens = max(1, int(max_output_tokens))
 
     @classmethod
     def from_container(cls, container: Any) -> Optional["TradingPlanGenerator"]:
@@ -148,11 +159,23 @@ class TradingPlanGenerator:
             timeout=_CALLBACK_TIMEOUT_S,
             headers={"Content-Type": "application/json"},
         )
+        # Pull the platform LLM identity off the container's processor
+        # config so the metering reservation can record provider, model,
+        # and the hard max-output cap. The generator only ever uses
+        # container.processor_llm_client (the platform key), so the
+        # platform config is the correct source of truth.
+        processor_config = getattr(container, "processor_config", None)
+        model_name = getattr(processor_config, "model_name", "") or "unknown"
+        max_output_tokens = int(
+            getattr(processor_config, "max_output_tokens", 16384) or 16384
+        )
         return cls(
             llm_client=container.processor_llm_client,
             http_client=client,
             gateway_base_url=base_url,
             internal_secret=secret,
+            model_name=model_name,
+            max_output_tokens=max_output_tokens,
         )
 
     async def aclose(self) -> None:
@@ -220,11 +243,48 @@ class TradingPlanGenerator:
             balance_source=req.balance_source,
         )
 
+        # Metering reserve (Pro Managed / admin only). Identical
+        # contract to the analysis path: estimated_input is a
+        # conservative byte-length / 4 approximation, the commit()
+        # call below corrects to the real token counts.
+        #
+        # If metering is disabled (METERING_ENABLED=false or no
+        # gateway URL configured) reserve() returns '' and the call
+        # proceeds without any quota check.
+        estimated_input = max(0, len(user_prompt.encode("utf-8")) // 4)
+        trace_id_metering = f"trading-plan:{req.user_id}"
+        try:
+            reservation_id = await metering.reserve(
+                user_id=req.user_id,
+                provider=str(self._llm.PROVIDER),
+                model=self._model_name,
+                estimated_input_tokens=estimated_input,
+                max_output_tokens=self._max_output_tokens,
+                trace_id=trace_id_metering,
+            )
+        except QuotaExceededError as exc:
+            logger.info(
+                "trading_plan_quota_exceeded",
+                extra={
+                    "user_id": req.user_id,
+                    "dimension": exc.dimension,
+                    "limit": exc.limit,
+                    "used": exc.used,
+                    "retry_after": exc.retry_after,
+                },
+            )
+            raise TradingPlanGenerationError(
+                f"LLM quota reached for your tier ({exc.dimension}); "
+                f"resets in {exc.retry_after} seconds"
+            )
+
         # Bounded retry loop for the LLM call. Transient transport
         # errors and provider 5xx responses get one or two retries
         # with exponential backoff; non-transient errors (auth, bad
         # request, malformed prompt) raise on the first attempt so
-        # we do not waste time or tokens.
+        # we do not waste time or tokens. Every error path refunds
+        # the held reservation before re-raising so dangling
+        # reservations are never left for the janitor.
         response = None
         last_exc: Optional[Exception] = None
         for attempt in range(_LLM_MAX_ATTEMPTS):
@@ -270,8 +330,11 @@ class TradingPlanGenerator:
                     break
                 await asyncio.sleep(_LLM_BACKOFF_S[attempt])
         if response is None:
-            # Every attempt failed. Surface a generic message so we
-            # never leak provider-specific routing hints to the SPA.
+            # Every attempt failed. Refund the provisional debit so the
+            # user's quota is not permanently consumed for a call that
+            # never completed. Best-effort: the janitor reaps the
+            # reservation after its TTL if the refund itself fails.
+            await metering.refund(reservation_id=reservation_id)
             logger.warning(
                 "trading_plan_llm_call_failed",
                 extra={
@@ -283,6 +346,16 @@ class TradingPlanGenerator:
             raise TradingPlanGenerationError(
                 "AI service is temporarily unavailable; please try again"
             )
+
+        # Commit the real token counts. The over-reservation on the
+        # output side (max_output - actual_output) is returned to the
+        # user's quota. Commit is best-effort; a transient failure does
+        # not roll back the completed LLM call.
+        await metering.commit(
+            reservation_id=reservation_id,
+            actual_input_tokens=response.input_tokens,
+            actual_output_tokens=response.output_tokens,
+        )
 
         parsed = self._parse_response(response.text)
         plan = self._shape_plan(
