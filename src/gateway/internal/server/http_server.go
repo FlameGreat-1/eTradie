@@ -23,6 +23,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/performancereview"
 	"github.com/flamegreat-1/etradie/src/support"
 	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
@@ -61,6 +62,7 @@ func NewHTTPServer(
 	meteringHandler *MeteringHandler,
 	tradingSystemHandler *tradingsystem.Handler,
 	tradingPlanHandler *tradingplan.Handler,
+	perfReviewHandler *performancereview.Handler,
 	adminBillingHandler *AdminBillingHandler,
 	userBillingHandler *UserBillingHandler,
 ) (*HTTPServer, error) {
@@ -151,6 +153,16 @@ func NewHTTPServer(
 	if tradingPlanHandler != nil {
 		tradingPlanHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 		tradingPlanHandler.RegisterInternalRoutes(mux)
+	}
+
+	// Performance Review (PLAN.md — Weekly/Monthly AI performance analyst).
+	// Public surface (latest/history/:id/generate) under auth+csrf;
+	// engine callback/fail under the shared-secret HMAC path the
+	// handler validates itself. Nil-tolerant so a future build that
+	// disables this surface still starts cleanly.
+	if perfReviewHandler != nil {
+		perfReviewHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+		perfReviewHandler.RegisterInternalRoutes(mux)
 	}
 
 	// Admin-only billing read surface (read-only views over

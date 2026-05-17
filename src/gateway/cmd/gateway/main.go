@@ -20,6 +20,8 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/performancereview"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/performancereviewadapter"
 	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
@@ -364,7 +366,48 @@ func main() {
 		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
 		Msg("trading_plan_initialized")
 
-	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore, tradingSystemHandler, tradingPlanHandler)
+	// ── Performance Review (PLAN.md — Weekly/Monthly AI performance analyst) ──
+	// Same authPool as every other gateway store; idempotent DDL so a
+	// fresh database boots without an external migration step. The
+	// review aggregates journal data (observed behavior) and grades it
+	// against the user's Trading System (defined framework). It is
+	// read-only intelligence; nothing here mutates the journal, the
+	// trading system, or the trading plan.
+	if _, err := authPool.Exec(ctx, performancereview.SchemaSQL()); err != nil {
+		log.Fatal().Err(err).Msg("performance_review_schema_creation_failed")
+	}
+	perfReviewStore := performancereview.NewStore(authPool)
+
+	// Dedicated engine client for the performance-review dispatch path.
+	// A second long-lived client costs one keep-alive pool and avoids
+	// any signature changes to container.New. Closed on shutdown via
+	// the deferred Close() below.
+	perfReviewEngine := infra.NewEngineHTTPClient(
+		cfg.EngineHTTPURL,
+		cfg.EngineInternalSharedSecret,
+		cfg.CycleTimeoutSeconds,
+	)
+	perfReviewDispatcher := performancereviewadapter.NewDispatcher(
+		perfReviewEngine,
+		observability.Logger("performance_review_dispatcher"),
+	)
+	perfReviewHandler := performancereview.NewHandler(
+		perfReviewStore,
+		tradingSystemStore,
+		perfReviewDispatcher,
+		cfg.EngineInternalSharedSecret,
+		observability.Logger("performance_review"),
+	)
+	// Reap the per-user rate-limiter background goroutines on graceful
+	// shutdown. Mirrors every other rate-limited handler in the gateway.
+	defer perfReviewHandler.Close()
+	defer perfReviewEngine.Close()
+	log.Info().
+		Int("schema_version", performancereview.CurrentSchemaVersion).
+		Bool("internal_secret_configured", cfg.EngineInternalSharedSecret != "").
+		Msg("performance_review_initialized")
+
+	c, err := container.New(cfg, execPort, execAdapter, tokenService, authHandler, authCfg, userStore, waitlistHandler, consentHandler, supportHandler, supportNotifier, emailSender, usageStore, subStore, portalAudStore, tradingSystemHandler, tradingPlanHandler, perfReviewHandler)
 	if err != nil {
 		log.Fatal().Err(err).Msg("gateway_container_build_failed")
 	}

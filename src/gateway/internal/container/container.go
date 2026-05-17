@@ -26,10 +26,10 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/performancereview"
 	"github.com/flamegreat-1/etradie/src/support"
 	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
-
 )
 
 // Container holds all gateway components and manages their lifecycle.
@@ -79,6 +79,7 @@ func New(
 	portalAudStore *store.PortalAuditStore,
 	tradingSystemHandler *tradingsystem.Handler,
 	tradingPlanHandler *tradingplan.Handler,
+	perfReviewHandler *performancereview.Handler,
 ) (*Container, error) {
 	log := observability.Logger("container")
 
@@ -198,7 +199,7 @@ func New(
 	userBillingHandler := server.NewUserBillingHandler(userQueries)
 
 	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, adminBillingHandler, userBillingHandler)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, userBillingHandler)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
