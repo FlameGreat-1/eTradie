@@ -252,6 +252,10 @@ func main() {
 	// -- Analytics & Reporting ---------------------------------------------
 	metricsEngine := analytics.NewMetrics(pool)
 	reporter := analytics.NewReporter(metricsEngine, alertTransport)
+	// Deterministic per-window aggregator used by the engine's
+	// performance-review LLM generator. Reads management_trades in
+	// place (no new tables, no duplication).
+	perfAggregator := analytics.NewPerformanceAggregator(pool)
 
 	// Schedule weekly/monthly reporting goroutine.
 	go func() {
@@ -453,7 +457,16 @@ func main() {
 	// authCfg flows through so the HTTP server can build the CSRF
 	// middleware (auth.RequireCSRF) AND emit the configured CSRF header
 	// name in the CORS Allow-Headers preflight response.
-	httpServer := mhttp.NewServer(cfg.HTTPPort, mgr, journalRepo, metricsEngine, tokenService, authCfg)
+	httpServer := mhttp.NewServer(
+		cfg.HTTPPort,
+		mgr,
+		journalRepo,
+		metricsEngine,
+		perfAggregator,
+		cfg.EngineInternalSecret,
+		tokenService,
+		authCfg,
+	)
 	go func() {
 		if err := httpServer.Start(); err != nil {
 			log.Fatal().Err(err).Msg("http_serve_failed")
