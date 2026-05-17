@@ -161,7 +161,7 @@ function HistoryRow({
             <StatusPill status={row.status} />
           </div>
           <p className="mt-1 text-xs sm:text-sm font-bold text-black dark:text-white truncate">
-            {startLabel} \u2013 {endLabel}
+            {startLabel} – {endLabel}
           </p>
           <p className="text-[11px] text-black/40 dark:text-white/40">Updated {updatedLabel}</p>
         </div>
@@ -216,7 +216,7 @@ function Pagination({
   return (
     <div className="flex items-center justify-between gap-3 pt-1">
       <span className="text-[11px] text-black/40 dark:text-white/40">
-        {from}\u2013{to} of {total}
+        {from}–{to} of {total}
       </span>
       <div className="flex items-center gap-1">
         <button

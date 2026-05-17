@@ -30,7 +30,16 @@ export const performanceReviewKeys = {
  * Latest review for the given period. While the row is in status
  * 'generating' we poll every 6s so the SPA flips to the new review
  * within seconds of the gateway callback. Otherwise the safety poll
- * runs at 60s; manual mutations invalidate the key for instant updates.
+ * runs at 60s (adaptive back-off on outage); manual mutations
+ * invalidate the key for instant updates.
+ *
+ * Implementation note: `adaptiveInterval(n)` returns a Query → number
+ * function. Calling it inline with the outer callback's `q` argument
+ * is correct (it produces a number); RETURNING `adaptiveInterval(n)`
+ * directly would return a function to React Query, which silently
+ * breaks polling. The 'generating' branch wants a fixed cadence —
+ * we always want a fast poll while the LLM is in flight, even if a
+ * prior 5xx caused an error — so it returns a raw number.
  */
 export function usePerformanceReviewLatest(period: PerformanceReviewPeriod) {
   const { isAuthenticated } = useAuth();
@@ -39,8 +48,8 @@ export function usePerformanceReviewLatest(period: PerformanceReviewPeriod) {
     queryFn: () => getLatestReview(period),
     refetchInterval: (q) => {
       const data = q.state.data as PerformanceReviewRecord | undefined;
-      if (data?.status === 'generating') return adaptiveInterval(6_000);
-      return adaptiveInterval(60_000);
+      if (data?.status === 'generating') return 6_000;
+      return adaptiveInterval(60_000)(q);
     },
     staleTime: 2_000,
     retry: POLL_RETRY,

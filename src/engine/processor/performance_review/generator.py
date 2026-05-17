@@ -211,8 +211,13 @@ class PerformanceReviewGenerator:
         # Step 1: aggregator bundle (from management).
         aggregation = await self._fetch_aggregation(req)
 
-        # Step 2: trading-system profile (from gateway).
-        profile = await self._fetch_profile(req.user_id)
+        # Step 2: trading-system profile + authoritative version (from gateway).
+        # The version returned here is the single source of truth and
+        # overrides the dispatch payload (which may be 0 on the cron
+        # path because the scheduler does not enumerate per-user
+        # versions before fanning out).
+        profile, profile_version = await self._fetch_profile(req.user_id)
+        effective_version = profile_version if profile_version > 0 else req.profile_version
 
         # Step 3: optional prior review (from gateway).
         prior_review = await self._fetch_prior_review(req)
@@ -223,7 +228,7 @@ class PerformanceReviewGenerator:
             period_start=req.period_start.isoformat(),
             period_end=req.period_end.isoformat(),
             profile=profile,
-            profile_version=req.profile_version,
+            profile_version=effective_version,
             aggregation=aggregation,
             prior_review=prior_review,
         )
@@ -288,6 +293,7 @@ class PerformanceReviewGenerator:
             parsed=parsed,
             req=req,
             aggregation=aggregation,
+            profile_version=effective_version,
         )
         review["generation_started_at"] = generation_started_at
         return review
@@ -343,16 +349,40 @@ class PerformanceReviewGenerator:
             )
         return data
 
-    async def _fetch_profile(self, user_id: str) -> dict[str, Any]:
+    async def _fetch_profile(self, user_id: str) -> tuple[dict[str, Any], int]:
         """Fetch the user's trading-system profile from the gateway's
-        internal endpoint. The gateway exposes
-        /internal/trading-system/:user_id under the same shared-secret
-        HMAC the engine uses for the other /internal/* calls.
+        internal endpoint.
+
+        Wire contract (matches src/tradingsystem/handlers.go::handleInternalGet):
+
+          Request:
+            POST {gateway}/internal/trading-system/get
+            Headers:
+              X-Internal-Auth: <shared secret>
+              X-User-Id:       <user_id>     (also in body, body wins)
+            Body:
+              {"user_id": "<user_id>"}
+
+          Response (200, JSON):
+            {
+              "user_id":     "...",
+              "status":      "none" | "skipped" | "active",
+              "version":     <int>,
+              "profile":     {...}  | null,
+              "has_profile": <bool>,
+              "updated_at":  "<RFC3339>"
+            }
+
+        Returns the (profile, version) tuple. Raises a user-safe error
+        when the profile is missing or the trading system is not yet
+        active so the gateway can surface the right CTA to the SPA.
         """
-        url = f"{self._base_url}/internal/trading-system/{user_id}"
+        url = f"{self._base_url}/internal/trading-system/get"
+        body = {"user_id": user_id}
         try:
-            resp = await self._http.get(
+            resp = await self._http.post(
                 url,
+                json=body,
                 headers={
                     _INTERNAL_AUTH_HEADER: self._secret,
                     _INTERNAL_USER_ID_HEADER: user_id,
@@ -365,10 +395,6 @@ class PerformanceReviewGenerator:
             )
             raise PerformanceReviewGenerationError(
                 "could not load your trading system; please try again"
-            )
-        if resp.status_code == 404:
-            raise PerformanceReviewGenerationError(
-                "build your trading system before requesting a review"
             )
         if resp.status_code != 200:
             logger.warning(
@@ -392,14 +418,26 @@ class PerformanceReviewGenerator:
             raise PerformanceReviewGenerationError(
                 "trading-system response had an unexpected shape"
             )
-        # The gateway returns the full record; the LLM only needs
-        # the profile sub-document. Tolerate either shape.
-        profile = data.get("profile") if "profile" in data else data
-        if not isinstance(profile, dict) or not profile:
+
+        # The gateway returns status='none' with profile=null when the
+        # user has never built (or has reset) their trading system.
+        # That is a precondition failure, not a transport error.
+        status = str(data.get("status") or "").lower()
+        profile = data.get("profile")
+        if status != "active" or not isinstance(profile, dict) or not profile:
             raise PerformanceReviewGenerationError(
-                "trading-system profile is empty; complete the builder first"
+                "build your trading system before requesting a review"
             )
-        return profile
+
+        # The version is authoritative: the cron dispatch path passes 0
+        # because it does not enumerate per-user versions. Reading the
+        # value here lets the review audit trail correlate to the
+        # exact framework version the LLM observed.
+        try:
+            version = int(data.get("version") or 0)
+        except (TypeError, ValueError):
+            version = 0
+        return profile, version
 
     async def _fetch_prior_review(
         self,
@@ -476,6 +514,7 @@ class PerformanceReviewGenerator:
         parsed: dict[str, Any],
         req: GenerationRequest,
         aggregation: dict[str, Any],
+        profile_version: int,
     ) -> dict[str, Any]:
         """Project the LLM payload into the wire shape the gateway
         validator expects.
@@ -616,7 +655,7 @@ class PerformanceReviewGenerator:
             "period_start": req.period_start.isoformat(),
             "period_end": req.period_end.isoformat(),
             "generated_by": "Exoper AI",
-            "profile_version": int(req.profile_version),
+            "profile_version": int(profile_version),
         }
         return review
 
