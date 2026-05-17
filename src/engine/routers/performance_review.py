@@ -1,27 +1,19 @@
-"""Internal routes for Performance Review dispatch + scheduler.
+"""Internal routes for Performance Review dispatch.
 
 The Go gateway calls /internal/performance-review/dispatch when the
-user clicks 'Run review now' (or when the engine's own scheduler
-fires the weekly / monthly cron). We schedule the LLM job on the
-engine's background-task coordinator and return 202 Accepted
-immediately so the gateway can respond quickly to the SPA.
+user clicks 'Run review now'. We schedule the LLM job on the engine's
+background-task coordinator and return 202 Accepted immediately so
+the gateway can respond quickly to the SPA.
 
-No user authentication here: the gateway already authenticated the
-caller and forwards the user_id in the body. We verify the shared-
-secret HMAC instead via the same dependency the rest of the
-/internal/* surface uses.
+The weekly / monthly cron (in engine.processor.performance_review.scheduler)
+calls `dispatch_generation` directly, IN-PROCESS, instead of issuing a
+self-HTTP request. Both paths share the same single-flight key, the
+same cooldown, and the same timeout — that is the single source of
+truth for dispatch policy.
 
-Route:
-    POST /internal/performance-review/dispatch
-
-Body:
-    {
-      "user_id":         "<auth user id>",
-      "period":          "weekly" | "monthly",
-      "period_start":    "<RFC3339>",
-      "period_end":      "<RFC3339>",
-      "profile_version": <int>
-    }
+No user authentication on the HTTP surface: the gateway already
+authenticated the caller. We verify the shared-secret HMAC via the
+same dependency the rest of the /internal/* surface uses.
 """
 from __future__ import annotations
 
@@ -53,16 +45,20 @@ class DispatchBody(BaseModel):
 
 
 # Cooldown chosen so a runaway client cannot trigger duplicate LLM
-# calls within the same minute. The gateway already enforces a per-
+# calls within the same window. The gateway already enforces a per-
 # user rate limit (5/h on /generate); this is defense-in-depth at
-# the engine layer.
+# the engine layer and also throttles the cron path which fans out
+# to every active user.
 _COOLDOWN_S = 300.0
+
 # Timeout per job. The aggregator + profile fetch + LLM call typically
 # completes in 20-60s; 240s leaves 4x headroom.
 _TIMEOUT_S = 240.0
 
 
-async def _resolve_generator(container: Container) -> Optional[PerformanceReviewGenerator]:
+async def _resolve_generator(
+    container: Container,
+) -> Optional[PerformanceReviewGenerator]:
     """Lazily build (and cache on the container) the generator instance.
 
     Same pattern as trading_plan: build under an asyncio.Lock so a
@@ -71,7 +67,9 @@ async def _resolve_generator(container: Container) -> Optional[PerformanceReview
     gen = getattr(container, "_performance_review_generator", None)
     if gen is not None:
         return gen
-    lock: asyncio.Lock = getattr(container, "_performance_review_generator_lock", None)
+    lock: asyncio.Lock = getattr(
+        container, "_performance_review_generator_lock", None
+    )
     if lock is None:
         lock = asyncio.Lock()
         container._performance_review_generator_lock = lock  # type: ignore[attr-defined]
@@ -84,39 +82,51 @@ async def _resolve_generator(container: Container) -> Optional[PerformanceReview
         return gen
 
 
-@router.post("/internal/performance-review/dispatch", status_code=202)
-async def dispatch_performance_review(
-    request: Request,
-    body: DispatchBody,
-    _: None = Depends(verify_internal_auth),
-) -> dict:
-    container: Container = request.app.state.container
+async def dispatch_generation(
+    container: Container,
+    gen_req: GenerationRequest,
+) -> dict[str, object]:
+    """Schedule a review generation job on the engine's background-task
+    coordinator.
 
+    This is the SINGLE source of truth for dispatch policy: the HTTP
+    endpoint below and the weekly/monthly cron both call this
+    function. The cooldown + single-flight + timeout are enforced
+    centrally by container.background_tasks.
+
+    Returns:
+      {
+        "dispatched": bool,   # always True when the generator is configured
+        "spawned":    bool,   # True when a fresh task was started, False
+                              # when single-flight or cooldown coalesced it
+        "reason":     str?,   # populated when dispatched=False
+      }
+
+    Raises HTTPException(503) when the generator is not configured
+    (missing gateway URL, management URL, or shared secret) so the
+    HTTP caller surfaces the right error; the cron interprets the
+    same condition by inspecting the returned dict.
+    """
     generator = await _resolve_generator(container)
     if generator is None:
         logger.warning(
             "performance_review_dispatch_generator_unavailable",
-            extra={"user_id": body.user_id, "period": body.period},
+            extra={
+                "user_id": gen_req.user_id,
+                "period": gen_req.period,
+            },
         )
         raise HTTPException(
             status_code=503,
             detail="performance review generator is not configured",
         )
 
-    gen_req = GenerationRequest(
-        user_id=body.user_id,
-        period=body.period,
-        period_start=body.period_start,
-        period_end=body.period_end,
-        profile_version=body.profile_version,
-    )
-
     # Key includes period_start so two distinct windows (e.g. last
     # week and the week before) do not coalesce onto the same
     # single-flight slot when the user retries near a boundary.
     key = (
-        f"performance_review:{body.user_id}:{body.period}:"
-        f"{body.period_start.isoformat()}"
+        f"performance_review:{gen_req.user_id}:{gen_req.period}:"
+        f"{gen_req.period_start.isoformat()}"
     )
     spawned = await container.background_tasks.schedule_once(
         key,
@@ -128,15 +138,29 @@ async def dispatch_performance_review(
     logger.info(
         "performance_review_dispatch_accepted",
         extra={
-            "user_id": body.user_id,
-            "period": body.period,
-            "period_start": body.period_start.isoformat(),
-            "period_end": body.period_end.isoformat(),
-            "profile_version": body.profile_version,
+            "user_id": gen_req.user_id,
+            "period": gen_req.period,
+            "period_start": gen_req.period_start.isoformat(),
+            "period_end": gen_req.period_end.isoformat(),
+            "profile_version": gen_req.profile_version,
             "spawned": spawned,
         },
     )
-    return {
-        "dispatched": True,
-        "spawned": spawned,
-    }
+    return {"dispatched": True, "spawned": spawned}
+
+
+@router.post("/internal/performance-review/dispatch", status_code=202)
+async def dispatch_performance_review(
+    request: Request,
+    body: DispatchBody,
+    _: None = Depends(verify_internal_auth),
+) -> dict:
+    container: Container = request.app.state.container
+    gen_req = GenerationRequest(
+        user_id=body.user_id,
+        period=body.period,
+        period_start=body.period_start,
+        period_end=body.period_end,
+        profile_version=body.profile_version,
+    )
+    return await dispatch_generation(container, gen_req)

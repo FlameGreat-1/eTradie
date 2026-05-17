@@ -90,10 +90,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Performance Review cron jobs (weekly Mon 06:00 UTC, monthly 1st
     # 06:00 UTC). Registered before the macro jobs so the scheduler
     # has both trigger sets armed before .start() is called below.
+    # The app reference is captured so the cron can resolve the
+    # container at fire time via app.state.container and dispatch
+    # review-generation jobs IN-PROCESS (no HTTP-to-self).
     from engine.processor.performance_review.scheduler import (
         register_performance_review_jobs,
     )
-    register_performance_review_jobs(container.scheduler)
+    register_performance_review_jobs(app, container.scheduler)
 
     # Scheduler jobs bind to .refresh() (cache-bypass writer path) so
     # every scheduled interval unconditionally fetches from providers
