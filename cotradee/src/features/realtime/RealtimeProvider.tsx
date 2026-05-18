@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -11,6 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationsSocket } from './useNotificationsSocket';
 import { applyEventInvalidations } from './eventMap';
+import { RealtimeContext, type RealtimeContextValue } from './context';
 import type { RealtimeEvent } from './types';
 import { toast } from '@/hooks/useToast';
 
@@ -27,25 +27,19 @@ import { toast } from '@/hooks/useToast';
  * design opens N connections per dashboard view. By centralising we
  * keep exactly one connection, share the parsed payload, and avoid
  * thundering-herd reconnects when several components mount at once.
+ *
+ * Module layout: the React context object itself lives in `./context`
+ * (a value-only module with no component exports) so its identity is
+ * stable under Vite Fast Refresh / HMR. Keeping it here would cause
+ * intermittent "useRealtime must be used inside <RealtimeProvider>"
+ * errors after edits, because Fast Refresh would re-evaluate this
+ * module and create a fresh context instance for new consumers while
+ * the already-mounted provider still held the old one.
  */
 
 const LOG_BUFFER_SIZE = 50;
 
-export interface RealtimeContextValue {
-  /** True when the underlying WebSocket is connected. */
-  isConnected: boolean;
-  /** The most recent event observed, or null. */
-  latestEvent: RealtimeEvent | null;
-  /** Ring buffer of the most recent events (newest first). */
-  recentEvents: RealtimeEvent[];
-  /**
-   * Subscribe to live events. Returns an unsubscribe function.
-   * Callers should memoise the handler with `useCallback`.
-   */
-  subscribe: (handler: (event: RealtimeEvent) => void) => () => void;
-}
-
-const RealtimeContext = createContext<RealtimeContextValue | undefined>(undefined);
+export type { RealtimeContextValue };
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
