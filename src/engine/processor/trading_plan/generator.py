@@ -375,15 +375,18 @@ class TradingPlanGenerator:
             plan["generation_started_at"] = generation_started_at
             return plan
         finally:
-            # Always close the isolated client we built in this
-            # request. The loader returns a fresh client per call
-            # (so a per-user broker rotation cannot leave a stale
-            # cached connection wired into a different user's job),
-            # so closing here is the right ownership boundary.
-            try:
-                await llm_client.close()
-            except Exception:
-                pass
+            # Lifecycle note: the LLM client is owned by
+            # Container._user_background_llm (the per-user cache on
+            # the container). We DO NOT close it here — closing
+            # would tear down a connection pool that other in-flight
+            # or subsequent requests for the same user need to reuse,
+            # which is the entire point of the cache. The cache
+            # invalidates and closes the client when the user mutates
+            # their LLM connection (every route in llm_connections.py
+            # calls invalidate_user_background_llm()), when the
+            # platform key rotates (invalidate_all_background_llm()),
+            # or when the process exits (Container.shutdown()).
+            pass
 
     @staticmethod
     def _parse_response(raw: str) -> dict[str, Any]:

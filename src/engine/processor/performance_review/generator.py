@@ -383,10 +383,18 @@ class PerformanceReviewGenerator:
             review["generation_started_at"] = generation_started_at
             return review
         finally:
-            try:
-                await dynamic_client.close()
-            except Exception:
-                pass
+            # Lifecycle note: the LLM client is owned by
+            # Container._user_background_llm (the per-user cache on
+            # the container). We DO NOT close it here — closing
+            # would tear down a connection pool that other in-flight
+            # or subsequent requests for the same user need to reuse,
+            # which is the entire point of the cache. The cache
+            # invalidates and closes the client when the user mutates
+            # their LLM connection (every route in llm_connections.py
+            # calls invalidate_user_background_llm()), when the
+            # platform key rotates (invalidate_all_background_llm()),
+            # or when the process exits (Container.shutdown()).
+            pass
 
     # -- Inbound HTTP (gateway + management) -----------------------------
 
