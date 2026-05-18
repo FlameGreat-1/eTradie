@@ -554,6 +554,15 @@ func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) (int64, error
 
 // SeedAdminUser creates the initial admin user if no admin exists.
 // Called once at startup. If the admin already exists, this is a no-op.
+//
+// The matching billing_subscriptions row is also upserted here so the
+// new admin starts with tier='pro_managed' / status='active' the
+// instant they exist. The database trigger fn_billing_sync_admin_tier
+// (installed by billing/store.SchemaSQL) covers this case as well,
+// but writing the row explicitly keeps the invariant local to the
+// seed path so a future schema-reordering change cannot break
+// first-boot semantically. Both writes converge on the same end
+// state and the upsert is idempotent.
 func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 	count, err := store.CountAdmins(ctx)
 	if err != nil {
@@ -588,6 +597,36 @@ func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 
 	if err := store.CreateUser(ctx, user); err != nil {
 		return fmt.Errorf("seed admin: create user: %w", err)
+	}
+
+	// Defense in depth: ensure the billing row reflects the admin's
+	// entitlement immediately. The trigger fires on the INSERT above
+	// so this UPSERT is normally a no-op; it stays as belt-and-braces
+	// so first-boot is correct even when the trigger has not yet
+	// been installed (e.g. older deploy that has not run the latest
+	// billing SchemaSQL).
+	//
+	// The query uses the SAME shape and race-safety guard as the
+	// trigger so a real webhook landing at the same instant cannot
+	// regress the result. Errors here are non-fatal: the trigger and
+	// the startup backfill (also in billing/store.SchemaSQL) will
+	// converge the row on the next deploy or the next role-touching
+	// UPDATE. Logging the error keeps the operator informed without
+	// blocking the admin's first login.
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO billing_subscriptions (user_id, tier, status, event_timestamp, updated_at)
+		VALUES ($1, 'pro_managed', 'active', NOW(), NOW())
+		ON CONFLICT (user_id) DO UPDATE SET
+		    tier            = 'pro_managed',
+		    status          = 'active',
+		    event_timestamp = NOW(),
+		    updated_at      = NOW()
+		WHERE billing_subscriptions.event_timestamp <= NOW()`,
+		user.ID,
+	); err != nil {
+		// Non-fatal: see comment above.
+		fmt.Printf("[WARN] seed admin: billing upsert skipped (%v); "+
+			"trigger or backfill will converge next start\n", err)
 	}
 
 	if generated {
