@@ -251,6 +251,46 @@ func (s *Store) UpdatePlanContent(ctx context.Context, userID string, plan *Plan
 	}, nil
 }
 
+// ReapStaleGenerating flips any row in status='generating' whose
+// updated_at is older than `staleness` to status='failed' with a
+// short user-safe message. This is the safety net for the case where
+// the engine's fail-callback never lands (engine crash mid-flight,
+// gateway downtime that outlasts the engine's 3-attempt retry, etc.):
+// without it, the SPA renders an indefinite "generating" spinner.
+//
+// Returns the number of rows reaped so the operator can correlate
+// reaper hits to engine outages. Idempotent and side-effect-free for
+// rows that are not stale.
+//
+// The threshold is supplied by the caller rather than hard-coded so
+// the wiring layer (the gateway main loop) owns the policy and tests
+// can drive the boundary deterministically. 5 minutes is the
+// production default; the engine's worst-case end-to-end (metering
+// reserve + 3-attempt LLM retry with backoff + callback delivery)
+// sits comfortably under 2 minutes, so 5 minutes never trips a
+// legitimate in-flight job.
+func (s *Store) ReapStaleGenerating(ctx context.Context, staleness time.Duration) (int64, error) {
+	if staleness <= 0 {
+		return 0, errors.New("tradingplan.ReapStaleGenerating: staleness must be > 0")
+	}
+	now := time.Now().UTC()
+	cutoff := now.Add(-staleness)
+	const message = "generation timed out; please retry"
+	res, err := s.pool.Exec(ctx,
+		`UPDATE user_trading_plans
+		    SET status     = 'failed',
+		        last_error = $1,
+		        updated_at = $2
+		  WHERE status     = 'generating'
+		    AND updated_at < $3`,
+		message, now, cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("tradingplan.ReapStaleGenerating: %w", err)
+	}
+	return res.RowsAffected(), nil
+}
+
 // Reset clears the plan and returns the user to status='none'. Used
 // by the dashboard's "start over" affordance and on Trading System
 // reset (the plan is derived from the system; clearing the system

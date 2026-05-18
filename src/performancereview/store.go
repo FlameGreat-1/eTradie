@@ -114,6 +114,35 @@ func (s *Store) MarkFailed(
 	return nil
 }
 
+// ReapStaleGenerating flips any row in status='generating' whose
+// updated_at is older than `staleness` to status='failed' with a
+// short user-safe message. Identical contract to
+// tradingplan.Store.ReapStaleGenerating; the two reapers run on the
+// same ticker in the gateway so the two features have symmetric UX
+// recovery semantics. See that method's doc-comment for the
+// rationale and threshold choice.
+func (s *Store) ReapStaleGenerating(ctx context.Context, staleness time.Duration) (int64, error) {
+	if staleness <= 0 {
+		return 0, errors.New("performancereview.ReapStaleGenerating: staleness must be > 0")
+	}
+	now := time.Now().UTC()
+	cutoff := now.Add(-staleness)
+	const message = "generation timed out; please retry"
+	res, err := s.pool.Exec(ctx, `
+		UPDATE user_performance_reviews
+		   SET status     = 'failed',
+		       last_error = $1,
+		       updated_at = $2
+		 WHERE status     = 'generating'
+		   AND updated_at < $3`,
+		message, now, cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("performancereview.ReapStaleGenerating: %w", err)
+	}
+	return res.RowsAffected(), nil
+}
+
 // Save persists a validated review and flips the row to status='ready'.
 // Updates the existing (user_id, period, period_start) row written by
 // MarkGenerating; if the row was lost (manual deletion, retention

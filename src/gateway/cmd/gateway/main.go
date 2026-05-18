@@ -442,6 +442,51 @@ func main() {
 		c.Scheduler.Start(schedulerCtx)
 	}()
 
+	// ── Stuck-generation reaper (UX safety net) ────────────────────────
+	//
+	// The trading-plan and performance-review LLM flows mark a row
+	// status='generating' on dispatch and rely on the engine's
+	// fail-callback (or success-callback) to flip it out. If the
+	// callback is ever lost \u2014 engine crash mid-flight, gateway
+	// downtime that outlasts the engine's 3-attempt retry, network
+	// partition, etc. \u2014 the row stays in 'generating' forever and the
+	// SPA renders an indefinite spinner.
+	//
+	// This goroutine runs every minute and flips any 'generating' row
+	// whose updated_at is older than 5 minutes to 'failed' with a
+	// user-safe "generation timed out; please retry" message. 5 minutes
+	// is the staleness threshold; the engine's worst-case end-to-end
+	// sits comfortably under 2 minutes so this never trips a legitimate
+	// in-flight job. 1 minute is the tick interval; combined with the
+	// 5-minute threshold the worst-case stuck-spinner UX is ~6 minutes.
+	go func() {
+		const (
+			reapInterval  = 1 * time.Minute
+			reapStaleness = 5 * time.Minute
+		)
+		ticker := time.NewTicker(reapInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-schedulerCtx.Done():
+				return
+			case <-ticker.C:
+				reapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if n, err := tradingPlanStore.ReapStaleGenerating(reapCtx, reapStaleness); err != nil {
+					log.Error().Err(err).Msg("trading_plan_reaper_failed")
+				} else if n > 0 {
+					log.Warn().Int64("reaped", n).Dur("staleness", reapStaleness).Msg("trading_plan_stale_generations_reaped")
+				}
+				if n, err := perfReviewStore.ReapStaleGenerating(reapCtx, reapStaleness); err != nil {
+					log.Error().Err(err).Msg("performance_review_reaper_failed")
+				} else if n > 0 {
+					log.Warn().Int64("reaped", n).Dur("staleness", reapStaleness).Msg("performance_review_stale_generations_reaped")
+				}
+				cancel()
+			}
+		}
+	}()
+
 	// Periodic janitor (every hour) for expired auth state. Runs in a
 	// single goroutine so the schedule and shutdown semantics stay
 	// simple; each cleanup is independent and a failure in one path

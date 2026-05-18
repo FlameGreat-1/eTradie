@@ -339,6 +339,12 @@ class PerformanceReviewGenerator:
                         "attempt": attempt + 1,
                         "max_attempts": _LLM_MAX_ATTEMPTS,
                         "transient": transient,
+                        # Include the raw exception text so an operator
+                        # grepping for "performance_review_llm" sees
+                        # exactly what the provider returned, not just
+                        # the Python class name. Symmetric with the
+                        # trading-plan generator's logging.
+                        "error": str(last_exc),
                         "error_type": type(last_exc).__name__,
                     },
                 )
@@ -357,6 +363,12 @@ class PerformanceReviewGenerator:
                     extra={
                         "user_id": req.user_id,
                         "period": req.period,
+                        # Raw exception text on the final failure too:
+                        # this is the single line we will reach for
+                        # when a user reports the unknown-bucket
+                        # message and we need to diagnose. Symmetric
+                        # with trading_plan_llm_call_failed.
+                        "error": str(last_exc) if last_exc else "unknown",
                         "error_type": type(last_exc).__name__ if last_exc else "unknown",
                         "failure_code": failure.code,
                     },

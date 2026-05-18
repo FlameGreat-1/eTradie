@@ -82,9 +82,13 @@ def is_transient_llm_error(exc: Optional[BaseException]) -> bool:
     return (
         "timeout" in name
         or "timeout" in msg
+        or "timed out" in msg
+        or "deadline_exceeded" in msg
+        or "deadline exceeded" in msg
         or "rate limit" in msg
         or "ratelimit" in name
         or "429" in msg
+        or "resource_exhausted" in msg
         or " 500" in msg
         or " 502" in msg
         or " 503" in msg
@@ -126,6 +130,13 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
         or "insufficient_quota" in msg
         or "credit balance" in msg
         or "insufficient funds" in msg
+        # Gemini's google-genai SDK surfaces hard quota exhaustion as
+        # a 429 RESOURCE_EXHAUSTED status. We special-case it before
+        # the rate-limit bucket so the user gets the 'top up' CTA
+        # rather than the 'wait a moment' CTA \u2014 the two have very
+        # different remediations and conflating them sends the user
+        # in circles.
+        or "resource_exhausted" in msg
     ):
         return ClassifiedFailure(
             CODE_QUOTA_EXCEEDED,
@@ -159,6 +170,14 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
         or "unauthorized" in msg
         or "authentication" in msg
         or "permission denied" in msg
+        # Gemini-specific phrasings the predicates above miss:
+        # 'API key not valid. Please pass a valid API key.' and
+        # '403 PERMISSION_DENIED' (lowercased to 'permission_denied'
+        # \u2014 underscore form rather than the space-separated form
+        # Anthropic/OpenAI use).
+        or "api key not valid" in msg
+        or "api_key_invalid" in msg
+        or "permission_denied" in msg
     ):
         return ClassifiedFailure(
             CODE_AUTH_INVALID,
@@ -178,6 +197,12 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
         or "model not found" in msg
         or "unknown model" in msg
         or ("does not exist" in msg and "model" in msg)
+        # Gemini's google-genai SDK surfaces a missing-model error as
+        # '404 NOT_FOUND. models/gemini-XXX is not found ...'. The
+        # 'is not found' + 'model' conjunction is the precise predicate
+        # \u2014 'not found' alone would over-match (any 404 for any
+        # resource type).
+        or ("is not found" in msg and "model" in msg)
     ):
         return ClassifiedFailure(
             CODE_MODEL_NOT_FOUND,
