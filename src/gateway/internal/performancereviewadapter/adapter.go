@@ -43,12 +43,39 @@ func NewDispatcher(engine *infra.EngineHTTPClient, log zerolog.Logger) *Dispatch
 }
 
 // Dispatch satisfies performancereview.EngineDispatcher.
+//
+// It reads the authenticated user's full claims from the supplied
+// context (the handler injects them with auth.InjectClaimsIntoContext
+// before launching the background dispatch goroutine) so the
+// EngineHTTPClient can forward X-User-Tier and X-User-Role to the
+// engine.
+//
+// The engine's performance-review generator enforces a strict
+// BYOK-or-managed policy: a user must either have a personal LLM
+// connection configured, OR be an admin / pro_managed user that can
+// fall back to the platform key. Without the role and tier on the
+// dispatch, the engine cannot tell whether to fall back or reject —
+// which is exactly what was producing the
+// "You must configure your own LLM API Key in Settings" error for
+// admin users with no personal connection.
 func (d *Dispatcher) Dispatch(
 	ctx context.Context,
 	req performancereview.GenerationRequest,
 ) error {
 	if d.engine == nil {
 		return fmt.Errorf("performance-review engine client is not configured")
+	}
+
+	// Resolve the identity to forward. Same priority as the trading-
+	// plan adapter: full claims if present, otherwise synthesise from
+	// the request's UserID.
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil {
+		claims = &auth.Claims{UserID: req.UserID}
+	} else if claims.UserID == "" {
+		cloned := *claims
+		cloned.UserID = req.UserID
+		claims = &cloned
 	}
 
 	// Body shape must match
@@ -59,22 +86,22 @@ func (d *Dispatcher) Dispatch(
 		"period_start":    req.PeriodStart,
 		"period_end":      req.PeriodEnd,
 		"profile_version": req.ProfileVersion,
+		// Identity fields are also placed in the body for the same
+		// reason as trading-plan: header-stripping intermediaries
+		// must never be able to silently downgrade the dispatch to
+		// 'no role / no tier'. Body wins over header on the engine.
+		"role": string(claims.Role),
+		"tier": claims.Tier,
 	}
 
-	// Inject minimal claims so the EngineHTTPClient attaches the
-	// X-User-Id header automatically on the /internal path. We do
-	// NOT have a full JWT here (this is gateway-internal background
-	// work fired from the handler's goroutine), so we synthesise a
-	// claims object with only the user_id populated. The engine's
-	// verify_internal_auth dependency authenticates against the
-	// shared secret; it does not inspect the JWT itself on this
-	// surface, so additional claim fields would be unused.
-	ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: req.UserID})
+	ctx = auth.InjectClaimsIntoContext(ctx, claims)
 
 	if _, err := d.engine.PostJSON(ctx, "/internal/performance-review/dispatch", body); err != nil {
 		d.log.Warn().
 			Str("user_id", req.UserID).
 			Str("period", string(req.Period)).
+			Str("role", string(claims.Role)).
+			Str("tier", claims.Tier).
 			Err(err).
 			Msg("performance_review_dispatch_post_failed")
 		return err
