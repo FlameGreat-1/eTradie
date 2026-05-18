@@ -60,6 +60,13 @@ class DispatchBody(BaseModel):
     balance_source: str = Field(..., min_length=1, max_length=16)
     profile_version: int = Field(..., ge=0)
     profile: dict
+    # Identity fields forwarded by the gateway so the engine can apply
+    # the platform-key fallback policy (admin / pro_managed) without a
+    # separate identity lookup. Optional on the wire because a slightly
+    # older gateway deploy may not yet send them; the engine then
+    # defaults to the conservative BYOK posture below.
+    role: str = Field(default="", max_length=32)
+    tier: str = Field(default="", max_length=32)
 
 
 # Cooldown chosen so a runaway client cannot trigger duplicate LLM
@@ -134,6 +141,22 @@ async def dispatch_trading_plan_generation(
             detail="trading plan generator is not configured",
         )
 
+    # Resolve identity: body wins, then header, then conservative
+    # defaults. Centralising the resolution here keeps the generator
+    # signature minimal and ensures both call sites (HTTP dispatch
+    # and any future caller) populate the GenerationRequest the same
+    # way.
+    role = (
+        body.role.strip()
+        or request.headers.get("X-User-Role", "").strip()
+        or "etradie"
+    ).lower()
+    tier = (
+        body.tier.strip()
+        or request.headers.get("X-User-Tier", "").strip()
+        or "free"
+    ).lower()
+
     gen_req = GenerationRequest(
         user_id=body.user_id,
         balance=body.balance,
@@ -141,6 +164,8 @@ async def dispatch_trading_plan_generation(
         balance_source=body.balance_source.lower(),
         profile_version=body.profile_version,
         profile=body.profile,
+        role=role,
+        tier=tier,
     )
 
     # schedule_once gives us:
