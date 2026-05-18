@@ -257,5 +257,106 @@ CREATE INDEX IF NOT EXISTS idx_billing_portal_access_events_user_created
     ON billing_portal_access_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_billing_portal_access_events_created
     ON billing_portal_access_events(created_at DESC);
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Admin role → pro_managed tier invariant.
+--
+-- Operator workflow: a regular user signs up, then is promoted to
+-- admin with a raw SQL update. Without this trigger the matching
+-- billing_subscriptions row stays at tier='free', which both makes
+-- the badge wrong and (more importantly) flips the engine's
+-- performance-review BYOK-or-managed gate into the BYOK branch for
+-- an operator who legitimately has the same entitlements as a
+-- pro_managed subscriber.
+--
+-- The trigger fires AFTER INSERT or AFTER UPDATE OF role on
+-- auth_users. When NEW.role = 'admin' it upserts the billing row
+-- with tier='pro_managed', status='active', and event_timestamp=NOW().
+--
+-- Race-safety: the upsert uses the same event_timestamp guard the
+-- rest of the billing pipeline uses (see UpsertSubscriptionTx),
+-- so a genuinely newer webhook is still authoritative. An admin
+-- who also pays for a real subscription will not lose their card
+-- snapshot, period-end, or provider linkage on promotion — those
+-- columns are NOT touched here (only tier/status/event_timestamp).
+--
+-- The function is idempotent (re-runs on UPDATE with no role change
+-- are short-circuited by the trigger's WHEN clause) and stable
+-- (does not depend on session state). DROP TRIGGER IF EXISTS +
+-- CREATE TRIGGER keeps re-runs of SchemaSQL safe across deploys.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION fn_billing_sync_admin_tier()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Only act on rows where role is now 'admin'. The WHEN clause on
+    -- the trigger filters most no-ops, but defending here too means
+    -- a future trigger reordering cannot accidentally widen the
+    -- effect.
+    IF NEW.role IS DISTINCT FROM 'admin' THEN
+        RETURN NEW;
+    END IF;
+
+    INSERT INTO billing_subscriptions (
+        user_id, tier, status, event_timestamp, updated_at
+    ) VALUES (
+        NEW.id, 'pro_managed', 'active', NOW(), NOW()
+    )
+    ON CONFLICT (user_id) DO UPDATE SET
+        tier            = 'pro_managed',
+        status          = 'active',
+        event_timestamp = NOW(),
+        updated_at      = NOW()
+    -- Race guard: a webhook carrying a NEWER event_timestamp wins.
+    -- For admin promotion (NOW()) this only matters if a real
+    -- subscription webhook arrives within the same microsecond,
+    -- which is harmless either way — the next promotion attempt
+    -- (or trigger re-fire on the next role-touching UPDATE) will
+    -- re-converge the row.
+    WHERE billing_subscriptions.event_timestamp <= NOW();
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_billing_sync_admin_tier_ins ON auth_users;
+CREATE TRIGGER trg_billing_sync_admin_tier_ins
+AFTER INSERT ON auth_users
+FOR EACH ROW
+WHEN (NEW.role = 'admin')
+EXECUTE FUNCTION fn_billing_sync_admin_tier();
+
+DROP TRIGGER IF EXISTS trg_billing_sync_admin_tier_upd ON auth_users;
+CREATE TRIGGER trg_billing_sync_admin_tier_upd
+AFTER UPDATE OF role ON auth_users
+FOR EACH ROW
+WHEN (NEW.role = 'admin' AND OLD.role IS DISTINCT FROM 'admin')
+EXECUTE FUNCTION fn_billing_sync_admin_tier();
+
+-- One-shot backfill so the trigger's invariant holds for admins
+-- created BEFORE the trigger was installed. Self-healing: this
+-- statement is idempotent (UPDATE-WHERE) and a no-op once every
+-- admin already has tier='pro_managed'.
+--
+-- A separate UPSERT path covers admins who somehow have no row in
+-- billing_subscriptions yet (e.g. an admin user created before the
+-- billing schema was first applied).
+INSERT INTO billing_subscriptions (user_id, tier, status, event_timestamp, updated_at)
+SELECT au.id, 'pro_managed', 'active', NOW(), NOW()
+  FROM auth_users au
+  LEFT JOIN billing_subscriptions bs ON bs.user_id = au.id
+ WHERE au.role = 'admin'
+   AND bs.user_id IS NULL;
+
+UPDATE billing_subscriptions bs
+   SET tier            = 'pro_managed',
+       status          = 'active',
+       event_timestamp = GREATEST(bs.event_timestamp, NOW()),
+       updated_at      = NOW()
+  FROM auth_users au
+ WHERE bs.user_id = au.id
+   AND au.role    = 'admin'
+   AND bs.tier   <> 'pro_managed';
 `
 }

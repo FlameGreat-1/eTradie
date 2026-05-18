@@ -45,6 +45,19 @@ func NewDispatcher(engine *infra.EngineHTTPClient, log zerolog.Logger) *Dispatch
 }
 
 // Dispatch satisfies tradingplan.EngineDispatcher.
+//
+// It reads the authenticated user's full claims from the supplied
+// context (the handler injects them with auth.InjectClaimsIntoContext
+// before launching the background dispatch goroutine) so the
+// EngineHTTPClient can forward X-User-Tier and X-User-Role to the
+// engine. The engine uses tier and role to honor the admin /
+// pro_managed platform-key fallback policy on the LLM dispatch path.
+//
+// If no claims are present (a future caller that did not come through
+// the authenticated handler), Dispatch falls back to injecting a
+// minimal *Claims with only UserID populated. The engine treats a
+// missing tier as 'free' and a missing role as 'etradie' — which is
+// the conservative default that BYOK requires a personal key.
 func (d *Dispatcher) Dispatch(ctx context.Context, req tradingplan.GenerationRequest) error {
 	if d.engine == nil {
 		return fmt.Errorf("trading-plan engine client is not configured")
@@ -58,6 +71,22 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req tradingplan.GenerationReq
 		}
 	}
 
+	// Resolve the identity to forward. Priority:
+	//   1. Full claims already on the context (handler path, normal case).
+	//   2. Minimal claims synthesised from the request's user_id (background
+	//      caller that did not propagate the request context).
+	// In case (2) the engine sees role="" / tier="", which the engine's
+	// router normalises to role="etradie" / tier="free".
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil {
+		claims = &auth.Claims{UserID: req.UserID}
+	} else if claims.UserID == "" {
+		// Defensive copy so we do not mutate the caller's claims.
+		cloned := *claims
+		cloned.UserID = req.UserID
+		claims = &cloned
+	}
+
 	body := map[string]interface{}{
 		"user_id":          req.UserID,
 		"balance":          req.Balance,
@@ -65,21 +94,21 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req tradingplan.GenerationReq
 		"balance_source":   string(req.BalanceSource),
 		"profile_version":  req.ProfileVersion,
 		"profile":          profile,
+		// Identity fields are also placed in the body so the engine
+		// router does not have to depend on headers (headers may be
+		// stripped by intermediate proxies in some test harnesses).
+		// Body wins over header on the engine side.
+		"role": string(claims.Role),
+		"tier": claims.Tier,
 	}
 
-	// Inject minimal claims so the EngineHTTPClient attaches the
-	// X-User-Id header automatically on the /internal path. We do
-	// NOT have a full JWT here (this is gateway-internal background
-	// work fired from the handler's goroutine), so we synthesise a
-	// claims object with only the user_id populated. The engine's
-	// verify_internal_auth dependency authenticates against the
-	// shared secret; it does not inspect the JWT itself on this
-	// surface, so additional claim fields would be unused.
-	ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: req.UserID})
+	ctx = auth.InjectClaimsIntoContext(ctx, claims)
 
 	if _, err := d.engine.PostJSON(ctx, "/internal/trading-plan/dispatch", body); err != nil {
 		d.log.Warn().
 			Str("user_id", req.UserID).
+			Str("role", string(claims.Role)).
+			Str("tier", claims.Tier).
 			Err(err).
 			Msg("trading_plan_dispatch_post_failed")
 		return err
@@ -120,9 +149,11 @@ func (b *Balance) GetBalance(
 		return 0, "", tradingplan.BalanceSourceFallback, nil
 	}
 
-	// Same trick as Dispatch: inject minimal claims so the shared
-	// engine client attaches the X-User-Id header.
-	ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: userID})
+	// Same trick as Dispatch: ensure user_id is on the context so the
+	// shared engine client attaches the X-User-Id header.
+	if claims := auth.ClaimsFromContext(ctx); claims == nil {
+		ctx = auth.InjectClaimsIntoContext(ctx, &auth.Claims{UserID: userID})
+	}
 
 	resp, callErr := b.engine.GetJSON(ctx, "/internal/broker/account_info")
 	if callErr != nil {

@@ -42,6 +42,11 @@ class DispatchBody(BaseModel):
     period_start: datetime
     period_end: datetime
     profile_version: int = Field(..., ge=0)
+    # Identity fields forwarded by the gateway so the engine can apply
+    # tier policy on the dispatch path. Optional on the wire for the
+    # same backward-compatibility reason as trading-plan.
+    role: str = Field(default="", max_length=32)
+    tier: str = Field(default="", max_length=32)
 
 
 # Cooldown chosen so a runaway client cannot trigger duplicate LLM
@@ -156,11 +161,25 @@ async def dispatch_performance_review(
     _: None = Depends(verify_internal_auth),
 ) -> dict:
     container: Container = request.app.state.container
+
+    role = (
+        body.role.strip()
+        or request.headers.get("X-User-Role", "").strip()
+        or "etradie"
+    ).lower()
+    tier = (
+        body.tier.strip()
+        or request.headers.get("X-User-Tier", "").strip()
+        or "free"
+    ).lower()
+
     gen_req = GenerationRequest(
         user_id=body.user_id,
         period=body.period,
         period_start=body.period_start,
         period_end=body.period_end,
         profile_version=body.profile_version,
+        role=role,
+        tier=tier,
     )
     return await dispatch_generation(container, gen_req)

@@ -4,9 +4,13 @@ Flow:
 
   1. Build the prompt from the saved Trading System profile and the
      account balance the gateway resolved (broker or fallback).
-  2. Call the PLATFORM LLM client (NOT the user's BYOK client). The
-     trading plan is always generated with the platform key because
-     most users are still onboarding when this fires.
+  2. Resolve the user's LLM client via the container's tier-aware
+     background loader. The loader returns:
+       - the user's PERSONAL key when they have one configured, OR
+       - the PLATFORM key (DB row first, env-var fallback) when the
+         user has no personal key.
+     For trading-plan every user is eligible for the platform key,
+     so brand-new users can still generate a plan during onboarding.
   3. Parse the JSON response. Reject anything that does not match
      the six-section shape PRACTICE.md specifies.
   4. POST the parsed plan to the gateway's internal callback. On
@@ -28,7 +32,10 @@ from typing import Any, Optional
 
 import httpx
 
-from engine.processor.llm.client import LLMClient
+from engine.processor.llm.error_classifier import (
+    classify_llm_failure,
+    is_transient_llm_error,
+)
 from engine.processor.trading_plan.prompt import (
     JOURNAL_SEED_ROWS,
     SYSTEM_PROMPT,
@@ -84,7 +91,15 @@ class TradingPlanGenerationError(Exception):
 
 @dataclass(frozen=True)
 class GenerationRequest:
-    """Engine-side mirror of src/tradingplan/models.go::GenerationRequest."""
+    """Engine-side mirror of src/tradingplan/models.go::GenerationRequest.
+
+    role and tier are forwarded by the gateway on the dispatch body so
+    the engine can honor the platform-key fallback policy without an
+    independent identity lookup. The router applies conservative
+    defaults ('etradie' / 'free') when the gateway omits them on a
+    deploy-skew window, which keeps BYOK behaviour for any caller
+    that did not yet update.
+    """
 
     user_id: str
     balance: float
@@ -92,15 +107,17 @@ class GenerationRequest:
     balance_source: str  # 'broker' | 'fallback'
     profile_version: int
     profile: dict[str, Any]
+    role: str = "etradie"
+    tier: str = "free"
 
 
 class TradingPlanGenerator:
     """Stateless service wrapping a single LLM call + gateway callback.
 
     The Container builds ONE instance and reuses it. The LLM client
-    is the platform's (Container.processor_llm_client), guaranteeing
-    the call uses the platform key even when the requesting user is
-    BYOK.
+    is resolved per request via load_llm_client_for_background, so a
+    user with a personal key uses their own key and a user without
+    one falls back to the platform key (PLAN rule #3).
     """
 
     def __init__(
@@ -222,24 +239,32 @@ class TradingPlanGenerator:
             balance_source=req.balance_source,
         )
 
-        # Resolve the LLM client dynamically for the requesting user.
-        # BYOK Strategy: Try to load the user's personal API key first.
-        # Fallback: If no personal key is found, fall back to the global
-        # platform key. This ensures brand new users can still generate
-        # a trading plan during onboarding.
-        dynamic_client, dynamic_config = await self._container.load_user_llm_client_by_id(req.user_id)
-        
-        is_dynamic = dynamic_client is not None
-        llm_client = dynamic_client if is_dynamic else self._container.processor_llm_client
-        
-        # Read the config for metering
-        if is_dynamic and dynamic_config:
-            model_name = dynamic_config.model_name
-            max_output_tokens = max(1, dynamic_config.max_output_tokens)
-        else:
-            processor_config = getattr(self._container, "processor_config", None)
-            model_name = getattr(processor_config, "model_name", "") or "unknown"
-            max_output_tokens = int(getattr(processor_config, "max_output_tokens", 16384) or 16384)
+        # Resolve the LLM client via the tier-aware background loader.
+        # Trading-plan policy (rule #3 in PRACTICE.md): every user can
+        # use the platform key when they have no personal key, so we
+        # pass allow_platform_fallback=True. The loader still reads
+        # the platform DB row first (hot-reloadable via the dashboard)
+        # and falls back to env-var config only when no DB row exists.
+        llm_client, dynamic_config = await self._container.load_llm_client_for_background(
+            req.user_id,
+            role=req.role,
+            tier=req.tier,
+            allow_platform_fallback=True,
+        )
+        if llm_client is None or dynamic_config is None:
+            # In practice this should not happen for trading-plan
+            # because allow_platform_fallback=True grants every user
+            # the platform key. We still handle it as a clean failure
+            # so a misconfigured deploy (no platform row, no env
+            # platform key) surfaces a real message instead of
+            # NoneType-attribute crashes downstream.
+            raise TradingPlanGenerationError(
+                "AI service is not configured on the platform; "
+                "please contact support."
+            )
+
+        model_name = dynamic_config.model_name
+        max_output_tokens = max(1, dynamic_config.max_output_tokens)
 
         try:
             # Metering reserve (Pro Managed / admin only). Identical
@@ -294,38 +319,21 @@ class TradingPlanGenerator:
                         trace_id=f"trading-plan:{req.user_id}:{attempt}",
                     )
                     break
-                except Exception as exc:  # noqa: BLE001 — see below
+                except Exception as exc:  # noqa: BLE001
                     last_exc = exc
-                # Heuristic transient classification. Provider SDKs
-                # raise their own error types (anthropic.APIError,
-                # openai.APIStatusError, etc.); we identify transient
-                # ones by name to avoid importing every provider.
-                name = type(last_exc).__name__.lower() if last_exc else "unknown"
-                msg = str(last_exc).lower() if last_exc else "unknown"
-                is_transient = (
-                    isinstance(last_exc, (httpx.TimeoutException, httpx.HTTPError))
-                    or "timeout" in name
-                    or "timeout" in msg
-                    or "rate limit" in msg
-                    or "ratelimit" in name
-                    or " 429" in msg
-                    or " 500" in msg
-                    or " 502" in msg
-                    or " 503" in msg
-                    or " 504" in msg
-                )
+                transient = is_transient_llm_error(last_exc)
                 logger.warning(
                     "trading_plan_llm_call_attempt_failed",
                     extra={
                         "user_id": req.user_id,
                         "attempt": attempt + 1,
                         "max_attempts": _LLM_MAX_ATTEMPTS,
-                        "transient": is_transient,
+                        "transient": transient,
                         "error": str(last_exc),
                         "error_type": type(last_exc).__name__,
                     },
                 )
-                if not is_transient or attempt == _LLM_MAX_ATTEMPTS - 1:
+                if not transient or attempt == _LLM_MAX_ATTEMPTS - 1:
                     break
                 await asyncio.sleep(_LLM_BACKOFF_S[attempt])
             if response is None:
@@ -334,17 +342,17 @@ class TradingPlanGenerator:
                 # never completed. Best-effort: the janitor reaps the
                 # reservation after its TTL if the refund itself fails.
                 await metering.refund(reservation_id=reservation_id)
+                failure = classify_llm_failure(last_exc)
                 logger.warning(
                     "trading_plan_llm_call_failed",
                     extra={
                         "user_id": req.user_id,
                         "error": str(last_exc) if last_exc else "unknown",
                         "error_type": type(last_exc).__name__ if last_exc else "unknown",
+                        "failure_code": failure.code,
                     },
                 )
-                raise TradingPlanGenerationError(
-                    "AI service is temporarily unavailable; please try again"
-                )
+                raise TradingPlanGenerationError(failure.user_message)
 
             # Commit the real token counts. The over-reservation on the
             # output side (max_output - actual_output) is returned to the
@@ -367,12 +375,15 @@ class TradingPlanGenerator:
             plan["generation_started_at"] = generation_started_at
             return plan
         finally:
-            # We must gracefully close the dynamically created client.
-            if is_dynamic and dynamic_client is not None:
-                try:
-                    await dynamic_client.close()
-                except Exception:
-                    pass
+            # Always close the isolated client we built in this
+            # request. The loader returns a fresh client per call
+            # (so a per-user broker rotation cannot leave a stale
+            # cached connection wired into a different user's job),
+            # so closing here is the right ownership boundary.
+            try:
+                await llm_client.close()
+            except Exception:
+                pass
 
     @staticmethod
     def _parse_response(raw: str) -> dict[str, Any]:

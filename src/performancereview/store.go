@@ -357,29 +357,50 @@ func (s *Store) ListHistory(
 	return out, total, nil
 }
 
-// ListActiveTradingSystemUserIDs returns the list of user_ids that
-// currently have a Trading System in status='active'. Used by the
-// engine scheduler to iterate eligible users on each cron tick.
+// ActiveUserIdentity is the projection returned by the cron-active
+// list endpoint. It carries the minimum identity fields the engine's
+// performance-review generator needs to apply tier policy on the
+// cron path (where no JWT exists): admin and pro_managed can fall
+// back to the platform LLM key; everyone else must have a personal
+// LLM connection or the row is failed with a 'configure your key'
+// CTA.
+type ActiveUserIdentity struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
+	Tier   string `json:"tier"`
+}
+
+// ListActiveTradingSystemUsersWithIdentity returns every user with a
+// Trading System in status='active', JOINed with their auth_user row
+// to surface role and the COALESCE(billing.tier, 'free') projection
+// the rest of the auth code already uses. Used by the engine
+// scheduler to fan out per-user review-generation jobs on each cron
+// tick.
+//
 // Empty slice when nobody has an active system; never returns an
 // error for an empty result.
-func (s *Store) ListActiveTradingSystemUserIDs(ctx context.Context) ([]string, error) {
+func (s *Store) ListActiveTradingSystemUsersWithIdentity(ctx context.Context) ([]ActiveUserIdentity, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT user_id
-		  FROM user_trading_systems
-		 WHERE status = 'active'
-		   AND profile IS NOT NULL
-		 ORDER BY user_id`)
+		SELECT ts.user_id,
+		       COALESCE(au.role, 'etradie')             AS role,
+		       COALESCE(b.tier, 'free')                  AS tier
+		  FROM user_trading_systems ts
+		  LEFT JOIN auth_users             au ON au.id = ts.user_id
+		  LEFT JOIN billing_subscriptions  b  ON b.user_id = ts.user_id
+		 WHERE ts.status = 'active'
+		   AND ts.profile IS NOT NULL
+		 ORDER BY ts.user_id`)
 	if err != nil {
-		return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUserIDs: %w", err)
+		return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUsersWithIdentity: %w", err)
 	}
 	defer rows.Close()
-	out := make([]string, 0, 64)
+	out := make([]ActiveUserIdentity, 0, 64)
 	for rows.Next() {
-		var uid string
-		if err := rows.Scan(&uid); err != nil {
-			return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUserIDs: scan: %w", err)
+		var u ActiveUserIdentity
+		if err := rows.Scan(&u.UserID, &u.Role, &u.Tier); err != nil {
+			return nil, fmt.Errorf("performancereview.ListActiveTradingSystemUsersWithIdentity: scan: %w", err)
 		}
-		out = append(out, uid)
+		out = append(out, u)
 	}
 	return out, nil
 }

@@ -9,7 +9,12 @@ Flow:
   3. GET gateway /internal/performance-review/prior?period=&before=
      -> the prior ready row's review JSON (optional; used for
         trader-evolution deltas per PLAN.md section 12).
-  4. Build the prompt, call the PLATFORM LLM client.
+  4. Resolve the user's LLM client via the container's tier-aware
+     background loader. The loader returns the user's PERSONAL key
+     when one is configured, OR the PLATFORM key only for admin /
+     pro_managed users (PLAN rules #2 and #4). Free and pro_byok
+     users without a personal key are rejected with a 'configure
+     your key' message.
   5. Parse + shape into the 14-section wire schema.
   6. POST gateway /internal/performance-review/callback. On any
      failure POST /internal/performance-review/fail so the gateway
@@ -31,7 +36,10 @@ from typing import Any, Optional
 
 import httpx
 
-from engine.processor.llm.client import LLMClient
+from engine.processor.llm.error_classifier import (
+    classify_llm_failure,
+    is_transient_llm_error,
+)
 from engine.processor.performance_review.prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,
@@ -77,21 +85,32 @@ class PerformanceReviewGenerationError(Exception):
 
 @dataclass(frozen=True)
 class GenerationRequest:
-    """Engine-side mirror of src/performancereview/models.go::GenerationRequest."""
+    """Engine-side mirror of src/performancereview/models.go::GenerationRequest.
+
+    role and tier are forwarded by the gateway on the dispatch body
+    (HTTP path) or supplied by the cron scheduler from the gateway's
+    active-users response (cron path). The generator uses them to
+    apply the BYOK-or-managed gate without an independent identity
+    lookup. Conservative defaults ('etradie' / 'free') preserve the
+    BYOK-only posture for any caller that omits them.
+    """
 
     user_id: str
     period: str               # 'weekly' | 'monthly'
     period_start: datetime    # inclusive
     period_end: datetime      # inclusive
     profile_version: int
+    role: str = "etradie"
+    tier: str = "free"
 
 
 class PerformanceReviewGenerator:
     """Stateless service wrapping one full review-generation cycle.
 
     The Container builds ONE instance and reuses it. The LLM client
-    is the platform's (Container.processor_llm_client), guaranteeing
-    the call uses the platform key.
+    is resolved per request via load_llm_client_for_background under
+    the BYOK-or-managed policy: personal key when set, platform key
+    only for admin / pro_managed, otherwise a tier-aware rejection.
     """
 
     def __init__(
@@ -235,14 +254,25 @@ class PerformanceReviewGenerator:
             prior_review=prior_review,
         )
 
-        # Strict BYOK Requirement: Performance reviews MUST use the user's
-        # personal API key. There is NO fallback to the platform key.
-        dynamic_client, dynamic_config = await self._container.load_user_llm_client_by_id(req.user_id)
+        # Performance-review policy:
+        #   - Personal LLM key, if the user has one  -> use it.
+        #   - Admin or pro_managed with no personal key -> platform key.
+        #   - Everyone else with no personal key     -> hard reject
+        #     with a 'configure your key' CTA. This preserves the
+        #     BYOK requirement for free / pro_byok users (rule #2 in
+        #     PRACTICE.md) while letting admins and managed users run
+        #     reviews on the platform key (rule #4).
+        dynamic_client, dynamic_config = await self._container.load_llm_client_for_background(
+            req.user_id,
+            role=req.role,
+            tier=req.tier,
+            allow_platform_fallback=True,
+        )
         if dynamic_client is None or dynamic_config is None:
             raise PerformanceReviewGenerationError(
                 "You must configure your own LLM API Key in Settings to generate Performance Reviews."
             )
-            
+
         model_name = dynamic_config.model_name
         max_output_tokens = max(1, dynamic_config.max_output_tokens)
 
@@ -283,10 +313,11 @@ class PerformanceReviewGenerator:
                     f"resets in {exc.retry_after} seconds"
                 )
     
-            # Bounded retry loop for the LLM call. Same transient
-            # classification as trading_plan. Every error path either
-            # retries (keeping the reservation alive) or refunds and
-            # re-raises so the held debit is released within its TTL.
+            # Bounded retry loop for the LLM call. Shared transient
+            # classifier with trading_plan so the heuristic stays in
+            # one place. Every error path either retries (keeping the
+            # reservation alive) or refunds and re-raises so the held
+            # debit is released within its TTL.
             response = None
             last_exc: Optional[Exception] = None
             for attempt in range(_LLM_MAX_ATTEMPTS):
@@ -299,20 +330,7 @@ class PerformanceReviewGenerator:
                     break
                 except Exception as exc:  # noqa: BLE001
                     last_exc = exc
-                name = type(last_exc).__name__.lower() if last_exc else "unknown"
-                msg = str(last_exc).lower() if last_exc else "unknown"
-                is_transient = (
-                    isinstance(last_exc, (httpx.TimeoutException, httpx.HTTPError))
-                    or "timeout" in name
-                    or "timeout" in msg
-                    or "rate limit" in msg
-                    or "ratelimit" in name
-                    or " 429" in msg
-                    or " 500" in msg
-                    or " 502" in msg
-                    or " 503" in msg
-                    or " 504" in msg
-                )
+                transient = is_transient_llm_error(last_exc)
                 logger.warning(
                     "performance_review_llm_attempt_failed",
                     extra={
@@ -320,11 +338,11 @@ class PerformanceReviewGenerator:
                         "period": req.period,
                         "attempt": attempt + 1,
                         "max_attempts": _LLM_MAX_ATTEMPTS,
-                        "transient": is_transient,
+                        "transient": transient,
                         "error_type": type(last_exc).__name__,
                     },
                 )
-                if not is_transient or attempt == _LLM_MAX_ATTEMPTS - 1:
+                if not transient or attempt == _LLM_MAX_ATTEMPTS - 1:
                     break
                 await asyncio.sleep(_LLM_BACKOFF_S[attempt])
             if response is None:
@@ -333,17 +351,17 @@ class PerformanceReviewGenerator:
                 # never completed. Best-effort: the janitor reaps the
                 # reservation after its TTL if the refund itself fails.
                 await metering.refund(reservation_id=reservation_id)
+                failure = classify_llm_failure(last_exc)
                 logger.warning(
                     "performance_review_llm_failed",
                     extra={
                         "user_id": req.user_id,
                         "period": req.period,
                         "error_type": type(last_exc).__name__ if last_exc else "unknown",
+                        "failure_code": failure.code,
                     },
                 )
-                raise PerformanceReviewGenerationError(
-                    "AI service is temporarily unavailable; please try again"
-                )
+                raise PerformanceReviewGenerationError(failure.user_message)
 
             # Commit the real token counts. The over-reservation on the
             # output side (max_output - actual_output) is returned to the

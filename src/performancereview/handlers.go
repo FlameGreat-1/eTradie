@@ -409,10 +409,21 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		ProfileVersion: sysRec.Version,
 	}
 
+	// Capture the authenticated user's full claims BEFORE detaching
+	// the context below. Same rationale as the trading-plan handler:
+	// the dispatch goroutine runs on a context derived from
+	// context.Background() so a slow client cannot cancel the LLM
+	// call mid-flight, and that detachment drops the claims the
+	// adapter needs to forward role + tier to the engine.
+	requestClaims := auth.ClaimsFromContext(r.Context())
+
 	// Dispatch with a generous timeout independent of the user's
 	// request context so a slow client cannot cancel an LLM call
 	// mid-flight (mirrors the trading-plan dispatch pattern).
 	dispatchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if requestClaims != nil {
+		dispatchCtx = auth.InjectClaimsIntoContext(dispatchCtx, requestClaims)
+	}
 	go func() {
 		defer cancel()
 		if err := h.dispatcher.Dispatch(dispatchCtx, req); err != nil {
@@ -725,15 +736,26 @@ func (h *Handler) handleInternalActiveUsers(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	ids, err := h.store.ListActiveTradingSystemUserIDs(r.Context())
+	users, err := h.store.ListActiveTradingSystemUsersWithIdentity(r.Context())
 	if err != nil {
 		h.log.Error().Err(err).Msg("performance_review_active_users_failed")
 		writeError(w, http.StatusInternalServerError, "failed to list active users")
 		return
 	}
+	// Project rich identity tuples on the canonical 'users' field.
+	// The legacy 'user_ids' field is kept on the same response so a
+	// slightly-older engine deploy (one that only knows how to read
+	// user_ids) still works against this newer gateway. The engine
+	// prefers 'users' when present and falls back to 'user_ids' on
+	// absence.
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.UserID)
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"users":    users,
 		"user_ids": ids,
-		"count":    len(ids),
+		"count":    len(users),
 	})
 }
 
