@@ -115,12 +115,17 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
     # Quota / credit / insufficient funds. Distinct from rate-limit
     # because the remediation is different (top up the account, not
     # wait a few seconds).
+    # 'billing' is deliberately NOT a predicate here: it appears in
+    # routine support references (e.g. 'contact support at
+    # billing@anthropic.com') that have nothing to do with quota
+    # exhaustion. The four predicates below cover every realistic
+    # quota-error message from anthropic, openai, gemini, and
+    # openai-compatible self-hosted endpoints.
     if (
         "quota" in msg
         or "insufficient_quota" in msg
         or "credit balance" in msg
         or "insufficient funds" in msg
-        or "billing" in msg
     ):
         return ClassifiedFailure(
             CODE_QUOTA_EXCEEDED,
@@ -141,12 +146,17 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
         )
 
     # Authentication failure: invalid key, revoked key, missing key.
+    # We deliberately do NOT match the bare three-digit substrings
+    # '401' or '403' — they appear in arbitrary error bodies (request
+    # payloads that contain those digits as data) and would misroute
+    # non-auth errors into the 'check your key' branch. The named-
+    # status predicates already cover every realistic provider auth
+    # error from anthropic, openai, gemini, and openai-compatible
+    # self-hosted endpoints.
     if (
         "invalid api key" in msg
         or "invalid_api_key" in msg
         or "unauthorized" in msg
-        or "401" in msg
-        or "403" in msg
         or "authentication" in msg
         or "permission denied" in msg
     ):
@@ -158,11 +168,16 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
 
     # Model mis-configuration: the configured model does not exist
     # for the active provider/key.
+    # The 'does not exist' clause is parenthesised explicitly because
+    # Python's and-binds-tighter-than-or precedence gave the correct
+    # semantic only by accident; an editor inserting a new clause
+    # could silently break it. Parenthesising the conjunction makes
+    # the intent unambiguous and future-edit safe.
     if (
         "model_not_found" in msg
         or "model not found" in msg
         or "unknown model" in msg
-        or "does not exist" in msg and "model" in msg
+        or ("does not exist" in msg and "model" in msg)
     ):
         return ClassifiedFailure(
             CODE_MODEL_NOT_FOUND,
