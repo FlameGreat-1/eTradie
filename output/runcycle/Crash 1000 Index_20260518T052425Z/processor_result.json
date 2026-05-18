@@ -1,0 +1,207 @@
+{
+  "analysis_id": "QML_KILLER_TYPE1_BEARISH_5676.994",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 5683.2545,
+  "execution_mode": "INSTANT",
+  "grade": "A",
+  "ltf_confirmed": true,
+  "raw_response": {
+    "_llm_model": "gemini-3.1-flash-lite",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_crash1000_20260518_0515_a9f2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 1,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [],
+        "query_summary": "Crash 1000 Index bearish QML setup confluence",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "HTF structure aligned",
+          "notes": "Bearish trend alignment.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF structure aligned",
+          "notes": "M15/M5 bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid SnD zone",
+          "notes": "QML Killer Type 1.",
+          "present": true,
+          "value": 2
+        },
+        {
+          "name": "Liquidity sweep",
+          "notes": "BSL sweep confirmed.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "None detected.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R",
+          "notes": "R:R > 1:3.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Marubozu validation",
+          "notes": "Confirmed on M15.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for synthetic indices.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5676.994,
+        5689.515
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Combined: SMC setup inside a valid SnD zone = highest quality",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "QML_KILLER_TYPE1_BEARISH_5676.994"
+    },
+    "entry_zone": {
+      "high": 5689.515,
+      "low": 5676.994
+    },
+    "event_risk": [],
+    "execution_mode": "INSTANT",
+    "explainable_reasoning": "The market is in a clear bearish trend across all timeframes. The setup is a QML_KILLER_TYPE1_BEARISH at 5676.994, which includes a confirmed Marubozu breakout and institutional MPL level. The setup is aligned with the HTF bearish trend and has been confirmed by LTF (M15) price action. All mandatory confluence factors are met, including R:R requirements and news avoidance.",
+    "htf_bias": {
+      "key_levels": [
+        5893.38,
+        5631.609
+      ],
+      "notes": "Overall trend is bearish on MN1/W1/D1/H12/H8/H6/H4/H3/H1 hierarchy. Price is currently in a bearish markdown phase.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": true,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        5710.337,
+        5632.751
+      ],
+      "notes": "M30/M15/M5/M1 timeframes are all aligned bearish, confirming the HTF trend.",
+      "structure": "bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 1,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 1,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 3.5,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5689.515,
+      "reason": "Structural invalidation above the QML zone."
+    },
+    "take_profits": [
+      {
+        "basis": "Structural support",
+        "level": 5660,
+        "size_pct": 40
+      },
+      {
+        "basis": "Liquidity pool",
+        "level": 5645,
+        "size_pct": 30
+      },
+      {
+        "basis": "Swing low",
+        "level": 5632,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-18T05:15:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The market is in a clear bearish trend across all timeframes. The setup is a QML_KILLER_TYPE1_BEARISH at 5676.994, which includes a confirmed Marubozu breakout and institutional MPL level. The setup is aligned with the HTF bearish trend and has been confirmed by LTF (M15) price action. All mandatory confluence factors are met, including R:R requirements and news avoidance.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3.5,
+  "session": "LONDON_OPEN",
+  "setup_type": "SnD",
+  "stop_loss": 5689.515,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5632,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

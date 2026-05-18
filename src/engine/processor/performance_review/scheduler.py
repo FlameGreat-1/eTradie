@@ -29,12 +29,12 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, HTTPException
 
 from engine.processor.performance_review import GenerationRequest
 from engine.routers.performance_review import dispatch_generation
 from engine.shared.logging import get_logger
+from engine.shared.scheduler.apscheduler import SchedulerManager
 
 logger = get_logger(__name__)
 
@@ -250,7 +250,7 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
 
 def register_performance_review_jobs(
     app: FastAPI,
-    scheduler: AsyncIOScheduler,
+    scheduler: SchedulerManager,
 ) -> None:
     """Mount the weekly + monthly cron jobs on the given scheduler.
 
@@ -259,30 +259,18 @@ def register_performance_review_jobs(
     because the container is not fully constructed when the lifespan
     starts registering jobs; the scheduler.start() call later in the
     lifespan is what actually runs the triggers.
-
-    Idempotent: replace_existing=True so a hot-reload does not
-    double-mount the trigger. Times anchored at 06:00 UTC to land
-    after the morning macro warmup and well before London opens.
     """
-    scheduler.add_job(
+    scheduler.add_cron_job(
         _run_period_cron,
-        trigger=CronTrigger(day_of_week="mon", hour=6, minute=0, timezone="UTC"),
+        job_id="performance_review_weekly",
+        cron_expression="0 6 * * 1",
         kwargs={"app": app, "period": "weekly"},
-        id="performance_review_weekly",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=3600,
     )
-    scheduler.add_job(
+    scheduler.add_cron_job(
         _run_period_cron,
-        trigger=CronTrigger(day=1, hour=6, minute=0, timezone="UTC"),
+        job_id="performance_review_monthly",
+        cron_expression="0 6 1 * *",
         kwargs={"app": app, "period": "monthly"},
-        id="performance_review_monthly",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=3600,
     )
     logger.info(
         "performance_review_jobs_registered",

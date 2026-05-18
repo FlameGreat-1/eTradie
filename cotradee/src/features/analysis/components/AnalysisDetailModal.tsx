@@ -1,5 +1,5 @@
 import { useAnalysisDetail } from '../api/analysis';
-import { X, TrendingUp, TrendingDown, AlertTriangle, Clock, Shield, Target } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, AlertTriangle, Clock, Crosshair, ArrowLeftRight, ShieldOff, Flag, BadgeDollarSign } from 'lucide-react';
 
 interface Props {
   analysisId: string;
@@ -85,19 +85,19 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
             <SectionTitle>Price Levels</SectionTitle>
             <div className="rounded-2xl border border-border bg-black divide-y divide-border overflow-hidden">
               {entryPrice != null && (
-                <PriceRow icon={<Target size={14} className="text-brand" />} label="Entry Price" value={entryPrice} />
+                <PriceRow icon={<Crosshair size={14} className="text-brand" />} label="Entry Price" value={entryPrice} />
               )}
               {entryLow != null && entryHigh != null && (
-                <PriceRow icon={<Target size={14} className="text-brand/60" />} label="Entry Zone" value={`${entryLow} – ${entryHigh}`} />
+                <PriceRow icon={<ArrowLeftRight size={14} className="text-brand/70" />} label="Entry Zone" value={`${entryLow} – ${entryHigh}`} />
               )}
               {stopLoss != null && (
-                <PriceRow icon={<Shield size={14} className="text-danger" />} label="Stop Loss" value={stopLoss} />
+                <PriceRow icon={<ShieldOff size={14} className="text-danger" />} label="Stop Loss" value={stopLoss} />
               )}
-              {tp1 != null && <PriceRow icon={<Target size={14} className="text-success" />} label={`TP1 ${tp1_pct ? `(${tp1_pct}%)` : ''}`} value={tp1} />}
-              {tp2 != null && <PriceRow icon={<Target size={14} className="text-success/80" />} label={`TP2 ${tp2_pct ? `(${tp2_pct}%)` : ''}`} value={tp2} />}
-              {tp3 != null && <PriceRow icon={<Target size={14} className="text-success/60" />} label={`TP3 ${tp3_pct ? `(${tp3_pct}%)` : ''}`} value={tp3} />}
+              {tp1 != null && <PriceRow icon={<Flag size={14} className="text-success" />} label={`TP1 ${tp1_pct ? `(${tp1_pct}%)` : ''}`} value={tp1} />}
+              {tp2 != null && <PriceRow icon={<Flag size={14} className="text-success/80" />} label={`TP2 ${tp2_pct ? `(${tp2_pct}%)` : ''}`} value={tp2} />}
+              {tp3 != null && <PriceRow icon={<Flag size={14} className="text-success/60" />} label={`TP3 ${tp3_pct ? `(${tp3_pct}%)` : ''}`} value={tp3} />}
               {takeProfit != null && !tp1 && (
-                <PriceRow icon={<Target size={14} className="text-success" />} label="Take Profit" value={takeProfit} />
+                <PriceRow icon={<BadgeDollarSign size={14} className="text-success" />} label="Take Profit" value={takeProfit} />
               )}
             </div>
           </section>

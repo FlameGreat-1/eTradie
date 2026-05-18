@@ -200,12 +200,13 @@ export function useGoogleOAuth(): UseGoogleOAuthResult {
         stateConsumed = true;
 
         const res = await completeGoogleOAuth({ code, state });
-        if (!res?.tokens?.access_token || !res?.tokens?.refresh_token) {
-          throw new Error('Gateway did not return a usable token pair.');
-        }
 
-        // Hydrate AuthContext exactly like a username/password login.
-        await loginWithTokenPair(res.tokens, res.user);
+        // Hydrate AuthContext. The backend sets HttpOnly cookies so res.tokens may be null.
+        // We pass empty fallback strings to satisfy TypeScript; AuthContext ignores them.
+        await loginWithTokenPair(
+          res.tokens || { access_token: '', refresh_token: '', token_type: 'Bearer', expires_in: 0 },
+          res.user
+        );
         clearPendingOAuthFlow();
         return res;
       } catch (err) {

@@ -30,7 +30,7 @@ class LLMProvider(StrEnum):
 DEFAULT_MODELS: Final[dict[str, str]] = {
     LLMProvider.ANTHROPIC: "claude-3-7-sonnet-20250219",
     LLMProvider.OPENAI: "gpt-4o",
-    LLMProvider.GEMINI: "gemini-2.0-flash",
+    LLMProvider.GEMINI: "gemini-3.1-flash-lite",
     LLMProvider.SELF_HOSTED: "default",
 }
 
@@ -57,6 +57,22 @@ MODEL_CATALOG: Final[list[ModelMetadata]] = [
         "context_window": 200000,
         "group": "thinking",
         "is_premium": True,
+    },
+    {
+        "id": "claude-3-5-sonnet-20241022",
+        "display_name": "Claude 3.5 Sonnet",
+        "provider": LLMProvider.ANTHROPIC,
+        "context_window": 200000,
+        "group": "balanced",
+        "is_premium": True,
+    },
+    {
+        "id": "claude-3-5-haiku-20241022",
+        "display_name": "Claude 3.5 Haiku",
+        "provider": LLMProvider.ANTHROPIC,
+        "context_window": 200000,
+        "group": "efficient",
+        "is_premium": False,
     },
     {
         "id": "claude-3-opus-20240229",
@@ -91,6 +107,22 @@ MODEL_CATALOG: Final[list[ModelMetadata]] = [
         "group": "balanced",
         "is_premium": False,
     },
+    {
+        "id": "gpt-4o-mini",
+        "display_name": "GPT-4o Mini",
+        "provider": LLMProvider.OPENAI,
+        "context_window": 128000,
+        "group": "efficient",
+        "is_premium": False,
+    },
+    {
+        "id": "gpt-4-turbo",
+        "display_name": "GPT-4 Turbo",
+        "provider": LLMProvider.OPENAI,
+        "context_window": 128000,
+        "group": "balanced",
+        "is_premium": True,
+    },
     # --- GEMINI ---
     {
         "id": "gemini-1.5-pro",
@@ -111,6 +143,14 @@ MODEL_CATALOG: Final[list[ModelMetadata]] = [
     {
         "id": "gemini-2.0-flash",
         "display_name": "Gemini 3 Flash",
+        "provider": LLMProvider.GEMINI,
+        "context_window": 1000000,
+        "group": "flash",
+        "is_premium": False,
+    },
+    {
+        "id": "gemini-3.1-flash-lite",
+        "display_name": "Gemini 3.1 Flash-Lite (Latest)",
         "provider": LLMProvider.GEMINI,
         "context_window": 1000000,
         "group": "flash",

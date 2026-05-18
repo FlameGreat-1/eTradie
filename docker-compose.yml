@@ -119,6 +119,9 @@ services:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app/src
+      - ENGINE_GATEWAY_URL=http://gateway:8080
+      - METERING_GATEWAY_URL=http://gateway:8080
+      - ENGINE_MANAGEMENT_HTTP_URL=http://management:8083
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
@@ -148,7 +151,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 300s
     
   # ──────────────────────────────────────────────────────────────────
   # GO GATEWAY API

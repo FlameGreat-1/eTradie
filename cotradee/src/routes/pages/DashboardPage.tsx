@@ -13,6 +13,7 @@ import {
 } from '@/features/chart/components/TradingChart';
 import { WelcomeSetupCard } from '@/features/tradingsystem/components/WelcomeSetupCard';
 import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 /**
  * Dashboard.
@@ -106,6 +107,9 @@ function extractLevelsFromAnalysis(a: any): TradeLevels | undefined {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const { data: symbolData } = useSymbols();
   const { data: latest } = useLatestAnalysis(50);
   const { data: execState } = useExecutionState();

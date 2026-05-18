@@ -22,12 +22,9 @@ export default function AnalysisCountdown() {
   const isFree = usage?.tier === 'free';
   const dailyLimit = usage?.daily_limit;
 
-  // If not free tier or no limit, don't render anything.
-  if (!isFree || dailyLimit == null) return null;
-
   const analysesToday = usage?.analyses_today ?? 0;
   const lastAnalysisAt = usage?.last_analysis_at;
-  const hasUsedToday = analysesToday >= dailyLimit;
+  const hasUsedToday = dailyLimit != null && analysesToday >= dailyLimit;
 
   // Calculate time until next available analysis (24h after last_analysis_at).
   const remaining = useMemo(() => {
@@ -38,6 +35,9 @@ export default function AnalysisCountdown() {
     const diff = nextAvailableMs - now;
     return diff > 0 ? diff : 0;
   }, [lastAnalysisAt, hasUsedToday, now]);
+
+  // If not free tier or no limit, don't render anything.
+  if (!isFree || dailyLimit == null) return null;
 
   if (isLoading) return null;
 

@@ -128,7 +128,12 @@ async def internal_ta_analyze(
         raise HTTPException(
             status_code=503, detail="TA orchestrator not initialized"
         )
-    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
+    user_id = request.headers.get("X-User-Id", "")
+    if not user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="X-User-Id header required for internal TA analyze",
+        )
     user_broker = await _resolve_user_broker(container, user_id)
 
     results = []
@@ -137,7 +142,7 @@ async def internal_ta_analyze(
             result = await container.ta_orchestrator.analyze(
                 symbol=symbol,
                 broker_client=user_broker,
-                user_id=user.user_id,
+                user_id=user_id,
             )
             results.append(result)
         except Exception as exc:
@@ -147,7 +152,7 @@ async def internal_ta_analyze(
                     "symbol": symbol,
                     "error": str(exc),
                     "trace_id": body.trace_id,
-                    "user_id": user.user_id,
+                    "user_id": user_id,
                 },
             )
             results.append(
@@ -255,7 +260,7 @@ async def internal_rag_retrieve(
     if not hasattr(container, "rag_orchestrator"):
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
-    user_id = body.user_id if hasattr(body, "user_id") and body.user_id else ""
+    user_id = (request.headers.get("X-User-Id") or getattr(body, "user_id", "") or "").strip()
     try:
         bundle = await container.rag_orchestrator.retrieve_context(
             body.query_text,

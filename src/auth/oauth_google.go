@@ -270,6 +270,7 @@ func (p *GoogleOAuthProvider) VerifyIDToken(ctx context.Context, idToken, expect
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{"RS256"}),
 		jwt.WithIssuedAt(),
+		jwt.WithLeeway(oidcClockSkew),
 	)
 
 	parsed, err := parser.Parse(idToken, func(t *jwt.Token) (interface{}, error) {

@@ -1,6 +1,8 @@
 import { Routes, Route, NavLink } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { Settings, Brain, Plug, Shield, User, CreditCard, Crown } from 'lucide-react';
+import { Settings, Brain, Plug, Shield, User, CreditCard, Crown, Users, Cpu } from 'lucide-react';
+
+import { useAuth, isAdmin } from '@/features/auth';
 
 const ProfileSection = lazy(() => import('./settings/ProfileSection'));
 const SymbolsSection = lazy(() => import('./settings/SymbolsSection'));
@@ -9,18 +11,27 @@ const BrokerSection = lazy(() => import('./settings/BrokerSection'));
 const ExecutionSection = lazy(() => import('./settings/ExecutionSection'));
 const BillingSection = lazy(() => import('./settings/BillingSection'));
 const PaymentSection = lazy(() => import('./settings/PaymentSection'));
-
-const LINKS = [
-  { to: '/dashboard/settings',           label: 'Profile',   icon: User,       end: true },
-  { to: '/dashboard/settings/symbols',   label: 'Symbols',   icon: Settings },
-  { to: '/dashboard/settings/llm',       label: 'API Key',   icon: Brain },
-  { to: '/dashboard/settings/broker',    label: 'Broker',    icon: Plug },
-  { to: '/dashboard/settings/execution', label: 'Execution', icon: Shield },
-  { to: '/dashboard/settings/billing',   label: 'Billing',   icon: Crown },
-  { to: '/dashboard/settings/payment',   label: 'Payment',   icon: CreditCard },
-];
-
+const AdminUsersSection = lazy(() => import('./settings/AdminUsersSection'));
+const AdminSystemAiSection = lazy(() => import('./settings/AdminSystemAiSection'));
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
+
+  const links = [
+    { to: '/dashboard/settings',           label: 'Profile',   icon: User,       end: true },
+    { to: '/dashboard/settings/symbols',   label: 'Symbols',   icon: Settings },
+    { to: '/dashboard/settings/llm',       label: 'API Key',   icon: Brain },
+    { to: '/dashboard/settings/broker',    label: 'Broker',    icon: Plug },
+    { to: '/dashboard/settings/execution', label: 'Execution', icon: Shield },
+    { to: '/dashboard/settings/billing',   label: 'Billing',   icon: Crown },
+    { to: '/dashboard/settings/payment',   label: 'Payment',   icon: CreditCard },
+  ];
+
+  if (admin) {
+    links.push({ to: '/dashboard/settings/users',     label: 'Users',     icon: Users });
+    links.push({ to: '/dashboard/settings/system-ai', label: 'System AI', icon: Cpu });
+  }
+
   return (
     <div className="flex flex-col md:flex-row h-full animate-fade-in bg-white dark:bg-black">
       {/* Mobile: top tab strip */}
@@ -29,7 +40,7 @@ export default function SettingsPage() {
                    overflow-x-auto no-scrollbar"
         aria-label="Settings"
       >
-        {LINKS.map(({ to, label, icon: Icon, end }) => (
+        {links.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -62,7 +73,7 @@ export default function SettingsPage() {
           Settings
         </h2>
         <div className="space-y-1.5">
-          {LINKS.map(({ to, label, icon: Icon, end }) => (
+          {links.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -99,6 +110,12 @@ export default function SettingsPage() {
             <Route path="execution" element={<ExecutionSection />} />
             <Route path="billing" element={<BillingSection />} />
             <Route path="payment" element={<PaymentSection />} />
+            {admin && (
+              <>
+                <Route path="users" element={<AdminUsersSection />} />
+                <Route path="system-ai" element={<AdminSystemAiSection />} />
+              </>
+            )}
           </Routes>
         </Suspense>
       </div>

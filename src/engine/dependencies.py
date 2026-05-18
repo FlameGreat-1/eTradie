@@ -881,7 +881,85 @@ class Container:
             )
             return None
 
+    async def load_user_llm_client_by_id(self, user_id: str) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
+        """Load a user's active LLM connection and build an isolated client.
+
+        This is explicitly designed for background workers (like the
+        trading_plan or performance_review generators) which have a user_id
+        but lack an AuthenticatedUser context.
+        
+        It ignores tier logic entirely: if the user has a personal key saved,
+        it builds and returns the client and config tuple. If they do not, it returns (None, None).
+        The caller is responsible for deciding whether to fallback to the
+        platform key or reject the request.
+        """
+        try:
+            from engine.processor.storage.repositories.llm_connection_repository import (
+                LLMConnectionRepository,
+                decrypt_api_key,
+            )
+            from pydantic import SecretStr
+
+            async with self.db.read_session() as session:
+                repo = LLMConnectionRepository(session)
+                row = await repo.get_active(user_id=user_id)
+
+            if row is None:
+                _logger.debug(
+                    "no_personal_llm_connection_found_for_background_task",
+                    extra={"user_id": user_id},
+                )
+                return None, None
+
+            api_key = decrypt_api_key(row.api_key_encrypted)
+            env_cfg = get_processor_config()
+
+            overrides = {
+                "llm_provider": row.provider,
+                "model_name": row.model_name,
+                "temperature": row.temperature,
+                "max_output_tokens": row.max_output_tokens,
+                "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
+                "total_timeout_seconds": env_cfg.total_timeout_seconds,
+                "max_retries": env_cfg.max_retries,
+                "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
+                "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
+                "strict_schema_validation": env_cfg.strict_schema_validation,
+                "require_citations": env_cfg.require_citations,
+                "persist_audit_logs": env_cfg.persist_audit_logs,
+                "log_raw_llm_response": env_cfg.log_raw_llm_response,
+                "anthropic_api_key": env_cfg.anthropic_api_key,
+                "openai_api_key": env_cfg.openai_api_key,
+                "gemini_api_key": env_cfg.gemini_api_key,
+                "self_hosted_api_key": env_cfg.self_hosted_api_key,
+                "api_base_url": row.base_url or env_cfg.api_base_url,
+            }
+
+            key_field = f"{row.provider}_api_key"
+            if key_field in overrides:
+                overrides[key_field] = SecretStr(api_key)
+
+            cfg = ProcessorConfig(**overrides)
+            client = create_llm_client(config=cfg)
+
+            _logger.info(
+                "built_isolated_llm_client_for_background_task",
+                extra={
+                    "user_id": user_id,
+                    "provider": row.provider,
+                    "model": row.model_name,
+                },
+            )
+            return client, cfg
+        except Exception as exc:
+            _logger.warning(
+                "failed_to_build_isolated_llm_client",
+                extra={"error": str(exc), "user_id": user_id},
+            )
+            return None, None
+
     # -- Shutdown --------------------------------------------------------------
+
 
     async def shutdown(self) -> None:
         # Cancel pending background work BEFORE we tear down the resources

@@ -47,7 +47,7 @@ async def get_my_usage(
     container: Container = request.app.state.container
     from engine.processor.storage.repositories.billing_repository import BillingRepository
 
-    async with container.db.write_session() as session:
+    async with container.db.session() as session:
         billing_repo = BillingRepository(session)
         await billing_repo.reset_daily_usage_if_needed(user.user_id)
         usage = await billing_repo.get_usage_for_user(user.user_id)
@@ -532,7 +532,7 @@ async def rerun_analysis(
     from engine.processor.storage.repositories.billing_repository import BillingRepository
     from datetime import timezone, timedelta
     
-    async with container.db.write_session() as session:
+    async with container.db.session() as session:
         billing_repo = BillingRepository(session)
         # We don't need reset_daily_usage_if_needed anymore for this check
         usage = await billing_repo.get_or_create_usage(user.user_id)
