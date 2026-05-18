@@ -334,29 +334,71 @@ FOR EACH ROW
 WHEN (NEW.role = 'admin' AND OLD.role IS DISTINCT FROM 'admin')
 EXECUTE FUNCTION fn_billing_sync_admin_tier();
 
--- One-shot backfill so the trigger's invariant holds for admins
--- created BEFORE the trigger was installed. Self-healing: this
--- statement is idempotent (UPDATE-WHERE) and a no-op once every
--- admin already has tier='pro_managed'.
+-- ─────────────────────────────────────────────────────────────────────
+-- Schema-migration ledger.
 --
--- A separate UPSERT path covers admins who somehow have no row in
--- billing_subscriptions yet (e.g. an admin user created before the
--- billing schema was first applied).
-INSERT INTO billing_subscriptions (user_id, tier, status, event_timestamp, updated_at)
-SELECT au.id, 'pro_managed', 'active', NOW(), NOW()
-  FROM auth_users au
-  LEFT JOIN billing_subscriptions bs ON bs.user_id = au.id
- WHERE au.role = 'admin'
-   AND bs.user_id IS NULL;
+-- Data backfills (as distinct from DDL) must run AT MOST ONCE per
+-- database. Putting them naively in SchemaSQL would re-execute on
+-- every service start — wasteful on a small DB, prohibitive on a
+-- production-scale one. This tiny table (one row per applied
+-- migration) lets the DO blocks below short-circuit cheaply.
+--
+-- Mirrors the Flyway / Liquibase / Alembic pattern: stable string
+-- ids, append-only history, never deleted. id values follow the
+-- 'feature_kind_vN' convention so they sort by feature first and
+-- are trivially diffable across deploys.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS billing_schema_migrations (
+    id          TEXT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-UPDATE billing_subscriptions bs
-   SET tier            = 'pro_managed',
-       status          = 'active',
-       event_timestamp = GREATEST(bs.event_timestamp, NOW()),
-       updated_at      = NOW()
-  FROM auth_users au
- WHERE bs.user_id = au.id
-   AND au.role    = 'admin'
-   AND bs.tier   <> 'pro_managed';
+-- One-shot backfill so the trigger's invariant holds for admins
+-- created BEFORE the trigger was installed. The DO block runs
+-- inside an implicit transaction; the ledger INSERT happens in
+-- the same transaction so a failure of the data statements rolls
+-- the ledger row back and the next start retries.
+--
+-- Concurrency: when both gateway and billing-service start at the
+-- same time, both reach this block. PostgreSQL serialises
+-- statements inside the DO body; the loser observes the ledger
+-- row already inserted and skips. ON CONFLICT DO NOTHING on the
+-- ledger INSERT means neither side errors out.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM billing_schema_migrations
+         WHERE id = 'backfill_admin_pro_managed_v1'
+    ) THEN
+        -- Admins without a billing row yet (created before the
+        -- billing schema was first applied, or before the trigger
+        -- existed) get a fresh pro_managed row.
+        INSERT INTO billing_subscriptions (
+            user_id, tier, status, event_timestamp, updated_at
+        )
+        SELECT au.id, 'pro_managed', 'active', NOW(), NOW()
+          FROM auth_users au
+          LEFT JOIN billing_subscriptions bs ON bs.user_id = au.id
+         WHERE au.role = 'admin'
+           AND bs.user_id IS NULL;
+
+        -- Admins whose existing billing row carries the wrong tier
+        -- get flipped to pro_managed. GREATEST() guards against
+        -- moving event_timestamp backwards.
+        UPDATE billing_subscriptions bs
+           SET tier            = 'pro_managed',
+               status          = 'active',
+               event_timestamp = GREATEST(bs.event_timestamp, NOW()),
+               updated_at      = NOW()
+          FROM auth_users au
+         WHERE bs.user_id = au.id
+           AND au.role    = 'admin'
+           AND bs.tier   <> 'pro_managed';
+
+        INSERT INTO billing_schema_migrations (id)
+        VALUES ('backfill_admin_pro_managed_v1')
+        ON CONFLICT (id) DO NOTHING;
+    END IF;
+END $$;
 `
 }

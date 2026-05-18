@@ -192,7 +192,11 @@ async def create_llm_connection(
 
     # Invalidate the user's cached processor so the next request
     # rebuilds it from the newly created/activated connection.
+    # Also invalidate the per-user background LLM client cache so
+    # the next trading-plan or performance-review request picks up
+    # the new credentials instead of reusing the previous client.
     await container.invalidate_user_processor(user.user_id)
+    await container.invalidate_user_background_llm(user.user_id)
 
     return {
         "id": connection_id,
@@ -244,8 +248,12 @@ async def update_llm_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     # Invalidate the user's cached processor so the next request
-    # rebuilds it with the updated connection settings.
+    # rebuilds it with the updated connection settings. Same for
+    # the background LLM client cache (trading-plan + performance
+    # review) so an updated api_key / model / base_url is picked
+    # up on the very next generation.
     await container.invalidate_user_processor(user.user_id)
+    await container.invalidate_user_background_llm(user.user_id)
 
     return {
         "id": str(row.id),
@@ -278,8 +286,11 @@ async def activate_llm_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     # Invalidate the user's cached processor so the next request
-    # rebuilds it from the newly activated connection.
+    # rebuilds it from the newly activated connection. Same for
+    # the background LLM client cache so the next trading-plan or
+    # performance-review request honours the newly activated row.
     await container.invalidate_user_processor(user.user_id)
+    await container.invalidate_user_background_llm(user.user_id)
 
     return {
         "id": str(row.id),
@@ -308,8 +319,13 @@ async def deactivate_llm_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     # Invalidate the user's cached processor since their active
-    # connection was just deactivated.
+    # connection was just deactivated. Same for the background LLM
+    # client cache so any in-flight trading-plan or performance
+    # review request that arrives next observes the deactivation
+    # (and falls through to platform fallback / strict reject
+    # depending on tier policy).
     await container.invalidate_user_processor(user.user_id)
+    await container.invalidate_user_background_llm(user.user_id)
 
     return {
         "id": str(row.id),
@@ -338,8 +354,11 @@ async def delete_llm_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     # Invalidate the user's cached processor in case the deleted
-    # connection was the one powering the cached processor.
+    # connection was the one powering the cached processor. Same
+    # for the background LLM client cache: a deleted connection
+    # must not survive in any cache the next request might consult.
     await container.invalidate_user_processor(user.user_id)
+    await container.invalidate_user_background_llm(user.user_id)
 
     return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
 
@@ -429,8 +448,12 @@ async def create_platform_llm_connection(
 
     # Invalidate all processors for all admins and pro_managed users
     # since the platform key just changed. For now, we clear the whole
-    # cache to be safe.
+    # cache to be safe. Symmetric invalidation on the background LLM
+    # client cache so every user currently holding a platform-key
+    # trading-plan / performance-review client rebuilds against the
+    # new config on their next request.
     container._user_processors.clear()
+    await container.invalidate_all_background_llm()
 
     return {
         "id": connection_id,
@@ -457,6 +480,10 @@ async def delete_platform_llm_connection(
     if not deleted:
         raise HTTPException(status_code=404, detail="Platform connection not found")
 
+    # Symmetric invalidation: both the analysis-path processor cache
+    # and the background LLM client cache must drop every entry that
+    # could still be holding the just-deleted platform-key client.
     container._user_processors.clear()
+    await container.invalidate_all_background_llm()
 
     return {"deleted": True, "message": "Platform connection deleted. Reverting to .env configuration."}

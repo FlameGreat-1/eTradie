@@ -91,6 +91,38 @@ from engine.shared.logging import get_logger
 _logger = get_logger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Background LLM cache entry
+# ---------------------------------------------------------------------------
+
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass(frozen=True)
+class _BackgroundLLMCacheEntry:
+    """One entry in Container._user_background_llm.
+
+    Carries the resolved client and config plus the (role, tier,
+    used_platform) tuple the client was built against. On the next
+    load_llm_client_for_background() call we compare the requesting
+    (role, tier) against this snapshot; a mismatch means the user's
+    eligibility changed and the entry must be rebuilt.
+
+    used_platform is an operator-observability flag only — it does
+    not affect cache hit/miss because a user who flips between
+    personal-key and platform-key always also crosses through an
+    invalidate_user_background_llm() call on the connection-mutation
+    route, which clears the entry outright.
+    """
+
+    client: object  # LLMClient (untyped here to avoid an import cycle)
+    config: object  # ProcessorConfig
+    role: str
+    tier: str
+    used_platform: bool
+
+
 class Container:
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -148,6 +180,19 @@ class Container:
         # Per-user LLM processor cache. Keyed by user_id.
         # Invalidated when user changes their LLM connection.
         self._user_processors: dict[str, AnalysisProcessor] = {}
+
+        # Per-user LLM client cache for BACKGROUND generators
+        # (trading-plan + performance-review). Keyed by user_id;
+        # each value is a _BackgroundLLMCacheEntry tuple recording
+        # the role+tier the client was resolved against so a stale
+        # entry built when the user had a different tier is
+        # transparently replaced on the next request. Generators
+        # MUST NOT close the returned client — the cache owns the
+        # lifecycle and Container.shutdown() closes every entry on
+        # process exit. Mirrors the existing _user_processors
+        # pattern so the analysis and background paths share the
+        # same ownership semantics.
+        self._user_background_llm: dict[str, _BackgroundLLMCacheEntry] = {}
 
         # Per-user broker client cache. Keyed by user_id.
         # Invalidated when user changes their broker connection.
@@ -909,7 +954,7 @@ class Container:
         tier: str,
         allow_platform_fallback: bool,
     ) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
-        """Build an isolated LLM client for a background generator.
+        """Resolve (and cache) the LLM client for a background generator.
 
         This is the single entry point for both the trading-plan and
         performance-review generators. It honors the same tier policy
@@ -917,24 +962,60 @@ class Container:
         (forwarded by the gateway in the dispatch body) so the engine
         does not need an AuthenticatedUser.
 
-        Resolution:
+        Resolution + caching:
 
-          1. Personal LLM connection on llm_connections for user_id
+          1. Cache hit  (entry exists for user_id AND its (role, tier)
+             match the request) -> return the cached client without
+             any DB read. The cache value lives until either
+             invalidate_user_background_llm(user_id) fires (on every
+             LLM-connection mutation route) or the user's role/tier
+             changes (a subsequent call with different role/tier
+             will fall through to the build path and replace the
+             stale entry).
+          2. Personal LLM connection on llm_connections for user_id
              -> build a client from the saved key (regardless of tier).
-          2. No personal connection AND allow_platform_fallback is
+          3. No personal connection AND allow_platform_fallback is
              True AND the (role, tier) pair is eligible (admin or
              pro_managed) -> build a client from the platform row
              (or env-var processor config when no platform row
-             exists). This matches the analysis-path behaviour
-             exactly.
-          3. Anything else -> (None, None) so the generator can
+             exists).
+          4. Anything else -> (None, None) so the generator can
              surface the right tier-aware CTA.
 
         allow_platform_fallback is a per-feature switch so the
         performance-review generator can still hold the strict
         BYOK-or-managed line (no platform fallback for free /
         pro_byok tiers) without duplicating the policy.
+
+        Ownership: the cache owns the returned client. Callers MUST
+        NOT close it. Container.shutdown() closes every cached entry
+        on process exit; invalidate_user_background_llm() closes the
+        specific entry on every connection-mutation route.
         """
+        # -- 1. Cache hit fast path --------------------------------------
+        cached = self._user_background_llm.get(user_id)
+        if cached is not None and cached.role == role and cached.tier == tier:
+            return cached.client, cached.config  # type: ignore[return-value]
+
+        # If we have a stale entry (same user_id, different role/tier),
+        # close it before rebuilding so we never leak an HTTP pool.
+        if cached is not None:
+            try:
+                await cached.client.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            self._user_background_llm.pop(user_id, None)
+            _logger.info(
+                "background_llm_client_evicted_stale",
+                extra={
+                    "user_id": user_id,
+                    "old_role": cached.role,
+                    "old_tier": cached.tier,
+                    "new_role": role,
+                    "new_tier": tier,
+                },
+            )
+
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
                 LLMConnectionRepository,
@@ -947,6 +1028,13 @@ class Container:
             if row is not None:
                 cfg = self._processor_config_from_row(row, is_platform=False)
                 client = create_llm_client(config=cfg)
+                self._user_background_llm[user_id] = _BackgroundLLMCacheEntry(
+                    client=client,
+                    config=cfg,
+                    role=role,
+                    tier=tier,
+                    used_platform=False,
+                )
                 _logger.info(
                     "background_llm_client_built_personal",
                     extra={
@@ -983,6 +1071,13 @@ class Container:
 
             cfg = await self._load_platform_processor_config()
             client = create_llm_client(config=cfg)
+            self._user_background_llm[user_id] = _BackgroundLLMCacheEntry(
+                client=client,
+                config=cfg,
+                role=role,
+                tier=tier,
+                used_platform=True,
+            )
             _logger.info(
                 "background_llm_client_built_platform",
                 extra={
@@ -1006,6 +1101,54 @@ class Container:
                 },
             )
             return None, None
+
+    async def invalidate_user_background_llm(self, user_id: str) -> None:
+        """Invalidate the cached background LLM client for a user.
+
+        Called when the user activates, updates, deactivates, or
+        deletes their LLM connection. Symmetric with
+        invalidate_user_processor() which already drives the same
+        invariant on the analysis-path cache.
+
+        Best-effort close: a client whose underlying transport has
+        already faulted may raise on close(); we swallow because the
+        entry is being discarded anyway.
+        """
+        entry = self._user_background_llm.pop(user_id, None)
+        if entry is not None:
+            try:
+                await entry.client.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            _logger.info(
+                "background_llm_client_invalidated",
+                extra={"user_id": user_id},
+            )
+
+    async def invalidate_all_background_llm(self) -> None:
+        """Invalidate every cached background LLM client.
+
+        Called from the platform-key rotation routes (POST/DELETE
+        /api/llm/platform/connection) where every user that was
+        using the platform key needs to rebuild against the new
+        config. Mirrors the existing container._user_processors.clear()
+        pattern from the analysis path but also closes each client
+        properly so we never leak an HTTP connection pool on a
+        platform-key rotation.
+        """
+        users = list(self._user_background_llm.keys())
+        for user_id in users:
+            entry = self._user_background_llm.pop(user_id, None)
+            if entry is not None:
+                try:
+                    await entry.client.close()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        if users:
+            _logger.info(
+                "background_llm_clients_invalidated_all",
+                extra={"count": len(users)},
+            )
 
     async def load_user_llm_client_by_id(
         self, user_id: str
@@ -1045,7 +1188,17 @@ class Container:
             except Exception:
                 pass
         self._user_processors.clear()
-        
+
+        # Close per-user cached background LLM clients (trading-plan +
+        # performance-review). The cache owns the client lifecycle so
+        # this is the only path that closes them on a clean shutdown.
+        for user_id, entry in self._user_background_llm.items():
+            try:
+                await entry.client.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        self._user_background_llm.clear()
+
         # Close per-user cached broker clients.
         for user_id, broker in self._user_brokers.items():
             try:
