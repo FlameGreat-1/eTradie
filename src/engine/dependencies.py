@@ -735,144 +735,162 @@ class Container:
         """
         return await self._load_active_llm_connection(user)
 
+    # -- LLM connection -> ProcessorConfig (shared helpers) -----------------
+
+    @staticmethod
+    def _processor_config_from_row(row, *, is_platform: bool) -> "ProcessorConfig":
+        """Build a ProcessorConfig from a saved llm_connections row.
+
+        Used by both the analysis-path resolver and the background
+        generators. The connection fields (provider, model, key,
+        temperature, max_output_tokens, base_url) come from the row;
+        every operational field (timeouts, retry policy, validation,
+        audit flags) is carried forward from the env-var config so
+        per-row tweaks cannot accidentally weaken the platform's
+        operational guarantees.
+
+        is_platform is logged for observability so a platform-row
+        load is distinguishable from a personal-row load. The two
+        branches build the SAME ProcessorConfig shape — a missing
+        per-provider API key on the env baseline is overridden by
+        the row's decrypted key for the row's provider.
+        """
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            decrypt_api_key,
+        )
+        from pydantic import SecretStr
+
+        api_key = decrypt_api_key(row.api_key_encrypted)
+        env_cfg = get_processor_config()
+
+        overrides: dict = {
+            "llm_provider": row.provider,
+            "model_name": row.model_name,
+            "temperature": row.temperature,
+            "max_output_tokens": row.max_output_tokens,
+            # Carry forward operational settings from env.
+            "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
+            "total_timeout_seconds": env_cfg.total_timeout_seconds,
+            "max_retries": env_cfg.max_retries,
+            "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
+            "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
+            "strict_schema_validation": env_cfg.strict_schema_validation,
+            "require_citations": env_cfg.require_citations,
+            "persist_audit_logs": env_cfg.persist_audit_logs,
+            "log_raw_llm_response": env_cfg.log_raw_llm_response,
+            # Default all provider keys to env values so a different
+            # provider's key remains intact for inert validation.
+            "anthropic_api_key": env_cfg.anthropic_api_key,
+            "openai_api_key": env_cfg.openai_api_key,
+            "gemini_api_key": env_cfg.gemini_api_key,
+            "self_hosted_api_key": env_cfg.self_hosted_api_key,
+            "api_base_url": row.base_url or env_cfg.api_base_url,
+        }
+
+        key_field = f"{row.provider}_api_key"
+        if key_field in overrides:
+            overrides[key_field] = SecretStr(api_key)
+
+        cfg = ProcessorConfig(**overrides)
+        _logger.info(
+            "processor_config_built_from_row",
+            extra={
+                "is_platform": is_platform,
+                "provider": row.provider,
+                "model": row.model_name,
+                "connection_id": str(row.id),
+            },
+        )
+        return cfg
+
+    async def _load_platform_processor_config(self) -> "ProcessorConfig":
+        """Return the platform LLM ProcessorConfig.
+
+        Resolution order (single source of truth for every caller
+        that wants the platform key):
+
+          1. The active platform row in llm_connections
+             (is_platform=true). Hot-reloadable: an admin can
+             rotate the platform key from the dashboard without
+             a container restart.
+          2. Env-var configuration. Static fallback used when no
+             platform row exists (fresh install, or admin
+             explicitly deleted the row).
+        """
+        from engine.processor.storage.repositories.llm_connection_repository import (
+            LLMConnectionRepository,
+        )
+
+        async with self.db.read_session() as session:
+            repo = LLMConnectionRepository(session)
+            platform_row = await repo.get_platform()
+
+        if platform_row is not None:
+            return self._processor_config_from_row(
+                platform_row, is_platform=True
+            )
+        _logger.info("using_platform_llm_from_env")
+        return get_processor_config()
+
+    @staticmethod
+    def _is_eligible_for_platform_fallback(role: str, tier: str) -> bool:
+        """Tier policy for platform-key fallback.
+
+        Centralised so every caller (analysis path, trading-plan
+        background, performance-review background) uses the SAME
+        rule. Currently:
+
+          - role == 'admin'           -> always eligible
+          - tier == 'pro_managed'     -> eligible (the managed tier
+                                         is what users pay for in
+                                         exchange for the platform
+                                         covering LLM costs)
+          - everyone else             -> not eligible; must BYOK
+        """
+        if (role or "").strip().lower() == "admin":
+            return True
+        if (tier or "").strip().lower() == "pro_managed":
+            return True
+        return False
+
+    # -- Analysis-path resolver (request-scoped, has AuthenticatedUser) ----
+
     async def _load_active_llm_connection(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
         """Load the active LLM connection from the database for a user.
 
         Tier policy (defense-in-depth):
-          - admin or pro_managed with NO saved connection → platform env-var
-            key (the "managed" tier subsidises this).
-          - pro_byok or any other tier with no saved connection → None,
+          - admin or pro_managed with NO saved connection -> platform key
+            (DB row first, env-var fallback).
+          - pro_byok or any other tier with no saved connection -> None,
             the caller raises a tier-aware 503 telling the user to add
             their own key in the dashboard.
-          - any user with a saved connection → use the saved key,
+          - any user with a saved connection -> use the saved key,
             regardless of tier.
-
-        The hard guard inside the platform-key branch makes the
-        invariant local: even if a future caller bypasses the entry-
-        point tier check, a non-managed/non-admin user can never
-        receive the platform key from this method.
         """
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
                 LLMConnectionRepository,
-                decrypt_api_key,
             )
-            from pydantic import SecretStr
 
             async with self.db.read_session() as session:
                 repo = LLMConnectionRepository(session)
                 row = await repo.get_active(user_id=user.user_id)
 
-            if row is None:
-                # Defense-in-depth: only admin and pro_managed are eligible
-                # for the platform key. Anyone else falls through to None
-                # and the caller raises a tier-aware error.
-                if user.is_admin or user.tier == "pro_managed":
-                    _logger.info(
-                        "falling_back_to_platform_llm",
-                        extra={"user_id": user.user_id, "tier": user.tier},
-                    )
-                    
-                    # 1. Try to load platform connection from database
-                    async with self.db.read_session() as session:
-                        repo = LLMConnectionRepository(session)
-                        platform_row = await repo.get_platform()
-                        
-                    if platform_row is not None:
-                        plat_api_key = decrypt_api_key(platform_row.api_key_encrypted)
-                        env_cfg = get_processor_config()
-                        
-                        overrides = {
-                            "llm_provider": platform_row.provider,
-                            "model_name": platform_row.model_name,
-                            "temperature": platform_row.temperature,
-                            "max_output_tokens": platform_row.max_output_tokens,
-                            # Carry forward non-connection settings from env.
-                            "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
-                            "total_timeout_seconds": env_cfg.total_timeout_seconds,
-                            "max_retries": env_cfg.max_retries,
-                            "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
-                            "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
-                            "strict_schema_validation": env_cfg.strict_schema_validation,
-                            "require_citations": env_cfg.require_citations,
-                            "persist_audit_logs": env_cfg.persist_audit_logs,
-                            "log_raw_llm_response": env_cfg.log_raw_llm_response,
-                            # Default all provider keys to env values.
-                            "anthropic_api_key": env_cfg.anthropic_api_key,
-                            "openai_api_key": env_cfg.openai_api_key,
-                            "gemini_api_key": env_cfg.gemini_api_key,
-                            "self_hosted_api_key": env_cfg.self_hosted_api_key,
-                            "api_base_url": platform_row.base_url or env_cfg.api_base_url,
-                        }
-                        key_field = f"{platform_row.provider}_api_key"
-                        if key_field in overrides:
-                            overrides[key_field] = SecretStr(plat_api_key)
-                        
-                        _logger.info(
-                            "using_platform_llm_from_db",
-                            extra={"user_id": user.user_id, "tier": user.tier, "provider": platform_row.provider},
-                        )
-                        return ProcessorConfig(**overrides)
+            if row is not None:
+                return self._processor_config_from_row(row, is_platform=False)
 
-                    # 2. Fall back to environment variables
-                    _logger.info(
-                        "using_platform_llm_from_env",
-                        extra={"user_id": user.user_id, "tier": user.tier},
-                    )
-                    return get_processor_config()
-
+            if self._is_eligible_for_platform_fallback(user.role, user.tier):
                 _logger.info(
-                    "no_active_llm_connection_in_db_for_byok",
+                    "falling_back_to_platform_llm",
                     extra={"user_id": user.user_id, "tier": user.tier},
                 )
-                return None
-
-            api_key = decrypt_api_key(row.api_key_encrypted)
-
-            # Build a ProcessorConfig from the saved connection.
-            # Start with env var defaults for non-connection fields,
-            # then override provider/model/key from the DB row.
-            env_cfg = get_processor_config()
-
-            overrides = {
-                "llm_provider": row.provider,
-                "model_name": row.model_name,
-                "temperature": row.temperature,
-                "max_output_tokens": row.max_output_tokens,
-                # Carry forward non-connection settings from env.
-                "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
-                "total_timeout_seconds": env_cfg.total_timeout_seconds,
-                "max_retries": env_cfg.max_retries,
-                "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
-                "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
-                "strict_schema_validation": env_cfg.strict_schema_validation,
-                "require_citations": env_cfg.require_citations,
-                "persist_audit_logs": env_cfg.persist_audit_logs,
-                "log_raw_llm_response": env_cfg.log_raw_llm_response,
-                # Default all provider keys to env values.
-                "anthropic_api_key": env_cfg.anthropic_api_key,
-                "openai_api_key": env_cfg.openai_api_key,
-                "gemini_api_key": env_cfg.gemini_api_key,
-                "self_hosted_api_key": env_cfg.self_hosted_api_key,
-                "api_base_url": row.base_url or env_cfg.api_base_url,
-            }
-
-            # Set the API key for the active provider from the DB.
-            key_field = f"{row.provider}_api_key"
-            if key_field in overrides:
-                overrides[key_field] = SecretStr(api_key)
-
-            cfg = ProcessorConfig(**overrides)
+                return await self._load_platform_processor_config()
 
             _logger.info(
-                "loaded_active_llm_connection_from_db",
-                extra={
-                    "provider": row.provider,
-                    "model": row.model_name,
-                    "connection_id": str(row.id),
-                },
+                "no_active_llm_connection_in_db_for_byok",
+                extra={"user_id": user.user_id, "tier": user.tier},
             )
-            return cfg
+            return None
 
         except Exception as exc:
             _logger.warning(
@@ -881,82 +899,130 @@ class Container:
             )
             return None
 
-    async def load_user_llm_client_by_id(self, user_id: str) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
-        """Load a user's active LLM connection and build an isolated client.
+    # -- Background-path resolver (no AuthenticatedUser; role+tier strings) -
 
-        This is explicitly designed for background workers (like the
-        trading_plan or performance_review generators) which have a user_id
-        but lack an AuthenticatedUser context.
-        
-        It ignores tier logic entirely: if the user has a personal key saved,
-        it builds and returns the client and config tuple. If they do not, it returns (None, None).
-        The caller is responsible for deciding whether to fallback to the
-        platform key or reject the request.
+    async def load_llm_client_for_background(
+        self,
+        user_id: str,
+        *,
+        role: str,
+        tier: str,
+        allow_platform_fallback: bool,
+    ) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
+        """Build an isolated LLM client for a background generator.
+
+        This is the single entry point for both the trading-plan and
+        performance-review generators. It honors the same tier policy
+        as the analysis path but takes role + tier as plain strings
+        (forwarded by the gateway in the dispatch body) so the engine
+        does not need an AuthenticatedUser.
+
+        Resolution:
+
+          1. Personal LLM connection on llm_connections for user_id
+             -> build a client from the saved key (regardless of tier).
+          2. No personal connection AND allow_platform_fallback is
+             True AND the (role, tier) pair is eligible (admin or
+             pro_managed) -> build a client from the platform row
+             (or env-var processor config when no platform row
+             exists). This matches the analysis-path behaviour
+             exactly.
+          3. Anything else -> (None, None) so the generator can
+             surface the right tier-aware CTA.
+
+        allow_platform_fallback is a per-feature switch so the
+        performance-review generator can still hold the strict
+        BYOK-or-managed line (no platform fallback for free /
+        pro_byok tiers) without duplicating the policy.
         """
         try:
             from engine.processor.storage.repositories.llm_connection_repository import (
                 LLMConnectionRepository,
-                decrypt_api_key,
             )
-            from pydantic import SecretStr
 
             async with self.db.read_session() as session:
                 repo = LLMConnectionRepository(session)
                 row = await repo.get_active(user_id=user_id)
 
-            if row is None:
-                _logger.debug(
-                    "no_personal_llm_connection_found_for_background_task",
-                    extra={"user_id": user_id},
+            if row is not None:
+                cfg = self._processor_config_from_row(row, is_platform=False)
+                client = create_llm_client(config=cfg)
+                _logger.info(
+                    "background_llm_client_built_personal",
+                    extra={
+                        "user_id": user_id,
+                        "provider": row.provider,
+                        "model": row.model_name,
+                        "role": role,
+                        "tier": tier,
+                    },
+                )
+                return client, cfg
+
+            if not allow_platform_fallback:
+                _logger.info(
+                    "background_llm_client_personal_required",
+                    extra={
+                        "user_id": user_id,
+                        "role": role,
+                        "tier": tier,
+                    },
                 )
                 return None, None
 
-            api_key = decrypt_api_key(row.api_key_encrypted)
-            env_cfg = get_processor_config()
+            if not self._is_eligible_for_platform_fallback(role, tier):
+                _logger.info(
+                    "background_llm_client_not_eligible_for_platform",
+                    extra={
+                        "user_id": user_id,
+                        "role": role,
+                        "tier": tier,
+                    },
+                )
+                return None, None
 
-            overrides = {
-                "llm_provider": row.provider,
-                "model_name": row.model_name,
-                "temperature": row.temperature,
-                "max_output_tokens": row.max_output_tokens,
-                "llm_timeout_seconds": env_cfg.llm_timeout_seconds,
-                "total_timeout_seconds": env_cfg.total_timeout_seconds,
-                "max_retries": env_cfg.max_retries,
-                "retry_backoff_base_seconds": env_cfg.retry_backoff_base_seconds,
-                "retry_backoff_max_seconds": env_cfg.retry_backoff_max_seconds,
-                "strict_schema_validation": env_cfg.strict_schema_validation,
-                "require_citations": env_cfg.require_citations,
-                "persist_audit_logs": env_cfg.persist_audit_logs,
-                "log_raw_llm_response": env_cfg.log_raw_llm_response,
-                "anthropic_api_key": env_cfg.anthropic_api_key,
-                "openai_api_key": env_cfg.openai_api_key,
-                "gemini_api_key": env_cfg.gemini_api_key,
-                "self_hosted_api_key": env_cfg.self_hosted_api_key,
-                "api_base_url": row.base_url or env_cfg.api_base_url,
-            }
-
-            key_field = f"{row.provider}_api_key"
-            if key_field in overrides:
-                overrides[key_field] = SecretStr(api_key)
-
-            cfg = ProcessorConfig(**overrides)
+            cfg = await self._load_platform_processor_config()
             client = create_llm_client(config=cfg)
-
             _logger.info(
-                "built_isolated_llm_client_for_background_task",
+                "background_llm_client_built_platform",
                 extra={
                     "user_id": user_id,
-                    "provider": row.provider,
-                    "model": row.model_name,
+                    "provider": cfg.llm_provider,
+                    "model": cfg.model_name,
+                    "role": role,
+                    "tier": tier,
                 },
             )
             return client, cfg
+
         except Exception as exc:
             _logger.warning(
-                "failed_to_build_isolated_llm_client",
-                extra={"error": str(exc), "user_id": user_id},
+                "failed_to_build_background_llm_client",
+                extra={
+                    "error": str(exc),
+                    "user_id": user_id,
+                    "role": role,
+                    "tier": tier,
+                },
             )
             return None, None
+
+    async def load_user_llm_client_by_id(
+        self, user_id: str
+    ) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
+        """Personal-key-only background loader (compatibility shim).
+
+        Equivalent to load_llm_client_for_background with
+        allow_platform_fallback=False. Kept as a one-liner so any
+        future caller that genuinely wants the strict 'no platform
+        key, ever' behaviour does not have to repeat the flag.
+        """
+        return await self.load_llm_client_for_background(
+            user_id,
+            role="",
+            tier="",
+            allow_platform_fallback=False,
+        )
 
     # -- Shutdown --------------------------------------------------------------
 
