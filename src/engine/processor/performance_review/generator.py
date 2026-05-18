@@ -9,7 +9,12 @@ Flow:
   3. GET gateway /internal/performance-review/prior?period=&before=
      -> the prior ready row's review JSON (optional; used for
         trader-evolution deltas per PLAN.md section 12).
-  4. Build the prompt, call the PLATFORM LLM client.
+  4. Resolve the user's LLM client via the container's tier-aware
+     background loader. The loader returns the user's PERSONAL key
+     when one is configured, OR the PLATFORM key only for admin /
+     pro_managed users (PLAN rules #2 and #4). Free and pro_byok
+     users without a personal key are rejected with a 'configure
+     your key' message.
   5. Parse + shape into the 14-section wire schema.
   6. POST gateway /internal/performance-review/callback. On any
      failure POST /internal/performance-review/fail so the gateway
@@ -31,7 +36,6 @@ from typing import Any, Optional
 
 import httpx
 
-from engine.processor.llm.client import LLMClient
 from engine.processor.llm.error_classifier import (
     classify_llm_failure,
     is_transient_llm_error,
@@ -104,8 +108,9 @@ class PerformanceReviewGenerator:
     """Stateless service wrapping one full review-generation cycle.
 
     The Container builds ONE instance and reuses it. The LLM client
-    is the platform's (Container.processor_llm_client), guaranteeing
-    the call uses the platform key.
+    is resolved per request via load_llm_client_for_background under
+    the BYOK-or-managed policy: personal key when set, platform key
+    only for admin / pro_managed, otherwise a tier-aware rejection.
     """
 
     def __init__(

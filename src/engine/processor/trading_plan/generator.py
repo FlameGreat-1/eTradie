@@ -4,9 +4,13 @@ Flow:
 
   1. Build the prompt from the saved Trading System profile and the
      account balance the gateway resolved (broker or fallback).
-  2. Call the PLATFORM LLM client (NOT the user's BYOK client). The
-     trading plan is always generated with the platform key because
-     most users are still onboarding when this fires.
+  2. Resolve the user's LLM client via the container's tier-aware
+     background loader. The loader returns:
+       - the user's PERSONAL key when they have one configured, OR
+       - the PLATFORM key (DB row first, env-var fallback) when the
+         user has no personal key.
+     For trading-plan every user is eligible for the platform key,
+     so brand-new users can still generate a plan during onboarding.
   3. Parse the JSON response. Reject anything that does not match
      the six-section shape PRACTICE.md specifies.
   4. POST the parsed plan to the gateway's internal callback. On
@@ -28,7 +32,6 @@ from typing import Any, Optional
 
 import httpx
 
-from engine.processor.llm.client import LLMClient
 from engine.processor.llm.error_classifier import (
     classify_llm_failure,
     is_transient_llm_error,
@@ -112,9 +115,9 @@ class TradingPlanGenerator:
     """Stateless service wrapping a single LLM call + gateway callback.
 
     The Container builds ONE instance and reuses it. The LLM client
-    is the platform's (Container.processor_llm_client), guaranteeing
-    the call uses the platform key even when the requesting user is
-    BYOK.
+    is resolved per request via load_llm_client_for_background, so a
+    user with a personal key uses their own key and a user without
+    one falls back to the platform key (PLAN rule #3).
     """
 
     def __init__(
