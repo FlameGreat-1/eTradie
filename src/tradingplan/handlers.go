@@ -415,10 +415,22 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		ProfileJSON:     profileJSON,
 	}
 
+	// Capture the authenticated user's full claims BEFORE detaching
+	// the context below. The dispatch goroutine runs on a context
+	// derived from context.Background() so a slow client cannot
+	// cancel the LLM call mid-flight; that detachment, however,
+	// drops the claims that the adapter needs to forward role + tier
+	// to the engine. Re-injecting the captured claims onto the
+	// detached context preserves the full identity end-to-end.
+	requestClaims := auth.ClaimsFromContext(r.Context())
+
 	// Dispatch with a generous timeout independent of the user's
 	// request context so a slow client (or a flaky network on the
 	// browser side) cannot cancel an LLM call mid-flight.
 	dispatchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if requestClaims != nil {
+		dispatchCtx = auth.InjectClaimsIntoContext(dispatchCtx, requestClaims)
+	}
 	go func() {
 		defer cancel()
 		if err := h.dispatcher.Dispatch(dispatchCtx, req); err != nil {

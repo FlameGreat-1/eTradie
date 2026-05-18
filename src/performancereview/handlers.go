@@ -409,10 +409,21 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		ProfileVersion: sysRec.Version,
 	}
 
+	// Capture the authenticated user's full claims BEFORE detaching
+	// the context below. Same rationale as the trading-plan handler:
+	// the dispatch goroutine runs on a context derived from
+	// context.Background() so a slow client cannot cancel the LLM
+	// call mid-flight, and that detachment drops the claims the
+	// adapter needs to forward role + tier to the engine.
+	requestClaims := auth.ClaimsFromContext(r.Context())
+
 	// Dispatch with a generous timeout independent of the user's
 	// request context so a slow client cannot cancel an LLM call
 	// mid-flight (mirrors the trading-plan dispatch pattern).
 	dispatchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if requestClaims != nil {
+		dispatchCtx = auth.InjectClaimsIntoContext(dispatchCtx, requestClaims)
+	}
 	go func() {
 		defer cancel()
 		if err := h.dispatcher.Dispatch(dispatchCtx, req); err != nil {
