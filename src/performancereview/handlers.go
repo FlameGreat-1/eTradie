@@ -736,15 +736,26 @@ func (h *Handler) handleInternalActiveUsers(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	ids, err := h.store.ListActiveTradingSystemUserIDs(r.Context())
+	users, err := h.store.ListActiveTradingSystemUsersWithIdentity(r.Context())
 	if err != nil {
 		h.log.Error().Err(err).Msg("performance_review_active_users_failed")
 		writeError(w, http.StatusInternalServerError, "failed to list active users")
 		return
 	}
+	// Project rich identity tuples on the canonical 'users' field.
+	// The legacy 'user_ids' field is kept on the same response so a
+	// slightly-older engine deploy (one that only knows how to read
+	// user_ids) still works against this newer gateway. The engine
+	// prefers 'users' when present and falls back to 'user_ids' on
+	// absence.
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.UserID)
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"users":    users,
 		"user_ids": ids,
-		"count":    len(ids),
+		"count":    len(users),
 	})
 }
 
