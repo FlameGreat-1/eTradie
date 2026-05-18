@@ -65,15 +65,18 @@ def _compute_monthly_window(now: datetime) -> tuple[datetime, datetime]:
     return first_of_prev_month, last_day_prev
 
 
-async def _fetch_active_user_ids(
+async def _fetch_active_users(
     gateway_url: str,
     secret: str,
-) -> list[str]:
+) -> list[tuple[str, str, str]]:
     """Enumerate every user with status='active' on the gateway.
 
-    Returns an empty list on any error so individual cron ticks never
-    abort the engine. The active-users endpoint is intentionally
-    read-only and idempotent so retries are safe.
+    Returns a list of (user_id, role, tier) tuples. Reads the new
+    'users' field first (rich identity tuples) and falls back to the
+    legacy 'user_ids' string array (with conservative
+    role='etradie' / tier='free' defaults) for the one-release
+    backward-compatibility window. Returns an empty list on any
+    error so individual cron ticks never abort the engine.
     """
     url = f"{gateway_url.rstrip('/')}/internal/performance-review/active-users"
     headers = {
@@ -106,15 +109,36 @@ async def _fetch_active_user_ids(
     except Exception:
         logger.error("performance_review_cron_active_users_bad_json")
         return []
-    ids = data.get("user_ids") if isinstance(data, dict) else None
-    if not isinstance(ids, list):
+    if not isinstance(data, dict):
         logger.error("performance_review_cron_active_users_unexpected_shape")
         return []
-    out: list[str] = []
-    for uid in ids:
-        if isinstance(uid, str) and uid:
-            out.append(uid)
-    return out
+
+    out: list[tuple[str, str, str]] = []
+
+    # Preferred path: rich identity tuples.
+    users = data.get("users")
+    if isinstance(users, list):
+        for u in users:
+            if not isinstance(u, dict):
+                continue
+            uid = u.get("user_id")
+            if not isinstance(uid, str) or not uid:
+                continue
+            role = u.get("role") if isinstance(u.get("role"), str) else ""
+            tier = u.get("tier") if isinstance(u.get("tier"), str) else ""
+            out.append((uid, role or "etradie", tier or "free"))
+        return out
+
+    # Compatibility path: legacy user_ids array.
+    ids = data.get("user_ids")
+    if isinstance(ids, list):
+        for uid in ids:
+            if isinstance(uid, str) and uid:
+                out.append((uid, "etradie", "free"))
+        return out
+
+    logger.error("performance_review_cron_active_users_unexpected_shape")
+    return []
 
 
 async def _run_period_cron(app: FastAPI, period: str) -> None:
@@ -177,8 +201,8 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
         },
     )
 
-    user_ids = await _fetch_active_user_ids(gateway_url, secret)
-    if not user_ids:
+    users = await _fetch_active_users(gateway_url, secret)
+    if not users:
         logger.info(
             "performance_review_cron_no_active_users",
             extra={"period": period},
@@ -187,13 +211,13 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
 
     logger.info(
         "performance_review_cron_dispatching",
-        extra={"period": period, "users": len(user_ids)},
+        extra={"period": period, "users": len(users)},
     )
 
     dispatched = 0
     coalesced = 0
     errored = 0
-    for uid in user_ids:
+    for uid, role, tier in users:
         gen_req = GenerationRequest(
             user_id=uid,
             period=period,
@@ -201,6 +225,8 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
             period_end=period_end,
             # Sentinel value; the generator self-heals via _fetch_profile.
             profile_version=0,
+            role=role,
+            tier=tier,
         )
         try:
             result = await dispatch_generation(container, gen_req)
@@ -240,7 +266,7 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
         "performance_review_cron_completed",
         extra={
             "period": period,
-            "total_users": len(user_ids),
+            "total_users": len(users),
             "dispatched": dispatched,
             "coalesced": coalesced,
             "errored": errored,
