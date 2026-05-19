@@ -1,0 +1,617 @@
+{
+  "calendar": {
+    "collected_at": "2026-05-19T14:56:19.441513Z",
+    "created_at": "2026-05-19T14:56:19.442260Z",
+    "events": [],
+    "id": "5adf3715-886d-44cb-ae41-c6dd9a46611c",
+    "sources": []
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-05-19T14:49:25.657472Z",
+    "created_at": "2026-05-19T14:49:25.658146Z",
+    "forward_guidance": [],
+    "id": "1504895d-2ec5-4720-81ef-3ec3f4f771af",
+    "meeting_minutes": [],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": []
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-05-19T14:56:19.403812Z",
+    "created_at": "2026-05-19T14:56:19.407208Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "cbce4467-5b2d-4d84-a471-65a0983196d5",
+    "latest_positions": [],
+    "previous_positions": [],
+    "previous_report_date": null,
+    "report_date": null,
+    "tff_positions": [],
+    "wow_shifts": {}
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "news",
+    "calendar",
+    "dxy",
+    "intermarket",
+    "sentiment"
+  ],
+  "dxy": {
+    "collected_at": "2026-05-19T14:56:19.436382Z",
+    "created_at": "2026-05-19T14:56:19.436458Z",
+    "id": "38a2fcfc-f558-4296-8929-93dfba9feb6a",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "economic": {
+    "collected_at": "2026-05-19T14:56:19.387466Z",
+    "created_at": "2026-05-19T14:56:19.391499Z",
+    "id": "8a16b8a9-ea74-4bcc-8493-685e1f1695ad",
+    "releases": [],
+    "sources": []
+  },
+  "intermarket": {
+    "collected_at": "2026-05-19T14:56:19.423995Z",
+    "created_at": "2026-05-19T14:56:19.426930Z",
+    "id": "156d76a9-0e46-4ffb-b056-c14e9498cc53",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "news": {
+    "collected_at": "2026-05-19T14:56:19.708867Z",
+    "created_at": "2026-05-19T14:56:19.709121Z",
+    "id": "30e27046-2c69-472f-9937-06573d4bdbcd",
+    "items": [
+      {
+        "created_at": "2026-05-19T14:56:19.693215Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "1b693de96e9f69a7296385941a4e0a791bd3e1baf9ab099d63c3719111763572",
+        "headline": "Nasdaq 100 Falls on Chipmaker Rout as Yields Rise",
+        "id": "fe380fee-1a3c-44f7-9e11-5ef247edd6ef",
+        "impact": "LOW",
+        "published_at": "2026-05-19T14:38:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.694672Z",
+        "currencies_mentioned": [
+          "CHF",
+          "EUR"
+        ],
+        "dedupe_hash": "4d27bb72ae34f992be458a5d530c2684a92f200a2a9afc2070756489b650d793",
+        "headline": "ECB May Act As Iran Shock Persists",
+        "id": "62162900-af27-47fd-a1f6-778ae459f000",
+        "impact": "LOW",
+        "published_at": "2026-05-19T14:23:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.694799Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "47e6226388b95590380ac66c22216864b124806397a29bf3f4de2cef24fd171a",
+        "headline": "Shell Wins Investor Backing for Higher Executive Bonuses",
+        "id": "cd44652a-d041-45a7-a9ad-0b603ddfc66d",
+        "impact": "LOW",
+        "published_at": "2026-05-19T14:15:09Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.694953Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "57dba73572985a38ef304b8eb4b731b2009dd021e2ac3a380350798ac23f2e87",
+        "headline": "Distressed-Debt Deals Often End in \u2018Hard Default,\u2019 Moody\u2019s Warns",
+        "id": "1402a1b3-3752-4cb3-88ac-41d6f3f85ebb",
+        "impact": "LOW",
+        "published_at": "2026-05-19T14:06:50Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.694975Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e523747776d23885018ba4ad5c2c385825059240df4a32aa3424795489f11b2f",
+        "headline": "Bessent Tells Allies \u2018No Room for Excuses\u2019 on Iran Sanctions",
+        "id": "614c2b7e-ffa1-43d0-9281-56515c1f63dd",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:59:08Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.694998Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "c1ee8daeee040bd9deeeb6880032f1e2ea51eb340a8a17c8f30abf40cc554854",
+        "headline": "ECB May 'Have to Do Something' in June, Nagel Says (Video)",
+        "id": "5d710484-b4c9-409d-b66b-fd8dfc5b69b8",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:58:23Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.695147Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "42f8f3312928927962b4bdbbea75e52463737fb7383b432f8170bf3257e6c25e",
+        "headline": "US Long Bond Yield Hits Highest Since 2007 on Inflation Concern",
+        "id": "386dbe18-4c3d-487e-9eb4-275bd8fa4eb7",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:26:18Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.699475Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "96130def0db00ba2a5c4c33ab6fe2f4e6654f21344ee2767ea06b61e86ca40ff",
+        "headline": "Investor Angst Emerges in Riskiest Stocks Even as AI Trade Flies",
+        "id": "f4f729a1-9cd3-4f60-a529-3477d6ebf0f6",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:24:39Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.699669Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "c6b70728859110741212370e02f0082071d44899d263c02994ce00f3f1d3de6b",
+        "headline": "Jeff Currie Says AI Boom Sets Up Commodities for Decade-Long Run",
+        "id": "cbef03d3-cf47-4bb3-8652-932ce57841e3",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:23:02Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.699904Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "fe4f76eaaab53b8b67f29dc1ca8bbee4667be39d392f1fb3a4a5abb294a48695",
+        "headline": "Sinomine Seeks $760 Million for African Lithium, Copper Projects",
+        "id": "9cc4bc49-d664-4105-ac39-8f6987b3e34e",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:19:48Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.700090Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "54e9dfc886a542d4c35f7988bdeb66be5f7440bac925a7e824b03cff39420021",
+        "headline": "Reform UK Threatens Legal Challenges to National Grid Projects",
+        "id": "12f7f797-d8db-401e-b46e-7440625e8a9d",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:07:01Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.702013Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "58a80347e7c6ddf3cd45ee7f46d41c083c9810e6950bcfd81f5e6bf9e7caf083",
+        "headline": "Lula Fica 7 pontos \u00e0 Frente de Fl\u00e1vio Ap\u00f3s Vorcaro, diz Atlas",
+        "id": "760444ae-d20d-4789-9e58-0c61c4aa6972",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:06:51Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.702066Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "7c64e21128945fb73adfce94eca8c60643d830e587b2b2b6aa6242a56148051d",
+        "headline": "Ecolab Starts Five-Part Bond Sale to Fund Acquisition of CoolIT",
+        "id": "b97edb74-a3f2-4780-874a-066d0eb36661",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:06:34Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.702101Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "6a96643d9fad305e9956489eae380d170bc644f942ba6656d63929ebeba6ed95",
+        "headline": "Former FTX Executive Launches a \u2018No Loss\u2019 AI Trading Platform",
+        "id": "b7e77e4a-35ca-4c11-9cc3-1f6db9c9c671",
+        "impact": "LOW",
+        "published_at": "2026-05-19T13:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.702141Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "a172b4947c8627980a91a7662aa9c996efdb7c0607fb9f93e1ba32db0cf630e0",
+        "headline": "Scorching Summer Pushes India\u2019s Power Demand to Record Again",
+        "id": "6d35b7f9-d47a-41ca-bb9c-21c483896403",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:59:52Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.702665Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "458c8a69f0e36e524b5e37a0c1a19247a74748ab6cb72b25ac5911f730a9ba18",
+        "headline": "Wall Street Banks Kick Off Loan Sale Tied to Warner Bros. Deal",
+        "id": "7b22cd46-a28e-46db-95db-64cc58542f03",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:55:14Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.703643Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "4253daf3872abd17c760d6ac403e359c32aedc5b13d64e658f48f9df758206dc",
+        "headline": "Nagel Says ECB May \u2018Have to Do Something\u2019 as Iran Shock Persists",
+        "id": "db0feacc-6670-456c-95bf-0173185ed066",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:49:32Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.703660Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "954aac3aa0291dcd244946b370d18624142736bd27393f32f12b6301d5963cf1",
+        "headline": "Sherritt Halts Plan to Unwind Cuba Ventures Amid Sanctions Talks",
+        "id": "dda8dcf9-0cbb-4e44-8810-af7f27449857",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:40:32Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.703671Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "24ac0b3f9747f0f05030206ab7ac867c95d2d294b10f2c44ff5cb91de7337481",
+        "headline": "NYSE\u2019s Owner Plans Its Own Futures Market for Computing Power",
+        "id": "cae45631-d27c-44aa-aa68-ebb6bce8f060",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:30:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704131Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "78338357f5f16047cdfd9dd800456062e8c535dc99dcd55d4e1795f605fd8808",
+        "headline": "G-7 Urges Fiscal Restraint in Face of War Shock to Economies",
+        "id": "a85027cb-aa05-42bc-bddd-f35d78e2e5cc",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:15:26Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704150Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "a1849a6a3b7878d178c8faf8ab833b4a2cd316c001e508ffb0948e44ff6bcc76",
+        "headline": "EDP CEO on War Impact, Data Center Demand",
+        "id": "8f6cca87-7ca0-4e6c-8c42-09fe03d138e7",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:10:29Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704218Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d9160847db767f078a6f41a3442aa4c49f5408e5030bf5c20079838a2c060b41",
+        "headline": "Home Depot Sales Fall Short as Shoppers Defer Projects",
+        "id": "67b8998b-ceee-4491-9ca7-f211cdf40bee",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:09:58Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704232Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "91ade10f9057acf947c25e4fe46f67cdbaa26451d266ad7cb1b67a1f61a07596",
+        "headline": "Why the Iran War Is a Boost for Stalled Russia-China Gas Pipeline",
+        "id": "4afb9695-c719-4a6e-be68-9a10e26d39d5",
+        "impact": "LOW",
+        "published_at": "2026-05-19T12:09:21Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704242Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3059fd7e3d1e99713a7b2ad2f2b35f61490fc77d1f3d1dd98e4d032970e0c436",
+        "headline": "Senegal In Arrears With Arab Development Bank as Debt Woes Grow",
+        "id": "53106828-5f01-4820-a3f9-d3a9cd84fcc8",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:58:32Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704323Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8361af3940ad9ae800359bb9c669180ebd2a64b695aa5e348691e87ef6266e1e",
+        "headline": "US Premarket Movers for May 19, 2026",
+        "id": "d4f97edb-f1f6-4e0f-ab20-af00a686f182",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:52:30Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704824Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "ce6cb457a60fb0cca1942321993138f9e839cb942cc52f58ba3cae0dcde65972",
+        "headline": "Russian Oil Flows Rebound as Key Black Sea Port Fully Restarted",
+        "id": "aa10b00b-6809-4e5a-9b7e-c63bf5efc817",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:44:41Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.704838Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "05bd5c332f9701ac80dfb697841753dccca83cb3c4877f2ec0a36ba3edccc0eb",
+        "headline": "NextEra\u2019s Mega-Deal Heralds the Age of the Battery",
+        "id": "a6f85adf-1aeb-45db-805f-8fba62bbe60c",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:41:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.705314Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2b3bdde2b9bc5ad263122a48a2fe96137a760a12068095bd17cab55e81a7ee13",
+        "headline": "New York and US Northeast Brace for Extreme Heat, Power Alert",
+        "id": "ab97190d-ee45-4e25-ae85-4bcddd3aa267",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:39:10Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.705743Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d039d8ed3d555df44c22a0fe33a47336488841a619b063824e309dd7a804153c",
+        "headline": "US Stock Futures Drop as Semiconductor Stocks Slip, Yields Climb",
+        "id": "f7de1d9b-e712-4404-95eb-46176065cc95",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:31:27Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.705757Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "23b1f76b278cf36ecce585b9f5b4d6a5a51274e9bddb23dd951825f7f9e630cf",
+        "headline": "Orient Express Rail Operator Seeks \u20ac300 Million From Debut Bond",
+        "id": "97a39b21-39d6-4b2c-9896-e3846845006b",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:30:10Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.705800Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f29998618e4fdf0240ce80acaaadcbf9f696479eea6feae18cb9acbe97ed30f3",
+        "headline": "AI Rollout to Boost Metals-Rich EM Currencies, Barclays Says",
+        "id": "81aad386-7a44-4a90-ac3b-435ee37e7d33",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:25:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706290Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "363593ec5d6d8322d67f3546359f69f51b692685a6cab3a3f1f89ce9634dccb1",
+        "headline": "AI Moving From \u2018Hype\u2019 to Real Execution,\u00a0JPMorgan\u2019s Brunner Says",
+        "id": "e00b8251-e73a-4f60-a988-11644de15fbc",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:22:13Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706342Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "43ed78f8e142708782ef4d1d5b6dc787a374da0962adbe72b8efdfb912ba0d8d",
+        "headline": "US Yields Near 2007 Highs; AI Push Fuels Job Cuts | Bloomberg Brief 5/19/2026",
+        "id": "ca3c97e4-e305-41f0-8c8d-6eb4c000d276",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:19:24Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706360Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "0d64c6fc2738abd1a7c58c84e6ce12f7eeb3d31fffc70e8017f67853fbff736d",
+        "headline": "Indonesia Plans to Tighten State Control Over Commodity Exports",
+        "id": "41e9906a-c201-472a-9657-5e63c77c2780",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:16:57Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706375Z",
+        "currencies_mentioned": [
+          "CHF",
+          "EUR"
+        ],
+        "dedupe_hash": "ca112935950b4b2651ced582ffa7340e07aa7cd7cf3448d51fec67e45c6b558a",
+        "headline": "French Socialists to Oppose Moulin as Bank of France Head",
+        "id": "17611874-47e4-43a6-ba03-e1b8e95e644c",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:16:41Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706435Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d60866774433ea10d762e4b8731005082127ce9c80f0817a0ee4b9207f918ddc",
+        "headline": "Target\u2019s Stock Rally Raises Earnings Bar as Comeback Gains Steam",
+        "id": "aca085da-a8ad-4b2e-9dbb-b597779cc89d",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:15:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706450Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3d0f6864be517cfb483537ecf44745a68305bcd6d9fe9efb91af93a9c74b93b5",
+        "headline": "Military-Backed Intruders Occupy Huge Cobalt Deposit in Congo",
+        "id": "cf918201-26de-4035-a2c8-538c6a50e5f3",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:05:51Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706511Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "a8613f1d752404446cea9fc4a9e6ab9d4a15fadf67235ad5347e2b9761691813",
+        "headline": "Record Number of Borrowers Are Selling Bonds in Europe\u2019s Market",
+        "id": "0dd64851-aa3e-4174-be1e-12a7beccfd4c",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:04:47Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706525Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b467475e6a5b640128f56f7286ce17addb4255069ae58c96da87691c8c4de025",
+        "headline": "Japan, South Korea Deepen Ties Amid Global Tensions",
+        "id": "1cfaecd4-e176-42ff-b06f-3cd015622145",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:04:38Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706537Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4979a8634f7cd8b486d6f03c17d9dc6ffe1ec29c701ecba6712aee5109d9af6b",
+        "headline": "Fashion Giant Loved by Hollywood Stars Crashes in Brazil Markets",
+        "id": "484ccf40-af9f-490b-b113-537a3195638c",
+        "impact": "LOW",
+        "published_at": "2026-05-19T11:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706549Z",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "dedupe_hash": "309376426fa4f315a4dd88f8a06b6fa5785d3359a4ed1f8b1c7a44f2287ddeec",
+        "headline": "Agnico Eagle to Build $1.7 Billion Gold Mine in Canada\u2019s Arctic",
+        "id": "1d7b287f-b3f2-4fae-ac1f-b761e6b78166",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:57:10Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.706561Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "af1d9c537dddf9f61255294acec35111955e4d106c1adde3c1e1ce4011eab979",
+        "headline": "Trump Says He Held Off Attacking Iran After Gulf Appeal",
+        "id": "95b3a777-3efa-40f1-9374-e610c26d31ff",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:48:13Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.707229Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2d4f6e3ac0965157fe409b95359d088ae4a159c8538bdf284747996b01c2683e",
+        "headline": "Cholamandalam to Sell Largest Floater Bond By Indian Lender",
+        "id": "47f1a297-9f7f-4b11-9357-cd700b4e2b85",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:43:22Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.707780Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d266c7f022473ebc86c98e1f985f26dfde265713b5be2c11eae6f2b6b8624058",
+        "headline": "Bond Market\u2019s Woes Go Far Beyond the Price of Oil",
+        "id": "eaba0a28-be6f-43a2-a857-14eeee96c595",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:40:23Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.707798Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4afd485e5af955ae4fc40c47897f9abf93b9635d06e696363e49924fe51c9a64",
+        "headline": "The AI Boom Is a Dilemma for Retail Investors",
+        "id": "9edfe519-6119-47b9-961b-9abed85ee253",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:30:13Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.708145Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "125ebe88310478328624c7246afec9e4911abb0fb193a307c54e0ba9630df17c",
+        "headline": "AI to Replace \u2018Lower-Value Human Capital\u2019: StanChart CEO | The Opening Trade 5/19/2026",
+        "id": "ccb1212e-8a11-44d9-ac5b-2961daef1c59",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:28:40Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.708164Z",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "dedupe_hash": "0de7a503f0adf4bc2f8c4a9edaf3bbbd93bccff76c67833068a5c7d5d8a040de",
+        "headline": "Goldman Sachs See \u2018Huge Opportunity\u2019 From Market Volatility",
+        "id": "870c3e04-d769-4f1e-b9de-6222b98dd616",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:03:45Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.708243Z",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "dedupe_hash": "e519cc000c7915f63c50f883632586125942a3cf1de1278a61cffa37ab422f30",
+        "headline": "Goldman Sachs, Moelis Say Business as Usual Amid Iran Conflict",
+        "id": "b0c804c1-36e9-4a77-81aa-dae6b8d6df12",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:03:45Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.708290Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "c3b59d556a101efc1759b0c63f6e9e2ae0d75b1bfb217ea5294afea0dc955c89",
+        "headline": "Brazil Sends Cheap Soy Oil Abroad as Biodiesel Plan Stalls",
+        "id": "cdd121d2-4082-4b8f-a2ae-e952bbc7a6d3",
+        "impact": "LOW",
+        "published_at": "2026-05-19T10:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-19T14:56:19.708820Z",
+        "currencies_mentioned": [
+          "EUR",
+          "XAU"
+        ],
+        "dedupe_hash": "a0c351477393044025451f6d96e68fffb3e5c1ced01b38084f1d55bdcfcdb55e",
+        "headline": "Goldman Sachs Intl. Says Europe Has a 'Huge Opportunity'",
+        "id": "72ca9424-0350-4be2-ba89-861a9fe90775",
+        "impact": "LOW",
+        "published_at": "2026-05-19T09:41:50Z",
+        "source": "bloomberg"
+      }
+    ],
+    "sources": [
+      "database_fallback"
+    ]
+  },
+  "sentiment": {}
+}

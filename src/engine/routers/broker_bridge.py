@@ -69,7 +69,7 @@ async def broker_account_info(
         # Failover to the last known state in Redis instead of throwing a 503
         try:
             cached = await container.cache.get("internal", cache_key)
-            if cached:
+            if cached is not None:
                 return cached
         except Exception:
             pass
@@ -120,7 +120,7 @@ async def broker_positions(
         # Failover to the last known state in Redis instead of throwing a 503
         try:
             cached = await container.cache.get("internal", cache_key)
-            if cached:
+            if cached is not None:
                 return cached
         except Exception:
             pass
@@ -168,7 +168,7 @@ async def broker_history(
     except (asyncio.TimeoutError, Exception) as exc:
         try:
             cached = await container.cache.get("internal", cache_key)
-            if cached:
+            if cached is not None:
                 return cached
         except Exception:
             pass
@@ -227,21 +227,39 @@ async def broker_symbol_info(
     symbol: str = "",
     _: None = Depends(verify_internal_auth),
 ) -> dict:
-    """Return instrument metadata for the Go sizing engine."""
+    """Return instrument metadata for the Go sizing engine.
+    Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
+    """
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol parameter required")
     container: Container = request.app.state.container
     user_id = request.headers.get("X-User-Id", "")
     broker_client = await _resolve_user_broker(container, user_id)
+    cache_key = f"cache_failover:symbol_info:{user_id}:{symbol}"
+
     try:
-        info = await broker_client.get_symbol_info(symbol)
+        # Enforce a strict 2-second timeout to prevent Go client timeout race.
+        info = await asyncio.wait_for(broker_client.get_symbol_info(symbol), timeout=2.0)
+        # Update the failover cache silently
+        try:
+            await container.cache.set("internal", cache_key, info, ttl_seconds=86400 * 7)
+        except Exception:
+            pass
         return info
-    except Exception as exc:
+    except (asyncio.TimeoutError, Exception) as exc:
+        # Failover to the last known state in Redis instead of throwing a 502
+        try:
+            cached = await container.cache.get("internal", cache_key)
+            if cached:
+                return cached
+        except Exception:
+            pass
+
         logger.error(
-            "broker_symbol_info_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
+            "broker_symbol_info_failed_no_cache", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
         )
         raise HTTPException(
-            status_code=502, detail=f"Symbol info unavailable: {exc}"
+            status_code=502, detail=f"Symbol info unavailable and no cache: {exc}"
         )
 
 

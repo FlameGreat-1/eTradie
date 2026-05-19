@@ -459,6 +459,12 @@ class AnalysisProcessor(ProcessorPort):
             trace_id=trace_id,
         )
 
+        # Override the LLM's `pair` with the authoritative input symbol.
+        # The LLM is non-deterministic with casing (e.g. "BOOM 500 INDEX"
+        # vs "Boom 500 Index") but MT5 requires exact case. context.symbol
+        # is the canonical name from the user's Market Watch.
+        analysis_output = analysis_output.model_copy(update={"pair": symbol})
+
         # Step 7: Build raw response dict for audit (include provider metadata).
         try:
             text = llm_response.text.strip()

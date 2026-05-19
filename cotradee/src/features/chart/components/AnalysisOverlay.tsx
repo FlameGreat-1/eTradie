@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink } from 'lucide-react';
 import type { LiveStreamState } from '@/features/alerts/hooks/useLiveReasoningStream';
@@ -28,6 +28,32 @@ interface AnalysisOverlayProps {
 function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0 });
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setPos({
+        x: dragRef.current.initX + dx,
+        y: dragRef.current.initY + dy,
+      });
+    };
+
+    const onUp = () => setIsDragging(false);
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isDragging]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -69,12 +95,27 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
       aria-label="Analysis stream"
     >
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto"
-        style={{ width: 'min(800px, calc(100% - 32px))' }}
+        className="absolute top-1/2 left-1/2 pointer-events-auto"
+        style={{ 
+          width: 'min(800px, calc(100% - 32px))',
+          transform: `translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px))`
+        }}
       >
-        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl bg-black">
+        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl bg-surface">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-1/50">
+          <div 
+            className={`flex items-center justify-between px-5 py-4 border-b border-border bg-surface-1/50 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest('button')) return;
+              setIsDragging(true);
+              dragRef.current = {
+                startX: e.clientX,
+                startY: e.clientY,
+                initX: pos.x,
+                initY: pos.y,
+              };
+            }}
+          >
             <div className="flex items-center gap-3 min-w-0">
               {stream.isStreaming && (
                 <span className="relative flex h-2 w-2 shrink-0">

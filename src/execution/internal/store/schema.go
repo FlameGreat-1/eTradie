@@ -104,5 +104,8 @@ CREATE INDEX IF NOT EXISTS idx_exec_watchers_user_id ON execution_pending_watche
 CREATE INDEX IF NOT EXISTS idx_exec_watchers_status ON execution_pending_watchers (status);
 CREATE INDEX IF NOT EXISTS idx_exec_watchers_symbol ON execution_pending_watchers (symbol);
 CREATE INDEX IF NOT EXISTS idx_exec_watchers_watcher_id ON execution_pending_watchers (watcher_id);
+
+-- Automatic schema migration for existing databases
+ALTER TABLE execution_pending_watchers ADD COLUMN IF NOT EXISTS broker_order_id TEXT NOT NULL DEFAULT '';
 `
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
@@ -83,18 +84,31 @@ func (m *Manager) getUserRead(userID string) *userState {
 // day/week boundary crossings and reloads P&L from PostgreSQL with
 // new period keys.
 func (m *Manager) Refresh(ctx context.Context, userID string) error {
-	account, err := m.broker.GetAccountInfo(ctx)
-	if err != nil {
-		return err
-	}
+	var account *models.AccountInfo
+	var positions []models.Position
+	var pending []models.BrokerPendingOrder
 
-	positions, err := m.broker.GetPositions(ctx)
-	if err != nil {
-		return err
-	}
+	g, gCtx := errgroup.WithContext(ctx)
 
-	pending, err := m.broker.GetPendingOrders(ctx)
-	if err != nil {
+	g.Go(func() error {
+		var err error
+		account, err = m.broker.GetAccountInfo(gCtx)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		positions, err = m.broker.GetPositions(gCtx)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		pending, err = m.broker.GetPendingOrders(gCtx)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
 		return err
 	}
 

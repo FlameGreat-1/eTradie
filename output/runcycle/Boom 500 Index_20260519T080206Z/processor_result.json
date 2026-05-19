@@ -1,0 +1,311 @@
+{
+  "analysis_id": "BOOM 500 INDEX_SH_BMS_RTO_BULLISH_BULLISH_5567.047_2c7d3a1a",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "LONG",
+  "entry_price": 5567.0470000000005,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.1-flash-lite",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": false,
+        "mode": "Manual approval per trade",
+        "require_final_confirmation": true
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 1,
+        "dxy": 2,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 2,
+        "volume_liquidity": 2,
+        "wyckoff": 1
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": true,
+        "avoid_overnight_holds": false,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Semi-Automated",
+        "discipline": "Rule-Based",
+        "experience": "Intermediate",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": false,
+        "emotional_volatility_sensitivity": "medium",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": false,
+        "preferred": [
+          "London",
+          "New York"
+        ]
+      },
+      "structural": {
+        "emphasis": "medium",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_boom500_20260519_0800_a1f2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 1,
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [],
+        "query_summary": "Boom 500 Index bullish setup confluence",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "HTF structure alignment",
+          "notes": "Bullish trend on MN1/W1/H4/H6.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS/ChoCH",
+          "notes": "M15/M5/M1 show bullish BMS/ChoCH.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry",
+          "notes": "M15 Order Block at 5562.201-5571.893.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep",
+          "notes": "SSL sweep at 5599.399.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No news events detected.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R",
+          "notes": "R:R exceeds 1:3.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Session timing",
+          "notes": "London Open session.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase",
+          "notes": "Markup phase.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for synthetic indices.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        5562.201,
+        5571.893
+      ],
+      "evidence": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "content_preview": "Valid Grade A or B SnD zone on 4H or above",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "4.1",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "BOOM 500 INDEX_SH_BMS_RTO_BULLISH_BULLISH_5567.047_2c7d3a1a"
+    },
+    "entry_zone": {
+      "high": 5571.893,
+      "low": 5562.201
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The Boom 500 Index is in a primary bullish trend on higher timeframes (MN1, W1, H4, H6). The current setup is a SH+BMS+SSL_Sweep+RTO_Bullish pattern on the M15 timeframe. Price has swept SSL liquidity at 5599.399 and is currently retracing into a valid M15 Order Block (5562.201-5571.893). This setup aligns with the HTF bullish trend and satisfies all mandatory confluence requirements, including session timing (London Open) and R:R ratio. The setup is graded A based on the confluence of structural alignment, liquidity sweep, and valid entry zone.",
+    "htf_bias": {
+      "key_levels": [
+        5019.762,
+        5644.366
+      ],
+      "notes": "Overall trend is bullish on MN1/W1/H6/H4. D1/H1/H3/H8/H12 show bearish structure, indicating a complex corrective phase within the primary uptrend.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        5567.84,
+        5651.63
+      ],
+      "notes": "M30/M15/M5/M1 are currently bullish, aligning with the primary HTF trend.",
+      "structure": "bullish"
+    },
+    "pair": "Boom 500 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 1,
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 3.5,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 5558.201,
+      "reason": "Placed below the structural Order Block low with 4 pip offset."
+    },
+    "take_profits": [
+      {
+        "basis": "Structural liquidity pool",
+        "level": 5585,
+        "size_pct": 40
+      },
+      {
+        "basis": "Unmitigated Order Block",
+        "level": 5610,
+        "size_pct": 30
+      },
+      {
+        "basis": "Dealing range high",
+        "level": 5640,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-19T08:00:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "markup"
+    }
+  },
+  "reasoning": "The Boom 500 Index is in a primary bullish trend on higher timeframes (MN1, W1, H4, H6). The current setup is a SH+BMS+SSL_Sweep+RTO_Bullish pattern on the M15 timeframe. Price has swept SSL liquidity at 5599.399 and is currently retracing into a valid M15 Order Block (5562.201-5571.893). This setup aligns with the HTF bullish trend and satisfies all mandatory confluence requirements, including session timing (London Open) and R:R ratio. The setup is graded A based on the confluence of structural alignment, liquidity sweep, and valid entry zone.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3.5,
+  "session": "LONDON_OPEN",
+  "setup_type": "OB",
+  "stop_loss": 5558.201,
+  "symbol": "Boom 500 Index",
+  "take_profit": 5640,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

@@ -1,0 +1,216 @@
+{
+  "alignment": {
+    "D1_H12": {
+      "alignment_metadata": {
+        "htf_timeframe": "D1",
+        "htf_trend": "BEARISH",
+        "ltf_timeframe": "H12",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": true,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "D1",
+      "htf_trend": "BEARISH",
+      "ltf_timeframe": "H12",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": true
+    },
+    "H12_H8": {
+      "alignment_metadata": {
+        "htf_timeframe": "H12",
+        "htf_trend": "BEARISH",
+        "ltf_timeframe": "H8",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": true,
+        "zones_nested": false
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "H12",
+      "htf_trend": "BEARISH",
+      "ltf_timeframe": "H8",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": true
+    },
+    "H1_M30": {
+      "alignment_metadata": {
+        "htf_timeframe": "H1",
+        "htf_trend": "BEARISH",
+        "ltf_timeframe": "M30",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": false,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": false,
+      "htf_timeframe": "H1",
+      "htf_trend": "BEARISH",
+      "ltf_timeframe": "M30",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": false
+    },
+    "H3_H1": {
+      "alignment_metadata": {
+        "htf_timeframe": "H3",
+        "htf_trend": "BEARISH",
+        "ltf_timeframe": "H1",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": true,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "H3",
+      "htf_trend": "BEARISH",
+      "ltf_timeframe": "H1",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": true
+    },
+    "H4_H3": {
+      "alignment_metadata": {
+        "htf_timeframe": "H4",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "H3",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": false,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": false,
+      "htf_timeframe": "H4",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "H3",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": false
+    },
+    "H6_H4": {
+      "alignment_metadata": {
+        "htf_timeframe": "H6",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "H4",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": true,
+        "zones_nested": false
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "H6",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "H4",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true
+    },
+    "H8_H6": {
+      "alignment_metadata": {
+        "htf_timeframe": "H8",
+        "htf_trend": "BEARISH",
+        "ltf_timeframe": "H6",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": false,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": false,
+      "htf_timeframe": "H8",
+      "htf_trend": "BEARISH",
+      "ltf_timeframe": "H6",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": false
+    },
+    "M15_M5": {
+      "alignment_metadata": {
+        "htf_timeframe": "M15",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "M5",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": true,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "M15",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "M5",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true
+    },
+    "M30_M15": {
+      "alignment_metadata": {
+        "htf_timeframe": "M30",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "M15",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": true,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "M30",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "M15",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true
+    },
+    "M5_M1": {
+      "alignment_metadata": {
+        "htf_timeframe": "M5",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "M1",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": false,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": false,
+      "htf_timeframe": "M5",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "M1",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": false
+    },
+    "MN1_W1": {
+      "alignment_metadata": {
+        "htf_timeframe": "MN1",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "W1",
+        "ltf_trend": "BULLISH",
+        "trends_aligned": true,
+        "zones_nested": false
+      },
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "MN1",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "W1",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true
+    },
+    "W1_D1": {
+      "alignment_metadata": {
+        "htf_timeframe": "W1",
+        "htf_trend": "BULLISH",
+        "ltf_timeframe": "D1",
+        "ltf_trend": "BEARISH",
+        "trends_aligned": false,
+        "zones_nested": true
+      },
+      "htf_ltf_aligned": false,
+      "htf_timeframe": "W1",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "D1",
+      "ltf_trend": "BEARISH",
+      "trends_aligned": false
+    }
+  },
+  "htf_timeframes": [
+    "MN1",
+    "W1",
+    "D1",
+    "H12",
+    "H8",
+    "H6",
+    "H4",
+    "H3",
+    "H1"
+  ],
+  "ltf_timeframes": [
+    "M30",
+    "M15",
+    "M5",
+    "M1"
+  ],
+  "overall_trend": "BULLISH",
+  "status": "success",
+  "symbol": "Boom 500 Index"
+}
