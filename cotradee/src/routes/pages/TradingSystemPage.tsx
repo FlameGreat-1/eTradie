@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@/hooks/useToast';
 import { LogoLoader } from '@/components/ui/LogoLoader';
@@ -7,8 +7,190 @@ import { ReviewStep } from '@/features/tradingsystem/components/steps/ReviewStep
 import {
   useResetTradingSystem,
   useTradingSystem,
+  type TradingSystemProfile,
 } from '@/features/tradingsystem';
 import { TradingPlanView } from '@/features/tradingplan/components/TradingPlanView';
+
+/* ── Tab definitions for the system read-only view ────────────── */
+const SYSTEM_TABS = [
+  { id: 'identity',     label: 'Identity' },
+  { id: 'style',        label: 'Style' },
+  { id: 'sessions',     label: 'Sessions' },
+  { id: 'risk',         label: 'Risk' },
+  { id: 'confirmation', label: 'Confirm' },
+  { id: 'structural',   label: 'Structural' },
+  { id: 'entry',        label: 'Entry' },
+  { id: 'filtering',    label: 'Filtering' },
+  { id: 'psychology',   label: 'Psychology' },
+  { id: 'confluence',   label: 'Confluence' },
+  { id: 'automation',   label: 'Automation' },
+  { id: 'assets',       label: 'Assets' },
+  { id: 'goal',         label: 'Goal' },
+  { id: 'management',   label: 'Management' },
+] as const;
+
+type SystemTabId = (typeof SYSTEM_TABS)[number]['id'];
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+function yesNo(b: boolean) { return b ? 'Yes' : 'No'; }
+function joinList(items: string[]) { return !items?.length ? '—' : items.join(', '); }
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0">
+      <span className="text-[10px] uppercase font-bold tracking-wider text-black/30 dark:text-white/30">{label}</span>
+      <span className="text-xs font-bold text-black dark:text-white text-right">{value}</span>
+    </div>
+  );
+}
+
+function SystemTabContent({ tabId, profile }: { tabId: SystemTabId; profile: TradingSystemProfile }) {
+  const { identity, sessions, risk, structural, entry, filtering, psychology, confluence, automation, assets, management } = profile;
+
+  switch (tabId) {
+    case 'identity':
+      return (
+        <>
+          <Row label="Experience" value={identity.experience} />
+          <Row label="Execution" value={identity.automation} />
+          <Row label="Risk appetite" value={identity.risk_appetite} />
+          <Row label="Trader type" value={identity.trader_type} />
+          <Row label="Discipline" value={identity.discipline} />
+        </>
+      );
+    case 'style':
+      return <Row label="Style" value={profile.style} />;
+    case 'sessions':
+      return (
+        <>
+          <Row label="Preferred" value={joinList(sessions.preferred_sessions)} />
+          <Row label="Avoid low liquidity" value={yesNo(sessions.avoid_low_liquidity)} />
+          <Row label="High-volatility windows only" value={yesNo(sessions.high_volatility_windows_only)} />
+        </>
+      );
+    case 'risk':
+      return (
+        <>
+          <Row label="Risk model" value={risk.risk_model} />
+          <Row label="Per-trade risk" value={`${risk.fixed_risk_percent}%`} />
+          <Row label="Max daily drawdown" value={`${risk.max_daily_drawdown_percent}%`} />
+          <Row label="Max weekly drawdown" value={`${risk.max_weekly_drawdown_percent}%`} />
+          <Row label="Max simultaneous" value={String(risk.max_simultaneous_trades)} />
+          <Row label="Max correlated" value={String(risk.max_correlated_exposure)} />
+          <Row label="Partial TPs" value={yesNo(risk.partial_take_profits)} />
+          <Row label="Break-even mgmt" value={yesNo(risk.break_even_management)} />
+          <Row label="Trailing stop" value={yesNo(risk.trailing_stop_enabled)} />
+        </>
+      );
+    case 'confirmation':
+      return <Row label="Strictness" value={profile.confirmation} />;
+    case 'structural':
+      return (
+        <>
+          <Row label="Frameworks" value={joinList(structural.frameworks)} />
+          <Row label="FVG" value={yesNo(structural.use_fvg)} />
+          <Row label="Order Blocks" value={yesNo(structural.use_order_blocks)} />
+          <Row label="CHoCH / BMS" value={yesNo(structural.use_choch_bms)} />
+          <Row label="IDM" value={yesNo(structural.use_idm)} />
+          <Row label="Emphasis" value={structural.structure_emphasis} />
+        </>
+      );
+    case 'entry':
+      return (
+        <>
+          <Row label="Execution mode" value={entry.execution_mode} />
+          <Row label="Confirmation candle" value={yesNo(entry.require_confirmation_candle)} />
+          <Row label="Retest" value={yesNo(entry.require_retest)} />
+          <Row label="Liquidity sweep" value={yesNo(entry.require_liquidity_sweep)} />
+          <Row label="MTF alignment" value={yesNo(entry.require_mtf_alignment)} />
+        </>
+      );
+    case 'filtering':
+      return (
+        <>
+          <Row label="Minimum RR" value={`${filtering.minimum_rr}:1`} />
+          <Row label="Avoid counter-trend" value={yesNo(filtering.avoid_counter_trend)} />
+          <Row label="Avoid news" value={yesNo(filtering.avoid_news_volatility)} />
+          <Row label="Avoid ranging" value={yesNo(filtering.avoid_ranging_markets)} />
+          <Row label="Avoid overnight" value={yesNo(filtering.avoid_overnight_holds)} />
+          <Row label="Avoid Friday" value={yesNo(filtering.avoid_friday_trades)} />
+          <Row label="Avoid session transitions" value={yesNo(filtering.avoid_session_transitions)} />
+        </>
+      );
+    case 'psychology':
+      return (
+        <>
+          <Row label="Max losses" value={String(psychology.max_losses_before_cooldown)} />
+          <Row label="Loss-streak cooldown" value={yesNo(psychology.cooldown_after_loss_streak)} />
+          <Row label="Daily lockout" value={yesNo(psychology.daily_lockout_after_target)} />
+          <Row label="Revenge protection" value={yesNo(psychology.revenge_trading_protection)} />
+          <Row label="Overtrading protection" value={yesNo(psychology.overtrading_protection)} />
+          <Row label="Volatility sensitivity" value={psychology.emotional_volatility_sensitivity} />
+        </>
+      );
+    case 'confluence':
+      return (
+        <>
+          <Row label="Macro" value={String(confluence.macro_alignment)} />
+          <Row label="DXY" value={String(confluence.dxy)} />
+          <Row label="COT" value={String(confluence.cot)} />
+          <Row label="HTF" value={String(confluence.htf_alignment)} />
+          <Row label="Wyckoff" value={String(confluence.wyckoff)} />
+          <Row label="Volume / liquidity" value={String(confluence.volume_liquidity)} />
+          <Row label="Session timing" value={String(confluence.session_timing)} />
+        </>
+      );
+    case 'automation':
+      return (
+        <>
+          <Row label="Mode" value={automation.mode} />
+          <Row label="Final confirmation" value={yesNo(automation.require_final_confirmation)} />
+          <Row label="Unattended execution" value={yesNo(automation.allow_unattended_execution)} />
+        </>
+      );
+    case 'assets':
+      return (
+        <>
+          <Row label="Classes" value={joinList(assets.asset_classes)} />
+          <Row label="Preferred pairs" value={joinList(assets.preferred_pairs)} />
+          <Row label="Avoid high volatility" value={yesNo(assets.avoid_highly_volatile)} />
+          <Row label="Avoid correlated" value={yesNo(assets.avoid_correlated_instruments)} />
+        </>
+      );
+    case 'goal':
+      return <Row label="Orientation" value={profile.goal} />;
+    case 'management':
+      return (
+        <>
+          <Row label="Partial TP style" value={management.partial_tp_style} />
+          <Row label="Trailing stop" value={management.trailing_stop} />
+          <Row label="Break-even trigger" value={management.break_even_trigger} />
+          <Row label="Scale-in" value={yesNo(management.scale_in_enabled)} />
+          <Row label="Scale-out" value={yesNo(management.scale_out_enabled)} />
+          <Row label="Hold runners" value={yesNo(management.hold_runners)} />
+          <Row label="Close before news" value={yesNo(management.close_before_news)} />
+        </>
+      );
+  }
+}
+
+/* ── Section title lookup ──────────────────────────────────────── */
+const SECTION_TITLES: Record<SystemTabId, string> = {
+  identity: '1. Identity',
+  style: '2. Style',
+  sessions: '3. Sessions',
+  risk: '4. Risk Personality',
+  confirmation: '5. Confirmation',
+  structural: '6. Structural',
+  entry: '7. Entry',
+  filtering: '8. Trade Filtering',
+  psychology: '9. Psychology',
+  confluence: '10. Confluence Weights',
+  automation: '11. Automation',
+  assets: '12. Assets',
+  goal: '13. Goal',
+  management: '14. Trade Management',
+};
 
 /**
  * Standalone Trading System dashboard page.
@@ -33,6 +215,7 @@ export default function TradingSystemPage() {
   const { data, isLoading, refetch } = useTradingSystem();
   const resetMutation = useResetTradingSystem();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [activeSystemTab, setActiveSystemTab] = useState<SystemTabId>('identity');
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,7 +246,11 @@ export default function TradingSystemPage() {
 
   if (!isActive && view === 'plan') {
     return (
-      <div className="flex flex-col h-full bg-app lg:max-w-5xl lg:mx-auto lg:border-x lg:border-border">
+      <div className={`flex flex-col h-full bg-app transition-all duration-300 ${
+        view === 'system'
+          ? 'lg:max-w-7xl lg:mx-auto'
+          : 'w-full'
+      }`}>
         <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
           <div>
             <h1 className="text-base font-semibold text-content">
@@ -140,7 +327,11 @@ export default function TradingSystemPage() {
   const toggleLabel = togglingToPlan ? 'View Trading Plan' : 'View Trading System';
 
   return (
-    <div className="flex flex-col h-full bg-app lg:max-w-5xl lg:mx-auto lg:border-x lg:border-border">
+    <div className={`flex flex-col h-full bg-app transition-all duration-300 ${
+      view === 'system'
+        ? 'lg:max-w-7xl lg:mx-auto'
+        : 'w-full'
+    }`}>
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
         <div>
           <h1 className="text-base font-semibold text-content">
@@ -224,19 +415,39 @@ export default function TradingSystemPage() {
           className="flex h-full w-[200%] transition-transform duration-300 ease-out"
           style={{ transform: view === 'system' ? 'translateX(0%)' : 'translateX(-50%)' }}
         >
-          {/* Pane 1: existing Trading System summary */}
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-4 pt-4 pb-20">
-            <ReviewStep
-              profile={data!.profile!}
-              onEditStep={() => setMode('edit')}
-              stepNumber={1}
-              totalSteps={1}
-              hideHeader={true}
-              hideSectionEdits={true}
-            />
+          {/* Pane 1: existing Trading System summary — tabbed */}
+          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20">
+            {/* Tab bar */}
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full mb-6">
+              {SYSTEM_TABS.map((tab) => {
+                const active = activeSystemTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveSystemTab(tab.id)}
+                    className={`rounded-lg px-2 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 w-full sm:w-auto text-center ${
+                      active
+                        ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
+                        : 'text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active section content */}
+            <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-5 shadow-sm">
+              <h3 className="text-xs font-black text-brand uppercase tracking-[0.2em] mb-4">
+                {SECTION_TITLES[activeSystemTab]}
+              </h3>
+              <SystemTabContent tabId={activeSystemTab} profile={data!.profile!} />
+            </div>
           </div>
           {/* Pane 2: new Trading Plan workbook */}
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-4 pt-4 pb-20">
+          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20">
             <TradingPlanView />
           </div>
         </div>

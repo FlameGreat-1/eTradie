@@ -57,7 +57,7 @@ export function PerformanceReviewView() {
   ]);
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5 max-w-5xl mx-auto w-full pb-12">
+    <div className="flex flex-col gap-4 sm:gap-5 max-w-6xl mx-auto w-full pb-12">
       <Tabs tab={tab} setTab={setTab} />
 
       {tab === 'history' ? (

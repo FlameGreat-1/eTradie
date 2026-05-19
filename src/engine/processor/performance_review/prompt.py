@@ -95,12 +95,27 @@ METHOD (non-negotiable):
     Trading-System hard rule (e.g. risk cap exceeded).
 
 OUTPUT FORMAT (non-negotiable):
- Return EXACTLY ONE JSON object with these top-level keys:
-   executive_summary, performance_metrics, behavioral_analysis,
-   system_adherence, emotional_intelligence, setup_quality,
-   session_analysis, risk_analysis, improvement_recommendations,
-   next_focus, confidence_report, trader_evolution, system_alignment,
-   psychological_warnings.
+ Return EXACTLY ONE JSON object matching this schema exactly:
+ {
+   "executive_summary": {"headline": "string", "narrative": "string"},
+   "performance_metrics": {
+     "total_trades": "string", "win_rate": "string", "avg_rr": "string",
+     "net_pnl": "string", "best_session": "string", "worst_session": "string",
+     "most_profitable_setup": "string", "worst_behavior": "string"
+   },
+   "behavioral_analysis": {"patterns": ["string"]},
+   "system_adherence": {"items": [{"rule": "string", "compliance": "string"}]},
+   "emotional_intelligence": {"narrative": "string"},
+   "setup_quality": {"items": [{"setup": "string", "win_rate": "string", "avg_rr": "string"}]},
+   "session_analysis": {"items": [{"session": "string", "performance": "string"}]},
+   "risk_analysis": {"narrative": "string"},
+   "improvement_recommendations": {"items": ["string", "string", "string"]},
+   "next_focus": {"items": ["string", "string", "string"]},
+   "confidence_report": {"band": "string", "sample_size": 0, "note": "string"},
+   "trader_evolution": {"items": [{"metric": "string", "direction": "improved|declined|stable", "delta": "string"}]},
+   "system_alignment": {"narrative": "string", "gaps": ["string"]},
+   "psychological_warnings": {"items": [{"signal": "string", "severity": "info|warning|critical", "explanation": "string"}]}
+ }
  No markdown. No prose around the JSON. No code fence is required;
  if you do use one, it must be ```json. The response is parsed by
  a strict validator that will reject anything else.

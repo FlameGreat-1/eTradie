@@ -638,6 +638,12 @@ class PerformanceReviewGenerator:
             v = parsed.get(name)
             return v if isinstance(v, dict) else {}
 
+        def _list_from(name: str, key: str = "items") -> list[Any]:
+            v = parsed.get(name)
+            if isinstance(v, dict):
+                return v.get(key) if isinstance(v.get(key), list) else []
+            return v if isinstance(v, list) else []
+
         def _list(value: Any) -> list[Any]:
             return value if isinstance(value, list) else []
 
@@ -689,7 +695,7 @@ class PerformanceReviewGenerator:
                 "worst_behavior": str(metrics.get("worst_behavior", "")),
             },
             "behavioral_analysis": {
-                "patterns": [str(p) for p in _list(behavioral.get("patterns"))],
+                "patterns": [str(p) for p in _list_from("behavioral_analysis", "patterns")],
             },
             "system_adherence": {
                 "items": [
@@ -697,7 +703,7 @@ class PerformanceReviewGenerator:
                         "rule": str(it.get("rule", "")),
                         "compliance": str(it.get("compliance", "")),
                     }
-                    for it in _list(adherence.get("items"))
+                    for it in _list_from("system_adherence")
                     if isinstance(it, dict)
                 ],
             },
@@ -711,7 +717,7 @@ class PerformanceReviewGenerator:
                         "win_rate": str(it.get("win_rate", "")),
                         "avg_rr": str(it.get("avg_rr", "")),
                     }
-                    for it in _list(setups.get("items"))
+                    for it in _list_from("setup_quality")
                     if isinstance(it, dict)
                 ],
             },
@@ -721,7 +727,7 @@ class PerformanceReviewGenerator:
                         "session": str(it.get("session", "")),
                         "performance": str(it.get("performance", "")),
                     }
-                    for it in _list(sessions.get("items"))
+                    for it in _list_from("session_analysis")
                     if isinstance(it, dict)
                 ],
             },
@@ -729,10 +735,10 @@ class PerformanceReviewGenerator:
                 "narrative": str(risk.get("narrative", "")),
             },
             "improvement_recommendations": {
-                "items": [str(p) for p in _list(improvements.get("items"))],
+                "items": [str(p) for p in _list_from("improvement_recommendations")],
             },
             "next_focus": {
-                "items": [str(p) for p in _list(next_focus.get("items"))],
+                "items": [str(p) for p in _list_from("next_focus")],
             },
             "confidence_report": confidence,
             "trader_evolution": {
@@ -742,13 +748,13 @@ class PerformanceReviewGenerator:
                         "direction": str(it.get("direction", "stable")).lower(),
                         "delta": str(it.get("delta", "")),
                     }
-                    for it in _list(evolution.get("items"))
+                    for it in _list_from("trader_evolution")
                     if isinstance(it, dict)
                 ],
             },
             "system_alignment": {
                 "narrative": str(alignment.get("narrative", "")),
-                "gaps": [str(g) for g in _list(alignment.get("gaps"))],
+                "gaps": [str(g) for g in _list_from("system_alignment", "gaps")],
             },
             "psychological_warnings": {
                 "items": [
@@ -757,7 +763,7 @@ class PerformanceReviewGenerator:
                         "severity": str(it.get("severity", "info")).lower(),
                         "explanation": str(it.get("explanation", "")),
                     }
-                    for it in _list(warnings.get("items"))
+                    for it in _list_from("psychological_warnings")
                     if isinstance(it, dict)
                 ],
             },

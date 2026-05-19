@@ -2,6 +2,7 @@ import type { WeeklyReview } from '../../types';
 
 interface Props {
   value: WeeklyReview;
+  headerActions?: React.ReactNode;
 }
 
 /**
@@ -12,15 +13,20 @@ interface Props {
  * a notebook (or in the exported Excel where each prompt has an
  * empty Answer column the trader fills in).
  */
-export function WeeklyReviewSection({ value }: Props) {
+export function WeeklyReviewSection({ value, headerActions }: Props) {
   return (
     <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
-      <header className="mb-4">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 04</div>
-        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Weekly Review</h3>
-        <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
-          Use these prompts every Friday to audit your discipline.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-2 sm:gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 04</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Weekly Review</h3>
+          <p className="mt-1 text-[10px] sm:text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
+            Use these prompts every Friday to audit your discipline.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {headerActions}
+        </div>
       </header>
       <ol className="space-y-4">
         {value.prompts.map((p, i) => (

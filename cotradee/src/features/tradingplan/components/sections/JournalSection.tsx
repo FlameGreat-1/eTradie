@@ -5,6 +5,7 @@ interface Props {
   value: JournalRow[];
   editing: boolean;
   onChange: (next: JournalRow[]) => void;
+  headerActions?: React.ReactNode;
 }
 
 // 25-column layout, lockstep with PRACTICE.md's final spec. Widths
@@ -68,7 +69,7 @@ function emptyRow(): JournalRow {
  * manually as they trade through the 90-day window. Add/remove
  * affordances are surfaced only in edit mode.
  */
-export function JournalSection({ value, editing, onChange }: Props) {
+export function JournalSection({ value, editing, onChange, headerActions }: Props) {
   const setCell = useCallback(
     (idx: number, key: keyof JournalRow, v: string) => {
       const next = value.slice();
@@ -93,23 +94,27 @@ export function JournalSection({ value, editing, onChange }: Props) {
 
   return (
     <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm overflow-hidden transition-all duration-300">
-      <header className="mb-4 flex items-start justify-between gap-4">
+      <header className="mb-4 flex items-start justify-between gap-2 sm:gap-4">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 03</div>
           <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Daily Execution Journal</h3>
-          <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed max-w-xl">
+          <p className="mt-1 text-[10px] sm:text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed max-w-xl">
             Record every trade. Add rows as you trade through the quarter.
           </p>
         </div>
-        {editing && (
-          <button
-            type="button"
-            onClick={addRow}
-            className="shrink-0 rounded-xl bg-black dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
-          >
-            + Add row
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {headerActions}
+          {editing && (
+            <button
+              type="button"
+              onClick={addRow}
+              className="rounded-xl bg-black dark:bg-white px-3 sm:px-5 py-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all"
+            >
+              <span className="sm:hidden">+ Row</span>
+              <span className="hidden sm:inline">+ Add row</span>
+            </button>
+          )}
+        </div>
       </header>
       <div className="overflow-x-auto -mx-1 px-1">
         <table className="w-full border-collapse text-[11px]">

@@ -27,9 +27,9 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Find the user 'flamegreat' in the system
+	// Find the user 'Flame Great' in the system
 	var userID string
-	err = pool.QueryRow(ctx, "SELECT id FROM auth_users WHERE username = $1", "flamegreat").Scan(&userID)
+	err = pool.QueryRow(ctx, "SELECT id FROM auth_users WHERE username = $1", "Flame Great").Scan(&userID)
 	if err != nil {
 		log.Println("Could not find user 'flamegreat' in auth_users. Searching for any available user...")
 		err = pool.QueryRow(ctx, "SELECT id FROM auth_users LIMIT 1").Scan(&userID)

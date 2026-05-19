@@ -2,6 +2,7 @@ import type { TraderProfile } from '../../types';
 
 interface Props {
   value: TraderProfile;
+  headerActions?: React.ReactNode;
 }
 
 /**
@@ -13,15 +14,20 @@ interface Props {
  * explicit that this section is a narrative summary, not a parameter
  * table the trader fills in.
  */
-export function TraderProfileSection({ value }: Props) {
+export function TraderProfileSection({ value, headerActions }: Props) {
   return (
     <section className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 shadow-sm">
-      <header className="mb-4">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 01</div>
-        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Trader Profile</h3>
-        <p className="mt-1 text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
-          AI-generated summary of your unique edge. Regenerate to refresh.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-2 sm:gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Section 01</div>
+          <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Trader Profile</h3>
+          <p className="mt-1 text-[10px] sm:text-xs font-medium text-black/40 dark:text-white/40 leading-relaxed">
+            AI-generated summary of your unique edge. Regenerate to refresh.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {headerActions}
+        </div>
       </header>
       <div className="space-y-4">
         <p className="text-sm font-bold text-black dark:text-white leading-relaxed">{value.headline}</p>
