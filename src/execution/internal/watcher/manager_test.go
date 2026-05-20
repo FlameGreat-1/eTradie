@@ -1,6 +1,7 @@
 package watcher_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
@@ -100,3 +101,51 @@ func TestManager_ContextCancellation(t *testing.T) {
 		t.Errorf("expected clean shutdown, active count is %d", manager.ActiveCount())
 	}
 }
+
+type mockWatcherStore struct {
+	deleted map[string]bool
+}
+
+func (m *mockWatcherStore) Insert(ctx context.Context, order *models.Order) error {
+	return nil
+}
+
+func (m *mockWatcherStore) Delete(ctx context.Context, watcherID string) error {
+	m.deleted[watcherID] = true
+	return nil
+}
+
+func TestManager_ShutdownPreservesDatabase(t *testing.T) {
+	store := &mockWatcherStore{
+		deleted: make(map[string]bool),
+	}
+	manager := watcher.NewManager(
+		nil,
+		nil,
+		nil,
+		nil,
+		watcher.Config{PollIntervalMs: 5, TimeoutMinutes: 1},
+		store,
+	)
+
+	order := &models.Order{
+		WatcherID: "W-SHUTDOWN-PRESERVE-TEST",
+		Symbol:    "EURUSD",
+	}
+
+	manager.Arm(order)
+
+	// Ensure the watcher is registered
+	if manager.ActiveCount() != 1 {
+		t.Fatalf("expected active count 1, got %d", manager.ActiveCount())
+	}
+
+	// Shutdown the manager. This cancels context and shuts down all watchers.
+	manager.Shutdown()
+
+	// Verify that the watcher exited but did NOT invoke Delete on the store
+	if store.deleted["W-SHUTDOWN-PRESERVE-TEST"] {
+		t.Errorf("expected database record NOT to be deleted on manager shutdown, but Delete was called")
+	}
+}
+

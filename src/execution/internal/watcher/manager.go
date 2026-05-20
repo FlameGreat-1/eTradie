@@ -322,6 +322,7 @@ func (m *Manager) onWatcherDone(watcherID string) {
 		userID = w.order.UserID
 	}
 	delete(m.watchers, watcherID)
+	isShuttingDown := m.shuttingDown
 	m.mu.Unlock()
 
 	// Only unsubscribe from tick cache for INSTANT orders;
@@ -331,7 +332,9 @@ func (m *Manager) onWatcherDone(watcherID string) {
 	}
 
 	// Remove persistence record (order filled, timed out, or disarmed).
-	if m.store != nil {
+	// If the manager is shutting down (e.g. service restart/rebuild), do NOT delete
+	// the database record so it can be restored on startup.
+	if !isShuttingDown && m.store != nil {
 		if err := m.store.Delete(context.Background(), watcherID); err != nil {
 			m.log.Error().Err(err).Str("watcher_id", watcherID).Msg("watcher_persist_delete_failed")
 		}
@@ -492,7 +495,11 @@ func (w *Watcher) runLimitTTL(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.handleTimeout()
+			// Only trigger timeout if the context completed due to the TTL deadline.
+			// If context was cancelled due to service shutdown/restart, exit silently.
+			if ctx.Err() == context.DeadlineExceeded {
+				w.handleTimeout()
+			}
 			return
 		case <-w.done:
 			w.log.Info().Msg("limit_watcher_disarmed_externally")
@@ -532,7 +539,11 @@ func (w *Watcher) runInstant(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.handleTimeout()
+			// Only trigger timeout if the context completed due to the TTL deadline.
+			// If context was cancelled due to service shutdown/restart, exit silently.
+			if ctx.Err() == context.DeadlineExceeded {
+				w.handleTimeout()
+			}
 			return
 		case <-w.done:
 			w.log.Info().Msg("watcher_disarmed_externally")
@@ -796,9 +807,8 @@ func (w *Watcher) handleTimeout() {
 	// The order has exceeded its TTL without being filled.
 	if w.order.ExecutionMode == constants.ModeLimit && w.order.BrokerOrderID != "" {
 		w.order.RLock()
-		token := w.order.AuthToken
+		cancelCtx := w.order.IdentityCtx(context.Background())
 		w.order.RUnlock()
-		cancelCtx := auth.InjectTokenIntoContext(context.Background(), token)
 
 		if err := w.broker.CancelOrder(cancelCtx, w.order.BrokerOrderID); err != nil {
 			w.log.Error().Err(err).

@@ -48,7 +48,7 @@ class PositionInfo(FrozenModel):
     commission: float = Field(default=0.0)
     swap: float = Field(default=0.0)
     ticket: str
-    comment: str = Field(default="")
+    comment: Optional[str] = Field(default="")
     open_time: int = Field(default=0)  # Unix timestamp
 
 
@@ -65,7 +65,7 @@ class HistoryDealInfo(FrozenModel):
     commission: float
     swap: float
     time: int
-    comment: str = Field(default="")
+    comment: Optional[str] = Field(default="")
 
 
 class PendingOrderInfo(FrozenModel):
@@ -78,7 +78,7 @@ class PendingOrderInfo(FrozenModel):
     take_profit: float = Field(ge=0)
     volume: float = Field(gt=0)
     ticket: str
-    comment: str = Field(default="")
+    comment: Optional[str] = Field(default="")
     open_time: int = Field(default=0)  # Unix timestamp
 
 

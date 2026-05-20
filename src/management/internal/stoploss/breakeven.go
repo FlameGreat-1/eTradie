@@ -17,23 +17,30 @@ import (
 // Rulebook Section 9.1. It moves SL to entry + spread buffer
 // when the appropriate conditions are met for each trading style.
 type BreakevenEngine struct {
-	bp      broker.Port
-	journal *journal.Repository
-	log     zerolog.Logger
+	bp          broker.Port
+	journal     *journal.Repository
+	log         zerolog.Logger
+	lastAttempt map[string]time.Time
 }
 
 // NewBreakevenEngine creates a break-even engine.
 func NewBreakevenEngine(bp broker.Port, journal *journal.Repository) *BreakevenEngine {
 	return &BreakevenEngine{
-		bp:      bp,
-		journal: journal,
-		log:     observability.Logger("breakeven"),
+		bp:          bp,
+		journal:     journal,
+		log:         observability.Logger("breakeven"),
+		lastAttempt: make(map[string]time.Time),
 	}
 }
 
 // Evaluate checks if the break-even condition is met and executes
 // the SL move if conditions are satisfied. Returns true if BE was set.
 func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, checkPrice float64) (bool, error) {
+	if last, ok := e.lastAttempt[trade.TradeID]; ok && time.Since(last) < 10*time.Second {
+		return false, nil // Throttle ZMQ requests if MT5 is rejecting us
+	}
+	e.lastAttempt[trade.TradeID] = time.Now()
+
 	trade.RLock()
 	if trade.BreakevenSet {
 		trade.RUnlock()

@@ -282,11 +282,10 @@ func (s *Stream) WatchPositions(
 					s.emitError(ctx, errors, ErrNoBrokerConfigured)
 					return false
 				}
-				// Transient broker / network failure. Surface and
-				// let the reconciler decide whether to keep going.
-				s.log.Warn().Err(err).Msg("watch_positions_poll_failed")
-				s.emitError(ctx, errors, err)
-				return false
+				// Transient broker / network failure. Log the warning and keep the poller loop running.
+				// Returning true keeps the goroutine alive so the next tick will poll again.
+				s.log.Warn().Err(err).Msg("watch_positions_poll_failed_transient")
+				return true
 			}
 
 			h := hashPositions(snapshot)
@@ -371,8 +370,7 @@ func isNoBrokerConfiguredError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "No broker connection configured") ||
-		strings.Contains(msg, "status 503")
+	return strings.Contains(msg, "No broker connection configured")
 }
 
 // hashPositions computes a stable structural hash of the position

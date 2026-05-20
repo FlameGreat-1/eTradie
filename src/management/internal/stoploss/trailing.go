@@ -28,17 +28,19 @@ import (
 // fraction of the move from entry. This is the standard institutional
 // approach when swing data isn't streamed in real-time.
 type TrailingEngine struct {
-	bp      broker.Port
-	journal *journal.Repository
-	log     zerolog.Logger
+	bp          broker.Port
+	journal     *journal.Repository
+	log         zerolog.Logger
+	lastAttempt map[string]time.Time
 }
 
 // NewTrailingEngine creates a trailing stop engine.
 func NewTrailingEngine(bp broker.Port, journal *journal.Repository) *TrailingEngine {
 	return &TrailingEngine{
-		bp:      bp,
-		journal: journal,
-		log:     observability.Logger("trailing"),
+		bp:          bp,
+		journal:     journal,
+		log:         observability.Logger("trailing"),
+		lastAttempt: make(map[string]time.Time),
 	}
 }
 
@@ -46,6 +48,11 @@ func NewTrailingEngine(bp broker.Port, journal *journal.Repository) *TrailingEng
 // the current price relative to the trade's progress. Returns true
 // if the SL was adjusted.
 func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, checkPrice float64) (bool, error) {
+	if last, ok := e.lastAttempt[trade.TradeID]; ok && time.Since(last) < 10*time.Second {
+		return false, nil // Throttle ZMQ requests if MT5 is rejecting us
+	}
+	e.lastAttempt[trade.TradeID] = time.Now()
+
 	trade.RLock()
 	if !trade.BreakevenSet {
 		trade.RUnlock()

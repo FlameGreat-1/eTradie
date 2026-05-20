@@ -27,13 +27,6 @@ type LWCModule = typeof import('lightweight-charts');
 
 /* ── Public types ────────────────────────────────────────────────── */
 
-export interface TradeLevels {
-  entry?: number;
-  stopLoss?: number;
-  takeProfit?: number;
-  direction?: string;
-}
-
 export interface ActiveTrade {
   symbol: string;
   entryPrice: number;
@@ -41,12 +34,12 @@ export interface ActiveTrade {
   takeProfit: number;
   direction: string;
   profit: number;
+  isPending?: boolean;
 }
 
 export interface TradingChartProps {
   symbol: string;
   timeframe: string;
-  levels?: TradeLevels | null;
   activeTrades?: ActiveTrade[];
   symbolMeta?: Record<string, { point: number; digits: number }>;
 }
@@ -155,7 +148,6 @@ function directionTone(dir: string): 'BUY' | 'SELL' {
 function TradingChartInner({
   symbol,
   timeframe,
-  levels,
   activeTrades,
   symbolMeta,
 }: TradingChartProps) {
@@ -447,47 +439,6 @@ function TradingChartInner({
     };
 
     try {
-      if (levels && (!activeTrades || activeTrades.length === 0)) {
-        if (Number.isFinite(levels.entry)) {
-          linesRef.current.push(
-            series.createPriceLine({
-              price: levels.entry as number,
-              color: colors.info,
-              lineWidth: 2,
-              lineStyle: lwc.LineStyle.Solid,
-              axisLabelVisible: true,
-              ...labelStyle,
-              title: 'Entry',
-            }),
-          );
-        }
-        if (Number.isFinite(levels.stopLoss)) {
-          linesRef.current.push(
-            series.createPriceLine({
-              price: levels.stopLoss as number,
-              color: colors.danger,
-              lineWidth: 2,
-              lineStyle: lwc.LineStyle.Dashed,
-              axisLabelVisible: true,
-              ...labelStyle,
-              title: 'SL',
-            }),
-          );
-        }
-        if (Number.isFinite(levels.takeProfit)) {
-          linesRef.current.push(
-            series.createPriceLine({
-              price: levels.takeProfit as number,
-              color: colors.success,
-              lineWidth: 2,
-              lineStyle: lwc.LineStyle.Dashed,
-              axisLabelVisible: true,
-              ...labelStyle,
-              title: 'TP',
-            }),
-          );
-        }
-      }
 
       if (activeTrades && activeTrades.length > 0) {
         for (const trade of activeTrades) {
@@ -496,12 +447,12 @@ function TradingChartInner({
           linesRef.current.push(
             series.createPriceLine({
               price: trade.entryPrice,
-              color: tone === 'BUY' ? colors.success : colors.danger,
+              color: trade.isPending ? colors.info : (tone === 'BUY' ? colors.success : colors.danger),
               lineWidth: 2,
-              lineStyle: lwc.LineStyle.Solid,
+              lineStyle: trade.isPending ? lwc.LineStyle.Dashed : lwc.LineStyle.Solid,
               axisLabelVisible: true,
               ...labelStyle,
-              title: `${tone} · Entry`,
+              title: trade.isPending ? 'Pending · Entry' : `${tone} · Entry`,
             }),
           );
           if (trade.stopLoss > 0) {
@@ -509,8 +460,8 @@ function TradingChartInner({
               series.createPriceLine({
                 price: trade.stopLoss,
                 color: colors.danger,
-                lineWidth: 1,
-                lineStyle: lwc.LineStyle.Dotted,
+                lineWidth: trade.isPending ? 2 : 1,
+                lineStyle: trade.isPending ? lwc.LineStyle.Dashed : lwc.LineStyle.Dotted,
                 axisLabelVisible: true,
                 ...labelStyle,
                 title: 'SL',
@@ -522,8 +473,8 @@ function TradingChartInner({
               series.createPriceLine({
                 price: trade.takeProfit,
                 color: colors.success,
-                lineWidth: 1,
-                lineStyle: lwc.LineStyle.Dotted,
+                lineWidth: trade.isPending ? 2 : 1,
+                lineStyle: trade.isPending ? lwc.LineStyle.Dashed : lwc.LineStyle.Dotted,
                 axisLabelVisible: true,
                 ...labelStyle,
                 title: 'TP',
@@ -535,12 +486,12 @@ function TradingChartInner({
     } catch {
       /* never let a price-line draw call crash the page */
     }
-  }, [levels, activeTrades, symbol, themeTick, chartReady]);
+  }, [activeTrades, symbol, themeTick, chartReady]);
 
 
   /* 6. Live P&L overlay state. */
   const overlay = useMemo(() => {
-    const trade = activeTrades?.find((t) => t.symbol === symbol);
+    const trade = activeTrades?.find((t) => t.symbol === symbol && !t.isPending);
     if (!trade) return null;
     const tone = directionTone(trade.direction);
     const price = latestPrice ?? trade.entryPrice;

@@ -110,9 +110,13 @@ async def broker_positions(
             }
             for p in positions
         ]
-        # Update the failover cache silently
+        # Update the failover cache silently.
+        # TTL is intentionally short (15 s) because positions are highly
+        # dynamic.  A long TTL (the previous 24 h) caused stale empty
+        # snapshots to persist through ZMQ contention windows, making
+        # manually-placed MT5 trades invisible to the dashboard.
         try:
-            await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            await container.cache.set("internal", cache_key, result, ttl_seconds=15)
         except Exception:
             pass
         return result
@@ -203,8 +207,9 @@ async def broker_pending_orders(
             for o in orders
         ]
 
+        # Short TTL — pending orders change frequently.
         try:
-            await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
+            await container.cache.set("internal", cache_key, result, ttl_seconds=15)
         except Exception:
             pass
         return result

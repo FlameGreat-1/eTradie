@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
@@ -83,33 +82,74 @@ func (m *Manager) getUserRead(userID string) *userState {
 // Called before every execution attempt to ensure accuracy. Detects
 // day/week boundary crossings and reloads P&L from PostgreSQL with
 // new period keys.
+//
+// Each broker call is independent: a ZMQ timeout on one endpoint
+// does NOT cancel the others. This is critical because the engine
+// serializes ZMQ calls behind a single lock — three concurrent
+// requests frequently cause the 2nd or 3rd to timeout while the
+// 1st holds the lock, and the old errgroup behaviour propagated
+// that single timeout into a full 503 for the dashboard. Now each
+// call either succeeds or logs a warning and falls back to the
+// previously cached state (nil / empty slice).
 func (m *Manager) Refresh(ctx context.Context, userID string) error {
 	var account *models.AccountInfo
 	var positions []models.Position
 	var pending []models.BrokerPendingOrder
 
-	g, gCtx := errgroup.WithContext(ctx)
+	// --- independent calls (no errgroup) ---
+	var accErr, posErr, pendErr error
 
-	g.Go(func() error {
-		var err error
-		account, err = m.broker.GetAccountInfo(gCtx)
-		return err
-	})
+	type accResult struct {
+		info *models.AccountInfo
+		err  error
+	}
+	type posResult struct {
+		pos []models.Position
+		err error
+	}
+	type pendResult struct {
+		ord []models.BrokerPendingOrder
+		err error
+	}
 
-	g.Go(func() error {
-		var err error
-		positions, err = m.broker.GetPositions(gCtx)
-		return err
-	})
+	accCh := make(chan accResult, 1)
+	posCh := make(chan posResult, 1)
+	pendCh := make(chan pendResult, 1)
 
-	g.Go(func() error {
-		var err error
-		pending, err = m.broker.GetPendingOrders(gCtx)
-		return err
-	})
+	go func() {
+		info, err := m.broker.GetAccountInfo(ctx)
+		accCh <- accResult{info, err}
+	}()
+	go func() {
+		pos, err := m.broker.GetPositions(ctx)
+		posCh <- posResult{pos, err}
+	}()
+	go func() {
+		ord, err := m.broker.GetPendingOrders(ctx)
+		pendCh <- pendResult{ord, err}
+	}()
 
-	if err := g.Wait(); err != nil {
-		return err
+	ar := <-accCh
+	account, accErr = ar.info, ar.err
+
+	pr := <-posCh
+	positions, posErr = pr.pos, pr.err
+
+	pdr := <-pendCh
+	pending, pendErr = pdr.ord, pdr.err
+
+	// Log individual failures but do NOT return an error unless the
+	// account call (essential for P&L guards) failed.
+	if posErr != nil {
+		m.log.Warn().Err(posErr).Str("user_id", userID).Msg("refresh_positions_failed_using_stale")
+	}
+	if pendErr != nil {
+		m.log.Warn().Err(pendErr).Str("user_id", userID).Msg("refresh_pending_orders_failed_using_stale")
+	}
+	if accErr != nil {
+		m.log.Warn().Err(accErr).Str("user_id", userID).Msg("refresh_account_info_failed")
+		// Account is required for risk guards; propagate this error.
+		return accErr
 	}
 
 	m.mu.Lock()
