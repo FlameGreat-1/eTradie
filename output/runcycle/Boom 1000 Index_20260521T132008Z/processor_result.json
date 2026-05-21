@@ -1,0 +1,328 @@
+{
+  "analysis_id": "BOOM 1000 INDEX_SH_BMS_RTO_BULLISH_BULLISH_13067.938_548b6948",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "LONG",
+  "entry_price": 13067.938,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": false,
+        "mode": "Manual approval per trade",
+        "require_final_confirmation": true
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 1,
+        "dxy": 2,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 2,
+        "volume_liquidity": 2,
+        "wyckoff": 1
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": true,
+        "avoid_overnight_holds": false,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Semi-Automated",
+        "discipline": "Rule-Based",
+        "experience": "Intermediate",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": false,
+        "emotional_volatility_sensitivity": "medium",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": false,
+        "preferred": [
+          "London",
+          "New York"
+        ]
+      },
+      "structural": {
+        "emphasis": "medium",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_boom1000_20260521_1316_a7b9",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "SMC SH+BMS+RTO bullish setup on Boom 1000 Index",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral/aligned due to lack of macro data for synthetic indices.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned or valid counter-trend pullback",
+          "notes": "Valid counter-trend pullback targeting H1 equal highs after major D1 liquidity sweep.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M15 CHoCH and BMS confirmed at 13153.478.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "M15 Order Block (13062.222 - 13073.654) and FVG (13073.654 - 13116.208) present.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "M15 liquidity swept at 13139.571.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "Neutral/aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Accumulation Spring phase confirmed.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No news events active.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Targeting H1 equal highs offers a massive 31.19 R:R.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Net speculative positioning is flat/neutral for synthetic indices.",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        13062.222,
+        13073.654
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "SMC: SH+BMS+RTO",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "BOOM 1000 INDEX_SH_BMS_RTO_BULLISH_BULLISH_13067.938_548b6948"
+    },
+    "entry_zone": {
+      "high": 13073.654,
+      "low": 13062.222
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The Boom 1000 Index is currently exhibiting a highly structured bullish reversal setup on the M15 timeframe, which serves as a high-probability counter-trend pullback targeting major HTF liquidity pools. Top-down analysis reveals that while the HTF trend (MN1 down to H1) is strongly BEARISH, the price has recently completed a major liquidity sweep of the D1/H12/H8/H4/H3/H1 sell-side liquidity pools at 13038.256 and 13053.559. Following this sweep, the lower timeframes (M15, M5, M1) have shifted to a BULLISH structure, indicating the initiation of a counter-trend retracement phase. The selected M15 candidate (BOOM 1000 INDEX_SH_BMS_RTO_BULLISH_BULLISH_13067.938_548b6948) represents a textbook 'SH+BMS+FVG+RTO' pattern. It features a clean Stop Hunt (SH) below 13139.571, followed by a Break of Market Structure (BOS) and Change of Character (CHoCH) confirmed higher at 13153.478. The entry zone is nested within the M15 Order Block (13062.222 - 13073.654) and is supported by a clean M15 FVG (13073.654 - 13116.208). We place a LIMIT order at 13067.938 with a structural SL at 13061.0788, just below the OB lower bound. Take Profit targets are constructed structurally: TP1 at 13153.478 (M15 BMS level), TP2 at 13236.315 (H1 swing high), and TP3 at 13281.855 (H1 equal highs), offering an exceptional R:R ratio of 31.19.",
+    "htf_bias": {
+      "key_levels": [
+        13038.256,
+        13053.559,
+        13281.855
+      ],
+      "notes": "HTF trend is strongly bearish, but price has swept major HTF liquidity at the lows, initiating a bullish counter-trend pullback.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        13067.938,
+        13153.478
+      ],
+      "notes": "M15 has confirmed a bullish CHoCH and BMS, establishing a valid SH+BMS+FVG+RTO setup.",
+      "structure": "choch_bullish"
+    },
+    "pair": "Boom 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 31.19,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 13061.0788,
+      "reason": "Placed 1.14 pips below the M15 Order Block lower bound of 13062.222 to protect against minor stop hunts while maintaining structural invalidation integrity."
+    },
+    "take_profits": [
+      {
+        "basis": "M15 BMS/CHoCH level representing the nearest structural liquidity pool.",
+        "level": 13153.478,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 swing high representing a minor buy-side liquidity pool.",
+        "level": 13236.315,
+        "size_pct": 30
+      },
+      {
+        "basis": "H1 equal highs representing a major buy-side liquidity pool.",
+        "level": 13281.855,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-21T13:16:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The Boom 1000 Index is currently exhibiting a highly structured bullish reversal setup on the M15 timeframe, which serves as a high-probability counter-trend pullback targeting major HTF liquidity pools. Top-down analysis reveals that while the HTF trend (MN1 down to H1) is strongly BEARISH, the price has recently completed a major liquidity sweep of the D1/H12/H8/H4/H3/H1 sell-side liquidity pools at 13038.256 and 13053.559. Following this sweep, the lower timeframes (M15, M5, M1) have shifted to a BULLISH structure, indicating the initiation of a counter-trend retracement phase. The selected M15 candidate (BOOM 1000 INDEX_SH_BMS_RTO_BULLISH_BULLISH_13067.938_548b6948) represents a textbook 'SH+BMS+FVG+RTO' pattern. It features a clean Stop Hunt (SH) below 13139.571, followed by a Break of Market Structure (BOS) and Change of Character (CHoCH) confirmed higher at 13153.478. The entry zone is nested within the M15 Order Block (13062.222 - 13073.654) and is supported by a clean M15 FVG (13073.654 - 13116.208). We place a LIMIT order at 13067.938 with a structural SL at 13061.0788, just below the OB lower bound. Take Profit targets are constructed structurally: TP1 at 13153.478 (M15 BMS level), TP2 at 13236.315 (H1 swing high), and TP3 at 13281.855 (H1 equal highs), offering an exceptional R:R ratio of 31.19.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 31.19,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 13061.0788,
+  "symbol": "Boom 1000 Index",
+  "take_profit": 13281.855,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

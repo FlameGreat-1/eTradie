@@ -12,7 +12,7 @@ from pydantic import SecretStr
 
 from engine.dependencies import Container
 from engine.processor.config import ProcessorConfig
-from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider
+from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider, MODEL_CATALOG
 from engine.processor.llm.factory import create_llm_client
 from engine.processor.service import AnalysisProcessor
 from engine.schemas import ProcessorConfigResponse, ProcessorConfigUpdateRequest
@@ -41,6 +41,7 @@ async def get_available_models(
 
     cfg = container.processor_config
     return {
+        "catalog": MODEL_CATALOG,
         "current_provider": cfg.llm_provider,
         "current_model": cfg.model_name,
         "providers": {

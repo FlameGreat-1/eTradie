@@ -160,9 +160,13 @@ export function AdminProcessorConfigPanel() {
                   onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
                   className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm font-bold text-black dark:text-white focus:border-brand transition-all outline-none appearance-none"
                 >
-                  {(currentProviderInfo?.models || []).map((m: string) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
+                  {(currentProviderInfo?.models || []).map((m: string) => {
+                    const catalogItem = modelsData.catalog?.find((c: any) => c.id === m);
+                    const displayName = catalogItem ? catalogItem.display_name : m;
+                    return (
+                      <option key={m} value={m}>{displayName}</option>
+                    );
+                  })}
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 pointer-events-none" size={16} strokeWidth={3} />
               </div>

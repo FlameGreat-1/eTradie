@@ -20,6 +20,8 @@ type Trade struct {
 	// Identity.
 	TradeID       string
 	Symbol        string
+	Point         float64 // Broker point size (e.g., 0.00001 or 0.01)
+	Digits        int     // Broker price digits
 	Direction     constants.Direction
 	BrokerOrderID string
 	AnalysisID    string
@@ -159,7 +161,11 @@ func (t *Trade) PriceForCheck(bid, ask float64) float64 {
 }
 
 // IsSLHit returns true if the current check price has breached the stop loss.
+// A StopLoss of 0 means "not set" — the check always returns false.
 func (t *Trade) IsSLHit(checkPrice float64) bool {
+	if t.StopLoss <= 0 {
+		return false // No SL set; can't be hit.
+	}
 	if t.IsLong() {
 		return checkPrice <= t.StopLoss
 	}
@@ -167,7 +173,11 @@ func (t *Trade) IsSLHit(checkPrice float64) bool {
 }
 
 // IsTP1Hit returns true if the current check price has reached TP1.
+// A TP1Price of 0 means "not set" — the check always returns false.
 func (t *Trade) IsTP1Hit(checkPrice float64) bool {
+	if t.TP1Price <= 0 {
+		return false
+	}
 	if t.IsLong() {
 		return checkPrice >= t.TP1Price
 	}
@@ -175,7 +185,11 @@ func (t *Trade) IsTP1Hit(checkPrice float64) bool {
 }
 
 // IsTP2Hit returns true if the current check price has reached TP2.
+// A TP2Price of 0 means "not set" — the check always returns false.
 func (t *Trade) IsTP2Hit(checkPrice float64) bool {
+	if t.TP2Price <= 0 {
+		return false
+	}
 	if t.IsLong() {
 		return checkPrice >= t.TP2Price
 	}
@@ -183,7 +197,11 @@ func (t *Trade) IsTP2Hit(checkPrice float64) bool {
 }
 
 // IsTP3Hit returns true if the current check price has reached TP3.
+// A TP3Price of 0 means "not set" — the check always returns false.
 func (t *Trade) IsTP3Hit(checkPrice float64) bool {
+	if t.TP3Price <= 0 {
+		return false
+	}
 	if t.IsLong() {
 		return checkPrice >= t.TP3Price
 	}

@@ -195,13 +195,112 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		if strings.Contains(err.Error(), "connection refused") || ctx.Err() != nil {
 			return false
 		}
-		if strings.Contains(err.Error(), "returned 5") {
+		// Only retry on 502/503/504 (proxy/infra errors), NOT 500 (application errors).
+		// 500 from the engine usually means an LLM provider failed (e.g. 429 quota)
+		// and retrying will just waste more quota.
+		if strings.Contains(err.Error(), "returned 502") ||
+			strings.Contains(err.Error(), "returned 503") ||
+			strings.Contains(err.Error(), "returned 504") {
 			return true
 		}
 		return strings.Contains(err.Error(), "engine_http: request")
 	}
 
-	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+	if err := resilience.Retry(ctx, resilience.TransientRetryConfig, isRetryable, operation); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// PostJSONNoRetry sends a POST request without any HTTP-level retries.
+// Use this for high-cost, idempotency-sensitive operations like the LLM
+// processor, where a failure should bubble up immediately.
+func (c *EngineHTTPClient) PostJSONNoRetry(ctx context.Context, path string, body interface{}) (map[string]interface{}, error) {
+	url := c.baseURL + path
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("engine_http: marshal request for %s: %w", path, err)
+	}
+
+	idempotencyKey := uuid.New().String()
+	var result map[string]interface{}
+
+	operation := func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return fmt.Errorf("engine_http: create request for %s: %w", path, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Idempotency-Key", idempotencyKey)
+
+		if isInternalPath(path) {
+			if c.internalSecret != "" {
+				req.Header.Set(internalAuthHeader, c.internalSecret)
+			}
+			if claims := auth.ClaimsFromContext(ctx); claims != nil {
+				if claims.UserID != "" {
+					req.Header.Set(internalUserIDHeader, claims.UserID)
+				}
+				if claims.Tier != "" {
+					req.Header.Set(internalUserTierHeader, claims.Tier)
+				}
+				if claims.Role != "" {
+					req.Header.Set(internalUserRoleHeader, string(claims.Role))
+				}
+				if claims.Username != "" {
+					req.Header.Set(internalUserUsernameHeader, claims.Username)
+				}
+			} else if userID := auth.UserIDFromContext(ctx); userID != "" {
+				req.Header.Set(internalUserIDHeader, userID)
+			}
+		} else {
+			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+				req.Header.Set("Authorization", "Bearer "+rawToken)
+			}
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			c.log.Error().
+				Str("path", path).
+				Err(err).
+				Msg("engine_http_request_failed")
+			return fmt.Errorf("engine_http: request %s: %w", path, err)
+		}
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("engine_http: read response from %s: %w", path, err)
+		}
+
+		if resp.StatusCode >= 400 {
+			safeBody := redactSensitiveJSON(respBody, 500)
+			c.log.Error().
+				Str("path", path).
+				Int("status", resp.StatusCode).
+				Str("body", safeBody).
+				Msg("engine_http_error_response")
+			errorBody := safeBody
+			if len(errorBody) > 200 {
+				errorBody = errorBody[:200]
+			}
+			return fmt.Errorf("engine_http: %s returned %d: %s", path, resp.StatusCode, errorBody)
+		}
+
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return fmt.Errorf("engine_http: unmarshal response from %s: %w", path, err)
+		}
+
+		return nil
+	}
+
+	// Always false to disable retries.
+	isRetryable := func(err error) bool { return false }
+
+	if err := resilience.Retry(ctx, resilience.NoRetryConfig, isRetryable, operation); err != nil {
 		return nil, err
 	}
 
@@ -290,13 +389,15 @@ func (c *EngineHTTPClient) GetJSON(ctx context.Context, path string) (map[string
 		if strings.Contains(err.Error(), "connection refused") || ctx.Err() != nil {
 			return false
 		}
-		if strings.Contains(err.Error(), "returned 5") {
+		if strings.Contains(err.Error(), "returned 502") ||
+			strings.Contains(err.Error(), "returned 503") ||
+			strings.Contains(err.Error(), "returned 504") {
 			return true
 		}
 		return strings.Contains(err.Error(), "engine_http: request")
 	}
 
-	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+	if err := resilience.Retry(ctx, resilience.TransientRetryConfig, isRetryable, operation); err != nil {
 		return nil, err
 	}
 

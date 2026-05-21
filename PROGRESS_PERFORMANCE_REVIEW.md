@@ -334,3 +334,63 @@ Very few focus on:
 * long-term development.
 
 That’s where long-term defensibility exists.
+
+
+
+
+
+
+
+CHECK GEMENI AVAILABLE MODELS:
+
+curl "https://generativelanguage.googleapis.com/v1beta/models" \
+  -H "X-goog-api-key: AIzaSyBWnBeoKYogJXEjuG5V1-lf3zn9QOz7oSQ"
+
+
+CHECK OPENAI AVAILABLE MODELS:
+
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer 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"
+
+
+CHECK ANTHROPIC AVAILABLE MODELS:
+
+
+curl https://api.anthropic.com/v1/models \
+  -H "x-api-key: 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" \
+  -H "anthropic-version: 2023-06-01"
+
+  
+curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent" \
+  -H 'Content-Type: application/json' \
+  -H 'X-goog-api-key: AIzaSyBWnBeoKYogJXEjuG5V1-lf3zn9QOz7oSQ' \
+  -X POST \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Explain how AI works in a few words"
+          }
+        ]
+      }
+    ]
+  }'
+
+
+
+  curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" \
+  -H 'Content-Type: application/json' \
+  -H 'X-goog-api-key: AIzaSyBWnBeoKYogJXEjuG5V1-lf3zn9QOz7oSQ' \
+  -X POST \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Explain how AI works in a few words"
+          }
+        ]
+      }
+    ]
+  }'

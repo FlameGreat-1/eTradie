@@ -29,11 +29,43 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 	ticker := time.NewTicker(time.Duration(m.tickPollMs) * time.Millisecond)
 	defer ticker.Stop()
 
+	// Separate, slower ticker to poll the broker for real P&L data.
+	// The broker's GetPosition returns exact Profit/Swap/Commission
+	// that accounts for contract size, pip value, and all instrument
+	// specifics. This replaces the inaccurate local approximation.
+	positionTicker := time.NewTicker(2 * time.Second)
+	defer positionTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			m.log.Info().Str("trade_id", tradeID).Msg("monitoring_worker_stopped")
 			return
+
+		case <-positionTicker.C:
+			// Poll broker for the real, authoritative P&L data.
+			// This runs every 2s (independent of the fast tick loop)
+			// and updates UnrealizedPnL, Swap, Commission from the
+			// broker's actual position state — the same source the
+			// Chart UI uses, ensuring perfect parity.
+			trade.RLock()
+			pAuthCtx := trade.IdentityCtx(ctx)
+			brokerID := trade.BrokerOrderID
+			trade.RUnlock()
+
+			pos, err := m.bp.GetPosition(pAuthCtx, brokerID)
+			if err == nil && pos != nil {
+				trade.Lock()
+				trade.UnrealizedPnL = pos.Profit
+				trade.Swap = pos.Swap
+				trade.Commission = pos.Commission
+				// Also update current price from position data as a
+				// secondary source (the fast tick loop is primary).
+				if pos.CurrentPrice > 0 {
+					trade.CurrentPrice = pos.CurrentPrice
+				}
+				trade.Unlock()
+			}
 
 		case <-ticker.C:
 			trade.RLock()
@@ -69,20 +101,18 @@ func (m *Manager) runWorker(ctx context.Context, trade *types.Trade) {
 
 			checkPrice := trade.PriceForCheck(tick.Bid, tick.Ask)
 
-			// Update current price.
+			// Guard against zero/missing Ask price. MT5 sometimes
+			// broadcasts "half-ticks" where only the Bid changes,
+			// leaving Ask as 0. For SELL trades PriceForCheck returns
+			// the Ask, so a zero value would corrupt the PnL display
+			// and cause it to flicker on/off. Skip these ticks.
+			if checkPrice <= 0 {
+				continue
+			}
+
+			// Update current price from the fast tick loop.
 			trade.Lock()
 			trade.CurrentPrice = checkPrice
-
-			// Update observability metrics
-			if trade.EntryPrice > 0 {
-				var pnlDist float64
-				if trade.IsLong() {
-					pnlDist = checkPrice - trade.EntryPrice
-				} else {
-					pnlDist = trade.EntryPrice - checkPrice
-				}
-				trade.UnrealizedPnL = pnlDist * trade.RemainingLotSize // Rough approximation without pip value
-			}
 			trade.Unlock()
 
 			// === Evaluation order (priority-based) ===

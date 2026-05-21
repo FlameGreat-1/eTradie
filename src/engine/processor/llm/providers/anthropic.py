@@ -118,11 +118,20 @@ class AnthropicClient(LLMClient):
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
+                # Extract the authoritative finish metadata from the
+                # completed message. Anthropic's stop_reason values:
+                #   end_turn      — normal completion
+                #   stop_sequence — hit a custom stop sequence
+                #   max_tokens    — output budget exhausted (TRUNCATED)
+                #   tool_use      — model invoked a tool
                 if usage_out is not None:
                     final_message = await stream.get_final_message()
-                    if final_message and hasattr(final_message, "usage"):
-                        usage_out["input_tokens"] = final_message.usage.input_tokens
-                        usage_out["output_tokens"] = final_message.usage.output_tokens
+                    if final_message:
+                        if hasattr(final_message, "usage") and final_message.usage:
+                            usage_out["input_tokens"] = final_message.usage.input_tokens
+                            usage_out["output_tokens"] = final_message.usage.output_tokens
+                        if hasattr(final_message, "stop_reason") and final_message.stop_reason:
+                            usage_out["finish_reason"] = final_message.stop_reason
         except Exception as exc:
             logger.error(
                 "llm_stream_call_failed",

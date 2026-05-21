@@ -1,14 +1,14 @@
 {
-  "analysis_id": "XAUUSD_QML_KILLER_TYPE1_BEARISH_4705.37",
+  "analysis_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5718.0815_658656f9",
   "confidence": 0.85,
   "confluence_score": 8,
   "direction": "SHORT",
-  "entry_price": 4541.98,
+  "entry_price": 5718.0815,
   "execution_mode": "LIMIT",
   "grade": "A",
   "ltf_confirmed": false,
   "raw_response": {
-    "_llm_model": "gemini-3.1-flash-lite",
+    "_llm_model": "gemini-3.5-flash",
     "_llm_provider": "gemini",
     "_user_os": {
       "assets": {
@@ -108,19 +108,26 @@
       },
       "style": "Intraday (M15-H4)"
     },
-    "analysis_id": "analysis_XAUUSD_20260519_1500_a4f2",
+    "analysis_id": "analysis_crash1000_20260521_1147_a3b1",
     "audit": {
       "citations": [
         {
           "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
           "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
-          "relevance_score": 1,
+          "relevance_score": 0.95,
           "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
         }
       ],
       "retrieval": {
-        "chunks_returned": [],
-        "query_summary": "XAUUSD bearish setup confluence",
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          }
+        ],
+        "query_summary": "SMC and SnD framework rules for Crash 1000 Index",
         "strategy_used": "scenario_first",
         "top_k": 8
       }
@@ -129,50 +136,56 @@
     "confluence_score": {
       "factors": [
         {
-          "name": "HTF structure alignment",
-          "notes": "HTF bearish structure aligned.",
+          "name": "Macro bias alignment",
+          "notes": "Neutral/missing macro data is treated as aligned/non-blocking.",
           "present": true,
           "value": 1
         },
         {
-          "name": "MTF BOS/ChoCH",
-          "notes": "M15/M5 bearish structure confirmed.",
+          "name": "HTF structure aligned",
+          "notes": "H1 and H3 structures are bearish, aligning with overall bearish trend.",
           "present": true,
           "value": 1
         },
         {
-          "name": "Valid SnD/OB zone",
-          "notes": "Valid M5/M15 Order Block identified.",
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M30 has confirmed bearish structure breaks.",
           "present": true,
           "value": 1
         },
         {
-          "name": "Liquidity sweep",
-          "notes": "Liquidity sweep into entry zone confirmed.",
+          "name": "Valid Structural Entry Support",
+          "notes": "M5 Order Block (5717.267 - 5718.896) and FVG (5711.341 - 5716.413) are present.",
           "present": true,
           "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "M5 liquidity sweep of 10.28 pips confirmed.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available for synthetic indices.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase identified.",
+          "present": false,
+          "value": 0
         },
         {
           "name": "No high-impact news",
-          "notes": "No high-impact news within 30 mins.",
+          "notes": "No high-impact news events active.",
           "present": true,
           "value": 1
         },
         {
-          "name": "Minimum R:R",
-          "notes": "R:R exceeds 1:3.",
-          "present": true,
-          "value": 1
-        },
-        {
-          "name": "Session timing",
-          "notes": "NY session active.",
-          "present": true,
-          "value": 1
-        },
-        {
-          "name": "Wyckoff phase",
-          "notes": "Distribution phase identified.",
+          "name": "Minimum R:R achievable",
+          "notes": "R:R of 3.79 achieved using candidate parameters, up to 18.08 using structural targets.",
           "present": true,
           "value": 1
         }
@@ -182,7 +195,7 @@
     "cot_signal": {
       "evidence": [],
       "extreme_flag": false,
-      "summary": "No TFF data available.",
+      "summary": "Neutral",
       "week_over_week": null
     },
     "direction": "SHORT",
@@ -192,35 +205,33 @@
     },
     "entry_setup": {
       "bounds": [
-        4539.69,
-        4544.27
+        5717.267,
+        5718.896
       ],
       "evidence": [
         {
           "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
-          "content_preview": "Valid Grade A or B SnD zone on 4H or above",
           "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
-          "rule_id": "4.1",
           "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
         }
       ],
       "quality": "A",
       "type": "OB",
-      "zone_id": "XAUUSD_QML_KILLER_TYPE1_BEARISH_4705.37"
+      "zone_id": "CRASH 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_5718.0815_658656f9"
     },
     "entry_zone": {
-      "high": 4544.27,
-      "low": 4539.69
+      "high": 5718.896,
+      "low": 5717.267
     },
     "event_risk": [],
     "execution_mode": "LIMIT",
-    "explainable_reasoning": "The market is exhibiting a clear bearish trend across HTF (H4-H8) and MTF (M15-M5) timeframes. Price has recently swept liquidity above the 4544.27 level and is currently reacting to a bearish Order Block (4539.69-4544.27). The setup is a QML_KILLER_TYPE1_BEARISH pattern, which is a high-conviction SnD setup. All mandatory confluence factors are met, including HTF alignment, MTF structure, and no high-impact news. The R:R ratio is 3.4, exceeding the intraday requirement of 1:3. We are executing a limit order at the OB zone.",
+    "explainable_reasoning": "The market is in a strong bearish trend across H1, M30, M5, and M1. We have identified a high-quality M5 SMC setup: SH+CHOCH+BMS+OB+FVG+SWEPT+RTO. The entry zone is defined by the unmitigated M5 Order Block at 5717.267 - 5718.896, which is nested within the M5 FVG. A structural stop loss is placed at 5721.617, just above the M5 swing high of 5720.758, to protect against stop hunts. Take profit targets are placed at key structural liquidity pools: TP1 at 5705.343 (M5 swing low), TP2 at 5684.834 (M5 swing low), and TP3 at 5654.149 (H1 swing low), yielding an exceptional maximum R:R of 18.08.",
     "htf_bias": {
       "key_levels": [
-        4543.15,
-        4546.47
+        5788.865,
+        5725.162
       ],
-      "notes": "HTF (H4/H6/H8) structure is currently bearish with recent BMS events to the downside.",
+      "notes": "H1 and H3 structures are bearish, aligning with the overall bearish trend.",
       "structure": "bearish"
     },
     "ltf_confirmed": false,
@@ -236,81 +247,69 @@
     },
     "mtf_bias": {
       "key_levels": [
-        4523.65,
-        4541.98
+        5724.942,
+        5725.162
       ],
-      "notes": "M15/M5 structure shows bearish CHoCH and BMS, aligning with the HTF bearish trend.",
-      "structure": "choch_bearish"
+      "notes": "M30 structure is bearish with confirmed BMS and ChoCH events.",
+      "structure": "bearish"
     },
-    "pair": "XAUUSD",
+    "pair": "Crash 1000 Index",
     "proceed_to_module_b": "YES",
     "rag_sources": [
       {
         "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
         "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
-        "relevance_score": 1,
-        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
-      },
-      {
-        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
-        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
         "relevance_score": 0.95,
-        "section": "4. Permitted Setup Types"
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
       }
     ],
-    "rr_ratio": 3.4,
-    "session": "NEW_YORK",
+    "rr_ratio": 18.08,
+    "session": "LONDON_NY_OVERLAP",
     "setup_grade": "A",
     "stop_loss": {
       "evidence": [
         {
-          "chunk_id": "c095eb4a-7709-4a7a-ba3f-abeb3f4c7e77",
-          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
-          "section": "SECTION 6 \u2014 RISK MANAGEMENT RULES"
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "section": "6. Risk Management Rules"
         }
       ],
-      "price": 4547.5,
-      "reason": "Placed above the structural Order Block high to avoid stop hunts."
+      "price": 5721.617,
+      "reason": "Placed above the M5 swing high of 5720.758 to ensure structural invalidation safety."
     },
     "take_profits": [
       {
-        "basis": "Nearest structural support level.",
-        "level": 4525.53,
+        "basis": "M5 swing low / equal lows support level",
+        "level": 5705.343,
         "size_pct": 40
       },
       {
-        "basis": "Secondary structural support.",
-        "level": 4515.02,
+        "basis": "M5 swing low / equal lows support level",
+        "level": 5684.834,
         "size_pct": 30
       },
       {
-        "basis": "Major swing low liquidity pool.",
-        "level": 4484.58,
+        "basis": "H1 swing low / major structural support level",
+        "level": 5654.149,
         "size_pct": 30
       }
     ],
-    "timestamp": "2026-05-19T15:00:00Z",
+    "timestamp": "2026-05-21T11:47:00Z",
     "trading_style": "INTRADAY",
     "wyckoff_phase": {
-      "evidence": [
-        {
-          "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
-          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
-          "section": "REFERENCED RAG DOCUMENTS"
-        }
-      ],
-      "phase": "distribution"
+      "evidence": [],
+      "phase": "ranging"
     }
   },
-  "reasoning": "The market is exhibiting a clear bearish trend across HTF (H4-H8) and MTF (M15-M5) timeframes. Price has recently swept liquidity above the 4544.27 level and is currently reacting to a bearish Order Block (4539.69-4544.27). The setup is a QML_KILLER_TYPE1_BEARISH pattern, which is a high-conviction SnD setup. All mandatory confluence factors are met, including HTF alignment, MTF structure, and no high-impact news. The R:R ratio is 3.4, exceeding the intraday requirement of 1:3. We are executing a limit order at the OB zone.",
+  "reasoning": "The market is in a strong bearish trend across H1, M30, M5, and M1. We have identified a high-quality M5 SMC setup: SH+CHOCH+BMS+OB+FVG+SWEPT+RTO. The entry zone is defined by the unmitigated M5 Order Block at 5717.267 - 5718.896, which is nested within the M5 FVG. A structural stop loss is placed at 5721.617, just above the M5 swing high of 5720.758, to protect against stop hunts. Take profit targets are placed at key structural liquidity pools: TP1 at 5705.343 (M5 swing low), TP2 at 5684.834 (M5 swing low), and TP3 at 5654.149 (H1 swing low), yielding an exceptional maximum R:R of 18.08.",
   "rejection_rules": [],
   "risk_percentage": 1,
-  "rr_ratio": 3.4,
-  "session": "NEW_YORK",
+  "rr_ratio": 18.08,
+  "session": "LONDON_NY_OVERLAP",
   "setup_type": "OB",
-  "stop_loss": 4547.5,
-  "symbol": "XAUUSD",
-  "take_profit": 4484.58,
+  "stop_loss": 5721.617,
+  "symbol": "Crash 1000 Index",
+  "take_profit": 5654.149,
   "trade_valid": true,
   "trading_style": "INTRADAY"
 }

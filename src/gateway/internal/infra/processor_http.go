@@ -59,7 +59,7 @@ func (a *HTTPProcessorAdapter) Process(ctx context.Context, input *models.Proces
 		}
 	}
 
-	resp, err := a.engine.PostJSON(ctx, "/internal/processor/process", reqBody)
+	resp, err := a.engine.PostJSONNoRetry(ctx, "/internal/processor/process", reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("processor HTTP call failed: %w", err)
 	}

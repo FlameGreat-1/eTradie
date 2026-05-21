@@ -49,6 +49,8 @@ type RegisterFilledTradeRequest struct {
 	Slippage        float64                `protobuf:"fixed64,22,opt,name=slippage,proto3" json:"slippage,omitempty"`
 	SetupType       string                 `protobuf:"bytes,23,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"`             // "OB", "FVG", "SND_ZONE", "LIQUIDITY_SWEEP", etc.
 	ExecutionMode   string                 `protobuf:"bytes,24,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"` // "LIMIT" or "INSTANT"
+	Point           float64                `protobuf:"fixed64,25,opt,name=point,proto3" json:"point,omitempty"`
+	Digits          int32                  `protobuf:"varint,26,opt,name=digits,proto3" json:"digits,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -249,6 +251,20 @@ func (x *RegisterFilledTradeRequest) GetExecutionMode() string {
 		return x.ExecutionMode
 	}
 	return ""
+}
+
+func (x *RegisterFilledTradeRequest) GetPoint() float64 {
+	if x != nil {
+		return x.Point
+	}
+	return 0
+}
+
+func (x *RegisterFilledTradeRequest) GetDigits() int32 {
+	if x != nil {
+		return x.Digits
+	}
+	return 0
 }
 
 type RegisterFilledTradeResponse struct {
@@ -1426,7 +1442,7 @@ var File_management_v1_management_proto protoreflect.FileDescriptor
 
 const file_management_v1_management_proto_rawDesc = "" +
 	"\n" +
-	"\x1emanagement/v1/management.proto\x12\rmanagement.v1\"\xf0\x05\n" +
+	"\x1emanagement/v1/management.proto\x12\rmanagement.v1\"\x9e\x06\n" +
 	"\x1aRegisterFilledTradeRequest\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1c\n" +
 	"\tdirection\x18\x02 \x01(\tR\tdirection\x12&\n" +
@@ -1456,7 +1472,9 @@ const file_management_v1_management_proto_rawDesc = "" +
 	"\bslippage\x18\x16 \x01(\x01R\bslippage\x12\x1d\n" +
 	"\n" +
 	"setup_type\x18\x17 \x01(\tR\tsetupType\x12%\n" +
-	"\x0eexecution_mode\x18\x18 \x01(\tR\rexecutionMode\"l\n" +
+	"\x0eexecution_mode\x18\x18 \x01(\tR\rexecutionMode\x12\x14\n" +
+	"\x05point\x18\x19 \x01(\x01R\x05point\x12\x16\n" +
+	"\x06digits\x18\x1a \x01(\x05R\x06digits\"l\n" +
 	"\x1bRegisterFilledTradeResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x19\n" +
 	"\btrade_id\x18\x02 \x01(\tR\atradeId\x12\x18\n" +

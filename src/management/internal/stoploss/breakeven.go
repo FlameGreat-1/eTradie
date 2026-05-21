@@ -53,9 +53,33 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	openedAt := trade.OpenedAt
 	initialSL := trade.InitialSL
 	userID := trade.UserID
+	tradePoint := trade.Point // Read broker point
+	if tradePoint <= 0 {
+		tradePoint = 0.0001 // Fallback
+	}
 	trade.RUnlock()
 
 	triggered := false
+
+	// If TP1 is exactly 0.0 (e.g. manual trade with no TP), we must synthesize a target
+	// to avoid instant triggering. A standard conservative move is 1:1 against the InitialSL,
+	// or simply a fixed point threshold if InitialSL is also 0.0.
+	if tp1Price == 0.0 {
+		if initialSL > 0.0 {
+			if isLong {
+				tp1Price = entryPrice + (entryPrice - initialSL)
+			} else {
+				tp1Price = entryPrice - (initialSL - entryPrice)
+			}
+		} else {
+			// No SL and no TP. Default to a 500 point move.
+			if isLong {
+				tp1Price = entryPrice + 500*tradePoint
+			} else {
+				tp1Price = entryPrice - 500*tradePoint
+			}
+		}
+	}
 
 	switch style {
 	case constants.StyleScalping:
@@ -106,9 +130,9 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	bufferPips := constants.SpreadBufferPips
 	newSL := entryPrice
 	if isLong {
-		newSL = entryPrice + bufferPips*0.0001 // Approximation; real pip size comes from instrument info.
+		newSL = entryPrice + bufferPips*(tradePoint*10) // 1 pip = 10 points
 	} else {
-		newSL = entryPrice - bufferPips*0.0001
+		newSL = entryPrice - bufferPips*(tradePoint*10)
 	}
 
 	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {

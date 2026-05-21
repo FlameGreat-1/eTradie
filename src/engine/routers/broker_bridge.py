@@ -407,6 +407,8 @@ async def broker_position(
             "tp": p.take_profit,
             "volume": p.volume,
             "profit": p.profit,
+            "commission": p.commission,
+            "swap": p.swap,
             "ticket": int(p.ticket) if p.ticket.isdigit() else 0,
         }
     except Exception as exc:

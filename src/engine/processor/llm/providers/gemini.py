@@ -115,19 +115,53 @@ class GeminiClient(LLMClient):
         model = self._config.model_name
         
         try:
-            response_stream = await self._client.aio.models.generate_content_stream(
-                model=model,
-                contents=user_message,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=self._config.temperature,
-                    max_output_tokens=self._config.max_output_tokens,
-                ),
-            )
-            async for chunk in response_stream:
+            import asyncio
+            import threading
+            
+            queue = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+            
+            def _sync_worker():
+                try:
+                    stream = self._client.models.generate_content_stream(
+                        model=model,
+                        contents=user_message,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=self._config.temperature,
+                            max_output_tokens=self._config.max_output_tokens,
+                        ),
+                    )
+                    for c in stream:
+                        loop.call_soon_threadsafe(queue.put_nowait, c)
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
+                except Exception as e:
+                    loop.call_soon_threadsafe(queue.put_nowait, e)
+                    
+            threading.Thread(target=_sync_worker, daemon=True).start()
+            
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break
+                if isinstance(chunk, Exception):
+                    raise chunk
+                    
                 if usage_out is not None and chunk.usage_metadata:
                     usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
                     usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
+                # Capture the finish_reason from every chunk. The final
+                # chunk carries the authoritative reason (STOP, MAX_TOKENS,
+                # SAFETY, RECITATION, OTHER). Earlier chunks typically
+                # have None or STOP. We always overwrite so the last
+                # value wins.
+                if usage_out is not None and chunk.candidates:
+                    try:
+                        fr = chunk.candidates[0].finish_reason
+                        if fr is not None:
+                            usage_out["finish_reason"] = fr.name if hasattr(fr, "name") else str(fr)
+                    except (IndexError, AttributeError):
+                        pass
                 if chunk.text:
                     yield chunk.text
         except Exception as exc:

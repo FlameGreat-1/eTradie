@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useManagedTrades, usePerformanceMetrics } from '@/features/journal/api/journal';
 import { useExecutionState, useCancelOrder } from '@/features/execution/api/brokerAccount';
 import { useRealtime } from '@/features/realtime';
-import { formatCurrency, formatPercentage, formatVolume } from '@/utils/formatters';
+import { formatCurrency, formatPercentage, formatVolume, formatAssetPrice } from '@/utils/formatters';
 import { Activity, Zap, TrendingUp, BarChart3 } from 'lucide-react';
 
 interface ManagedTrade {
@@ -149,13 +149,13 @@ export default function TradesPage() {
                     <Td>
                       <DirectionPill dir={t.direction} />
                     </Td>
-                    <Td align="right">{formatCurrency(Number(t.entry_price))}</Td>
-                    <Td align="right">{formatCurrency(Number(t.current_price))}</Td>
+                    <Td align="right">{formatAssetPrice(t.symbol, Number(t.entry_price))}</Td>
+                    <Td align="right">{formatAssetPrice(t.symbol, Number(t.current_price))}</Td>
                     <Td align="right" className="text-content-muted">
-                      {formatCurrency(Number(t.stop_loss))}
+                      {t.stop_loss > 0 ? formatAssetPrice(t.symbol, Number(t.stop_loss)) : '—'}
                     </Td>
                     <Td align="right" className="text-content-muted">
-                      {t.tp1_price > 0 ? formatCurrency(Number(t.tp1_price)) : '—'}
+                      {t.tp1_price > 0 ? formatAssetPrice(t.symbol, Number(t.tp1_price)) : '—'}
                     </Td>
                     <Td align="right" className="text-content-muted">
                       {formatVolume(Number(t.remaining_lot_size))}
@@ -206,12 +206,12 @@ export default function TradesPage() {
                 <DirectionPill dir={t.direction} />
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2 text-[11px]">
-                <Field label="Entry" value={formatCurrency(Number(t.entry_price))} />
-                <Field label="Current" value={formatCurrency(Number(t.current_price))} />
-                <Field label="SL" value={formatCurrency(Number(t.stop_loss))} />
+                <Field label="Entry" value={formatAssetPrice(t.symbol, Number(t.entry_price))} />
+                <Field label="Current" value={formatAssetPrice(t.symbol, Number(t.current_price))} />
+                <Field label="SL" value={t.stop_loss > 0 ? formatAssetPrice(t.symbol, Number(t.stop_loss)) : '—'} />
                 <Field
                   label="TP1"
-                  value={t.tp1_price > 0 ? formatCurrency(Number(t.tp1_price)) : '—'}
+                  value={t.tp1_price > 0 ? formatAssetPrice(t.symbol, Number(t.tp1_price)) : '—'}
                 />
                 <Field
                   label="Lot"
@@ -275,12 +275,12 @@ export default function TradesPage() {
                     <Td>
                       <DirectionPill dir={o.direction || ''} />
                     </Td>
-                    <Td align="right">{formatCurrency(Number(o.price ?? 0))}</Td>
+                    <Td align="right">{formatAssetPrice(o.symbol, Number(o.price ?? 0))}</Td>
                     <Td align="right" className="text-content-muted">
-                      {o.sl ? formatCurrency(Number(o.sl)) : '—'}
+                      {o.sl ? formatAssetPrice(o.symbol, Number(o.sl)) : '—'}
                     </Td>
                     <Td align="right" className="text-content-muted">
-                      {o.tp ? formatCurrency(Number(o.tp)) : '—'}
+                      {o.tp ? formatAssetPrice(o.symbol, Number(o.tp)) : '—'}
                     </Td>
                     <Td align="right">{o.volume ? formatVolume(Number(o.volume)) : '—'}</Td>
                     <Td align="center">
@@ -318,10 +318,10 @@ export default function TradesPage() {
                 <DirectionPill dir={o.direction || ''} />
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2 text-[11px]">
-                <Field label="Price" value={formatCurrency(Number(o.price ?? 0))} />
+                <Field label="Price" value={formatAssetPrice(o.symbol, Number(o.price ?? 0))} />
                 <Field label="Volume" value={o.volume ? formatVolume(Number(o.volume)) : '—'} />
-                <Field label="SL" value={o.sl ? formatCurrency(Number(o.sl)) : '—'} />
-                <Field label="TP" value={o.tp ? formatCurrency(Number(o.tp)) : '—'} />
+                <Field label="SL" value={o.sl ? formatAssetPrice(o.symbol, Number(o.sl)) : '—'} />
+                <Field label="TP" value={o.tp ? formatAssetPrice(o.symbol, Number(o.tp)) : '—'} />
               </div>
               <div className="mt-3 flex justify-end">
                 <button

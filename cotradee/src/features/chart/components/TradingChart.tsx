@@ -312,6 +312,37 @@ function TradingChartInner({
     return () => observer.disconnect();
   }, [applyPalette]);
 
+  /* 2b. Dynamic price precision configuration from symbol metadata. */
+  useEffect(() => {
+    if (!seriesRef.current || !chartReady) return;
+    const meta = symbolMeta?.[symbol];
+    
+    const upper = symbol.toUpperCase();
+    let precision = 5;
+    if (meta && meta.digits > 0) {
+      precision = meta.digits;
+    } else if (upper.includes('JPY') || /^X(AU|AG|PT|PD)/.test(upper) || /US30|NAS|SPX|GER|UK/i.test(upper)) {
+      precision = 2;
+    } else if (/VOLATILITY|V75|V10|V25|V50|V100|BOOM|CRASH|STEP|JUMP|RANGE|DEX/i.test(upper)) {
+      precision = meta?.digits ?? 2;
+    }
+
+    const minMove = meta?.point ?? (precision === 2 ? 0.01 : 0.00001);
+
+    try {
+      seriesRef.current.applyOptions({
+        priceFormat: {
+          type: 'price',
+          precision: precision,
+          minMove: minMove,
+        },
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to apply priceFormat to chart series:', err);
+    }
+  }, [symbol, symbolMeta, chartReady]);
+
   /* 3. Load historical candles.
      With React-Query's keepPreviousData (see useChartCandles) the
      `candleData` prop will briefly point at the previous symbol /

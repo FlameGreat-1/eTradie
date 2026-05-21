@@ -59,6 +59,8 @@ message RegisterFilledTradeRequest {
   double slippage = 22;
   string setup_type = 23;            // "OB", "FVG", "SND_ZONE", "LIQUIDITY_SWEEP", etc.
   string execution_mode = 24;        // "LIMIT" or "INSTANT"
+  double point = 25;
+  int32 digits = 26;
 }
 
 message RegisterFilledTradeResponse {

@@ -86,6 +86,8 @@ func (s *Stream) GetPosition(ctx context.Context, ticket string) (*PositionInfo,
 		TP           float64 `json:"tp"`
 		Volume       float64 `json:"volume"`
 		Profit       float64 `json:"profit"`
+		Commission   float64 `json:"commission"`
+		Swap         float64 `json:"swap"`
 		Ticket       int64   `json:"ticket"`
 	}
 
@@ -107,6 +109,8 @@ func (s *Stream) GetPosition(ctx context.Context, ticket string) (*PositionInfo,
 		TakeProfit:   resp.TP,
 		Volume:       resp.Volume,
 		Profit:       resp.Profit,
+		Commission:   resp.Commission,
+		Swap:         resp.Swap,
 		Ticket:       fmt.Sprintf("%d", resp.Ticket),
 	}, nil
 }

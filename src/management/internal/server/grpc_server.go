@@ -154,6 +154,8 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 	trade := &types.Trade{
 		TradeID:          tradeID,
 		Symbol:           req.GetSymbol(),
+		Point:            req.GetPoint(),
+		Digits:           int(req.GetDigits()),
 		Direction:        constants.Direction(req.GetDirection()),
 		BrokerOrderID:    req.GetBrokerOrderId(),
 		AnalysisID:       req.GetAnalysisId(),

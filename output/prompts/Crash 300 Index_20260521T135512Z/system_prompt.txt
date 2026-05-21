@@ -1,98 +1,4 @@
-"""System prompt and user message construction.
-
-Builds the complete prompt pair sent to Claude. The system prompt
-defines the LLM's role, constraints, output schema, and hallucination
-prevention rules. The user message contains the gateway-assembled
-context payload (TA + Macro + RAG) serialized as JSON.
-
-The gateway already structures ProcessorInput with ta_analysis,
-macro_analysis, and retrieved_knowledge dicts. This module does NOT
-re-format that data. It wraps it in the prompt envelope.
-"""
-
-from __future__ import annotations
-
-import hashlib
-from typing import Any, Optional
-
-import orjson
-
-from engine.processor.models.io import ProcessorInput
-
-_OUTPUT_SCHEMA = """{
-  "analysis_id": "<unique string>",
-  "pair": "<SYMBOL>",
-  "timestamp": "<ISO 8601 UTC>",
-  "trading_style": "<SCALPING|INTRADAY|SWING|POSITIONAL>",
-  "session": "<LONDON_OPEN|LONDON_NY_OVERLAP|NEW_YORK|ASIAN>",
-
-  "macro_bias": {
-    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
-    "quote_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [...]}
-  },
-
-  "dxy_bias": {
-    "direction": "<BULLISH|BEARISH|NEUTRAL>",
-    "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "..."}]
-  },
-
-  "cot_signal": {
-    "summary": "<description of net speculative positioning>",
-    "week_over_week": "<increase|decrease|flat|null>",
-    "extreme_flag": false,
-    "evidence": [...]
-  },
-
-  "event_risk": [
-    {"event": "<name>", "time": "<ISO 8601>", "impact": "HIGH", "currency": "<CCY>"}
-  ],
-
-  "htf_bias": {"structure": "<bullish|bearish|neutral>", "key_levels": [1.2345], "notes": "..."},
-  "mtf_bias": {"structure": "<bullish|bearish|choch_bullish|choch_bearish|neutral>", "key_levels": [...], "notes": "..."},
-  "entry_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "...", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
-
-  "wyckoff_phase": {"phase": "<accumulation|markup|distribution|markdown|spring|upthrust|ranging>", "evidence": [...]},
-
-  "confluence_score": {
-    "score": 0.0,
-    "factors": [
-      {"name": "<factor name>", "present": true, "value": 1.0, "notes": "..."}
-    ]
-  },
-
-  "setup_grade": "<A+|A|B|REJECT>",
-  "direction": "<LONG|SHORT|NO SETUP>",
-
-  "entry_zone": {"low": null, "high": null},
-  "stop_loss": {"price": null, "reason": "...", "evidence": [...]},
-  "take_profits": [
-    {"level": null, "size_pct": 40, "basis": "..."},
-    {"level": null, "size_pct": 30, "basis": "..."},
-    {"level": null, "size_pct": 30, "basis": "..."}
-  ],
-  "rr_ratio": null,
-
-  "confidence": "<HIGH|MEDIUM|LOW|NO SETUP>",
-  "proceed_to_module_b": "<YES|NO>",
-  "execution_mode": "<LIMIT|INSTANT|null>",
-  "ltf_confirmed": false,
-  "explainable_reasoning": "<human-readable reasoning summary>",
-
-  "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
-
-  "audit": {
-    "retrieval": {
-      "query_summary": "...",
-      "strategy_used": "...",
-      "top_k": 8,
-      "chunks_returned": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.9}]
-    },
-    "citations": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.85}]
-  }
-}"""
-
-_SYSTEM_PROMPT = (
-    """You are the Analysis Processor for an AI-powered trading system. You are the ultimate judge.
+You are the Analysis Processor for an AI-powered trading system. You are the ultimate judge.
 
 You are trading the LIVE MARKET. Your sole function is to deeply and thoroughly examine EVERY piece of provided data — technical analysis snapshots, SMC/SnD candidates, macroeconomic analysis, retrieved knowledge base rules, and metadata — then produce a single structured JSON trade analysis.
 
@@ -355,112 +261,74 @@ AUTHORITY MODEL (READ CAREFULLY):
 6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
 
 OUTPUT JSON SCHEMA:
-"""
-    + _OUTPUT_SCHEMA
-)
+{
+  "analysis_id": "<unique string>",
+  "pair": "<SYMBOL>",
+  "timestamp": "<ISO 8601 UTC>",
+  "trading_style": "<SCALPING|INTRADAY|SWING|POSITIONAL>",
+  "session": "<LONDON_OPEN|LONDON_NY_OVERLAP|NEW_YORK|ASIAN>",
 
+  "macro_bias": {
+    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
+    "quote_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [...]}
+  },
 
-def build_system_prompt() -> str:
-    """Return the complete system prompt."""
-    return _SYSTEM_PROMPT
+  "dxy_bias": {
+    "direction": "<BULLISH|BEARISH|NEUTRAL>",
+    "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "..."}]
+  },
 
+  "cot_signal": {
+    "summary": "<description of net speculative positioning>",
+    "week_over_week": "<increase|decrease|flat|null>",
+    "extreme_flag": false,
+    "evidence": [...]
+  },
 
-def build_user_message(
-    context: ProcessorInput,
-    *,
-    user_operating_system: Optional[dict[str, Any]] = None,
-) -> str:
-    """Serialize the gateway-assembled context as the user message.
+  "event_risk": [
+    {"event": "<name>", "time": "<ISO 8601>", "impact": "HIGH", "currency": "<CCY>"}
+  ],
 
-    The ProcessorInput already contains the fully structured
-    ta_analysis, macro_analysis, and retrieved_knowledge dicts
-    assembled by the gateway's ContextAssembler. This function
-    serializes them into the JSON payload the LLM receives.
+  "htf_bias": {"structure": "<bullish|bearish|neutral>", "key_levels": [1.2345], "notes": "..."},
+  "mtf_bias": {"structure": "<bullish|bearish|choch_bullish|choch_bearish|neutral>", "key_levels": [...], "notes": "..."},
+  "entry_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "...", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
 
-    user_operating_system (when provided) is the COMPRESSED, NORMALISED
-    Layer-2 personalization block built by
-    engine.processor.user_os.context_builder.build_user_operating_context.
-    It is passed through unchanged because the builder is the single
-    source of truth for prompt-safe formatting.
-    """
-    # Strip out massive vector database metadata (scores, rankings, hashes)
-    # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
-    clean_rag = {}
-    if context.retrieved_knowledge:
-        clean_rag["strategy_used"] = context.retrieved_knowledge.get("strategy_used")
-        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", [])
-        
-        clean_rag["retrieved_chunks"] = [
-            {
-                "chunk_id": c.get("chunk_id"),
-                "document_id": c.get("document_id"),
-                "doc_type": c.get("doc_type") or c.get("metadata", {}).get("doc_type"),
-                "section": c.get("section") or c.get("metadata", {}).get("section"),
-                "content": c.get("content"),
-            }
-            for c in raw_chunks
-        ]
+  "wyckoff_phase": {"phase": "<accumulation|markup|distribution|markdown|spring|upthrust|ranging>", "evidence": [...]},
 
-    # Fields that are always stripped (DB/internal metadata)
-    _STRIP_KEYS = {
-        "id", "created_at", "snapshot_at", "collected_at",
-        "sources", "assessed_at", "source_url", "summary",
-    }
+  "confluence_score": {
+    "score": 0.0,
+    "factors": [
+      {"name": "<factor name>", "present": true, "value": 1.0, "notes": "..."}
+    ]
+  },
 
-    # Values that carry zero information for the LLM
-    _EMPTY_VALUES = {
-        None, "", "NONE", "NEUTRAL", "INLINE", "UNKNOWN",
-    }
+  "setup_grade": "<A+|A|B|REJECT>",
+  "direction": "<LONG|SHORT|NO SETUP>",
 
-    def _clean_dict(d: Any) -> Any:
-        """Recursively strip nulls, empties, defaults, and db metadata."""
-        if isinstance(d, dict):
-            cleaned = {}
-            for k, v in d.items():
-                if k in _STRIP_KEYS:
-                    continue
-                v_clean = _clean_dict(v)
-                # Drop None, empty string, empty list, empty dict
-                if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
-                    continue
-                # Drop known zero-information string defaults
-                if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
-                    continue
-                # Drop zero counts/scores that add no signal
-                if isinstance(v_clean, (int, float)) and v_clean == 0 and k in (
-                    "dovish_count", "hawkish_count", "wow_change",
-                    "leveraged_long", "leveraged_short", "leveraged_net",
-                    "asset_manager_long", "asset_manager_short", "asset_manager_net",
-                ):
-                    continue
-                cleaned[k] = v_clean
-            return cleaned
-        elif isinstance(d, list):
-            cleaned = [_clean_dict(item) for item in d]
-            return [item for item in cleaned if item is not None and item != "" and item != [] and item != {}]
-        else:
-            return d
+  "entry_zone": {"low": null, "high": null},
+  "stop_loss": {"price": null, "reason": "...", "evidence": [...]},
+  "take_profits": [
+    {"level": null, "size_pct": 40, "basis": "..."},
+    {"level": null, "size_pct": 30, "basis": "..."},
+    {"level": null, "size_pct": 30, "basis": "..."}
+  ],
+  "rr_ratio": null,
 
-    clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
-    clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
+  "confidence": "<HIGH|MEDIUM|LOW|NO SETUP>",
+  "proceed_to_module_b": "<YES|NO>",
+  "execution_mode": "<LIMIT|INSTANT|null>",
+  "ltf_confirmed": false,
+  "explainable_reasoning": "<human-readable reasoning summary>",
 
-    payload: dict[str, Any] = {
-        "symbol": context.symbol,
-        "ta_analysis": clean_ta,
-        "macro_analysis": clean_macro,
-        "retrieved_knowledge": clean_rag,
-        "metadata": context.metadata,
-    }
-    if user_operating_system:
-        payload["user_operating_system"] = user_operating_system
-    return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
+  "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
 
-
-def compute_prompt_hash(system_prompt: str, user_message: str) -> str:
-    """Compute a SHA-256 hash of the prompt pair for audit logging.
-
-    Stores a deterministic reference to the exact prompt sent
-    without persisting the full prompt text.
-    """
-    combined = f"{system_prompt}\n---\n{user_message}"
-    return hashlib.sha256(combined.encode()).hexdigest()[:32]
+  "audit": {
+    "retrieval": {
+      "query_summary": "...",
+      "strategy_used": "...",
+      "top_k": 8,
+      "chunks_returned": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.9}]
+    },
+    "citations": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.85}]
+  }
+}

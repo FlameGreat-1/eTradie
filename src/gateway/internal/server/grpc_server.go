@@ -252,6 +252,27 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 		return &gatewayv1.NotifyExecutionCompletedResponse{Success: true}, nil
 	}
 
+	// Best-effort: fetch symbol metadata (point size, digits) from the
+	// engine's broker bridge. The Management service needs these for
+	// dynamic pip calculations (breakeven buffer, trailing stop). If
+	// the call fails, Management falls back to a safe default (0.0001).
+	var symbolPoint float64
+	var symbolDigits int32
+	symbolInfoPath := fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", req.GetSymbol())
+	if symbolInfo, err := s.engine.GetJSON(ctx, symbolInfoPath); err == nil {
+		if p, ok := symbolInfo["point"].(float64); ok {
+			symbolPoint = p
+		}
+		if d, ok := symbolInfo["digits"].(float64); ok {
+			symbolDigits = int32(d)
+		}
+	} else {
+		s.log.Warn().
+			Err(err).
+			Str("symbol", req.GetSymbol()).
+			Msg("symbol_info_fetch_failed_using_defaults")
+	}
+
 	mgmtReq := &managementv1.RegisterFilledTradeRequest{
 		Symbol:          req.GetSymbol(),
 		Direction:       req.GetDirection(),
@@ -277,6 +298,8 @@ func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv
 		Slippage:        req.GetSlippage(),
 		AnalysisId:      req.GetAnalysisId(),
 		TraceId:         req.GetTraceId(),
+		Point:           symbolPoint,
+		Digits:          symbolDigits,
 	}
 
 	tradeID, err := s.mgmtClient.RegisterFilledTrade(ctx, mgmtReq)

@@ -283,6 +283,19 @@ class AnalysisProcessor(ProcessorPort):
         )
         prompt_hash = compute_prompt_hash(system_prompt, user_message)
 
+        # Dump exact LLM payload to /output/prompts for debugging
+        try:
+            from pathlib import Path
+            from datetime import datetime as dt, timezone
+            ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            prompts_dir = Path("/output/prompts") / f"{symbol}_{ts}"
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+            (prompts_dir / "system_prompt.txt").write_text(system_prompt, encoding="utf-8")
+            (prompts_dir / "user_message.txt").write_text(user_message, encoding="utf-8")
+            logger.info("prompt_payload_saved", extra={"directory": str(prompts_dir), "symbol": symbol, "trace_id": trace_id})
+        except Exception as exc:
+            logger.error("failed_to_save_prompt_payload", extra={"error": str(exc), "symbol": symbol, "trace_id": trace_id})
+
         if user_os_context is not None:
             logger.info(
                 "user_os_injected",
@@ -407,6 +420,7 @@ class AnalysisProcessor(ProcessorPort):
                     },
                 )
 
+            actual_finish_reason = usage_dict.get("finish_reason", "STOP")
             return LLMResponse(
                 text=full_text,
                 model=self._config.model_name,
@@ -414,7 +428,7 @@ class AnalysisProcessor(ProcessorPort):
                 input_tokens=usage_dict.get("input_tokens", 0),
                 output_tokens=usage_dict.get("output_tokens", output_tokens),
                 duration_ms=(time.monotonic() - start_llm) * 1000,
-                stop_reason="stop",
+                stop_reason=actual_finish_reason,
             )
 
         try:
@@ -431,6 +445,61 @@ class AnalysisProcessor(ProcessorPort):
             # the refund call itself fails.
             await metering.refund(reservation_id=reservation_id)
             raise
+
+        # Step 4b: Detect LLM output truncation BEFORE parsing.
+        # Gemini's finish_reason tells us exactly why it stopped
+        # generating. If it's anything other than STOP, the JSON is
+        # guaranteed to be incomplete. Surface the real reason instead
+        # of letting the parser crash with a confusing "unexpected end
+        # of data" error.
+        finish_reason = llm_response.stop_reason or "STOP"
+        if finish_reason not in ("STOP", "stop"):
+            # Dump the truncated response for debugging
+            try:
+                from pathlib import Path
+                from datetime import datetime as dt, timezone
+                ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                dump_dir = Path("/output/prompts") / f"truncated_{symbol}_{ts}"
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                (dump_dir / "truncated_response.txt").write_text(
+                    llm_response.text, encoding="utf-8"
+                )
+                (dump_dir / "metadata.txt").write_text(
+                    f"finish_reason: {finish_reason}\n"
+                    f"output_tokens: {llm_response.output_tokens}\n"
+                    f"input_tokens: {llm_response.input_tokens}\n"
+                    f"duration_ms: {llm_response.duration_ms}\n"
+                    f"model: {llm_response.model}\n"
+                    f"max_output_tokens: {self._config.max_output_tokens}\n",
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+
+            logger.error(
+                "llm_output_truncated",
+                extra={
+                    "symbol": symbol,
+                    "finish_reason": finish_reason,
+                    "output_tokens": llm_response.output_tokens,
+                    "max_output_tokens": self._config.max_output_tokens,
+                    "response_length": len(llm_response.text),
+                    "trace_id": trace_id,
+                },
+            )
+            raise ProcessorError(
+                f"LLM output was truncated (finish_reason={finish_reason}). "
+                f"The model generated {llm_response.output_tokens} tokens "
+                f"out of {self._config.max_output_tokens} allowed before "
+                f"the provider terminated the response. This is NOT a "
+                f"parsing error — the LLM provider stopped generating.",
+                details={
+                    "symbol": symbol,
+                    "finish_reason": finish_reason,
+                    "output_tokens": llm_response.output_tokens,
+                    "trace_id": trace_id,
+                },
+            )
 
         # Step 5: Commit the real token counts. The over-reservation on
         # the output side (max_output - actual_output) is returned to
@@ -453,11 +522,25 @@ class AnalysisProcessor(ProcessorPort):
             )
 
         # Step 6: Parse response into AnalysisOutput.
-        analysis_output, validation_warnings = parse_llm_response(
-            llm_response.text,
-            require_citations=self._config.require_citations,
-            trace_id=trace_id,
-        )
+        try:
+            analysis_output, validation_warnings = parse_llm_response(
+                llm_response.text,
+                require_citations=self._config.require_citations,
+                trace_id=trace_id,
+            )
+        except Exception as parse_exc:
+            # Dump the truncated response to see exactly what Gemini returned
+            try:
+                from pathlib import Path
+                from datetime import datetime as dt, timezone
+                ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                dump_dir = Path("/output/prompts") / f"failed_{symbol}_{ts}"
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                (dump_dir / "truncated_response.txt").write_text(llm_response.text, encoding="utf-8")
+                logger.error("dumped_truncated_response", extra={"directory": str(dump_dir)})
+            except Exception:
+                pass
+            raise parse_exc
 
         # Override the LLM's `pair` with the authoritative input symbol.
         # The LLM is non-deterministic with casing (e.g. "BOOM 500 INDEX"
