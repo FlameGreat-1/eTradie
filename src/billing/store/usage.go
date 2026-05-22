@@ -260,13 +260,20 @@ func (s *UsageStore) ReserveLLMTokens(
 	}
 
 	// Pre-Reserve policy gates that do not require a DB round-trip.
+	//
+	// tier_not_eligible is a distinct dimension from the daily / monthly
+	// cap dimensions because the operational meaning differs: the user
+	// has not used anything; their tier just does not include managed
+	// LLM access. The SPA renders a different CTA for this case
+	// ("Add your own API key" / "Upgrade to Pro Managed") than for a
+	// real cap breach ("Daily quota reached, resets at ...").
 	if !policy.HasLLMAccess() {
 		return "", &QuotaExceededError{
-			Dimension: "daily_input",
+			Dimension: "tier_not_eligible",
 			Limit:     0,
 			Used:      0,
 			Requested: estimatedInput,
-			ResetsAt:  nextDailyReset(time.Now().UTC()),
+			ResetsAt:  time.Now().UTC(),
 		}
 	}
 	if !policy.ModelAllowed(model) {
