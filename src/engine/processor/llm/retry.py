@@ -1,8 +1,20 @@
 """Exponential backoff + jitter retry logic for LLM API calls.
 
-Classifies errors as retryable (transient network, rate limit,
-server errors) vs non-retryable (auth, invalid request, content
-filtering). Respects retry budgets and max delay caps.
+Classifies errors as retryable (genuinely transient: network glitches,
+5xx infra blips, connect/read timeouts) vs non-retryable (auth, invalid
+request, content filtering, rate-limit, quota-exhausted, provider
+overload).
+
+Rate-limit (429), provider-overload (503 / 529), and quota-exhausted
+are deliberately NOT retried inside the same process() call. Those
+failure modes do not recover in the seconds an exponential-backoff
+retry waits -- provider Retry-After windows on these are typically
+minutes. Retrying inside the same call hammers the same rate-limited
+endpoint with the same heavy prompt, doubles or triples the token
+spend, and blows the user-facing trigger latency budget. The correct
+recovery path is the gateway-level cycle retry (or the next scheduled
+cycle, or a manual user retrigger) once the rate-limit window has
+reset.
 
 Provider-agnostic: reads the active provider from config for metrics.
 """
@@ -26,13 +38,19 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
+# Genuinely transient infra failures. 429 (rate-limit), 503 (overload),
+# 529 (Anthropic overload) are deliberately excluded -- see module
+# docstring.
+_RETRYABLE_STATUS_CODES = {500, 502, 504}
 
 _NON_RETRYABLE_ERROR_TYPES = {
     "AuthenticationError",
     "PermissionDeniedError",
     "BadRequestError",
     "NotFoundError",
+    # RateLimitError is non-retryable inside the same call. The retry
+    # loop cannot resolve a rate-limit; only wall-clock progress can.
+    "RateLimitError",
 }
 
 
@@ -41,12 +59,21 @@ def _is_retryable(exc: Exception) -> bool:
 
     Typed-error path first: the providers translate their SDK
     exceptions to ``LLMRateLimitedError`` / ``LLMTransientError``
-    inside the provider modules, so this classifier matches on the
-    typed class hierarchy before falling back to the legacy
-    string-based class-name + status_code probe used by callers
-    that bypass the typed translation (defense in depth).
+    inside the provider modules.
+
+      * ``LLMRateLimitedError`` -- NOT retryable. Rate limits and
+        quota exhaustion do not recover in the seconds an
+        exponential-backoff retry waits.
+      * ``LLMTransientError`` -- retryable. Each provider's
+        ``_translate_provider_error`` only buckets genuine transient
+        signals (timeout / connection / 5xx) into this class.
+
+    Legacy fallback (string-based class-name + status_code probe) is
+    retained for callers that bypass the typed translation.
     """
-    if isinstance(exc, (LLMRateLimitedError, LLMTransientError)):
+    if isinstance(exc, LLMRateLimitedError):
+        return False
+    if isinstance(exc, LLMTransientError):
         return True
 
     if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
@@ -60,13 +87,27 @@ def _is_retryable(exc: Exception) -> bool:
     if hasattr(exc, "status_code"):
         return exc.status_code in _RETRYABLE_STATUS_CODES
 
-    # String-based fallback for transient network/timeout issues
+    # String-based fallback for transient network/timeout issues.
+    # Note: an explicit "rate limit" / "429" / "resource_exhausted"
+    # substring is matched FIRST and excluded so a provider whose SDK
+    # class name does not appear in _NON_RETRYABLE_ERROR_TYPES still
+    # falls into the non-retryable bucket.
     msg = str(exc).lower()
+    if (
+        "rate limit" in msg
+        or "ratelimit" in msg
+        or "429" in msg
+        or "resource_exhausted" in msg
+        or "insufficient_quota" in msg
+        or "overloaded" in msg
+        or "503" in msg
+        or "529" in msg
+    ):
+        return False
     if "timeout" in msg or "connection" in msg:
         return True
 
     if error_type in (
-        "RateLimitError",
         "InternalServerError",
         "APIConnectionError",
         "APITimeoutError",

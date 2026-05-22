@@ -83,7 +83,7 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
         {(entryPrice || stopLoss || tp1) && (
           <section>
             <SectionTitle>Price Levels</SectionTitle>
-            <div className="rounded-2xl border border-border bg-black divide-y divide-border overflow-hidden">
+            <div className="rounded-2xl border border-border bg-surface-2 divide-y divide-border overflow-hidden">
               {entryPrice != null && (
                 <PriceRow icon={<Crosshair size={14} className="text-brand" />} label="Entry Price" value={entryPrice} />
               )}
@@ -107,7 +107,7 @@ export default function AnalysisDetailModal({ analysisId, onClose }: Props) {
         {reasoning && (
           <section>
             <SectionTitle>AI Reasoning</SectionTitle>
-            <div className="rounded-2xl border border-border bg-black p-5 text-[13px] font-medium text-content-secondary leading-relaxed whitespace-pre-wrap border-l-4 border-l-brand/50">
+            <div className="rounded-2xl border border-border bg-surface-2 p-5 text-[13px] font-medium text-content-secondary leading-relaxed whitespace-pre-wrap border-l-4 border-l-brand/50">
               {reasoning}
             </div>
           </section>
@@ -148,7 +148,7 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-black rounded-[2rem] border border-border p-8 shadow-2xl animate-fade-in ring-1 ring-white/5">
+      <div className="relative w-full max-w-2xl bg-surface-elevated rounded-[2rem] border border-border p-8 shadow-2xl animate-fade-in">
         {children}
       </div>
     </div>
