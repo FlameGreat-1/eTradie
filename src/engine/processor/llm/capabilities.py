@@ -73,11 +73,27 @@ _PROVIDER_SUPPORTS_STRUCTURED_OUTPUT: dict[str, bool] = {
 }
 
 _GROUP_DEFAULT_REASONING_BUDGET: dict[str, Optional[int]] = {
-    # Heavy-reasoning groups: cap thinking at ~50% of a 16k
-    # max_output_tokens so visible output has the other 50%. The
-    # operator can override via ProcessorConfig.reasoning_budget_tokens.
-    "thinking": 8192,
-    "pro": 8192,
+    # Heavy-reasoning groups: capability-driven fallback used when the
+    # operator has NOT set ProcessorConfig.reasoning_budget_tokens.
+    # 12288 matches the operator default in config.py so both layers
+    # agree on one number, and it sits at the OpenAI o-series
+    # reasoning_effort='medium' boundary (<=12288 -> medium,
+    # >12288 -> high) per reasoning.py's ordinal translator. A caller
+    # that bypasses the operator default still gets 'medium' on
+    # o-series, not 'high' -- preserves intent across both layers.
+    #
+    # The current max_output_tokens default is 32768 (see config.py),
+    # leaving ~20480 for visible output after this 12288 thinking
+    # budget. Several multiples of the real p99 visible output.
+    #
+    # If more thinking room is wanted in production, raise the
+    # operator default in config.py rather than this fallback; the
+    # operator value wins per resolve_reasoning_budget's resolution
+    # order. Leaving the fallback at the medium boundary keeps a
+    # caller that explicitly drops the operator knob from silently
+    # upgrading to 'high'.
+    "thinking": 12288,
+    "pro": 12288,
     # Balanced / non-thinking-by-default groups: no reasoning cap is
     # applied; the provider runs in its native mode.
     "balanced": None,
