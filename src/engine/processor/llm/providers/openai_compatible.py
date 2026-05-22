@@ -1,15 +1,20 @@
 """OpenAI-compatible self-hosted provider.
 
-Works with any endpoint that implements the OpenAI chat completions API:
-vLLM, Ollama, LM Studio, text-generation-inference, LocalAI, etc.
+Works with any endpoint that implements the OpenAI chat completions
+API: vLLM, Ollama, LM Studio, text-generation-inference, LocalAI, etc.
 
-Uses the openai SDK with a custom base_url.
+Because structured-output support varies wildly across these backends,
+the client tries ``response_format`` first; if the server rejects the
+parameter we transparently retry without it and latch a per-instance
+flag so subsequent calls skip the rejection round-trip. ``service.py``
+reads ``structured_output_active`` to decide whether to engage the
+strict path or the hardened free-text parser.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Any, AsyncGenerator, Optional
 
 import openai
 
@@ -21,9 +26,51 @@ from engine.shared.metrics.prometheus import (
 )
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
+from engine.processor.llm.capabilities import get_model_capabilities
 from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.errors import (
+    LLMRateLimitedError,
+    LLMTransientError,
+)
+from engine.processor.llm.schema_compiler import compile_for_openai_compatible
 
 logger = get_logger(__name__)
+
+_RESPONSE_FORMAT_NAME = "AnalysisOutput"
+
+_UNSUPPORTED_RESPONSE_FORMAT_HINTS = (
+    "response_format",
+    "json_schema",
+    "not supported",
+    "unsupported parameter",
+    "invalid parameter",
+    "unknown parameter",
+    "unrecognized argument",
+    "does not support",
+)
+
+
+def _is_unsupported_response_format(exc: Exception) -> bool:
+    """Return True when the server rejected the response_format param."""
+    msg = str(exc).lower()
+    if "response_format" not in msg and "json_schema" not in msg:
+        return False
+    return any(hint in msg for hint in _UNSUPPORTED_RESPONSE_FORMAT_HINTS)
+
+
+def _translate_provider_error(exc: Exception) -> Exception:
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    if "ratelimit" in name or "429" in msg or "rate limit" in msg:
+        return LLMRateLimitedError(str(exc))
+    if (
+        "timeout" in name
+        or "timeout" in msg
+        or "connection" in msg
+        or "unavailable" in msg
+    ):
+        return LLMTransientError(str(exc))
+    return exc
 
 
 class OpenAICompatibleClient(LLMClient):
@@ -40,6 +87,50 @@ class OpenAICompatibleClient(LLMClient):
             timeout=float(config.llm_timeout_seconds),
             max_retries=0,
         )
+        self._capabilities = get_model_capabilities(self.PROVIDER, config.model_name)
+        # Latched per instance: once a backend has rejected
+        # ``response_format`` for a given model we stop sending it on
+        # subsequent calls to that instance.
+        # The capability matrix defaults SELF_HOSTED to False, so we
+        # opt-in via the operator's intent (force probe on the first
+        # call by starting at None which is interpreted as "unknown,
+        # try once"). When the operator later flips the catalog entry
+        # for a known good self-hosted model, the probe succeeds and
+        # this flag latches True.
+        self._response_format_supported: Optional[bool] = (
+            True if self._capabilities.supports_structured_output else None
+        )
+
+    def _build_request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        stream: bool,
+        with_response_format: bool,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "model": self._config.model_name,
+            "max_tokens": self._config.max_output_tokens,
+            "temperature": self._config.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        }
+        if with_response_format:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": _RESPONSE_FORMAT_NAME,
+                    "schema": compile_for_openai_compatible(),
+                    "strict": True,
+                },
+            }
+        if stream:
+            kwargs["stream"] = True
+            kwargs["stream_options"] = {"include_usage": True}
+        return kwargs
 
     async def call(
         self,
@@ -51,16 +142,39 @@ class OpenAICompatibleClient(LLMClient):
         model = self._config.model_name
         start = time.monotonic()
 
-        try:
-            response = await self._client.chat.completions.create(
-                model=model,
-                max_tokens=self._config.max_output_tokens,
-                temperature=self._config.temperature,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
+        attempt_with_format = self._response_format_supported is not False
+
+        async def _do_call(use_format: bool):
+            return await self._client.chat.completions.create(
+                **self._build_request_kwargs(
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    stream=False,
+                    with_response_format=use_format,
+                )
             )
+
+        try:
+            try:
+                response = await _do_call(attempt_with_format)
+                if attempt_with_format and self._response_format_supported is None:
+                    # First successful probe latches True.
+                    self._response_format_supported = True
+            except Exception as exc:
+                if attempt_with_format and _is_unsupported_response_format(exc):
+                    self._response_format_supported = False
+                    logger.warning(
+                        "self_hosted_response_format_unsupported",
+                        extra={
+                            "model": model,
+                            "base_url": self._config.api_base_url,
+                            "trace_id": trace_id,
+                            "error": str(exc),
+                        },
+                    )
+                    response = await _do_call(False)
+                else:
+                    raise
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
             LLM_REQUEST_TOTAL.labels(
@@ -80,7 +194,7 @@ class OpenAICompatibleClient(LLMClient):
                     "trace_id": trace_id,
                 },
             )
-            raise
+            raise _translate_provider_error(exc) from exc
 
         elapsed_ms = (time.monotonic() - start) * 1000
         choice = response.choices[0] if response.choices else None
@@ -103,6 +217,7 @@ class OpenAICompatibleClient(LLMClient):
                 "response_length": len(text),
                 "base_url": self._config.api_base_url,
                 "trace_id": trace_id,
+                "structured_output_used": self._response_format_supported is True,
             },
         )
 
@@ -123,27 +238,51 @@ class OpenAICompatibleClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
-    ) -> __import__("typing").AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
-        
-        try:
-            response = await self._client.chat.completions.create(
-                model=model,
-                max_tokens=self._config.max_output_tokens,
-                temperature=self._config.temperature,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                stream=True,
-                stream_options={"include_usage": True},
+
+        async def _open_stream(use_format: bool):
+            return await self._client.chat.completions.create(
+                **self._build_request_kwargs(
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    stream=True,
+                    with_response_format=use_format,
+                )
             )
+
+        attempt_with_format = self._response_format_supported is not False
+        try:
+            try:
+                response = await _open_stream(attempt_with_format)
+                if attempt_with_format and self._response_format_supported is None:
+                    self._response_format_supported = True
+            except Exception as exc:
+                if attempt_with_format and _is_unsupported_response_format(exc):
+                    self._response_format_supported = False
+                    logger.warning(
+                        "self_hosted_response_format_unsupported_stream",
+                        extra={
+                            "model": model,
+                            "base_url": self._config.api_base_url,
+                            "trace_id": trace_id,
+                            "error": str(exc),
+                        },
+                    )
+                    response = await _open_stream(False)
+                else:
+                    raise
+
             async for chunk in response:
                 if usage_out is not None and getattr(chunk, "usage", None):
                     usage_out["input_tokens"] = chunk.usage.prompt_tokens
                     usage_out["output_tokens"] = chunk.usage.completion_tokens
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if chunk.choices:
+                    choice = chunk.choices[0]
+                    if usage_out is not None and getattr(choice, "finish_reason", None):
+                        usage_out["finish_reason"] = choice.finish_reason
+                    if choice.delta.content:
+                        yield choice.delta.content
         except Exception as exc:
             logger.error(
                 "llm_stream_call_failed",
@@ -154,10 +293,22 @@ class OpenAICompatibleClient(LLMClient):
                     "trace_id": trace_id,
                 },
             )
-            raise
+            raise _translate_provider_error(exc) from exc
 
     async def close(self) -> None:
         await self._client.close()
+
+    @property
+    def structured_output_active(self) -> bool:
+        """Reflect whether the latched probe enables structured output.
+
+        ``service.py`` reads this after each call to decide whether the
+        response should be parsed with the strict path or the hardened
+        free-text path (None -> [] coercion). The flag is latched on
+        the first probe and stays in place until the client is
+        reconstructed.
+        """
+        return self._response_format_supported is True
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
         LLM_REQUEST_TOTAL.labels(
