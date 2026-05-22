@@ -65,6 +65,18 @@ class ProcessorConfig(BaseSettings):
         le=131072,
         description="Maximum tokens in LLM response",
     )
+    reasoning_budget_tokens: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=131072,
+        description=(
+            "Cap on hidden reasoning tokens for thinking-capable models "
+            "(Gemini thinking_config.thinking_budget, Anthropic "
+            "thinking.budget_tokens, OpenAI o-series reasoning_effort). "
+            "None = capability-driven default from MODEL_CATALOG. "
+            "0 = disable thinking on supported providers."
+        ),
+    )
 
     # -- Provider API keys (only the active provider's key is required) ------
     anthropic_api_key: Optional[SecretStr] = Field(
