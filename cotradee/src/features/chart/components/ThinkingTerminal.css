@@ -15,19 +15,19 @@
 
 /* ── Container ───────────────────────────────────────────────────── */
 /*
- * Tokenised background: resolves per-theme via the published surface
- * RGB triplets in src/assets/index.css.
- *   dark : surface-2 (16 16 16)  → surface-3 (24 24 24)
- *   light: surface-2 (245 245 245)→ surface-3 (235 235 235)
- * Keeps the subtle vertical depth gradient in both modes.
+ * Anchored to surface-0 → surface-1 so the terminal background
+ * matches the canonical dashboard surface (`bg-app`):
+ *   dark : 0 0 0 → 8 8 8  (pure-black, matches `bg-white dark:bg-black`)
+ *   light: 255 255 255 → 250 250 250
+ * Preserves the subtle vertical depth gradient in both themes.
  */
 .thinking-terminal {
   position: relative;
   border-top: 1px solid rgb(var(--border-rgb) / 0.6);
   background: linear-gradient(
     180deg,
-    rgb(var(--surface-2-rgb) / 0.95) 0%,
-    rgb(var(--surface-3-rgb) / 0.98) 100%
+    rgb(var(--surface-0-rgb) / 0.95) 0%,
+    rgb(var(--surface-1-rgb) / 0.98) 100%
   );
 }
 
