@@ -60,21 +60,39 @@ class ProcessorConfig(BaseSettings):
         description="LLM temperature. 0 for deterministic output.",
     )
     max_output_tokens: int = Field(
-        default=16384,
+        default=32768,
         ge=1024,
         le=131072,
-        description="Maximum tokens in LLM response",
+        description=(
+            "Maximum tokens in the LLM response. Sized for the worst-case "
+            "AnalysisOutput (deeply nested, up to 30 RAG citations + 30 "
+            "audit citations, up to 50 evidence items per nested model, "
+            "explainable_reasoning capped at ~2048 tokens) plus the "
+            "reasoning_budget_tokens cap below. 32768 leaves ~20k for "
+            "visible output after the 12288 reasoning cap, which is "
+            "several multiples of the real p99. Truncation on a "
+            "well-formed analysis is practically impossible. Providers "
+            "bill on tokens actually generated, not on this ceiling, so "
+            "raising it is cost-neutral on average."
+        ),
     )
     reasoning_budget_tokens: Optional[int] = Field(
-        default=None,
+        default=12288,
         ge=0,
         le=131072,
         description=(
             "Cap on hidden reasoning tokens for thinking-capable models "
             "(Gemini thinking_config.thinking_budget, Anthropic "
             "thinking.budget_tokens, OpenAI o-series reasoning_effort). "
-            "None = capability-driven default from MODEL_CATALOG. "
-            "0 = disable thinking on supported providers."
+            "Sized for cross-source reasoning over TA snapshots (13 "
+            "timeframes) + SMC/SnD candidates + macro + RAG + user OS. "
+            "12288 maps to OpenAI o-series reasoning_effort='medium' "
+            "via reasoning.py's ordinal translator. Bounded so the "
+            "model cannot degenerate into a 15k+ thinking spiral that "
+            "would exhaust max_output_tokens before emitting visible "
+            "output (the MAX_TOKENS failure mode documented in "
+            "PROBLEM.md). None = capability-driven default from "
+            "MODEL_CATALOG. 0 = disable thinking on supported providers."
         ),
     )
 
@@ -108,16 +126,29 @@ class ProcessorConfig(BaseSettings):
     # defaults for the common case. The defaults stay at 60/90 to keep
     # existing deployments behaviourally unchanged.
     llm_timeout_seconds: int = Field(
-        default=60,
+        default=150,
         ge=10,
         le=540,
-        description="Timeout for a single LLM API call",
+        description=(
+            "Timeout for a single LLM API call. A 32k output budget + "
+            "12k reasoning budget on a thinking-capable model takes "
+            "60-120s of wall time at typical provider TPS. 150s leaves "
+            "headroom for the slow tail of large-context calls (~280KB "
+            "user message, 26 RAG chunks) without cutting off the "
+            "budget before it can be spent."
+        ),
     )
     total_timeout_seconds: int = Field(
-        default=90,
+        default=180,
         ge=15,
         le=600,
-        description="Total timeout for the full process() call including retries",
+        description=(
+            "Total timeout for the full process() call including "
+            "retries. Must accommodate at least one full llm_timeout_seconds "
+            "plus the prompt-build, metering, parsing, and audit-persist "
+            "phases. Sized so a single retry on a transient failure "
+            "still fits inside the wall-clock budget."
+        ),
     )
 
     # -- Retry policy --------------------------------------------------------
