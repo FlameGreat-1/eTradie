@@ -127,10 +127,3 @@ class LLMTransientError(LLMError):
     pass
 
 
-class LLMStructuredOutputUnsupportedError(LLMError):
-    """The active provider/model does not support native structured
-    output (e.g. some self-hosted endpoints, legacy models). The
-    caller should fall back to the hardened free-text parser.
-    """
-
-    pass

@@ -17,6 +17,10 @@ from engine.shared.exceptions import ProcessorError
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import LLM_ERRORS_TOTAL
 from engine.processor.config import ProcessorConfig
+from engine.processor.llm.errors import (
+    LLMRateLimitedError,
+    LLMTransientError,
+)
 
 logger = get_logger(__name__)
 
@@ -33,8 +37,18 @@ _NON_RETRYABLE_ERROR_TYPES = {
 
 
 def _is_retryable(exc: Exception) -> bool:
-    """Determine if an exception is retryable."""
-    # Direct type matches
+    """Determine if an exception is retryable.
+
+    Typed-error path first: the providers translate their SDK
+    exceptions to ``LLMRateLimitedError`` / ``LLMTransientError``
+    inside the provider modules, so this classifier matches on the
+    typed class hierarchy before falling back to the legacy
+    string-based class-name + status_code probe used by callers
+    that bypass the typed translation (defense in depth).
+    """
+    if isinstance(exc, (LLMRateLimitedError, LLMTransientError)):
+        return True
+
     if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
         return True
 
