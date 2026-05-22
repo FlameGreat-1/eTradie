@@ -9,6 +9,7 @@ from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.zone import QuasiModoLevel, MiniPriceLevel
+from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
@@ -89,17 +90,24 @@ class QMCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BEARISH
         )
 
-        # SL above the structural extreme (HH that formed the QM pattern)
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = qml.level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        if qml.hh_price is not None:
-            stop_loss = qml.hh_price + sl_buffer
-        else:
-            stop_loss = qml.level + sl_buffer
-        
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price - (risk * 3.0)
+        # SL above the structural extreme (HH that formed the QM pattern).
+        # All level geometry is delegated to compute_trade_levels which
+        # uses the broker-aware pip utilities and enforces positivity +
+        # direction-correct ordering.
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BEARISH,
+            entry_price=qml.level,
+            structural_extreme=qml.hh_price,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="qml_baseline_short",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -190,17 +198,21 @@ class QMCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BEARISH
         )
 
-        # SL above the structural extreme (HH that formed the QM pattern)
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = qml.level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        if qml.hh_price is not None:
-            stop_loss = qml.hh_price + sl_buffer
-        else:
-            stop_loss = qml.level + sl_buffer
-            
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price - (risk * 3.0)
+        # SL above the structural extreme (HH that formed the QM pattern).
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BEARISH,
+            entry_price=qml.level,
+            structural_extreme=qml.hh_price,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="qml_killer_short",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         pattern_type = (
             CandidatePattern.QML_KILLER_TYPE1
@@ -303,20 +315,21 @@ class QMCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BULLISH
         )
 
-        # SL below the structural extreme (LL that formed the QM pattern)
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = qmh.level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        if qmh.ll_price is not None:
-            stop_loss = qmh.ll_price - sl_buffer
-        else:
-            stop_loss = qmh.level - sl_buffer
-        # Ensure SL is always positive
-        if stop_loss <= 0:
-            stop_loss = entry_price * 0.99
-            
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price + (risk * 3.0)
+        # SL below the structural extreme (LL that formed the QM pattern).
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BULLISH,
+            entry_price=qmh.level,
+            structural_extreme=qmh.ll_price,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="qmh_baseline_long",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -407,20 +420,21 @@ class QMCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BULLISH
         )
 
-        # SL below the structural extreme (LL that formed the QM pattern)
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = qmh.level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        if qmh.ll_price is not None:
-            stop_loss = qmh.ll_price - sl_buffer
-        else:
-            stop_loss = qmh.level - sl_buffer
-        # Ensure SL is always positive
-        if stop_loss <= 0:
-            stop_loss = entry_price * 0.99
-            
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price + (risk * 3.0)
+        # SL below the structural extreme (LL that formed the QM pattern).
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BULLISH,
+            entry_price=qmh.level,
+            structural_extreme=qmh.ll_price,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="qmh_killer_long",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         pattern_type = (
             CandidatePattern.QMH_KILLER_TYPE1

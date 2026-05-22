@@ -8,6 +8,7 @@ from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.zone import QuasiModoLevel
+from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
@@ -113,13 +114,22 @@ class ContinuationCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BEARISH
         )
 
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = sr_flip_level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        stop_loss = sr_flip_level + sl_buffer
-        
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price - (risk * 3.0)
+        # Continuation entries sit at the SR flip; no separate structural
+        # extreme - the flip level itself is the SL anchor.
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BEARISH,
+            entry_price=sr_flip_level,
+            structural_extreme=None,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="continuation_short",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -232,15 +242,22 @@ class ContinuationCandidateBuilder:
             ltf_sequence, breakout_candle_index, Direction.BULLISH
         )
 
-        pip_val = float(get_pip_value(ltf_sequence.symbol))
-        entry_price = rs_flip_level
-        sl_buffer = self.config.previous_level_tolerance_pips * pip_val
-        stop_loss = rs_flip_level - sl_buffer
-        if stop_loss <= 0:
-            stop_loss = entry_price * 0.99
-            
-        risk = abs(entry_price - stop_loss)
-        take_profit = entry_price + (risk * 3.0)
+        # Continuation entries sit at the RS flip; no separate structural
+        # extreme - the flip level itself is the SL anchor.
+        levels = compute_trade_levels(
+            symbol=ltf_sequence.symbol,
+            direction=Direction.BULLISH,
+            entry_price=rs_flip_level,
+            structural_extreme=None,
+            sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            logger_event_prefix="continuation_long",
+        )
+        if levels is None:
+            return None
+
+        entry_price = levels.entry_price
+        stop_loss = levels.stop_loss
+        take_profit = levels.take_profit
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
