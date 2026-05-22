@@ -101,7 +101,7 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
           transform: `translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px))`
         }}
       >
-        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl bg-surface">
+        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl bg-surface-elevated">
           {/* Header */}
           <div 
             className={`flex items-center justify-between px-5 py-4 border-b border-border bg-surface-1/50 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
