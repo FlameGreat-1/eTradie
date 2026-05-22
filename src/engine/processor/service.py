@@ -38,6 +38,7 @@ from engine.processor.audit.logger import (
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
 from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.errors import LLMTruncatedError
 from engine.processor.llm.retry import retry_llm_call
 from engine.processor.mapping.output_mapper import map_to_processor_output
 from engine.processor.parsing.response_parser import parse_llm_response
@@ -177,7 +178,7 @@ class AnalysisProcessor(ProcessorPort):
             ).observe(elapsed_ms / 1000)
             raise
 
-        except ProcessorError:
+        except ProcessorError as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
                 processor=PROCESSOR_NAME,
@@ -186,6 +187,18 @@ class AnalysisProcessor(ProcessorPort):
             PROCESSOR_RUN_DURATION.labels(
                 processor=PROCESSOR_NAME,
             ).observe(elapsed_ms / 1000)
+            # Persist an audit row so the dashboard can surface the
+            # per-symbol failure. Without this the router's 422 / 5xx
+            # response leaves no trail in analysis_outputs and the
+            # SPA shows the symbol as if it was never analysed.
+            await self._persist_error(
+                user_id=user_id,
+                pair=symbol,
+                error_message=str(exc),
+                status=ProcessorStatus.LLM_ERROR,
+                duration_ms=elapsed_ms,
+                trace_id=trace_id,
+            )
             raise
 
         except Exception as exc:
@@ -504,16 +517,25 @@ class AnalysisProcessor(ProcessorPort):
                     "trace_id": trace_id,
                 },
             )
-            raise ProcessorError(
+            # The call succeeded at the wire (the retry layer did not
+            # see an exception, so the existing refund-on-retry-exhausted
+            # branch did NOT fire) but the response is unusable. Refund
+            # the provisional debit so the reservation does not leak
+            # until TTL. Best-effort: a refund failure is reaped by the
+            # janitor.
+            await metering.refund(reservation_id=reservation_id)
+            raise LLMTruncatedError(
                 f"LLM output was truncated (finish_reason={finish_reason}). "
                 f"The model generated {llm_response.output_tokens} tokens "
                 f"out of {self._config.max_output_tokens} allowed before "
                 f"the provider terminated the response. This is NOT a "
                 f"parsing error — the LLM provider stopped generating.",
+                finish_reason=finish_reason,
+                output_tokens=llm_response.output_tokens,
+                max_output_tokens=self._config.max_output_tokens,
+                response_length=len(llm_response.text),
                 details={
                     "symbol": symbol,
-                    "finish_reason": finish_reason,
-                    "output_tokens": llm_response.output_tokens,
                     "trace_id": trace_id,
                 },
             )
