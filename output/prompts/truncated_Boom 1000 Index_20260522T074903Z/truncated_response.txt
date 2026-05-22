@@ -1,0 +1,73 @@
+{
+  "analysis_id": "analysis_boom1000_20260522_0745_a1b2",
+  "pair": "Boom 1000 Index",
+  "timestamp": "2026-05-22T07:45:00Z",
+  "trading_style": "INTRADAY",
+  "session": "LONDON_OPEN",
+  "macro_bias": {
+    "base_currency": {
+      "bias": "NEUTRAL",
+      "evidence": []
+    },
+    "quote_currency": {
+      "bias": "NEUTRAL",
+      "evidence": []
+    }
+  },
+  "dxy_bias": {
+    "direction": "NEUTRAL",
+    "evidence": []
+  },
+  "cot_signal": {
+    "summary": "No COT data available for Synthetic Indices.",
+    "week_over_week": null,
+    "extreme_flag": false,
+    "evidence": []
+  },
+  "event_risk": [],
+  "htf_bias": {
+    "structure": "bearish",
+    "key_levels": [
+      13053.559,
+      13319.34,
+      13702.873
+    ],
+    "notes": "HTF structure is strongly bearish across D1, H12, H8, H6, H4, and H3 timeframes."
+  },
+  "mtf_bias": {
+    "structure": "bearish",
+    "key_levels": [
+      13017.927,
+      13069.971,
+      13214.691
+    ],
+    "notes": "MTF structure is bearish on H1, M30, and M15, with M1 showing short-term bullish retracement."
+  },
+  "entry_setup": {
+    "type": null,
+    "zone_id": null,
+    "quality": null,
+    "bounds": [],
+    "evidence": []
+  },
+  "wyckoff_phase": {
+    "phase": "markdown",
+    "evidence": []
+  },
+  "confluence_score": {
+    "score": 0.0,
+    "factors": []
+  },
+  "setup_grade": "REJECT",
+  "direction": "NO SETUP",
+  "entry_zone": {
+    "low": null,
+    "high": null
+  },
+  "stop_loss": {
+    "price": null,
+    "reason": "No valid setup identified.",
+    "evidence": []
+  },
+  "take_profits": [
+    

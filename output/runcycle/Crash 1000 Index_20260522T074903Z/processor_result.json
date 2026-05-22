@@ -1,0 +1,303 @@
+{
+  "analysis_id": "analysis_crash1000_20260522_0747_a3f9",
+  "confidence": 0,
+  "confluence_score": 4,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": false,
+        "mode": "Manual approval per trade",
+        "require_final_confirmation": true
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 1,
+        "dxy": 2,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 2,
+        "volume_liquidity": 2,
+        "wyckoff": 1
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": true,
+        "avoid_overnight_holds": false,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Semi-Automated",
+        "discipline": "Rule-Based",
+        "experience": "Intermediate",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": false,
+        "emotional_volatility_sensitivity": "medium",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": false,
+        "preferred": [
+          "London",
+          "New York"
+        ]
+      },
+      "structural": {
+        "emphasis": "medium",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_crash1000_20260522_0747_a3f9",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          }
+        ],
+        "query_summary": "Retrieve rules for market structure alignment, counter-trend trading, and strategic patience.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Synthetic index has no macro constraints.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "LTF bearish setups oppose the dominant HTF bullish trend.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "No bullish MTF alignment confirmed.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "LTF zones are counter-trend and act as inducement.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "LTF sweeps are present but counter-trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase support",
+          "notes": "No clear Wyckoff phase.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No news events for synthetic indices.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "LTF setups offer R:R but are structurally invalid.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 4
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for synthetic indices",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-22T07:47:00Z",
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The overall trend is BEARISH on MN1, but the HTF trend (D1, H12, H8, H6, H4, H1) is strongly BULLISH. The market is currently producing LTF noise (M30, M15, M5 are BEARISH) pushing price down into a major HTF Demand zone. We have several LTF bearish candidates (e.g., M1 SOP_BEARISH at 5708.976, M15 QML_KILLER_TYPE1_BEARISH at 5676.994). However, because these setups oppose the dominant HTF BULLISH trend and price is already deep inside the D1 Demand zone (5553.664 - 5785.805) and H1 Demand zones, these LTF bearish setups are recognized as liquidity traps/inducement designed to trap sellers before a HTF expansion upward. On the other hand, we cannot take a bullish trade yet because the MTF structure (M30, M15, M5) remains bearish with no bullish BOS/CHoCH confirmed on these timeframes to realign with the HTF trend. Therefore, we must remain patient and wait for price to mitigate the unmitigated H4 Order Block at 5486.102 - 5550.007 or wait for a clear bullish CHoCH/BOS on the MTF (M15/M30) to confirm a pro-trend reversal.",
+    "htf_bias": {
+      "key_levels": [
+        5553.664,
+        5785.805
+      ],
+      "notes": "HTF trend is strongly bullish across D1, H12, H8, H6, H4, and H1.",
+      "structure": "bullish"
+    },
+    "id": "9b1deb4d-3b7d-4ac9-9101-123456789abc",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        5677.976,
+        5725.162
+      ],
+      "notes": "MTF structure is bearish on M30, M15, and M5, representing a counter-trend retracement into HTF demand.",
+      "structure": "bearish"
+    },
+    "pair": "Crash 1000 Index",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "LONDON_OPEN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": "No trade setup identified."
+    },
+    "take_profits": [
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-22T07:47:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The overall trend is BEARISH on MN1, but the HTF trend (D1, H12, H8, H6, H4, H1) is strongly BULLISH. The market is currently producing LTF noise (M30, M15, M5 are BEARISH) pushing price down into a major HTF Demand zone. We have several LTF bearish candidates (e.g., M1 SOP_BEARISH at 5708.976, M15 QML_KILLER_TYPE1_BEARISH at 5676.994). However, because these setups oppose the dominant HTF BULLISH trend and price is already deep inside the D1 Demand zone (5553.664 - 5785.805) and H1 Demand zones, these LTF bearish setups are recognized as liquidity traps/inducement designed to trap sellers before a HTF expansion upward. On the other hand, we cannot take a bullish trade yet because the MTF structure (M30, M15, M5) remains bearish with no bullish BOS/CHoCH confirmed on these timeframes to realign with the HTF trend. Therefore, we must remain patient and wait for price to mitigate the unmitigated H4 Order Block at 5486.102 - 5550.007 or wait for a clear bullish CHoCH/BOS on the MTF (M15/M30) to confirm a pro-trend reversal.",
+  "rejection_rules": [
+    "missing_HTF structure aligned",
+    "missing_MTF BOS or ChoCH confirmed",
+    "missing_Valid Structural Entry Support",
+    "missing_COT alignment",
+    "missing_Wyckoff phase support"
+  ],
+  "session": "LONDON_OPEN",
+  "setup_type": "",
+  "symbol": "Crash 1000 Index",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}

@@ -1,0 +1,310 @@
+{
+  "analysis_id": "analysis_volatility100_20260522_0622_a1b2",
+  "confidence": 0,
+  "confluence_score": 3,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": false,
+        "mode": "Manual approval per trade",
+        "require_final_confirmation": true
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 1,
+        "dxy": 2,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 2,
+        "volume_liquidity": 2,
+        "wyckoff": 1
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": true,
+        "avoid_overnight_holds": false,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Semi-Automated",
+        "discipline": "Rule-Based",
+        "experience": "Intermediate",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": false,
+        "emotional_volatility_sensitivity": "medium",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": false,
+        "preferred": [
+          "London",
+          "New York"
+        ]
+      },
+      "structural": {
+        "emphasis": "medium",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_volatility100_20260522_0622_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.95,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.95,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          }
+        ],
+        "query_summary": "Retrieve rules for market structure, confluence, and rejection criteria.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Synthetic index has no macro bias, treated as neutral/aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "HTF trend is strongly bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF structure aligned",
+          "notes": "H1 is bullish, contradicting the HTF bearish trend.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "No valid Grade A/B SnD zone or Entry OB/FVG is present. SnD candidates are invalid due to lack of Marubozu validation.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "No sweep detected at current levels.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "No clear Wyckoff phase identified.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news events for synthetic indices.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "No valid setup to calculate R:R.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 3
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for Synthetic Indices",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-22T06:22:00Z",
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The overall market trend for Volatility 100 Index is strongly BEARISH across HTFs (MN1, W1, D1, H12, H8, H6, H4, H3). However, the current price is around 408-410, and there are no valid live edge setups. All SMC candidates are historical or have entry prices extremely far from the current price (e.g., W1 candidates at 7728.46, D1 candidates at 3650.13). The SnD candidates, such as the M15 QML_KILLER_TYPE2 at 417.0, are invalid because they violate Universal Rule 1 (Marubozu is non-negotiable, but marubozu_detected is false). Therefore, we remain patient and wait for price to mitigate a high-quality HTF POI, such as the Bearish FVG on H12 at 465.31 - 516.72 or the Bearish FVG on D1 at 438.54 - 459.13, before looking for a short entry.",
+    "htf_bias": {
+      "key_levels": [
+        428.52,
+        384.12
+      ],
+      "notes": "HTF trend is strongly bearish across MN1, W1, D1, H12, H8, H6, H4, and H3.",
+      "structure": "bearish"
+    },
+    "id": "78d222f8-53e3-4305-ecfa-1743c1631122",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        414.66,
+        401.05
+      ],
+      "notes": "H1 is currently bullish, creating a short-term counter-trend retracement, while M30 is bearish.",
+      "structure": "neutral"
+    },
+    "pair": "Volatility 100 Index",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.95,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "LONDON_OPEN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": "No setup identified"
+    },
+    "take_profits": [
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-22T06:22:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The overall market trend for Volatility 100 Index is strongly BEARISH across HTFs (MN1, W1, D1, H12, H8, H6, H4, H3). However, the current price is around 408-410, and there are no valid live edge setups. All SMC candidates are historical or have entry prices extremely far from the current price (e.g., W1 candidates at 7728.46, D1 candidates at 3650.13). The SnD candidates, such as the M15 QML_KILLER_TYPE2 at 417.0, are invalid because they violate Universal Rule 1 (Marubozu is non-negotiable, but marubozu_detected is false). Therefore, we remain patient and wait for price to mitigate a high-quality HTF POI, such as the Bearish FVG on H12 at 465.31 - 516.72 or the Bearish FVG on D1 at 438.54 - 459.13, before looking for a short entry.",
+  "rejection_rules": [
+    "missing_MTF structure aligned",
+    "missing_Valid Structural Entry Support",
+    "missing_Liquidity sweep into entry zone",
+    "missing_COT alignment",
+    "missing_Wyckoff phase supports direction",
+    "missing_Minimum R:R achievable"
+  ],
+  "session": "LONDON_OPEN",
+  "setup_type": "",
+  "symbol": "Volatility 100 Index",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}
