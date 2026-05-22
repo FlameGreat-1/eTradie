@@ -153,10 +153,19 @@ class ProcessorConfig(BaseSettings):
 
     # -- Retry policy --------------------------------------------------------
     max_retries: int = Field(
-        default=2,
+        default=1,
         ge=0,
         le=5,
-        description="Max retries on transient LLM failures",
+        description=(
+            "Max retries on transient LLM failures (502/504, network "
+            "glitches, connect/read timeouts). Rate-limit (429), "
+            "provider-overload (503/529), and quota-exhausted are NOT "
+            "retried -- see retry.py docstring. One retry is enough "
+            "for genuine transient blips; sustained outages should "
+            "fail fast so the gateway-level cycle retry can handle "
+            "recovery on a longer wall-clock cadence without burning "
+            "the user-facing trigger latency budget."
+        ),
     )
     retry_backoff_base_seconds: float = Field(
         default=1.0,
