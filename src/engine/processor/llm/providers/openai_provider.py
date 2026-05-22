@@ -1,9 +1,24 @@
-"""OpenAI GPT provider."""
+"""OpenAI GPT provider.
+
+Decision-path uses the existing ``stream_call`` so the dashboard SSE
+feed shape is preserved. Two production knobs are added without
+changing the call shape:
+
+  * ``response_format={'type': 'json_schema', 'json_schema': {...,
+    'strict': true}}`` -- OpenAI's grammar-constrained JSON. Strict
+    mode requires every property in ``required`` and
+    ``additionalProperties=false`` everywhere; the schema compiler
+    handles both transparently.
+
+  * ``reasoning_effort`` (``low|medium|high``) -- only sent for
+    o-series reasoning models (capability flag
+    ``is_thinking=True``).
+"""
 
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Any, AsyncGenerator, Optional
 
 import openai
 
@@ -15,9 +30,38 @@ from engine.shared.metrics.prometheus import (
 )
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
+from engine.processor.llm.capabilities import get_model_capabilities
 from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.errors import (
+    LLMRateLimitedError,
+    LLMSafetyFilterError,
+    LLMTransientError,
+)
+from engine.processor.llm.reasoning import resolve_reasoning_budget
+from engine.processor.llm.schema_compiler import compile_for_openai
 
 logger = get_logger(__name__)
+
+_RESPONSE_FORMAT_NAME = "AnalysisOutput"
+
+
+def _translate_provider_error(exc: Exception) -> Exception:
+    """Map an openai-sdk exception to a typed LLMError when possible."""
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    if "ratelimit" in name or "429" in msg or "rate limit" in msg:
+        return LLMRateLimitedError(str(exc))
+    if "content_policy" in msg or "safety" in msg or "policy violation" in msg:
+        return LLMSafetyFilterError(str(exc))
+    if (
+        "timeout" in name
+        or "timeout" in msg
+        or "connection" in msg
+        or "unavailable" in msg
+        or "internalserver" in name
+    ):
+        return LLMTransientError(str(exc))
+    return exc
 
 
 class OpenAIClient(LLMClient):
@@ -32,6 +76,47 @@ class OpenAIClient(LLMClient):
             timeout=float(config.llm_timeout_seconds),
             max_retries=0,
         )
+        self._capabilities = get_model_capabilities(self.PROVIDER, config.model_name)
+
+    def _build_request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        stream: bool,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "model": self._config.model_name,
+            "max_tokens": self._config.max_output_tokens,
+            "temperature": self._config.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        }
+
+        if self._capabilities.supports_structured_output:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": _RESPONSE_FORMAT_NAME,
+                    "schema": compile_for_openai(),
+                    "strict": True,
+                },
+            }
+
+        budget = resolve_reasoning_budget(
+            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
+            capabilities=self._capabilities,
+        )
+        if budget.effort is not None and self._capabilities.is_thinking:
+            kwargs["reasoning_effort"] = budget.effort
+
+        if stream:
+            kwargs["stream"] = True
+            kwargs["stream_options"] = {"include_usage": True}
+
+        return kwargs
 
     async def call(
         self,
@@ -45,13 +130,11 @@ class OpenAIClient(LLMClient):
 
         try:
             response = await self._client.chat.completions.create(
-                model=model,
-                max_tokens=self._config.max_output_tokens,
-                temperature=self._config.temperature,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
+                **self._build_request_kwargs(
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    stream=False,
+                )
             )
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -71,7 +154,7 @@ class OpenAIClient(LLMClient):
                     "trace_id": trace_id,
                 },
             )
-            raise
+            raise _translate_provider_error(exc) from exc
 
         elapsed_ms = (time.monotonic() - start) * 1000
         choice = response.choices[0] if response.choices else None
@@ -113,27 +196,27 @@ class OpenAIClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
-    ) -> __import__("typing").AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
-        
+
         try:
             response = await self._client.chat.completions.create(
-                model=model,
-                max_tokens=self._config.max_output_tokens,
-                temperature=self._config.temperature,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                stream=True,
-                stream_options={"include_usage": True},
+                **self._build_request_kwargs(
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    stream=True,
+                )
             )
             async for chunk in response:
                 if usage_out is not None and getattr(chunk, "usage", None):
                     usage_out["input_tokens"] = chunk.usage.prompt_tokens
                     usage_out["output_tokens"] = chunk.usage.completion_tokens
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if chunk.choices:
+                    choice = chunk.choices[0]
+                    if usage_out is not None and getattr(choice, "finish_reason", None):
+                        usage_out["finish_reason"] = choice.finish_reason
+                    if choice.delta.content:
+                        yield choice.delta.content
         except Exception as exc:
             logger.error(
                 "llm_stream_call_failed",
@@ -144,7 +227,7 @@ class OpenAIClient(LLMClient):
                     "trace_id": trace_id,
                 },
             )
-            raise
+            raise _translate_provider_error(exc) from exc
 
     async def close(self) -> None:
         await self._client.close()

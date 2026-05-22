@@ -28,6 +28,63 @@ logger = get_logger(__name__)
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*\n?(\{.*?})\s*```", re.DOTALL)
 _JSON_OBJECT_RE = re.compile(r"(\{.*})", re.DOTALL)
 
+# Paths inside an AnalysisOutput-shaped dict whose Pydantic type is
+# `list[...] = Field(default_factory=list)`. Models without native
+# structured output (some self-hosted endpoints) can still emit `null`
+# for these on a "no value" branch, which collides with the
+# default-factory list field. We coerce None -> [] *before* Pydantic
+# validation runs so the error path is identical when something OTHER
+# than null-for-list fails. We are not relaxing any business rule;
+# `validators.py` still enforces the real trade-construction rules.
+#
+# Each entry is a dotted path with `[]` denoting a list traversal,
+# applied recursively by `_coerce_null_collections`. A test in Phase
+# 4 verifies this list matches the live AnalysisOutput schema.
+_NULLABLE_LIST_PATHS: tuple[str, ...] = (
+    "event_risk",
+    "take_profits",
+    "rag_sources",
+    "audit.citations",
+    "audit.retrieval.chunks_returned",
+    "htf_bias.key_levels",
+    "mtf_bias.key_levels",
+    "entry_setup.bounds",
+    "entry_setup.evidence",
+    "stop_loss.evidence",
+    "wyckoff_phase.evidence",
+    "dxy_bias.evidence",
+    "cot_signal.evidence",
+    "macro_bias.base_currency.evidence",
+    "macro_bias.quote_currency.evidence",
+    "confluence_score.factors",
+)
+
+
+def _coerce_null_collections(raw: dict) -> None:
+    """In-place: replace None with [] at every path in ``_NULLABLE_LIST_PATHS``.
+
+    Walks the dict by dotted path. Missing intermediate keys are
+    left alone (Pydantic will raise the right error). Lists in the
+    path are not currently used; every nullable-list field on
+    AnalysisOutput sits under a fixed-name object path, so a simple
+    dotted walk is sufficient and avoids over-coercion.
+    """
+    for path in _NULLABLE_LIST_PATHS:
+        parts = path.split(".")
+        leaf = parts[-1]
+        parents = parts[:-1]
+
+        node = raw
+        for p in parents:
+            if not isinstance(node, dict):
+                node = None
+                break
+            node = node.get(p)
+            if node is None:
+                break
+        if isinstance(node, dict) and node.get(leaf, ...) is None:
+            node[leaf] = []
+
 
 def parse_llm_response(
     raw_text: str,
@@ -80,6 +137,12 @@ def parse_llm_response(
             f"LLM response is not a JSON object (got {type(raw_dict).__name__})",
             details={"trace_id": trace_id},
         )
+
+    # Harden the fallback path (providers without native structured
+    # output): coerce `null` -> `[]` for the AnalysisOutput list fields
+    # that the LLM can plausibly null-out on a "no setup" branch.
+    # No-op when the provider returned a schema-valid response.
+    _coerce_null_collections(raw_dict)
 
     try:
         output = AnalysisOutput.model_validate(raw_dict)

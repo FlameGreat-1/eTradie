@@ -17,8 +17,17 @@ from fastapi.responses import JSONResponse, Response
 
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
+from engine.processor.llm.errors import (
+    LLMRateLimitedError,
+    LLMSafetyFilterError,
+    LLMSchemaViolationError,
+    LLMTruncatedError,
+)
 from engine.processor.models.io import ProcessorInput
-from engine.shared.exceptions import QuotaExceededError
+from engine.shared.exceptions import (
+    ProcessorInsufficientDataError,
+    QuotaExceededError,
+)
 from engine.schemas import (
     InternalDebugRunCycleRequest,
     InternalLTFConfirmRequest,
@@ -414,6 +423,73 @@ async def internal_processor_process(
                 "retry_after": exc.retry_after,
             },
         )
+
+    except ProcessorInsufficientDataError as exc:
+        # Sufficient-data preconditions did not hold for this symbol.
+        # 400 because the request was structurally fine but the
+        # assembled context did not carry the minimum data required
+        # to produce a decision.
+        logger.warning(
+            "internal_processor_insufficient_data",
+            extra={
+                "user_id": user.user_id,
+                "trace_id": body.trace_id,
+                "detail": str(exc),
+            },
+        )
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "insufficient_data",
+                "detail": str(exc),
+                "trace_id": body.trace_id,
+            },
+        )
+
+    except (
+        LLMTruncatedError,
+        LLMSchemaViolationError,
+        LLMSafetyFilterError,
+        LLMRateLimitedError,
+    ) as exc:
+        # Per-symbol analysis-unavailable. The Go gateway already
+        # does NOT retry 4xx (engine_http.go retries 502/503/504
+        # only), so a 422 surfaces cleanly without triggering an
+        # expensive retry storm. The orchestrator then continues
+        # processing other symbols in the same cycle instead of
+        # marking the whole pipeline as PIPELINE_ERROR.
+        code_map = {
+            LLMTruncatedError: "llm_truncated",
+            LLMSchemaViolationError: "llm_schema_violation",
+            LLMSafetyFilterError: "llm_safety_filter",
+            LLMRateLimitedError: "llm_rate_limited",
+        }
+        code = code_map.get(type(exc), "llm_analysis_unavailable")
+        logger.warning(
+            "internal_processor_llm_analysis_unavailable",
+            extra={
+                "user_id": user.user_id,
+                "trace_id": body.trace_id,
+                "code": code,
+                "detail": str(exc),
+                "details": exc.details,
+            },
+        )
+        body_out: dict = {
+            "error": code,
+            "detail": str(exc),
+            "trace_id": body.trace_id,
+        }
+        # Surface the structured fields each typed error carries so an
+        # operator can act without parsing the message string.
+        if isinstance(exc, LLMTruncatedError):
+            body_out["finish_reason"] = exc.finish_reason
+            body_out["output_tokens"] = exc.output_tokens
+            body_out["max_output_tokens"] = exc.max_output_tokens
+            body_out["response_length"] = exc.response_length
+        if isinstance(exc, LLMSchemaViolationError):
+            body_out["validation_errors"] = exc.validation_errors
+        return JSONResponse(status_code=422, content=body_out)
 
     except Exception as exc:
         logger.error(

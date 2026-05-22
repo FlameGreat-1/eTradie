@@ -356,8 +356,14 @@ class AnalysisProcessor(ProcessorPort):
         )
 
         async def _llm_call() -> LLMResponse:
+            # Token counts come from `usage_metadata` only. The old
+            # `output_tokens += 1` chunk-counter masquerade was wrong
+            # (a chunk is not a token) and produced misleading
+            # diagnostics like "414 tokens out of 16384" that were
+            # actually chunk counts. When a provider omits
+            # usage_metadata (rare, provider bug) the count stays 0
+            # rather than fabricated, and a warning log records it.
             full_text = ""
-            output_tokens = 0
             start_llm = time.monotonic()
             if stream_channel:
                 await self._cache.publish(
@@ -378,7 +384,6 @@ class AnalysisProcessor(ProcessorPort):
                 usage_out=usage_dict,
             ):
                 full_text += chunk
-                output_tokens += 1
 
                 # Progressively extract explainable_reasoning using a
                 # regex that handles escaped quotes so partial JSON
@@ -421,12 +426,24 @@ class AnalysisProcessor(ProcessorPort):
                 )
 
             actual_finish_reason = usage_dict.get("finish_reason", "STOP")
+            output_tokens_reported = usage_dict.get("output_tokens", 0)
+            if output_tokens_reported == 0 and full_text:
+                logger.warning(
+                    "llm_usage_metadata_missing",
+                    extra={
+                        "symbol": symbol,
+                        "provider": self._llm.PROVIDER,
+                        "model": self._config.model_name,
+                        "response_length": len(full_text),
+                        "trace_id": trace_id,
+                    },
+                )
             return LLMResponse(
                 text=full_text,
                 model=self._config.model_name,
                 provider=self._llm.PROVIDER,
                 input_tokens=usage_dict.get("input_tokens", 0),
-                output_tokens=usage_dict.get("output_tokens", output_tokens),
+                output_tokens=output_tokens_reported,
                 duration_ms=(time.monotonic() - start_llm) * 1000,
                 stop_reason=actual_finish_reason,
             )

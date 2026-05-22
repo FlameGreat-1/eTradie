@@ -355,6 +355,7 @@ AUTHORITY MODEL (READ CAREFULLY):
 6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
 
 OUTPUT JSON SCHEMA:
+Output schema is enforced by the LLM provider's decoder when supported (Gemini response_schema, OpenAI response_format strict, Anthropic tools input_schema). Field semantics described above remain authoritative regardless of provider support.
 """
     + _OUTPUT_SCHEMA
 )
