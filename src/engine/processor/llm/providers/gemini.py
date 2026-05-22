@@ -242,9 +242,15 @@ class GeminiClient(LLMClient):
                 if isinstance(chunk, Exception):
                     raise _translate_provider_error(chunk) from chunk
 
-                if usage_out is not None and chunk.usage_metadata:
-                    usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
-                    usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
+                # Use `is not None` rather than truthiness because
+                # the google-genai UsageMetadata proto can carry
+                # None-valued fields mid-stream and the proto's
+                # __bool__ is not stable across SDK versions.
+                if usage_out is not None and chunk.usage_metadata is not None:
+                    if chunk.usage_metadata.prompt_token_count is not None:
+                        usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
+                    if chunk.usage_metadata.candidates_token_count is not None:
+                        usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
                 # Capture the finish_reason from every chunk. The final
                 # chunk carries the authoritative reason (STOP,
                 # MAX_TOKENS, SAFETY, RECITATION, OTHER). Earlier

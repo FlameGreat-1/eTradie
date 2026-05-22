@@ -20,6 +20,7 @@ from engine.shared.metrics.prometheus import (
     TRADE_PLAN_VALIDATION_FAILURES,
 )
 from engine.processor.constants import MAX_LLM_RESPONSE_LENGTH
+from engine.processor.llm.errors import LLMSchemaViolationError
 from engine.processor.models.analysis import AnalysisOutput
 from engine.processor.parsing.validators import validate_analysis_output
 
@@ -37,9 +38,13 @@ _JSON_OBJECT_RE = re.compile(r"(\{.*})", re.DOTALL)
 # than null-for-list fails. We are not relaxing any business rule;
 # `validators.py` still enforces the real trade-construction rules.
 #
-# Each entry is a dotted path with `[]` denoting a list traversal,
-# applied recursively by `_coerce_null_collections`. A test in Phase
-# 4 verifies this list matches the live AnalysisOutput schema.
+# Each entry is a dotted path applied by `_coerce_null_collections`.
+# Every entry corresponds to a `list[...] = Field(default_factory=list)`
+# on AnalysisOutput or one of its nested models. If a new list-typed
+# field is added to those models without being added here, the
+# fallback path (self-hosted endpoints without structured-output
+# support) can still surface the `null` -> list strictness mismatch
+# the schema example itself exhibits for the no-setup branch.
 _NULLABLE_LIST_PATHS: tuple[str, ...] = (
     "event_risk",
     "take_profits",
@@ -154,12 +159,15 @@ def parse_llm_response(
             error_details.append(f"{loc}: {err['msg']}")
             TRADE_PLAN_VALIDATION_FAILURES.labels(rule=f"schema_{loc}").inc()
 
-        raise ProcessorError(
+        # Typed error so the FastAPI router can return 422 with the
+        # field-by-field validation_errors list instead of a 500 with
+        # the errors squashed into the message string. Plain
+        # ProcessorError is preserved for other parse failures
+        # (empty / oversized / non-object).
+        raise LLMSchemaViolationError(
             f"LLM response failed schema validation: {'; '.join(error_details[:5])}",
-            details={
-                "validation_errors": error_details,
-                "trace_id": trace_id,
-            },
+            validation_errors=error_details,
+            details={"trace_id": trace_id},
         ) from exc
 
     validation_errors = validate_analysis_output(

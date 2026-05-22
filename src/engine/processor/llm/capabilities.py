@@ -45,7 +45,8 @@ class ModelCapabilities:
             reasoning tokens when the operator has not explicitly
             set ``ProcessorConfig.reasoning_budget_tokens``. Sized
             so visible output has room to land inside
-            ``max_output_tokens=16384`` for the standard prompt.
+            ``max_output_tokens=32768`` for the standard prompt (the
+            production default; see ``config.py``).
     """
 
     provider: str
