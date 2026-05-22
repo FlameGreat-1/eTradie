@@ -30,6 +30,7 @@ from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import LLM_ERRORS_TOTAL
 from engine.processor.config import ProcessorConfig
 from engine.processor.llm.errors import (
+    LLMError,
     LLMRateLimitedError,
     LLMTransientError,
 )
@@ -174,6 +175,17 @@ async def retry_llm_call(
                         "trace_id": trace_id,
                     },
                 )
+                # Preserve typed LLMError subclasses so the FastAPI router
+                # in src/engine/routers/internal.py can match the specific
+                # exception class (LLMRateLimitedError /
+                # LLMSafetyFilterError / LLMTruncatedError /
+                # LLMSchemaViolationError) and return 422 with a stable
+                # `code` instead of a generic 500. Wrapping in
+                # ProcessorError(...) from exc puts the typed error on
+                # __cause__ but changes the raised type, breaking the
+                # router's isinstance-based dispatch.
+                if isinstance(exc, LLMError):
+                    raise
                 raise ProcessorError(
                     f"Non-retryable LLM error ({provider}): {error_type}: {exc}",
                     details={
@@ -203,6 +215,13 @@ async def retry_llm_call(
 
             await asyncio.sleep(delay)
 
+    # Retry budget exhausted on a retryable error. If the last
+    # exception was a typed LLMError (e.g. LLMTransientError after the
+    # retry budget was used up), re-raise it so the router's
+    # isinstance-based 422 mapping still fires. Only fall through to
+    # the generic ProcessorError wrap for truly untyped exceptions.
+    if isinstance(last_exc, LLMError):
+        raise last_exc
     raise ProcessorError(
         f"LLM call failed after {config.max_retries + 1} attempts ({provider}): {last_exc}",
         details={
