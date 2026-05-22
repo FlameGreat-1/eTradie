@@ -342,17 +342,37 @@ class AnalysisProcessor(ProcessorPort):
         # URL configured) reserve() returns '' and the call proceeds
         # without any quota check. This is the correct behaviour for
         # BYOK users (they pay their own bill) and for local dev.
+        # Metering is platform-only: a BYOK user supplies their own
+        # provider key, so the platform incurs no LLM cost and has no
+        # business writing to billing_usage. The uses_platform_key flag
+        # is set by the resolver in dependencies.py based on whether the
+        # active ProcessorConfig was built from the platform row / env
+        # baseline (True) or from a personal row in llm_connections
+        # (False). Default is False so a misconfigured construction
+        # fails closed (no platform metering on an unknown key origin).
         estimated_input = max(0, len(user_message.encode("utf-8")) // 4)
-        reservation_id = await metering.reserve(
-            user_id=user_id,
-            provider=self._llm.PROVIDER,
-            model=self._config.model_name,
-            estimated_input_tokens=estimated_input,
-            max_output_tokens=self._config.max_output_tokens,
-            trace_id=trace_id or "",
-        )
-        # QuotaExceededError propagates immediately (no LLM call, no
-        # audit row). The internal router maps it to HTTP 429.
+        if self._config.uses_platform_key:
+            reservation_id = await metering.reserve(
+                user_id=user_id,
+                provider=self._llm.PROVIDER,
+                model=self._config.model_name,
+                estimated_input_tokens=estimated_input,
+                max_output_tokens=self._config.max_output_tokens,
+                trace_id=trace_id or "",
+            )
+            # QuotaExceededError propagates immediately (no LLM call,
+            # no audit row). The internal router maps it to HTTP 429.
+        else:
+            reservation_id = ""
+            logger.debug(
+                "metering_skipped_byok",
+                extra={
+                    "user_id": user_id,
+                    "provider": self._llm.PROVIDER,
+                    "model": self._config.model_name,
+                    "trace_id": trace_id,
+                },
+            )
 
         # Step 4: Call LLM API with retry + exponential backoff.
         # retry_llm_call handles transient failures (rate limits, server
@@ -472,8 +492,10 @@ class AnalysisProcessor(ProcessorPort):
             # debit so the user's quota is not permanently consumed for
             # a call that never completed. The refund is best-effort;
             # the janitor will reap the reservation after its TTL if
-            # the refund call itself fails.
-            await metering.refund(reservation_id=reservation_id)
+            # the refund call itself fails. Skipped for BYOK because no
+            # reservation was made.
+            if reservation_id:
+                await metering.refund(reservation_id=reservation_id)
             raise
 
         # Step 4b: Detect LLM output truncation BEFORE parsing.
@@ -522,8 +544,9 @@ class AnalysisProcessor(ProcessorPort):
             # branch did NOT fire) but the response is unusable. Refund
             # the provisional debit so the reservation does not leak
             # until TTL. Best-effort: a refund failure is reaped by the
-            # janitor.
-            await metering.refund(reservation_id=reservation_id)
+            # janitor. Skipped for BYOK because no reservation was made.
+            if reservation_id:
+                await metering.refund(reservation_id=reservation_id)
             raise LLMTruncatedError(
                 f"LLM output was truncated (finish_reason={finish_reason}). "
                 f"The model generated {llm_response.output_tokens} tokens "
@@ -543,12 +566,14 @@ class AnalysisProcessor(ProcessorPort):
         # Step 5: Commit the real token counts. The over-reservation on
         # the output side (max_output - actual_output) is returned to
         # the user's quota. Commit is best-effort: a transient failure
-        # does not roll back the completed LLM call.
-        await metering.commit(
-            reservation_id=reservation_id,
-            actual_input_tokens=llm_response.input_tokens,
-            actual_output_tokens=llm_response.output_tokens,
-        )
+        # does not roll back the completed LLM call. Skipped for BYOK
+        # because no reservation was made.
+        if reservation_id:
+            await metering.commit(
+                reservation_id=reservation_id,
+                actual_input_tokens=llm_response.input_tokens,
+                actual_output_tokens=llm_response.output_tokens,
+            )
 
         if self._config.log_raw_llm_response:
             logger.debug(

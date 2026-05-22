@@ -191,6 +191,28 @@ class ProcessorConfig(BaseSettings):
         description="Log full raw LLM response (dev/debug only)",
     )
 
+    # -- Metering --------------------------------------------------------------
+    # Drives whether service.py invokes the gateway's metering layer
+    # (reserve / commit / refund). True only for configs built from the
+    # platform LLM key (the env-var baseline or the `is_platform=true`
+    # row in llm_connections). False for any BYOK config built from a
+    # personal row in llm_connections: the user pays their own provider
+    # bill so the platform has nothing to meter.
+    #
+    # Default False so a caller that constructs a ProcessorConfig without
+    # setting the flag is treated as BYOK and skips metering. The two
+    # platform paths (_load_platform_processor_config and the env-var
+    # startup config) set it explicitly.
+    uses_platform_key: bool = Field(
+        default=False,
+        description=(
+            "Internal flag set by the LLM-connection resolver to indicate "
+            "this config carries the platform API key. service.py uses it "
+            "to gate metering calls so BYOK users never touch the "
+            "platform's billing_usage counters."
+        ),
+    )
+
     @model_validator(mode="after")
     def _set_default_model(self) -> Self:
         """Auto-fill model_name from provider defaults if empty."""
