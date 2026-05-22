@@ -681,8 +681,16 @@ class Container:
         """
         self.processor_uow_factory = processor_uow_factory(self.db)
 
-        # At startup, use env-var configuration only.
-        self.processor_config = get_processor_config()
+        # At startup, use env-var configuration only. The startup
+        # processor is only ever used as the platform-key baseline
+        # (admin / pro_managed fallback when no personal row exists),
+        # so the platform-key flag is True here. Per-user processors
+        # built later via resolve_user_processor() get the correct
+        # platform/BYOK flag from _processor_config_from_row().
+        startup_cfg = get_processor_config()
+        self.processor_config = startup_cfg.model_copy(
+            update={"uses_platform_key": True}
+        )
 
         self.processor_llm_client = create_llm_client(
             config=self.processor_config,
@@ -836,6 +844,12 @@ class Container:
         if key_field in overrides:
             overrides[key_field] = SecretStr(api_key)
 
+        # Carry the platform/BYOK origin down to service.py so it can
+        # decide whether to call the gateway's metering layer. Personal
+        # rows (is_platform=False) bypass metering entirely because the
+        # user pays their own provider bill.
+        overrides["uses_platform_key"] = is_platform
+
         cfg = ProcessorConfig(**overrides)
         _logger.info(
             "processor_config_built_from_row",
@@ -875,7 +889,12 @@ class Container:
                 platform_row, is_platform=True
             )
         _logger.info("using_platform_llm_from_env")
-        return get_processor_config()
+        # Env-var fallback IS the platform key by definition (this branch
+        # is only reached for admin / pro_managed users with no saved
+        # connection). Mark the config accordingly so service.py keeps
+        # metering enabled for it.
+        env_cfg = get_processor_config()
+        return env_cfg.model_copy(update={"uses_platform_key": True})
 
     @staticmethod
     def _is_eligible_for_platform_fallback(role: str, tier: str) -> bool:
