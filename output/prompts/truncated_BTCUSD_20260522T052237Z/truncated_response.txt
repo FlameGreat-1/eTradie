@@ -1,0 +1,49 @@
+{
+  "analysis_id": "analysis_BTCUSD_20260522_0520_a7f3",
+  "pair": "BTCUSD",
+  "timestamp": "2026-05-22T05:20:00Z",
+  "trading_style": "INTRADAY",
+  "session": "ASIAN",
+  "macro_bias": {
+    "base_currency": {
+      "bias": "NEUTRAL",
+      "evidence": [
+        {
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "section": "SECTION 4 — GLOBAL CONFLUENCE FRAMEWORK",
+          "rule_id": "STYLE-CONSISTENCY-002",
+          "content_preview": "Macro bias aligned with trade direction"
+        }
+      ]
+    },
+    "quote_currency": {
+      "bias": "NEUTRAL",
+      "evidence": [
+        {
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "section": "SECTION 4 — GLOBAL CONFLUENCE FRAMEWORK",
+          "rule_id": "STYLE-CONSISTENCY-002",
+          "content_preview": "Macro bias aligned with trade direction"
+        }
+      ]
+    }
+  },
+  "dxy_bias": {
+    "direction": "NEUTRAL",
+    "evidence": [
+      {
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+        "section": "SECTION 2 — INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+      }
+    ]
+  },
+  "cot_signal": {
+    "summary": "Net speculative positioning is neutral with no extreme readings detected.",
+    "week_over_week": "flat",
+    "extreme_flag": false,
+    "evidence": [
+      {
+        "

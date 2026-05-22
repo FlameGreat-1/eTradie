@@ -1,0 +1,603 @@
+{
+  "calendar": {
+    "collected_at": "2026-05-22T05:03:34.408469Z",
+    "created_at": "2026-05-22T05:03:34.409254Z",
+    "events": [],
+    "id": "ea5b2c61-6713-46e7-be9e-e34d70b7363b",
+    "sources": []
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-05-22T05:00:32.651543Z",
+    "created_at": "2026-05-22T05:00:32.652234Z",
+    "forward_guidance": [],
+    "id": "60ee454b-c0be-4c98-92bc-6c2581f83133",
+    "meeting_minutes": [],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": []
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-05-22T05:03:34.390347Z",
+    "created_at": "2026-05-22T05:03:34.391949Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "7cd1752a-a847-4ac4-a661-8527380a1ae4",
+    "latest_positions": [],
+    "previous_positions": [],
+    "previous_report_date": null,
+    "report_date": null,
+    "tff_positions": [],
+    "wow_shifts": {}
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "news",
+    "calendar",
+    "dxy",
+    "intermarket"
+  ],
+  "dxy": {
+    "collected_at": "2026-05-22T05:03:34.399957Z",
+    "created_at": "2026-05-22T05:03:34.402304Z",
+    "id": "cd791454-ec28-453f-9792-288a1407a431",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "economic": {
+    "collected_at": "2026-05-22T05:03:34.395415Z",
+    "created_at": "2026-05-22T05:03:34.396818Z",
+    "id": "2d221f0c-207d-47e1-94ec-6d332810901a",
+    "releases": [],
+    "sources": []
+  },
+  "intermarket": {
+    "collected_at": "2026-05-22T05:03:34.407370Z",
+    "created_at": "2026-05-22T05:03:34.407420Z",
+    "id": "a36d744b-48b0-47fb-852c-d332100e3401",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "news": {
+    "collected_at": "2026-05-22T05:03:34.439976Z",
+    "created_at": "2026-05-22T05:03:34.439994Z",
+    "id": "c2eacf6e-4eb6-49fe-8665-a089bfd5f03f",
+    "items": [
+      {
+        "created_at": "2026-05-22T05:03:34.437750Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5522699f7b3dfd0db1de68d904c13b31b25d02a810ed3919cfbbf7f17736e9cf",
+        "headline": "Indonesia\u2019s Danantara Says to \u2018Listen to Market\u2019",
+        "id": "69d71623-0129-4ce9-aa4a-ecd13cf45f7a",
+        "impact": "LOW",
+        "published_at": "2026-05-22T04:42:01Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.437801Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8e16b011d90132bdc18cbd77137881faebc32ef8505db8f8cb3e100f10b68ffb",
+        "headline": "Rupee Plunge Sees India Turn to 2013 Taper Tantrum Playbook",
+        "id": "d07f259b-dd29-4695-9cab-148e400ae811",
+        "impact": "LOW",
+        "published_at": "2026-05-22T04:23:06Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.437826Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e8d9d441a86490db76de136da5f6167baaf7347a00f5a4d39f3c4bf50ec53267",
+        "headline": "Traders Bet on RBA Pause With Rise in Curve-Steepening Trades",
+        "id": "3072a74e-a0a2-43ff-b6fc-6432dae13f8d",
+        "impact": "LOW",
+        "published_at": "2026-05-22T04:03:22Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438214Z",
+        "currencies_mentioned": [
+          "AUD"
+        ],
+        "dedupe_hash": "a1caa0c6400c623e1319890ccea2b91c7fba968de0c126119bc78589da7f587f",
+        "headline": "Lionel Messi Joins Football's Billionaire Club After US Deals",
+        "id": "97eaa88c-b9d0-4018-82df-1d686113dcf1",
+        "impact": "LOW",
+        "published_at": "2026-05-22T04:00:06Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438283Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8dc4d0f2fa53c42f405b0703957333cc3d3f2e7bc3b039c053a89cb451659fc4",
+        "headline": "Indonesia to \u2018Listen to Market\u2019 on New Commodity Export Body",
+        "id": "4beea673-d97f-4688-a7e0-0cb22e42e2c3",
+        "impact": "LOW",
+        "published_at": "2026-05-22T03:30:28Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438330Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "461b6d628e4844ca88cfb17c9bbbd3f9590fc89c89361e380b2d594b9986a9a3",
+        "headline": "Metals Advance as Traders Track Progress in US-Iran Peace Talks",
+        "id": "b5c4b739-a5e1-46da-a2af-827349a9396d",
+        "impact": "LOW",
+        "published_at": "2026-05-22T03:03:46Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438370Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "eeef7d0173490d8686a012838fc4ba0e4383661c41f0eecc2d990d6586d6cdf5",
+        "headline": "DeepSeek Founder Declares AGI Goal as $10 Billion Round Advances",
+        "id": "5e765a1b-e26d-4408-bc71-952ee7cdf508",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:58:46Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438403Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "53286daa0b0b482a2c022be47d74ab0cb6d00301188b1b03bb1a7948da8398c8",
+        "headline": "Nifty\u2019s Technical Setup Improves While Macro Risks Persist",
+        "id": "369babab-eebd-4db4-b0f4-c1398d375c36",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:46:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438478Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "0d18cd84ff8af6b404f2dfd79f4eb28dfb91a00aa5b70efe10646216933be1b4",
+        "headline": "Renault Joins Foreign Firm Yen Bond Sale Rush With Samurai Sale",
+        "id": "fdc477b9-1cec-4315-a2be-76b50bd33cae",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:35:42Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438528Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "fbcbad9fe0688d6c385d27c719b4d488c0ef343ba14c9c89b28f76d0bee16fea",
+        "headline": "Renault Joins Foreign Firm Yen Bond Offerings With Samurai Sale",
+        "id": "fdc9ec28-357c-47ce-8e60-29c2ac400f3e",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:35:42Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438619Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4edd22ff16c9080111e552a992359391999b377e16a36ba25ff3625acbbd3616",
+        "headline": "South Korea to Trim Long-Term Bond Sales as Part of June Cut",
+        "id": "dd2d224e-fa93-4bae-ab95-980a0f1d05dd",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:15:14Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438658Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b55f322d7e42f63542bff7928ad1fc575a5b877731bb3798ff52df83f2302f6c",
+        "headline": "Philippines to Sell Up to 30B Pesos Treasury Bond Due July 2030",
+        "id": "e0acce06-7f90-4de7-9c33-fb1591988bac",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:13:43Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438728Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "083191b61b99fcc948653c142aa8ab06618ed3e260290a85dba80ff9e02371df",
+        "headline": "Lenovo Shares Near All-Time High After Strong AI Growth",
+        "id": "1b319659-dcd2-442a-be92-50a4c82500c8",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:13:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438753Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "a237368007faed2f9381ed821116a9af43b2cd14a273dcdfb7157fdce8c8d016",
+        "headline": "Lenovo Shares Surge 13% After Earnings Show AI-Driven Growth",
+        "id": "c4121824-50df-462a-96e1-511ba744fe98",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:13:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438777Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4701337b1e53cc8bab6368651ba61f21ca121057d8ef5576b47a1c3b69d325cc",
+        "headline": "FountainVest Is Said to Mull Sale of Swiss Micro-Tools Maker SPT",
+        "id": "a7dfce50-bec8-4d7d-ab89-c6a373390ec5",
+        "impact": "LOW",
+        "published_at": "2026-05-22T02:09:18Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438813Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "73989d2a7b7f6931c8c9c0ffad1aba14130bea85a389f3026b08fb9f2ab1036d",
+        "headline": "Philippine Peso at 63.5 Per Dollar Might Be Okay, Governor Says",
+        "id": "511843b7-97ee-4817-95ba-fa99aaa9acca",
+        "impact": "LOW",
+        "published_at": "2026-05-22T01:43:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438865Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "34b02c249ca3244d7a9be12137d4adcd6ba7813b66d981590037d2885bee0c89",
+        "headline": "Philippine Peso at 63.50 Per Dollar Might Be Okay, Governor Says",
+        "id": "160db989-d45f-44d9-829f-8f31a51635b6",
+        "impact": "LOW",
+        "published_at": "2026-05-22T01:43:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438891Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3a8ff4df5d5eff4b35773b0dbee851fca473a54c28de2491ed6a8a7e06b1d9dc",
+        "headline": "Polymarket Is Said to Seek Japan Market Approval in Global Push",
+        "id": "e0da44a8-85ad-426f-a00d-51f2cc05e88f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T01:37:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438915Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "a5d870b219b3d4033b3867cfe9c4679305674f11810d7a42a0ba7bc558296017",
+        "headline": "BofA Sees Foreign Exodus from Indian Stocks Extending Into 2027",
+        "id": "2130d9ce-37aa-4cd1-855c-24ed208acdb3",
+        "impact": "LOW",
+        "published_at": "2026-05-22T01:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438941Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "8df74d96c9d11ffd2190111041fa6971c754b03919fe2b12939de1b73b44c4c0",
+        "headline": "1,000% Stock Boom Frees Vietnam Tycoon to Pour Cash Into EVs",
+        "id": "9dfd63d6-d3f3-4f16-9530-179710ee26ae",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:55:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438970Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "086673a3cbb4522e4253357b50f2f7e46926332c7296c16e69c094c66a5275e7",
+        "headline": "Tycoon Plows Billions Into EVs as His Vietnam Stock Booms 1,000%",
+        "id": "198334a8-bcde-42e6-8f10-9fb6ac454344",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:55:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.438999Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "fa8291d9108ac5b723625b0272c907673e7707e50d45e59eef819744b546ffbc",
+        "headline": "Tuas\u2019 $1.1 Billion M1 Deal Collapses Amid Regulator Probe",
+        "id": "1b2a5c19-f0bb-4f3e-82d7-d344f8639197",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:40:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439030Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "fc058248d987fbe7c88f5822eaeda30550d25a442ed60334cd38c0ba71e1e83c",
+        "headline": "Tuas\u2019 $1.1 Billion M1 Deal Collapses Amid Singapore Regulator Probe",
+        "id": "d84efca3-069b-47e1-9a19-3b3ba616e15b",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:40:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439069Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "868d6056b464a9898a62321de1ad6dcc0b9d92a94b9e7222e590ac911978d6b5",
+        "headline": "Tuas\u2019 $1.1 Billion M1 Deal Lapsed Amid Singapore Regulator Probe",
+        "id": "2f9b6c9f-e741-4f12-b1f0-393223e0c384",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:40:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439103Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2156e769da996453967f27b849900fa90ff67792a91b72d4a26a2259f6dcb97e",
+        "headline": "China\u2019s National Team Seen Reducing ETF Stakes 90% in First Half",
+        "id": "1ff3000d-1009-453e-b692-e5a422229dda",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:35:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439135Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f62499d9bc13e9a534233b6f900b6a12289bc26961b7567d1d9074003fe684e4",
+        "headline": "China\u2019s National Team Set to Cut ETF Stakes by 90% in First Half",
+        "id": "55b48b50-9ea4-4643-92c7-d667d9b78b28",
+        "impact": "LOW",
+        "published_at": "2026-05-22T00:35:05Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439156Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f9cc847f54ab10e5570bd71cc08ebb8e016e4a540518bcae85481453e31f12e0",
+        "headline": "North Carolina Sues VinFast Over Delayed, Downsized Factory",
+        "id": "8756357c-9a33-4cda-95ed-f4f740a8d005",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:50:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439187Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "7420618fab2265cf5757b86b3245dd4d49272dc0051b9be36e7ad4b6b50750c2",
+        "headline": "North Carolina Sues VinFast Over Delayed, Downsized Factory Plan",
+        "id": "26ffe8e2-84ff-4e0b-9e87-1905926c01ac",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:50:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439234Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "5f84acb2bfcffb557822e03a6852f2e15bc5e2d43becefe705a5837600337a05",
+        "headline": "Yen Traders Brace for Intervention Risk as Monday Holidays Loom",
+        "id": "6c9be573-9220-4646-b684-4c4d9ba1d9e8",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:45:01Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439266Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3b644dd13465ef5198a97852c1748a86bfc0d656251dae010aced6106cf9ac89",
+        "headline": "Yield Curves May Steepen Further in Key Southeast Asian Markets",
+        "id": "ac8cbac1-4f11-4af8-9dec-c32c807fa2e8",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:34:28Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439293Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5d448297fbb8b2127af6969f737c8b3174d6ac8480732f81f1f6f0007c5043f6",
+        "headline": "Investors Look Beyond TSMC as AI Boom Spreads to New Winners",
+        "id": "d479a49a-2f9e-4da2-b25c-bd3effb91562",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:30:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439319Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8abdccddfe23476e805196c5ec2c02893d0240203eb5f3d1721964b36c0c3a00",
+        "headline": "Ross Raises Forecasts Amid Sales Surge, Record Same-Store Growth",
+        "id": "64f87467-ffdd-41a0-9170-f317dfcf1a3b",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:19:53Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439346Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5a035909d60bddda9166f07ee71e6f56cadfffb31f83509fbd1226512b2d2ef9",
+        "headline": "Only High-Earning Britons Are Defying the Energy Shock, GfK Says",
+        "id": "1d3f21df-9f76-4501-95d6-12188358b4f1",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:01:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439382Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "2dc0a3bac26443d3ee881397ecc5911fa27b420de9bf07db9bd68eda5127a271",
+        "headline": "Zhipu, Minimax Seen Joining HK Tech Gauge, Luring More AI Bets",
+        "id": "50b5d34a-f940-41e9-bec8-77a716710232",
+        "impact": "LOW",
+        "published_at": "2026-05-21T23:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439401Z",
+        "currencies_mentioned": [
+          "XAU"
+        ],
+        "dedupe_hash": "dea5507aae69f99ac852834a6ebf91f8cfa54607bd782976445be3101f91973a",
+        "headline": "Gold Steady as US-Iran Signals Keep Rate Hike Bets Simmering",
+        "id": "304c1a61-754c-4f20-96cc-b193f8353158",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:34:42Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439766Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2b5b4d5ec4d7c4fc14a0442a9025efe95d076c1d87f23efac7a8307320b5be41",
+        "headline": "IMF Approves About $1 Billion Disbursement for Argentina in Fresh Win for Milei",
+        "id": "c2bcedae-9185-4220-8282-9d741453cdb8",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:18:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439780Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4b3aa5ecf5bb9c74fb7c6dee334f47dcc32f5818acb706de879972bd6d33589f",
+        "headline": "Asian Stocks Rise on Optimism Over US-Iran Talks: Markets Wrap",
+        "id": "34cdee7f-7bcb-4c5b-ad4d-7bfdf57163fd",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:06:58Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439791Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "cf06f5ad6799d598538dc293abeec37af8cd15e91e5b099afa7b033d741f3284",
+        "headline": "Asian Stocks to Rise on Optimism Over Iran Talks: Markets Wrap",
+        "id": "b63b5ad0-7a45-4c13-ba27-1b6b810198ab",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:06:58Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439800Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "01b141f5efaaaf2378002d90d6242fa2adcd7d5118e5cd8ac39477df735c780c",
+        "headline": "Tech Leads Gain in Asian Stocks, Oil Climbs: Markets Wrap",
+        "id": "37572991-d788-4566-8caf-38d75c5ba24c",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:06:58Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439809Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2831840c7c9aa54457854774839c387da8521c26e872d67df3e965d39c91caab",
+        "headline": "Oil Rises After Three-Day Drop With Iran-US Talks in Focus",
+        "id": "7446a840-a187-45a6-a880-45feb0057784",
+        "impact": "LOW",
+        "published_at": "2026-05-21T22:03:02Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439880Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "0f58b2e9f82e642565e2262cfdbfb7eadf63b7b101a76f9b0510e07210657cb9",
+        "headline": "What to Know About the SpaceX IPO",
+        "id": "7c995779-9a6b-4c23-8450-0695d02f9f55",
+        "impact": "LOW",
+        "published_at": "2026-05-21T21:33:26Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439892Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "cbc53808e73f849b74dda535351b95cbe5787e51ff7983a5397c2702a0e99780",
+        "headline": "Workday Rallies After Results Quiet Fears of AI Disruption",
+        "id": "3aff6554-ae2e-4db9-b442-f4f391bc3e46",
+        "impact": "LOW",
+        "published_at": "2026-05-21T21:21:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439902Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "efa9f8cbf5db047461c884a9382acb27cc8167f00a52a5f1ceb2786a3b92df6d",
+        "headline": "US Races to Create Domestic Rare Earths Supply",
+        "id": "e92fc30e-8f95-4928-92dc-7c22afec4e40",
+        "impact": "LOW",
+        "published_at": "2026-05-21T21:20:56Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439911Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4b828f1d1a0eeabb69b3d6d5656e2644e7ab2d24822d2906a9b64dd77abcdbd2",
+        "headline": "UBS Hits Back Over Nazi-Accounts Probe Amid Senate Pressure",
+        "id": "bedd6c4f-ebb9-445f-ab45-137ad2d0a236",
+        "impact": "LOW",
+        "published_at": "2026-05-21T21:10:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439920Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "cba83ddb82f5a417c4736728015c190f41e25fde568c0c1eb96d6bdac4bf744d",
+        "headline": "$50 Trillion Safe-Haven Debt Market Upended by Iran War Inflation",
+        "id": "938e6bce-5181-4208-b7ac-bb1a33272c64",
+        "impact": "LOW",
+        "published_at": "2026-05-21T21:00:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439928Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "179400b228ff70106ae3d059fe61bb00924d94daaa5a189663abc058f998b454",
+        "headline": "New Grads Face the Tightest Labor Market in Years",
+        "id": "bbb35033-818a-4a8f-8137-eeb263e4a16a",
+        "impact": "LOW",
+        "published_at": "2026-05-21T20:53:14Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439938Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3401dc4d0a880f3f89759938218bc9c10e7457bb9aec8b1f76cbf66f9b81f40c",
+        "headline": "Flight Firm CAE Says Defense Deals, Cost Cutting to Drive Profit Surge",
+        "id": "d46c94fe-9d36-4ad4-a31e-474bf1ac922d",
+        "impact": "LOW",
+        "published_at": "2026-05-21T20:40:32Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439948Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "611593d8da86f4e4e71fb9cac4528918195c9de0140b4277627541d8745bfcba",
+        "headline": "Bird Construction Readies Its First Corporate Bond Sale",
+        "id": "facc157b-1c9c-4e88-ada2-2f7e2f4ef686",
+        "impact": "LOW",
+        "published_at": "2026-05-21T20:19:37Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439957Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "fc3de1735609ae99385d52071ddb848e22a94a94cd59a4e41ffacff816ce2bdc",
+        "headline": "JPMorgan Boosts Warner Bros. Loan to $10 Billion as Merger Looms",
+        "id": "39f076a0-0820-47eb-b0a6-2d80e4f44049",
+        "impact": "LOW",
+        "published_at": "2026-05-21T20:07:20Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-22T05:03:34.439968Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "5ceddca8e66bf44b4d79d4640b4d6bd2b9f04b6c6a14af7944222749546d1369",
+        "headline": "Canada Pension Boss Warns on AI-Fueled Valuations as Stocks Keep Rising",
+        "id": "9fe65fb5-6748-409b-bb33-1a647a168d24",
+        "impact": "LOW",
+        "published_at": "2026-05-21T19:53:15Z",
+        "source": "bloomberg"
+      }
+    ],
+    "sources": [
+      "database_fallback"
+    ]
+  },
+  "sentiment": null
+}
