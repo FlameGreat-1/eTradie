@@ -1,0 +1,615 @@
+{
+  "calendar": {
+    "collected_at": "2026-05-23T06:39:02.260032Z",
+    "created_at": "2026-05-23T06:39:02.260517Z",
+    "events": [],
+    "id": "7aead31a-960c-4c89-a00e-21b9998543cd",
+    "sources": []
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-05-23T06:30:02.919375Z",
+    "created_at": "2026-05-23T06:30:02.919439Z",
+    "forward_guidance": [],
+    "id": "d3cb09c3-1f56-4517-9510-e4b4cdaaf77b",
+    "meeting_minutes": [],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": []
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-05-23T06:39:02.287966Z",
+    "created_at": "2026-05-23T06:39:02.289005Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "bee4b017-5a38-4e84-a477-eea4174b4433",
+    "latest_positions": [],
+    "previous_positions": [],
+    "previous_report_date": null,
+    "report_date": null,
+    "tff_positions": [],
+    "wow_shifts": {}
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "news",
+    "calendar",
+    "dxy",
+    "intermarket",
+    "sentiment"
+  ],
+  "dxy": {
+    "collected_at": "2026-05-23T06:39:02.244011Z",
+    "created_at": "2026-05-23T06:39:02.252724Z",
+    "id": "e25a80f4-1eb3-4dd9-b070-0d9c3d8d37a6",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "economic": {
+    "collected_at": "2026-05-23T06:39:02.276573Z",
+    "created_at": "2026-05-23T06:39:02.277027Z",
+    "id": "69defe44-fb6b-4047-b7c3-c3704abcf5b4",
+    "releases": [],
+    "sources": []
+  },
+  "intermarket": {
+    "collected_at": "2026-05-23T06:39:02.283876Z",
+    "created_at": "2026-05-23T06:39:02.283938Z",
+    "id": "4154fa59-903c-4a76-8e50-5d4e46111e2f",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "news": {
+    "collected_at": "2026-05-23T06:39:02.355845Z",
+    "created_at": "2026-05-23T06:39:02.355967Z",
+    "id": "700c189e-e512-45de-8858-28f76cbea8ee",
+    "items": [
+      {
+        "created_at": "2026-05-23T06:39:02.353255Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e86c656eb90b8e0df4d6704f6531063fe82f3023b0c0db2484a8b2e0ec4e4fb0",
+        "headline": "China Coal Mine Explosion Kills 90 in Deadliest Blast Since 2009",
+        "id": "7dc5f63f-b0d6-4602-814a-f237fcae2332",
+        "impact": "LOW",
+        "published_at": "2026-05-23T03:19:21Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353503Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "aefa6ff1150c485b8af900258495b337002e77dae77ffc15436898763a5ddf3d",
+        "headline": "Ebola Outruns Containment in Eastern Congo as Contact Tracing Falters",
+        "id": "26c3bb0b-059a-474f-bb1b-c7f22635f956",
+        "impact": "LOW",
+        "published_at": "2026-05-23T02:47:03Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353540Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2bb1fe63155ab4230f63936e332bb9c2ace32dd39cf0a14b8eba307bda27ea99",
+        "headline": "India Raises Diesel, Gasoline Prices for Third Time in Eight Days",
+        "id": "34609bc1-452a-44c6-bf78-35ee0d373244",
+        "impact": "LOW",
+        "published_at": "2026-05-23T01:30:56Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353558Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f9f6c4634631e455e09004d02e299c0231160288170696c4b6b49b9c17fa85d4",
+        "headline": "Indonesia Plans to Beat Global Trading Giants at Their Own Game",
+        "id": "a59f3c5e-cc6f-40cc-83a4-613563034026",
+        "impact": "LOW",
+        "published_at": "2026-05-23T01:00:00Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353608Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "349f2c66d4b279626eb1a95c13c611876cbe0eaa328be9da06b4159bfe142e71",
+        "headline": "New Zealand to Invest in Drones, Fleet to Shield Maritime Routes",
+        "id": "90972856-068a-42a5-af7e-1bfb5998d5fa",
+        "impact": "LOW",
+        "published_at": "2026-05-23T00:35:09Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353745Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "33d3e52899dde292158cadd2be4473629e57ff3f5f190a870f4af239b5689813",
+        "headline": "Abrego Garcia Wins Dismissal of US Human-Smuggling Case",
+        "id": "b25abeb5-8acb-46d8-bef3-742ef251414f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T23:16:50Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353786Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "097b75a9706a63abfbef3b4ca4e4bd1c317311a6a29e961498a955fafe6a11c5",
+        "headline": "Cava CEO: Unique Cuisine Differentiates Us",
+        "id": "f527e676-ccc6-43a2-a554-83af67fca212",
+        "impact": "LOW",
+        "published_at": "2026-05-22T22:22:28Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353832Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b9c04652fb725d72733ab22b994ead7fe97c080075bd2c82d06433b226c113af",
+        "headline": "AEW CEO on WWE Challenger\u2019s Biggest Test in New York",
+        "id": "59dc3e9a-f713-44bb-9d03-ea8fdb028ea5",
+        "impact": "LOW",
+        "published_at": "2026-05-22T22:12:26Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353879Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2846472e38da867794d2e1484514b3b21f6762495727d5e74db82d230bee23f4",
+        "headline": "Equatorial Leans Against Bidding on Copasa Privatization",
+        "id": "96e89942-43a8-4bc0-9c35-f97ca2a537e5",
+        "impact": "LOW",
+        "published_at": "2026-05-22T22:10:16Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353893Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "7124c0d91a110e6a8bbf6833478f9233251e21eb5b0ec3c4253f71e26ea3d01c",
+        "headline": "Atomic Monster President on Business of Horror Films",
+        "id": "61075c97-dffe-44dc-b609-bbdb1f75634e",
+        "impact": "LOW",
+        "published_at": "2026-05-22T21:58:48Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.353979Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f891e2eb438cce8907257044f4c86909b81f4f7968022ca5ee16e58c58b7cf64",
+        "headline": "Space Capital CEO on What\u2019s Next For Space Industry",
+        "id": "b60a5125-68ca-4570-b31b-51485f79eec3",
+        "impact": "LOW",
+        "published_at": "2026-05-22T21:53:48Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354024Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "905484b6198a46a1329ad093541fc986321692962ddc53728c4e1d7b7f002f1b",
+        "headline": "Grocery Stores Feel Crunch of Fuel, Labor Costs Ahead of Memorial Day",
+        "id": "7b044c09-de42-4af3-9097-e995860fca7f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T21:40:23Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354038Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f639405be501bd24b8e401b086ac30ba0165af75e52f54ae0ef520b4e0a698e7",
+        "headline": "Nasdaq Bitcoin Index Options Granted Approval by SEC",
+        "id": "691fe580-c941-4a29-b2f8-dd0e676ca902",
+        "impact": "LOW",
+        "published_at": "2026-05-22T20:49:43Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354101Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "2ce1f433918f490d2d44da0f28d6da7e7a491978381644e49c619695ba4e6c60",
+        "headline": "Nasdaq Gets Approval From SEC to List Bitcoin Index Options",
+        "id": "b0cf2a47-2ad9-4f69-ae06-1812c1394e51",
+        "impact": "LOW",
+        "published_at": "2026-05-22T20:49:43Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354115Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8216bb1ac077ca70425521ae5e65c858c7409e1e49d786e824b1fa7418dfa1fa",
+        "headline": "Lantheus Weighs Potential $7 Billion Sale Following Offer From Curium",
+        "id": "8d206894-921f-4c60-8570-4407d09b5642",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:53:41Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354125Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "119beb8d0dd48d2ff5c1852c2e84feda879dd4f0ce7a2e2fd48914f3ec0e968c",
+        "headline": "Lantheus Explores Potential $7 Billion Sale Following Offer From Curium",
+        "id": "bb0c9c20-592b-416a-8147-61dc31e7fb94",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:53:41Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354136Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "3efcc853151692823a5908fddf8f14b7e342b779048ed659eeb2dbb6847b874e",
+        "headline": "Muni Bond Sales Surge in 2026",
+        "id": "c2a83600-0e04-4d2f-9d27-53d6345efaa7",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:43:01Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354151Z",
+        "currencies_mentioned": [
+          "CAD"
+        ],
+        "dedupe_hash": "dfcaee11c9ee9aefa10bdaf21760c20307b405a5cc418f2a9dc6cd120da1e530",
+        "headline": "Credit Entry Points Incredibly Attractive: Steinbach",
+        "id": "f37b21d7-aae9-4cc1-af30-a82106506ec1",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:42:04Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354221Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "0bf443732eb70bdf1d40fde57789e04ce1dcc22f8cf5bf4b247cbef70770cefd",
+        "headline": "Danaher Raises $3 Billion in Record Private-Placement Bond Sale",
+        "id": "ee77b9ad-4310-459b-ac99-8e3c9d86d32e",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:41:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354300Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "8b365297627d1086d1ef8f1522d803e91a98c5f5788279cfc3b82c958ad903db",
+        "headline": "New York Tax on NYC Cash Home Purchases Close to Collapsing",
+        "id": "497f8f4a-23df-4799-ad4c-35fc5a326606",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:36:40Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354346Z",
+        "currencies_mentioned": [
+          "CAD",
+          "USD"
+        ],
+        "dedupe_hash": "5ec09b1674808a24d72d81c3e439f3087fd25e9dffa7fc88b4d2a44ad2e22051",
+        "headline": "Warsh Most Hawkish Fed Nominee in 20 Years: Desai",
+        "id": "e2b0574e-31d1-46a9-9755-09a07393ada9",
+        "impact": "LOW",
+        "published_at": "2026-05-22T19:11:26Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354392Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "f387df8fe74dfe833744e0ec4b5dc04de07c643a1bcc24cc190c0024ec8874f0",
+        "headline": "Director of National Intelligence Chief Gabbard Is Stepping Down",
+        "id": "28228c43-be7f-41a7-b81e-19997e02580f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:35:55Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354406Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b68b5319ddae6cfd8252e7c50e5f17f5bd2aa243634eb0a8a9999f8a3d94597a",
+        "headline": "SEC Delays Plan Allowing for Crypto Versions of US Stocks",
+        "id": "3a812d74-bfd2-4bcc-be9c-88e9cc0a5e8e",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:33:56Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354448Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "d679083837c9ae006cc3705a1814de2cb4c34a4e02e2bbea9d0522484afc4e56",
+        "headline": "US Oil Rig Count Up by Most in Four Years Amid Drilling Recovery",
+        "id": "41800b22-b3a7-4372-8c99-d5fd09da7dbc",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:24:56Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354462Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "908f68dbf12a5ee486717938cbebde3101636545ad37015e86a3816fc742e87d",
+        "headline": "Dollar Stalls as US-Iran Peace Hopes Boost Risk Sentiment",
+        "id": "34cf1aae-0bb2-4de8-a7a3-1171db842b4f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:18:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354531Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "4aed9da3a32e16aee85edacbf97cebd97bba188f270a1b30f615828a14d12752",
+        "headline": "Dollar Stalls as Hope for US-Iran Peace Boosts Risk Sentiment",
+        "id": "450aa2e2-4958-40b4-9536-84e2c93a5bce",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:18:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354633Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "2e3c6b0425b918c299ef9603ca8fa80695c03f5540ade72b33890e4a04f24982",
+        "headline": "Kevin Warsh Sworn In As Fed Chair | Real Yield 5/22/2026",
+        "id": "3f983523-2c4b-41e5-ac27-c1d1940fcb5d",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:09:25Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354677Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4dd79682b46d432a2dbefcb41cbf13a11919aa81f4d2f0fe13292650370ecd36",
+        "headline": "Zoom Jumps on Sales Forecast Topping Estimates",
+        "id": "52f09a9c-5786-4d6e-a900-ce3873c60e3e",
+        "impact": "LOW",
+        "published_at": "2026-05-22T18:01:22Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354759Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "9235a3e7474ee0ffdd9f5706e7016b5fc72b96bf331535b2d56b640540a40226",
+        "headline": "Kevin Warsh Sworn in as New Federal Reserve Chair",
+        "id": "465c39fc-96c0-44fb-aea9-4c84a96f83b2",
+        "impact": "LOW",
+        "published_at": "2026-05-22T17:58:51Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354772Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "92c682ddd263a4c77ddfd0dba24a3045ff69f0e58c32c99d5d131cb8e38f0b06",
+        "headline": "SEC Delays Prediction Market ETFs From Roundhill, GraniteShares and Bitwise",
+        "id": "49f83a2b-d370-4479-9345-3434cb793da0",
+        "impact": "LOW",
+        "published_at": "2026-05-22T17:30:36Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354782Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "4b1b24660e0bf49489023910686223afa1a5085ae3c4fc9ba4b797fd2b3d84a6",
+        "headline": "Stocks Eye Longest Weekly Run Since 2023 | Open Interest 5/22/2026",
+        "id": "d88660ba-6b83-4c9d-84fe-c600db98000f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T17:14:50Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354794Z",
+        "currencies_mentioned": [
+          "AUD"
+        ],
+        "dedupe_hash": "d0b55af9d5787617b576ca46bda06663ee5e2ac9fd9db17a2568f39e910a5fa0",
+        "headline": "Puig Falls After Estee Lauder Deal Fails",
+        "id": "46af3a9f-2725-465e-b988-9a934ef0a634",
+        "impact": "LOW",
+        "published_at": "2026-05-22T17:11:14Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354805Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "cfb8b5ecd9f7725acd62996b2b229469b197a83791898fdad955f70716e81612",
+        "headline": "Futu, Up Fintech Options Surged Before Crackdown Sparked Slump",
+        "id": "9d3ac387-564b-4d98-aee4-af532a03645d",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:56:33Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354874Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "96d509ccdb49c631430e9fb2815d4ab1fa072a6e63148efbb5ed59b6a0234a7a",
+        "headline": "Trafigura Withdraws Huge Volumes of Copper From LME Warehouses",
+        "id": "6b3e5163-4ac6-4e80-95f1-e2957aebb8ca",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:44:48Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354918Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "eae6a7afd3e2c112d1b2f515852de337b45df4f56c6d507614dc674c4fa5cc92",
+        "headline": "FBI Prepares for Increasing Drone Threats Disrupting World Cup",
+        "id": "cced4add-a2bc-4c56-bd15-17b5e1f4a942",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:25:24Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354930Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "b2ca0d8ee002cebb55746900db178243ddb78544f8f351787e26775ecf9f7a00",
+        "headline": "Uber Said to Study Full Takeover of Germany\u2019s Delivery Hero",
+        "id": "1e3a44df-23ae-4e3c-80f9-2772c0e92535",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:23:52Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354976Z",
+        "currencies_mentioned": [
+          "CHF"
+        ],
+        "dedupe_hash": "e0339e2d71d3e1f428028c34fc3fc8ef278bfb78ee33c3c7410af27d8ae06302",
+        "headline": "Central Africa States Rule Out CFA Franc Devaluation, Governor Says",
+        "id": "69a48bcc-a415-4bb3-a3da-78b6590921f4",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:11:38Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.354995Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "cc7e2678db7dc029eda45e5024ade526369ddf67a4b680cf782c8646d982fd03",
+        "headline": "Retail\u2019s K-Shaped Economy",
+        "id": "bcfdc7ad-7b25-40d0-9101-f54e3bda7575",
+        "impact": "LOW",
+        "published_at": "2026-05-22T16:10:13Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355092Z",
+        "currencies_mentioned": [
+          "EUR"
+        ],
+        "dedupe_hash": "9e06feddc696650951dbb6d507036c23e58813c1551e6071c6c8ebe2d8276024",
+        "headline": "Big Euro-Zone Economies Are Enduring Unfolding Inflation Shock",
+        "id": "cd502eba-3440-4c79-b22f-beae36fb5945",
+        "impact": "LOW",
+        "published_at": "2026-05-22T15:36:39Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355106Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "86af7d4179682077b702bc56de428671b49614e10c1773b1c303239c94db8d04",
+        "headline": "Bond Traders Bet Fed Under Warsh Will Hike Rates This Year",
+        "id": "f7d25023-a9aa-4e12-9fe6-f9c38e7aaf2f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T14:19:32Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355148Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "9d2d9a1dd17eff3b8e056fa4294daaed8feee2150a8274718d72e719cf7c168e",
+        "headline": "S&amp;P 500 Posts Eighth Weekly Gain as AI Stocks Power Rally",
+        "id": "210cb170-1c93-4653-b652-8dbd4e5977f7",
+        "impact": "LOW",
+        "published_at": "2026-05-22T12:38:06Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355191Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "69d8edf573debb9d913d4a4dc85d5cd737c4f9d2e613f19f3dc7ab9aa6c32c98",
+        "headline": "AI-Fueled Rally Puts S&amp;P 500 on Track for Eighth Weekly Gain",
+        "id": "56121616-b24a-4f86-aedc-79e8ae17c059",
+        "impact": "LOW",
+        "published_at": "2026-05-22T12:38:06Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355206Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "1f4cccac9494cf4ed481ca4dca4d075b2612524a67b8ab884b569c810bf5b21d",
+        "headline": "Wall Street Wagers on Weaker Canadian Dollar as Inflation Cools",
+        "id": "4e7442ef-b25c-453a-a198-c8e696000b38",
+        "impact": "LOW",
+        "published_at": "2026-05-22T11:55:10Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355250Z",
+        "currencies_mentioned": [
+          "JPY"
+        ],
+        "dedupe_hash": "13eeda647ddec423c9196391d1de22a4a1170714cd9814d83e7811b1b0cf7ea2",
+        "headline": "Oil May Hit New Highs If Hormuz Doesn't Reopen: Nguyen (Video)",
+        "id": "36b3d89e-7630-4b07-8d69-dbcded869dd6",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:27:53Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355293Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "74d65e6d60279267080180bcd6c268faba02a422f0e3facab0f39a6d6307c692",
+        "headline": "Indonesia\u2019s Shock Export Controls Catch Traders Off Guard | Insight with Haslinda Amin 5/22/2026",
+        "id": "3ec76b99-153a-4733-a03e-a469116a9637",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:20:30Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355308Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "e06e76573a9b13d413239157464d1197a9398945bbf23d6317cc0afcd774c75f",
+        "headline": "Strait Resolution is Almost Fully Priced: 3-Minutes MLIV",
+        "id": "71d32926-f2d7-4a88-a069-9c2e2e30922f",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:16:54Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355318Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "9e621ca9bed25fd8b5ae39aa1396362ba805e00f66571c1fc0937819f2c144c5",
+        "headline": "China Scrutinizes Companies, Funds After AI-Fueled Stock Moves",
+        "id": "7212f1ee-6e6a-4947-9ee4-a842b3fbe154",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:09:47Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355668Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "ed65e9a71fae9f891c032dbca1870dea1a8462fee6ab68ac54d07bce0664c758",
+        "headline": "Qatar Airways to Skip Staff Bonuses Due to Iran War Impact",
+        "id": "beeea801-18f4-4535-ba6f-727e17af0165",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:05:15Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355695Z",
+        "currencies_mentioned": [
+          "USD"
+        ],
+        "dedupe_hash": "71efa74b5d828a86052d80c5e16ab9e975d6a1c2d574ff3668fd0183c0e9fb1d",
+        "headline": "South Korea Says Won Moves Excessive, Warns of Market Actions",
+        "id": "27ffd672-1c5c-4fcc-a5e4-5f68c96b7b53",
+        "impact": "LOW",
+        "published_at": "2026-05-22T07:05:12Z",
+        "source": "bloomberg"
+      },
+      {
+        "created_at": "2026-05-23T06:39:02.355741Z",
+        "currencies_mentioned": [],
+        "dedupe_hash": "86a04a136c80fb32123553a6975046cf03b63aacf02c46034e0f94b658201775",
+        "headline": "Palm Oil Markets Split as Indonesia Export Revamp Confuses Trade",
+        "id": "409fb737-c837-4509-828b-b70112874020",
+        "impact": "LOW",
+        "published_at": "2026-05-22T06:51:55Z",
+        "source": "bloomberg"
+      }
+    ],
+    "sources": [
+      "database_fallback"
+    ]
+  },
+  "sentiment": {}
+}

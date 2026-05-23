@@ -1,0 +1,360 @@
+{
+  "analysis_id": "BOOM 1000 INDEX_QML_KILLER_TYPE2_BEARISH_13281.855",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "SHORT",
+  "entry_price": 13274.7375,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex",
+          "Indices",
+          "Gold",
+          "Volatility Indices (24/7)"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": true,
+        "mode": "Fully automatic",
+        "require_final_confirmation": false
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 2,
+        "dxy": 3,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 3,
+        "volume_liquidity": 3,
+        "wyckoff": 0
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": false,
+        "avoid_overnight_holds": true,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Fully Automated",
+        "discipline": "Rule-Based",
+        "experience": "Advanced",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": true,
+        "emotional_volatility_sensitivity": "high",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": true,
+        "preferred": [
+          "London",
+          "New York",
+          "London/NY Overlap"
+        ]
+      },
+      "structural": {
+        "emphasis": "high",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand",
+          "Liquidity concepts"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_boom1000_20260523_0615_a3f9",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.95,
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.95,
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "Retrieve rules for intraday trading, SnD zone validation, and risk management.",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Synthetic index is treated as aligned/neutral.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "HTF trend is bearish across D1, H12, H8, H6, and H4.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H4 CHoCH is bearish, confirming the structural shift.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "QML zone at 13281.855 is highly valid.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "H1 BSL sweep at 13282.055 swept key liquidity.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "Synthetic index is treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Distribution phase confirmed on HTF.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "Synthetic index has no news events.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "R:R of 3.00 meets the intraday requirement.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Non-applicable for synthetic indices.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        13267.62,
+        13281.855
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "SnD: QML + SR/RS Flip + Fakeout patterns (all 14 patterns)",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "BOOM 1000 INDEX_QML_KILLER_TYPE2_BEARISH_13281.855"
+    },
+    "entry_zone": {
+      "high": 13281.855,
+      "low": 13267.62
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The Boom 1000 Index is in a strong HTF bearish trend across D1, H12, H8, H6, and H4. The H1 timeframe has printed a high-conviction QML_KILLER_TYPE2 bearish setup at 13281.855, which represents the exact market variation 'QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU'. This setup is supported by a liquidity sweep of the equal highs/BSL at 13282.055, an SR Flip at 13145.825, and an MPL at 13267.62. The breakout candle is confirmed by a Marubozu, satisfying Universal Rule 1 of SnD. The risk-to-reward ratio is exactly 3.00, which meets the intraday requirement. Since this is a synthetic index, standard session constraints and news blackouts do not apply, making this a highly tradeable setup.",
+    "htf_bias": {
+      "key_levels": [
+        13702.873,
+        14124.278
+      ],
+      "notes": "HTF trend is strongly bearish across D1, H12, H8, H6, and H4 timeframes. D1 structure confirmed bearish with a BMS and CHoCH on 2026-05-12.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "content_preview": "The system is pair-agnostic. The same rules apply to every instrument.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": "MR-PHIL-007",
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "c4adb957-79b5-4133-8c8d-113d372da6dd",
+            "content_preview": "The system is pair-agnostic. The same rules apply to every instrument.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": "MR-PHIL-007",
+            "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        13281.855,
+        13214.691
+      ],
+      "notes": "H4 structure is bearish with a confirmed CHoCH on 2026-05-21. H1 is currently pulling back into premium, providing a high-probability short entry.",
+      "structure": "bearish"
+    },
+    "pair": "Boom 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.92,
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.9,
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 3,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 13322.34,
+      "reason": "Placed above the QML and H1 swing high of 13282.055 to ensure structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 swing low support level.",
+        "level": 13214.691,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 key structural support level.",
+        "level": 13182.277,
+        "size_pct": 30
+      },
+      {
+        "basis": "QML candidate target level.",
+        "level": 13160.4,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-23T06:15:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+          "content_preview": "Wyckoff Phase Guide | wyckoff_guide.md | Phase identification",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "rule_id": "N/A",
+          "section": "REFERENCED RAG DOCUMENTS"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The Boom 1000 Index is in a strong HTF bearish trend across D1, H12, H8, H6, and H4. The H1 timeframe has printed a high-conviction QML_KILLER_TYPE2 bearish setup at 13281.855, which represents the exact market variation 'QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU'. This setup is supported by a liquidity sweep of the equal highs/BSL at 13282.055, an SR Flip at 13145.825, and an MPL at 13267.62. The breakout candle is confirmed by a Marubozu, satisfying Universal Rule 1 of SnD. The risk-to-reward ratio is exactly 3.00, which meets the intraday requirement. Since this is a synthetic index, standard session constraints and news blackouts do not apply, making this a highly tradeable setup.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3,
+  "session": "LONDON_OPEN",
+  "setup_type": "SnD",
+  "stop_loss": 13322.34,
+  "symbol": "Boom 1000 Index",
+  "take_profit": 13160.4,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

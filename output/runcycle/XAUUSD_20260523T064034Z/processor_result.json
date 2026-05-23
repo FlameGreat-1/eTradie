@@ -1,0 +1,302 @@
+{
+  "analysis_id": "analysis_XAUUSD_20260522_2044_a1b2",
+  "confidence": 0,
+  "confluence_score": 0,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex",
+          "Indices",
+          "Gold",
+          "Volatility Indices (24/7)"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": true,
+        "mode": "Fully automatic",
+        "require_final_confirmation": false
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 2,
+        "dxy": 3,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 3,
+        "volume_liquidity": 3,
+        "wyckoff": 0
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": false,
+        "avoid_overnight_holds": true,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Fully Automated",
+        "discipline": "Rule-Based",
+        "experience": "Advanced",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": true,
+        "emotional_volatility_sensitivity": "high",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": true,
+        "preferred": [
+          "London",
+          "New York",
+          "London/NY Overlap"
+        ]
+      },
+      "structural": {
+        "emphasis": "high",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand",
+          "Liquidity concepts"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_XAUUSD_20260522_2044_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "master_rulebook",
+          "relevance_score": 0.98,
+          "section": "SECTION 5"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "master_rulebook",
+            "relevance_score": 0.98,
+            "section": "SECTION 5"
+          }
+        ],
+        "query_summary": "Friday late-session block, global rejection rules, XAUUSD bearish setups",
+        "strategy_used": "scenario_first",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro Bias Alignment",
+          "notes": "Hawkish Fed Chair Warsh sworn in, supporting USD and pressuring Gold.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF Trend Alignment",
+          "notes": "D1 down to H3 are bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF Trend Alignment",
+          "notes": "M30 down to M1 are bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry",
+          "notes": "M1/M5 bearish OBs and FVGs are present.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Friday Late-Session Block",
+          "notes": "VIOLATED (MR-REJECT-004). Current time is Friday 20:44 UTC, well after the 12:00 UTC cutoff.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 0
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Neutral speculative positioning due to missing TFF data.",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-22T20:44:00Z",
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "BULLISH",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "master_rulebook",
+          "section": "SECTION 2"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The market is currently in a strong bearish trend across both HTF (D1, H12, H8, H6, H4, H3) and LTF (M30, M15, M5, M1) timeframes. Gold (XAUUSD) is experiencing downward pressure due to a highly bullish USD bias following the swearing-in of hawkish Fed Chair Kevin Warsh. At the live edge (20:44 UTC), multiple high-quality bearish setups have printed on M1 and M5, including a SH+BMS+FVG+RTO bearish candidate on M1 (entry at 4506.665, SL at 4508.273) and a CHOCH+BMS+RTO bearish candidate on M5. However, because the current time is Friday at 20:44 UTC, the Friday late-session block rule (MR-REJECT-004) is active. This rule strictly prohibits any new entries after 12:00 UTC on Friday for Scalping and Intraday styles to avoid weekend gap risks and low late-session liquidity. Therefore, the system remains highly disciplined, rejects the setups, and outputs NO SETUP.",
+    "htf_bias": {
+      "key_levels": [
+        4588.98,
+        4773.55
+      ],
+      "notes": "D1, H12, H8, H6, H4, and H3 are all strongly bearish, confirming dominant institutional order flow is short.",
+      "structure": "bearish"
+    },
+    "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BEARISH",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "Metals (XAU/USD) inverse correlation with DXY. Bearish DXY = bullish Gold bias.",
+            "doc_id": "master_rulebook",
+            "rule_id": "MR-PHIL-008",
+            "section": "SECTION 2"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "Kevin Warsh sworn in as Fed Chair, described as most hawkish Fed nominee in 20 years.",
+            "doc_id": "master_rulebook",
+            "rule_id": "MR-PHIL-008",
+            "section": "SECTION 2"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4510.26,
+        4527.89
+      ],
+      "notes": "M30, M15, M5, and M1 are bearish, aligning with the HTF trend.",
+      "structure": "bearish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "master_rulebook",
+        "relevance_score": 0.98,
+        "section": "SECTION 5"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "NEW_YORK",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "content_preview": "Friday late-session block: After 12:00 UTC Friday (Scalping/Intraday) -> ACTION: NO SETUP.",
+          "doc_id": "master_rulebook",
+          "rule_id": "MR-REJECT-004",
+          "section": "SECTION 5"
+        }
+      ],
+      "price": null,
+      "reason": "Friday late-session block active (MR-REJECT-004). No new entries permitted after 12:00 UTC Friday."
+    },
+    "take_profits": [],
+    "timestamp": "2026-05-22T20:44:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "3fff936f-7fb9-489e-9e38-97cf5a2e5cba",
+          "content_preview": "HTF structure breaking lower in a clear markdown phase.",
+          "doc_id": "master_rulebook",
+          "rule_id": "WYCKOFF-MARKDOWN",
+          "section": "SECTION 1"
+        }
+      ],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The market is currently in a strong bearish trend across both HTF (D1, H12, H8, H6, H4, H3) and LTF (M30, M15, M5, M1) timeframes. Gold (XAUUSD) is experiencing downward pressure due to a highly bullish USD bias following the swearing-in of hawkish Fed Chair Kevin Warsh. At the live edge (20:44 UTC), multiple high-quality bearish setups have printed on M1 and M5, including a SH+BMS+FVG+RTO bearish candidate on M1 (entry at 4506.665, SL at 4508.273) and a CHOCH+BMS+RTO bearish candidate on M5. However, because the current time is Friday at 20:44 UTC, the Friday late-session block rule (MR-REJECT-004) is active. This rule strictly prohibits any new entries after 12:00 UTC on Friday for Scalping and Intraday styles to avoid weekend gap risks and low late-session liquidity. Therefore, the system remains highly disciplined, rejects the setups, and outputs NO SETUP.",
+  "rejection_rules": [
+    "missing_Friday Late-Session Block"
+  ],
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "symbol": "XAUUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}
