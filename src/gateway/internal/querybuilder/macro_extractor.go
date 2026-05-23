@@ -170,7 +170,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 		HasRetailSales:            getOptBool(cal, "has_retail_sales"),
 		HasCBSpeech:               getOptBool(cal, "has_cb_speech"),
 
-		NewsHeadlines:     getOptStrSlice(news, "headlines"),
 		EconomicSurprises: getOptMapSlice(econ, "surprise_directions"),
 		CoreInflationData: getOptMapSlice(econ, "core_inflation_releases"),
 
