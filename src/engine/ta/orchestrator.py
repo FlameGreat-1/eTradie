@@ -1378,7 +1378,7 @@ class TAOrchestrator:
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
             "timestamp": snapshot.timestamp.isoformat(),
-##SENTINEL##
+
 
 
             "trend_direction": snapshot.trend_direction.value,
