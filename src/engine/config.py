@@ -186,7 +186,6 @@ class Settings(BaseSettings):
 
     # ── Cache TTL (seconds) ──────────────────────────────────
     cache_ttl_central_bank: int = Field(default=600, ge=60)
-    cache_ttl_news: int = Field(default=300, ge=60)
     cache_ttl_calendar: int = Field(default=900, ge=60)
     cache_ttl_cot: int = Field(default=86400, ge=3600)
     cache_ttl_dxy: int = Field(default=14400, ge=300)
