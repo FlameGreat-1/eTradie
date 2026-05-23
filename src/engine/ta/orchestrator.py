@@ -995,9 +995,9 @@ class TAOrchestrator:
                     "demand_zones": len(demand_zones),
                     "fibonacci_retracements": len(fibonacci_retracements),
                     "dealing_ranges": len(dealing_ranges),
-                    "total_structure_events": snapshot.total_structure_events,
-                    "total_liquidity_events": snapshot.total_liquidity_events,
-                    "total_zones": snapshot.total_zones,
+        
+        
+        
                     "trend_direction": snapshot.trend_direction.value,
                 },
             )
@@ -1349,7 +1349,7 @@ class TAOrchestrator:
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
             "timestamp": snapshot.timestamp.isoformat(),
-            "candle_count": snapshot.candle_count,
+
             "trend_direction": snapshot.trend_direction.value,
             "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),
             "swing_lows": self._serialize_swing_lows(snapshot.swing_lows[-12:]),
