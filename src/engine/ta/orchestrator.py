@@ -1356,9 +1356,9 @@ class TAOrchestrator:
             "bms_events": self._serialize_bms_events(snapshot.bms_events[-5:]),
             "choch_events": self._serialize_choch_events(snapshot.choch_events[-5:]),
             "sms_events": self._serialize_sms_events(snapshot.sms_events[-5:]),
-            "order_blocks": self._serialize_order_blocks(snapshot.order_blocks[-5:]),
-            "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs[-5:]),
-            "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks[-5:]),
+            "order_blocks": self._serialize_order_blocks(live_obs[-5:]),
+            "fair_value_gaps": self._serialize_fvgs(live_fvgs[-5:]),
+            "breaker_blocks": self._serialize_breaker_blocks(live_breakers[-5:]),
             "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps[-8:]),
             "inducement_events": self._serialize_inducements(
                 snapshot.inducement_events[-5:]
@@ -1369,10 +1369,10 @@ class TAOrchestrator:
             "liquidity_grabs": self._serialize_liquidity_grabs(
                 snapshot.liquidity_grabs[-5:]
             ),
-            "qm_levels": self._serialize_qm_levels(snapshot.qml_levels[-5:]),
+            "qm_levels": self._serialize_qm_levels(live_qms[-5:]),
             "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-5:]),
             "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-5:]),
-            "mpl_levels": self._serialize_mpl_levels(snapshot.mpl_levels[-5:]),
+            "mpl_levels": self._serialize_mpl_levels(live_mpls[-5:]),
             "supply_zones": self._serialize_supply_zones(snapshot.supply_zones[-5:]),
             "demand_zones": self._serialize_demand_zones(snapshot.demand_zones[-5:]),
             "fibonacci_retracements": self._serialize_fibonacci(
