@@ -1266,6 +1266,61 @@ class TAOrchestrator:
             },
         )
 
+    @staticmethod
+    def _build_snapshot_metadata(snapshot: TechnicalSnapshot) -> dict:
+        """Build the meta_data column payload for a persisted snapshot.
+
+        SnapshotRepository.create accepts an optional ``metadata`` kwarg
+        which maps to the ``snapshots.meta_data`` JSON column. Prior to
+        this fix the kwarg was never supplied, leaving meta_data NULL on
+        every row. The audit pipeline and the React SPA both expect a
+        structural summary they can render without walking the full
+        event arrays.
+
+        The payload is intentionally minimal:
+
+          - ``trend_direction`` mirrors the top-level field for
+            convenience in JSONB queries.
+          - ``live_*_count`` summarise how many POIs survived the
+            mitigated/filled/tested filters at persistence time. These
+            are the same filters the prompt-path serializer applies, so
+            UI surfaces stay consistent with what the LLM saw.
+          - ``dealing_range`` captures the most recent premium/discount
+            anchors when present. Used by the chart overlay.
+        """
+        live_obs = sum(1 for ob in snapshot.order_blocks if not ob.mitigated)
+        live_breakers = sum(
+            1 for bb in snapshot.breaker_blocks if not bb.mitigated
+        )
+        live_fvgs = sum(1 for fvg in snapshot.fvgs if not fvg.filled)
+        live_qms = sum(1 for qm in snapshot.qml_levels if not qm.tested)
+        live_mpls = sum(1 for mpl in snapshot.mpl_levels if not mpl.tested)
+
+        meta: dict = {
+            "trend_direction": snapshot.trend_direction.value,
+            "live_order_block_count": live_obs,
+            "live_breaker_block_count": live_breakers,
+            "live_fvg_count": live_fvgs,
+            "live_qm_count": live_qms,
+            "live_mpl_count": live_mpls,
+            "swing_high_count": len(snapshot.swing_highs),
+            "swing_low_count": len(snapshot.swing_lows),
+        }
+
+        if snapshot.dealing_ranges:
+            latest = snapshot.dealing_ranges[-1]
+            premium = getattr(latest, "premium", None)
+            discount = getattr(latest, "discount", None)
+            equilibrium = getattr(latest, "equilibrium", None)
+            if premium is not None or discount is not None:
+                meta["dealing_range"] = {
+                    "premium": premium,
+                    "discount": discount,
+                    "equilibrium": equilibrium,
+                }
+
+        return meta
+
     async def _persist_snapshot(
         self,
         snapshot: TechnicalSnapshot,
@@ -1334,6 +1389,7 @@ class TAOrchestrator:
                 dealing_ranges=self._serialize_dealing_ranges(
                     snapshot.dealing_ranges,
                 ),
+                metadata=self._build_snapshot_metadata(snapshot),
             )
         except Exception as e:
             self._logger.error(

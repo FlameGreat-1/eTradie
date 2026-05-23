@@ -49,7 +49,7 @@ _OUTPUT_SCHEMA = """{
 
   "htf_bias": {"structure": "<bullish|bearish|neutral>", "key_levels": [1.2345], "notes": "..."},
   "mtf_bias": {"structure": "<bullish|bearish|choch_bullish|choch_bearish|neutral>", "key_levels": [...], "notes": "..."},
-  "entry_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "...", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
+  "entry_setup": {"type": "<OB|FVG|SnD|liquidity_sweep|null>", "zone_id": "<MUST equal candidate_id of the chosen smc/snd candidate>", "quality": "<A|B|Invalid|null>", "bounds": [lower, upper], "evidence": [...]},
 
   "wyckoff_phase": {"phase": "<accumulation|markup|distribution|markdown|spring|upthrust|ranging>", "evidence": [...]},
 
@@ -324,6 +324,13 @@ SECTION E — CORE RULES
 
 10. MANDATORY: Asian Session is currently allowed for the purpose of testing.
 
+11. CANDIDATE ECHO (HARD CONTRACT)
+   - Every smc_candidate and snd_candidate carries a `candidate_id` string field. This is an opaque pulse-matching identifier used by the downstream Gateway and Execution services.
+   - When you select a candidate to trade (direction is LONG or SHORT and proceed_to_module_b is YES), you MUST populate `entry_setup.zone_id` with the EXACT `candidate_id` string of the candidate you chose. Copy it verbatim, character for character. Do not invent, abbreviate, hash, or reformat it.
+   - The Gateway uses this echoed value to match the LLM's decision back to the original TA candidate via a ~100ms fast-path. If the value is missing, empty, or does not match a real candidate_id from the input, the Gateway is forced into a ~5-10s full TA replay, materially degrading trade latency.
+   - When direction is "NO SETUP", `entry_setup.zone_id` may be null.
+   - This rule overrides any prior reading that `zone_id` is a free-text description. It is an identifier, not prose.
+
 ══════════════════════════════════════════════════════════════
 SECTION F — USER OPERATING SYSTEM (LAYER 2 PERSONALIZATION)
 ══════════════════════════════════════════════════════════════
@@ -409,16 +416,24 @@ def build_user_message(
         ]
 
     # Fields that are always stripped (DB/internal metadata + Pydantic
-    # computed-field duplicates + Gateway pulse-matching identifiers).
-    # The LLM has no use for any of these.
+    # computed-field duplicates). The LLM has no use for any of these.
+    #
+    # NOTE: `candidate_id` is INTENTIONALLY NOT stripped. The Gateway's
+    # processSymbol() in src/gateway/internal/pipeline/orchestrator.go
+    # calls matchesCandidate(cand, processorOutput.AnalysisID) and the
+    # primary lookup uses cand["candidate_id"]. processorOutput.AnalysisID
+    # is sourced from output_mapper.py as analysis.entry_setup.zone_id,
+    # which the LLM populates by echoing the chosen candidate's
+    # candidate_id (see SECTION E rule 11 in the system prompt above).
+    # Stripping the field breaks the ~100ms fast-path
+    # /internal/ta/confirm_ltf and forces a full ~5-10s TA replay per
+    # trade. Do not re-add `candidate_id` to this set.
     _STRIP_KEYS = {
         # DB / collector metadata
         "id", "created_at", "snapshot_at", "collected_at",
         "sources", "assessed_at", "source_url", "summary",
         # Pydantic computed-field duplicates of `direction`
         "is_bullish", "is_bearish",
-        # Gateway pulse-matching ID -- opaque to the LLM
-        "candidate_id",
     }
 
     # Values that carry zero information for the LLM
