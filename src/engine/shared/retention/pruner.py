@@ -17,7 +17,6 @@ Retention Policy:
         analysis_audit_logs   → 7 days
 
     Macro (global):
-        news_items            → 7 days
         calendar_events       → 7 days
         central_bank_events   → 7 days
         cot_reports           → 7 days
@@ -66,7 +65,6 @@ from engine.macro.storage.schemas.cot import COTReportRow
 from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 from engine.macro.storage.schemas.economic import EconomicReleaseRow
 from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
-from engine.macro.storage.schemas.news import NewsItemRow
 from engine.macro.storage.schemas.sentiment import SentimentReadingRow
 
 logger = get_logger(__name__)
@@ -125,9 +123,6 @@ class RetentionPruner:
         )
 
         # ── Macro tables ─────────────────────────────────────────
-        results["news_items"] = await self._prune_macro_table(
-            NewsItemRow, "created_at", RETENTION_MACRO_HOURS,
-        )
         results["calendar_events"] = await self._prune_macro_table(
             CalendarEventRow, "created_at", RETENTION_MACRO_HOURS,
         )
