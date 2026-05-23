@@ -134,7 +134,6 @@ func buildMacroSection(macro *models.MacroResult) map[string]interface{} {
 		"central_bank":       macro.CentralBank,
 		"cot":                macro.COT,
 		"economic":           macro.Economic,
-		"news":               macro.News,
 		"calendar":           macro.Calendar,
 		"dxy":                macro.DXY,
 		"intermarket":        macro.Intermarket,
