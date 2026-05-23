@@ -498,6 +498,9 @@ def build_user_message(
                 # Drop None, empty string, empty list, empty dict
                 if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
                     continue
+                # Drop empty event wrappers {"count": 0, "data": []}
+                if isinstance(v_clean, dict) and _is_empty_count_data(v_clean):
+                    continue
                 # Drop known zero-information string defaults
                 if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
                     continue
