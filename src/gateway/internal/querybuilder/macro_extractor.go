@@ -476,19 +476,6 @@ func extractDXY(data map[string]interface{}) map[string]interface{} {
 	return out
 }
 
-func extractNews(data map[string]interface{}) map[string]interface{} {
-	if data == nil {
-		return map[string]interface{}{}
-	}
-	var headlines []string
-	for _, item := range getSliceOfMaps(data, "items") {
-		if h := getStrDefault(item, "headline", ""); h != "" {
-			headlines = append(headlines, h)
-		}
-	}
-	return map[string]interface{}{"headlines": headlines}
-}
-
 func extractSentiment(data map[string]interface{}) map[string]interface{} {
 	if data == nil {
 		return map[string]interface{}{}
