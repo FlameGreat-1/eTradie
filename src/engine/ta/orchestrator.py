@@ -478,7 +478,7 @@ class TAOrchestrator:
             "snd_candidates": serialized_snd,
             "smc_candidates_count": len(smc_list),
             "snd_candidates_count": len(snd_list),
-            "alignment": alignments or {},
+            "alignment": flat_alignments,
             "overall_trend": overall_trend,
             "error": error,
         }
