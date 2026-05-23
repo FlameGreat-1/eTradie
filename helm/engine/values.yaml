@@ -95,7 +95,6 @@ config:
     burstSize: "10"
   poll:
     centralBankRSS: "600"
-    news: "900"
     calendar: "1800"
     cot: "604800"
     dxy: "14400"
@@ -106,7 +105,6 @@ config:
     analysisCycleInterval: "14400"
   cache:
     centralBank: "600"
-    news: "300"
     calendar: "900"
     cot: "86400"
     dxy: "14400"
