@@ -464,19 +464,24 @@ class TAOrchestrator:
         # cannot be a live tradeable setup. POI-validity is the criterion,
         # not age: a months-old candidate whose OB is still unmitigated
         # remains because price can return to that OB today.
-        dead_ob_timestamps: set = set()
-        dead_fvg_timestamps: set = set()
-        dead_qm_timestamps: set = set()
+        # Each entry is a (timeframe, timestamp) tuple. Flat datetime
+        # sets would collide across adjacent timeframes whose candles
+        # share a wall-clock boundary (e.g. an H4 bar and an H1 bar
+        # both opening at 16:00:00Z produce OBs with identical
+        # `timestamp` values). Scoping by timeframe is mandatory.
+        dead_ob_timestamps: set[tuple] = set()
+        dead_fvg_timestamps: set[tuple] = set()
+        dead_qm_timestamps: set[tuple] = set()
         for snap in snapshot_map.values():
             for ob in snap.order_blocks:
                 if ob.mitigated:
-                    dead_ob_timestamps.add(ob.timestamp)
+                    dead_ob_timestamps.add((snap.timeframe, ob.timestamp))
             for fvg in snap.fvgs:
                 if fvg.filled:
-                    dead_fvg_timestamps.add(fvg.timestamp)
+                    dead_fvg_timestamps.add((snap.timeframe, fvg.timestamp))
             for qm in snap.qml_levels:
                 if qm.tested:
-                    dead_qm_timestamps.add(qm.timestamp)
+                    dead_qm_timestamps.add((snap.timeframe, qm.timestamp))
 
         def _smc_is_live(c: SMCCandidate) -> bool:
             """SMC candidate dies when its anchor OB is mitigated OR
@@ -485,12 +490,12 @@ class TAOrchestrator:
             """
             if (
                 c.order_block_timestamp is not None
-                and c.order_block_timestamp in dead_ob_timestamps
+                and (c.ltf_timeframe, c.order_block_timestamp) in dead_ob_timestamps
             ):
                 return False
             if (
                 c.fvg_timestamp is not None
-                and c.fvg_timestamp in dead_fvg_timestamps
+                and (c.ltf_timeframe, c.fvg_timestamp) in dead_fvg_timestamps
             ):
                 return False
             return True
@@ -501,7 +506,7 @@ class TAOrchestrator:
             """
             if (
                 c.qml_timestamp is not None
-                and c.qml_timestamp in dead_qm_timestamps
+                and (c.htf_timeframe, c.qml_timestamp) in dead_qm_timestamps
             ):
                 return False
             return True
@@ -1378,6 +1383,8 @@ class TAOrchestrator:
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
             "timestamp": snapshot.timestamp.isoformat(),
+
+
 
             "trend_direction": snapshot.trend_direction.value,
             "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),

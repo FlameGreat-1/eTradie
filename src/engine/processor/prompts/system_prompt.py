@@ -432,7 +432,7 @@ def build_user_message(
     # one-directional semantics is intentional.
     _DEAD_WHEN_FALSE_SUFFIXES = (
         "_detected", "_cleared", "_swept", "_mitigated", "_broken",
-        "_filled", "_tested", "_confirmed", "_aligned", "_nested",
+        "_filled", "_tested", "_confirmed",
     )
 
     def _round_float(value: float) -> float:
