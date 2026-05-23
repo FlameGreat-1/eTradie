@@ -75,11 +75,11 @@ func (v GuardVerdict) String() string { return string(v) }
 type GuardRule string
 
 const (
-	RuleNewsProximity       GuardRule = "MR-REJECT-001"
-	RuleSessionRestriction  GuardRule = "MR-REJECT-002"
-	RuleCounterTrendNoChoch GuardRule = "MR-REJECT-006"
-	RuleWeekendGapRisk      GuardRule = "MR-REJECT-008"
-	RuleLowLiquidityHours   GuardRule = "MR-REJECT-009"
+	RuleHighImpactEventProximity GuardRule = "MR-REJECT-001"
+	RuleSessionRestriction       GuardRule = "MR-REJECT-002"
+	RuleCounterTrendNoChoch      GuardRule = "MR-REJECT-006"
+	RuleWeekendGapRisk           GuardRule = "MR-REJECT-008"
+	RuleLowLiquidityHours        GuardRule = "MR-REJECT-009"
 )
 
 func (r GuardRule) String() string { return string(r) }
@@ -91,6 +91,9 @@ const (
 	MacroResultCacheKeyPrefix = "macro_result"
 )
 
-// NewsLockoutMinutes is the lockout window before high-impact news events.
-// Matches engine.shared.models.events.NEWS_LOCKOUT_MINUTES.
-const NewsLockoutMinutes = 30
+// HighImpactEventLockoutMinutes is the lockout window before a
+// high-impact economic-calendar event (NFP, CPI, PPI, FED rate
+// decision, etc.). The news-proximity guard rejects any new entry
+// whose target activation time falls within this window before the
+// event.
+const HighImpactEventLockoutMinutes = 30

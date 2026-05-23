@@ -33,7 +33,7 @@ func (g *GuardEvaluator) Evaluate(
 	start := time.Now()
 
 	checks := []models.GuardCheckResult{
-		checkNewsProximity(macroResult),
+		checkHighImpactEventProximity(macroResult),
 		checkSessionRestriction(taResult),
 		checkCounterTrend(processorOutput, taResult),
 		checkWeekendGapRisk(taResult),
@@ -73,11 +73,14 @@ func (g *GuardEvaluator) Evaluate(
 	return result
 }
 
-// MR-REJECT-001: No entries within NewsLockoutMinutes of high-impact news.
-func checkNewsProximity(macro *models.MacroResult) models.GuardCheckResult {
+// MR-REJECT-001: No entries within HighImpactEventLockoutMinutes of
+// a high-impact economic-calendar event (NFP, CPI, PPI, FED rate
+// decision, etc.). Calendar events are the single source of truth
+// for high-impact event proximity.
+func checkHighImpactEventProximity(macro *models.MacroResult) models.GuardCheckResult {
 	if macro.Calendar == nil {
 		return models.GuardCheckResult{
-			Rule: constants.RuleNewsProximity, Verdict: constants.VerdictPass,
+			Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
 			Reason: "No calendar data available",
 		}
 	}
@@ -104,14 +107,14 @@ func checkNewsProximity(macro *models.MacroResult) models.GuardCheckResult {
 		}
 
 		minutesUntil := eventTime.Sub(now).Minutes()
-		if minutesUntil >= 0 && minutesUntil <= float64(constants.NewsLockoutMinutes) {
+		if minutesUntil >= 0 && minutesUntil <= float64(constants.HighImpactEventLockoutMinutes) {
 			eventName := querybuilder.GetStrDefaultExported(event, "event_name", "unknown")
 			return models.GuardCheckResult{
-				Rule:    constants.RuleNewsProximity,
+				Rule:    constants.RuleHighImpactEventProximity,
 				Verdict: constants.VerdictReject,
 				Reason: fmt.Sprintf(
 					"High-impact event '%s' in %d minutes (lockout: %dmin)",
-					eventName, int(minutesUntil), constants.NewsLockoutMinutes,
+					eventName, int(minutesUntil), constants.HighImpactEventLockoutMinutes,
 				),
 				Metadata: map[string]interface{}{"event_name": eventName, "minutes_until": minutesUntil},
 			}
@@ -119,7 +122,7 @@ func checkNewsProximity(macro *models.MacroResult) models.GuardCheckResult {
 	}
 
 	return models.GuardCheckResult{
-		Rule: constants.RuleNewsProximity, Verdict: constants.VerdictPass,
+		Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
 		Reason: "No high-impact events within lockout window",
 	}
 }

@@ -268,7 +268,7 @@ func TestIsApproved_WithChecks(t *testing.T) {
 	r := &GuardEvaluationResult{
 		OverallVerdict: constants.VerdictPass,
 		Checks: []GuardCheckResult{
-			{Rule: constants.RuleNewsProximity, Verdict: constants.VerdictPass, Reason: "no high-impact events"},
+			{Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass, Reason: "no high-impact events"},
 			{Rule: constants.RuleSessionRestriction, Verdict: constants.VerdictPass, Reason: "within trading hours"},
 			{Rule: constants.RuleCounterTrendNoChoch, Verdict: constants.VerdictPass, Reason: "aligned with trend"},
 		},
@@ -283,7 +283,7 @@ func TestIsApproved_RejectWithMultipleBlockingRules(t *testing.T) {
 		OverallVerdict: constants.VerdictReject,
 		BlockingRules:  []string{"MR-REJECT-001", "MR-REJECT-002"},
 		Checks: []GuardCheckResult{
-			{Rule: constants.RuleNewsProximity, Verdict: constants.VerdictReject, Reason: "FOMC in 15 minutes"},
+			{Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictReject, Reason: "FOMC in 15 minutes"},
 			{Rule: constants.RuleSessionRestriction, Verdict: constants.VerdictReject, Reason: "weekend"},
 		},
 	}
