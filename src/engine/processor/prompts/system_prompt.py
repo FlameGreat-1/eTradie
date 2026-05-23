@@ -488,6 +488,12 @@ def build_user_message(
             for k, v in d.items():
                 if k in _STRIP_KEYS:
                     continue
+                # Strip boolean False on dead-state suffixes BEFORE
+                # recursing. The value is a bare bool here, not a
+                # structure, so no downstream consumer can depend on
+                # its presence.
+                if v is False and any(k.endswith(s) for s in _DEAD_WHEN_FALSE_SUFFIXES):
+                    continue
                 v_clean = _clean_dict(v)
                 # Drop None, empty string, empty list, empty dict
                 if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
