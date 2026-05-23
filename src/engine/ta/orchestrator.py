@@ -423,7 +423,34 @@ class TAOrchestrator:
         overall_trend: str = "NEUTRAL",
         error: Optional[str] = None,
     ) -> dict:
-        """Build the structured result dict returned by analyze()."""
+        """Build the structured result dict returned by analyze().
+
+        Single chokepoint where the in-memory algorithmic truth is
+        converted into the dict that crosses the HTTP boundary to the
+        gateway and ultimately reaches the LLM prompt builder.
+
+        Filtering happens here -- AFTER detection has finished AND
+        AFTER persistence has captured the full state to the database
+        (Phase 9 of analyze()). The algorithm and the DB therefore see
+        EVERY structure the detectors produced; only the prompt path
+        sees the trimmed view.
+
+        Filters applied:
+          1. Snapshot serialisation drops dead structures (mitigated
+             OBs, mitigated breakers, filled FVGs, tested QM levels,
+             tested MPLs) inside ``_serialize_snapshot``. The per-field
+             serializers themselves remain faithful object->dict
+             transformers because they are ALSO used by
+             ``_persist_snapshot`` which must preserve full fidelity.
+          2. Candidate dumps drop entries whose underlying POI (OB,
+             FVG, QM) is already dead. Cross-referenced by timestamp
+             against the parent snapshot's mitigated/filled/tested
+             events.
+          3. The alignment block is flattened: each pair previously
+             carried both flat fields and an identical nested
+             ``alignment_metadata`` block. ``zones_nested`` is promoted
+             to a top-level field and the nested block is dropped.
+        """
         smc_list = smc_candidates or []
         snd_list = snd_candidates or []
         snapshot_map = snapshots or {}
