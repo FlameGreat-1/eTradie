@@ -111,10 +111,6 @@ class Settings(BaseSettings):
     rbnz_rss_url: str = "https://www.rbnz.govt.nz/rss/news"
     snb_rss_url: str = "https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss"
 
-    # ── RSS Feed URLs — News ─────────────────────────────────
-    reuters_rss_url: str = "https://www.reutersagency.com/feed"
-    bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
-
     # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
     investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
 
