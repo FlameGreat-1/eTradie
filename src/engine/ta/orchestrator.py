@@ -1378,6 +1378,7 @@ class TAOrchestrator:
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
             "timestamp": snapshot.timestamp.isoformat(),
+#__BLANK_LINE_TO_REMOVE_NEXT_PASS__
 
             "trend_direction": snapshot.trend_direction.value,
             "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),
