@@ -423,7 +423,34 @@ class TAOrchestrator:
         overall_trend: str = "NEUTRAL",
         error: Optional[str] = None,
     ) -> dict:
-        """Build the structured result dict returned by analyze()."""
+        """Build the structured result dict returned by analyze().
+
+        Single chokepoint where the in-memory algorithmic truth is
+        converted into the dict that crosses the HTTP boundary to the
+        gateway and ultimately reaches the LLM prompt builder.
+
+        Filtering happens here -- AFTER detection has finished AND
+        AFTER persistence has captured the full state to the database
+        (Phase 9 of analyze()). The algorithm and the DB therefore see
+        EVERY structure the detectors produced; only the prompt path
+        sees the trimmed view.
+
+        Filters applied:
+          1. Snapshot serialisation drops dead structures (mitigated
+             OBs, mitigated breakers, filled FVGs, tested QM levels,
+             tested MPLs) inside ``_serialize_snapshot``. The per-field
+             serializers themselves remain faithful object->dict
+             transformers because they are ALSO used by
+             ``_persist_snapshot`` which must preserve full fidelity.
+          2. Candidate dumps drop entries whose underlying POI (OB,
+             FVG, QM) is already dead. Cross-referenced by timestamp
+             against the parent snapshot's mitigated/filled/tested
+             events.
+          3. The alignment block is flattened: each pair previously
+             carried both flat fields and an identical nested
+             ``alignment_metadata`` block. ``zones_nested`` is promoted
+             to a top-level field and the nested block is dropped.
+        """
         smc_list = smc_candidates or []
         snd_list = snd_candidates or []
         snapshot_map = snapshots or {}
@@ -432,13 +459,96 @@ class TAOrchestrator:
         for tf, snap in snapshot_map.items():
             serialized_snapshots[tf.value] = self._serialize_snapshot(snap)
 
+        # -- Candidate POI-validity filter ----------------------------
+        # A candidate whose anchor POI is mitigated, filled, or tested
+        # cannot be a live tradeable setup. POI-validity is the criterion,
+        # not age: a months-old candidate whose OB is still unmitigated
+        # remains because price can return to that OB today.
+        dead_ob_timestamps: set = set()
+        dead_fvg_timestamps: set = set()
+        dead_qm_timestamps: set = set()
+        for snap in snapshot_map.values():
+            for ob in snap.order_blocks:
+                if ob.mitigated:
+                    dead_ob_timestamps.add(ob.timestamp)
+            for fvg in snap.fvgs:
+                if fvg.filled:
+                    dead_fvg_timestamps.add(fvg.timestamp)
+            for qm in snap.qml_levels:
+                if qm.tested:
+                    dead_qm_timestamps.add(qm.timestamp)
+
+        def _smc_is_live(c: SMCCandidate) -> bool:
+            """SMC candidate dies when its anchor OB is mitigated OR
+            its anchor FVG is filled. Candidates without either anchor
+            (e.g. pure turtle-soup variants) pass through unchanged.
+            """
+            if (
+                c.order_block_timestamp is not None
+                and c.order_block_timestamp in dead_ob_timestamps
+            ):
+                return False
+            if (
+                c.fvg_timestamp is not None
+                and c.fvg_timestamp in dead_fvg_timestamps
+            ):
+                return False
+            return True
+
+        def _snd_is_live(c: SnDCandidate) -> bool:
+            """SnD candidate dies when its anchor QM level has been
+            tested. SR/RS flips and fakeouts have no consumed flag.
+            """
+            if (
+                c.qml_timestamp is not None
+                and c.qml_timestamp in dead_qm_timestamps
+            ):
+                return False
+            return True
+
+        live_smc = [c for c in smc_list if _smc_is_live(c)]
+        live_snd = [c for c in snd_list if _snd_is_live(c)]
+
+        if len(live_smc) != len(smc_list) or len(live_snd) != len(snd_list):
+            self._logger.info(
+                "candidates_dead_poi_filtered",
+                extra={
+                    "symbol": symbol,
+                    "smc_before": len(smc_list),
+                    "smc_after": len(live_smc),
+                    "smc_dropped": len(smc_list) - len(live_smc),
+                    "snd_before": len(snd_list),
+                    "snd_after": len(live_snd),
+                    "snd_dropped": len(snd_list) - len(live_snd),
+                    "dead_obs": len(dead_ob_timestamps),
+                    "dead_fvgs": len(dead_fvg_timestamps),
+                    "dead_qms": len(dead_qm_timestamps),
+                },
+            )
+
+        # -- Alignment block flattening -------------------------------
+        # Each pair previously carried both flat fields AND an identical
+        # nested ``alignment_metadata`` block. Promote ``zones_nested``
+        # to top-level and drop the nested block.
+        flat_alignments: dict[str, dict] = {}
+        for pair_key, pair_data in (alignments or {}).items():
+            metadata = pair_data.get("alignment_metadata") or {}
+            zones_nested = metadata.get("zones_nested")
+            flat_entry = {
+                k: v for k, v in pair_data.items()
+                if k != "alignment_metadata"
+            }
+            if zones_nested is not None:
+                flat_entry["zones_nested"] = zones_nested
+            flat_alignments[pair_key] = flat_entry
+
         serialized_smc = [
             c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in smc_list
+            for c in live_smc
         ]
         serialized_snd = [
             c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in snd_list
+            for c in live_snd
         ]
 
         return {
@@ -449,9 +559,9 @@ class TAOrchestrator:
             "snapshots": serialized_snapshots,
             "smc_candidates": serialized_smc,
             "snd_candidates": serialized_snd,
-            "smc_candidates_count": len(smc_list),
-            "snd_candidates_count": len(snd_list),
-            "alignment": alignments or {},
+            "smc_candidates_count": len(live_smc),
+            "snd_candidates_count": len(live_snd),
+            "alignment": flat_alignments,
             "overall_trend": overall_trend,
             "error": error,
         }
@@ -885,9 +995,9 @@ class TAOrchestrator:
                     "demand_zones": len(demand_zones),
                     "fibonacci_retracements": len(fibonacci_retracements),
                     "dealing_ranges": len(dealing_ranges),
-                    "total_structure_events": snapshot.total_structure_events,
-                    "total_liquidity_events": snapshot.total_liquidity_events,
-                    "total_zones": snapshot.total_zones,
+        
+        
+        
                     "trend_direction": snapshot.trend_direction.value,
                 },
             )
@@ -1234,21 +1344,50 @@ class TAOrchestrator:
     # ── Full snapshot serializer ─────────────────────────────────────
 
     def _serialize_snapshot(self, snapshot: TechnicalSnapshot) -> dict:
-        """Serialize a full TechnicalSnapshot into a dict for the result payload."""
+        """Serialize a TechnicalSnapshot into a dict for the prompt path.
+
+        Dead structures are filtered BEFORE the trailing-N slice so the
+        slice keeps the last N still-live items rather than N items
+        that may include consumed POIs:
+
+          - OrderBlock / BreakerBlock with mitigated=True are dropped.
+          - FairValueGap with filled=True is dropped.
+          - QuasiModoLevel / MiniPriceLevel with tested=True is dropped.
+
+        Per-field serializers (``_serialize_order_blocks``,
+        ``_serialize_fvgs``, ``_serialize_qm_levels`` etc.) are
+        intentionally NOT modified -- they are dual-use, also called
+        by ``_persist_snapshot`` which must capture full DB fidelity.
+        Dead-structure filtering happens ONLY here, in the prompt-path
+        serializer.
+
+        Fields removed vs. the historical implementation:
+          - ``candle_count`` (per-snapshot counter, not actionable)
+          - ``total_structure_events`` / ``total_liquidity_events`` /
+            ``total_zones`` (dashboard aggregates; the LLM reasons
+            from the event arrays themselves)
+        """
+        live_obs = [ob for ob in snapshot.order_blocks if not ob.mitigated]
+        live_breakers = [
+            bb for bb in snapshot.breaker_blocks if not bb.mitigated
+        ]
+        live_fvgs = [fvg for fvg in snapshot.fvgs if not fvg.filled]
+        live_qms = [qm for qm in snapshot.qml_levels if not qm.tested]
+        live_mpls = [mpl for mpl in snapshot.mpl_levels if not mpl.tested]
         return {
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
             "timestamp": snapshot.timestamp.isoformat(),
-            "candle_count": snapshot.candle_count,
+
             "trend_direction": snapshot.trend_direction.value,
             "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),
             "swing_lows": self._serialize_swing_lows(snapshot.swing_lows[-12:]),
             "bms_events": self._serialize_bms_events(snapshot.bms_events[-5:]),
             "choch_events": self._serialize_choch_events(snapshot.choch_events[-5:]),
             "sms_events": self._serialize_sms_events(snapshot.sms_events[-5:]),
-            "order_blocks": self._serialize_order_blocks(snapshot.order_blocks[-5:]),
-            "fair_value_gaps": self._serialize_fvgs(snapshot.fvgs[-5:]),
-            "breaker_blocks": self._serialize_breaker_blocks(snapshot.breaker_blocks[-5:]),
+            "order_blocks": self._serialize_order_blocks(live_obs[-5:]),
+            "fair_value_gaps": self._serialize_fvgs(live_fvgs[-5:]),
+            "breaker_blocks": self._serialize_breaker_blocks(live_breakers[-5:]),
             "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps[-8:]),
             "inducement_events": self._serialize_inducements(
                 snapshot.inducement_events[-5:]
@@ -1259,19 +1398,19 @@ class TAOrchestrator:
             "liquidity_grabs": self._serialize_liquidity_grabs(
                 snapshot.liquidity_grabs[-5:]
             ),
-            "qm_levels": self._serialize_qm_levels(snapshot.qml_levels[-5:]),
+            "qm_levels": self._serialize_qm_levels(live_qms[-5:]),
             "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-5:]),
             "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-5:]),
-            "mpl_levels": self._serialize_mpl_levels(snapshot.mpl_levels[-5:]),
+            "mpl_levels": self._serialize_mpl_levels(live_mpls[-5:]),
             "supply_zones": self._serialize_supply_zones(snapshot.supply_zones[-5:]),
             "demand_zones": self._serialize_demand_zones(snapshot.demand_zones[-5:]),
             "fibonacci_retracements": self._serialize_fibonacci(
                 snapshot.fibonacci_retracements
             ),
             "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges[-3:]),
-            "total_structure_events": snapshot.total_structure_events,
-            "total_liquidity_events": snapshot.total_liquidity_events,
-            "total_zones": snapshot.total_zones,
+            
+            
+            
         }
 
     # ── Per-field serializers ────────────────────────────────────────

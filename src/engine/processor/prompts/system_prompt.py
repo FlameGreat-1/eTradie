@@ -408,10 +408,17 @@ def build_user_message(
             for c in raw_chunks
         ]
 
-    # Fields that are always stripped (DB/internal metadata)
+    # Fields that are always stripped (DB/internal metadata + Pydantic
+    # computed-field duplicates + Gateway pulse-matching identifiers).
+    # The LLM has no use for any of these.
     _STRIP_KEYS = {
+        # DB / collector metadata
         "id", "created_at", "snapshot_at", "collected_at",
         "sources", "assessed_at", "source_url", "summary",
+        # Pydantic computed-field duplicates of `direction`
+        "is_bullish", "is_bearish",
+        # Gateway pulse-matching ID -- opaque to the LLM
+        "candidate_id",
     }
 
     # Values that carry zero information for the LLM
@@ -419,16 +426,80 @@ def build_user_message(
         None, "", "NONE", "NEUTRAL", "INLINE", "UNKNOWN",
     }
 
+    # Boolean fields whose key ends in any of these suffixes are
+    # stripped when their value is False. False is noise ("this thing
+    # did not happen"); True is signal ("this thing happened"). The
+    # one-directional semantics is intentional.
+    _DEAD_WHEN_FALSE_SUFFIXES = (
+        "_detected", "_cleared", "_swept", "_mitigated", "_broken",
+        "_filled", "_tested", "_confirmed", "_aligned", "_nested",
+    )
+
+    def _round_float(value: float) -> float:
+        """Eliminate IEEE-754 noise in serialised floats.
+
+        Pip values, prices, and ratios currently emit 13+ decimal
+        artefacts like 5153.999999999996 or 1670.0400000000002.
+        Round to 5 decimals when |v| >= 1, 6 otherwise. NaN is
+        preserved untouched.
+        """
+        if value != value:  # NaN guard (NaN != NaN by IEEE-754)
+            return value
+        absv = value if value >= 0 else -value
+        if absv >= 1.0:
+            return round(value, 5)
+        return round(value, 6)
+
+    def _is_empty_count_data(d: dict) -> bool:
+        """Detect the orchestrator's empty event wrapper.
+
+        Shape {"count": 0, "data": []} is emitted on every empty
+        event array on every timeframe and ships ~80 bytes of zero
+        signal per occurrence. Also recognises the post-clean shape
+        {"count": 0} when the empty data list was dropped by the
+        recursive empty-list filter.
+        """
+        if not d:
+            return False
+        if set(d.keys()) == {"count", "data"} and d["count"] == 0 and d["data"] == []:
+            return True
+        if set(d.keys()) == {"count"} and d["count"] == 0:
+            return True
+        return False
+
     def _clean_dict(d: Any) -> Any:
-        """Recursively strip nulls, empties, defaults, and db metadata."""
+        """Recursively strip nulls, empties, defaults, db metadata,
+        boolean-False noise on dead-state suffixes, empty event
+        wrappers, and IEEE-754 float artefacts.
+
+        Filtering rules:
+          - None, "", [], {} are dropped.
+          - Strings in _EMPTY_VALUES are dropped.
+          - Keys in _STRIP_KEYS are dropped regardless of value.
+          - Boolean False is dropped when the key ends in any of
+            _DEAD_WHEN_FALSE_SUFFIXES (e.g. mitigated, filled,
+            tested, trends_aligned, zones_nested). True is kept.
+          - {"count": 0, "data": []} event wrappers are dropped.
+          - Floats are rounded to eliminate IEEE-754 noise.
+          - Specific zero-count macro fields are dropped.
+        """
         if isinstance(d, dict):
             cleaned = {}
             for k, v in d.items():
                 if k in _STRIP_KEYS:
                     continue
+                # Strip boolean False on dead-state suffixes BEFORE
+                # recursing. The value is a bare bool here, not a
+                # structure, so no downstream consumer can depend on
+                # its presence.
+                if v is False and any(k.endswith(s) for s in _DEAD_WHEN_FALSE_SUFFIXES):
+                    continue
                 v_clean = _clean_dict(v)
                 # Drop None, empty string, empty list, empty dict
                 if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
+                    continue
+                # Drop empty event wrappers {"count": 0, "data": []}
+                if isinstance(v_clean, dict) and _is_empty_count_data(v_clean):
                     continue
                 # Drop known zero-information string defaults
                 if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
@@ -444,7 +515,22 @@ def build_user_message(
             return cleaned
         elif isinstance(d, list):
             cleaned = [_clean_dict(item) for item in d]
-            return [item for item in cleaned if item is not None and item != "" and item != [] and item != {}]
+            return [
+                item for item in cleaned
+                if item is not None
+                and item != ""
+                and item != []
+                and item != {}
+                and not (isinstance(item, dict) and _is_empty_count_data(item))
+            ]
+        elif isinstance(d, bool):
+            # Booleans must be returned BEFORE the float branch because
+            # isinstance(True, int) is True in Python; without this
+            # guard True/False would silently round-trip through
+            # _round_float and lose type fidelity.
+            return d
+        elif isinstance(d, float):
+            return _round_float(d)
         else:
             return d
 
