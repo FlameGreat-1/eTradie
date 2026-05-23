@@ -445,12 +445,30 @@ def build_user_message(
     clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
     clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
 
+    # Strip RAG retriever telemetry from metadata before it reaches the
+    # LLM. The gateway propagates six diagnostic keys from the RAG
+    # ContextBundle (rag_strategy_used, rag_coverage_result,
+    # rag_conflict_result, rag_total_chunks_returned, rag_coverage_gaps,
+    # rag_conflict_details). These describe HOW retrieval ran, not WHAT
+    # the LLM should reason about. The chunk content the LLM needs
+    # flows via retrieved_knowledge.retrieved_chunks. Surfacing
+    # internal coverage gaps in the prompt biases the LLM toward
+    # hedging, lowering confidence, or producing NO SETUP outputs it
+    # would not otherwise return from the chunks that DID arrive.
+    # The audit logger reads retrieval state from the LLM's own
+    # output.audit.retrieval block, not from metadata, so stripping
+    # here breaks no downstream consumer.
+    clean_metadata = {
+        k: v for k, v in (context.metadata or {}).items()
+        if not k.startswith("rag_")
+    }
+
     payload: dict[str, Any] = {
         "symbol": context.symbol,
         "ta_analysis": clean_ta,
         "macro_analysis": clean_macro,
         "retrieved_knowledge": clean_rag,
-        "metadata": context.metadata,
+        "metadata": clean_metadata,
     }
     if user_operating_system:
         payload["user_operating_system"] = user_operating_system
