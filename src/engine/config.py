@@ -126,9 +126,6 @@ class Settings(BaseSettings):
     poll_interval_central_bank_rss: int = Field(
         default=3600, ge=60, description="CB RSS poll: 1H default"
     )
-    poll_interval_news: int = Field(
-        default=3600, ge=60, description="News poll: 1H default"
-    )
     poll_interval_calendar: int = Field(
         default=14400, ge=60, description="Calendar poll: 4H default"
     )
