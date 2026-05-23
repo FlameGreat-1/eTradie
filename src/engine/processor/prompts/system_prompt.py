@@ -515,7 +515,22 @@ def build_user_message(
             return cleaned
         elif isinstance(d, list):
             cleaned = [_clean_dict(item) for item in d]
-            return [item for item in cleaned if item is not None and item != "" and item != [] and item != {}]
+            return [
+                item for item in cleaned
+                if item is not None
+                and item != ""
+                and item != []
+                and item != {}
+                and not (isinstance(item, dict) and _is_empty_count_data(item))
+            ]
+        elif isinstance(d, bool):
+            # Booleans must be returned BEFORE the float branch because
+            # isinstance(True, int) is True in Python; without this
+            # guard True/False would silently round-trip through
+            # _round_float and lose type fidelity.
+            return d
+        elif isinstance(d, float):
+            return _round_float(d)
         else:
             return d
 
