@@ -408,10 +408,17 @@ def build_user_message(
             for c in raw_chunks
         ]
 
-    # Fields that are always stripped (DB/internal metadata)
+    # Fields that are always stripped (DB/internal metadata + Pydantic
+    # computed-field duplicates + Gateway pulse-matching identifiers).
+    # The LLM has no use for any of these.
     _STRIP_KEYS = {
+        # DB / collector metadata
         "id", "created_at", "snapshot_at", "collected_at",
         "sources", "assessed_at", "source_url", "summary",
+        # Pydantic computed-field duplicates of `direction`
+        "is_bullish", "is_bearish",
+        # Gateway pulse-matching ID -- opaque to the LLM
+        "candidate_id",
     }
 
     # Values that carry zero information for the LLM
