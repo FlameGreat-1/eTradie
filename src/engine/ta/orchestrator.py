@@ -1382,7 +1382,7 @@ class TAOrchestrator:
         return {
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
-            "timestamp": snapshot.timestamp.isoformat(),  # noqa: trailing-blanks-collapsed-below
+            "timestamp": snapshot.timestamp.isoformat(),
 
 
 
