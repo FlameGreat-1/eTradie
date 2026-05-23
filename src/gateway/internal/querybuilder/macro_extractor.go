@@ -106,7 +106,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 	econ := extractEconomic(result.Economic)
 	cal := extractCalendar(result.Calendar)
 	dxy := extractDXY(result.DXY)
-	news := extractNews(result.News)
 	sent := extractSentiment(result.Sentiment)
 	inter := extractIntermarket(result.Intermarket)
 
