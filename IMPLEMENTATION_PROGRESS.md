@@ -1,84 +1,131 @@
-# LLM Structured Output Refactor — Progress Tracker
+     [engine.shared.db.connection]
+etradie-engine  | 2026-05-22T07:30:41.538899Z [DEBUG    ] metering_refunded              [engine.shared.metering_client] extra={'reservation_id': '05f5f414ad76ea488faa03371dfc45e6'}
+etradie-engine  | 2026-05-22T07:30:41.553306Z [DEBUG    ] http_request_success           [engine.shared.http.client] extra={'provider': 'ecb_rss', 'category': 'CENTRAL_BANK', 'method': 'GET', 'url': 'https://www.ecb.europa.eu/rss/press.html', 'status': 200, 'duration_ms': 5885.97, 'attempt': 1, 'trace_id': None} trace_id=02788e4e57594628ac94c87da0b66b43
+etradie-engine  | 2026-05-22T07:30:41.562216Z [INFO     ] rss_fetched                    [engine.shared.rss.parser] new_entries=0 total_entries=15 trace_id=02788e4e57594628ac94c87da0b66b43 url=https://www.ecb.europa.eu/rss/press.html
+etradie-engine  | 2026-05-22T07:30:41.621212Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'upsert', 'duration_ms': 78.8, 'row_count': 1, 'trace_id': None}
+etradie-engine  | 2026-05-22T07:30:41.621847Z [DEBUG    ] repository_upsert_executed     [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'index_elements': ['analysis_id'], 'update_fields': ['direction', 'setup_grade', 'confluence_score', 'confidence', 'proceed_to_module_b', 'status', 'error_message', 'duration_ms', 'raw_output'], 'idempotency_key': None, 'trace_id': None}
+etradie-engine  | 2026-05-22T07:30:41.626092Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 86.0}
+etradie-engine  | 2026-05-22T07:30:41.626923Z [WARNING  ] internal_processor_llm_analysis_unavailable [engine.routers.internal] extra={'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'trace_id': 'b90edcb2c03709bd90c0b3f23829b0a9', 'code': 'llm_truncated', 'detail': 'LLM output was truncated (finish_reason=MAX_TOKENS). The model generated 642 tokens out of 16384 allowed before the provider terminated the response. This is NOT a parsing error — the LLM provider stopped generating.', 'details': {'finish_reason': 'MAX_TOKENS', 'output_tokens': 642, 'max_output_tokens': 16384, 'response_length': 1454, 'symbol': 'Boom 1000 Index', 'trace_id': 'b90edcb2c03709bd90c0b3f23829b0a9'}}
+etradie-engine  | INFO:     172.25.0.11:58008 - "POST /internal/processor/process HTTP/1.1" 422 Unprocessable Entity
+etradie-engine  | INFO:     172.25.0.10:60572 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:41.676087Z [DEBUG    ] db_connection_established      [engine.shared.db.connection]
+etradie-engine  | 2026-05-22T07:30:41.714992Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'execute_query', 'duration_ms': 189.07, 'row_count': 1, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.1:54910 - "GET /api/analysis/latest?limit=1 HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:60572 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:42.079053Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:30:42.088118Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:60572 - "GET /internal/broker/positions HTTP
 
-Branch: `feat/llm-structured-output`
-Full design and decisions live in `PROBLEM.md` (the conversation log).
 
----
 
-## Phase 1 — Foundation modules (DONE)
 
-- [x] `src/engine/processor/llm/errors.py` — typed LLM failures.
-      Classes: `LLMError`, `LLMTruncatedError`, `LLMSchemaViolationError`,
-      `LLMSafetyFilterError`, `LLMRateLimitedError`, `LLMTransientError`,
-      `LLMStructuredOutputUnsupportedError`. All subclass `ProcessorError`.
+.services.audit] count=29 retrieval_log_id=803227a2-5f0c-4a35-9038-22c5c3813a48
+etradie-engine  | 2026-05-22T07:30:58.434218Z [INFO     ] rag_retrieval_completed        [engine.rag.orchestrator] chunks=29 chunks_from_gap_fill=0 chunks_from_primary=29 citations=29 coverage=partial elapsed_ms=6969.8 mandatory_doc_types=9 scenarios=0 strategy=scenario_first trace_id=7ca93e20f09b3777cab439e8b1fd3c45
+etradie-engine  | INFO:     172.25.0.11:34448 - "POST /internal/rag/retrieve HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.11:49616 - "POST /internal/rag/retrieve HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:58.448766Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:30:58.456913Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.9:43678 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:58.468074Z [INFO     ] processor_started              [engine.processor.service] extra={'symbol': 'Crash 1000 Index', 'ta_keys': ['alignment', 'htf_timeframes', 'ltf_timeframes', 'overall_trend', 'smc_candidates', 'snapshots', 'snd_candidates', 'status', 'symbol'], 'macro_keys': [], 'rag_keys': ['citations', 'conflict_details', 'conflict_result', 'coverage_gaps', 'coverage_result', 'created_at', 'id', 'matched_scenarios', 'retrieved_chunks', 'strategy_used', 'total_chunks_considered', 'total_chunks_returned'], 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.474224Z [INFO     ] processor_started              [engine.processor.service] extra={'symbol': 'Boom 1000 Index', 'ta_keys': ['alignment', 'htf_timeframes', 'ltf_timeframes', 'overall_trend', 'smc_candidates', 'snapshots', 'snd_candidates', 'status', 'symbol'], 'macro_keys': [], 'rag_keys': ['citations', 'conflict_details', 'conflict_result', 'coverage_gaps', 'coverage_result', 'created_at', 'id', 'matched_scenarios', 'retrieved_chunks', 'strategy_used', 'total_chunks_considered', 'total_chunks_returned'], 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.474897Z [DEBUG    ] cache_miss                     [engine.shared.cache.redis_cache] extra={'namespace': 'user_os', 'key': 'eb7867f35b2c80f7401cbb5b84e0756c:absent', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.476345Z [DEBUG    ] cache_hit                      [engine.shared.cache.redis_cache] extra={'namespace': 'user_os', 'key': 'eb7867f35b2c80f7401cbb5b84e0756c:v1', 'size_bytes': 1975, 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.501248Z [INFO     ] prompt_payload_saved           [engine.processor.service] extra={'directory': '/output/prompts/Crash 1000 Index_20260522T073058Z', 'symbol': 'Crash 1000 Index', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.501517Z [INFO     ] user_os_injected               [engine.processor.service] extra={'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45', 'style': 'Intraday (M15-H4)', 'automation': 'Manual approval per trade', 'confirmation': 'Balanced confirmation'}
+etradie-engine  | 2026-05-22T07:30:58.501749Z [DEBUG    ] processor_prompt_built         [engine.processor.service] extra={'symbol': 'Crash 1000 Index', 'user_message_length': 415651, 'prompt_hash': '1673a86be2c84f5b3a281129881f8e60', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.512406Z [DEBUG    ] cache_miss                     [engine.shared.cache.redis_cache] extra={'namespace': 'user_os', 'key': 'eb7867f35b2c80f7401cbb5b84e0756c:absent', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.514797Z [INFO     ] zmq_pending_orders_fetched     [engine.ta.broker.mt5.zmq.client] extra={'count': 0}
+etradie-engine  | 2026-05-22T07:30:58.518854Z [DEBUG    ] cache_hit                      [engine.shared.cache.redis_cache] extra={'namespace': 'user_os', 'key': 'eb7867f35b2c80f7401cbb5b84e0756c:v1', 'size_bytes': 1975, 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.554493Z [INFO     ] prompt_payload_saved           [engine.processor.service] extra={'directory': '/output/prompts/Boom 1000 Index_20260522T073058Z', 'symbol': 'Boom 1000 Index', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.554846Z [INFO     ] user_os_injected               [engine.processor.service] extra={'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45', 'style': 'Intraday (M15-H4)', 'automation': 'Manual approval per trade', 'confirmation': 'Balanced confirmation'}
+etradie-engine  | 2026-05-22T07:30:58.555234Z [DEBUG    ] processor_prompt_built         [engine.processor.service] extra={'symbol': 'Boom 1000 Index', 'user_message_length': 432697, 'prompt_hash': 'b28a5a982831ae3d2cb13c5cb1f85f30', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:30:58.571214Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:pending_orders:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 2, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.9:43680 - "GET /internal/broker/pending_orders HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:58.579992Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:account_info:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 90, 'ttl_seconds': 86400, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.9:43690 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:58.593721Z [DEBUG    ] metering_reserved              [engine.shared.metering_client] extra={'reservation_id': '8e5796a7a3546ef19f01fb6eafda0344', 'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'estimated_input': 104013, 'max_output': 16384, 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | AFC is enabled with max remote calls: 10.
+etradie-engine  | 2026-05-22T07:30:58.624347Z [DEBUG    ] metering_reserved              [engine.shared.metering_client] extra={'reservation_id': '8f52c195b5f73172f98c10a08fef9525', 'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'estimated_input': 108274, 'max_output': 16384, 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | AFC is enabled with max remote calls: 10.
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:59.035322Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:30:59.038511Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:30:59.169122Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:30:59.170792Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:f1a9b6f933291dc7d9d66c664878fb91', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | INFO:     127.0.0.1:54916 - "GET /health HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:00.034795Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:00.036544Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 225, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:00.220935Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:00.222339Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:f1a9b6f933291dc7d9d66c664878fb91', 'size_bytes': 225, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:00.270571Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:account_info:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 90, 'ttl_seconds': 86400, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.9:43680 - "GET /internal/broker/account_info HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:00.955397Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:00.959187Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:01.183000Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:01.184851Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:f1a9b6f933291dc7d9d66c664878fb91', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:38248 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:02.056406Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:02.059930Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:02.241253Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:02.243334Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:f1a9b6f933291dc7d9d66c664878fb91', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.5:39770 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
+etradie-engine  | INFO:     172.25.0.5:39770 - "GET /metrics/ HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:02.937582Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:02.940374Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:03.158002Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:03.160141Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:f1a9b6f933291dc7d9d66c664878fb91', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:03.652608Z [ERROR    ] llm_stream_call_failed         [engine.processor.llm.providers.gemini] extra={'provider': 'gemini', 'model': 'gemini-3.5-flash', 'error': "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 250000, model: gemini-3.5-flash\\nPlease retry in 55.685451694s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_input_token_count', 'quotaId': 'GenerateContentInputTokensPerModelPerMinute-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash'}, 'quotaValue': '250000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '55s'}]}}", 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | 2026-05-22T07:31:03.655207Z [ERROR    ] llm_non_retryable_error        [engine.processor.llm.retry] extra={'provider': 'gemini', 'error_type': 'LLMRateLimitedError', 'error': "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 250000, model: gemini-3.5-flash\\nPlease retry in 55.685451694s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_input_token_count', 'quotaId': 'GenerateContentInputTokensPerModelPerMinute-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash'}, 'quotaValue': '250000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '55s'}]}}", 'attempt': 1, 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45'}
+etradie-engine  | INFO:     172.25.0.10:36318 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:03.703543Z [DEBUG    ] metering_refunded              [engine.shared.metering_client] extra={'reservation_id': '8f52c195b5f73172f98c10a08fef9525'}
+etradie-engine  | 2026-05-22T07:31:03.718908Z [DEBUG    ] repository_query_executed      [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'operation': 'upsert', 'duration_ms': 14.69, 'row_count': 1, 'trace_id': None}
+etradie-engine  | 2026-05-22T07:31:03.719181Z [DEBUG    ] repository_upsert_executed     [engine.shared.db.repositories.base_repository] extra={'repository': 'analysis_output', 'index_elements': ['analysis_id'], 'update_fields': ['direction', 'setup_grade', 'confluence_score', 'confidence', 'proceed_to_module_b', 'status', 'error_message', 'duration_ms', 'raw_output'], 'idempotency_key': None, 'trace_id': None}
+etradie-engine  | 2026-05-22T07:31:03.721803Z [DEBUG    ] db_transaction_committed       [engine.shared.db.connection] extra={'trace_id': None, 'duration_ms': 18.0}
+etradie-engine  | 2026-05-22T07:31:03.722813Z [WARNING  ] internal_processor_llm_analysis_unavailable [engine.routers.internal] extra={'user_id': 'eb7867f35b2c80f7401cbb5b84e0756c', 'trace_id': '7ca93e20f09b3777cab439e8b1fd3c45', 'code': 'llm_rate_limited', 'detail': "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 250000, model: gemini-3.5-flash\\nPlease retry in 55.685451694s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_input_token_count', 'quotaId': 'GenerateContentInputTokensPerModelPerMinute-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash'}, 'quotaValue': '250000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '55s'}]}}", 'details': {}}
+etradie-engine  | INFO:     172.25.0.11:34448 - "POST /internal/processor/process HTTP/1.1" 422 Unprocessable Entity
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/tick_price?symbol=BTCUSD HTTP/1.1" 200 OK
+etradie-engine  | INFO:     172.25.0.10:38254 - "GET /internal/broker/position?ticket=9657751627 HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:04.036057Z [INFO     ] zmq_positions_fetched          [engine.ta.broker.mt5.zmq.client] extra={'count': 1}
+etradie-engine  | 2026-05-22T07:31:04.038439Z [DEBUG    ] cache_set_success              [engine.shared.cache.redis_cache] extra={'namespace': 'internal', 'key': 'cache_failover:positions:eb7867f35b2c80f7401cbb5b84e0756c', 'size_bytes': 226, 'ttl_seconds': 15, 'trace_id': None}
+etradie-engine  | INFO:     172.25.0.10:36276 - "GET /internal/broker/positions HTTP/1.1" 200 OK
+etradie-engine  | 2026-05-22T07:31:04.220614Z [INFO     ] zmq_positions_fetched          [e
 
-- [x] `src/engine/processor/llm/capabilities.py` — per-(provider, model)
-      capability lookup driven by `MODEL_CATALOG.group`.
 
-- [x] `src/engine/processor/llm/reasoning.py` — `ReasoningBudget` +
-      `resolve_reasoning_budget()`.
 
-- [x] `src/engine/processor/llm/schema_compiler.py` — provider-native
-      JSON schema compilation from `AnalysisOutput`. Cached per provider.
 
----
 
-## Phase 2 — Wire structured output into all 4 providers (DONE)
-
-- [x] `src/engine/processor/llm/providers/gemini.py` —
-      `response_mime_type` + `response_schema` + `thinking_config`.
-- [x] `src/engine/processor/llm/providers/openai_provider.py` —
-      `response_format={type:'json_schema', strict:true}` + `reasoning_effort`.
-- [x] `src/engine/processor/llm/providers/anthropic.py` — forced
-      tool-use + `thinking={enabled, budget_tokens}`.
-- [x] `src/engine/processor/llm/providers/openai_compatible.py` —
-      best-effort `response_format` with latched fallback probe.
-- [x] `src/engine/processor/service.py` — removed chunk-counter token
-      masquerade; usage_metadata is now the only token source.
-
----
-
-## Phase 3 — Parser hardening, typed-error routing, reasoning-budget config, prompt note (DONE)
-
-- [x] `src/engine/processor/parsing/response_parser.py` —
-      `_coerce_null_collections` pre-validation pass for the fallback
-      path (None -> [] on the AnalysisOutput list fields).
-- [x] `src/engine/processor/config.py` —
-      `reasoning_budget_tokens: Optional[int]` operator knob.
-- [x] `src/engine/routers/internal.py` — `LLMTruncatedError |
-      LLMSchemaViolationError | LLMSafetyFilterError |
-      LLMRateLimitedError` -> 422 per-symbol; `ProcessorInsufficientDataError`
-      -> 400; preserved `QuotaExceededError` -> 429; everything else -> 500.
-- [x] `src/engine/processor/prompts/system_prompt.py` — single-line note
-      above the schema block. Schema block itself untouched.
-
----
-
-## Phase 4 — Open MR (DONE)
-
-- [x] Open MR `feat/llm-structured-output -> main`.
-
----
-
-## Files explicitly NOT modified (verified safe by code reading)
-
-- `src/engine/processor/models/analysis.py` — Pydantic source of truth.
-- `src/engine/processor/models/io.py` — `ProcessorInput`/`ProcessorOutput`
-  gateway contract.
-- `src/engine/processor/mapping/output_mapper.py`, `dashboard_formatter.py`.
-- `src/gateway/internal/models/processor.go` and everything downstream
-  (Module B / Execution / Management).
-- `proto/engine/v1/engine.proto`.
-- `src/engine/processor/llm/client.py` — abstract interface unchanged.
-- `src/engine/processor/llm/factory.py` — construction unchanged.
-- `src/engine/processor/llm/retry.py` — already correct.
-
-## What stays exactly the same end-to-end
-
-- The system prompt text (every word). Only a single informational line
-  added above the embedded schema block.
-- The dashboard SSE feed (`status` / `reasoning_chunk` / `final`).
-- One LLM call per analysis (no extra calls, no double cost).
-- The Pydantic `AnalysisOutput` model and every field on it.
-- The Go `ProcessorOutput` contract and the proto.
-- Module B, Execution, Management.
+L_KILLER_TYPE1_BEARISH_5676.994","time":1779436206157,"message":"execute_trade_received"}
+etradie-execution  | {"level":"info","service":"execution","component":"validator","symbol":"Crash 1000 Index","direction":"SHORT","analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","trace_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","duration_ms":236.47738900000002,"time":1779436207069,"message":"validation_passed"}
+etradie-execution  | {"level":"info","service":"execution","component":"sizing_engine","symbol":"Crash 1000 Index","balance":9703.79,"risk_pct":1,"risk_amount":97.04,"sl_pips":11,"pip_value":1,"lot_size":8.8,"grade":"A","analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","trace_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","duration_ms":672.0074099999999,"time":1779436207765,"message":"lot_size_calculated"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_tick_cache","user_id":"eb7867f35b2c80f7401cbb5b84e0756c","symbol":"Crash 1000 Index","time":1779436207774,"message":"tick_poller_started"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_manager","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","symbol":"Crash 1000 Index","analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","execution_mode":"INSTANT","entry_price":5678.496999999999,"stop_loss":5689.515,"timeout":57600000,"broker_order_id":"","time":1779436207776,"message":"watcher_monitoring_started"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_manager","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","symbol":"Crash 1000 Index","analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","time":1779436207776,"message":"watcher_pre_confirmed_firing_market_order_immediately"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_store","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","user_id":"eb7867f35b2c80f7401cbb5b84e0756c","symbol":"Crash 1000 Index","time":1779436207795,"message":"watcher_persisted"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_manager","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","symbol":"Crash 1000 Index","direction":"SHORT","execution_mode":"INSTANT","entry_price":5678.496999999999,"broker_order_id":"","time":1779436207795,"message":"watcher_armed"}
+etradie-execution  | {"level":"info","service":"execution","component":"executor","symbol":"Crash 1000 Index","direction":"SHORT","order_id":"ORD_Crash 1000 Index_20260522_075007_3fd66499","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","watch_level":5678.496999999999,"overshoot_tolerance":4.509000000000469,"stop_loss":5689.515,"lot_size":8.8,"analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","duration_ms":23.013286,"time":1779436207796,"message":"watcher_armed"}
+etradie-execution  | {"level":"info","service":"execution","component":"grpc_server","symbol":"Crash 1000 Index","direction":"SHORT","order_id":"ORD_Crash 1000 Index_20260522_075007_3fd66499","mode":"INSTANT","lot_size":8.8,"risk_amount":97.04,"entry_price":5678.496999999999,"analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","trace_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","duration_ms":1654.34356,"time":1779436207805,"message":"execute_trade_completed"}
+etradie-execution  | {"level":"error","service":"execution","component":"watcher_manager","watcher_id":"GRT_Crash 1000 Index_Crash 1000 Index_20260522_075007_3fd66499","symbol":"Crash 1000 Index","analysis_id":"CRASH 1000 INDEX_QML_KILLER_TYPE1_BEARISH_5676.994","error":"place MARKET order for Crash 1000 Index: http post /internal/broker/place_order: status 502: {\"detail\":\"Order placement failed: ZMQ EA error: Stop levels too close to market price\"}","time":1779436208196,"message":"watcher_market_order_failed"}
+etradie-execution  | {"level":"info","service":"execution","component":"watcher_tick_cache","user_id":"eb7867f35b2c80f7401cbb5b84e0756c","symbol":"Crash 1000 Index","time":1779436208198,"message":"tick_poller_stopped"}

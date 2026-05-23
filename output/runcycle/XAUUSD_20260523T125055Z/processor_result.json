@@ -1,0 +1,288 @@
+{
+  "analysis_id": "analysis_XAUUSD_20260522_2044_f821",
+  "confidence": 0,
+  "confluence_score": 2,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex",
+          "Indices",
+          "Gold",
+          "Volatility Indices (24/7)"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": true,
+        "mode": "Fully automatic",
+        "require_final_confirmation": false
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 2,
+        "dxy": 3,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 3,
+        "volume_liquidity": 3,
+        "wyckoff": 0
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": false,
+        "avoid_overnight_holds": true,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Fully Automated",
+        "discipline": "Rule-Based",
+        "experience": "Advanced",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": true,
+        "emotional_volatility_sensitivity": "high",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": true,
+        "preferred": [
+          "London",
+          "New York",
+          "London/NY Overlap"
+        ]
+      },
+      "structural": {
+        "emphasis": "high",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand",
+          "Liquidity concepts"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_XAUUSD_20260522_2044_f821",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.98,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.98,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          }
+        ],
+        "query_summary": "Friday session constraints and global rejection rules",
+        "strategy_used": "Keyword matching on session rules and Friday blocks",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "No macro data available.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "HTF structure alignment",
+          "notes": "D1 is bearish while H1 is bullish.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "MTF structure alignment",
+          "notes": "H1 structure is bullish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid structural entry support",
+          "notes": "No valid entry zone identified at the live edge.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "No Friday late-session block",
+          "notes": "Current time is Friday 20:44 UTC, which is past the 12:00 UTC Friday cutoff for Intraday trading.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 2
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No speculative positioning data available for analysis.",
+      "week_over_week": null
+    },
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The trade setup is rejected due to the Friday late-session block rule (MR-REJECT-004 and STYLE-SESSION-003). New intraday entries are strictly prohibited after 12:00 UTC on Fridays to avoid weekend gap risks and position squaring volatility. The current analysis timestamp is Friday 20:44 UTC, which is well past the cutoff. Additionally, there is a structural mismatch between the bearish D1 higher timeframe trend and the bullish H1 medium timeframe trend, violating the trend alignment requirements without a confirmed 1D CHoCH.",
+    "htf_bias": {
+      "key_levels": [
+        4889.05,
+        4510.18,
+        4500.87
+      ],
+      "notes": "D1 structure is bearish with a confirmed BMS at 4595.49 on 2026-04-29.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4536.89,
+        4453.61
+      ],
+      "notes": "H1 structure is bullish with recent swing low at 4491.99.",
+      "structure": "bullish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.98,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "71fb7648-89a8-48b0-9a99-557e8700af71",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "9. Session Preferences"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "NEW_YORK",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": "No trade executed due to Friday late-session block."
+    },
+    "take_profits": [
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-22T20:44:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The trade setup is rejected due to the Friday late-session block rule (MR-REJECT-004 and STYLE-SESSION-003). New intraday entries are strictly prohibited after 12:00 UTC on Fridays to avoid weekend gap risks and position squaring volatility. The current analysis timestamp is Friday 20:44 UTC, which is well past the cutoff. Additionally, there is a structural mismatch between the bearish D1 higher timeframe trend and the bullish H1 medium timeframe trend, violating the trend alignment requirements without a confirmed 1D CHoCH.",
+  "rejection_rules": [
+    "missing_Macro bias alignment",
+    "missing_HTF structure alignment",
+    "missing_Valid structural entry support",
+    "missing_No Friday late-session block"
+  ],
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "symbol": "XAUUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}

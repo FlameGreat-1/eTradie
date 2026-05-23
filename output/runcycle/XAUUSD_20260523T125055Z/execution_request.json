@@ -1,7 +1,7 @@
 {
-  "analysis_id": "analysis_XAUUSD_20260522_2044_a1b2",
+  "analysis_id": "analysis_XAUUSD_20260522_2044_f821",
   "confidence": 0,
-  "confluence_score": 0,
+  "confluence_score": 2,
   "direction": "",
   "entry_zone_high": 0,
   "entry_zone_low": 0,
@@ -18,12 +18,12 @@
   "setup_type": "",
   "stop_loss": 0,
   "symbol": "XAUUSD",
-  "tp1_pct": 0,
+  "tp1_pct": 40,
   "tp1_price": 0,
-  "tp2_pct": 0,
+  "tp2_pct": 30,
   "tp2_price": 0,
-  "tp3_pct": 0,
+  "tp3_pct": 30,
   "tp3_price": 0,
-  "trace_id": "analysis_XAUUSD_20260522_2044_a1b2",
+  "trace_id": "analysis_XAUUSD_20260522_2044_f821",
   "trading_style": "INTRADAY"
 }
