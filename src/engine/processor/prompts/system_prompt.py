@@ -386,11 +386,17 @@ def build_user_message(
     """
     # Strip out massive vector database metadata (scores, rankings, hashes)
     # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
+    # strategy_used (e.g. "scenario_first", "rule_first", "hybrid") is
+    # an internal RAG implementation detail. The LLM cannot meaningfully
+    # reason over which retrieval algorithm ran; only the chunks the
+    # algorithm returned matter, and those flow via retrieved_chunks.
+    # Keeping strategy_used here while the matching rag_strategy_used
+    # metadata key is stripped would have been inconsistent — same data,
+    # two paths. Both are now stripped at this single chokepoint.
     clean_rag = {}
     if context.retrieved_knowledge:
-        clean_rag["strategy_used"] = context.retrieved_knowledge.get("strategy_used")
         raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", [])
-        
+
         clean_rag["retrieved_chunks"] = [
             {
                 "chunk_id": c.get("chunk_id"),
@@ -445,22 +451,34 @@ def build_user_message(
     clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
     clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
 
-    # Strip RAG retriever telemetry from metadata before it reaches the
-    # LLM. The gateway propagates six diagnostic keys from the RAG
-    # ContextBundle (rag_strategy_used, rag_coverage_result,
-    # rag_conflict_result, rag_total_chunks_returned, rag_coverage_gaps,
-    # rag_conflict_details). These describe HOW retrieval ran, not WHAT
-    # the LLM should reason about. The chunk content the LLM needs
-    # flows via retrieved_knowledge.retrieved_chunks. Surfacing
-    # internal coverage gaps in the prompt biases the LLM toward
-    # hedging, lowering confidence, or producing NO SETUP outputs it
-    # would not otherwise return from the chunks that DID arrive.
+    # Strip infrastructure plumbing from metadata before it reaches the
+    # LLM. Two categories are removed:
+    #
+    # 1. RAG retriever telemetry — the gateway propagates six diagnostic
+    #    keys from the RAG ContextBundle (rag_strategy_used,
+    #    rag_coverage_result, rag_conflict_result,
+    #    rag_total_chunks_returned, rag_coverage_gaps,
+    #    rag_conflict_details). These describe HOW retrieval ran, not
+    #    WHAT the LLM should reason about. The chunk content the LLM
+    #    needs flows via retrieved_knowledge.retrieved_chunks.
+    #    Surfacing internal coverage gaps in the prompt biases the LLM
+    #    toward hedging, lowering confidence, or producing NO SETUP
+    #    outputs it would not otherwise return from the chunks that
+    #    DID arrive.
+    #
+    # 2. Distributed-tracing correlation IDs — trace_id is a UUID used
+    #    for log correlation across the gateway, engine, processor,
+    #    and execution services. The LLM cannot act on it.
+    #
     # The audit logger reads retrieval state from the LLM's own
-    # output.audit.retrieval block, not from metadata, so stripping
-    # here breaks no downstream consumer.
+    # output.audit.retrieval block (model self-report), not from
+    # metadata. trace_id propagates through HTTP headers and structured
+    # logger extras. Neither needs to be inside the prompt body for
+    # downstream consumers to function.
+    _METADATA_STRIP_KEYS = {"trace_id"}
     clean_metadata = {
         k: v for k, v in (context.metadata or {}).items()
-        if not k.startswith("rag_")
+        if not k.startswith("rag_") and k not in _METADATA_STRIP_KEYS
     }
 
     payload: dict[str, Any] = {
