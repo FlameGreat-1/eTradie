@@ -1344,7 +1344,36 @@ class TAOrchestrator:
     # ── Full snapshot serializer ─────────────────────────────────────
 
     def _serialize_snapshot(self, snapshot: TechnicalSnapshot) -> dict:
-        """Serialize a full TechnicalSnapshot into a dict for the result payload."""
+        """Serialize a TechnicalSnapshot into a dict for the prompt path.
+
+        Dead structures are filtered BEFORE the trailing-N slice so the
+        slice keeps the last N still-live items rather than N items
+        that may include consumed POIs:
+
+          - OrderBlock / BreakerBlock with mitigated=True are dropped.
+          - FairValueGap with filled=True is dropped.
+          - QuasiModoLevel / MiniPriceLevel with tested=True is dropped.
+
+        Per-field serializers (``_serialize_order_blocks``,
+        ``_serialize_fvgs``, ``_serialize_qm_levels`` etc.) are
+        intentionally NOT modified -- they are dual-use, also called
+        by ``_persist_snapshot`` which must capture full DB fidelity.
+        Dead-structure filtering happens ONLY here, in the prompt-path
+        serializer.
+
+        Fields removed vs. the historical implementation:
+          - ``candle_count`` (per-snapshot counter, not actionable)
+          - ``total_structure_events`` / ``total_liquidity_events`` /
+            ``total_zones`` (dashboard aggregates; the LLM reasons
+            from the event arrays themselves)
+        """
+        live_obs = [ob for ob in snapshot.order_blocks if not ob.mitigated]
+        live_breakers = [
+            bb for bb in snapshot.breaker_blocks if not bb.mitigated
+        ]
+        live_fvgs = [fvg for fvg in snapshot.fvgs if not fvg.filled]
+        live_qms = [qm for qm in snapshot.qml_levels if not qm.tested]
+        live_mpls = [mpl for mpl in snapshot.mpl_levels if not mpl.tested]
         return {
             "symbol": snapshot.symbol,
             "timeframe": snapshot.timeframe.value,
