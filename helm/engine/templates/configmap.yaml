@@ -37,7 +37,6 @@ data:
 
   # Polling intervals (seconds).
   POLL_INTERVAL_CENTRAL_BANK_RSS: {{ .Values.config.poll.centralBankRSS | quote }}
-  POLL_INTERVAL_NEWS: {{ .Values.config.poll.news | quote }}
   POLL_INTERVAL_CALENDAR: {{ .Values.config.poll.calendar | quote }}
   POLL_INTERVAL_COT: {{ .Values.config.poll.cot | quote }}
   POLL_INTERVAL_DXY: {{ .Values.config.poll.dxy | quote }}
@@ -48,7 +47,6 @@ data:
 
   # Cache TTLs (seconds).
   CACHE_TTL_CENTRAL_BANK: {{ .Values.config.cache.centralBank | quote }}
-  CACHE_TTL_NEWS: {{ .Values.config.cache.news | quote }}
   CACHE_TTL_CALENDAR: {{ .Values.config.cache.calendar | quote }}
   CACHE_TTL_COT: {{ .Values.config.cache.cot | quote }}
   CACHE_TTL_DXY: {{ .Values.config.cache.dxy | quote }}
