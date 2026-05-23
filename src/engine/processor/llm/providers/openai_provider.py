@@ -84,6 +84,7 @@ class OpenAIClient(LLMClient):
         system_prompt: str,
         user_message: str,
         stream: bool,
+        use_structured_output: bool = True,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self._config.model_name,
@@ -95,7 +96,11 @@ class OpenAIClient(LLMClient):
             ],
         }
 
-        if self._capabilities.supports_structured_output:
+        # Schema enforcement is opt-in per call. Analysis path passes
+        # use_structured_output=True (default) so the AnalysisOutput
+        # strict json_schema is attached; non-analysis callers pass
+        # False so the response shape is defined by the prompt alone.
+        if use_structured_output and self._capabilities.supports_structured_output:
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -124,6 +129,7 @@ class OpenAIClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
         start = time.monotonic()
@@ -134,6 +140,7 @@ class OpenAIClient(LLMClient):
                     system_prompt=system_prompt,
                     user_message=user_message,
                     stream=False,
+                    use_structured_output=use_structured_output,
                 )
             )
         except Exception as exc:
@@ -196,6 +203,7 @@ class OpenAIClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
+        use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
 
@@ -205,6 +213,7 @@ class OpenAIClient(LLMClient):
                     system_prompt=system_prompt,
                     user_message=user_message,
                     stream=True,
+                    use_structured_output=use_structured_output,
                 )
             )
             async for chunk in response:

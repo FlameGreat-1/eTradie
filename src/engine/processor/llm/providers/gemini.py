@@ -132,17 +132,24 @@ class GeminiClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
         start = time.monotonic()
 
         try:
+            # use_structured_output is forwarded verbatim to the
+            # generation config. Analysis path keeps the historical
+            # True (AnalysisOutput response_schema attached);
+            # non-analysis callers pass False so the response is a
+            # free-text JSON object whose shape is defined by the
+            # caller's system prompt.
             response = await self._client.aio.models.generate_content(
                 model=model,
                 contents=user_message,
                 config=self._build_generation_config(
                     system_prompt=system_prompt,
-                    use_structured_output=True,
+                    use_structured_output=use_structured_output,
                 ),
             )
         except Exception as exc:
@@ -206,6 +213,7 @@ class GeminiClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
+        use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
 
@@ -217,7 +225,7 @@ class GeminiClient(LLMClient):
             loop = asyncio.get_running_loop()
             generation_config = self._build_generation_config(
                 system_prompt=system_prompt,
-                use_structured_output=True,
+                use_structured_output=use_structured_output,
             )
 
             def _sync_worker() -> None:

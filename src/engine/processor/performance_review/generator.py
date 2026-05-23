@@ -322,10 +322,24 @@ class PerformanceReviewGenerator:
             last_exc: Optional[Exception] = None
             for attempt in range(_LLM_MAX_ATTEMPTS):
                 try:
+                    # use_structured_output=False is required here for
+                    # the same reason it is required in the Trading
+                    # Plan generator: the Performance Review wire
+                    # schema is owned by performance_review/prompt.py
+                    # and validated by _shape_review() against the
+                    # gateway's 14-section contract. Leaving the
+                    # default (True) in place would force the
+                    # provider's API grammar to coerce every review
+                    # response into the analysis processor's
+                    # AnalysisOutput shape, and the first required-
+                    # section check would raise the symmetric
+                    # "AI response is missing the '<section>' section"
+                    # error.
                     response = await dynamic_client.call(
                         system_prompt=SYSTEM_PROMPT,
                         user_message=user_prompt,
                         trace_id=f"performance-review:{req.user_id}:{req.period}:{attempt}",
+                        use_structured_output=False,
                     )
                     break
                 except Exception as exc:  # noqa: BLE001
