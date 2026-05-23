@@ -468,7 +468,21 @@ def build_user_message(
         return False
 
     def _clean_dict(d: Any) -> Any:
-        """Recursively strip nulls, empties, defaults, and db metadata."""
+        """Recursively strip nulls, empties, defaults, db metadata,
+        boolean-False noise on dead-state suffixes, empty event
+        wrappers, and IEEE-754 float artefacts.
+
+        Filtering rules:
+          - None, "", [], {} are dropped.
+          - Strings in _EMPTY_VALUES are dropped.
+          - Keys in _STRIP_KEYS are dropped regardless of value.
+          - Boolean False is dropped when the key ends in any of
+            _DEAD_WHEN_FALSE_SUFFIXES (e.g. mitigated, filled,
+            tested, trends_aligned, zones_nested). True is kept.
+          - {"count": 0, "data": []} event wrappers are dropped.
+          - Floats are rounded to eliminate IEEE-754 noise.
+          - Specific zero-count macro fields are dropped.
+        """
         if isinstance(d, dict):
             cleaned = {}
             for k, v in d.items():
