@@ -426,6 +426,47 @@ def build_user_message(
         None, "", "NONE", "NEUTRAL", "INLINE", "UNKNOWN",
     }
 
+    # Boolean fields whose key ends in any of these suffixes are
+    # stripped when their value is False. False is noise ("this thing
+    # did not happen"); True is signal ("this thing happened"). The
+    # one-directional semantics is intentional.
+    _DEAD_WHEN_FALSE_SUFFIXES = (
+        "_detected", "_cleared", "_swept", "_mitigated", "_broken",
+        "_filled", "_tested", "_confirmed", "_aligned", "_nested",
+    )
+
+    def _round_float(value: float) -> float:
+        """Eliminate IEEE-754 noise in serialised floats.
+
+        Pip values, prices, and ratios currently emit 13+ decimal
+        artefacts like 5153.999999999996 or 1670.0400000000002.
+        Round to 5 decimals when |v| >= 1, 6 otherwise. NaN is
+        preserved untouched.
+        """
+        if value != value:  # NaN guard (NaN != NaN by IEEE-754)
+            return value
+        absv = value if value >= 0 else -value
+        if absv >= 1.0:
+            return round(value, 5)
+        return round(value, 6)
+
+    def _is_empty_count_data(d: dict) -> bool:
+        """Detect the orchestrator's empty event wrapper.
+
+        Shape {"count": 0, "data": []} is emitted on every empty
+        event array on every timeframe and ships ~80 bytes of zero
+        signal per occurrence. Also recognises the post-clean shape
+        {"count": 0} when the empty data list was dropped by the
+        recursive empty-list filter.
+        """
+        if not d:
+            return False
+        if set(d.keys()) == {"count", "data"} and d["count"] == 0 and d["data"] == []:
+            return True
+        if set(d.keys()) == {"count"} and d["count"] == 0:
+            return True
+        return False
+
     def _clean_dict(d: Any) -> Any:
         """Recursively strip nulls, empties, defaults, and db metadata."""
         if isinstance(d, dict):
