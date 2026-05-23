@@ -1409,8 +1409,8 @@ class TAOrchestrator:
             ),
             "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges[-3:]),
             
-            "total_liquidity_events": snapshot.total_liquidity_events,
-            "total_zones": snapshot.total_zones,
+            
+            
         }
 
     # ── Per-field serializers ────────────────────────────────────────
