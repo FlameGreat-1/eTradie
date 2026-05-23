@@ -1408,7 +1408,7 @@ class TAOrchestrator:
                 snapshot.fibonacci_retracements
             ),
             "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges[-3:]),
-            "total_structure_events": snapshot.total_structure_events,
+            
             "total_liquidity_events": snapshot.total_liquidity_events,
             "total_zones": snapshot.total_zones,
         }
