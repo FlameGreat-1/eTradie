@@ -28,18 +28,18 @@ class TestRegistryIntegration:
         reg = ProviderRegistry()
         e1 = StubProvider("fred", ProviderCategory.ECONOMIC_DATA)
         e2 = StubProvider("te", ProviderCategory.ECONOMIC_DATA)
-        n1 = StubProvider("newsapi", ProviderCategory.NEWS)
+        m1 = StubProvider("twelve_data", ProviderCategory.MARKET_DATA)
         reg.register(e1)
         reg.register(e2)
-        reg.register(n1)
+        reg.register(m1)
         econ = reg.get_by_category(ProviderCategory.ECONOMIC_DATA)
         assert len(econ) == 2
-        assert n1 not in econ
+        assert m1 not in econ
 
     def test_all_providers(self):
         reg = ProviderRegistry()
         reg.register(StubProvider("a", ProviderCategory.COT))
-        reg.register(StubProvider("b", ProviderCategory.NEWS))
+        reg.register(StubProvider("b", ProviderCategory.MARKET_DATA))
         assert len(reg.all_providers) == 2
 
     @pytest.mark.asyncio
