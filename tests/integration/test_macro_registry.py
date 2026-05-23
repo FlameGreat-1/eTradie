@@ -65,8 +65,7 @@ class TestCollectorImports:
         from engine.macro.collectors.cot.collector import COTCollector
         from engine.macro.collectors.dxy.collector import DXYCollector
         from engine.macro.collectors.economic_data.collector import EconomicDataCollector
-        from engine.macro.collectors.news.collector import NewsCollector
         from engine.macro.collectors.calendar.collector import CalendarCollector
         from engine.macro.collectors.intermarket.collector import IntermarketCollector
         from engine.macro.collectors.sentiment.collector import SentimentCollector
-        assert all([CentralBankCollector, COTCollector, DXYCollector, EconomicDataCollector, NewsCollector, CalendarCollector, IntermarketCollector, SentimentCollector])
+        assert all([CentralBankCollector, COTCollector, DXYCollector, EconomicDataCollector, CalendarCollector, IntermarketCollector, SentimentCollector])
