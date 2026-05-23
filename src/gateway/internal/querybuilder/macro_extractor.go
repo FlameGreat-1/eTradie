@@ -56,7 +56,6 @@ type MacroSignals struct {
 	HasRetailSales            bool
 	HasCBSpeech               bool
 
-	NewsHeadlines     []string
 	EconomicSurprises []map[string]interface{}
 	CoreInflationData []map[string]interface{}
 
