@@ -48,10 +48,10 @@ class TestGetByCategory:
         registry = ProviderRegistry()
         econ1 = MockProvider("fred", ProviderCategory.ECONOMIC_DATA)
         econ2 = MockProvider("te_econ", ProviderCategory.ECONOMIC_DATA)
-        news = MockProvider("newsapi", ProviderCategory.NEWS)
+        market = MockProvider("twelve_data", ProviderCategory.MARKET_DATA)
         registry.register(econ1)
         registry.register(econ2)
-        registry.register(news)
+        registry.register(market)
 
         econ_providers = registry.get_by_category(ProviderCategory.ECONOMIC_DATA)
         assert len(econ_providers) == 2

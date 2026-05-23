@@ -28,18 +28,18 @@ class TestRegistryIntegration:
         reg = ProviderRegistry()
         e1 = StubProvider("fred", ProviderCategory.ECONOMIC_DATA)
         e2 = StubProvider("te", ProviderCategory.ECONOMIC_DATA)
-        n1 = StubProvider("newsapi", ProviderCategory.NEWS)
+        m1 = StubProvider("twelve_data", ProviderCategory.MARKET_DATA)
         reg.register(e1)
         reg.register(e2)
-        reg.register(n1)
+        reg.register(m1)
         econ = reg.get_by_category(ProviderCategory.ECONOMIC_DATA)
         assert len(econ) == 2
-        assert n1 not in econ
+        assert m1 not in econ
 
     def test_all_providers(self):
         reg = ProviderRegistry()
         reg.register(StubProvider("a", ProviderCategory.COT))
-        reg.register(StubProvider("b", ProviderCategory.NEWS))
+        reg.register(StubProvider("b", ProviderCategory.MARKET_DATA))
         assert len(reg.all_providers) == 2
 
     @pytest.mark.asyncio
@@ -65,8 +65,7 @@ class TestCollectorImports:
         from engine.macro.collectors.cot.collector import COTCollector
         from engine.macro.collectors.dxy.collector import DXYCollector
         from engine.macro.collectors.economic_data.collector import EconomicDataCollector
-        from engine.macro.collectors.news.collector import NewsCollector
         from engine.macro.collectors.calendar.collector import CalendarCollector
         from engine.macro.collectors.intermarket.collector import IntermarketCollector
         from engine.macro.collectors.sentiment.collector import SentimentCollector
-        assert all([CentralBankCollector, COTCollector, DXYCollector, EconomicDataCollector, NewsCollector, CalendarCollector, IntermarketCollector, SentimentCollector])
+        assert all([CentralBankCollector, COTCollector, DXYCollector, EconomicDataCollector, CalendarCollector, IntermarketCollector, SentimentCollector])

@@ -16,7 +16,6 @@ from engine.macro.collectors.cot.collector import COTCollector
 from engine.macro.collectors.dxy.collector import DXYCollector
 from engine.macro.collectors.economic_data.collector import EconomicDataCollector
 from engine.macro.collectors.intermarket.collector import IntermarketCollector
-from engine.macro.collectors.news.collector import NewsCollector
 from engine.macro.collectors.sentiment.collector import SentimentCollector
 from engine.macro.providers.calendar.investing_rss import (
     InvestingRSSCalendarProvider,
@@ -34,8 +33,6 @@ from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
 from engine.macro.providers.market_data.commodity_proxy import CommodityProxyProvider
 from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
-from engine.macro.providers.news.bloomberg_rss import BloombergRSSProvider
-from engine.macro.providers.news.reuters_rss import ReutersRSSProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
@@ -273,13 +270,6 @@ class Container:
         )
         self.registry.register(self.investing_cal_provider)
 
-        self.reuters_rss_provider = ReutersRSSProvider(r, feed_url=s.reuters_rss_url)
-        self.bloomberg_rss_provider = BloombergRSSProvider(
-            r, feed_url=s.bloomberg_rss_url
-        )
-        for p in (self.reuters_rss_provider, self.bloomberg_rss_provider):
-            self.registry.register(p)
-
     def _build_collectors(self) -> None:
         s = self.settings
         c = self.cache
@@ -310,13 +300,6 @@ class Container:
             d,
         )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
-
-        self.news_collector = NewsCollector(
-            [self.reuters_rss_provider, self.bloomberg_rss_provider],
-            c,
-            d,
-        )
-        self.news_collector.cache_ttl = s.cache_ttl_news
 
         self.calendar_collector = CalendarCollector([self.investing_cal_provider], c, d)
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar

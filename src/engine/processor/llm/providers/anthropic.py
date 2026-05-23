@@ -97,6 +97,7 @@ class AnthropicClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
+        use_structured_output: bool = True,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self._config.model_name,
@@ -106,7 +107,12 @@ class AnthropicClient(LLMClient):
             "messages": [{"role": "user", "content": user_message}],
         }
 
-        if self._capabilities.supports_structured_output:
+        # Schema enforcement is opt-in per call. The analysis path
+        # passes use_structured_output=True (the default) so the
+        # AnalysisOutput tool is forced; non-analysis callers (Trading
+        # Plan, Performance Review) pass False so the model is free
+        # to follow the schema defined in their own system prompt.
+        if use_structured_output and self._capabilities.supports_structured_output:
             kwargs["tools"] = [
                 {
                     "name": _TOOL_NAME,
@@ -158,6 +164,7 @@ class AnthropicClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
         start = time.monotonic()
@@ -167,6 +174,7 @@ class AnthropicClient(LLMClient):
                 **self._build_request_kwargs(
                     system_prompt=system_prompt,
                     user_message=user_message,
+                    use_structured_output=use_structured_output,
                 )
             )
         except Exception as exc:
@@ -223,12 +231,19 @@ class AnthropicClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
+        use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
         kwargs = self._build_request_kwargs(
             system_prompt=system_prompt,
             user_message=user_message,
+            use_structured_output=use_structured_output,
         )
+        # tool_forced derives from whether _build_request_kwargs
+        # attached the tools array. When use_structured_output is
+        # False the array is absent and we stream raw text_delta
+        # events; the SSE consumer then sees a plain text/JSON
+        # stream instead of input_json_delta partials.
         tool_forced = "tools" in kwargs
 
         try:

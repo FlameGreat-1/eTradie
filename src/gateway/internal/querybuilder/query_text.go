@@ -360,10 +360,6 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 			*parts = append(*parts, fmt.Sprintf("%s retail crowded short %.0f%%", currency, 100-longPct))
 		}
 	}
-
-	for _, headline := range macro.NewsHeadlines {
-		*parts = append(*parts, headline)
-	}
 }
 
 func addCOTSignal(parts *[]string, currency string, net *float64) {

@@ -111,10 +111,6 @@ class Settings(BaseSettings):
     rbnz_rss_url: str = "https://www.rbnz.govt.nz/rss/news"
     snb_rss_url: str = "https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss"
 
-    # ── RSS Feed URLs — News ─────────────────────────────────
-    reuters_rss_url: str = "https://www.reutersagency.com/feed"
-    bloomberg_rss_url: str = "https://feeds.bloomberg.com/markets/news.rss"
-
     # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
     investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
 
@@ -129,9 +125,6 @@ class Settings(BaseSettings):
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(
         default=3600, ge=60, description="CB RSS poll: 1H default"
-    )
-    poll_interval_news: int = Field(
-        default=3600, ge=60, description="News poll: 1H default"
     )
     poll_interval_calendar: int = Field(
         default=14400, ge=60, description="Calendar poll: 4H default"
@@ -193,7 +186,6 @@ class Settings(BaseSettings):
 
     # ── Cache TTL (seconds) ──────────────────────────────────
     cache_ttl_central_bank: int = Field(default=600, ge=60)
-    cache_ttl_news: int = Field(default=300, ge=60)
     cache_ttl_calendar: int = Field(default=900, ge=60)
     cache_ttl_cot: int = Field(default=86400, ge=3600)
     cache_ttl_dxy: int = Field(default=14400, ge=300)

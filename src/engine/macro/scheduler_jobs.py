@@ -12,13 +12,11 @@ def register_macro_jobs(
     cb_collector_fn: object,
     cot_collector_fn: object,
     economic_collector_fn: object,
-    news_collector_fn: object,
     calendar_collector_fn: object,
     dxy_collector_fn: object,
     intermarket_collector_fn: object,
     sentiment_collector_fn: object,
     poll_cb: int = 600,
-    poll_news: int = 900,
     poll_calendar: int = 1800,
     poll_cot: int = 604800,
     poll_dxy: int = 14400,
@@ -29,16 +27,17 @@ def register_macro_jobs(
     """Register macro data collection jobs on the scheduler.
 
     These jobs run on global data and do not require user scoping.
+
+    The historical 'news' job (Bloomberg + Reuters RSS headlines) was
+    removed because the economic calendar is now the single source of
+    truth for high-impact event data the engine and gateway reason
+    over; free-text news headlines added prompt bloat without adding
+    actionable signal.
     """
     scheduler.add_interval_job(
         cb_collector_fn,  # type: ignore[arg-type]
         job_id="collect_central_bank",
         seconds=poll_cb,
-    )
-    scheduler.add_interval_job(
-        news_collector_fn,  # type: ignore[arg-type]
-        job_id="collect_news",
-        seconds=poll_news,
     )
     scheduler.add_interval_job(
         calendar_collector_fn,  # type: ignore[arg-type]

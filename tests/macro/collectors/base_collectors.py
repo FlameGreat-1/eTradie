@@ -39,11 +39,6 @@ class TestConcreteCollectorImports:
         assert EconomicDataCollector is not None
         assert issubclass(EconomicDataCollector, BaseCollector)
 
-    def test_news_collector(self):
-        from engine.macro.collectors.news.collector import NewsCollector
-        assert NewsCollector is not None
-        assert issubclass(NewsCollector, BaseCollector)
-
     def test_calendar_collector(self):
         from engine.macro.collectors.calendar.collector import CalendarCollector
         assert CalendarCollector is not None

@@ -313,10 +313,25 @@ class TradingPlanGenerator:
             last_exc: Optional[Exception] = None
             for attempt in range(_LLM_MAX_ATTEMPTS):
                 try:
+                    # use_structured_output=False is required here.
+                    # The Trading Plan response schema is defined by
+                    # SYSTEM_PROMPT (trader_profile / account / journal /
+                    # weekly_review / scorecard / objectives) and
+                    # validated against the gateway's tradingplan.Plan
+                    # Go struct on callback. The shared LLM client
+                    # defaults to enforcing AnalysisOutput's schema
+                    # (the analysis processor's wire shape); leaving
+                    # the default in place would force the provider's
+                    # API grammar to coerce every plan response into
+                    # an AnalysisOutput object, after which
+                    # _shape_plan()._require_dict("trader_profile")
+                    # would always fail with "AI response is missing
+                    # the 'trader_profile' section".
                     response = await llm_client.call(
                         system_prompt=SYSTEM_PROMPT,
                         user_message=user_prompt,
                         trace_id=f"trading-plan:{req.user_id}:{attempt}",
+                        use_structured_output=False,
                     )
                     break
                 except Exception as exc:  # noqa: BLE001

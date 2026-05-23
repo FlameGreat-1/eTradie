@@ -109,6 +109,11 @@ class OpenAICompatibleClient(LLMClient):
         stream: bool,
         with_response_format: bool,
     ) -> dict[str, Any]:
+        # with_response_format is the FINAL decision (after combining
+        # the per-call use_structured_output toggle with the latched
+        # _response_format_supported probe). The caller is responsible
+        # for the AND of those signals; this method only honors the
+        # final boolean it receives.
         kwargs: dict[str, Any] = {
             "model": self._config.model_name,
             "max_tokens": self._config.max_output_tokens,
@@ -138,11 +143,22 @@ class OpenAICompatibleClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: Optional[str] = None,
+        use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
         start = time.monotonic()
 
-        attempt_with_format = self._response_format_supported is not False
+        # The final "send response_format" decision is the AND of
+        #   (a) the caller's per-call use_structured_output toggle, and
+        #   (b) the latched _response_format_supported probe.
+        # When the caller passes False (non-analysis path) we never
+        # attach the AnalysisOutput schema regardless of probe state,
+        # and we do NOT mutate the latched probe value -- the latch
+        # exists to remember server capability for the analysis path
+        # and a free-text call must not flip it.
+        attempt_with_format = (
+            use_structured_output and self._response_format_supported is not False
+        )
 
         async def _do_call(use_format: bool):
             return await self._client.chat.completions.create(
@@ -157,11 +173,23 @@ class OpenAICompatibleClient(LLMClient):
         try:
             try:
                 response = await _do_call(attempt_with_format)
-                if attempt_with_format and self._response_format_supported is None:
-                    # First successful probe latches True.
+                if (
+                    use_structured_output
+                    and attempt_with_format
+                    and self._response_format_supported is None
+                ):
+                    # First successful probe latches True. Only the
+                    # analysis path (use_structured_output=True) is
+                    # allowed to latch; a free-text call leaves the
+                    # probe value untouched so the analysis path's
+                    # first call still performs its own probe.
                     self._response_format_supported = True
             except Exception as exc:
-                if attempt_with_format and _is_unsupported_response_format(exc):
+                if (
+                    use_structured_output
+                    and attempt_with_format
+                    and _is_unsupported_response_format(exc)
+                ):
                     self._response_format_supported = False
                     logger.warning(
                         "self_hosted_response_format_unsupported",
@@ -238,6 +266,7 @@ class OpenAICompatibleClient(LLMClient):
         user_message: str,
         trace_id: Optional[str] = None,
         usage_out: Optional[dict] = None,
+        use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
 
@@ -251,14 +280,26 @@ class OpenAICompatibleClient(LLMClient):
                 )
             )
 
-        attempt_with_format = self._response_format_supported is not False
+        # See call() for the rationale: AND of caller intent and
+        # latched probe, and only the analysis path mutates the probe.
+        attempt_with_format = (
+            use_structured_output and self._response_format_supported is not False
+        )
         try:
             try:
                 response = await _open_stream(attempt_with_format)
-                if attempt_with_format and self._response_format_supported is None:
+                if (
+                    use_structured_output
+                    and attempt_with_format
+                    and self._response_format_supported is None
+                ):
                     self._response_format_supported = True
             except Exception as exc:
-                if attempt_with_format and _is_unsupported_response_format(exc):
+                if (
+                    use_structured_output
+                    and attempt_with_format
+                    and _is_unsupported_response_format(exc)
+                ):
                     self._response_format_supported = False
                     logger.warning(
                         "self_hosted_response_format_unsupported_stream",

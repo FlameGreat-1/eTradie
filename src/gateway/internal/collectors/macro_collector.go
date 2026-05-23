@@ -68,7 +68,6 @@ func (c *MacroCollector) Collect(ctx context.Context, traceID string) (*models.M
 		CentralBank: getDatasetMap(resp, "central_bank"),
 		COT:         getDatasetMap(resp, "cot"),
 		Economic:    getDatasetMap(resp, "economic"),
-		News:        getDatasetMap(resp, "news"),
 		Calendar:    getDatasetMap(resp, "calendar"),
 		DXY:         getDatasetMap(resp, "dxy"),
 		Intermarket: getDatasetMap(resp, "intermarket"),

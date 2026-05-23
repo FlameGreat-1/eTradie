@@ -56,7 +56,6 @@ type MacroSignals struct {
 	HasRetailSales            bool
 	HasCBSpeech               bool
 
-	NewsHeadlines     []string
 	EconomicSurprises []map[string]interface{}
 	CoreInflationData []map[string]interface{}
 
@@ -107,7 +106,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 	econ := extractEconomic(result.Economic)
 	cal := extractCalendar(result.Calendar)
 	dxy := extractDXY(result.DXY)
-	news := extractNews(result.News)
 	sent := extractSentiment(result.Sentiment)
 	inter := extractIntermarket(result.Intermarket)
 
@@ -172,7 +170,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 		HasRetailSales:            getOptBool(cal, "has_retail_sales"),
 		HasCBSpeech:               getOptBool(cal, "has_cb_speech"),
 
-		NewsHeadlines:     getOptStrSlice(news, "headlines"),
 		EconomicSurprises: getOptMapSlice(econ, "surprise_directions"),
 		CoreInflationData: getOptMapSlice(econ, "core_inflation_releases"),
 
@@ -477,19 +474,6 @@ func extractDXY(data map[string]interface{}) map[string]interface{} {
 		out["divergence_signals"] = v
 	}
 	return out
-}
-
-func extractNews(data map[string]interface{}) map[string]interface{} {
-	if data == nil {
-		return map[string]interface{}{}
-	}
-	var headlines []string
-	for _, item := range getSliceOfMaps(data, "items") {
-		if h := getStrDefault(item, "headline", ""); h != "" {
-			headlines = append(headlines, h)
-		}
-	}
-	return map[string]interface{}{"headlines": headlines}
 }
 
 func extractSentiment(data map[string]interface{}) map[string]interface{} {
