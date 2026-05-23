@@ -177,20 +177,19 @@ func TestAvailableDatasets_AllPopulated(t *testing.T) {
 		CentralBank: map[string]interface{}{"rate": 5.25},
 		COT:         map[string]interface{}{"net_long": 1000},
 		Economic:    map[string]interface{}{"gdp": 2.1},
-		News:        map[string]interface{}{"headline": "Fed holds"},
 		Calendar:    map[string]interface{}{"next_event": "NFP"},
 		DXY:         map[string]interface{}{"value": 104.5},
 		Intermarket: map[string]interface{}{"sp500": 5200},
 		Sentiment:   map[string]interface{}{"score": 0.65},
 	}
 	result := r.AvailableDatasets()
-	if len(result) != 8 {
-		t.Fatalf("expected 8 datasets, got %d: %v", len(result), result)
+	if len(result) != 7 {
+		t.Fatalf("expected 7 datasets, got %d: %v", len(result), result)
 	}
 
 	// Verify ordering matches field declaration order.
 	expected := []string{
-		"central_bank", "cot", "economic", "news",
+		"central_bank", "cot", "economic",
 		"calendar", "dxy", "intermarket", "sentiment",
 	}
 	for i, name := range expected {
