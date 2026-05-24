@@ -455,8 +455,17 @@ class TAOrchestrator:
         snd_list = snd_candidates or []
         snapshot_map = snapshots or {}
 
+        # Snapshot serialization order is LTF-first / HTF-last. The system
+        # prompt declares 'HTF is king', and large-context LLMs anchor more
+        # heavily on the last region of the input they processed. Emitting
+        # HTF at the end of the snapshots block puts the highest-authority
+        # structural data closest to the generation step. Costs zero tokens.
+        ordered_for_prompt = sorted(
+            snapshot_map.items(),
+            key=lambda kv: TIMEFRAME_MINUTES[kv[0]],
+        )
         serialized_snapshots: dict[str, dict] = {}
-        for tf, snap in snapshot_map.items():
+        for tf, snap in ordered_for_prompt:
             serialized_snapshots[tf.value] = self._serialize_snapshot(snap)
 
         # -- Candidate POI-validity filter ----------------------------
@@ -1404,30 +1413,73 @@ class TAOrchestrator:
 
     # ── Full snapshot serializer ─────────────────────────────────────
 
+    # Timeframe classification for depth-aware serialization. HTF carries
+    # the structural narrative the LLM must trace from history to live
+    # price; LTF carries noise plus the entry trigger. Per OPTIMIZATION.md
+    # the LTF arrays are aggressively capped and the noisiest LTF sections
+    # are dropped entirely on M1 / M5.
+    _LTF_NOISE_TIMEFRAMES = frozenset({Timeframe.M1, Timeframe.M5})
+    _LTF_MID_TIMEFRAMES = frozenset({Timeframe.M30, Timeframe.M15})
+
+    @classmethod
+    def _swing_cap_for(cls, tf: Timeframe) -> int:
+        """Per-timeframe swing high/low cap.
+
+        HTF needs 8 recent structural pivots to draw liquidity pools
+        and DOL targets. M30 / M15 / M5 / M1 only need the 5 most recent;
+        beyond that the LTF chop drowns out the signal.
+        """
+        if tf in cls._LTF_NOISE_TIMEFRAMES or tf in cls._LTF_MID_TIMEFRAMES:
+            return 5
+        return 8
+
+    @classmethod
+    def _array_cap_for(cls, tf: Timeframe) -> int:
+        """Per-timeframe cap for structural event arrays (BMS / CHoCH /
+        SMS / OB / FVG / Breaker / Inducement / QM / MPL / SR/RS flip /
+        Supply / Demand / Sweep).
+
+        HTF retains 5 most recent. M30 / M15 cap at 5. M5 / M1 cap at 3.
+        """
+        if tf in cls._LTF_NOISE_TIMEFRAMES:
+            return 3
+        return 5
+
     def _serialize_snapshot(self, snapshot: TechnicalSnapshot) -> dict:
-        """Serialize a TechnicalSnapshot into a dict for the prompt path.
+        """Serialize a TechnicalSnapshot into the unified prompt + DB shape.
 
         Dead structures are filtered BEFORE the trailing-N slice so the
-        slice keeps the last N still-live items rather than N items
-        that may include consumed POIs:
+        slice keeps the last N still-live items rather than N items that
+        may include consumed POIs:
 
           - OrderBlock / BreakerBlock with mitigated=True are dropped.
           - FairValueGap with filled=True is dropped.
           - QuasiModoLevel / MiniPriceLevel with tested=True is dropped.
+          - SupplyZone / DemandZone with broken=True are dropped.
 
-        Per-field serializers (``_serialize_order_blocks``,
-        ``_serialize_fvgs``, ``_serialize_qm_levels`` etc.) are
-        intentionally NOT modified -- they are dual-use, also called
-        by ``_persist_snapshot`` which must capture full DB fidelity.
-        Dead-structure filtering happens ONLY here, in the prompt-path
-        serializer.
+        Per-timeframe depth (OPTIMIZATION.md sections 'Strategy 4 — HTF
+        vs LTF Snapshot Depth Split' and 'Change 3'):
 
-        Fields removed vs. the historical implementation:
-          - ``candle_count`` (per-snapshot counter, not actionable)
-          - ``total_structure_events`` / ``total_liquidity_events`` /
-            ``total_zones`` (dashboard aggregates; the LLM reasons
-            from the event arrays themselves)
+          - HTF (MN1..H1): structural arrays at 5, swings at 8,
+            liquidity_sweeps capped at 5 (down from 8 -- Strategy 3),
+            dealing_ranges capped at 1 (Change 2).
+          - M30 / M15: arrays capped at 5, swings at 5,
+            dealing_ranges capped at 1.
+          - M5 / M1: arrays capped at 3, swings at 5,
+            equal_highs_lows / liquidity_grabs / fibonacci_retracements /
+            dealing_ranges dropped entirely (Change 4 + Strategy 4) --
+            the HTF fibs / equals already carry the actionable signal,
+            and LTF dealing ranges are session noise.
+
+        The per-field serializers emit the trimmed, flattened shape
+        (no `timeframe`, no `index` / `candle_index`, no `symbol`, no
+        `{count, data}` wrapper). The DB JSONB columns store the same
+        shape -- single chokepoint, no parallel serializer.
         """
+        tf = snapshot.timeframe
+        swing_cap = self._swing_cap_for(tf)
+        arr_cap = self._array_cap_for(tf)
+
         live_obs = [ob for ob in snapshot.order_blocks if not ob.mitigated]
         live_breakers = [
             bb for bb in snapshot.breaker_blocks if not bb.mitigated
@@ -1435,429 +1487,387 @@ class TAOrchestrator:
         live_fvgs = [fvg for fvg in snapshot.fvgs if not fvg.filled]
         live_qms = [qm for qm in snapshot.qml_levels if not qm.tested]
         live_mpls = [mpl for mpl in snapshot.mpl_levels if not mpl.tested]
-        return {
-            "symbol": snapshot.symbol,
-            "timeframe": snapshot.timeframe.value,
+        live_supply = [sz for sz in snapshot.supply_zones if not sz.broken]
+        live_demand = [dz for dz in snapshot.demand_zones if not dz.broken]
+
+        out: dict = {
             "timestamp": snapshot.timestamp.isoformat(),
-
-
-
             "trend_direction": snapshot.trend_direction.value,
-            "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-12:]),
-            "swing_lows": self._serialize_swing_lows(snapshot.swing_lows[-12:]),
-            "bms_events": self._serialize_bms_events(snapshot.bms_events[-5:]),
-            "choch_events": self._serialize_choch_events(snapshot.choch_events[-5:]),
-            "sms_events": self._serialize_sms_events(snapshot.sms_events[-5:]),
-            "order_blocks": self._serialize_order_blocks(live_obs[-5:]),
-            "fair_value_gaps": self._serialize_fvgs(live_fvgs[-5:]),
-            "breaker_blocks": self._serialize_breaker_blocks(live_breakers[-5:]),
-            "liquidity_sweeps": self._serialize_sweeps(snapshot.liquidity_sweeps[-8:]),
+            "swing_highs": self._serialize_swing_highs(
+                snapshot.swing_highs[-swing_cap:]
+            ),
+            "swing_lows": self._serialize_swing_lows(
+                snapshot.swing_lows[-swing_cap:]
+            ),
+            "bms_events": self._serialize_bms_events(
+                snapshot.bms_events[-arr_cap:]
+            ),
+            "choch_events": self._serialize_choch_events(
+                snapshot.choch_events[-arr_cap:]
+            ),
+            "sms_events": self._serialize_sms_events(
+                snapshot.sms_events[-arr_cap:]
+            ),
+            "order_blocks": self._serialize_order_blocks(live_obs[-arr_cap:]),
+            "fair_value_gaps": self._serialize_fvgs(live_fvgs[-arr_cap:]),
+            "breaker_blocks": self._serialize_breaker_blocks(
+                live_breakers[-arr_cap:]
+            ),
+            "liquidity_sweeps": self._serialize_sweeps(
+                snapshot.liquidity_sweeps[-arr_cap:]
+            ),
             "inducement_events": self._serialize_inducements(
-                snapshot.inducement_events[-5:]
+                snapshot.inducement_events[-arr_cap:]
             ),
-            "equal_highs_lows": self._serialize_equal_highs_lows(
-                snapshot.equal_highs_lows[-5:]
+            "qm_levels": self._serialize_qm_levels(live_qms[-arr_cap:]),
+            "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-arr_cap:]),
+            "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-arr_cap:]),
+            "mpl_levels": self._serialize_mpl_levels(live_mpls[-arr_cap:]),
+            "supply_zones": self._serialize_supply_zones(
+                live_supply[-arr_cap:]
             ),
-            "liquidity_grabs": self._serialize_liquidity_grabs(
-                snapshot.liquidity_grabs[-5:]
+            "demand_zones": self._serialize_demand_zones(
+                live_demand[-arr_cap:]
             ),
-            "qm_levels": self._serialize_qm_levels(live_qms[-5:]),
-            "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-5:]),
-            "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-5:]),
-            "mpl_levels": self._serialize_mpl_levels(live_mpls[-5:]),
-            "supply_zones": self._serialize_supply_zones(snapshot.supply_zones[-5:]),
-            "demand_zones": self._serialize_demand_zones(snapshot.demand_zones[-5:]),
-            "fibonacci_retracements": self._serialize_fibonacci(
-                snapshot.fibonacci_retracements
-            ),
-            "dealing_ranges": self._serialize_dealing_ranges(snapshot.dealing_ranges[-3:]),
-            
-            
-            
         }
+
+        # M5 / M1 drop the noisy LTF-only sections entirely.
+        # equal_highs_lows updates every minute at LTF and drowns out the
+        # real structural equal highs at HTF.
+        # liquidity_grabs at LTF are session-noise sweeps.
+        # fibonacci_retracements at LTF are subsumed by HTF fibs.
+        # dealing_ranges at LTF are tiny session windows that add no
+        # decision value relative to HTF dealing ranges.
+        if tf not in self._LTF_NOISE_TIMEFRAMES:
+            out["equal_highs_lows"] = self._serialize_equal_highs_lows(
+                snapshot.equal_highs_lows[-arr_cap:]
+            )
+            out["liquidity_grabs"] = self._serialize_liquidity_grabs(
+                snapshot.liquidity_grabs[-arr_cap:]
+            )
+            out["fibonacci_retracements"] = self._serialize_fibonacci(
+                snapshot.fibonacci_retracements[-1:]
+            )
+            # Dealing ranges: most recent only. Older session ranges are
+            # superseded by the current one.
+            out["dealing_ranges"] = self._serialize_dealing_ranges(
+                snapshot.dealing_ranges[-1:]
+            )
+
+        return out
 
     # ── Per-field serializers ────────────────────────────────────────
+    #
+    # All per-field serializers emit a bare list (not {"count": N,
+    # "data": [...]}) with the redundant per-item fields stripped:
+    #   - `timeframe` is identified by the parent dict key in the
+    #     snapshots map ("W1": {...}) and by the snapshots row's
+    #     `timeframe` column. Emitting it on every item is redundant.
+    #   - `symbol` is identified by the snapshots row's `symbol` column
+    #     and the top-level payload's `symbol` field.
+    #   - `index` / `candle_index` are detection-time positions in the
+    #     candle array; no downstream consumer reads them (verified
+    #     against the gateway TACollector which forwards opaquely, the
+    #     dashboard formatter which reads LLM output only, and the
+    #     retention pruner which keys by created_at).
+    #
+    # The unified shape applies to BOTH the prompt payload AND the
+    # JSONB columns written by ``_persist_snapshot``. There is no
+    # parallel serializer and no shape divergence between paths.
 
     @staticmethod
-    def _serialize_swing_highs(swing_highs: list) -> dict:
-        return {
-            "count": len(swing_highs),
-            "data": [
-                {
-                    "price": sh.price,
-                    "timestamp": sh.timestamp.isoformat(),
-                    "index": sh.index,
-                    "strength": sh.strength,
-                    "timeframe": sh.timeframe.value,
-                }
-                for sh in swing_highs
-            ],
-        }
+    def _serialize_swing_highs(swing_highs: list) -> list:
+        return [
+            {
+                "price": sh.price,
+                "timestamp": sh.timestamp.isoformat(),
+                "strength": sh.strength,
+            }
+            for sh in swing_highs
+        ]
 
     @staticmethod
-    def _serialize_swing_lows(swing_lows: list) -> dict:
-        return {
-            "count": len(swing_lows),
-            "data": [
-                {
-                    "price": sl.price,
-                    "timestamp": sl.timestamp.isoformat(),
-                    "index": sl.index,
-                    "strength": sl.strength,
-                    "timeframe": sl.timeframe.value,
-                }
-                for sl in swing_lows
-            ],
-        }
+    def _serialize_swing_lows(swing_lows: list) -> list:
+        return [
+            {
+                "price": sl.price,
+                "timestamp": sl.timestamp.isoformat(),
+                "strength": sl.strength,
+            }
+            for sl in swing_lows
+        ]
 
     @staticmethod
-    def _serialize_bms_events(bms_events: list) -> dict:
-        return {
-            "count": len(bms_events),
-            "data": [
-                {
-                    "breakout_price": bms.breakout_price,
-                    "broken_level": bms.broken_level,
-                    "timestamp": bms.timestamp.isoformat(),
-                    "direction": bms.direction.value,
-                    "displacement_pips": bms.displacement_pips,
-                    "timeframe": bms.timeframe.value,
-                    "confirmed": bms.confirmed,
-                }
-                for bms in bms_events
-            ],
-        }
+    def _serialize_bms_events(bms_events: list) -> list:
+        return [
+            {
+                "breakout_price": bms.breakout_price,
+                "broken_level": bms.broken_level,
+                "timestamp": bms.timestamp.isoformat(),
+                "direction": bms.direction.value,
+                "displacement_pips": bms.displacement_pips,
+                "confirmed": bms.confirmed,
+            }
+            for bms in bms_events
+        ]
 
     @staticmethod
-    def _serialize_choch_events(choch_events: list) -> dict:
-        return {
-            "count": len(choch_events),
-            "data": [
-                {
-                    "breakout_price": choch.breakout_price,
-                    "broken_level": choch.broken_level,
-                    "timestamp": choch.timestamp.isoformat(),
-                    "direction": choch.direction.value,
-                    "timeframe": choch.timeframe.value,
-                    "is_minor": choch.is_minor,
-                }
-                for choch in choch_events
-            ],
-        }
+    def _serialize_choch_events(choch_events: list) -> list:
+        return [
+            {
+                "breakout_price": choch.breakout_price,
+                "broken_level": choch.broken_level,
+                "timestamp": choch.timestamp.isoformat(),
+                "direction": choch.direction.value,
+                "is_minor": choch.is_minor,
+            }
+            for choch in choch_events
+        ]
 
     @staticmethod
-    def _serialize_sms_events(sms_events: list) -> dict:
-        return {
-            "count": len(sms_events),
-            "data": [
-                {
-                    "failed_level": sms.failed_level,
-                    "reversal_price": sms.reversal_price,
-                    "timestamp": sms.timestamp.isoformat(),
-                    "direction": sms.direction.value,
-                    "timeframe": sms.timeframe.value,
-                    "is_failure_swing": sms.is_failure_swing,
-                }
-                for sms in sms_events
-            ],
-        }
+    def _serialize_sms_events(sms_events: list) -> list:
+        return [
+            {
+                "failed_level": sms.failed_level,
+                "reversal_price": sms.reversal_price,
+                "timestamp": sms.timestamp.isoformat(),
+                "direction": sms.direction.value,
+                "is_failure_swing": sms.is_failure_swing,
+            }
+            for sms in sms_events
+        ]
 
     @staticmethod
-    def _serialize_order_blocks(order_blocks: list) -> dict:
-        return {
-            "count": len(order_blocks),
-            "data": [
-                {
-                    "upper_bound": ob.upper_bound,
-                    "lower_bound": ob.lower_bound,
-                    "timestamp": ob.timestamp.isoformat(),
-                    "direction": ob.direction.value,
-                    "displacement_pips": ob.displacement_pips,
-                    "is_breaker": ob.is_breaker,
-                    "mitigated": ob.mitigated,
-                    "timeframe": ob.timeframe.value,
-                    "candle_index": ob.candle_index,
-                }
-                for ob in order_blocks
-            ],
-        }
+    def _serialize_order_blocks(order_blocks: list) -> list:
+        return [
+            {
+                "upper_bound": ob.upper_bound,
+                "lower_bound": ob.lower_bound,
+                "timestamp": ob.timestamp.isoformat(),
+                "direction": ob.direction.value,
+                "displacement_pips": ob.displacement_pips,
+                "is_breaker": ob.is_breaker,
+                "mitigated": ob.mitigated,
+            }
+            for ob in order_blocks
+        ]
 
     @staticmethod
-    def _serialize_fvgs(fvgs: list) -> dict:
-        return {
-            "count": len(fvgs),
-            "data": [
-                {
-                    "upper_bound": fvg.upper_bound,
-                    "lower_bound": fvg.lower_bound,
-                    "timestamp": fvg.timestamp.isoformat(),
-                    "direction": fvg.direction.value,
-                    "filled": fvg.filled,
-                    "fill_percentage": fvg.fill_percentage,
-                    "timeframe": fvg.timeframe.value,
-                    "candle_index": fvg.candle_index,
-                }
-                for fvg in fvgs
-            ],
-        }
+    def _serialize_fvgs(fvgs: list) -> list:
+        # `fill_percentage` is removed: it is dead state -- never
+        # assigned back to the model after construction and no
+        # consumer reads it. The model and detector also drop the
+        # field in this same MR for consistency.
+        return [
+            {
+                "upper_bound": fvg.upper_bound,
+                "lower_bound": fvg.lower_bound,
+                "timestamp": fvg.timestamp.isoformat(),
+                "direction": fvg.direction.value,
+                "filled": fvg.filled,
+            }
+            for fvg in fvgs
+        ]
 
     @staticmethod
-    def _serialize_breaker_blocks(breaker_blocks: list) -> dict:
-        return {
-            "count": len(breaker_blocks),
-            "data": [
-                {
-                    "upper_bound": bb.upper_bound,
-                    "lower_bound": bb.lower_bound,
-                    "timestamp": bb.timestamp.isoformat(),
-                    "direction": bb.direction.value,
-                    "original_ob_timestamp": bb.original_ob_timestamp.isoformat(),
-                    "broken_timestamp": bb.broken_timestamp.isoformat(),
-                    "mitigated": bb.mitigated,
-                    "timeframe": bb.timeframe.value,
-                    "candle_index": bb.candle_index,
-                }
-                for bb in breaker_blocks
-            ],
-        }
+    def _serialize_breaker_blocks(breaker_blocks: list) -> list:
+        return [
+            {
+                "upper_bound": bb.upper_bound,
+                "lower_bound": bb.lower_bound,
+                "timestamp": bb.timestamp.isoformat(),
+                "direction": bb.direction.value,
+                "original_ob_timestamp": bb.original_ob_timestamp.isoformat(),
+                "broken_timestamp": bb.broken_timestamp.isoformat(),
+                "mitigated": bb.mitigated,
+            }
+            for bb in breaker_blocks
+        ]
 
     @staticmethod
-    def _serialize_sweeps(sweeps: list) -> dict:
-        return {
-            "count": len(sweeps),
-            "data": [
-                {
-                    "swept_level": sweep.swept_level,
-                    "timestamp": sweep.timestamp.isoformat(),
-                    "liquidity_type": sweep.liquidity_type.value,
-                    "sweep_pips": sweep.sweep_pips,
-                    "closed_back_inside": sweep.closed_back_inside,
-                    "timeframe": sweep.timeframe.value,
-                    "candle_index": sweep.candle_index,
-                }
-                for sweep in sweeps
-            ],
-        }
+    def _serialize_sweeps(sweeps: list) -> list:
+        return [
+            {
+                "swept_level": sweep.swept_level,
+                "timestamp": sweep.timestamp.isoformat(),
+                "liquidity_type": sweep.liquidity_type.value,
+                "sweep_pips": sweep.sweep_pips,
+                "closed_back_inside": sweep.closed_back_inside,
+            }
+            for sweep in sweeps
+        ]
 
     @staticmethod
-    def _serialize_inducements(inducements: list) -> dict:
-        return {
-            "count": len(inducements),
-            "data": [
-                {
-                    "inducement_level": ind.inducement_level,
-                    "timestamp": ind.timestamp.isoformat(),
-                    "direction": ind.direction.value,
-                    "cleared": ind.cleared,
-                    "cleared_timestamp": (
-                        ind.cleared_timestamp.isoformat()
-                        if ind.cleared_timestamp
-                        else None
-                    ),
-                    "timeframe": ind.timeframe.value,
-                    "is_internal": ind.is_internal,
-                    "candle_index": ind.candle_index,
-                }
-                for ind in inducements
-            ],
-        }
+    def _serialize_inducements(inducements: list) -> list:
+        return [
+            {
+                "inducement_level": ind.inducement_level,
+                "timestamp": ind.timestamp.isoformat(),
+                "direction": ind.direction.value,
+                "cleared": ind.cleared,
+                "cleared_timestamp": (
+                    ind.cleared_timestamp.isoformat()
+                    if ind.cleared_timestamp
+                    else None
+                ),
+                "is_internal": ind.is_internal,
+            }
+            for ind in inducements
+        ]
 
     @staticmethod
-    def _serialize_equal_highs_lows(equal_highs_lows: list) -> dict:
-        return {
-            "count": len(equal_highs_lows),
-            "data": [
-                {
-                    "price_level": ehl.price_level,
-                    "liquidity_type": ehl.liquidity_type.value,
-                    "touch_count": ehl.touch_count,
-                    "timestamps": [ts.isoformat() for ts in ehl.timestamps],
-                    "tolerance_pips": ehl.tolerance_pips,
-                    "timeframe": ehl.timeframe.value,
-                    "swept": ehl.swept,
-                }
-                for ehl in equal_highs_lows
-            ],
-        }
+    def _serialize_equal_highs_lows(equal_highs_lows: list) -> list:
+        return [
+            {
+                "price_level": ehl.price_level,
+                "liquidity_type": ehl.liquidity_type.value,
+                "touch_count": ehl.touch_count,
+                "timestamps": [ts.isoformat() for ts in ehl.timestamps],
+                "tolerance_pips": ehl.tolerance_pips,
+                "swept": ehl.swept,
+            }
+            for ehl in equal_highs_lows
+        ]
 
     @staticmethod
-    def _serialize_liquidity_grabs(liquidity_grabs: list) -> dict:
-        return {
-            "count": len(liquidity_grabs),
-            "data": [
-                {
-                    "grab_price": grab.grab_price,
-                    "grabbed_level": grab.grabbed_level,
-                    "timestamp": grab.timestamp.isoformat(),
-                    "direction": grab.direction.value,
-                    "reversal_price": grab.reversal_price,
-                    "confirmed": grab.confirmed,
-                    "timeframe": grab.timeframe.value,
-                    "candle_index": grab.candle_index,
-                }
-                for grab in liquidity_grabs
-            ],
-        }
+    def _serialize_liquidity_grabs(liquidity_grabs: list) -> list:
+        return [
+            {
+                "grab_price": grab.grab_price,
+                "grabbed_level": grab.grabbed_level,
+                "timestamp": grab.timestamp.isoformat(),
+                "direction": grab.direction.value,
+                "reversal_price": grab.reversal_price,
+                "confirmed": grab.confirmed,
+            }
+            for grab in liquidity_grabs
+        ]
 
     @staticmethod
-    def _serialize_qm_levels(qm_levels: list) -> dict:
-        return {
-            "count": len(qm_levels),
-            "data": [
-                {
-                    "qml_price": qm.qml_price,
-                    "timestamp": qm.timestamp.isoformat(),
-                    "direction": qm.direction.value,
-                    "h_price": qm.h_price,
-                    "hh_price": qm.hh_price,
-                    "h_timestamp": qm.h_timestamp.isoformat(),
-                    "hh_timestamp": qm.hh_timestamp.isoformat(),
-                    "tested": qm.tested,
-                    "timeframe": qm.timeframe.value,
-                }
-                for qm in qm_levels
-            ],
-        }
+    def _serialize_qm_levels(qm_levels: list) -> list:
+        return [
+            {
+                "qml_price": qm.qml_price,
+                "timestamp": qm.timestamp.isoformat(),
+                "direction": qm.direction.value,
+                "h_price": qm.h_price,
+                "hh_price": qm.hh_price,
+                "h_timestamp": qm.h_timestamp.isoformat(),
+                "hh_timestamp": qm.hh_timestamp.isoformat(),
+                "tested": qm.tested,
+            }
+            for qm in qm_levels
+        ]
 
     @staticmethod
-    def _serialize_sr_flips(sr_flips: list) -> dict:
-        return {
-            "count": len(sr_flips),
-            "data": [
-                {
-                    "flip_level": sr.flip_level,
-                    "breakout_price": sr.breakout_price,
-                    "timestamp": sr.timestamp.isoformat(),
-                    "previous_role": sr.previous_role,
-                    "new_role": sr.new_role,
-                    "timeframe": sr.timeframe.value,
-                }
-                for sr in sr_flips
-            ],
-        }
+    def _serialize_sr_flips(sr_flips: list) -> list:
+        return [
+            {
+                "flip_level": sr.flip_level,
+                "breakout_price": sr.breakout_price,
+                "timestamp": sr.timestamp.isoformat(),
+                "previous_role": sr.previous_role,
+                "new_role": sr.new_role,
+            }
+            for sr in sr_flips
+        ]
 
     @staticmethod
-    def _serialize_rs_flips(rs_flips: list) -> dict:
-        return {
-            "count": len(rs_flips),
-            "data": [
-                {
-                    "flip_level": rs.flip_level,
-                    "breakout_price": rs.breakout_price,
-                    "timestamp": rs.timestamp.isoformat(),
-                    "previous_role": rs.previous_role,
-                    "new_role": rs.new_role,
-                    "timeframe": rs.timeframe.value,
-                }
-                for rs in rs_flips
-            ],
-        }
+    def _serialize_rs_flips(rs_flips: list) -> list:
+        return [
+            {
+                "flip_level": rs.flip_level,
+                "breakout_price": rs.breakout_price,
+                "timestamp": rs.timestamp.isoformat(),
+                "previous_role": rs.previous_role,
+                "new_role": rs.new_role,
+            }
+            for rs in rs_flips
+        ]
 
     @staticmethod
-    def _serialize_mpl_levels(mpl_levels: list) -> dict:
-        return {
-            "count": len(mpl_levels),
-            "data": [
-                {
-                    "mpl_price": mpl.mpl_price,
-                    "timestamp": mpl.timestamp.isoformat(),
-                    "direction": mpl.direction.value,
-                    "has_internal_structure": mpl.has_internal_structure,
-                    "tested": mpl.tested,
-                    "timeframe": mpl.timeframe.value,
-                }
-                for mpl in mpl_levels
-            ],
-        }
+    def _serialize_mpl_levels(mpl_levels: list) -> list:
+        return [
+            {
+                "mpl_price": mpl.mpl_price,
+                "timestamp": mpl.timestamp.isoformat(),
+                "direction": mpl.direction.value,
+                "has_internal_structure": mpl.has_internal_structure,
+                "tested": mpl.tested,
+            }
+            for mpl in mpl_levels
+        ]
 
     @staticmethod
-    def _serialize_supply_zones(supply_zones: list) -> dict:
-        return {
-            "count": len(supply_zones),
-            "data": [
-                {
-                    "upper_bound": sz.upper_bound,
-                    "lower_bound": sz.lower_bound,
-                    "timestamp": sz.timestamp.isoformat(),
-                    "strength": sz.strength,
-                    "tested": sz.tested,
-                    "test_count": sz.test_count,
-                    "broken": sz.broken,
-                    "timeframe": sz.timeframe.value,
-                }
-                for sz in supply_zones
-            ],
-        }
+    def _serialize_supply_zones(supply_zones: list) -> list:
+        return [
+            {
+                "upper_bound": sz.upper_bound,
+                "lower_bound": sz.lower_bound,
+                "timestamp": sz.timestamp.isoformat(),
+                "strength": sz.strength,
+                "tested": sz.tested,
+                "test_count": sz.test_count,
+                "broken": sz.broken,
+            }
+            for sz in supply_zones
+        ]
 
     @staticmethod
-    def _serialize_demand_zones(demand_zones: list) -> dict:
-        return {
-            "count": len(demand_zones),
-            "data": [
-                {
-                    "upper_bound": dz.upper_bound,
-                    "lower_bound": dz.lower_bound,
-                    "timestamp": dz.timestamp.isoformat(),
-                    "strength": dz.strength,
-                    "tested": dz.tested,
-                    "test_count": dz.test_count,
-                    "broken": dz.broken,
-                    "timeframe": dz.timeframe.value,
-                }
-                for dz in demand_zones
-            ],
-        }
+    def _serialize_demand_zones(demand_zones: list) -> list:
+        return [
+            {
+                "upper_bound": dz.upper_bound,
+                "lower_bound": dz.lower_bound,
+                "timestamp": dz.timestamp.isoformat(),
+                "strength": dz.strength,
+                "tested": dz.tested,
+                "test_count": dz.test_count,
+                "broken": dz.broken,
+            }
+            for dz in demand_zones
+        ]
 
     @staticmethod
-    def _serialize_fibonacci(fibonacci_retracements: list) -> dict:
-        return {
-            "count": len(fibonacci_retracements),
-            "data": [
-                {
-                    "swing_high": fib.swing_high,
-                    "swing_low": fib.swing_low,
-                    "swing_high_timestamp": fib.swing_high_timestamp.isoformat(),
-                    "swing_low_timestamp": fib.swing_low_timestamp.isoformat(),
-                    "is_bullish": fib.is_bullish,
-                    "range_size": fib.range_size,
-                }
-                for fib in fibonacci_retracements
-            ],
-        }
+    def _serialize_fibonacci(fibonacci_retracements: list) -> list:
+        return [
+            {
+                "swing_high": fib.swing_high,
+                "swing_low": fib.swing_low,
+                "swing_high_timestamp": fib.swing_high_timestamp.isoformat(),
+                "swing_low_timestamp": fib.swing_low_timestamp.isoformat(),
+                "is_bullish": fib.is_bullish,
+                "range_size": fib.range_size,
+            }
+            for fib in fibonacci_retracements
+        ]
 
     @staticmethod
-    def _serialize_dealing_ranges(dealing_ranges: list) -> dict:
-        return {
-            "count": len(dealing_ranges),
-            "data": [
-                {
-                    "high": dr.high,
-                    "low": dr.low,
-                    "equilibrium": dr.equilibrium,
-                    "start_time": dr.start_time.isoformat(),
-                    "end_time": (dr.end_time.isoformat() if dr.end_time else None),
-                    "timeframe": dr.timeframe.value,
-                    "range_size": dr.range_size,
-                }
-                for dr in dealing_ranges
-            ],
-        }
+    def _serialize_dealing_ranges(dealing_ranges: list) -> list:
+        return [
+            {
+                "high": dr.high,
+                "low": dr.low,
+                "equilibrium": dr.equilibrium,
+                "start_time": dr.start_time.isoformat(),
+                "end_time": (dr.end_time.isoformat() if dr.end_time else None),
+                "range_size": dr.range_size,
+            }
+            for dr in dealing_ranges
+        ]
 
     @staticmethod
-    def _serialize_previous_levels(equal_highs_lows: list) -> dict:
-        """Serialize equal highs/lows for DB persistence."""
-        return {
-            "count": len(equal_highs_lows),
-            "data": [
-                {
-                    "price_level": ehl.price_level,
-                    "liquidity_type": ehl.liquidity_type.value,
-                    "touch_count": ehl.touch_count,
-                    "timestamps": [ts.isoformat() for ts in ehl.timestamps],
-                    "tolerance_pips": ehl.tolerance_pips,
-                    "timeframe": ehl.timeframe.value,
-                    "swept": ehl.swept,
-                }
-                for ehl in equal_highs_lows
-            ],
-        }
+    def _serialize_previous_levels(equal_highs_lows: list) -> list:
+        """Serialize equal highs/lows for DB persistence (previous_levels
+        column). Shape mirrors ``_serialize_equal_highs_lows``."""
+        return [
+            {
+                "price_level": ehl.price_level,
+                "liquidity_type": ehl.liquidity_type.value,
+                "touch_count": ehl.touch_count,
+                "timestamps": [ts.isoformat() for ts in ehl.timestamps],
+                "tolerance_pips": ehl.tolerance_pips,
+                "swept": ehl.swept,
+            }
+            for ehl in equal_highs_lows
+        ]
