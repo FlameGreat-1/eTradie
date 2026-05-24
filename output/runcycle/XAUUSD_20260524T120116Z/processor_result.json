@@ -1,0 +1,333 @@
+{
+  "analysis_id": "analysis_XAUUSD_20260522_2040_f8c2",
+  "confidence": 0,
+  "confluence_score": 4,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "_user_os": {
+      "assets": {
+        "avoid_correlated_instruments": true,
+        "avoid_highly_volatile": false,
+        "classes": [
+          "Forex",
+          "Indices",
+          "Gold",
+          "Volatility Indices (24/7)"
+        ],
+        "preferred_pairs": []
+      },
+      "automation": {
+        "allow_unattended_execution": true,
+        "mode": "Fully automatic",
+        "require_final_confirmation": false
+      },
+      "confirmation": "Balanced confirmation",
+      "confluence_weights": {
+        "cot": 2,
+        "dxy": 3,
+        "htf_alignment": 3,
+        "macro_alignment": 2,
+        "session_timing": 3,
+        "volume_liquidity": 3,
+        "wyckoff": 0
+      },
+      "entry": {
+        "execution_mode": "Either limit or market",
+        "require_confirmation_candle": true,
+        "require_liquidity_sweep": true,
+        "require_mtf_alignment": true,
+        "require_retest": false
+      },
+      "filtering": {
+        "avoid_counter_trend": false,
+        "avoid_friday_trades": false,
+        "avoid_news_volatility": false,
+        "avoid_overnight_holds": true,
+        "avoid_ranging_markets": true,
+        "avoid_session_transitions": false,
+        "minimum_rr": 2
+      },
+      "goal": "Consistency",
+      "identity": {
+        "automation": "Fully Automated",
+        "discipline": "Rule-Based",
+        "experience": "Advanced",
+        "risk_appetite": "Balanced",
+        "trader_type": "Precision (fewer, high-quality)"
+      },
+      "management": {
+        "break_even_trigger": "at TP1",
+        "close_before_news": true,
+        "hold_runners": true,
+        "partial_tp_style": "balanced",
+        "scale_in_enabled": false,
+        "scale_out_enabled": true,
+        "trailing_stop": "structure-based"
+      },
+      "psychology": {
+        "cooldown_after_loss_streak": true,
+        "daily_lockout_after_target": true,
+        "emotional_volatility_sensitivity": "high",
+        "max_losses_before_cooldown": 3,
+        "overtrading_protection": true,
+        "revenge_trading_protection": true
+      },
+      "risk": {
+        "break_even_management": true,
+        "max_correlated_exposure": 2,
+        "max_daily_drawdown_percent": 3,
+        "max_simultaneous_trades": 3,
+        "max_weekly_drawdown_percent": 6,
+        "model": "Fixed % per trade",
+        "partial_take_profits": true,
+        "per_trade_percent": 1,
+        "trailing_stop_enabled": true
+      },
+      "schema_version": 1,
+      "sessions": {
+        "avoid_low_liquidity": true,
+        "high_volatility_only": true,
+        "preferred": [
+          "London",
+          "New York",
+          "London/NY Overlap"
+        ]
+      },
+      "structural": {
+        "emphasis": "high",
+        "frameworks": [
+          "SMC",
+          "Supply & Demand",
+          "Liquidity concepts"
+        ],
+        "use_choch_bms": true,
+        "use_fvg": true,
+        "use_idm": false,
+        "use_order_blocks": true
+      },
+      "style": "Intraday (M15-H4)"
+    },
+    "analysis_id": "analysis_XAUUSD_20260522_2040_f8c2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "relevance_score": 0.98,
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "71fb7648-89a8-48b0-9a99-557e8700af71",
+          "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+          "relevance_score": 0.95,
+          "section": "9. Session Preferences"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "relevance_score": 0.98,
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "71fb7648-89a8-48b0-9a99-557e8700af71",
+            "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+            "relevance_score": 0.95,
+            "section": "9. Session Preferences"
+          }
+        ],
+        "query_summary": "Retrieve rules regarding Friday late-session blocks and session constraints.",
+        "strategy_used": "Vector search with metadata filtering",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Macro data is neutral or missing.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "HTF structure alignment",
+          "notes": "D1 structure is bearish, aligning with lower-timeframe bearish setups.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF structure alignment",
+          "notes": "H4 and H3 are bearish, aligning with lower-timeframe bearish setups.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "M15 and M5 Order Blocks are present.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep",
+          "notes": "Liquidity sweeps are present on lower timeframes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news within 30 minutes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Friday late-session block",
+          "notes": "Violated. Current time is Friday 20:40 UTC, which is within the Friday late-session block (after 12:00 UTC).",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 4
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data is currently unavailable or neutral for speculative positioning.",
+      "week_over_week": null
+    },
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The market intelligence engine has performed a comprehensive top-down analysis of XAUUSD at 2026-05-22T20:40:00Z. While multiple lower-timeframe bearish candidates are printing on the M15 and M5 timeframes (such as the CHOCH_BMS_RTO_BEARISH setup at 4538.855 and the AMD_BEARISH setup at 4533.16), execution is strictly prohibited under global risk controls. Specifically, the current timestamp of Friday 20:40 UTC violates RULE_ID: MR-REJECT-004 (Friday late-session block) and RULE_ID: STYLE-SESSION-003, which forbid new entries after 12:00 UTC on Fridays due to weekend gap risks and position squaring. Consequently, the system remains patient, preserves capital, and designates the outcome as NO SETUP.",
+    "htf_bias": {
+      "key_levels": [
+        4889.05,
+        4773.55,
+        4500.87
+      ],
+      "notes": "D1 structure is bearish with a confirmed BMS at 4595.49 on 2026-04-29. However, W1 remains bullish.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "DXY is a permanent analytical layer. It is never optional for USD pairs.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": "MR-PHIL-008",
+            "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+            "content_preview": "DXY is a permanent analytical layer. It is never optional for USD pairs.",
+            "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+            "rule_id": "MR-PHIL-008",
+            "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4570.82,
+        4559.27,
+        4453.61
+      ],
+      "notes": "H4 and H3 are bearish, but H1 has shifted bullish, indicating a potential counter-trend retracement or short-term pullback.",
+      "structure": "bearish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+        "doc_id": "d426be7f-83ea-4c91-ba68-44ad55d6d448",
+        "relevance_score": 0.98,
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "71fb7648-89a8-48b0-9a99-557e8700af71",
+        "doc_id": "46e591c8-3ad3-4d3b-b46b-dd86d76a0742",
+        "relevance_score": 0.95,
+        "section": "9. Session Preferences"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "NEW_YORK",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": "No trade executed due to Friday late-session block."
+    },
+    "take_profits": [
+      {
+        "basis": "No trade executed.",
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": "No trade executed.",
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": "No trade executed.",
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-22T20:40:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The market intelligence engine has performed a comprehensive top-down analysis of XAUUSD at 2026-05-22T20:40:00Z. While multiple lower-timeframe bearish candidates are printing on the M15 and M5 timeframes (such as the CHOCH_BMS_RTO_BEARISH setup at 4538.855 and the AMD_BEARISH setup at 4533.16), execution is strictly prohibited under global risk controls. Specifically, the current timestamp of Friday 20:40 UTC violates RULE_ID: MR-REJECT-004 (Friday late-session block) and RULE_ID: STYLE-SESSION-003, which forbid new entries after 12:00 UTC on Fridays due to weekend gap risks and position squaring. Consequently, the system remains patient, preserves capital, and designates the outcome as NO SETUP.",
+  "rejection_rules": [
+    "missing_Macro bias alignment",
+    "missing_Friday late-session block"
+  ],
+  "session": "NEW_YORK",
+  "setup_type": "",
+  "symbol": "XAUUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}
