@@ -92,9 +92,18 @@ class LLMConnectionRepository:
     ) -> LLMConnectionRow:
         """Create a new LLM connection owned by user_id.
 
-        If activate=True, deactivates all other connections for this user first.
+        If activate=True, deactivates all other connections for this
+        user first. Both the deactivation and the insert happen inside
+        a row-level lock on the user's existing rows so concurrent
+        callers (e.g. a double-clicked Save button, or React strict-
+        mode dev refire) serialise on the lock rather than racing
+        through the deactivation and both ending up active. The
+        partial unique index created by Alembic 0022 is the hard
+        guarantee; this lock keeps the happy path lock-free of
+        IntegrityError retries.
         """
         if activate:
+            await self._lock_user_active_rows(user_id)
             await self._deactivate_all(user_id)
 
         if not label:
@@ -177,7 +186,13 @@ class LLMConnectionRepository:
         return row
 
     async def get_active(self, user_id: str) -> Optional[LLMConnectionRow]:
-        """Return the currently active LLM connection for this user, or None."""
+        """Return the currently active LLM connection for this user, or None.
+
+        Deterministic ordering (most recently updated, then id) so the
+        loader picks the same row across container restarts even if a
+        future bug ever bypasses the partial unique index and leaves
+        duplicates behind.
+        """
         stmt = (
             select(LLMConnectionRow)
             .where(
@@ -185,16 +200,28 @@ class LLMConnectionRepository:
                 LLMConnectionRow.is_platform.is_(False),
                 LLMConnectionRow.is_active.is_(True),
             )
+            .order_by(
+                LLMConnectionRow.updated_at.desc(),
+                LLMConnectionRow.id.asc(),
+            )
             .limit(1)
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_platform(self) -> Optional[LLMConnectionRow]:
-        """Return the platform-level LLM connection, if any."""
+        """Return the platform-level LLM connection, if any.
+
+        Deterministic ordering for the same reason as get_active.
+        """
         stmt = (
             select(LLMConnectionRow)
             .where(LLMConnectionRow.is_platform.is_(True))
+            .order_by(
+                LLMConnectionRow.is_active.desc(),
+                LLMConnectionRow.updated_at.desc(),
+                LLMConnectionRow.id.asc(),
+            )
             .limit(1)
         )
         result = await self._session.execute(stmt)
@@ -224,7 +251,16 @@ class LLMConnectionRepository:
         return result.scalar_one_or_none()
 
     async def activate(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
-        """Activate a connection (deactivates all others for this user)."""
+        """Activate a connection (deactivates all others for this user).
+
+        Takes a row-level lock on the user's existing active rows
+        before deactivating + activating so concurrent activate()
+        calls from the same user serialise instead of racing past the
+        bare UPDATE. The partial unique index created by Alembic 0022
+        is the hard guarantee; this lock keeps the happy path lock-
+        free of IntegrityError retries.
+        """
+        await self._lock_user_active_rows(user_id)
         await self._deactivate_all(user_id)
 
         stmt = (
@@ -338,6 +374,33 @@ class LLMConnectionRepository:
                 LLMConnectionRow.is_active.is_(True),
             )
             .values(is_active=False, updated_at=datetime.now(UTC))
+        )
+        await self._session.execute(stmt)
+
+    async def _lock_user_active_rows(self, user_id: str) -> None:
+        """Take a row-level lock on the user's existing active rows.
+
+        Called before the deactivate + insert/update sequence in
+        ``create`` and ``activate`` to serialise concurrent callers.
+        Two simultaneous requests from the same user will queue at
+        the row lock instead of both passing the deactivation step
+        and racing toward the partial unique index, which would
+        otherwise reject the loser with an IntegrityError that the
+        caller would have to map to a 409.
+
+        The lock is released when the surrounding transaction commits
+        or rolls back -- i.e. when the caller's ``async with
+        container.db.session()`` block exits. SQLAlchemy translates
+        ``with_for_update()`` to ``SELECT ... FOR UPDATE`` on
+        PostgreSQL, which is the canonical mechanism for this pattern.
+        """
+        stmt = (
+            select(LLMConnectionRow.id)
+            .where(
+                LLMConnectionRow.user_id == user_id,
+                LLMConnectionRow.is_active.is_(True),
+            )
+            .with_for_update()
         )
         await self._session.execute(stmt)
 
