@@ -27,13 +27,13 @@ _OUTPUT_SCHEMA = """{
   "session": "<LONDON_OPEN|LONDON_NY_OVERLAP|NEW_YORK|ASIAN>",
 
   "macro_bias": {
-    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
+    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
     "quote_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [...]}
   },
 
   "dxy_bias": {
     "direction": "<BULLISH|BEARISH|NEUTRAL>",
-    "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "..."}]
+    "evidence": [{"chunk_id": "...", "section": "..."}]
   },
 
   "cot_signal": {
@@ -78,16 +78,16 @@ _OUTPUT_SCHEMA = """{
   "ltf_confirmed": false,
   "explainable_reasoning": "<human-readable reasoning summary>",
 
-  "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
+  "rag_sources": [{"chunk_id": "...", "section": "..."}],
 
   "audit": {
     "retrieval": {
       "query_summary": "...",
       "strategy_used": "...",
       "top_k": 8,
-      "chunks_returned": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.9}]
+      "chunks_returned": [{"chunk_id": "...", "section": "..."}]
     },
-    "citations": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.85}]
+    "citations": [{"chunk_id": "...", "section": "..."}]
   }
 }"""
 
@@ -104,7 +104,13 @@ SECTION A — UNDERSTANDING YOUR INPUT DATA
 
 You receive FIVE categories of data. You MUST read and use ALL of them:
 
-1. ta_analysis.snapshots — Per-timeframe structural maps containing swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, SR/RS flips, QM levels, supply/demand zones, fibonacci retracements, and dealing ranges. These snapshots represent the FULL structural context of the market across all timeframes (W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1).
+1. ta_analysis.snapshots — Per-timeframe structural maps spanning every analysed timeframe (MN1, W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1). The dict is ordered LTF-first, HTF-last so the highest-authority structure (MN1..H1) is the last region you read before generating your output. Each timeframe entry carries:
+
+   - HTF (MN1..H1) and M30/M15 — full structural set: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, liquidity grabs, SR/RS flips, QM levels, MPL levels, supply/demand zones, fibonacci retracements, and dealing ranges.
+
+   - M5 / M1 — actionable subset only: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, SR/RS flips, QM levels, MPL levels, supply/demand zones. The sections `equal_highs_lows`, `liquidity_grabs`, `fibonacci_retracements`, and `dealing_ranges` are intentionally omitted on M5/M1 because the HTF equivalents already carry the actionable signal and the LTF versions are session noise. Their absence on M5/M1 is by design — do NOT flag it as missing data.
+
+   Dead structures are pre-filtered out before serialisation: mitigated Order Blocks / Breaker Blocks, filled FVGs, tested QM and MPL levels, and broken supply/demand zones are dropped. Every event that reaches you is therefore live and tradeable from a state perspective.
 
 2. ta_analysis.smc_candidates — Detected SMC pattern candidates. These are mathematically identified trade setups. IMPORTANT: The candidates span BOTH historical and current market timestamps. Historical candidates provide context about how the market has been moving and trending. Only candidates whose timestamp is near the analysis timestamp represent CURRENT LIVE opportunities. You must use historical candidates for context and trend validation, but only evaluate the most recent candidates as potentially tradeable.
 
@@ -362,24 +368,30 @@ def build_user_message(context: ProcessorInput) -> str:
     """
     # RAG chunk projection.
     #
-    # Each retrieved chunk is reduced to the four fields the LLM
-    # actually needs: chunk_id (citation echo), document_id (citation
-    # echo), section (rule grouping + dedup key), content (the rule
-    # text itself). Everything else -- doc_type, relevance score,
-    # subsection, metadata blob, retriever rank -- is internal
-    # plumbing that the LLM cannot meaningfully reason over.
-    # `doc_type` in particular is used by the reranker for doc-type
-    # weighting on the engine side and has no role at LLM time.
+    # Each retrieved chunk is reduced to the three fields the LLM
+    # actually needs:
+    #   - `chunk_id`: the citation key the LLM echoes in rag_sources
+    #     and audit.citations. Globally unique UUID.
+    #   - `section`: the rule grouping and the dedup key.
+    #   - `content`: the rule text itself.
     #
-    # Section-based deduplication: the retriever periodically
-    # returns multiple chunks that share the same `section` heading
-    # (split chunks of the same passage, or near-duplicate sections
-    # across document versions). The LLM treats them as competing
-    # rules and produces hedged or inconsistent reasoning. We keep
-    # only the highest-scoring chunk per section before serialising.
-    # Chunks without a section value bypass dedup entirely. The
-    # original chunk order is preserved for the kept chunks so the
-    # retriever's ranking signal remains visible to the LLM.
+    # Everything else -- `doc_type`, `document_id`, retriever score,
+    # subsection, metadata blob, retriever rank -- is internal
+    # plumbing the LLM cannot meaningfully reason over. The downstream
+    # citation contract (RAGSourceCitation in models/analysis.py)
+    # already declares doc_id and relevance_score as Optional[...]
+    # = None so the LLM's output parses cleanly even when those
+    # fields are absent.
+    #
+    # Section-based deduplication: the retriever periodically returns
+    # multiple chunks that share the same `section` heading (split
+    # chunks of the same passage, or near-duplicate sections across
+    # document versions). The LLM treats them as competing rules and
+    # produces hedged or inconsistent reasoning. We keep only the
+    # highest-scoring chunk per section before serialising. Chunks
+    # without a section value bypass dedup entirely. The original
+    # chunk order is preserved for the kept chunks so the retriever's
+    # ranking signal remains visible to the LLM.
     clean_rag: dict[str, Any] = {}
     if context.retrieved_knowledge:
         raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", []) or []
@@ -429,7 +441,6 @@ def build_user_message(context: ProcessorInput) -> str:
         clean_rag["retrieved_chunks"] = [
             {
                 "chunk_id": c.get("chunk_id"),
-                "document_id": c.get("document_id"),
                 "section": c.get("section") or c.get("metadata", {}).get("section"),
                 "content": c.get("content"),
             }
@@ -465,7 +476,11 @@ def build_user_message(context: ProcessorInput) -> str:
     # Boolean fields whose key ends in any of these suffixes are
     # stripped when their value is False. False is noise ("this thing
     # did not happen"); True is signal ("this thing happened"). The
-    # one-directional semantics is intentional.
+    # one-directional semantics is intentional. The alignment-block
+    # booleans (trends_aligned, htf_ltf_aligned, zones_nested) are
+    # NOT in this list because they are deterministic algorithmic
+    # decisions the LLM relies on for its top-down spine and must
+    # remain explicit either way.
     _DEAD_WHEN_FALSE_SUFFIXES = (
         "_detected", "_cleared", "_swept", "_mitigated", "_broken",
         "_filled", "_tested", "_confirmed",
@@ -486,27 +501,10 @@ def build_user_message(context: ProcessorInput) -> str:
             return round(value, 5)
         return round(value, 6)
 
-    def _is_empty_count_data(d: dict) -> bool:
-        """Detect the orchestrator's empty event wrapper.
-
-        Shape {"count": 0, "data": []} is emitted on every empty
-        event array on every timeframe and ships ~80 bytes of zero
-        signal per occurrence. Also recognises the post-clean shape
-        {"count": 0} when the empty data list was dropped by the
-        recursive empty-list filter.
-        """
-        if not d:
-            return False
-        if set(d.keys()) == {"count", "data"} and d["count"] == 0 and d["data"] == []:
-            return True
-        if set(d.keys()) == {"count"} and d["count"] == 0:
-            return True
-        return False
-
     def _clean_dict(d: Any) -> Any:
         """Recursively strip nulls, empties, defaults, db metadata,
-        boolean-False noise on dead-state suffixes, empty event
-        wrappers, and IEEE-754 float artefacts.
+        boolean-False noise on dead-state suffixes, and IEEE-754
+        float artefacts.
 
         Filtering rules:
           - None, "", [], {} are dropped.
@@ -514,10 +512,14 @@ def build_user_message(context: ProcessorInput) -> str:
           - Keys in _STRIP_KEYS are dropped regardless of value.
           - Boolean False is dropped when the key ends in any of
             _DEAD_WHEN_FALSE_SUFFIXES (e.g. mitigated, filled,
-            tested, trends_aligned, zones_nested). True is kept.
-          - {"count": 0, "data": []} event wrappers are dropped.
+            tested, confirmed). True is kept.
           - Floats are rounded to eliminate IEEE-754 noise.
           - Specific zero-count macro fields are dropped.
+
+        The historical `{"count": N, "data": [...]}` event wrapper
+        is no longer produced by the orchestrator; per-field
+        serialisers emit bare lists. Detection for that wrapper has
+        therefore been removed -- it would never match.
         """
         if isinstance(d, dict):
             cleaned = {}
@@ -533,9 +535,6 @@ def build_user_message(context: ProcessorInput) -> str:
                 v_clean = _clean_dict(v)
                 # Drop None, empty string, empty list, empty dict
                 if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
-                    continue
-                # Drop empty event wrappers {"count": 0, "data": []}
-                if isinstance(v_clean, dict) and _is_empty_count_data(v_clean):
                     continue
                 # Drop known zero-information string defaults
                 if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
@@ -557,7 +556,6 @@ def build_user_message(context: ProcessorInput) -> str:
                 and item != ""
                 and item != []
                 and item != {}
-                and not (isinstance(item, dict) and _is_empty_count_data(item))
             ]
         elif isinstance(d, bool):
             # Booleans must be returned BEFORE the float branch because
