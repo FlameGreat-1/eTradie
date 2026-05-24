@@ -13,7 +13,7 @@ re-format that data. It wraps it in the prompt envelope.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Optional
+from typing import Any
 
 import orjson
 
@@ -27,13 +27,13 @@ _OUTPUT_SCHEMA = """{
   "session": "<LONDON_OPEN|LONDON_NY_OVERLAP|NEW_YORK|ASIAN>",
 
   "macro_bias": {
-    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
+    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
     "quote_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [...]}
   },
 
   "dxy_bias": {
     "direction": "<BULLISH|BEARISH|NEUTRAL>",
-    "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "..."}]
+    "evidence": [{"chunk_id": "...", "section": "..."}]
   },
 
   "cot_signal": {
@@ -78,16 +78,16 @@ _OUTPUT_SCHEMA = """{
   "ltf_confirmed": false,
   "explainable_reasoning": "<human-readable reasoning summary>",
 
-  "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
+  "rag_sources": [{"chunk_id": "...", "section": "..."}],
 
   "audit": {
     "retrieval": {
       "query_summary": "...",
       "strategy_used": "...",
       "top_k": 8,
-      "chunks_returned": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.9}]
+      "chunks_returned": [{"chunk_id": "...", "section": "..."}]
     },
-    "citations": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.85}]
+    "citations": [{"chunk_id": "...", "section": "..."}]
   }
 }"""
 
@@ -104,7 +104,13 @@ SECTION A — UNDERSTANDING YOUR INPUT DATA
 
 You receive FIVE categories of data. You MUST read and use ALL of them:
 
-1. ta_analysis.snapshots — Per-timeframe structural maps containing swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, SR/RS flips, QM levels, supply/demand zones, fibonacci retracements, and dealing ranges. These snapshots represent the FULL structural context of the market across all timeframes (W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1).
+1. ta_analysis.snapshots — Per-timeframe structural maps spanning every analysed timeframe (MN1, W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1). The dict is ordered LTF-first, HTF-last so the highest-authority structure (MN1..H1) is the last region you read before generating your output. Each timeframe entry carries:
+
+   - HTF (MN1..H1) and M30/M15 — full structural set: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, liquidity grabs, SR/RS flips, QM levels, MPL levels, supply/demand zones, fibonacci retracements, and dealing ranges.
+
+   - M5 / M1 — actionable subset only: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, SR/RS flips, QM levels, MPL levels, supply/demand zones. The sections `equal_highs_lows`, `liquidity_grabs`, `fibonacci_retracements`, and `dealing_ranges` are intentionally omitted on M5/M1 because the HTF equivalents already carry the actionable signal and the LTF versions are session noise. Their absence on M5/M1 is by design — do NOT flag it as missing data.
+
+   Dead structures are pre-filtered out before serialisation: mitigated Order Blocks / Breaker Blocks, filled FVGs, tested QM and MPL levels, and broken supply/demand zones are dropped. Every event that reaches you is therefore live and tradeable from a state perspective.
 
 2. ta_analysis.smc_candidates — Detected SMC pattern candidates. These are mathematically identified trade setups. IMPORTANT: The candidates span BOTH historical and current market timestamps. Historical candidates provide context about how the market has been moving and trending. Only candidates whose timestamp is near the analysis timestamp represent CURRENT LIVE opportunities. You must use historical candidates for context and trend validation, but only evaluate the most recent candidates as potentially tradeable.
 
@@ -331,36 +337,6 @@ SECTION E — CORE RULES
    - When direction is "NO SETUP", `entry_setup.zone_id` may be null.
    - This rule overrides any prior reading that `zone_id` is a free-text description. It is an identifier, not prose.
 
-══════════════════════════════════════════════════════════════
-SECTION F — USER OPERATING SYSTEM (LAYER 2 PERSONALIZATION)
-══════════════════════════════════════════════════════════════
-
-When the input payload contains a `user_operating_system` field, it represents the AUTHENTICATED USER'S configured Trading Operating System: their preferred style, sessions, risk personality, structural preferences, confluence weighting, automation mode, psychological constraints, asset preferences, goal orientation, and trade-management policies.
-
-AUTHORITY MODEL (READ CAREFULLY):
-
-1. The institutional rulebook (this system prompt + the retrieved_knowledge RAG chunks) is LAYER 1. It is the source of truth. Mandatory factors in Section E rule 4 (HTF/MTF structure, valid structural entry, no high-impact news, minimum RR) remain MANDATORY regardless of what the user OS says. You may NEVER waive them to accommodate a user preference.
-
-2. The user_operating_system is LAYER 2 — SOFT GUIDANCE. It influences:
-   - retrieval ranking (prefer setups the user's frameworks emphasise),
-   - candidate selection (lean toward setups that match the user's confirmation strictness, session preferences, and entry preferences),
-   - confidence weighting (a user with strict confirmation gets MEDIUM not HIGH confidence on an aggressive early entry),
-   - rejection (a setup that violates the user's hard `avoid_*` filters — e.g. avoid_friday_trades — should be downgraded to NO SETUP even if it would otherwise pass institutional checks),
-   - presentation (the explainable_reasoning should reference relevant user preferences so the user understands why the setup was selected or rejected).
-
-3. The user OS may NEVER be used to:
-   - lower minimum_rr below what the institutional rulebook requires for the trading style,
-   - bypass high-impact news avoidance,
-   - skip HTF/MTF structural validation,
-   - approve a setup that lacks a Valid Grade A/B SnD zone or Entry Timeframe OB/FVG,
-   - take a trade that contradicts a mandatory rejection rule.
-
-4. ON CONFLICT (e.g. user wants aggressive scalps but macro + HTF invalidate the setup): the INSTITUTIONAL LAYER WINS. Output NO SETUP with explainable_reasoning explicitly stating which user preference was overridden by which institutional rule. Do NOT silently honour the user preference and produce a misaligned trade.
-
-5. WEIGHTING: Treat each `confluence_weights` field (macro_alignment, dxy, cot, htf_alignment, wyckoff, volume_liquidity, session_timing) as a 0–3 importance multiplier when scoring confluence factors. A weight of 0 still scores the factor (mandatory factors stay mandatory) but does not bump confidence; a weight of 3 amplifies the factor's contribution to the final grade.
-
-6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
-
 OUTPUT JSON SCHEMA:
 Output schema is enforced by the LLM provider's decoder when supported (Gemini response_schema, OpenAI response_format strict, Anthropic tools input_schema). Field semantics described above remain authoritative regardless of provider support.
 """
@@ -373,11 +349,7 @@ def build_system_prompt() -> str:
     return _SYSTEM_PROMPT
 
 
-def build_user_message(
-    context: ProcessorInput,
-    *,
-    user_operating_system: Optional[dict[str, Any]] = None,
-) -> str:
+def build_user_message(context: ProcessorInput) -> str:
     """Serialize the gateway-assembled context as the user message.
 
     The ProcessorInput already contains the fully structured
@@ -385,34 +357,94 @@ def build_user_message(
     assembled by the gateway's ContextAssembler. This function
     serializes them into the JSON payload the LLM receives.
 
-    user_operating_system (when provided) is the COMPRESSED, NORMALISED
-    Layer-2 personalization block built by
-    engine.processor.user_os.context_builder.build_user_operating_context.
-    It is passed through unchanged because the builder is the single
-    source of truth for prompt-safe formatting.
+    The institutional rulebook (this system prompt + the retrieved
+    RAG chunks) is the sole source of truth for the analysis path.
+    The user Trading Operating System is NOT injected here -- it is
+    consumed by the dedicated trading-plan and performance-review
+    generators, which are user-initiated features and the correct
+    surface for personalised guidance. Mixing it into the analysis
+    payload created two overlapping voices the LLM had to reconcile
+    on every cycle; removing it lets the SOS speak alone.
     """
-    # Strip out massive vector database metadata (scores, rankings, hashes)
-    # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
-    # strategy_used (e.g. "scenario_first", "rule_first", "hybrid") is
-    # an internal RAG implementation detail. The LLM cannot meaningfully
-    # reason over which retrieval algorithm ran; only the chunks the
-    # algorithm returned matter, and those flow via retrieved_chunks.
-    # Keeping strategy_used here while the matching rag_strategy_used
-    # metadata key is stripped would have been inconsistent — same data,
-    # two paths. Both are now stripped at this single chokepoint.
-    clean_rag = {}
+    # RAG chunk projection.
+    #
+    # Each retrieved chunk is reduced to the three fields the LLM
+    # actually needs:
+    #   - `chunk_id`: the citation key the LLM echoes in rag_sources
+    #     and audit.citations. Globally unique UUID.
+    #   - `section`: the rule grouping and the dedup key.
+    #   - `content`: the rule text itself.
+    #
+    # Everything else -- `doc_type`, `document_id`, retriever score,
+    # subsection, metadata blob, retriever rank -- is internal
+    # plumbing the LLM cannot meaningfully reason over. The downstream
+    # citation contract (RAGSourceCitation in models/analysis.py)
+    # already declares doc_id and relevance_score as Optional[...]
+    # = None so the LLM's output parses cleanly even when those
+    # fields are absent.
+    #
+    # Section-based deduplication: the retriever periodically returns
+    # multiple chunks that share the same `section` heading (split
+    # chunks of the same passage, or near-duplicate sections across
+    # document versions). The LLM treats them as competing rules and
+    # produces hedged or inconsistent reasoning. We keep only the
+    # highest-scoring chunk per section before serialising. Chunks
+    # without a section value bypass dedup entirely. The original
+    # chunk order is preserved for the kept chunks so the retriever's
+    # ranking signal remains visible to the LLM.
+    clean_rag: dict[str, Any] = {}
     if context.retrieved_knowledge:
-        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", [])
+        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", []) or []
+
+        def _chunk_score(c: dict[str, Any]) -> float:
+            """Best-effort score extraction. The retriever writes
+            `score`; the audit layer sometimes writes
+            `relevance_score`. Missing => 0.0 so any scored chunk
+            wins over an unscored duplicate.
+            """
+            score = c.get("score")
+            if score is None:
+                score = c.get("relevance_score")
+            try:
+                return float(score) if score is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        # Build an order-preserving dedup map keyed by section.
+        # First-seen index is recorded so the emitted list keeps the
+        # retriever's ranking order; only the chosen chunk per
+        # section is allowed through.
+        best_by_section: dict[str, tuple[int, float, dict[str, Any]]] = {}
+        unscoped: list[tuple[int, dict[str, Any]]] = []
+        for idx, c in enumerate(raw_chunks):
+            section = c.get("section") or c.get("metadata", {}).get("section")
+            if not section:
+                unscoped.append((idx, c))
+                continue
+            score = _chunk_score(c)
+            existing = best_by_section.get(section)
+            if existing is None or score > existing[1]:
+                # First-seen index is preserved across replacements so
+                # the section block keeps its retriever-rank position.
+                first_idx = existing[0] if existing is not None else idx
+                best_by_section[section] = (first_idx, score, c)
+
+        # Materialise the final order: every chunk (scoped + unscoped)
+        # sorted by its first-seen index in the original retrieved
+        # set. This guarantees the LLM reads chunks in the same
+        # ranking order the retriever produced.
+        ordered: list[tuple[int, dict[str, Any]]] = list(unscoped)
+        for first_idx, _score, chunk in best_by_section.values():
+            ordered.append((first_idx, chunk))
+        ordered.sort(key=lambda item: item[0])
 
         clean_rag["retrieved_chunks"] = [
             {
                 "chunk_id": c.get("chunk_id"),
-                "document_id": c.get("document_id"),
-                "doc_type": c.get("doc_type") or c.get("metadata", {}).get("doc_type"),
                 "section": c.get("section") or c.get("metadata", {}).get("section"),
                 "content": c.get("content"),
             }
-            for c in raw_chunks
+            for _idx, c in ordered
         ]
 
     # Fields that are always stripped (DB/internal metadata + Pydantic
@@ -444,7 +476,11 @@ def build_user_message(
     # Boolean fields whose key ends in any of these suffixes are
     # stripped when their value is False. False is noise ("this thing
     # did not happen"); True is signal ("this thing happened"). The
-    # one-directional semantics is intentional.
+    # one-directional semantics is intentional. The alignment-block
+    # booleans (trends_aligned, htf_ltf_aligned, zones_nested) are
+    # NOT in this list because they are deterministic algorithmic
+    # decisions the LLM relies on for its top-down spine and must
+    # remain explicit either way.
     _DEAD_WHEN_FALSE_SUFFIXES = (
         "_detected", "_cleared", "_swept", "_mitigated", "_broken",
         "_filled", "_tested", "_confirmed",
@@ -465,27 +501,10 @@ def build_user_message(
             return round(value, 5)
         return round(value, 6)
 
-    def _is_empty_count_data(d: dict) -> bool:
-        """Detect the orchestrator's empty event wrapper.
-
-        Shape {"count": 0, "data": []} is emitted on every empty
-        event array on every timeframe and ships ~80 bytes of zero
-        signal per occurrence. Also recognises the post-clean shape
-        {"count": 0} when the empty data list was dropped by the
-        recursive empty-list filter.
-        """
-        if not d:
-            return False
-        if set(d.keys()) == {"count", "data"} and d["count"] == 0 and d["data"] == []:
-            return True
-        if set(d.keys()) == {"count"} and d["count"] == 0:
-            return True
-        return False
-
     def _clean_dict(d: Any) -> Any:
         """Recursively strip nulls, empties, defaults, db metadata,
-        boolean-False noise on dead-state suffixes, empty event
-        wrappers, and IEEE-754 float artefacts.
+        boolean-False noise on dead-state suffixes, and IEEE-754
+        float artefacts.
 
         Filtering rules:
           - None, "", [], {} are dropped.
@@ -493,10 +512,14 @@ def build_user_message(
           - Keys in _STRIP_KEYS are dropped regardless of value.
           - Boolean False is dropped when the key ends in any of
             _DEAD_WHEN_FALSE_SUFFIXES (e.g. mitigated, filled,
-            tested, trends_aligned, zones_nested). True is kept.
-          - {"count": 0, "data": []} event wrappers are dropped.
+            tested, confirmed). True is kept.
           - Floats are rounded to eliminate IEEE-754 noise.
           - Specific zero-count macro fields are dropped.
+
+        The historical `{"count": N, "data": [...]}` event wrapper
+        is no longer produced by the orchestrator; per-field
+        serialisers emit bare lists. Detection for that wrapper has
+        therefore been removed -- it would never match.
         """
         if isinstance(d, dict):
             cleaned = {}
@@ -512,9 +535,6 @@ def build_user_message(
                 v_clean = _clean_dict(v)
                 # Drop None, empty string, empty list, empty dict
                 if v_clean is None or v_clean == "" or v_clean == [] or v_clean == {}:
-                    continue
-                # Drop empty event wrappers {"count": 0, "data": []}
-                if isinstance(v_clean, dict) and _is_empty_count_data(v_clean):
                     continue
                 # Drop known zero-information string defaults
                 if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
@@ -536,7 +556,6 @@ def build_user_message(
                 and item != ""
                 and item != []
                 and item != {}
-                and not (isinstance(item, dict) and _is_empty_count_data(item))
             ]
         elif isinstance(d, bool):
             # Booleans must be returned BEFORE the float branch because
@@ -589,8 +608,6 @@ def build_user_message(
         "retrieved_knowledge": clean_rag,
         "metadata": clean_metadata,
     }
-    if user_operating_system:
-        payload["user_operating_system"] = user_operating_system
     return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
 
 

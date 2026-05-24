@@ -36,30 +36,38 @@ class SnapshotRepository:
         timestamp: datetime,
         *,
         user_id: str,
-        swing_highs: dict,
-        swing_lows: dict,
-        bms_events: dict,
-        choch_events: dict,
-        sms_events: dict,
-        order_blocks: dict,
-        fair_value_gaps: dict,
-        breaker_blocks: dict,
-        liquidity_sweeps: dict,
-        inducement_events: dict,
-        qm_levels: dict,
-        sr_flips: dict,
-        rs_flips: dict,
-        previous_levels: dict,
-        mpl_levels: dict,
-        fakeout_tests: dict,
-        supply_zones: dict,
-        demand_zones: dict,
-        fibonacci_retracements: dict,
-        dealing_ranges: dict,
+        swing_highs: list | dict,
+        swing_lows: list | dict,
+        bms_events: list | dict,
+        choch_events: list | dict,
+        sms_events: list | dict,
+        order_blocks: list | dict,
+        fair_value_gaps: list | dict,
+        breaker_blocks: list | dict,
+        liquidity_sweeps: list | dict,
+        inducement_events: list | dict,
+        qm_levels: list | dict,
+        sr_flips: list | dict,
+        rs_flips: list | dict,
+        previous_levels: list | dict,
+        mpl_levels: list | dict,
+        fakeout_tests: list | dict,
+        supply_zones: list | dict,
+        demand_zones: list | dict,
+        fibonacci_retracements: list | dict,
+        dealing_ranges: list | dict,
         metadata: Optional[dict] = None,
         notes: Optional[str] = None,
     ) -> SnapshotSchema:
-        """Create a new technical snapshot."""
+        """Create a new technical snapshot.
+
+        The structural-event payload kwargs accept either ``list`` or
+        ``dict``. The current `_persist_snapshot` writer emits bare
+        lists (the prompt + DB unified shape); historical rows on disk
+        that still carry the legacy ``{"count": N, "data": [...]}``
+        dict wrapper remain valid JSONB. SQLAlchemy's ``JSON`` column
+        accepts both at the wire level.
+        """
         latest_version = await self._get_latest_version(symbol, timeframe, user_id=user_id)
 
         schema = SnapshotSchema(

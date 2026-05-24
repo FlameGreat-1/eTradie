@@ -462,23 +462,6 @@ TRADE_PLAN_VALIDATION_FAILURES = Counter(
 )
 
 # ==============================================================
-# User Operating System (Layer 2 Personalization) Cache Metrics
-# Tracks cache hit/miss/error rates for the compressed user OS
-# context block. Operators can alert on:
-#   - high miss rate  -> Redis connectivity issue or cache not warming
-#   - high error rate -> Redis degraded
-#   - invalidation failures -> pub/sub listener not running
-# ==============================================================
-
-USER_OS_CACHE_OPS_TOTAL = Counter(
-    "etradie_user_os_cache_ops_total",
-    "User OS cache operations by type and outcome. "
-    "operation: positive_get | negative_get | positive_set | negative_set | invalidate. "
-    "outcome: hit | miss | error | success.",
-    ["operation", "outcome"],
-)
-
-# ==============================================================
 # System Resource Metrics
 # ==============================================================
 

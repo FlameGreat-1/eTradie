@@ -48,7 +48,6 @@ from engine.processor.prompts.system_prompt import (
     compute_prompt_hash,
 )
 from engine.processor.storage.uow import ProcessorUOWFactory
-from engine.processor.user_os.client import UserOSClient
 from engine.processor.streaming import stream_channel_for_user
 from engine.processor.models.analysis import AnalysisOutput as AO
 from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
@@ -80,17 +79,11 @@ class AnalysisProcessor(ProcessorPort):
         llm_client: LLMClient,
         uow_factory: Optional[ProcessorUOWFactory] = None,
         cache: Optional[Any] = None,
-        user_os_client: Optional[UserOSClient] = None,
     ) -> None:
         self._config = config
         self._llm = llm_client
         self._uow_factory = uow_factory
         self._cache = cache
-        # PRACTICE.md Layer 2 — optional. None means we fall back to
-        # the default institutional profile (correct behaviour when the
-        # user has not built a trading system, the gateway is down, or
-        # the engine is running in unit-test mode without HTTP).
-        self._user_os_client = user_os_client
 
     async def process(
         self,
@@ -241,59 +234,14 @@ class AnalysisProcessor(ProcessorPort):
 
         # Step 2: Build prompt.
         #
-        # Fetch the user's Trading Operating System in parallel with
-        # prompt construction so the network round-trip to the gateway
-        # adds zero serial latency. A None result (user skipped
-        # onboarding, gateway transiently unavailable, or client not
-        # configured) means we fall back to the default institutional
-        # profile — PRACTICE.md is explicit that a missing user OS must
-        # never block analysis.
-        # Fetch the user's Trading Operating System via the cache-aware
-        # client method. On a cache hit this is a single Redis GET
-        # (~0.1 ms). On a miss it falls through to the gateway HTTP
-        # fetch and then writes the result to Redis. Either way the
-        # call is scheduled as a task in parallel with prompt
-        # construction so the network round-trip adds zero serial
-        # latency to the LLM pipeline.
-        #
-        # A None result (user skipped onboarding, gateway transiently
-        # unavailable, or client not configured) means we fall back to
-        # the default institutional profile -- PRACTICE.md is explicit
-        # that a missing user OS must never block analysis.
-        user_os_task: Optional[asyncio.Task] = None
-        if self._user_os_client is not None and user_id:
-            user_os_task = asyncio.create_task(
-                self._user_os_client.get_compressed_context(
-                    user_id,
-                    trace_id=trace_id,
-                ),
-                name=f"user_os_fetch:{user_id}",
-            )
-
+        # The analysis path uses the institutional rulebook (system
+        # prompt + retrieved RAG chunks) as the sole source of truth.
+        # The user Trading Operating System is intentionally NOT
+        # injected here -- it is consumed by the dedicated
+        # trading-plan and performance-review generators which are
+        # the user-facing surfaces for personalised guidance.
         system_prompt = build_system_prompt()
-
-        user_os_context: Optional[dict] = None
-        if user_os_task is not None:
-            try:
-                user_os_context = await user_os_task
-            except Exception as exc:
-                # Defensive: a malformed profile or unexpected exception
-                # in the fetcher must never abort the LLM call.
-                logger.warning(
-                    "user_os_fetch_unexpected_failure",
-                    extra={
-                        "user_id": user_id,
-                        "trace_id": trace_id,
-                        "error": str(exc),
-                        "error_type": type(exc).__name__,
-                    },
-                )
-                user_os_context = None
-
-        user_message = build_user_message(
-            context,
-            user_operating_system=user_os_context,
-        )
+        user_message = build_user_message(context)
         prompt_hash = compute_prompt_hash(system_prompt, user_message)
 
         # Dump exact LLM payload to /output/prompts for debugging
@@ -308,18 +256,6 @@ class AnalysisProcessor(ProcessorPort):
             logger.info("prompt_payload_saved", extra={"directory": str(prompts_dir), "symbol": symbol, "trace_id": trace_id})
         except Exception as exc:
             logger.error("failed_to_save_prompt_payload", extra={"error": str(exc), "symbol": symbol, "trace_id": trace_id})
-
-        if user_os_context is not None:
-            logger.info(
-                "user_os_injected",
-                extra={
-                    "user_id": user_id,
-                    "trace_id": trace_id,
-                    "style": user_os_context.get("style"),
-                    "automation": (user_os_context.get("automation") or {}).get("mode"),
-                    "confirmation": user_os_context.get("confirmation"),
-                },
-            )
 
         logger.debug(
             "processor_prompt_built",
@@ -627,11 +563,6 @@ class AnalysisProcessor(ProcessorPort):
             raw_dict = {"raw_text": llm_response.text[:4096]}
         raw_dict["_llm_provider"] = llm_response.provider
         raw_dict["_llm_model"] = llm_response.model
-        # Stamp the exact compressed user-OS snapshot that conditioned
-        # this analysis onto the audit row. None when the user had no
-        # active profile (default institutional behaviour).
-        if user_os_context is not None:
-            raw_dict["_user_os"] = user_os_context
 
         # Step 8: Map to gateway's ProcessorOutput.
         processor_output = map_to_processor_output(
