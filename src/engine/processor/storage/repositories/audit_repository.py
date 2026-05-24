@@ -16,6 +16,14 @@ from engine.processor.storage.schemas.processor_schema import AnalysisAuditLogRo
 
 logger = get_logger(__name__)
 
+# Hard limit for retrieval_strategy after migration 0023 widened the
+# column to VARCHAR(128). Mirrored here so the writer can truncate
+# defensively and emit a structured warning, rather than letting
+# asyncpg raise StringDataRightTruncationError mid-transaction and
+# nuke the entire audit-log INSERT (which would silently drop the
+# audit row even though the trade analysis itself succeeded).
+_RETRIEVAL_STRATEGY_MAX_LEN = 128
+
 
 class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
     """Persists and queries analysis audit logs."""
@@ -56,6 +64,28 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
         trace_id: Optional[str] = None,
     ) -> None:
         """Append an immutable audit log entry."""
+        # Defensive truncation: retrieval_strategy is sourced from the
+        # LLM's free-text self-report. Migration 0023 widened the
+        # column to 128 chars after observing 37-char Gemini values
+        # that overflowed the original VARCHAR(32). Future model
+        # upgrades could emit even longer values, so cap here and
+        # log a structured warning instead of letting asyncpg raise
+        # StringDataRightTruncationError and abort the INSERT.
+        if (
+            retrieval_strategy is not None
+            and len(retrieval_strategy) > _RETRIEVAL_STRATEGY_MAX_LEN
+        ):
+            logger.warning(
+                "audit_retrieval_strategy_truncated",
+                extra={
+                    "analysis_id": analysis_id,
+                    "trace_id": trace_id,
+                    "original_length": len(retrieval_strategy),
+                    "truncated_length": _RETRIEVAL_STRATEGY_MAX_LEN,
+                },
+            )
+            retrieval_strategy = retrieval_strategy[:_RETRIEVAL_STRATEGY_MAX_LEN]
+
         row = AnalysisAuditLogRow(
             user_id=user_id,
             analysis_id=analysis_id,

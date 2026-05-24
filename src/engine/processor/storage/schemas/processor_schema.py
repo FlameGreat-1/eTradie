@@ -121,7 +121,13 @@ class AnalysisAuditLogRow(ProcessorBase):
     retrieval_query_summary: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=""
     )
-    retrieval_strategy: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Sourced from the LLM's self-report (analysis.audit.retrieval.
+    # strategy_used). Free text in practice -- e.g. Gemini emits
+    # "Vector search with metadata filtering" -- not the short enum
+    # the original 32-char width assumed. Widened to 128 in
+    # migration 0023; the repository writer additionally truncates
+    # defensively against future models that might exceed even this.
+    retrieval_strategy: Mapped[str | None] = mapped_column(String(128), nullable=True)
     retrieval_chunks_count: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="0"
     )

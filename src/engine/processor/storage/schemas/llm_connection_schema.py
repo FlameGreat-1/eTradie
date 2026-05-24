@@ -1,7 +1,23 @@
 """SQLAlchemy table definition for LLM connection persistence.
 
 Stores user-configured LLM provider connections with API keys.
-Only one connection can be active at a time.
+
+Uniqueness invariant (enforced at the DB level by Alembic 0022 and
+mirrored here for the test/dev `create_all` install path):
+
+  * Personal scope (is_platform=false, user_id=<uuid>) -- at most one
+    row with is_active = true per user. Enforced by the partial
+    unique index ``uq_llm_connections_one_active_personal_per_user``.
+
+  * Platform scope (is_platform=true, user_id=NULL) -- at most one
+    row with is_active = true globally. Enforced by the partial
+    unique index ``uq_llm_connections_one_active_platform`` (uniqueness
+    on the constant `true`).
+
+The repository's ``activate`` / ``create`` paths additionally take a
+row-level lock on the user's existing rows so concurrent transactions
+serialise on the happy path instead of racing past the unique index
+and returning IntegrityError to the caller.
 """
 
 from __future__ import annotations
@@ -9,7 +25,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +36,27 @@ class LLMConnectionRow(ProcessorBase):
     """Persisted LLM provider connection configured by the user."""
 
     __tablename__ = "llm_connections"
+
+    # -- DB-level uniqueness for the "one active per scope" invariant. --
+    # Mirrors the indexes created by Alembic migration 0022. Listed in
+    # __table_args__ so SQLAlchemy's metadata.create_all() (used by the
+    # test fixtures and the dev container's first-run bootstrap) also
+    # installs them, keeping the migration path and the create_all path
+    # behaviourally identical.
+    __table_args__ = (
+        Index(
+            "uq_llm_connections_one_active_personal_per_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_active = true AND is_platform = false"),
+        ),
+        Index(
+            "uq_llm_connections_one_active_platform",
+            "is_platform",
+            unique=True,
+            postgresql_where=text("is_active = true AND is_platform = true"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=True),
