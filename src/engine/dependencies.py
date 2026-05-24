@@ -684,7 +684,6 @@ class Container:
             llm_client=self.processor_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
-            user_os_client=self.user_os_client,
         )
 
     async def resolve_user_processor(self, user: "AuthenticatedUser") -> "AnalysisProcessor":
@@ -730,7 +729,6 @@ class Container:
             llm_client=user_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
-            user_os_client=self.user_os_client,
         )
 
         self._user_processors[user.user_id] = user_processor
