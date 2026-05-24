@@ -13,7 +13,7 @@ re-format that data. It wraps it in the prompt envelope.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Optional
+from typing import Any
 
 import orjson
 
@@ -331,36 +331,6 @@ SECTION E — CORE RULES
    - When direction is "NO SETUP", `entry_setup.zone_id` may be null.
    - This rule overrides any prior reading that `zone_id` is a free-text description. It is an identifier, not prose.
 
-══════════════════════════════════════════════════════════════
-SECTION F — USER OPERATING SYSTEM (LAYER 2 PERSONALIZATION)
-══════════════════════════════════════════════════════════════
-
-When the input payload contains a `user_operating_system` field, it represents the AUTHENTICATED USER'S configured Trading Operating System: their preferred style, sessions, risk personality, structural preferences, confluence weighting, automation mode, psychological constraints, asset preferences, goal orientation, and trade-management policies.
-
-AUTHORITY MODEL (READ CAREFULLY):
-
-1. The institutional rulebook (this system prompt + the retrieved_knowledge RAG chunks) is LAYER 1. It is the source of truth. Mandatory factors in Section E rule 4 (HTF/MTF structure, valid structural entry, no high-impact news, minimum RR) remain MANDATORY regardless of what the user OS says. You may NEVER waive them to accommodate a user preference.
-
-2. The user_operating_system is LAYER 2 — SOFT GUIDANCE. It influences:
-   - retrieval ranking (prefer setups the user's frameworks emphasise),
-   - candidate selection (lean toward setups that match the user's confirmation strictness, session preferences, and entry preferences),
-   - confidence weighting (a user with strict confirmation gets MEDIUM not HIGH confidence on an aggressive early entry),
-   - rejection (a setup that violates the user's hard `avoid_*` filters — e.g. avoid_friday_trades — should be downgraded to NO SETUP even if it would otherwise pass institutional checks),
-   - presentation (the explainable_reasoning should reference relevant user preferences so the user understands why the setup was selected or rejected).
-
-3. The user OS may NEVER be used to:
-   - lower minimum_rr below what the institutional rulebook requires for the trading style,
-   - bypass high-impact news avoidance,
-   - skip HTF/MTF structural validation,
-   - approve a setup that lacks a Valid Grade A/B SnD zone or Entry Timeframe OB/FVG,
-   - take a trade that contradicts a mandatory rejection rule.
-
-4. ON CONFLICT (e.g. user wants aggressive scalps but macro + HTF invalidate the setup): the INSTITUTIONAL LAYER WINS. Output NO SETUP with explainable_reasoning explicitly stating which user preference was overridden by which institutional rule. Do NOT silently honour the user preference and produce a misaligned trade.
-
-5. WEIGHTING: Treat each `confluence_weights` field (macro_alignment, dxy, cot, htf_alignment, wyckoff, volume_liquidity, session_timing) as a 0–3 importance multiplier when scoring confluence factors. A weight of 0 still scores the factor (mandatory factors stay mandatory) but does not bump confidence; a weight of 3 amplifies the factor's contribution to the final grade.
-
-6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
-
 OUTPUT JSON SCHEMA:
 Output schema is enforced by the LLM provider's decoder when supported (Gemini response_schema, OpenAI response_format strict, Anthropic tools input_schema). Field semantics described above remain authoritative regardless of provider support.
 """
@@ -373,11 +343,7 @@ def build_system_prompt() -> str:
     return _SYSTEM_PROMPT
 
 
-def build_user_message(
-    context: ProcessorInput,
-    *,
-    user_operating_system: Optional[dict[str, Any]] = None,
-) -> str:
+def build_user_message(context: ProcessorInput) -> str:
     """Serialize the gateway-assembled context as the user message.
 
     The ProcessorInput already contains the fully structured
@@ -385,34 +351,89 @@ def build_user_message(
     assembled by the gateway's ContextAssembler. This function
     serializes them into the JSON payload the LLM receives.
 
-    user_operating_system (when provided) is the COMPRESSED, NORMALISED
-    Layer-2 personalization block built by
-    engine.processor.user_os.context_builder.build_user_operating_context.
-    It is passed through unchanged because the builder is the single
-    source of truth for prompt-safe formatting.
+    The institutional rulebook (this system prompt + the retrieved
+    RAG chunks) is the sole source of truth for the analysis path.
+    The user Trading Operating System is NOT injected here -- it is
+    consumed by the dedicated trading-plan and performance-review
+    generators, which are user-initiated features and the correct
+    surface for personalised guidance. Mixing it into the analysis
+    payload created two overlapping voices the LLM had to reconcile
+    on every cycle; removing it lets the SOS speak alone.
     """
-    # Strip out massive vector database metadata (scores, rankings, hashes)
-    # The LLM only needs the chunk ID, doc ID (for citation), and the raw content.
-    # strategy_used (e.g. "scenario_first", "rule_first", "hybrid") is
-    # an internal RAG implementation detail. The LLM cannot meaningfully
-    # reason over which retrieval algorithm ran; only the chunks the
-    # algorithm returned matter, and those flow via retrieved_chunks.
-    # Keeping strategy_used here while the matching rag_strategy_used
-    # metadata key is stripped would have been inconsistent — same data,
-    # two paths. Both are now stripped at this single chokepoint.
-    clean_rag = {}
+    # RAG chunk projection.
+    #
+    # Each retrieved chunk is reduced to the four fields the LLM
+    # actually needs: chunk_id (citation echo), document_id (citation
+    # echo), section (rule grouping + dedup key), content (the rule
+    # text itself). Everything else -- doc_type, relevance score,
+    # subsection, metadata blob, retriever rank -- is internal
+    # plumbing that the LLM cannot meaningfully reason over.
+    # `doc_type` in particular is used by the reranker for doc-type
+    # weighting on the engine side and has no role at LLM time.
+    #
+    # Section-based deduplication: the retriever periodically
+    # returns multiple chunks that share the same `section` heading
+    # (split chunks of the same passage, or near-duplicate sections
+    # across document versions). The LLM treats them as competing
+    # rules and produces hedged or inconsistent reasoning. We keep
+    # only the highest-scoring chunk per section before serialising.
+    # Chunks without a section value bypass dedup entirely. The
+    # original chunk order is preserved for the kept chunks so the
+    # retriever's ranking signal remains visible to the LLM.
+    clean_rag: dict[str, Any] = {}
     if context.retrieved_knowledge:
-        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", [])
+        raw_chunks = context.retrieved_knowledge.get("retrieved_chunks", []) or []
+
+        def _chunk_score(c: dict[str, Any]) -> float:
+            """Best-effort score extraction. The retriever writes
+            `score`; the audit layer sometimes writes
+            `relevance_score`. Missing => 0.0 so any scored chunk
+            wins over an unscored duplicate.
+            """
+            score = c.get("score")
+            if score is None:
+                score = c.get("relevance_score")
+            try:
+                return float(score) if score is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        # Build an order-preserving dedup map keyed by section.
+        # First-seen index is recorded so the emitted list keeps the
+        # retriever's ranking order; only the chosen chunk per
+        # section is allowed through.
+        best_by_section: dict[str, tuple[int, float, dict[str, Any]]] = {}
+        unscoped: list[tuple[int, dict[str, Any]]] = []
+        for idx, c in enumerate(raw_chunks):
+            section = c.get("section") or c.get("metadata", {}).get("section")
+            if not section:
+                unscoped.append((idx, c))
+                continue
+            score = _chunk_score(c)
+            existing = best_by_section.get(section)
+            if existing is None or score > existing[1]:
+                # First-seen index is preserved across replacements so
+                # the section block keeps its retriever-rank position.
+                first_idx = existing[0] if existing is not None else idx
+                best_by_section[section] = (first_idx, score, c)
+
+        # Materialise the final order: every chunk (scoped + unscoped)
+        # sorted by its first-seen index in the original retrieved
+        # set. This guarantees the LLM reads chunks in the same
+        # ranking order the retriever produced.
+        ordered: list[tuple[int, dict[str, Any]]] = list(unscoped)
+        for first_idx, _score, chunk in best_by_section.values():
+            ordered.append((first_idx, chunk))
+        ordered.sort(key=lambda item: item[0])
 
         clean_rag["retrieved_chunks"] = [
             {
                 "chunk_id": c.get("chunk_id"),
                 "document_id": c.get("document_id"),
-                "doc_type": c.get("doc_type") or c.get("metadata", {}).get("doc_type"),
                 "section": c.get("section") or c.get("metadata", {}).get("section"),
                 "content": c.get("content"),
             }
-            for c in raw_chunks
+            for _idx, c in ordered
         ]
 
     # Fields that are always stripped (DB/internal metadata + Pydantic
@@ -589,8 +610,6 @@ def build_user_message(
         "retrieved_knowledge": clean_rag,
         "metadata": clean_metadata,
     }
-    if user_operating_system:
-        payload["user_operating_system"] = user_operating_system
     return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
 
 
