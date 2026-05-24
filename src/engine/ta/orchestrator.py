@@ -22,39 +22,15 @@ from typing import Optional
 from engine.config import TAConfig, get_ta_config
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
-from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.common.analyzers.compression import CompressionAnalyzer
-from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
-from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
-from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
-from engine.ta.common.analyzers.session import SessionAnalyzer
-from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.timeframe.manager import TimeframeManager
 from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
-from engine.ta.models.snapshot import MultiTimeframeSnapshot, TechnicalSnapshot
-from engine.ta.smc.config import SMCConfig
+from engine.ta.models.snapshot import TechnicalSnapshot
 from engine.ta.smc.detector import SMCDetector
-from engine.ta.smc.detectors.bms import BMSDetector
-from engine.ta.smc.detectors.choch import CHOCHDetector
-from engine.ta.smc.detectors.inducement import InducementDetector
-from engine.ta.smc.detectors.sms import SMSDetector
-from engine.ta.smc.zones.breaker import BreakerDetector
-from engine.ta.smc.zones.fvg import FVGDetector
-from engine.ta.smc.zones.order_block import OrderBlockDetector
-from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
-from engine.ta.snd.detectors.mpl import MPLDetector
-from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
-from engine.ta.snd.detectors.qm import QMDetector
-from engine.ta.snd.detectors.rs_flip import RSFlipDetector
-from engine.ta.snd.detectors.sr_flip import SRFlipDetector
-from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
 from engine.ta.storage.uow import TAUOWFactory, TAReadUOWFactory
 
 logger = get_logger(__name__)
@@ -1009,9 +985,6 @@ class TAOrchestrator:
                     "demand_zones": len(demand_zones),
                     "fibonacci_retracements": len(fibonacci_retracements),
                     "dealing_ranges": len(dealing_ranges),
-        
-        
-        
                     "trend_direction": snapshot.trend_direction.value,
                 },
             )
@@ -1374,7 +1347,7 @@ class TAOrchestrator:
                 ),
                 sr_flips=self._serialize_sr_flips(snapshot.sr_flips),
                 rs_flips=self._serialize_rs_flips(snapshot.rs_flips),
-                previous_levels=self._serialize_previous_levels(
+                previous_levels=self._serialize_equal_highs_lows(
                     snapshot.equal_highs_lows,
                 ),
                 mpl_levels=self._serialize_mpl_levels(
@@ -1417,19 +1390,20 @@ class TAOrchestrator:
     # the structural narrative the LLM must trace from history to live
     # price; LTF carries noise plus the entry trigger. Per OPTIMIZATION.md
     # the LTF arrays are aggressively capped and the noisiest LTF sections
-    # are dropped entirely on M1 / M5.
+    # (equal_highs_lows / liquidity_grabs / fibonacci_retracements /
+    # dealing_ranges) are dropped entirely on M1 / M5.
+    _LTF_TIMEFRAMES = frozenset({Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1})
     _LTF_NOISE_TIMEFRAMES = frozenset({Timeframe.M1, Timeframe.M5})
-    _LTF_MID_TIMEFRAMES = frozenset({Timeframe.M30, Timeframe.M15})
 
     @classmethod
     def _swing_cap_for(cls, tf: Timeframe) -> int:
         """Per-timeframe swing high/low cap.
 
         HTF needs 8 recent structural pivots to draw liquidity pools
-        and DOL targets. M30 / M15 / M5 / M1 only need the 5 most recent;
-        beyond that the LTF chop drowns out the signal.
+        and DOL targets. Every LTF (M30/M15/M5/M1) only needs the 5
+        most recent; beyond that the LTF chop drowns out the signal.
         """
-        if tf in cls._LTF_NOISE_TIMEFRAMES or tf in cls._LTF_MID_TIMEFRAMES:
+        if tf in cls._LTF_TIMEFRAMES:
             return 5
         return 8
 
@@ -1856,18 +1830,4 @@ class TAOrchestrator:
             for dr in dealing_ranges
         ]
 
-    @staticmethod
-    def _serialize_previous_levels(equal_highs_lows: list) -> list:
-        """Serialize equal highs/lows for DB persistence (previous_levels
-        column). Shape mirrors ``_serialize_equal_highs_lows``."""
-        return [
-            {
-                "price_level": ehl.price_level,
-                "liquidity_type": ehl.liquidity_type.value,
-                "touch_count": ehl.touch_count,
-                "timestamps": [ts.isoformat() for ts in ehl.timestamps],
-                "tolerance_pips": ehl.tolerance_pips,
-                "swept": ehl.swept,
-            }
-            for ehl in equal_highs_lows
-        ]
+
