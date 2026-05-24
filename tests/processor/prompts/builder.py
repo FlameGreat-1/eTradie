@@ -36,12 +36,17 @@ class TestBuildSystemPrompt:
 
 class TestBuildUserMessage:
     def test_serializes_processor_input(self):
+        # `retrieved_knowledge` is projected only via the
+        # `retrieved_chunks` key -- any other top-level key is
+        # dropped by the RAG projection. `metadata.trace_id` is
+        # stripped by _METADATA_STRIP_KEYS because the LLM cannot
+        # act on a distributed-tracing correlation id.
         inp = ProcessorInput(
             symbol="EURUSD",
             ta_analysis={"trend": "BULLISH"},
             macro_analysis={"bias": "BULLISH"},
-            retrieved_knowledge={"chunks": []},
-            metadata={"trace_id": "test-trace"},
+            retrieved_knowledge={"retrieved_chunks": []},
+            metadata={"trace_id": "test-trace", "overall_trend": "BULLISH"},
         )
         msg = build_user_message(inp)
         parsed = json.loads(msg)
@@ -49,8 +54,15 @@ class TestBuildUserMessage:
         assert parsed["symbol"] == "EURUSD"
         assert parsed["ta_analysis"]["trend"] == "BULLISH"
         assert parsed["macro_analysis"]["bias"] == "BULLISH"
-        assert parsed["retrieved_knowledge"]["chunks"] == []
-        assert parsed["metadata"]["trace_id"] == "test-trace"
+        # Empty `retrieved_chunks` projects to an empty list under the
+        # same key in the output payload.
+        assert parsed["retrieved_knowledge"] == {"retrieved_chunks": []}
+        # trace_id is stripped; surviving metadata keys remain.
+        assert "trace_id" not in parsed["metadata"]
+        assert parsed["metadata"]["overall_trend"] == "BULLISH"
+        # The analysis payload must never carry a user_operating_system
+        # block -- that block was removed in this MR.
+        assert "user_operating_system" not in parsed
 
     def test_empty_context(self):
         inp = ProcessorInput(symbol="GBPUSD")
@@ -60,6 +72,8 @@ class TestBuildUserMessage:
         assert parsed["symbol"] == "GBPUSD"
         assert parsed["ta_analysis"] == {}
         assert parsed["macro_analysis"] == {}
+        assert parsed["retrieved_knowledge"] == {}
+        assert parsed["metadata"] == {}
 
 
 class TestComputePromptHash:
