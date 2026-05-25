@@ -559,14 +559,22 @@ class TAOrchestrator:
                 flat_entry["zones_nested"] = zones_nested
             flat_alignments[pair_key] = flat_entry
 
-        serialized_smc = [
-            c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in live_smc
-        ]
-        serialized_snd = [
-            c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in live_snd
-        ]
+        # Per-candidate `symbol` is stripped because it is already
+        # present at the ta_analysis top level and at the
+        # ProcessorInput.symbol field. Repeating it on every candidate
+        # is pure duplication for the LLM and adds non-trivial token
+        # cost (~5 tokens x candidate count). `timeframe` is preserved
+        # because the candidate list is flat -- without it the LLM
+        # cannot attribute each candidate to its source timeframe.
+        def _dump_without_symbol(c) -> dict:
+            if not hasattr(c, "model_dump"):
+                return {}
+            d = c.model_dump(mode="json")
+            d.pop("symbol", None)
+            return d
+
+        serialized_smc = [_dump_without_symbol(c) for c in deduped_smc]
+        serialized_snd = [_dump_without_symbol(c) for c in deduped_snd]
 
         return {
             "status": status,
