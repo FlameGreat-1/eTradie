@@ -517,6 +517,32 @@ class TAOrchestrator:
                 },
             )
 
+        # -- Zone-deduplication ---------------------------------------
+        # Multiple pattern detectors frequently fire on the same
+        # underlying OB / SnD zone, producing N candidates that
+        # describe a single trade. The LLM only needs to be told about
+        # each unique zone once; the variant labels (SH_BMS_RTO vs
+        # CHOCH_BMS_RTO vs SMS_BMS_RTO) add prompt cost without
+        # changing the decision. Keep the highest-confluence variant
+        # per (timeframe, direction, OB-midpoint bucket); drop the
+        # rest. Every unique zone is preserved.
+        deduped_smc = self._dedupe_smc_candidates_by_zone(live_smc, symbol=symbol)
+        deduped_snd = self._dedupe_snd_candidates_by_zone(live_snd, symbol=symbol)
+
+        if len(deduped_smc) != len(live_smc) or len(deduped_snd) != len(live_snd):
+            self._logger.info(
+                "candidates_zone_deduplicated",
+                extra={
+                    "symbol": symbol,
+                    "smc_before": len(live_smc),
+                    "smc_after": len(deduped_smc),
+                    "smc_dropped": len(live_smc) - len(deduped_smc),
+                    "snd_before": len(live_snd),
+                    "snd_after": len(deduped_snd),
+                    "snd_dropped": len(live_snd) - len(deduped_snd),
+                },
+            )
+
         # -- Alignment block flattening -------------------------------
         # Each pair previously carried both flat fields AND an identical
         # nested ``alignment_metadata`` block. Promote ``zones_nested``
