@@ -143,6 +143,31 @@ class RepositoryError(ETradieBaseError):
     pass
 
 
+class AuthUserMissingError(ETradieBaseError):
+    """Raised when a still-valid JWT references a user that no longer
+    exists in ``auth_users``.
+
+    This is a recoverable condition from the client's perspective: the
+    SPA should treat it the same way it treats a 401 (clear the local
+    session and route to /login). The engine surfaces it as a typed
+    exception so call sites that perform an INSERT FK'd to
+    ``auth_users`` (e.g. billing_usage upsert) can convert the FK
+    violation into a clean HTTP 401 instead of leaking a 500.
+
+    Attributes:
+        user_id: The orphaned ``sub`` claim from the JWT. Logged but
+            never returned to the client to avoid leaking internal IDs
+            to a partially-authenticated caller.
+    """
+
+    def __init__(self, user_id: str, *, details: dict | None = None) -> None:
+        super().__init__(
+            "Authenticated user no longer exists",
+            details={**(details or {}), "user_id": user_id},
+        )
+        self.user_id = user_id
+
+
 class CacheError(ETradieBaseError):
     pass
 

@@ -29,7 +29,11 @@ from engine.processor.streaming import (
     stream_channel_for_user,
 )
 from engine.shared.auth import AuthenticatedUser, get_current_user
-from engine.shared.exceptions import ProcessorInsufficientDataError
+from engine.shared.exceptions import (
+    AuthUserMissingError,
+    DatabaseIntegrityError,
+    ProcessorInsufficientDataError,
+)
 from engine.shared.logging import get_logger
 from engine.shared.pulse import PulsePublisher
 from engine.signal_extractors import derive_macro_signals, derive_ta_signals
@@ -43,14 +47,49 @@ async def get_my_usage(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
-    """Return the current user's usage metrics (for dashboard countdown timer)."""
+    """Return the current user's usage metrics (for dashboard countdown timer).
+
+    Returns HTTP 401 when the JWT references a user that no longer
+    exists in ``auth_users`` (e.g. the account was deleted while the
+    SPA still held a valid cookie). The SPA's axios interceptor maps
+    401 to a clean logout + redirect to /login, which is the correct
+    UX for a stale session.
+    """
     container: Container = request.app.state.container
     from engine.processor.storage.repositories.billing_repository import BillingRepository
 
-    async with container.db.session() as session:
-        billing_repo = BillingRepository(session)
-        await billing_repo.reset_daily_usage_if_needed(user.user_id)
-        usage = await billing_repo.get_usage_for_user(user.user_id)
+    try:
+        async with container.db.session() as session:
+            billing_repo = BillingRepository(session)
+            await billing_repo.reset_daily_usage_if_needed(user.user_id)
+            usage = await billing_repo.get_usage_for_user(user.user_id)
+    except AuthUserMissingError:
+        # JWT outlived its auth_users row. Surface as 401 so the SPA
+        # logs out instead of presenting a 500 to the user.
+        logger.info(
+            "usage_me_orphan_jwt",
+            extra={"user_id": user.user_id},
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Session is no longer valid. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except DatabaseIntegrityError as exc:
+        # Defensive: any other integrity error on this write path is
+        # almost certainly the same orphan-JWT condition under a
+        # constraint name we did not match against. Treat it the
+        # same way rather than leaking a 500. Logged at warning so
+        # operators see it if it ever fires under a different cause.
+        logger.warning(
+            "usage_me_unexpected_integrity_error",
+            extra={"user_id": user.user_id, "error": str(exc)},
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Session is no longer valid. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return {
         "tier": user.tier,
