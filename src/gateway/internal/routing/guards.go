@@ -14,6 +14,21 @@ import (
 )
 
 // GuardEvaluator evaluates all post-processor guard rules.
+//
+// Guards split into two phases by data dependency:
+//
+//   - Pre-LLM (deterministic): MR-REJECT-001, -002, -008, -009.
+//     These depend only on time, symbol, and macro calendar data.
+//     Running them before the processor LLM lets the cycle
+//     short-circuit on a guaranteed rejection without spending
+//     ~168k input tokens on a call whose result will be discarded.
+//
+//   - Post-LLM (LLM-dependent): MR-REJECT-006 (counter-trend).
+//     Needs ProcessorOutput.Direction, so it can only run after
+//     the processor LLM returns.
+//
+// Each guard still runs exactly once per cycle; the split is a
+// scheduling change, not a duplication.
 type GuardEvaluator struct {
 	log zerolog.Logger
 }
@@ -23,9 +38,15 @@ func NewGuardEvaluator() *GuardEvaluator {
 	return &GuardEvaluator{log: observability.Logger("guard_evaluator")}
 }
 
-// Evaluate runs all guard checks and returns the aggregated result.
-func (g *GuardEvaluator) Evaluate(
-	processorOutput *models.ProcessorOutput,
+// EvaluatePreLLM runs the 4 deterministic guards that do not need
+// the processor LLM output. The returned result carries exactly 4
+// checks in the canonical order (001, 002, 008, 009). Callers that
+// want all 5 checks in the final result must merge this with the
+// post-LLM result via MergeResults.
+//
+// This is the cycle's first hard gate: when the result rejects,
+// processSymbol skips the LLM call entirely.
+func (g *GuardEvaluator) EvaluatePreLLM(
 	taResult *models.TASymbolResult,
 	macroResult *models.MacroResult,
 	traceID string,
@@ -35,11 +56,124 @@ func (g *GuardEvaluator) Evaluate(
 	checks := []models.GuardCheckResult{
 		checkHighImpactEventProximity(macroResult),
 		checkSessionRestriction(taResult),
-		checkCounterTrend(processorOutput, taResult),
 		checkWeekendGapRisk(taResult),
 		checkLowLiquidityHours(taResult),
 	}
 
+	result := aggregate(checks)
+
+	elapsed := time.Since(start).Seconds()
+	observability.GatewayGuardDuration.Observe(elapsed)
+
+	g.log.Info().
+		Str("phase", "pre_llm").
+		Str("overall_verdict", string(result.OverallVerdict)).
+		Strs("blocking_rules", result.BlockingRules).
+		Int("checks_total", len(checks)).
+		Float64("duration_ms", elapsed*1000).
+		Str("trace_id", traceID).
+		Msg("guard_evaluation_completed")
+
+	return result
+}
+
+// EvaluatePostLLM runs only the LLM-dependent guards. Today that is
+// MR-REJECT-006 (counter-trend) which needs ProcessorOutput.Direction.
+// The returned result carries exactly 1 check.
+func (g *GuardEvaluator) EvaluatePostLLM(
+	processorOutput *models.ProcessorOutput,
+	taResult *models.TASymbolResult,
+	traceID string,
+) *models.GuardEvaluationResult {
+	start := time.Now()
+
+	checks := []models.GuardCheckResult{
+		checkCounterTrend(processorOutput, taResult),
+	}
+
+	result := aggregate(checks)
+
+	elapsed := time.Since(start).Seconds()
+	observability.GatewayGuardDuration.Observe(elapsed)
+
+	g.log.Info().
+		Str("phase", "post_llm").
+		Str("overall_verdict", string(result.OverallVerdict)).
+		Strs("blocking_rules", result.BlockingRules).
+		Int("checks_total", len(checks)).
+		Float64("duration_ms", elapsed*1000).
+		Str("trace_id", traceID).
+		Msg("guard_evaluation_completed")
+
+	return result
+}
+
+// MergeResults combines a pre-LLM and a post-LLM result into the
+// single GuardEvaluationResult the dashboard and audit log expect.
+// Checks are emitted in the canonical order (001, 002, 006, 008,
+// 009) regardless of the order the phases ran in, so consumers do
+// not need to know about the split.
+//
+// Either argument may be nil: when the cycle short-circuits pre-LLM
+// there is no post-LLM result, and EvaluatePreLLM still returns the
+// full set of pre-LLM checks.
+func MergeResults(pre, post *models.GuardEvaluationResult) *models.GuardEvaluationResult {
+	if pre == nil && post == nil {
+		return &models.GuardEvaluationResult{OverallVerdict: constants.VerdictPass}
+	}
+
+	byRule := make(map[constants.GuardRule]models.GuardCheckResult, 5)
+	if pre != nil {
+		for _, c := range pre.Checks {
+			byRule[c.Rule] = c
+		}
+	}
+	if post != nil {
+		for _, c := range post.Checks {
+			byRule[c.Rule] = c
+		}
+	}
+
+	canonical := []constants.GuardRule{
+		constants.RuleHighImpactEventProximity,
+		constants.RuleSessionRestriction,
+		constants.RuleCounterTrendNoChoch,
+		constants.RuleWeekendGapRisk,
+		constants.RuleLowLiquidityHours,
+	}
+
+	ordered := make([]models.GuardCheckResult, 0, len(canonical))
+	for _, rule := range canonical {
+		if c, ok := byRule[rule]; ok {
+			ordered = append(ordered, c)
+		}
+	}
+
+	return aggregateNoMetrics(ordered)
+}
+
+// Evaluate runs ALL guard checks in a single call (legacy API).
+//
+// Kept so any caller that does not need the pre/post split can still
+// produce a complete GuardEvaluationResult in one step. New call
+// sites should prefer EvaluatePreLLM + EvaluatePostLLM + MergeResults
+// so the deterministic checks can short-circuit before the LLM call.
+func (g *GuardEvaluator) Evaluate(
+	processorOutput *models.ProcessorOutput,
+	taResult *models.TASymbolResult,
+	macroResult *models.MacroResult,
+	traceID string,
+) *models.GuardEvaluationResult {
+	pre := g.EvaluatePreLLM(taResult, macroResult, traceID)
+	post := g.EvaluatePostLLM(processorOutput, taResult, traceID)
+	return MergeResults(pre, post)
+}
+
+// aggregate computes the OverallVerdict and BlockingRules slice for a
+// set of check results AND bumps the per-rule Prometheus rejection
+// counter. Used by EvaluatePreLLM and EvaluatePostLLM where each check
+// runs for the first (and only) time in a cycle.
+func aggregate(checks []models.GuardCheckResult) *models.GuardEvaluationResult {
 	var blocking []string
 	overall := constants.VerdictPass
 
@@ -53,24 +187,36 @@ func (g *GuardEvaluator) Evaluate(
 		}
 	}
 
-	elapsed := time.Since(start).Seconds()
-	observability.GatewayGuardDuration.Observe(elapsed)
-
-	result := &models.GuardEvaluationResult{
+	return &models.GuardEvaluationResult{
 		Checks:         checks,
 		OverallVerdict: overall,
 		BlockingRules:  blocking,
 	}
+}
 
-	g.log.Info().
-		Str("overall_verdict", string(overall)).
-		Strs("blocking_rules", blocking).
-		Int("checks_total", len(checks)).
-		Float64("duration_ms", elapsed*1000).
-		Str("trace_id", traceID).
-		Msg("guard_evaluation_completed")
+// aggregateNoMetrics computes OverallVerdict and BlockingRules WITHOUT
+// touching Prometheus counters. Used by MergeResults to re-aggregate
+// already-evaluated checks; the original aggregate call that produced
+// each pre/post result has already incremented the per-rule counter
+// exactly once, so re-counting here would double-count.
+func aggregateNoMetrics(checks []models.GuardCheckResult) *models.GuardEvaluationResult {
+	var blocking []string
+	overall := constants.VerdictPass
 
-	return result
+	for _, check := range checks {
+		if check.Verdict == constants.VerdictReject {
+			overall = constants.VerdictReject
+			blocking = append(blocking, string(check.Rule))
+		} else if check.Verdict == constants.VerdictWarn && overall != constants.VerdictReject {
+			overall = constants.VerdictWarn
+		}
+	}
+
+	return &models.GuardEvaluationResult{
+		Checks:         checks,
+		OverallVerdict: overall,
+		BlockingRules:  blocking,
+	}
 }
 
 // MR-REJECT-001: No entries within HighImpactEventLockoutMinutes of
@@ -78,7 +224,7 @@ func (g *GuardEvaluator) Evaluate(
 // decision, etc.). Calendar events are the single source of truth
 // for high-impact event proximity.
 func checkHighImpactEventProximity(macro *models.MacroResult) models.GuardCheckResult {
-	if macro.Calendar == nil {
+	if macro == nil || macro.Calendar == nil {
 		return models.GuardCheckResult{
 			Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
 			Reason: "No calendar data available",
@@ -177,7 +323,7 @@ func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult 
 
 // MR-REJECT-006: Counter-trend without CHoCH = NO SETUP.
 func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolResult) models.GuardCheckResult {
-	if !processor.TradeValid {
+	if processor == nil || !processor.TradeValid {
 		return models.GuardCheckResult{
 			Rule: constants.RuleCounterTrendNoChoch, Verdict: constants.VerdictPass,
 			Reason: "Trade not valid, guard not applicable",
