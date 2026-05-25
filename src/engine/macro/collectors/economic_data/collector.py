@@ -58,7 +58,9 @@ class EconomicDataCollector(BaseCollector):
         # The collected data is still valuable for the current analysis cycle
         # even if we can't persist it for historical queries.
         if all_releases:
-            unique_map = {(r.currency, r.indicator, r.release_time): r for r in all_releases}
+            unique_map = {
+                (r.indicator_name, r.release_time): r for r in all_releases
+            }
             all_releases = list(unique_map.values())
             try:
                 async with self._db.session() as session:
@@ -69,12 +71,9 @@ class EconomicDataCollector(BaseCollector):
                     repo = EconomicReleaseRepository(session)
                     rows = [
                         {
-                            "currency": release.currency.value,
-                            "indicator": release.indicator.value,
                             "indicator_name": release.indicator_name,
                             "actual": release.actual,
                             "previous": release.previous,
-                            "source": release.source,
                             "release_time": release.release_time,
                         }
                         for release in all_releases
@@ -82,14 +81,12 @@ class EconomicDataCollector(BaseCollector):
                     await repo.bulk_upsert(
                         rows,
                         index_elements=[
-                            "currency",
-                            "indicator",
+                            "indicator_name",
                             "release_time",
                         ],
                         update_fields=[
                             "actual",
                             "previous",
-                            "source",
                         ],
                     )
             except Exception as exc:
