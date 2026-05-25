@@ -25,6 +25,7 @@ from engine.ta.broker.base import BrokerBase
 from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.timeframe.manager import TimeframeManager
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
