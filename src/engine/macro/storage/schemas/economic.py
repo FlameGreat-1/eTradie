@@ -15,10 +15,18 @@ class EconomicReleaseRow(Base):
 
     Mirrors the slimmed EconomicRelease Pydantic model: only the
     fields the LLM actually reads (indicator_name + actual + previous
-    + release_time) plus the multi-tenant user_id scope and audit
-    timestamps. Older columns (currency, indicator, source, forecast,
-    surprise, surprise_direction, impact, inflation_type) were retired
-    by migration 0024 after a repo-wide audit found no live readers.
+    + release_time) plus audit timestamps. Older columns (currency,
+    indicator, source, forecast, surprise, surprise_direction,
+    impact, inflation_type) were retired by migration 0024 after a
+    repo-wide audit found no live readers.
+
+    Like every other macro table this row is GLOBAL - the upstream
+    providers (FRED, OECD) are public market-data sources and the
+    collector runs in the scheduler with no user context. The
+    user_id column briefly added by migration 0013 was removed by
+    migration 0025 along with the tenant-scoped unique constraint
+    it required; this model now declares the global identity tuple
+    (indicator_name, release_time) the collector has always used.
     """
 
     __tablename__ = "economic_releases"
@@ -26,7 +34,6 @@ class EconomicReleaseRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     indicator_name: Mapped[str] = mapped_column(String(200), nullable=False)
     actual: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -41,11 +48,9 @@ class EconomicReleaseRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id",
             "indicator_name",
             "release_time",
-            name="uq_econ_user_indicator_name_time",
+            name="uq_econ_indicator_name_time",
         ),
-        Index("ix_econ_user_id", "user_id"),
-        Index("ix_econ_user_release_time", "user_id", "release_time"),
+        Index("ix_econ_release_time", "release_time"),
     )
