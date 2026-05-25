@@ -1001,6 +1001,73 @@ func (o *Orchestrator) processSymbol(
 	asmSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseAssemblingCtx.String()).Observe(time.Since(phaseStart).Seconds())
 
+	// Phase 4b: Pre-LLM deterministic guards.
+	//
+	// The 4 LLM-independent guards (MR-REJECT-001/002/008/009) run here
+	// so a guaranteed rejection (e.g. Asian session restriction on a
+	// non-Asian pair) short-circuits the cycle before spending ~168k
+	// input tokens on a processor LLM call whose result will be
+	// discarded. The pre-LLM result is threaded into router.Route
+	// after the LLM completes so the deterministic checks are NOT
+	// re-evaluated; only the LLM-dependent MR-REJECT-006 runs there.
+	phaseStart = time.Now()
+	preLLMRoute := o.router.RoutePreLLM(ctx, symbol, symResult, effectiveMacroResult, traceID)
+	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseEvaluatingGuards.String()).Observe(time.Since(phaseStart).Seconds())
+	if preLLMRoute.Outcome == constants.OutcomeRejectedByGuard {
+		// Publish ANALYSIS_COMPLETE with trade_valid=false so the SPA
+		// surfaces the rejected cycle in the analysis feed exactly
+		// like a post-LLM guard rejection.
+		o.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeAnalysisComplete, alert.SeverityInfo,
+				fmt.Sprintf("Analysis complete for %s: rejected by pre-LLM guards", symbol)).
+				WithUserID(auth.UserIDFromContext(ctx)).
+				WithSymbol(symbol).
+				WithTraceID(traceID).
+				WithDetails(map[string]interface{}{
+					"trade_valid":    false,
+					"blocking_rules": preLLMRoute.GuardResult.BlockingRules,
+					"phase":          "pre_llm",
+				}),
+		)
+
+		// Fire-and-forget runcycle debug dump. Only TA + macro + RAG
+		// payloads carry data; processor_data and execution_request are
+		// omitted because no LLM call ran and no execution request was
+		// built. The engine handler accepts nil/empty values for those
+		// fields and writes only the populated files.
+		go func() {
+			debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer debugCancel()
+			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+				debugCtx = auth.InjectTokenIntoContext(debugCtx, rawToken)
+			}
+			debugBody := map[string]interface{}{
+				"symbol":      symbol,
+				"ta_data":     processorInput.TAAnalysis,
+				"macro_data":  processorInput.MacroAnalysis,
+				"rag_data":    processorInput.RetrievedKnowledge,
+				"trace_id":    traceID,
+			}
+			if _, debugErr := o.engineHTTP.PostJSON(debugCtx, "/internal/debug/runcycle", debugBody); debugErr != nil {
+				o.log.Debug().
+					Err(debugErr).
+					Str("symbol", symbol).
+					Str("trace_id", traceID).
+					Msg("debug_runcycle_output_failed")
+			}
+		}()
+
+		return &models.GatewayOutput{
+			CycleStatus:  constants.StatusCompleted,
+			CycleOutcome: constants.OutcomeRejectedByGuard,
+			PhaseReached: constants.PhaseCompleted,
+			Symbol:       symbol,
+			GuardResult:  preLLMRoute.GuardResult,
+			DurationMs:   tracker.ElapsedMs(),
+			TraceID:      traceID,
+		}
+	}
+
 	// Phase 5: Processor LLM.
 	phaseStart = time.Now()
 
@@ -1176,7 +1243,7 @@ func (o *Orchestrator) processSymbol(
 		attribute.Bool("trade_valid", processorOutput.TradeValid),
 	)
 
-	routeResult := o.router.Route(routeCtx, processorOutput, symResult, macroResult, traceID)
+	routeResult := o.router.Route(routeCtx, processorOutput, symResult, macroResult, preLLMRoute.GuardResult, traceID)
 	routeSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseEvaluatingGuards.String()).Observe(time.Since(phaseStart).Seconds())
 

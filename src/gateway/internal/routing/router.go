@@ -49,12 +49,115 @@ func NewRouter(
 	}
 }
 
-// Route routes the processor decision through guards to execution.
+// RoutePreLLM evaluates the deterministic (LLM-independent) guards
+// and short-circuits the cycle when any of them reject. The
+// orchestrator calls this BEFORE the processor LLM so a guaranteed
+// rejection (e.g. Asian session restriction on XAUUSD) skips the
+// ~168k-token LLM call entirely.
+//
+// Returns:
+//   - On reject: RouteResult with OutcomeRejectedByGuard and the
+//     pre-LLM GuardEvaluationResult. The caller MUST NOT call the
+//     processor LLM or the post-LLM Route after a reject.
+//   - On pass/warn: RouteResult with OutcomeTradeApproved as a
+//     placeholder outcome (the cycle has not actually been approved
+//     yet — the LLM and post-LLM guards still need to run). The
+//     caller threads the GuardResult into Route so the deterministic
+//     checks are not re-evaluated.
+func (r *Router) RoutePreLLM(
+	ctx context.Context,
+	symbol string,
+	taResult *models.TASymbolResult,
+	macroResult *models.MacroResult,
+	traceID string,
+) *RouteResult {
+	preResult := r.guards.EvaluatePreLLM(taResult, macroResult, traceID)
+
+	// Publish warning-level checks (e.g. low-liquidity WARN) even when
+	// the overall verdict is non-blocking. Mirrors the post-LLM Route
+	// branch so the dashboard sees identical warning fan-out behaviour
+	// regardless of which phase produced the WARN.
+	for _, check := range preResult.Checks {
+		if check.Verdict == constants.VerdictWarn && r.transport != nil {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
+					fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
+					WithUserID(auth.UserIDFromContext(ctx)).
+					WithSymbol(symbol).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"rule":     string(check.Rule),
+						"reason":   check.Reason,
+						"metadata": check.Metadata,
+					}),
+			)
+		}
+	}
+
+	if preResult.IsApproved() {
+		// Not actually approved yet — the cycle must still run the LLM
+		// and the post-LLM guard. The orchestrator interprets the nil
+		// outcome here as "proceed".
+		return &RouteResult{GuardResult: preResult}
+	}
+
+	// Deterministic rejection: bump the same counters and publish the
+	// same TypeGuardRejected alert that the post-LLM Route emits, so
+	// the dashboard cannot tell which phase produced the rejection.
+	observability.GatewayNoSetupTotal.WithLabelValues("guard_rejection").Inc()
+	observability.GatewayStageErrors.WithLabelValues(constants.StageGuardEvaluation.String(), "rejected").Inc()
+
+	r.log.Warn().
+		Str("symbol", symbol).
+		Str("phase", "pre_llm").
+		Strs("blocking_rules", preResult.BlockingRules).
+		Str("trace_id", traceID).
+		Msg("route_guard_rejected")
+
+	var reasons []string
+	for _, check := range preResult.Checks {
+		if check.Verdict == constants.VerdictReject {
+			reasons = append(reasons, check.Reason)
+		}
+	}
+
+	if r.transport != nil {
+		r.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
+				fmt.Sprintf("Trade rejected by guards: %s", strings.Join(preResult.BlockingRules, ", "))).
+				WithUserID(auth.UserIDFromContext(ctx)).
+				WithSymbol(symbol).
+				WithTraceID(traceID).
+				WithDetails(map[string]interface{}{
+					"blocking_rules": preResult.BlockingRules,
+					"reasons":        reasons,
+					"phase":          "pre_llm",
+				}),
+		)
+	}
+
+	return &RouteResult{
+		Outcome:     constants.OutcomeRejectedByGuard,
+		GuardResult: preResult,
+	}
+}
+
+// Route runs the post-LLM (counter-trend) guard, merges its result
+// with the pre-LLM result the orchestrator already evaluated, and
+// routes the decision to the execution engine when the final verdict
+// approves the trade.
+//
+// preLLMResult MUST be the GuardResult returned by RoutePreLLM for
+// this cycle. Passing nil is allowed and triggers a fresh full
+// evaluation — kept only for backward compatibility with any test
+// or caller that has not been migrated yet; production call sites
+// always supply the pre-LLM result.
 func (r *Router) Route(
 	ctx context.Context,
 	processorOutput *models.ProcessorOutput,
 	taResult *models.TASymbolResult,
 	macroResult *models.MacroResult,
+	preLLMResult *models.GuardEvaluationResult,
 	traceID string,
 ) *RouteResult {
 	// Step 1: If processor says NO SETUP, respect it.
@@ -75,26 +178,53 @@ func (r *Router) Route(
 		return &RouteResult{Outcome: constants.OutcomeNoSetup}
 	}
 
-	// Step 2: Run post-processor guards.
-	guardResult := r.guards.Evaluate(processorOutput, taResult, macroResult, traceID)
+	// Step 2: Run post-LLM guard (counter-trend) and combine with the
+	// pre-LLM result the orchestrator already produced. When the caller
+	// did not supply a pre-LLM result (legacy path), fall back to a
+	// full evaluation so behaviour stays correct.
+	var guardResult *models.GuardEvaluationResult
+	if preLLMResult != nil {
+		postResult := r.guards.EvaluatePostLLM(processorOutput, taResult, traceID)
+		guardResult = MergeResults(preLLMResult, postResult)
+	} else {
+		guardResult = r.guards.Evaluate(processorOutput, taResult, macroResult, traceID)
+	}
 
-	// Publish guard warnings (non-blocking checks that passed but flagged).
-	for _, check := range guardResult.Checks {
-		if check.Verdict == constants.VerdictWarn && r.transport != nil {
-			r.transport.Publish(ctx,
-				alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
-					fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
-					WithUserID(auth.UserIDFromContext(ctx)).
-					WithSymbol(processorOutput.Symbol).
-					WithDirection(processorOutput.Direction).
-					WithTraceID(traceID).
-					WithDetails(map[string]interface{}{
-						"rule":     string(check.Rule),
-						"reason":   check.Reason,
-						"metadata": check.Metadata,
-					}),
-			)
+	// Publish guard warnings produced by the post-LLM phase. Pre-LLM
+	// warnings were already published in RoutePreLLM, so re-emitting
+	// them here would double-toast the dashboard. We compare against
+	// the pre-LLM checks by Rule to find the new warnings only.
+	preWarnRules := make(map[constants.GuardRule]struct{})
+	if preLLMResult != nil {
+		for _, c := range preLLMResult.Checks {
+			if c.Verdict == constants.VerdictWarn {
+				preWarnRules[c.Rule] = struct{}{}
+			}
 		}
+	}
+	for _, check := range guardResult.Checks {
+		if check.Verdict != constants.VerdictWarn {
+			continue
+		}
+		if _, alreadyPublished := preWarnRules[check.Rule]; alreadyPublished {
+			continue
+		}
+		if r.transport == nil {
+			continue
+		}
+		r.transport.Publish(ctx,
+			alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
+				fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
+				WithUserID(auth.UserIDFromContext(ctx)).
+				WithSymbol(processorOutput.Symbol).
+				WithDirection(processorOutput.Direction).
+				WithTraceID(traceID).
+				WithDetails(map[string]interface{}{
+					"rule":     string(check.Rule),
+					"reason":   check.Reason,
+					"metadata": check.Metadata,
+				}),
+		)
 	}
 
 	// Step 3: If guards reject, block execution.

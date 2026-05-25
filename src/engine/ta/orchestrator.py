@@ -25,6 +25,7 @@ from engine.ta.broker.base import BrokerBase
 from engine.ta.common.services.alignment.service import AlignmentService
 from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.timeframe.manager import TimeframeManager
+from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.candidate import SMCCandidate, SnDCandidate
@@ -516,6 +517,32 @@ class TAOrchestrator:
                 },
             )
 
+        # -- Zone-deduplication ---------------------------------------
+        # Multiple pattern detectors frequently fire on the same
+        # underlying OB / SnD zone, producing N candidates that
+        # describe a single trade. The LLM only needs to be told about
+        # each unique zone once; the variant labels (SH_BMS_RTO vs
+        # CHOCH_BMS_RTO vs SMS_BMS_RTO) add prompt cost without
+        # changing the decision. Keep the highest-confluence variant
+        # per (timeframe, direction, OB-midpoint bucket); drop the
+        # rest. Every unique zone is preserved.
+        deduped_smc = self._dedupe_smc_candidates_by_zone(live_smc, symbol=symbol)
+        deduped_snd = self._dedupe_snd_candidates_by_zone(live_snd, symbol=symbol)
+
+        if len(deduped_smc) != len(live_smc) or len(deduped_snd) != len(live_snd):
+            self._logger.info(
+                "candidates_zone_deduplicated",
+                extra={
+                    "symbol": symbol,
+                    "smc_before": len(live_smc),
+                    "smc_after": len(deduped_smc),
+                    "smc_dropped": len(live_smc) - len(deduped_smc),
+                    "snd_before": len(live_snd),
+                    "snd_after": len(deduped_snd),
+                    "snd_dropped": len(live_snd) - len(deduped_snd),
+                },
+            )
+
         # -- Alignment block flattening -------------------------------
         # Each pair previously carried both flat fields AND an identical
         # nested ``alignment_metadata`` block. Promote ``zones_nested``
@@ -532,14 +559,22 @@ class TAOrchestrator:
                 flat_entry["zones_nested"] = zones_nested
             flat_alignments[pair_key] = flat_entry
 
-        serialized_smc = [
-            c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in live_smc
-        ]
-        serialized_snd = [
-            c.model_dump(mode="json") if hasattr(c, "model_dump") else {}
-            for c in live_snd
-        ]
+        # Per-candidate `symbol` is stripped because it is already
+        # present at the ta_analysis top level and at the
+        # ProcessorInput.symbol field. Repeating it on every candidate
+        # is pure duplication for the LLM and adds non-trivial token
+        # cost (~5 tokens x candidate count). `timeframe` is preserved
+        # because the candidate list is flat -- without it the LLM
+        # cannot attribute each candidate to its source timeframe.
+        def _dump_without_symbol(c) -> dict:
+            if not hasattr(c, "model_dump"):
+                return {}
+            d = c.model_dump(mode="json")
+            d.pop("symbol", None)
+            return d
+
+        serialized_smc = [_dump_without_symbol(c) for c in deduped_smc]
+        serialized_snd = [_dump_without_symbol(c) for c in deduped_snd]
 
         return {
             "status": status,
@@ -549,12 +584,165 @@ class TAOrchestrator:
             "snapshots": serialized_snapshots,
             "smc_candidates": serialized_smc,
             "snd_candidates": serialized_snd,
-            "smc_candidates_count": len(live_smc),
-            "snd_candidates_count": len(live_snd),
+            "smc_candidates_count": len(deduped_smc),
+            "snd_candidates_count": len(deduped_snd),
             "alignment": flat_alignments,
             "overall_trend": overall_trend,
             "error": error,
         }
+
+    # ── Zone-deduplication helpers ───────────────────────────────────
+
+    # Pip tolerance for treating two candidate zone midpoints as the
+    # same setup. Tighter on M1/M5 because micro structure is denser;
+    # wider on HTF because a 4H or D1 OB legitimately spans 20-30 pips.
+    # Bucket width = 2 * tolerance (one tolerance band on each side of
+    # the midpoint), which is the natural granularity for midpoint
+    # rounding.
+    _ZONE_PIP_TOLERANCE: dict = {
+        Timeframe.M1: 5,
+        Timeframe.M5: 5,
+        Timeframe.M15: 15,
+        Timeframe.M30: 15,
+        Timeframe.H1: 30,
+        Timeframe.H3: 30,
+        Timeframe.H4: 30,
+        Timeframe.H6: 30,
+        Timeframe.H8: 30,
+        Timeframe.H12: 30,
+        Timeframe.D1: 30,
+        Timeframe.W1: 30,
+        Timeframe.MN1: 30,
+    }
+
+    @staticmethod
+    def _candidate_rank_key(c) -> tuple:
+        """Higher tuple = better candidate.
+
+        Primary key is the structural confluence score the detectors
+        already compute and store in ``metadata.confluences``.
+        Tie-break by the count of True structural flags on the
+        candidate itself (bms_detected, choch_detected, sms_detected,
+        liquidity_swept, inducement_cleared, qml_detected,
+        sr/rs_flip_detected, mpl_detected, fakeout_detected,
+        marubozu_detected, compression_detected, ltf_confirmation) so
+        a confluence=9 candidate with 6 flags wins over a
+        confluence=9 candidate with 4 flags. Final tie-break by
+        entry_price so the output ordering is deterministic across
+        re-analyses.
+        """
+        metadata = getattr(c, "metadata", {}) or {}
+        try:
+            confluences = int(metadata.get("confluences", 0) or 0)
+        except (TypeError, ValueError):
+            confluences = 0
+        flag_attrs = (
+            "bms_detected", "choch_detected", "sms_detected",
+            "liquidity_swept", "inducement_cleared",
+            "qml_detected", "sr_flip_detected", "rs_flip_detected",
+            "mpl_detected", "fakeout_detected",
+            "marubozu_detected", "compression_detected",
+            "ltf_confirmation",
+        )
+        flag_count = sum(
+            1 for attr in flag_attrs if getattr(c, attr, False)
+        )
+        entry_price = float(getattr(c, "entry_price", 0.0) or 0.0)
+        return (confluences, flag_count, entry_price)
+
+    @classmethod
+    def _zone_bucket(
+        cls,
+        lower: Optional[float],
+        upper: Optional[float],
+        timeframe: Timeframe,
+        symbol: str,
+    ) -> Optional[int]:
+        """Bucket the zone midpoint so candidates whose midpoints
+        differ by at most one pip-tolerance map to the same key.
+        Returns None when the zone is unusable (no coordinates,
+        non-positive midpoint, missing pip-value for unknown symbol)
+        so the caller can route the candidate to the no-zone bypass.
+        """
+        if lower is None or upper is None:
+            return None
+        if lower <= 0 or upper <= 0:
+            return None
+        midpoint = (lower + upper) / 2.0
+        if midpoint <= 0:
+            return None
+        try:
+            pip_value = float(get_pip_value(symbol))
+        except Exception:
+            return None
+        if pip_value <= 0:
+            return None
+        tolerance_pips = cls._ZONE_PIP_TOLERANCE.get(timeframe, 30)
+        bucket_width = 2.0 * tolerance_pips * pip_value
+        if bucket_width <= 0:
+            return None
+        return int(midpoint // bucket_width)
+
+    @classmethod
+    def _dedupe_smc_candidates_by_zone(
+        cls, candidates: list, *, symbol: str,
+    ) -> list:
+        """Keep the highest-ranked SMC candidate per
+        (timeframe, direction, OB-midpoint bucket). Candidates
+        without a usable OB zone fall back to the FVG bounds;
+        without either, they bypass dedup entirely (kept verbatim).
+        """
+        best_in_bucket: dict[tuple, object] = {}
+        bypass: list = []
+        for c in candidates:
+            ob_lower = getattr(c, "order_block_lower", None)
+            ob_upper = getattr(c, "order_block_upper", None)
+            if ob_lower is None or ob_upper is None:
+                ob_lower = getattr(c, "fvg_lower", None)
+                ob_upper = getattr(c, "fvg_upper", None)
+            bucket = cls._zone_bucket(
+                ob_lower, ob_upper, c.timeframe, symbol,
+            )
+            if bucket is None:
+                bypass.append(c)
+                continue
+            key = (c.timeframe, c.direction, bucket)
+            existing = best_in_bucket.get(key)
+            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(existing):
+                best_in_bucket[key] = c
+        return list(best_in_bucket.values()) + bypass
+
+    @classmethod
+    def _dedupe_snd_candidates_by_zone(
+        cls, candidates: list, *, symbol: str,
+    ) -> list:
+        """Keep the highest-ranked SnD candidate per
+        (timeframe, direction, zone-midpoint bucket). The zone is
+        either supply_zone_* (bearish setups) or demand_zone_*
+        (bullish setups); candidates without either bypass dedup.
+        """
+        best_in_bucket: dict[tuple, object] = {}
+        bypass: list = []
+        for c in candidates:
+            zone_lower = (
+                getattr(c, "supply_zone_lower", None)
+                or getattr(c, "demand_zone_lower", None)
+            )
+            zone_upper = (
+                getattr(c, "supply_zone_upper", None)
+                or getattr(c, "demand_zone_upper", None)
+            )
+            bucket = cls._zone_bucket(
+                zone_lower, zone_upper, c.timeframe, symbol,
+            )
+            if bucket is None:
+                bypass.append(c)
+                continue
+            key = (c.timeframe, c.direction, bucket)
+            existing = best_in_bucket.get(key)
+            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(existing):
+                best_in_bucket[key] = c
+        return list(best_in_bucket.values()) + bypass
 
     # ── Candle fetching ──────────────────────────────────────────────
 

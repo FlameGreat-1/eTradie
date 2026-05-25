@@ -18,6 +18,7 @@ from typing import Any
 import orjson
 
 from engine.processor.models.io import ProcessorInput
+from engine.ta.constants import TIMEFRAME_MINUTES, Timeframe
 
 _OUTPUT_SCHEMA = """{
   "analysis_id": "<unique string>",
@@ -570,6 +571,32 @@ def build_user_message(context: ProcessorInput) -> str:
 
     clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
     clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
+
+    # Restore LTF-first -> HTF-last snapshot ordering.
+    #
+    # The TA orchestrator inserts snapshots in this order in
+    # _build_result, but ta_analysis crosses the gateway as JSON and
+    # Go's encoding/json sorts map[string]any keys alphabetically when
+    # marshalling. By the time the dict reaches the engine for the
+    # prompt, snapshot keys are alphabetical (D1, H1, H12, H3, ...,
+    # MN1, W1) with the highest-authority HTF buried in the middle.
+    # Re-insert the keys here, immediately before serialisation, so
+    # the LLM reads M1 -> M5 -> ... -> W1 -> MN1 and HTF is the last
+    # snapshot block before the generation step. orjson preserves
+    # Python dict insertion order by default, so no flag changes are
+    # needed downstream.
+    snapshots = clean_ta.get("snapshots") if isinstance(clean_ta, dict) else None
+    if isinstance(snapshots, dict) and snapshots:
+        def _tf_rank(key: str) -> int:
+            try:
+                return TIMEFRAME_MINUTES[Timeframe(key)]
+            except (KeyError, ValueError):
+                # Unknown keys sort to the end so a future timeframe
+                # added to TA but missed here still produces valid
+                # JSON instead of a KeyError.
+                return 10 ** 9
+        ordered = dict(sorted(snapshots.items(), key=lambda kv: _tf_rank(kv[0])))
+        clean_ta["snapshots"] = ordered
 
     # Strip infrastructure plumbing from metadata before it reaches the
     # LLM. Two categories are removed:
