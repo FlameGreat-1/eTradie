@@ -295,15 +295,23 @@ def upgrade() -> None:
     # imports the table; no repository targets it; the retention
     # pruner does not reference it. Dropping it removes a confusing
     # zombie from the schema.
+    #
+    # We rely on PostgreSQL's documented DROP TABLE cascade to take
+    # every owned object with it: plain indexes, the index that
+    # backs each UNIQUE constraint, the primary key, and any column
+    # default sequences. Pre-dropping the indexes by name (an earlier
+    # iteration of this migration did this) is actively wrong because
+    # SQLAlchemy's Inspector.get_indexes() reports constraint-backed
+    # indexes alongside plain ones - they share the constraint's name
+    # but cannot be dropped independently of the constraint. The first
+    # such name (uq_news_user_dedupe_hash, the index PostgreSQL
+    # auto-created behind UNIQUE (user_id, dedupe_hash)) raises
+    # DependentObjectsStillExistError. DROP TABLE handles the whole
+    # set in one atomic step, so the loop was unnecessary as well as
+    # incorrect.
     insp = inspect(conn)
     existing_tables = set(insp.get_table_names())
     if _DEAD_TABLE in existing_tables:
-        # Drop dependent indexes explicitly to keep older Postgres
-        # versions happy; modern versions cascade on DROP TABLE but
-        # the explicit cleanup keeps the operation traceable.
-        existing_ix = _existing_indexes(insp, _DEAD_TABLE)
-        for ix_name in list(existing_ix):
-            op.drop_index(ix_name, table_name=_DEAD_TABLE)
         op.drop_table(_DEAD_TABLE)
 
 
