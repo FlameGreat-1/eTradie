@@ -21,12 +21,8 @@ from typing import Any
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.shared.models.events import EventImpact, EventType, InflationType
 from engine.macro.models.provider.economic import EconomicRelease
-from engine.macro.providers.economic_data.base import (
-    BaseEconomicDataProvider,
-    compute_surprise_direction,
-)
+from engine.macro.providers.economic_data.base import BaseEconomicDataProvider
 
 logger = get_logger(__name__)
 
@@ -284,15 +280,16 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             except (ValueError, TypeError):
                 release_time = datetime.now(UTC)
 
+            # Note: `currency` is still resolved above for SDMX parsing
+            # but no longer attached to the LLM-facing EconomicRelease.
+            # The country tag is already present in indicator_name.
+            _ = currency  # retained for clarity; SDMX needs the lookup
             releases.append(
                 EconomicRelease(
-                    currency=currency,
-                    indicator=cfg["indicator"],
                     indicator_name=cfg["name_template"].format(country_name),
                     actual=actual,
                     previous=previous,
                     release_time=release_time,
-                    source="oecd",
                 )
             )
 

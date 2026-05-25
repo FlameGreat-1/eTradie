@@ -15,87 +15,26 @@ from typing import Any
 
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
-from engine.shared.models.currency import Currency
-from engine.shared.models.events import EventImpact, EventType, InflationType
 from engine.macro.models.provider.economic import EconomicRelease
-from engine.macro.providers.economic_data.base import (
-    BaseEconomicDataProvider,
-    compute_surprise_direction,
-)
+from engine.macro.providers.economic_data.base import BaseEconomicDataProvider
 
 logger = get_logger(__name__)
 
+# Each entry is the FRED series id and the LLM-facing display name.
+# Other classification metadata (impact, inflation type, indicator
+# enum) was removed in the 2026-05 EconomicRelease cleanup; nothing
+# downstream consumed it.
 _FRED_SERIES: list[dict[str, Any]] = [
-    {
-        "series_id": "CPIAUCSL",
-        "indicator": EventType.CPI,
-        "name": "Consumer Price Index (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.HEADLINE,
-    },
-    {
-        "series_id": "CPILFESL",
-        "indicator": EventType.CPI,
-        "name": "Core CPI ex Food & Energy (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.CORE,
-    },
-    {
-        "series_id": "PCEPI",
-        "indicator": EventType.CPI,
-        "name": "PCE Price Index (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.HEADLINE,
-    },
-    {
-        "series_id": "PCEPILFE",
-        "indicator": EventType.CPI,
-        "name": "Core PCE ex Food & Energy (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.CORE,
-    },
-    {
-        "series_id": "GDP",
-        "indicator": EventType.GDP,
-        "name": "Gross Domestic Product (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": None,
-    },
-    {
-        "series_id": "UNRATE",
-        "indicator": EventType.EMPLOYMENT,
-        "name": "Unemployment Rate (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": None,
-    },
-    {
-        "series_id": "PAYEMS",
-        "indicator": EventType.NFP,
-        "name": "Total Nonfarm Payrolls (US)",
-        "impact": EventImpact.HIGH,
-        "inflation_type": None,
-    },
-    {
-        "series_id": "RSXFS",
-        "indicator": EventType.RETAIL_SALES,
-        "name": "Retail Sales (US)",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
-    },
-    {
-        "series_id": "PPIFIS",
-        "indicator": EventType.PPI,
-        "name": "Producer Price Index (US)",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": InflationType.HEADLINE,
-    },
-    {
-        "series_id": "INDPRO",
-        "indicator": EventType.MANUFACTURING,
-        "name": "Industrial Production Index (US)",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
-    },
+    {"series_id": "CPIAUCSL", "name": "Consumer Price Index (US)"},
+    {"series_id": "CPILFESL", "name": "Core CPI ex Food & Energy (US)"},
+    {"series_id": "PCEPI", "name": "PCE Price Index (US)"},
+    {"series_id": "PCEPILFE", "name": "Core PCE ex Food & Energy (US)"},
+    {"series_id": "GDP", "name": "Gross Domestic Product (US)"},
+    {"series_id": "UNRATE", "name": "Unemployment Rate (US)"},
+    {"series_id": "PAYEMS", "name": "Total Nonfarm Payrolls (US)"},
+    {"series_id": "RSXFS", "name": "Retail Sales (US)"},
+    {"series_id": "PPIFIS", "name": "Producer Price Index (US)"},
+    {"series_id": "INDPRO", "name": "Industrial Production Index (US)"},
 ]
 
 
@@ -198,13 +137,10 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
 
                 releases.append(
                     EconomicRelease(
-                        currency=Currency.USD,
-                        indicator=series_cfg["indicator"],
                         indicator_name=series_cfg["name"],
                         actual=actual,
                         previous=previous,
                         release_time=release_time,
-                        source="fred",
                     )
                 )
 

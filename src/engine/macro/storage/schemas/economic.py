@@ -11,24 +11,25 @@ from engine.shared.db.migrations._schema_registry import Base
 
 
 class EconomicReleaseRow(Base):
+    """Persisted economic release.
+
+    Mirrors the slimmed EconomicRelease Pydantic model: only the
+    fields the LLM actually reads (indicator_name + actual + previous
+    + release_time) plus the multi-tenant user_id scope and audit
+    timestamps. Older columns (currency, indicator, source, forecast,
+    surprise, surprise_direction, impact, inflation_type) were retired
+    by migration 0024 after a repo-wide audit found no live readers.
+    """
+
     __tablename__ = "economic_releases"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    currency: Mapped[str] = mapped_column(String(5), nullable=False)
-    indicator: Mapped[str] = mapped_column(String(30), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
     indicator_name: Mapped[str] = mapped_column(String(200), nullable=False)
     actual: Mapped[float | None] = mapped_column(Float, nullable=True)
-    forecast: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous: Mapped[float | None] = mapped_column(Float, nullable=True)
-    surprise: Mapped[float | None] = mapped_column(Float, nullable=True)
-    surprise_direction: Mapped[str] = mapped_column(
-        String(10), nullable=False, default="INLINE"
-    )
-    impact: Mapped[str] = mapped_column(String(10), nullable=False, default="MEDIUM")
-    inflation_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     release_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -40,14 +41,11 @@ class EconomicReleaseRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "currency", "indicator", "release_time",
-            name="uq_econ_currency_indicator_time",
+            "user_id",
+            "indicator_name",
+            "release_time",
+            name="uq_econ_user_indicator_name_time",
         ),
-        Index("ix_econ_currency_indicator", "currency", "indicator"),
-        Index("ix_econ_release_time", "release_time"),
-        Index("ix_econ_currency_release", "currency", "release_time"),
-        Index(
-            "ix_econ_inflation_type",
-            "inflation_type", "release_time",
-        ),
+        Index("ix_econ_user_id", "user_id"),
+        Index("ix_econ_user_release_time", "user_id", "release_time"),
     )

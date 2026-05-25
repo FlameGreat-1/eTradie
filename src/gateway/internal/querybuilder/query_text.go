@@ -221,23 +221,6 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 		*parts = append(*parts, event)
 	}
 
-	// Core vs headline inflation distinction.
-	for _, coreRelease := range macro.CoreInflationData {
-		indicator := getStrDefault(coreRelease, "indicator_name", "")
-		if indicator == "" {
-			indicator = getStrDefault(coreRelease, "indicator", "")
-		}
-		currency := getStrDefault(coreRelease, "currency", "")
-		surprise := getStrDefault(coreRelease, "surprise", "")
-		if indicator != "" {
-			entry := fmt.Sprintf("core inflation %s %s", currency, indicator)
-			if surprise != "" && surprise != "INLINE" {
-				entry += " " + strings.ToLower(surprise)
-			}
-			*parts = append(*parts, entry)
-		}
-	}
-
 	// COT enriched signals.
 	addCOTSignal(parts, "EUR", macro.COTNetEUR)
 	addCOTSignal(parts, "GBP", macro.COTNetGBP)
@@ -290,23 +273,6 @@ func addMacroSignals(parts *[]string, macro *MacroSignals) {
 
 	if macro.COTHasTFFData {
 		*parts = append(*parts, "TFF leveraged funds data available")
-	}
-
-	for _, surprise := range macro.EconomicSurprises {
-		indicator := getStrDefault(surprise, "indicator_name", "")
-		if indicator == "" {
-			indicator = getStrDefault(surprise, "indicator", "")
-		}
-		direction := getStrDefault(surprise, "direction", "")
-		impact := getStrDefault(surprise, "impact", "")
-		if indicator != "" && direction != "" && strings.ToUpper(impact) == "HIGH" {
-			entry := fmt.Sprintf("%s %s surprise", indicator, strings.ToLower(direction))
-			inflationType := getStrDefault(surprise, "inflation_type", "")
-			if inflationType != "" {
-				entry += " " + strings.ToLower(inflationType)
-			}
-			*parts = append(*parts, entry)
-		}
 	}
 
 	// Risk environment signals.

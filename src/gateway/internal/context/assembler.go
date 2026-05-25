@@ -72,7 +72,7 @@ func (a *Assembler) Assemble(
 		metadata["qe_qt_bank"] = macroSignals.QEQTBank
 		metadata["balance_sheet_direction"] = macroSignals.BalanceSheetDir
 	}
-	metadata["has_core_inflation"] = len(macroSignals.CoreInflationData) > 0
+	metadata["has_core_inflation"] = false
 	metadata["has_iron_ore"] = macroSignals.IronOre != nil
 	metadata["has_dairy_gdt"] = macroSignals.DairyGDT != nil
 

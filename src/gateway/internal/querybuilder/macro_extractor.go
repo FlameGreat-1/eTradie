@@ -56,9 +56,6 @@ type MacroSignals struct {
 	HasRetailSales            bool
 	HasCBSpeech               bool
 
-	EconomicSurprises []map[string]interface{}
-	CoreInflationData []map[string]interface{}
-
 	RetailSentiment         map[string]float64
 	RiskEnvironment         string
 	StagflationDetected     bool
@@ -103,7 +100,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 	}
 	cb := extractCentralBank(result.CentralBank)
 	cot := extractCOT(result.COT)
-	econ := extractEconomic(result.Economic)
 	cal := extractCalendar(result.Calendar)
 	dxy := extractDXY(result.DXY)
 	sent := extractSentiment(result.Sentiment)
@@ -169,9 +165,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 		HasPMI:                    getOptBool(cal, "has_pmi"),
 		HasRetailSales:            getOptBool(cal, "has_retail_sales"),
 		HasCBSpeech:               getOptBool(cal, "has_cb_speech"),
-
-		EconomicSurprises: getOptMapSlice(econ, "surprise_directions"),
-		CoreInflationData: getOptMapSlice(econ, "core_inflation_releases"),
 
 		RetailSentiment:         getOptFloatMap(sent, "all_currencies"),
 		RiskEnvironment:         getOptStr(sent, "risk_environment"),
@@ -340,51 +333,6 @@ func extractCOTPositions(data map[string]interface{}) []COTPositionSignal {
 		})
 	}
 	return positions
-}
-
-func extractEconomic(data map[string]interface{}) map[string]interface{} {
-	if data == nil {
-		return map[string]interface{}{}
-	}
-	var surprises []map[string]interface{}
-	var coreInflation []map[string]interface{}
-
-	for _, release := range getSliceOfMaps(data, "releases") {
-		surpriseDir := getStrDefault(release, "surprise_direction", "")
-		indicator := getStrDefault(release, "indicator", "")
-		inflationType := getStrDefault(release, "inflation_type", "")
-
-		if surpriseDir != "" && indicator != "" {
-			entry := map[string]interface{}{
-				"indicator":      indicator,
-				"indicator_name": getStrDefault(release, "indicator_name", ""),
-				"direction":      surpriseDir,
-				"currency":       getStrDefault(release, "currency", ""),
-				"impact":         getStrDefault(release, "impact", ""),
-			}
-			if inflationType != "" {
-				entry["inflation_type"] = inflationType
-			}
-			surprises = append(surprises, entry)
-		}
-
-		if strings.ToUpper(inflationType) == "CORE" {
-			coreInflation = append(coreInflation, map[string]interface{}{
-				"indicator":      indicator,
-				"indicator_name": getStrDefault(release, "indicator_name", ""),
-				"currency":       getStrDefault(release, "currency", ""),
-				"actual":         getStrDefault(release, "actual", ""),
-				"forecast":       getStrDefault(release, "forecast", ""),
-				"previous":       getStrDefault(release, "previous", ""),
-				"surprise":       surpriseDir,
-				"impact":         getStrDefault(release, "impact", ""),
-			})
-		}
-	}
-	return map[string]interface{}{
-		"surprise_directions":     surprises,
-		"core_inflation_releases": coreInflation,
-	}
 }
 
 func extractCalendar(data map[string]interface{}) map[string]interface{} {
