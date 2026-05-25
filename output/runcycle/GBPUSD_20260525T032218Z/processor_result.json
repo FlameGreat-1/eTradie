@@ -1,0 +1,272 @@
+{
+  "analysis_id": "GBPUSD_QML_KILLER_TYPE2_BEARISH_1.3451",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 1.345205,
+  "execution_mode": "INSTANT",
+  "grade": "A",
+  "ltf_confirmed": true,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_gbpusd_20260525_0321_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "trading_style_rules.md",
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "trading_style_rules.md",
+            "section": "5. Risk-to-Reward Requirements"
+          }
+        ],
+        "query_summary": "Retrieve trading rules, risk management, and confluence requirements.",
+        "strategy_used": "Vector search with metadata filtering",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Strong USD macro data aligns with bearish GBPUSD bias.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "W1, D1, H12, H8, H6, H4 are all bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "Bearish CHoCH confirmed on M30 and M15.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "QML Killer Type 2 zone on M15 with Marubozu validation.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "PDH and BSL sweeps confirmed on H1 and M15.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Distribution phase confirmed by failure swings.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Achievable R:R is 3.0, meeting the 1:3 minimum for Intraday.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-25T03:21:00Z",
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "BULLISH",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "dxy_framework.md",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        1.34312,
+        1.34511
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "QML Killer Type 2 bearish pattern detected on M15 with MPL, SR Flip, Fakeout, Marubozu, and Compression confluences.",
+          "doc_id": "snd_framework.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "GBPUSD_QML_KILLER_TYPE2_BEARISH_1.3451"
+    },
+    "entry_zone": {
+      "high": 1.3453,
+      "low": 1.34511
+    },
+    "event_risk": [],
+    "execution_mode": "INSTANT",
+    "explainable_reasoning": "The market is in a strong bearish HTF trend across W1, D1, H12, H8, H6, and H4. We have identified a high-confluence QML Killer Type 2 bearish setup on the M15 timeframe at 1.34511, which we explicitly name QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU+COMPRESSION. This setup is backed by strong USD macro data (increasing CPI, PCE, GDP, and NFP), which creates a strong bearish bias for GBPUSD. The setup has been validated by a bearish Marubozu candle and has already met LTF confirmation. We will execute an INSTANT market order with a stop loss at 1.34579 and target structural liquidity pools at 1.34375, 1.34307, and 1.34170.",
+    "htf_bias": {
+      "key_levels": [
+        1.34881,
+        1.34631
+      ],
+      "notes": "W1, D1, H12, H8, H6, and H4 are all bearish, indicating strong institutional sell flow.",
+      "structure": "bearish"
+    },
+    "id": "d3b07384-d113-4ec6-a558-713120260525",
+    "ltf_confirmed": true,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+            "content_preview": "Strong US economic data including rising Core CPI (335.423), Core PCE (129.279), GDP (31856.257), and NFP (158736) supports a hawkish Fed and a bullish USD bias.",
+            "doc_id": "macro_price_guide.md",
+            "rule_id": "MACRO-USD-001",
+            "section": "REFERENCED RAG DOCUMENTS"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.34511,
+        1.34326
+      ],
+      "notes": "M30 and M15 show bearish CHoCH and structural shifts, aligning with the HTF bearish narrative.",
+      "structure": "choch_bearish"
+    },
+    "pair": "GBPUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "trading_style_rules.md",
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 3,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup (beyond OB, beyond QML, beyond swing high/low).",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.34579,
+      "reason": "Placed above the QML invalidation level with a structural offset."
+    },
+    "take_profits": [
+      {
+        "basis": "TP1 at 1:2R structural liquidity pool",
+        "level": 1.34375,
+        "size_pct": 40
+      },
+      {
+        "basis": "TP2 at 1:3R opposing demand zone",
+        "level": 1.34307,
+        "size_pct": 30
+      },
+      {
+        "basis": "TP3 at 1:5R major swing low",
+        "level": 1.3417,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-25T03:21:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+          "content_preview": "Failure swings on HTF and bearish CHoCH on MTF indicate distribution and transition to markdown.",
+          "doc_id": "wyckoff_guide.md",
+          "rule_id": "WYCKOFF-DIST-001",
+          "section": "REFERENCED RAG DOCUMENTS"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The market is in a strong bearish HTF trend across W1, D1, H12, H8, H6, and H4. We have identified a high-confluence QML Killer Type 2 bearish setup on the M15 timeframe at 1.34511, which we explicitly name QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU+COMPRESSION. This setup is backed by strong USD macro data (increasing CPI, PCE, GDP, and NFP), which creates a strong bearish bias for GBPUSD. The setup has been validated by a bearish Marubozu candle and has already met LTF confirmation. We will execute an INSTANT market order with a stop loss at 1.34579 and target structural liquidity pools at 1.34375, 1.34307, and 1.34170.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3,
+  "session": "ASIAN",
+  "setup_type": "SnD",
+  "stop_loss": 1.34579,
+  "symbol": "GBPUSD",
+  "take_profit": 1.3417,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

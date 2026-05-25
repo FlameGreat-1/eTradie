@@ -1,0 +1,551 @@
+{
+  "calendar": {
+    "collected_at": "2026-05-25T03:19:03.530714Z",
+    "created_at": "2026-05-25T03:19:03.530781Z",
+    "events": [],
+    "id": "16db3e24-36b2-4d5b-8313-fea5b331b424",
+    "sources": [
+      "investing_rss_calendar"
+    ]
+  },
+  "central_bank": {
+    "banks_reporting": [
+      "FED",
+      "ECB",
+      "BOJ",
+      "RBA",
+      "BOC"
+    ],
+    "collected_at": "2026-05-25T03:19:22.920870Z",
+    "created_at": "2026-05-25T03:19:22.920940Z",
+    "forward_guidance": [],
+    "id": "e4bfd151-7e4a-40bb-8cfa-da63797cb06b",
+    "meeting_minutes": [],
+    "policy_actions": [],
+    "rate_decisions": [],
+    "speeches": []
+  },
+  "collection_errors": {},
+  "cot": {
+    "collected_at": "2026-05-25T03:20:48.020049Z",
+    "created_at": "2026-05-25T03:20:48.020187Z",
+    "extremes_flagged": [],
+    "has_tff_data": false,
+    "id": "4e5e10fd-3f45-4af1-b8cd-a4da3386157e",
+    "latest_positions": [],
+    "previous_positions": [],
+    "previous_report_date": null,
+    "report_date": null,
+    "tff_positions": [],
+    "wow_shifts": {}
+  },
+  "datasets_available": [
+    "central_bank",
+    "cot",
+    "economic",
+    "calendar",
+    "dxy",
+    "intermarket",
+    "sentiment"
+  ],
+  "dxy": {
+    "collected_at": "2026-05-25T03:20:48.023559Z",
+    "created_at": "2026-05-25T03:20:48.024095Z",
+    "id": "abf9958f-68a0-472b-9010-213c55f8210a",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "economic": {
+    "collected_at": "2026-05-25T03:19:20.502895Z",
+    "created_at": "2026-05-25T03:19:20.503002Z",
+    "id": "5661e4ef-9cb0-46a5-9f9e-7e16d18a862b",
+    "releases": [
+      {
+        "actual": 335.423,
+        "created_at": "2026-05-25T03:19:08.693845Z",
+        "currency": "USD",
+        "id": "a175b8fb-0d21-47cc-a0e1-28c5fed0a325",
+        "indicator": "CPI",
+        "indicator_name": "Core CPI ex Food & Energy (US)",
+        "previous": 334.165,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 129.279,
+        "created_at": "2026-05-25T03:19:09.534480Z",
+        "currency": "USD",
+        "id": "d945286b-e4c5-4a17-803c-7c9976e6dba9",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 128.901,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 128.901,
+        "created_at": "2026-05-25T03:19:09.534729Z",
+        "currency": "USD",
+        "id": "494c125f-d284-4943-9bcc-b073b4f1e717",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 128.429,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 128.429,
+        "created_at": "2026-05-25T03:19:09.538658Z",
+        "currency": "USD",
+        "id": "a15af6cc-436f-4baf-9814-a70cb6986f72",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.886,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.886,
+        "created_at": "2026-05-25T03:19:09.538851Z",
+        "currency": "USD",
+        "id": "beedfa75-df88-4c3a-9951-c7a8118067de",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.469,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.469,
+        "created_at": "2026-05-25T03:19:09.538936Z",
+        "currency": "USD",
+        "id": "8c7da555-64e4-40f7-b4f3-46f9940c1088",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": 127.243,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 127.243,
+        "created_at": "2026-05-25T03:19:09.538977Z",
+        "currency": "USD",
+        "id": "f1f035aa-788b-4414-9e99-859d385a920a",
+        "indicator": "CPI",
+        "indicator_name": "Core PCE ex Food & Energy (US)",
+        "previous": null,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31856.257,
+        "created_at": "2026-05-25T03:19:09.949703Z",
+        "currency": "USD",
+        "id": "43d7d607-3a0a-4cf9-b6ee-12f058c4a38a",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 31422.526,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31422.526,
+        "created_at": "2026-05-25T03:19:09.949814Z",
+        "currency": "USD",
+        "id": "3dc79278-a3c7-4814-a46e-f36ce2263f64",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 31098.027,
+        "release_time": "2025-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 31098.027,
+        "created_at": "2026-05-25T03:19:09.949903Z",
+        "currency": "USD",
+        "id": "76b05881-d7a5-4f6a-b859-1f51944adc5d",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 30485.729,
+        "release_time": "2025-07-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 30485.729,
+        "created_at": "2026-05-25T03:19:09.949976Z",
+        "currency": "USD",
+        "id": "9404327a-adae-47dc-91ec-6ff03b040a53",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 30042.113,
+        "release_time": "2025-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 30042.113,
+        "created_at": "2026-05-25T03:19:09.950059Z",
+        "currency": "USD",
+        "id": "4f39eeea-c257-4cd8-8c72-957563ae67b3",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": 29825.182,
+        "release_time": "2025-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 29825.182,
+        "created_at": "2026-05-25T03:19:09.950134Z",
+        "currency": "USD",
+        "id": "4d2e9899-0fc3-47a8-bfe2-1f2d721d4652",
+        "indicator": "GDP",
+        "indicator_name": "Gross Domestic Product (US)",
+        "previous": null,
+        "release_time": "2024-10-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.3,
+        "created_at": "2026-05-25T03:19:10.365574Z",
+        "currency": "USD",
+        "id": "7342684c-11fd-4eb3-b455-38c1c82c5a41",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.3,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.3,
+        "created_at": "2026-05-25T03:19:10.365660Z",
+        "currency": "USD",
+        "id": "03e8aea3-9b87-4fc4-987b-1f85687a3c31",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.4,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.4,
+        "created_at": "2026-05-25T03:19:10.365701Z",
+        "currency": "USD",
+        "id": "eb50b55c-0018-46a1-86eb-bba28fa1fee2",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.3,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.3,
+        "created_at": "2026-05-25T03:19:10.365743Z",
+        "currency": "USD",
+        "id": "3320acd6-a18b-429f-b709-2709cae8092d",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.4,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.4,
+        "created_at": "2026-05-25T03:19:10.365776Z",
+        "currency": "USD",
+        "id": "cc7046bd-62f4-4bca-9a32-225cef8edb29",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": 4.5,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 4.5,
+        "created_at": "2026-05-25T03:19:10.365813Z",
+        "currency": "USD",
+        "id": "e5f1d3d6-0d4d-4486-9db2-7102ec8121f4",
+        "indicator": "EMPLOYMENT",
+        "indicator_name": "Unemployment Rate (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158736,
+        "created_at": "2026-05-25T03:19:10.784612Z",
+        "currency": "USD",
+        "id": "a04c6956-1a77-4e30-9755-04fed7c1e5be",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158621,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158621,
+        "created_at": "2026-05-25T03:19:10.784773Z",
+        "currency": "USD",
+        "id": "c625799a-4006-4879-b04d-abeea6acd4c0",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158436,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158436,
+        "created_at": "2026-05-25T03:19:10.784810Z",
+        "currency": "USD",
+        "id": "8f7bcc31-5650-4011-b152-3453e0509b4e",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158592,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158592,
+        "created_at": "2026-05-25T03:19:10.784847Z",
+        "currency": "USD",
+        "id": "b375c88b-c79a-476f-b537-2ca290cddcc1",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158432,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158432,
+        "created_at": "2026-05-25T03:19:10.784887Z",
+        "currency": "USD",
+        "id": "edb43eae-9a6d-459f-93b1-8cb7524117ab",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": 158449,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 158449,
+        "created_at": "2026-05-25T03:19:10.784915Z",
+        "currency": "USD",
+        "id": "9c2e3120-873a-4e4e-91b1-70613d2d8576",
+        "indicator": "NFP",
+        "indicator_name": "Total Nonfarm Payrolls (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 656115,
+        "created_at": "2026-05-25T03:19:11.203750Z",
+        "currency": "USD",
+        "id": "cd602fcb-9403-4502-9e1f-9ed93c71ba41",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 653040,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 653040,
+        "created_at": "2026-05-25T03:19:11.204966Z",
+        "currency": "USD",
+        "id": "c9fe9893-e618-4a9a-a903-fcdcf6af9ed3",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 641038,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 641038,
+        "created_at": "2026-05-25T03:19:11.205018Z",
+        "currency": "USD",
+        "id": "69e13b84-29ad-426a-b74f-35af61cbfd62",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634949,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634949,
+        "created_at": "2026-05-25T03:19:11.205049Z",
+        "currency": "USD",
+        "id": "7665375f-eb1b-4c25-baec-b61d3e51aee6",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634830,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634830,
+        "created_at": "2026-05-25T03:19:11.205078Z",
+        "currency": "USD",
+        "id": "65360313-f699-49bb-8d61-be02e4005a88",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": 634477,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 634477,
+        "created_at": "2026-05-25T03:19:11.205108Z",
+        "currency": "USD",
+        "id": "57b47518-1219-4c12-8a1b-ea36134d1269",
+        "indicator": "RETAIL_SALES",
+        "indicator_name": "Retail Sales (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 156.496,
+        "created_at": "2026-05-25T03:19:11.621110Z",
+        "currency": "USD",
+        "id": "7baf30d2-22b1-48c1-99a1-8c9b6bcb43d8",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 154.372,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 154.372,
+        "created_at": "2026-05-25T03:19:11.621189Z",
+        "currency": "USD",
+        "id": "94fded81-1f41-42f9-a427-d76ee267fa81",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 153.3,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 153.3,
+        "created_at": "2026-05-25T03:19:11.621226Z",
+        "currency": "USD",
+        "id": "4bce0987-f336-4d8d-8c6a-0c9cd7e39248",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 152.435,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 152.435,
+        "created_at": "2026-05-25T03:19:11.621260Z",
+        "currency": "USD",
+        "id": "ab3fe4b9-a74e-4a6b-933e-f81a854f9322",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 151.592,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 151.592,
+        "created_at": "2026-05-25T03:19:11.621411Z",
+        "currency": "USD",
+        "id": "78816f00-ccf3-49e2-bcc8-963eb733aa77",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": 151.054,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 151.054,
+        "created_at": "2026-05-25T03:19:11.621456Z",
+        "currency": "USD",
+        "id": "24dccea8-931e-41ee-abda-6e55512a6225",
+        "indicator": "PPI",
+        "indicator_name": "Producer Price Index (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 102.4963,
+        "created_at": "2026-05-25T03:19:12.040679Z",
+        "currency": "USD",
+        "id": "effbb3d4-a920-44da-a5a5-3e494d9be07a",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.806,
+        "release_time": "2026-04-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.806,
+        "created_at": "2026-05-25T03:19:12.042790Z",
+        "currency": "USD",
+        "id": "4ab53ac1-9b96-4560-a4a4-de716e6736be",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 102.1009,
+        "release_time": "2026-03-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 102.1009,
+        "created_at": "2026-05-25T03:19:12.042854Z",
+        "currency": "USD",
+        "id": "af478434-b882-4827-85ea-723719dc03a8",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.4737,
+        "release_time": "2026-02-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.4737,
+        "created_at": "2026-05-25T03:19:12.042941Z",
+        "currency": "USD",
+        "id": "ec2f8e51-15f7-4256-8362-9b1eb69980a8",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.5203,
+        "release_time": "2026-01-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.5203,
+        "created_at": "2026-05-25T03:19:12.042974Z",
+        "currency": "USD",
+        "id": "de8a8358-368c-4b1c-a46c-7278c77e54ce",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": 101.0344,
+        "release_time": "2025-12-01T00:00:00Z",
+        "source": "fred"
+      },
+      {
+        "actual": 101.0344,
+        "created_at": "2026-05-25T03:19:12.043001Z",
+        "currency": "USD",
+        "id": "3afbe8eb-f768-4e7b-9997-60900b542979",
+        "indicator": "MANUFACTURING",
+        "indicator_name": "Industrial Production Index (US)",
+        "previous": null,
+        "release_time": "2025-11-01T00:00:00Z",
+        "source": "fred"
+      }
+    ],
+    "sources": [
+      "fred"
+    ]
+  },
+  "intermarket": {
+    "collected_at": "2026-05-25T03:20:48.025759Z",
+    "created_at": "2026-05-25T03:20:48.025806Z",
+    "id": "9bfc2643-33e6-4b92-a0b6-88249c232937",
+    "latest": null,
+    "snapshots": [],
+    "sources": []
+  },
+  "sentiment": {}
+}
