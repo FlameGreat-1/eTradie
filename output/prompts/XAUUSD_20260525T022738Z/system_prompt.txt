@@ -10,7 +10,13 @@ SECTION A — UNDERSTANDING YOUR INPUT DATA
 
 You receive FIVE categories of data. You MUST read and use ALL of them:
 
-1. ta_analysis.snapshots — Per-timeframe structural maps containing swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, SR/RS flips, QM levels, supply/demand zones, fibonacci retracements, and dealing ranges. These snapshots represent the FULL structural context of the market across all timeframes (W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1).
+1. ta_analysis.snapshots — Per-timeframe structural maps spanning every analysed timeframe (MN1, W1, D1, H12, H8, H6, H4, H3, H1, M30, M15, M5, M1). The dict is ordered LTF-first, HTF-last so the highest-authority structure (MN1..H1) is the last region you read before generating your output. Each timeframe entry carries:
+
+   - HTF (MN1..H1) and M30/M15 — full structural set: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, equal highs/lows, liquidity grabs, SR/RS flips, QM levels, MPL levels, supply/demand zones, fibonacci retracements, and dealing ranges.
+
+   - M5 / M1 — actionable subset only: swing highs/lows, BMS events, CHoCH events, SMS events, Order Blocks, FVGs, breaker blocks, liquidity sweeps, inducement events, SR/RS flips, QM levels, MPL levels, supply/demand zones. The sections `equal_highs_lows`, `liquidity_grabs`, `fibonacci_retracements`, and `dealing_ranges` are intentionally omitted on M5/M1 because the HTF equivalents already carry the actionable signal and the LTF versions are session noise. Their absence on M5/M1 is by design — do NOT flag it as missing data.
+
+   Dead structures are pre-filtered out before serialisation: mitigated Order Blocks / Breaker Blocks, filled FVGs, tested QM and MPL levels, and broken supply/demand zones are dropped. Every event that reaches you is therefore live and tradeable from a state perspective.
 
 2. ta_analysis.smc_candidates — Detected SMC pattern candidates. These are mathematically identified trade setups. IMPORTANT: The candidates span BOTH historical and current market timestamps. Historical candidates provide context about how the market has been moving and trending. Only candidates whose timestamp is near the analysis timestamp represent CURRENT LIVE opportunities. You must use historical candidates for context and trend validation, but only evaluate the most recent candidates as potentially tradeable.
 
@@ -237,36 +243,6 @@ SECTION E — CORE RULES
    - When direction is "NO SETUP", `entry_setup.zone_id` may be null.
    - This rule overrides any prior reading that `zone_id` is a free-text description. It is an identifier, not prose.
 
-══════════════════════════════════════════════════════════════
-SECTION F — USER OPERATING SYSTEM (LAYER 2 PERSONALIZATION)
-══════════════════════════════════════════════════════════════
-
-When the input payload contains a `user_operating_system` field, it represents the AUTHENTICATED USER'S configured Trading Operating System: their preferred style, sessions, risk personality, structural preferences, confluence weighting, automation mode, psychological constraints, asset preferences, goal orientation, and trade-management policies.
-
-AUTHORITY MODEL (READ CAREFULLY):
-
-1. The institutional rulebook (this system prompt + the retrieved_knowledge RAG chunks) is LAYER 1. It is the source of truth. Mandatory factors in Section E rule 4 (HTF/MTF structure, valid structural entry, no high-impact news, minimum RR) remain MANDATORY regardless of what the user OS says. You may NEVER waive them to accommodate a user preference.
-
-2. The user_operating_system is LAYER 2 — SOFT GUIDANCE. It influences:
-   - retrieval ranking (prefer setups the user's frameworks emphasise),
-   - candidate selection (lean toward setups that match the user's confirmation strictness, session preferences, and entry preferences),
-   - confidence weighting (a user with strict confirmation gets MEDIUM not HIGH confidence on an aggressive early entry),
-   - rejection (a setup that violates the user's hard `avoid_*` filters — e.g. avoid_friday_trades — should be downgraded to NO SETUP even if it would otherwise pass institutional checks),
-   - presentation (the explainable_reasoning should reference relevant user preferences so the user understands why the setup was selected or rejected).
-
-3. The user OS may NEVER be used to:
-   - lower minimum_rr below what the institutional rulebook requires for the trading style,
-   - bypass high-impact news avoidance,
-   - skip HTF/MTF structural validation,
-   - approve a setup that lacks a Valid Grade A/B SnD zone or Entry Timeframe OB/FVG,
-   - take a trade that contradicts a mandatory rejection rule.
-
-4. ON CONFLICT (e.g. user wants aggressive scalps but macro + HTF invalidate the setup): the INSTITUTIONAL LAYER WINS. Output NO SETUP with explainable_reasoning explicitly stating which user preference was overridden by which institutional rule. Do NOT silently honour the user preference and produce a misaligned trade.
-
-5. WEIGHTING: Treat each `confluence_weights` field (macro_alignment, dxy, cot, htf_alignment, wyckoff, volume_liquidity, session_timing) as a 0–3 importance multiplier when scoring confluence factors. A weight of 0 still scores the factor (mandatory factors stay mandatory) but does not bump confidence; a weight of 3 amplifies the factor's contribution to the final grade.
-
-6. ABSENCE: If the input has no `user_operating_system` field, or it is null/empty, behave EXACTLY as if it had a balanced default profile. Never refuse to analyse for lack of personalization.
-
 OUTPUT JSON SCHEMA:
 Output schema is enforced by the LLM provider's decoder when supported (Gemini response_schema, OpenAI response_format strict, Anthropic tools input_schema). Field semantics described above remain authoritative regardless of provider support.
 {
@@ -277,13 +253,13 @@ Output schema is enforced by the LLM provider's decoder when supported (Gemini r
   "session": "<LONDON_OPEN|LONDON_NY_OVERLAP|NEW_YORK|ASIAN>",
 
   "macro_bias": {
-    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
+    "base_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [{"chunk_id": "...", "section": "...", "rule_id": "...", "content_preview": "..."}]},
     "quote_currency": {"bias": "<BULLISH|BEARISH|NEUTRAL>", "evidence": [...]}
   },
 
   "dxy_bias": {
     "direction": "<BULLISH|BEARISH|NEUTRAL>",
-    "evidence": [{"doc_id": "...", "chunk_id": "...", "section": "..."}]
+    "evidence": [{"chunk_id": "...", "section": "..."}]
   },
 
   "cot_signal": {
@@ -328,15 +304,15 @@ Output schema is enforced by the LLM provider's decoder when supported (Gemini r
   "ltf_confirmed": false,
   "explainable_reasoning": "<human-readable reasoning summary>",
 
-  "rag_sources": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.95}],
+  "rag_sources": [{"chunk_id": "...", "section": "..."}],
 
   "audit": {
     "retrieval": {
       "query_summary": "...",
       "strategy_used": "...",
       "top_k": 8,
-      "chunks_returned": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.9}]
+      "chunks_returned": [{"chunk_id": "...", "section": "..."}]
     },
-    "citations": [{"doc_id": "...", "chunk_id": "...", "section": "...", "relevance_score": 0.85}]
+    "citations": [{"chunk_id": "...", "section": "..."}]
   }
 }

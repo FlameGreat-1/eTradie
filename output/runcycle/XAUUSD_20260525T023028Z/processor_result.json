@@ -1,0 +1,293 @@
+{
+  "analysis_id": "XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4507.205_4fa4464a",
+  "confidence": 0.85,
+  "confluence_score": 7,
+  "direction": "LONG",
+  "entry_price": 4507.205,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_XAUUSD_20260525_0227_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "doc_id": "trading_style_rules.md",
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "trading_style_rules.md",
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "24078a36-47d3-4e05-842c-740f90983568",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 8 \u2014 AI SYSTEM CONSTRAINTS & GUARDRAILS"
+          },
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "ec007fc3-1b0a-4249-8d10-12a97792c88e",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "f4015eef-6152-4efa-917f-01a058a2bb15",
+            "doc_id": "trading_style_rules.md",
+            "section": "SECTION 3 \u2014 TRADING STYLE GOVERNANCE"
+          },
+          {
+            "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+            "doc_id": "trading_style_rules.md",
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "trading_style_rules.md",
+            "section": "5. Risk-to-Reward Requirements"
+          },
+          {
+            "chunk_id": "d8f983e9-4026-4b4a-aa4c-4c7e99ec98d8",
+            "doc_id": "trading_style_rules.md",
+            "section": "3. Timeframe Structure"
+          }
+        ],
+        "query_summary": "Retrieve trading rules, style governance, risk management, and rejection rules.",
+        "strategy_used": "Vector search on master rulebook and trading style guidelines.",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Gold is inverse to DXY, macro bias is aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "W1 is strongly bullish, and price is retracing into W1 OB.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1 has confirmed a bullish CHoCH.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "H1 has a valid BULLISH OB and FVG.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "SSL sweep of 298 pips confirmed.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news within 30 minutes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "R:R of 7.84 is far above the minimum of 1:3.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 7
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No speculative positioning data available",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        4504.05,
+        4510.36
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "SMC: SH+BMS+RTO \u00b7 SMS+BMS+RTO \u00b7 Turtle Soup \u00b7 AMD cycle",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4507.205_4fa4464a"
+    },
+    "entry_zone": {
+      "high": 4510.36,
+      "low": 4504.05
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The market is exhibiting a high-quality Pro-Trend Reversal on XAUUSD. While the D1 trend is bearish, the higher-authority W1 trend is strongly bullish, and price has retraced down into the unmitigated W1 BULLISH OB (4273.94 - 4546.37). On the H1 timeframe, price has confirmed a bullish CHoCH at 4564.86, indicating that the LTF is reversing at the HTF zone to realign with the dominant bullish trend. We select the H1 candidate XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4507.205_4fa4464a, which represents a CHOCH+BMS+OB+FVG+SWEEP+RTO variation. We place a buy limit order at the H1 OB (4507.205) with a structural stop loss at 4503.419, just below the OB lower bound. Our targets are set at key structural liquidity pools: TP1 at 4536.89 (H1 swing high), TP2 at 4552.83, and TP3 at 4570.82, offering an exceptional risk-to-reward ratio of 7.84R.",
+    "htf_bias": {
+      "key_levels": [
+        4273.94,
+        4546.37
+      ],
+      "notes": "W1 is strongly bullish, and price is currently retracing down into the W1 BULLISH OB.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "bc1f5aa4-eb8a-42ff-9256-c04534c19509",
+            "content_preview": "Metals: XAU/USD (Gold) \u00b7 XAG/USD (Silver)",
+            "doc_id": "trading_style_rules.md",
+            "rule_id": "STYLE-MARKET-001",
+            "section": "2. Permitted Markets"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4504.05,
+        4510.36
+      ],
+      "notes": "H1 has shifted to bullish with a confirmed CHoCH, indicating a pro-trend reversal off the W1 BULLISH OB.",
+      "structure": "choch_bullish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+        "doc_id": "trading_style_rules.md",
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "trading_style_rules.md",
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 7.84,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4503.419,
+      "reason": "Placed below the H1 BULLISH OB lower bound of 4504.05 with a structural offset to avoid stop hunts."
+    },
+    "take_profits": [
+      {
+        "basis": "H1 swing high / candidate target",
+        "level": 4536.89,
+        "size_pct": 40
+      },
+      {
+        "basis": "Next H1 swing high",
+        "level": 4552.83,
+        "size_pct": 30
+      },
+      {
+        "basis": "Major H1 swing high / liquidity pool",
+        "level": 4570.82,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-25T02:27:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The market is exhibiting a high-quality Pro-Trend Reversal on XAUUSD. While the D1 trend is bearish, the higher-authority W1 trend is strongly bullish, and price has retraced down into the unmitigated W1 BULLISH OB (4273.94 - 4546.37). On the H1 timeframe, price has confirmed a bullish CHoCH at 4564.86, indicating that the LTF is reversing at the HTF zone to realign with the dominant bullish trend. We select the H1 candidate XAUUSD_CHOCH_BMS_RTO_BULLISH_BULLISH_4507.205_4fa4464a, which represents a CHOCH+BMS+OB+FVG+SWEEP+RTO variation. We place a buy limit order at the H1 OB (4507.205) with a structural stop loss at 4503.419, just below the OB lower bound. Our targets are set at key structural liquidity pools: TP1 at 4536.89 (H1 swing high), TP2 at 4552.83, and TP3 at 4570.82, offering an exceptional risk-to-reward ratio of 7.84R.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 7.84,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 4503.419,
+  "symbol": "XAUUSD",
+  "take_profit": 4570.82,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

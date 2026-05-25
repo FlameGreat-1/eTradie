@@ -31,7 +31,7 @@ func main() {
 	var userID string
 	err = pool.QueryRow(ctx, "SELECT id FROM auth_users WHERE username = $1", "Flame Great").Scan(&userID)
 	if err != nil {
-		log.Println("Could not find user 'flamegreat' in auth_users. Searching for any available user...")
+		log.Println("Could not find user 'Flame Great' in auth_users. Searching for any available user...")
 		err = pool.QueryRow(ctx, "SELECT id FROM auth_users LIMIT 1").Scan(&userID)
 		if err != nil {
 			log.Println("Could not find any user in auth_users. Using fallback user_id 'system'.")

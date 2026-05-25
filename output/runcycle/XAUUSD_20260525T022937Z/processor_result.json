@@ -1,0 +1,276 @@
+{
+  "analysis_id": "XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4575.82_45422842",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 4575.82,
+  "execution_mode": "INSTANT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_XAUUSD_20260525_0227_a4f9",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+          "doc_id": "trading_style_rules.md",
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+            "doc_id": "trading_style_rules.md",
+            "section": "5. Risk-to-Reward Requirements"
+          }
+        ],
+        "query_summary": "Retrieve trading rules, confluence requirements, and risk management guidelines for XAUUSD.",
+        "strategy_used": "Vector search with metadata filtering on symbol and active trading style.",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral/missing macro data is treated as non-blocking and aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Dominant HTF trend is bearish across D1 down to H3.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "H1 has confirmed bearish CHoCH and multiple BMS events.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "M1 Bearish OB [4574.63, 4577.01] and FVG [4575.88, 4576.52] are present.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "M1 swept BSL up to 4577.43 before reversing.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Distribution phase confirmed by LTF CHoCH and BMS.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news within 30 minutes",
+          "notes": "No high-impact news events scheduled.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Constructed targets yield an exceptional R:R of 27.0.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No speculative positioning data available for the current cycle.",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": [
+        {
+          "chunk_id": "006f1315-b534-45ce-bf56-ba3c48d29fc1",
+          "doc_id": "dxy_framework.md",
+          "section": "SECTION 2 \u2014 DXY \u2014 Permanent Confluence Layer"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        4574.63,
+        4577.01
+      ],
+      "evidence": [
+        {
+          "chunk_id": "6654a76f-e775-428e-84e0-e21b62d9a78a",
+          "content_preview": "SMC: SH+BMS+RTO \u00b7 SMS+BMS+RTO \u00b7 Turtle Soup \u00b7 AMD cycle",
+          "doc_id": "smc_framework.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4575.82_45422842"
+    },
+    "entry_zone": {
+      "high": 4577.01,
+      "low": 4574.63
+    },
+    "event_risk": [],
+    "execution_mode": "INSTANT",
+    "explainable_reasoning": "The market is exhibiting a highly clean realignment setup on XAUUSD. The dominant HTF trend is bearish across D1 down to H3. The short-term bullish pullback on H1/M30 has exhausted inside the H4 Bearish Order Block [4557.78, 4588.98]. On the M1 entry timeframe, we have detected a high-confluence SH+BMS+FV+RTO bearish setup (candidate XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4575.82_45422842) with a sweep of BSL up to 4577.43. The entry zone is set at the M1 Bearish OB [4574.63, 4577.01] with a structural SL at 4578.478. Although the Asian session is active, it is explicitly permitted for testing purposes. We target major structural liquidity pools down to the H1 Bullish OB lower bound at 4504.05, yielding an exceptional R:R of 27.0.",
+    "htf_bias": {
+      "key_levels": [
+        4588.98,
+        4773.55
+      ],
+      "notes": "HTF trend is strongly bearish across D1, H12, H8, H6, H4, and H3. Price is currently pulling back into premium zones to mitigate unmitigated bearish order blocks.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+            "content_preview": "Macro bias check (interest rates, COT, risk sentiment)",
+            "doc_id": "macro_price_guide.md",
+            "rule_id": "STYLE-CONSISTENCY-002",
+            "section": "REFERENCED RAG DOCUMENTS"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": [
+          {
+            "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+            "content_preview": "Macro bias check (interest rates, COT, risk sentiment)",
+            "doc_id": "macro_price_guide.md",
+            "rule_id": "STYLE-CONSISTENCY-002",
+            "section": "REFERENCED RAG DOCUMENTS"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        4570.82,
+        4579.9
+      ],
+      "notes": "H1 and M30 are short-term bullish representing a counter-trend retracement, but M5 and M1 have shifted bearish, signaling realignment with the dominant HTF bearish trend.",
+      "structure": "choch_bearish"
+    },
+    "pair": "XAUUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "f8214058-03e1-4c2d-8f68-8ecb2e509a11",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "591e79be-73c4-4b5e-aaad-d0af63ab1313",
+        "doc_id": "trading_style_rules.md",
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 27,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "10357bf6-aab3-4bab-8c57-fb228cec79e2",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 4578.478,
+      "reason": "Placed 3 pips above the M1 swing high / sweep high of 4577.43 to protect against stop hunts, in accordance with rule MR-RISK-006."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest M1/M5 major swing low liquidity pool",
+        "level": 4560.35,
+        "size_pct": 40
+      },
+      {
+        "basis": "M5 Bullish Order Block lower bound",
+        "level": 4551.08,
+        "size_pct": 30
+      },
+      {
+        "basis": "H1 Bullish Order Block lower bound / major HTF demand zone",
+        "level": 4504.05,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-25T02:27:00Z",
+    "trading_style": "SCALPING",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "045ef76d-8223-4488-8c3c-cf0393466aa2",
+          "doc_id": "wyckoff_guide.md",
+          "section": "REFERENCED RAG DOCUMENTS"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The market is exhibiting a highly clean realignment setup on XAUUSD. The dominant HTF trend is bearish across D1 down to H3. The short-term bullish pullback on H1/M30 has exhausted inside the H4 Bearish Order Block [4557.78, 4588.98]. On the M1 entry timeframe, we have detected a high-confluence SH+BMS+FV+RTO bearish setup (candidate XAUUSD_SH_BMS_RTO_BEARISH_BEARISH_4575.82_45422842) with a sweep of BSL up to 4577.43. The entry zone is set at the M1 Bearish OB [4574.63, 4577.01] with a structural SL at 4578.478. Although the Asian session is active, it is explicitly permitted for testing purposes. We target major structural liquidity pools down to the H1 Bullish OB lower bound at 4504.05, yielding an exceptional R:R of 27.0.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 27,
+  "session": "ASIAN",
+  "setup_type": "OB",
+  "stop_loss": 4578.478,
+  "symbol": "XAUUSD",
+  "take_profit": 4504.05,
+  "trade_valid": true,
+  "trading_style": "SCALPING"
+}
