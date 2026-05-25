@@ -112,14 +112,13 @@ def derive_macro_signals(macro: dict) -> dict:
         signals["has_tff_data"] = bool(cot.get("has_tff_data"))
 
     # Economic signals.
-    econ = macro.get("economic")
-    if econ and isinstance(econ, dict):
-        for release in econ.get("releases") or []:
-            if not isinstance(release, dict):
-                continue
-            inflation_type = (release.get("inflation_type") or "").upper()
-            if inflation_type == "CORE":
-                signals["has_core_inflation"] = True
+    # has_core_inflation stays False unconditionally: the
+    # EconomicRelease model no longer carries inflation_type after the
+    # 2026-05 cleanup (no provider populated it). The key is preserved
+    # in the signals dict initialisation above so the dashboard rerun
+    # endpoint can forward it to the RAG request without a KeyError.
+    # The Go gateway path agrees -- it also forwards false for this
+    # flag now.
 
     # Calendar signals.
     cal = macro.get("calendar")
