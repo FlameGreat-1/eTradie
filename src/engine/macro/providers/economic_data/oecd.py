@@ -42,97 +42,60 @@ _COUNTRY_CURRENCY_MAP: dict[str, Currency] = {
 _COUNTRIES_KEY = "+".join(_COUNTRY_CURRENCY_MAP.keys())
 
 # OECD dataset/indicator configurations.
-# Each entry defines: dataset_id, filter_key, indicator mapping, impact.
+# Each entry defines: dataset_id, filter_key, name_template.
+# Other classification metadata (indicator enum, impact, inflation_type)
+# was removed in the 2026-05 EconomicRelease cleanup; nothing downstream
+# consumed it.
 _OECD_INDICATORS: list[dict[str, Any]] = [
-    # --- GDP Growth Rate (Quarterly) ---
     {
         "dataset_id": "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH,1.0",
         "filter": f"{_COUNTRIES_KEY}.Q.G1._T.GY.V",
-        "indicator": EventType.GDP,
         "name_template": "GDP Growth Rate ({})",
-        "impact": EventImpact.HIGH,
-        "inflation_type": None,
     },
-    # --- CPI Headline (Monthly) ---
     {
         "dataset_id": "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0",
         "filter": f"{_COUNTRIES_KEY}.M.CPI._T.PA._T.N.GY",
-        "indicator": EventType.CPI,
         "name_template": "Consumer Price Index ({})",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.HEADLINE,
     },
-    # --- Core CPI ex Food & Energy (Monthly) ---
     {
         "dataset_id": "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0",
         "filter": f"{_COUNTRIES_KEY}.M.CPI.FE.PA._T.N.GY",
-        "indicator": EventType.CPI,
         "name_template": "Core CPI ex Food & Energy ({})",
-        "impact": EventImpact.HIGH,
-        "inflation_type": InflationType.CORE,
     },
-    # --- Unemployment Rate (Monthly) ---
     {
         "dataset_id": "OECD.SDD.TPS,DSD_LFS@DF_IALFS_UNE_M,1.0",
         "filter": f"{_COUNTRIES_KEY}.M.UNE_LF_M._T._T._T.PA",
-        "indicator": EventType.EMPLOYMENT,
         "name_template": "Unemployment Rate ({})",
-        "impact": EventImpact.HIGH,
-        "inflation_type": None,
     },
-    # --- PPI / Producer Prices (Monthly) ---
     {
         "dataset_id": "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0",
         "filter": f"{_COUNTRIES_KEY}.M.PPI._T.PA._T.N.GY",
-        "indicator": EventType.PPI,
         "name_template": "Producer Price Index ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": InflationType.HEADLINE,
     },
-    # --- Composite Leading Indicator (Monthly, PMI proxy) ---
     {
         "dataset_id": "OECD.SDD.STES,DSD_KEI@DF_KEI,4.0",
         "filter": f"{_COUNTRIES_KEY}.M.LI.LOLITOAA.IXOB.AA",
-        "indicator": EventType.PMI,
         "name_template": "Composite Leading Indicator ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
     },
-    # --- Retail Trade Volume (Monthly) ---
     {
         "dataset_id": "OECD.SDD.STES,DSD_KEI@DF_KEI,4.0",
         "filter": f"{_COUNTRIES_KEY}.M.ST.SLRTTO01.IXOB.AA",
-        "indicator": EventType.RETAIL_SALES,
         "name_template": "Retail Trade Volume ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
     },
-    # --- Trade Balance / Goods (Monthly) ---
     {
         "dataset_id": "OECD.SDD.TPS,DSD_BOP@DF_BOP,1.0",
         "filter": f"{_COUNTRIES_KEY}.M.B.G.S._T._T.D.N",
-        "indicator": EventType.TRADE_BALANCE,
         "name_template": "Trade Balance - Goods ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
     },
-    # --- Consumer Confidence (Monthly) ---
     {
         "dataset_id": "OECD.SDD.STES,DSD_KEI@DF_KEI,4.0",
         "filter": f"{_COUNTRIES_KEY}.M.CS.CSCICP03.IXOB.AA",
-        "indicator": EventType.CONSUMER_CONFIDENCE,
         "name_template": "Consumer Confidence Index ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
     },
-    # --- Industrial Production (Monthly) ---
     {
         "dataset_id": "OECD.SDD.STES,DSD_KEI@DF_KEI,4.0",
         "filter": f"{_COUNTRIES_KEY}.M.PR.PRINTO01.IXOB.AA",
-        "indicator": EventType.MANUFACTURING,
         "name_template": "Industrial Production Index ({})",
-        "impact": EventImpact.MEDIUM,
-        "inflation_type": None,
     },
 ]
 
@@ -175,7 +138,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
                 except Exception as exc:
                     logger.warning(
                         "oecd_indicator_skipped",
-                        indicator=indicator_cfg["indicator"].value,
+                        indicator=indicator_cfg.get("name_template", "unknown"),
                         error=str(exc),
                     )
             self._record_success(time.monotonic() - start)
