@@ -84,7 +84,7 @@ func (b *Builder) Build(
 		HasStagflation:             macroSignals.StagflationDetected,
 		HasCOTExtremes:             len(macroSignals.COTExtremesFlagged) > 0,
 		HasTFFData:                 macroSignals.COTHasTFFData,
-		HasCoreInflation:           len(macroSignals.CoreInflationData) > 0,
+		HasCoreInflation:           false,
 		HasSafeHavenElevated:       macroSignals.SafeHavenElevated,
 		HasCommodityCurrenciesWeak: macroSignals.CommodityCurrenciesWeak,
 		DXYMomentum:                macroSignals.DXYMomentum,
