@@ -95,6 +95,28 @@ def upgrade() -> None:
     if _TABLE not in set(insp.get_table_names()):
         return
 
+    # Self-sufficient precondition: 0013 owns user_id, but if for any
+    # reason it is missing on entry (stale inspector inside the same
+    # transaction, partial prior run, manual schema edit), add it
+    # here using the same shape 0013 uses. The migration must not
+    # assume upstream state -- it must guarantee its own.
+    existing_columns = _existing_columns(insp, _TABLE)
+    if "user_id" not in existing_columns:
+        op.add_column(
+            _TABLE,
+            sa.Column(
+                "user_id",
+                sa.String(64),
+                nullable=False,
+                server_default="system",
+            ),
+        )
+        insp = inspect(conn)
+        existing_indexes = _existing_indexes(insp, _TABLE)
+        if "ix_econ_user_id" not in existing_indexes:
+            op.create_index("ix_econ_user_id", _TABLE, ["user_id"])
+        insp = inspect(conn)
+
     existing_indexes = _existing_indexes(insp, _TABLE)
     for idx_name in _INDEXES_TO_DROP:
         if idx_name in existing_indexes:
