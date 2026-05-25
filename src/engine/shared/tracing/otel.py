@@ -33,11 +33,49 @@ def _validate_service_name(service_name: str) -> None:
 
 
 def _validate_otlp_endpoint(endpoint: str) -> None:
+    """Validate an OTLP endpoint string.
+
+    Accepts the canonical OTLP gRPC form documented in .env.example:
+
+        host:port            e.g. jaeger:4317
+
+    Also accepts a full URL for back-compat with operators who
+    supplied http(s) endpoints:
+
+        scheme://host[:port] e.g. http://otel-collector:4317
+
+    urlparse() treats 'jaeger:4317' as scheme='jaeger', path='4317'
+    (parsed.hostname is None) which used to break the documented
+    format. We now detect the bare host:port shape explicitly before
+    falling back to urlparse() for full URLs.
+    """
     if not endpoint or not endpoint.strip():
         raise TracingValidationError("OTLP endpoint cannot be empty")
 
+    value = endpoint.strip()
+
+    # Bare host:port (no scheme) -- the documented canonical form.
+    if "://" not in value:
+        host_part, _, port_part = value.partition(":")
+        if not host_part:
+            raise TracingValidationError(
+                f"Invalid OTLP endpoint: missing host in {endpoint!r}"
+            )
+        if port_part:
+            if not port_part.isdigit():
+                raise TracingValidationError(
+                    f"Invalid OTLP endpoint: non-numeric port in {endpoint!r}"
+                )
+            port_num = int(port_part)
+            if not (1 <= port_num <= 65535):
+                raise TracingValidationError(
+                    f"Invalid OTLP endpoint: port out of range in {endpoint!r}"
+                )
+        return
+
+    # Full scheme://host[:port] URL form.
     try:
-        parsed = urlparse(endpoint)
+        parsed = urlparse(value)
         if not parsed.hostname:
             raise ValueError("Missing hostname")
     except Exception as e:
