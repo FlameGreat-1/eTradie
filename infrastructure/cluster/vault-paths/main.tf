@@ -20,12 +20,13 @@ provider "vault" {
   namespace = var.vault_namespace
 }
 
+# edge-ingress TLS. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "edge_ingress_tls" {
   mount               = var.vault_mount
   name                = "etradie/services/edge-ingress/${var.environment}/tls"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; operator must populate before edge-ingress can roll out"
+    bootstrap = "placeholder; populate keys api_cert + api_key + wildcard_cert + wildcard_key (production) or staging_api_cert + staging_api_key + staging_wildcard_cert + staging_wildcard_key (staging). Values are PEM-encoded certificate / key strings."
   })
   lifecycle {
     ignore_changes = [data_json]
@@ -56,12 +57,13 @@ resource "vault_kv_secret_v2" "edge_ingress_tunnel" {
   }
 }
 
+# MaxMind GeoLite credentials. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "edge_ingress_maxmind" {
   mount               = var.vault_mount
   name                = "etradie/services/edge-ingress/${var.environment}/maxmind"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with MaxMind license_key + account_id"
+    bootstrap = "placeholder; populate keys license_key + account_id with a free GeoLite2 sign-up at https://www.maxmind.com/en/geolite2/signup. Both required."
   })
   lifecycle {
     ignore_changes = [data_json]
@@ -102,24 +104,26 @@ resource "vault_kv_secret_v2" "engine" {
   }
 }
 
+# Execution service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "execution" {
   mount               = var.vault_mount
   name                = "etradie/services/execution/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with execution_database_url, broker credentials"
+    bootstrap = "placeholder; populate keys: execution_database_url, execution_redis_url, auth_jwt_secret, broker_encryption_key, llm_encryption_key. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret."
   })
   lifecycle {
     ignore_changes = [data_json]
   }
 }
 
+# Management service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "management" {
   mount               = var.vault_mount
   name                = "etradie/services/management/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with management_database_url, broker credentials"
+    bootstrap = "placeholder; populate keys: management_database_url, management_redis_url, auth_jwt_secret, broker_encryption_key, llm_encryption_key. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret."
   })
   lifecycle {
     ignore_changes = [data_json]
