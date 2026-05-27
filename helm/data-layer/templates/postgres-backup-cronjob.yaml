@@ -36,7 +36,10 @@ spec:
     spec:
       backoffLimit: 2
       activeDeadlineSeconds: 3600
-      ttlSecondsAfterFinished: 86400
+      # Completed backup pods release their RWO PVC claim within an hour
+      # so the next scheduled job can schedule on a different node if
+      # the previous node is unreachable. Audit ref: D-H5.
+      ttlSecondsAfterFinished: 3600
       template:
         metadata:
           labels:

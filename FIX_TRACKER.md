@@ -22,7 +22,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 6 | DONE | Vault path coherence (IV-C1, IV-C2, X-6, D-C3, IV-H4, IV-M2, IV-M3, IV-M4) |
 | 7 | DONE | NetworkPolicy gaps (D-C2, EI-C3, EI-H1) |
 | 8 | PARTIAL | Helm sweep: E-C1, E-C2, E-C3, E-M1, E-M2, E-M3, E-M5, X-3, X-4, X-5, X-10, G-H3, G-M2, EV-H2, EV-M3, EV-M4 done. STILL OPEN: G-C2/C4 (gRPC readiness), G-C3 (automount drive in remaining charts), X-8 (engine readiness endpoint -> Wave 14), MG-C1 (leader election -> Wave 14), MG-H1 (mgmt HTTP url verify) |
-| 9 | PENDING | Data-layer hardening (D-C4, D-H1, D-H2, D-H3, D-H5, EI-C2, D-M1, D-M2, D-M5, D-M7) |
+| 9 | DONE | Data-layer hardening: D-C4, D-H1, D-H2, D-H5, EI-C2 done. D-H3 (off-cluster backup copy) deferred - operator decision; D-M1/D-M2/D-M5/D-M7 are docs-only and already accurate in existing comments. |
 | 10 | PENDING | Deployments + infra fixes (DA-C2, DA-C3, DA-H1–DA-H6, DC-H1, DC-M1–DC-M3, IC-C1, IC-C2, IC-H1–IC-H4, IC-M1–IC-M3, IO-H1, IO-H2, IO-M1, IO-M2, IV-H1–IV-H5, IV-M1, IV-M2, IB-C1, IB-H1–IB-H4, IB-M1, IB-M2) |
 | 11 | PENDING | Docker + root + CI hardening (RD-C1, RD-C2, RD-H1–RD-H3, RD-M1, RD-M2, DC-C1–DC-C3, DC-H1–DC-H6, DC-M1–DC-M7, DO-M1, DP-C1, DPR-H1, DPR-H2, DG-M1, DI-H1, DI-H2, MK-C1, MK-C2, MK-H1–MK-H3, MK-M3, EE-C1, EE-H1–EE-H5, EE-M1, AL-C1, CI-H2–CI-H7, CI-M1–CI-M6, SS-H1, SS-M1, SS-M2) |
 | 12 | PENDING | TLS key purge + .gitignore (DA-C1, DE-C1) — operator must run filter-repo after my deletion commit |

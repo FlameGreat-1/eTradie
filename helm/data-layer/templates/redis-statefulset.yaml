@@ -52,6 +52,48 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Init container materialises the runtime redis.conf by
+      # concatenating the static template (from the ConfigMap) with
+      # a runtime-rendered `requirepass <password>` line. This keeps
+      # the password off the argv (audit ref: D-H1) and out of any
+      # ConfigMap.
+      initContainers:
+        - name: render-redis-conf
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              cat /etc/redis-template/redis.conf > /run/redis/redis.conf
+              printf 'requirepass %s\n' "$REDIS_PASSWORD" >> /run/redis/redis.conf
+              chmod 0400 /run/redis/redis.conf
+          envFrom:
+            - secretRef:
+                name: {{ include "redis.secretName" . }}
+                optional: false
+          volumeMounts:
+            - name: config-template
+              mountPath: /etc/redis-template
+              readOnly: true
+            - name: runtime-conf
+              mountPath: /run/redis
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
       containers:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
@@ -64,14 +106,12 @@ spec:
             capabilities:
               drop:
                 - ALL
-          # Pass the password on the command line so it is supplied
-          # by Kubernetes-injected env at startup and is never written
-          # into the redis.conf ConfigMap.
+          # Password lives ONLY in the rendered conf file at
+          # /run/redis/redis.conf (init container above). argv contains
+          # no secret. Audit ref: D-H1.
           command:
-            - sh
-            - -c
-            - |
-              exec redis-server /etc/redis/redis.conf --requirepass "$REDIS_PASSWORD"
+            - redis-server
+            - /run/redis/redis.conf
           ports:
             - name: redis
               containerPort: {{ .Values.redis.service.port | default 6379 }}
@@ -80,6 +120,15 @@ spec:
             - secretRef:
                 name: {{ include "redis.secretName" . }}
                 optional: false
+          env:
+            # redis-cli reads REDISCLI_AUTH env (6.2+); the probes
+            # below therefore do NOT pass -a $REDIS_PASSWORD on argv.
+            # Audit ref: D-H2.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: REDIS_PASSWORD
           resources:
             {{- toYaml .Values.redis.resources | nindent 12 }}
           startupProbe:
@@ -87,7 +136,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep PONG'
+                - 'redis-cli --no-auth-warning ping | grep PONG'
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
@@ -97,7 +146,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep PONG'
+                - 'redis-cli --no-auth-warning ping | grep PONG'
             initialDelaySeconds: 0
             periodSeconds: 15
             timeoutSeconds: 3
@@ -107,7 +156,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep PONG'
+                - 'redis-cli --no-auth-warning ping | grep PONG'
             initialDelaySeconds: 0
             periodSeconds: 5
             timeoutSeconds: 3
@@ -115,14 +164,17 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: config
-              mountPath: /etc/redis
+            - name: runtime-conf
+              mountPath: /run/redis
               readOnly: true
       volumes:
-        - name: config
+        - name: config-template
           configMap:
             name: {{ include "redis.configMap" . }}
             defaultMode: 0444
+        - name: runtime-conf
+          emptyDir:
+            sizeLimit: 64Ki
   volumeClaimTemplates:
     - metadata:
         name: data

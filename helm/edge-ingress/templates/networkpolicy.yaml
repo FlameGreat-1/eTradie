@@ -78,7 +78,14 @@ spec:
       ports:
         - protocol: TCP
           port: 8200
-    # Public 443 - MaxMind download (init container)
+    # Public HTTPS egress (MaxMind GeoLite database download in the
+    # init container; cloudflared upstream metadata fetch by the main
+    # container is via the cloudflared pod, not this one). Standard
+    # K8s NetworkPolicy cannot filter by FQDN, so we restrict to
+    # public space and exclude RFC1918 + link-local + loopback so a
+    # compromised pod cannot scan intra-cluster on :443. For full
+    # FQDN-aware egress (only updates.maxmind.com), deploy Cilium or
+    # Calico Enterprise. Audit ref: EI-C2.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -86,6 +93,8 @@ spec:
               - 10.0.0.0/8
               - 172.16.0.0/12
               - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
       ports:
         - protocol: TCP
           port: 443
