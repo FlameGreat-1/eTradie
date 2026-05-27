@@ -14,3 +14,22 @@ htmlcov
 *.md
 *.docx
 .pre-commit-config.yaml
+# Secrets must never land in build context. Audit ref: DI-H1.
+.env
+.env.*
+**/.env
+**/.env.*
+# Private keys and certificates should never be baked into an image.
+**/*.key
+**/*.pem
+**/*.crt
+**/*.p12
+**/*.pfx
+# Bulky developer-only directories. Audit ref: DI-H2.
+model_cache/
+output/
+tests/
+knowledge/scenarios/
+deployments/cloudflare/origin-pull/dev-*.crt
+deployments/cloudflare/origin-pull/dev-*.key
+deployments/cloudflare/origin-pull/dev-*.pem

@@ -11,6 +11,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terraform:
+    name: Terraform fmt + validate (all modules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive infrastructure/
+      - name: terraform validate - cloudflare
+        run: |
+          cd infrastructure/cloudflare
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: terraform validate - cluster/vault-paths
+        run: |
+          cd infrastructure/cluster/vault-paths
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: terraform validate - cluster/oci
+        run: |
+          cd infrastructure/cluster/oci
+          terraform init -backend=false -input=false
+          terraform validate
   lint:
     runs-on: ubuntu-latest
     steps:

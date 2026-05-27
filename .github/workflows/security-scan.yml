@@ -25,6 +25,23 @@ jobs:
         run: bandit -r src/ -c pyproject.toml
       - name: pip-audit — dependency vulnerabilities
         run: pip-audit -r requirements/base.txt --strict
+      - name: Set up Go (for gosec)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - name: gosec — Go static analysis
+        # Audit ref: SS-H1. Severity threshold medium so the build
+        # fails on real issues but tolerates style warnings.
+        run: gosec -fmt json -out gosec-report.json -severity medium ./src/gateway/... ./src/execution/... ./src/management/... ./src/billing/... ./src/auth/...
+      - name: Upload gosec report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gosec-report
+          path: gosec-report.json
+          retention-days: 30
       - name: Upload security report
         if: always()
         uses: actions/upload-artifact@v4

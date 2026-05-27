@@ -1,0 +1,59 @@
+# Weekly refresh of Cloudflare published IPv4/IPv6 ranges + AOP CA pin
+# verification. Opens a PR when the ranges change so an operator can
+# review the diff. Hard-fails when the Cloudflare AOP CA fingerprint
+# changes; that path requires the rotation runbook, not an auto-PR.
+# Audit ref: CI-M6.
+name: Cloudflare refresh
+
+on:
+  schedule:
+    # Sunday 04:00 UTC. Cloudflare typically adds ranges mid-week, so
+    # a Sunday refresh catches the diff before the next deploy window.
+    - cron: "0 4 * * 0"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required tools
+        run: command -v openssl && command -v curl
+      - name: Run refresh-cloudflare-ips.sh
+        id: refresh
+        run: |
+          set +e
+          bash deployments/cloudflare/scripts/refresh-cloudflare-ips.sh
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+      - name: Fail loudly on CA rotation
+        if: steps.refresh.outputs.exit_code == '1'
+        run: |
+          echo "FATAL: Cloudflare AOP CA fingerprint changed."
+          echo "Follow the rotation runbook in docs/architecture/edge-cloudflare-envoy.md"
+          echo "BEFORE updating the pin. Do NOT auto-PR a CA bump."
+          exit 1
+      - name: No changes
+        if: steps.refresh.outputs.exit_code == '0'
+        run: echo "Cloudflare ranges unchanged."
+      - name: Open PR when ranges changed
+        if: steps.refresh.outputs.exit_code == '2'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(cloudflare): refresh published IP ranges"
+          title: "chore(cloudflare): refresh published IP ranges"
+          body: |
+            Weekly automated refresh of Cloudflare published IPv4/IPv6
+            origin ranges. Both the canonical files under
+            `deployments/cloudflare/ip-ranges/` and the chart-local
+            copies under `helm/gateway/files/cloudflare/` were
+            updated by `refresh-cloudflare-ips.sh`. Merge within 7
+            days or `src/auth/clientip.go` will treat legitimate
+            Cloudflare nodes as untrusted.
+
+            Audit ref: CI-M6.
+          branch: chore/cloudflare-refresh
+          delete-branch: true
