@@ -417,15 +417,19 @@ livenessProbe:
   successThreshold: 1
   failureThreshold: 4
 
+# Readiness gates on DB + cache + RAG health (not just HTTP listener).
+# failureThreshold 6 x periodSeconds 10s = 60s grace after the
+# startupProbe has already passed, which absorbs RAG bootstrap
+# variation without unnecessary pod drops. Audit ref: V-14, X-8.
 readinessProbe:
   httpGet:
-    path: /health
+    path: /readiness
     port: http
   initialDelaySeconds: 0
   periodSeconds: 10
-  timeoutSeconds: 3
+  timeoutSeconds: 5
   successThreshold: 1
-  failureThreshold: 3
+  failureThreshold: 6
 
 lifecycle:
   preStop:

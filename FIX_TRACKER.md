@@ -27,7 +27,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 11 | DONE | Docker+root+CI: RD-C1, RD-H1, RD-H2, DC-C1, DC-C2, DC-C3, DI-H1, DI-H2, MK-C1, MK-C2, MK-H1, MK-H2, AL-C1, CI-H5 (tf job), CI-M6 (weekly cf workflow), SS-H1 done. Remaining MEDIUM/LOW docs polish in Wave 15. |
 | 12 | DONE | TLS key + cert deleted from working tree, gitignored, README updated. OPERATOR ACTION: run `git filter-repo` to purge history (see deployments/edge-ingress/docker/certs/README.md). |
 | 13 | DONE | mt-node deployment model documented + SIGTERM trap added. E-H5 closed in Wave 5. DMT-H1/H2 documented as operator decisions. DMT-M1 (image digest pin) in Wave 15 cleanup. |
-| 14 | PENDING | Engine code fixes (V-14 readiness endpoint, SC-H11 deferred import, SC-H12 metering middleware verify, FV-M1 alembic schema imports) |
+| 14 | DONE | V-14 / X-8: distinct /readiness endpoint that gates on DB+cache+RAG; helm engine readinessProbe points at it. SC-H11/H12/FV-M1 in Wave 15 (docs/non-blocking). |
 | 15 | PENDING | Cleanup pass (all remaining MEDIUM/LOW) |
 
 ## Findings closed (no fix needed)
