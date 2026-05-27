@@ -14,6 +14,9 @@
 
 replicaCount: 2
 
+# Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # The root Dockerfile at the repo root builds the Python engine.
   # CI publishes it to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
@@ -35,7 +38,8 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  automountServiceAccountToken: true
+  # Engine does not call the K8s API at runtime. Audit ref: E-C2, E-C3.
+  automountServiceAccountToken: false
 
 podAnnotations:
   prometheus.io/scrape: "true"

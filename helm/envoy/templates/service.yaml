@@ -15,14 +15,14 @@ spec:
   selector:
     {{- include "envoy.selectorLabels" . | nindent 4 }}
   ports:
+    # Only the data-plane HTTP port is exposed on the main Service.
+    # The admin/metrics port (9901) is reachable ONLY via the
+    # headless Service so any pod in the cluster can scrape it via
+    # ServiceMonitor without exposing the admin surface to peers that
+    # only need to dial the data plane. Audit ref: EV-M3.
     - name: http
       port: {{ .Values.service.ports.http | default 8080 }}
       targetPort: http
-      protocol: TCP
-      appProtocol: http
-    - name: admin
-      port: {{ .Values.service.ports.admin | default 9901 }}
-      targetPort: admin
       protocol: TCP
       appProtocol: http
 {{- if .Values.headlessService.enabled }}

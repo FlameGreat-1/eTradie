@@ -41,9 +41,9 @@ app.kubernetes.io/part-of: etradie
 app.kubernetes.io/component: execution
 {{- end -}}
 
+{{- /* Audit ref: X-4. */ -}}
 {{- define "execution.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "execution.appName" . }}
-app.kubernetes.io/component: execution
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 

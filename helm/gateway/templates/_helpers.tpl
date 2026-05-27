@@ -40,9 +40,12 @@ app.kubernetes.io/part-of: etradie
 app.kubernetes.io/component: api
 {{- end -}}
 
+{{- /*
+selectorLabels are the immutable subset used in spec.selector.matchLabels.
+Component label MUST NOT live here. Audit ref: X-4, G-M1.
+*/ -}}
 {{- define "gateway.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "gateway.appName" . }}
-app.kubernetes.io/component: api
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 

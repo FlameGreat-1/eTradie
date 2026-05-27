@@ -6,6 +6,9 @@
 
 replicaCount: 3
 
+# Keep N old ReplicaSets per Deployment for rollback. Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
   # Owner + repo lowercased per GHCR case-sensitivity.
@@ -210,11 +213,11 @@ initContainer:
       port: 6379
     - host: "engine.etradie-system.svc.cluster.local"
       port: 8000
-    # Wait for billing too; without it the gateway accepts
-    # /api/v1/billing/* requests that would fail with 502 during
-    # the deploy-order race window.
-    - host: "billing-service.etradie-system.svc.cluster.local"
-      port: 8082
+    # billing-service is intentionally NOT in this list. The gateway
+    # is critical-path; coupling its boot to billing's availability
+    # was wrong. The billing client retries at request time and
+    # /api/v1/billing/* returns 503 only for the billing endpoints if
+    # billing is unreachable. Audit ref: G-H3.
   resources:
     requests:
       cpu: 10m

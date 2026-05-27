@@ -40,9 +40,9 @@ app.kubernetes.io/part-of: etradie
 app.kubernetes.io/component: billing
 {{- end -}}
 
+{{- /* Audit ref: X-4. */ -}}
 {{- define "billing.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "billing.appName" . }}
-app.kubernetes.io/component: billing
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 

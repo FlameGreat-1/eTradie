@@ -11,6 +11,9 @@
 
 replicaCount: 2
 
+# Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
   repository: ghcr.io/flamegreat-1/etradie/billing

@@ -32,7 +32,10 @@ config:
     returnTokensInBody: "false"
 
 trustChain:
-  trustedProxyCidrs: "10.42.0.0/16"
+  # List form preferred over scalar for per-entry validation.
+  # Audit ref: G-M2.
+  trustedProxyCidrs:
+    - "10.42.0.0/16"
   trustCloudflare: "false"
 
 externalSecrets:

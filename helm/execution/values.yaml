@@ -13,6 +13,9 @@
 
 replicaCount: 2
 
+# Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
   repository: ghcr.io/flamegreat-1/etradie/execution
@@ -79,7 +82,10 @@ config:
   execution:
     grpcPort: "50053"
     httpPort: "8080"
-    brokerMode: "mock"
+    # No safe default. Production must set 'mt5'; non-prod environments
+    # explicitly opt-in to 'mock'. Empty string fails validate() so a
+    # fresh deploy with no overlay refuses to boot. Audit ref: X-10, EX-M2.
+    brokerMode: ""
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
     mockBrokerBalance: "10000.0"

@@ -235,11 +235,6 @@ config:
       port: 8080
       useRemoteAddress: true
       xffNumTrustedHops: 1
-    route:
-      timeout: "30s"
-      idleTimeout: "60s"
-      numRetries: 2
-      perTryTimeout: "10s"
     cluster:
       connectTimeout: "5s"
       circuitBreaker:

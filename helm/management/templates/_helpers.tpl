@@ -40,9 +40,9 @@ app.kubernetes.io/part-of: etradie
 app.kubernetes.io/component: management
 {{- end -}}
 
+{{- /* Audit ref: X-4. */ -}}
 {{- define "management.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "management.appName" . }}
-app.kubernetes.io/component: management
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
