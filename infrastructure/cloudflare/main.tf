@@ -58,6 +58,13 @@ resource "cloudflare_record" "hostname" {
   type    = "CNAME"
   content = each.value
   proxied = true
+  # ttl = 1 means 'auto'; Cloudflare REQUIRES ttl=1 for proxied=true
+  # records. Audit ref: IC-H2.
   ttl     = 1
   comment = "Managed by infrastructure/cloudflare (env=${var.environment})"
+
+  # Refuse `terraform destroy` on production DNS. Audit ref: IC-H1.
+  lifecycle {
+    prevent_destroy = true
+  }
 }

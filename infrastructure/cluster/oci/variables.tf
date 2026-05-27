@@ -23,9 +23,9 @@ variable "vcn_id" {
 }
 
 variable "kubernetes_version" {
-  description = "OKE Kubernetes minor version (e.g. v1.30.1)."
+  description = "OKE Kubernetes minor version. Bump explicitly when OCI publishes a new patch line. Audit ref: IO-H2."
   type        = string
-  default     = "v1.30.1"
+  default     = "v1.32.1"
 }
 
 variable "cluster_name" {
