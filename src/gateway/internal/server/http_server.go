@@ -31,11 +31,16 @@ import (
 
 // HTTPServer serves health, readiness, metrics, WebSocket notifications,
 // event history, and the dashboard REST API.
+//
+// grpcServer is held only so handleReadiness can ask whether the gRPC
+// surface is actually serving. The HTTP server never invokes any other
+// method on it. Audit ref: G-C4.
 type HTTPServer struct {
-	server *http.Server
-	redis  *infra.RedisClient
-	engine *infra.EngineHTTPClient
-	log    zerolog.Logger
+	server     *http.Server
+	redis      *infra.RedisClient
+	engine     *infra.EngineHTTPClient
+	grpcServer *GRPCServer
+	log        zerolog.Logger
 }
 
 // NewHTTPServer creates the HTTP server with all endpoints mounted.
@@ -65,11 +70,13 @@ func NewHTTPServer(
 	perfReviewHandler *performancereview.Handler,
 	adminBillingHandler *AdminBillingHandler,
 	userBillingHandler *UserBillingHandler,
+	grpcServer *GRPCServer,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
-		redis:  redis,
-		engine: engine,
-		log:    observability.Logger("http_server"),
+		redis:      redis,
+		engine:     engine,
+		grpcServer: grpcServer,
+		log:        observability.Logger("http_server"),
 	}
 
 	mux := http.NewServeMux()
@@ -305,17 +312,28 @@ func (s *HTTPServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
+// handleReadiness reports the pod ready ONLY when every dependency the
+// gateway will hit on its first inbound request is reachable AND the
+// gateway's OWN gRPC surface is bound and serving.
+//
+// The grpcServer dependency closes a real bug: the HTTP and gRPC
+// servers start in parallel goroutines in main.go. Before this gate,
+// the kubelet would mark the pod Ready as soon as the HTTP listener
+// bound, but execution and management dial gateway:50052; until the
+// gRPC goroutine reached net.Listen the dials returned ECONNREFUSED.
+// Audit ref: G-C4.
 func (s *HTTPServer) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	redisOK := s.redis.HealthCheck(ctx)
 	engineOK := s.engine.HealthCheck(ctx)
+	grpcOK := s.grpcServer != nil && s.grpcServer.IsServing()
 
 	w.Header().Set("Content-Type", "application/json")
-	if redisOK && engineOK {
+	if redisOK && engineOK && grpcOK {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ready","redis":true,"engine":true}`))
-	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = fmt.Fprintf(w, `{"status":"not_ready","redis":%t,"engine":%t}`, redisOK, engineOK)
+		_, _ = w.Write([]byte(`{"status":"ready","redis":true,"engine":true,"grpc":true}`))
+		return
 	}
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = fmt.Fprintf(w, `{"status":"not_ready","redis":%t,"engine":%t,"grpc":%t}`, redisOK, engineOK, grpcOK)
 }
