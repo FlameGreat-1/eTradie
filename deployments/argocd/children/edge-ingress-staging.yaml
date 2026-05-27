@@ -16,7 +16,7 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    targetRevision: HEAD
+    targetRevision: main
     path: helm/edge-ingress
     helm:
       releaseName: edge-ingress

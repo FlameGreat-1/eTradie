@@ -5,8 +5,9 @@ cloud module** in this repo (Contabo K3s, kubeadm, hand-rolled
 bare-metal, kind / k3d for local). Lists the exact steps to bring
 the cluster from "empty" to "ArgoCD can reconcile the platform".
 
-If you are on AWS see `../aws/`. If you are on OCI see `../oci/`.
-For any other cluster, follow this guide.
+If you are on OCI see `../oci/`. The platform does NOT deploy on AWS
+(see infrastructure/README.md). For any other cluster, follow this
+guide. Audit ref: IB-C1.
 
 ## 0. Prerequisites
 
@@ -77,8 +78,18 @@ write the real bytes:
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/tunnel \
   tunnel_token=eyJhIjoi...   # from Cloudflare Zero Trust UI
 
+# Authenticated Origin Pulls CA bundle. The KEY name MUST be 'aop_ca'
+# (matches helm/edge-ingress/templates/externalsecret-aop-ca.yaml which
+# reads property: aop_ca). The CA bytes come from the AOP endpoint, NOT
+# the Origin CA endpoint - they are different CAs. Audit ref: IV-H5, IB-H1, IB-H2.
 vault kv put secret/etradie/services/edge-ingress/production/cloudflare/aop_ca \
-  origin-pull-ca.pem="$(curl -fsS https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem)"
+  aop_ca="$(curl -fsS https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem)"
+
+# ChromaDB auth token. THIS PATH IS THE SINGLE SOURCE OF TRUTH for the
+# token - both the ChromaDB server pod and the engine pod read it from
+# here. Audit ref: IV-C2.
+vault kv put secret/etradie/data-layer/chromadb/production \
+  auth_token="$(openssl rand -hex 32)"
 
 # ... and so on for every path in the vault_paths output.
 ```

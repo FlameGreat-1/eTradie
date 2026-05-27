@@ -8,7 +8,7 @@ variable "environment" {
 }
 
 variable "vault_address" {
-  description = "Vault HTTPS endpoint."
+  description = "Vault HTTPS endpoint. Authentication is performed via VAULT_TOKEN env var (operator must export before terraform apply). Audit ref: IV-H1."
   type        = string
 }
 

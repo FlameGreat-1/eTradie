@@ -18,7 +18,8 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    targetRevision: HEAD
+    # Audit ref: DA-H1. Consistent with every production child.
+    targetRevision: main
     path: helm/data-layer
     helm:
       releaseName: etradie-data-layer
