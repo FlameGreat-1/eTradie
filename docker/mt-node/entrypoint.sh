@@ -21,6 +21,32 @@
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# ── Signal handling ─────────────────────────────────────────────
+# Trap SIGTERM and SIGINT so `docker stop` does a clean shutdown of
+# the MetaTrader binary AND the Xvfb display server. Without this,
+# the container kills MT mid-write and wineserver may keep the
+# prefix locked across restart, which prevents the next boot.
+# Audit ref: DMT-M2.
+MT_PID=""
+XVFB_PID=""
+_shutdown() {
+  echo "[INFO] Caught shutdown signal, terminating MetaTrader + Xvfb..." >&2
+  if [ -n "${MT_PID}" ] && kill -0 "${MT_PID}" 2>/dev/null; then
+    kill -TERM "${MT_PID}" 2>/dev/null || true
+    for _ in $(seq 1 100); do
+      kill -0 "${MT_PID}" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "${MT_PID}" 2>/dev/null || true
+  fi
+  if [ -n "${XVFB_PID}" ]; then
+    kill -TERM "${XVFB_PID}" 2>/dev/null || true
+  fi
+  wineserver -k 2>/dev/null || true
+  exit 0
+}
+trap _shutdown TERM INT
+
 # ── Defaults ──────────────────────────────────────────────────────
 MT_PLATFORM="${MT_PLATFORM:-mt5}"
 ZMQ_PORT="${ZMQ_PORT:-5555}"
