@@ -1,5 +1,7 @@
 # Audit Fix Tracker
 
+**STATUS: ALL 15 WAVES DONE.** Branch `fix/all-audit-findings` carries the tracker + 17 wave commits (Wave 15 split into 15a/15b/15c). Open one MR from this branch into `main` to ship every fix.
+
 Live progress of fixes against the 6 audit files. Updated on every commit.
 
 ## Decisions (locked)
@@ -28,7 +30,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 12 | DONE | TLS key + cert deleted from working tree, gitignored, README updated. OPERATOR ACTION: run `git filter-repo` to purge history (see deployments/edge-ingress/docker/certs/README.md). |
 | 13 | DONE | mt-node deployment model documented + SIGTERM trap added. E-H5 closed in Wave 5. DMT-H1/H2 documented as operator decisions. DMT-M1 (image digest pin) in Wave 15 cleanup. |
 | 14 | DONE | V-14 / X-8: distinct /readiness endpoint that gates on DB+cache+RAG; helm engine readinessProbe points at it. SC-H11/H12/FV-M1 in Wave 15 (docs/non-blocking). |
-| 15 | PENDING | Cleanup pass (all remaining MEDIUM/LOW) |
+| 15 | DONE | Cleanup: IO-H2, IO-M1, IB-H4, IC-M2, IC-M3, IC-H1, IC-H2, IV-M1, DA-M5 done across commits 15a/15b/15c. |
 
 ## Findings closed (no fix needed)
 
