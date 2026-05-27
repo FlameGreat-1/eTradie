@@ -173,12 +173,15 @@ externalSecrets:
     secretStoreName: vault-backend
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
-    # Production Vault path. Aligns with
-    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.engine
-    # (etradie/services/engine/${environment}). values-staging.yaml
-    # overrides this to etradie/services/engine/staging.
+    # Engine secrets path. Aligns with
+    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.engine.
     vaultPath: etradie/services/engine/production
     creationPolicy: Owner
+    # Canonical ChromaDB auth token path. The chromadb StatefulSet's
+    # CHROMA_SERVER_AUTHN_CREDENTIALS and the engine's
+    # RAG_CHROMA_AUTH_TOKEN both read from this exact Vault path so
+    # they cannot drift out of sync. Audit ref: IV-C2, X-6, D-C3.
+    chromadbAuthVaultPath: etradie/data-layer/chromadb/production
 
 resources:
   requests:
