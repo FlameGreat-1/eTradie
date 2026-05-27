@@ -105,7 +105,7 @@ class LLMConnectionRow(ProcessorBase):
     max_output_tokens: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        server_default="16384",
+        server_default="32768",
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,

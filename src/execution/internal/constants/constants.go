@@ -159,10 +159,11 @@ type SessionWindow struct {
 }
 
 var Sessions = []SessionWindow{
-	{Name: "LONDON_OPEN", StartHour: 7, EndHour: 10},
-	{Name: "LONDON_NY_OVERLAP", StartHour: 12, EndHour: 16},
-	{Name: "NEW_YORK", StartHour: 13, EndHour: 17},
-	{Name: "ASIAN", StartHour: 0, EndHour: 6},
+	{Name: "ASIAN", StartHour: 0, EndHour: 7},
+	{Name: "LONDON_OPEN", StartHour: 7, EndHour: 13},
+	{Name: "LONDON_NY_OVERLAP", StartHour: 13, EndHour: 17},
+	{Name: "NEW_YORK", StartHour: 17, EndHour: 22},
+	{Name: "ASIAN", StartHour: 22, EndHour: 24},
 }
 
 // Friday entry cutoff hours (UTC) by style from Rulebook Section 2.6.

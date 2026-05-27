@@ -603,14 +603,42 @@ func (w *Watcher) isPriceInZone(tick *models.TickPrice) bool {
 	}
 	tolerance := w.order.OvershootTolerance
 	entry := w.order.EntryPrice
+	sl := w.order.StopLoss
+
+	// Calculate a safe margin (10% of SL distance) to prevent executing
+	// too close to the Stop Loss. If price touches this bound, we reject
+	// to avoid broker EA "Stop levels too close" errors.
+	safeMargin := entry - sl
+	if safeMargin < 0 {
+		safeMargin = -safeMargin
+	}
+	safeMargin = safeMargin * 0.1
 
 	switch w.order.Direction {
 	case constants.DirectionLong:
-		// For LONG: we buy at the Ask. Entry zone is at/below entry + tolerance.
-		return tick.Ask <= entry+tolerance
+		// For LONG: we buy at the Ask.
+		// Price must be within [entry - tolerance, entry + tolerance]
+		if tick.Ask < entry-tolerance || tick.Ask > entry+tolerance {
+			return false
+		}
+		// Price must NOT be too close to or below the Stop Loss
+		if sl > 0 && tick.Ask <= sl+safeMargin {
+			return false
+		}
+		return true
+
 	case constants.DirectionShort:
-		// For SHORT: we sell at the Bid. Entry zone is at/above entry - tolerance.
-		return tick.Bid >= entry-tolerance
+		// For SHORT: we sell at the Bid.
+		// Price must be within [entry - tolerance, entry + tolerance]
+		if tick.Bid < entry-tolerance || tick.Bid > entry+tolerance {
+			return false
+		}
+		// Price must NOT be too close to or above the Stop Loss
+		if sl > 0 && tick.Bid >= sl-safeMargin {
+			return false
+		}
+		return true
+
 	default:
 		return false
 	}

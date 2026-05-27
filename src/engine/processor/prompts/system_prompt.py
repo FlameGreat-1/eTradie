@@ -465,6 +465,8 @@ def build_user_message(context: ProcessorInput) -> str:
         # DB / collector metadata
         "id", "created_at", "snapshot_at", "collected_at",
         "sources", "assessed_at", "source_url", "summary",
+        # Text fields that duplicate structural context
+        "reasoning", "description", "entry_reasoning",
         # Pydantic computed-field duplicates of `direction`
         "is_bullish", "is_bearish",
     }
@@ -492,15 +494,13 @@ def build_user_message(context: ProcessorInput) -> str:
 
         Pip values, prices, and ratios currently emit 13+ decimal
         artefacts like 5153.999999999996 or 1670.0400000000002.
-        Round to 5 decimals when |v| >= 1, 6 otherwise. NaN is
+        Round to 5 decimals for standard FX precision, removing 
+        trailing zeros natively via python float repr. NaN is 
         preserved untouched.
         """
         if value != value:  # NaN guard (NaN != NaN by IEEE-754)
             return value
-        absv = value if value >= 0 else -value
-        if absv >= 1.0:
-            return round(value, 5)
-        return round(value, 6)
+        return round(value, 5)
 
     def _clean_dict(d: Any) -> Any:
         """Recursively strip nulls, empties, defaults, db metadata,

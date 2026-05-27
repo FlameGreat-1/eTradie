@@ -1,0 +1,318 @@
+{
+  "analysis_id": "EURUSD_QML_KILLER_TYPE2_BEARISH_1.1645",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "SHORT",
+  "entry_price": 1.1644999999999999,
+  "execution_mode": "LIMIT",
+  "grade": "A+",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_eurusd_20260527_0745_a3f9",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "doc_id": "trading_style_rules.md",
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "c2473ec7-0537-44a8-824c-3a878e7a8fa4",
+          "doc_id": "trading_style_rules.md",
+          "section": "5. Risk-to-Reward Requirements"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+            "doc_id": "trading_style_rules.md",
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "c2473ec7-0537-44a8-824c-3a878e7a8fa4",
+            "doc_id": "trading_style_rules.md",
+            "section": "5. Risk-to-Reward Requirements"
+          }
+        ],
+        "query_summary": "EURUSD bearish setup analysis with macro and technical confluence",
+        "strategy_used": "vector_search",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Strong US economic data supports bullish USD and bearish EURUSD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1 down to H1 are all bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M30 and H1 show bearish structure.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid SnD zone on 4H or above",
+          "notes": "Entry is nested within W1 supply zone and D1/H12 bearish FVGs.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "4H OB or FVG at entry zone",
+          "notes": "H12 bearish FVG overlaps directly with entry price.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "M15 shows multiple liquidity sweeps and fakeouts.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "COT data not available.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Distribution phase on HTF.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news within 30 minutes.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "3.0R is achievable.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "COT data not available, net speculative positioning neutral.",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-27T07:45:00Z",
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "BULLISH",
+      "evidence": [
+        {
+          "chunk_id": "d34471f0-be2a-4fcd-ad8e-4edebcabcf4a",
+          "content_preview": "DXY is a mandatory analytical layer on every cycle.",
+          "doc_id": "master_rulebook.md",
+          "rule_id": "DXY-PERM-CONFLUENCE",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [
+        1.16452,
+        1.16603
+      ],
+      "evidence": [
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "content_preview": "SnD: QML + SR/RS Flip + Fakeout patterns",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "EURUSD_QML_KILLER_TYPE2_BEARISH_1.1645"
+    },
+    "entry_zone": {
+      "high": 1.1647,
+      "low": 1.1643
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The market is strongly bearish across all major high timeframes (D1 down to H1). We have identified a high-probability live edge bearish setup on the M15 timeframe: a QML Killer Type 2 pattern (QML+MPL+SR_FLIP+FAKEOUT+COMPRESSION) at 1.16452. This setup is nested within a weekly supply zone and directly overlaps with unmitigated bearish FVGs on D1 and H12. Macroeconomic indicators (rising US CPI, PCE, and GDP) strongly support a bullish USD bias, which translates to a bearish EURUSD bias. The risk-to-reward ratio is a solid 3.0R, targeting key structural liquidity pools at 1.1632, 1.1616, and 1.15999, with a structural stop loss placed safely above the QML invalidation level at 1.16603.",
+    "htf_bias": {
+      "key_levels": [
+        1.16611,
+        1.16527
+      ],
+      "notes": "HTF structure is strongly bearish across D1, H12, H8, H6, H4, H3, and H1 timeframes.",
+      "structure": "bearish"
+    },
+    "id": "d3b07384-d113-49c3-a5df-5293294aa03c",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BEARISH",
+        "evidence": [
+          {
+            "chunk_id": "8f3d8d8b-6fd5-4360-a0b9-0edc286dd2ae",
+            "content_preview": "Macro bias check",
+            "doc_id": "master_rulebook.md",
+            "rule_id": "STYLE-CONSISTENCY-002",
+            "section": "MASTER RULEBOOK"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "8f3d8d8b-6fd5-4360-a0b9-0edc286dd2ae",
+            "content_preview": "Macro bias check",
+            "doc_id": "master_rulebook.md",
+            "rule_id": "STYLE-CONSISTENCY-002",
+            "section": "MASTER RULEBOOK"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.16451,
+        1.16356
+      ],
+      "notes": "M30 and H1 show clear bearish structure and order flow.",
+      "structure": "bearish"
+    },
+    "pair": "EURUSD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+        "doc_id": "trading_style_rules.md",
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "c2473ec7-0537-44a8-824c-3a878e7a8fa4",
+        "doc_id": "trading_style_rules.md",
+        "section": "5. Risk-to-Reward Requirements"
+      }
+    ],
+    "rr_ratio": 3,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A+",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.16603,
+      "reason": "Placed above the QML invalidation level and the M15 swing high of 1.16527 with a safety buffer."
+    },
+    "take_profits": [
+      {
+        "basis": "M15 swing low / nearest structural liquidity pool",
+        "level": 1.1632,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 swing low / equal lows",
+        "level": 1.1616,
+        "size_pct": 30
+      },
+      {
+        "basis": "Candidate take profit / major structural target",
+        "level": 1.15999,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-27T07:45:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "46d90007-f08e-46f6-ba16-69f09ac30016",
+          "content_preview": "Wyckoff Theory",
+          "doc_id": "master_rulebook.md",
+          "rule_id": "STYLE-CONSISTENCY-002",
+          "section": "SECTION 1 \u2014 SYSTEM OVERVIEW"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The market is strongly bearish across all major high timeframes (D1 down to H1). We have identified a high-probability live edge bearish setup on the M15 timeframe: a QML Killer Type 2 pattern (QML+MPL+SR_FLIP+FAKEOUT+COMPRESSION) at 1.16452. This setup is nested within a weekly supply zone and directly overlaps with unmitigated bearish FVGs on D1 and H12. Macroeconomic indicators (rising US CPI, PCE, and GDP) strongly support a bullish USD bias, which translates to a bearish EURUSD bias. The risk-to-reward ratio is a solid 3.0R, targeting key structural liquidity pools at 1.1632, 1.1616, and 1.15999, with a structural stop loss placed safely above the QML invalidation level at 1.16603.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3,
+  "session": "LONDON_OPEN",
+  "setup_type": "SnD",
+  "stop_loss": 1.16603,
+  "symbol": "EURUSD",
+  "take_profit": 1.15999,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

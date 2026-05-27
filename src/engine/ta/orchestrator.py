@@ -184,7 +184,7 @@ class TAOrchestrator:
                 if pulse:
                     await pulse.emit("SHARDING", f"Fetching {tf.value} candle data")
                 adaptive_lookback = self._get_adaptive_lookback(tf, lookback_periods)
-                seq = await self._fetch_sequence(symbol, tf, adaptive_lookback, active_broker, user_id=user_id)
+                seq = await self._fetch_candles(symbol, tf, adaptive_lookback, active_broker, user_id=user_id)
                 if seq is not None:
                     sequences[tf] = seq
 
@@ -639,16 +639,12 @@ class TAOrchestrator:
         flag_attrs = (
             "bms_detected", "choch_detected", "sms_detected",
             "liquidity_swept", "inducement_cleared",
-            "qml_detected", "sr_flip_detected", "rs_flip_detected",
-            "mpl_detected", "fakeout_detected",
-            "marubozu_detected", "compression_detected",
-            "ltf_confirmation",
+            "qml_detected", "sr_rs_flip_detected", "mpl_detected", 
+            "fakeout_detected", "marubozu_detected", "compression_detected", 
+            "ltf_confirmation"
         )
-        flag_count = sum(
-            1 for attr in flag_attrs if getattr(c, attr, False)
-        )
-        entry_price = float(getattr(c, "entry_price", 0.0) or 0.0)
-        return (confluences, flag_count, entry_price)
+        flag_count = sum(bool(getattr(c, attr, False)) for attr in flag_attrs)
+        return (confluences, flag_count, getattr(c, "entry_price", 0.0))
 
     @classmethod
     def _zone_bucket(
@@ -744,9 +740,7 @@ class TAOrchestrator:
                 best_in_bucket[key] = c
         return list(best_in_bucket.values()) + bypass
 
-    # ── Candle fetching ──────────────────────────────────────────────
-
-    async def _fetch_sequence(
+    async def _fetch_candles(
         self,
         symbol: str,
         timeframe: Timeframe,

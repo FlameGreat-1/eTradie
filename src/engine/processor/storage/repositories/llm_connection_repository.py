@@ -19,6 +19,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from engine.processor.config import get_processor_config
 from engine.processor.storage.schemas.llm_connection_schema import LLMConnectionRow
 from engine.shared.logging import get_logger
 
@@ -86,7 +87,7 @@ class LLMConnectionRepository:
         api_key: str,
         base_url: Optional[str] = None,
         temperature: float = 0.0,
-        max_output_tokens: int = 16384,
+        max_output_tokens: Optional[int] = None,
         label: str = "",
         activate: bool = True,
     ) -> LLMConnectionRow:
@@ -105,6 +106,9 @@ class LLMConnectionRepository:
         if activate:
             await self._lock_user_active_rows(user_id)
             await self._deactivate_all(user_id)
+
+        if max_output_tokens is None:
+            max_output_tokens = get_processor_config().max_output_tokens
 
         if not label:
             label = f"{provider} / {model_name}"
@@ -148,7 +152,7 @@ class LLMConnectionRepository:
         api_key: str,
         base_url: Optional[str] = None,
         temperature: float = 0.0,
-        max_output_tokens: int = 16384,
+        max_output_tokens: Optional[int] = None,
     ) -> LLMConnectionRow:
         """Create or update the platform-level LLM connection.
         
@@ -156,6 +160,9 @@ class LLMConnectionRepository:
         """
         # Remove any existing platform connection
         await self.delete_platform()
+
+        if max_output_tokens is None:
+            max_output_tokens = get_processor_config().max_output_tokens
 
         row = LLMConnectionRow(
             id=str(uuid4()),

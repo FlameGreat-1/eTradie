@@ -9,6 +9,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from engine.processor.config import get_processor_config
+
 
 # -- Request/Response schemas for dashboard API ------------------------------
 
@@ -130,7 +132,7 @@ class CreateLLMConnectionRequest(BaseModel):
     model_name: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_output_tokens: int = Field(default=16384, ge=1024, le=131072)
+    max_output_tokens: int = Field(default_factory=lambda: get_processor_config().max_output_tokens, ge=1024, le=131072)
     label: Optional[str] = None
     activate: bool = True
 

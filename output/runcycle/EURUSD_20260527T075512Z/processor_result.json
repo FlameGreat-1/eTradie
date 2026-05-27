@@ -1,0 +1,241 @@
+{
+  "analysis_id": "analysis_EURUSD_20260527_0745_a1b2",
+  "confidence": 0,
+  "confluence_score": 0,
+  "direction": "",
+  "execution_mode": "",
+  "grade": "REJECT",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_EURUSD_20260527_0745_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+        },
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "doc_id": "trading_style_rules.md",
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        },
+        {
+          "chunk_id": "f04f870c-0ea4-4d78-aed1-6911436e20cf",
+          "doc_id": "trading_style_rules.md",
+          "section": "10. Conditions to Avoid"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+          },
+          {
+            "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+            "doc_id": "trading_style_rules.md",
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          },
+          {
+            "chunk_id": "f04f870c-0ea4-4d78-aed1-6911436e20cf",
+            "doc_id": "trading_style_rules.md",
+            "section": "10. Conditions to Avoid"
+          }
+        ],
+        "query_summary": "EURUSD structural alignment and setup validation",
+        "strategy_used": "RAG semantic search",
+        "top_k": 8
+      }
+    },
+    "confidence": "NO SETUP",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Strong US economic data supports bullish DXY and bearish EURUSD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "HTF trend is strongly bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or ChoCH confirmed",
+          "notes": "M30 is bearish.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "No valid unmitigated entry zone with proper risk parameters.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "SL offset rules reduce R:R below the minimum 1:3 requirement.",
+          "present": false,
+          "value": 0
+        }
+      ],
+      "score": 0
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No speculative positioning data available for this cycle.",
+      "week_over_week": null
+    },
+    "created_at": "2026-05-27T07:45:00Z",
+    "direction": "NO SETUP",
+    "dxy_bias": {
+      "direction": "BULLISH",
+      "evidence": [
+        {
+          "chunk_id": "d34471f0-be2a-4fcd-ad8e-4edebcabcf4a",
+          "doc_id": "dxy_framework.md",
+          "section": "SECTION 2 \u2014 INSTRUMENTS, SESSIONS & HOLDING PERIOD"
+        }
+      ]
+    },
+    "entry_setup": {
+      "bounds": [],
+      "evidence": [],
+      "quality": null,
+      "type": null,
+      "zone_id": null
+    },
+    "entry_zone": {
+      "high": null,
+      "low": null
+    },
+    "event_risk": [],
+    "execution_mode": null,
+    "explainable_reasoning": "The market is currently exhibiting LTF noise and counter-trend retracements. Bullish setups (such as CHOCH_BMS_RTO_BULLISH on M15) are rejected as they oppose the dominant HTF bearish trend without a confirmed 1D bullish CHoCH, violating STYLE-SETUP-004 and MR-REJECT-006. Bearish setups are also rejected: QML_KILLER_TYPE2_BEARISH_1.1645 lacks Marubozu validation on the breakout candle, violating Universal Rule 1. SH_BMS_RTO_BEARISH_BEARISH_1.1649_95563ff8 has an extremely tight SL of 0.7 pips, violating STYLE-RISK-003 (minimum 3-5 pip offset from the OB upper bound of 1.16496). Adjusting the SL to a safe structural level (e.g., 1.1653) reduces the R:R to 1.65R, which is below the minimum 1:3 required for Intraday style (violating STYLE-RR-001 and MR-REJECT-010). We remain patient and wait for price to mitigate the unmitigated D1 bearish FVG at 1.16634 - 1.16952 or the H3 supply zone at 1.17222 - 1.17782 before seeking a high-confluence entry.",
+    "htf_bias": {
+      "key_levels": [
+        1.16527,
+        1.16611
+      ],
+      "notes": "HTF structure is strongly bearish across D1, H12, H8, H6, H4, H3, and H1.",
+      "structure": "bearish"
+    },
+    "id": "d3b07384-d113-4ec5-a555-e1623456789a",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "BEARISH",
+        "evidence": [
+          {
+            "chunk_id": "efa74dc4-b3de-4861-a45a-136f2ac14cd9",
+            "content_preview": "FX Majors: EUR/USD",
+            "doc_id": "macro_price_guide.md",
+            "rule_id": "STYLE-MARKET-001",
+            "section": "2. Permitted Markets"
+          }
+        ]
+      },
+      "quote_currency": {
+        "bias": "BULLISH",
+        "evidence": [
+          {
+            "chunk_id": "efa74dc4-b3de-4861-a45a-136f2ac14cd9",
+            "content_preview": "FX Majors: EUR/USD",
+            "doc_id": "macro_price_guide.md",
+            "rule_id": "STYLE-MARKET-001",
+            "section": "2. Permitted Markets"
+          }
+        ]
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.16451
+      ],
+      "notes": "M30 structure is bearish, while M15 is temporarily bullish as a counter-trend retracement.",
+      "structure": "bearish"
+    },
+    "pair": "EURUSD",
+    "proceed_to_module_b": "NO",
+    "rag_sources": [
+      {
+        "chunk_id": "e6e87c4d-966c-46c1-9a37-5113099d181d",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 5 \u2014 GLOBAL REJECTION RULES"
+      },
+      {
+        "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+        "doc_id": "trading_style_rules.md",
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      },
+      {
+        "chunk_id": "f04f870c-0ea4-4d78-aed1-6911436e20cf",
+        "doc_id": "trading_style_rules.md",
+        "section": "10. Conditions to Avoid"
+      }
+    ],
+    "rr_ratio": null,
+    "session": "LONDON_OPEN",
+    "setup_grade": "REJECT",
+    "stop_loss": {
+      "evidence": [],
+      "price": null,
+      "reason": "No setup identified."
+    },
+    "take_profits": [
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 40
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      },
+      {
+        "basis": "N/A",
+        "level": null,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-27T07:45:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "ranging"
+    }
+  },
+  "reasoning": "The market is currently exhibiting LTF noise and counter-trend retracements. Bullish setups (such as CHOCH_BMS_RTO_BULLISH on M15) are rejected as they oppose the dominant HTF bearish trend without a confirmed 1D bullish CHoCH, violating STYLE-SETUP-004 and MR-REJECT-006. Bearish setups are also rejected: QML_KILLER_TYPE2_BEARISH_1.1645 lacks Marubozu validation on the breakout candle, violating Universal Rule 1. SH_BMS_RTO_BEARISH_BEARISH_1.1649_95563ff8 has an extremely tight SL of 0.7 pips, violating STYLE-RISK-003 (minimum 3-5 pip offset from the OB upper bound of 1.16496). Adjusting the SL to a safe structural level (e.g., 1.1653) reduces the R:R to 1.65R, which is below the minimum 1:3 required for Intraday style (violating STYLE-RR-001 and MR-REJECT-010). We remain patient and wait for price to mitigate the unmitigated D1 bearish FVG at 1.16634 - 1.16952 or the H3 supply zone at 1.17222 - 1.17782 before seeking a high-confluence entry.",
+  "rejection_rules": [
+    "missing_Valid Structural Entry Support",
+    "missing_Minimum R:R achievable"
+  ],
+  "session": "LONDON_OPEN",
+  "setup_type": "",
+  "symbol": "EURUSD",
+  "trade_valid": false,
+  "trading_style": "INTRADAY"
+}
