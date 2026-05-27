@@ -1,3 +1,10 @@
+# Single owner of the etradie-system Namespace + ResourceQuota +
+# LimitRange. ArgoCD sync wave -2 = this chart is reconciled first, so
+# the namespace exists before engine/gateway/execution/management/billing
+# (waves -1, 0, 1) are reconciled into it. Consumer charts do NOT
+# render their own namespace.yaml; their .Values.namespace.name is
+# only used as the metadata.namespace target for their own resources.
+# Audit ref: G-C1, X-2, B-M4.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -9,4 +16,50 @@ metadata:
     pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
     kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
   annotations:
-    description: "eTradie platform namespace - engine, gateway, execution, management, data-layer all live here."
+    description: "eTradie platform namespace - engine, gateway, execution, management, billing, data-layer all live here."
+{{- if .Values.resourceQuota.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: etradie-system-resource-quota
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "data-layer.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-quota
+spec:
+  hard:
+    requests.cpu: {{ .Values.resourceQuota.hard.requestsCpu | quote }}
+    requests.memory: {{ .Values.resourceQuota.hard.requestsMemory | quote }}
+    limits.cpu: {{ .Values.resourceQuota.hard.limitsCpu | quote }}
+    limits.memory: {{ .Values.resourceQuota.hard.limitsMemory | quote }}
+    persistentvolumeclaims: {{ .Values.resourceQuota.hard.persistentvolumeclaims | default "20" | quote }}
+    services.loadbalancers: {{ .Values.resourceQuota.hard.servicesLoadbalancers | default "0" | quote }}
+    services.nodeports: {{ .Values.resourceQuota.hard.servicesNodeports | default "0" | quote }}
+{{- end }}
+{{- if .Values.limitRange.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: etradie-system-limit-range
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "data-layer.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: limit-range
+spec:
+  limits:
+    - max:
+        cpu: {{ .Values.limitRange.container.max.cpu | default "4" | quote }}
+        memory: {{ .Values.limitRange.container.max.memory | default "8Gi" }}
+      min:
+        cpu: {{ .Values.limitRange.container.min.cpu | default "50m" }}
+        memory: {{ .Values.limitRange.container.min.memory | default "64Mi" }}
+      default:
+        cpu: {{ .Values.limitRange.container.default.cpu | default "1" | quote }}
+        memory: {{ .Values.limitRange.container.default.memory | default "2Gi" }}
+      defaultRequest:
+        cpu: {{ .Values.limitRange.container.defaultRequest.cpu | default "250m" | quote }}
+        memory: {{ .Values.limitRange.container.defaultRequest.memory | default "512Mi" }}
+      type: Container
+{{- end }}
