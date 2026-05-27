@@ -23,13 +23,15 @@ ENVOY_DIR           := $(PROJECT_ROOT)/src/envoy
 ENVOY_WASM_TARGET   := wasm32-wasi
 ENVOY_WASM_FILE     := $(ENVOY_DIR)/target/$(ENVOY_WASM_TARGET)/release/etradie_envoy_integration_filter.wasm
 
-HELM_CHARTS         := edge-ingress envoy gateway
+# All 8 helm charts under helm/. Audit ref: MK-H1.
+HELM_CHARTS         := edge-ingress envoy gateway engine execution management billing data-layer
 HELM_DIR            := $(PROJECT_ROOT)/helm
 
 ARGOCD_DIR          := $(PROJECT_ROOT)/deployments/argocd
 
 INFRA_DIR           := $(PROJECT_ROOT)/infrastructure
-INFRA_MODULES       := cluster cloudflare
+# Actual submodule paths under infrastructure/. Audit ref: MK-C2.
+INFRA_MODULES       := cloudflare cluster/oci cluster/vault-paths
 
 CF_DIR              := $(PROJECT_ROOT)/deployments/cloudflare
 CF_REFRESH_SCRIPT   := $(CF_DIR)/scripts/refresh-cloudflare-ips.sh
@@ -162,10 +164,11 @@ helm-lint: ## helm lint each chart under helm/
 
 helm-template-staging: ## Render every chart with values-staging.yaml (parity with CI)
 	echo -e "$(BLUE)Rendering helm charts (staging)...$(NC)"
+	@# Cloud-agnostic. No AWS ACM ARN; the chart uses cloudflare-tunnel
+	@# by default. Audit ref: MK-C1.
 	helm template edge-ingress $(HELM_DIR)/edge-ingress \
 		-f $(HELM_DIR)/edge-ingress/values.yaml \
 		-f $(HELM_DIR)/edge-ingress/values-staging.yaml \
-		--set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
 		> /tmp/edge-ingress-staging.yaml
 	helm template etradie-envoy $(HELM_DIR)/envoy \
 		-f $(HELM_DIR)/envoy/values.yaml \
@@ -183,7 +186,6 @@ helm-template-production: ## Render every chart with values-production.yaml (par
 	helm template edge-ingress $(HELM_DIR)/edge-ingress \
 		-f $(HELM_DIR)/edge-ingress/values.yaml \
 		-f $(HELM_DIR)/edge-ingress/values-production.yaml \
-		--set service.tlsCertificateArn=arn:aws:acm:us-east-1:000000000000:certificate/dummy \
 		> /tmp/edge-ingress-production.yaml
 	helm template etradie-envoy $(HELM_DIR)/envoy \
 		-f $(HELM_DIR)/envoy/values.yaml \
@@ -231,11 +233,17 @@ tf-fmt-check: ## terraform fmt -check (CI parity)
 	echo -e "$(BLUE)terraform fmt -check on $(INFRA_DIR)$(NC)"
 	terraform fmt -check -recursive $(INFRA_DIR)
 
-tf-validate-cluster: ## terraform init + validate for infrastructure/cluster
-	echo -e "$(BLUE)terraform validate: cluster$(NC)"
-	cd $(INFRA_DIR)/cluster && terraform init -backend=false -input=false
-	cd $(INFRA_DIR)/cluster && terraform validate
-	echo -e "$(GREEN)\xE2\x9C\x93 cluster module valid$(NC)"
+tf-validate-vault-paths: ## terraform init + validate for infrastructure/cluster/vault-paths
+	echo -e "$(BLUE)terraform validate: cluster/vault-paths$(NC)"
+	cd $(INFRA_DIR)/cluster/vault-paths && terraform init -backend=false -input=false
+	cd $(INFRA_DIR)/cluster/vault-paths && terraform validate
+	echo -e "$(GREEN)\xE2\x9C\x93 cluster/vault-paths module valid$(NC)"
+
+tf-validate-cluster-oci: ## terraform init + validate for infrastructure/cluster/oci
+	echo -e "$(BLUE)terraform validate: cluster/oci$(NC)"
+	cd $(INFRA_DIR)/cluster/oci && terraform init -backend=false -input=false
+	cd $(INFRA_DIR)/cluster/oci && terraform validate
+	echo -e "$(GREEN)\xE2\x9C\x93 cluster/oci module valid$(NC)"
 
 tf-validate-cloudflare: ## terraform init + validate for infrastructure/cloudflare
 	echo -e "$(BLUE)terraform validate: cloudflare$(NC)"
@@ -243,13 +251,13 @@ tf-validate-cloudflare: ## terraform init + validate for infrastructure/cloudfla
 	cd $(INFRA_DIR)/cloudflare && terraform validate
 	echo -e "$(GREEN)\xE2\x9C\x93 cloudflare module valid$(NC)"
 
-tf-validate-all: tf-fmt-check tf-validate-cluster tf-validate-cloudflare ## fmt-check + validate every TF module
+tf-validate-all: tf-fmt-check tf-validate-vault-paths tf-validate-cluster-oci tf-validate-cloudflare ## fmt-check + validate every TF module
 	echo -e "$(GREEN)\xE2\x9C\x93 all terraform modules valid$(NC)"
 
-tf-plan-cluster: ## terraform plan for cluster module (requires TF_VAR_* env or -var-file via TF_PLAN_ARGS)
-	echo -e "$(BLUE)terraform plan: cluster (TF_PLAN_ARGS=$(TF_PLAN_ARGS))$(NC)"
-	cd $(INFRA_DIR)/cluster && terraform init -input=false
-	cd $(INFRA_DIR)/cluster && terraform plan -input=false $(TF_PLAN_ARGS)
+tf-plan-vault-paths: ## terraform plan for cluster/vault-paths (requires VAULT_TOKEN + VAULT_ADDR env)
+	echo -e "$(BLUE)terraform plan: cluster/vault-paths (TF_PLAN_ARGS=$(TF_PLAN_ARGS))$(NC)"
+	cd $(INFRA_DIR)/cluster/vault-paths && terraform init -input=false
+	cd $(INFRA_DIR)/cluster/vault-paths && terraform plan -input=false $(TF_PLAN_ARGS)
 
 tf-plan-cloudflare: ## terraform plan for cloudflare module (requires TF_VAR_* env or -var-file via TF_PLAN_ARGS)
 	echo -e "$(BLUE)terraform plan: cloudflare (TF_PLAN_ARGS=$(TF_PLAN_ARGS))$(NC)"

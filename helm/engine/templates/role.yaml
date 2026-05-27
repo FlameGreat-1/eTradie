@@ -1,12 +1,18 @@
 {{- if .Values.serviceAccount.create -}}
+# Narrow Role: the engine FastAPI app does not create or delete any
+# Kubernetes resources at runtime. It only reads its own ConfigMap +
+# Secret (via envFrom, which uses the kubelet path, not the pod SA).
+# Keeping the role narrow to zero verbs is intentional; if a future
+# feature needs the K8s API, add the precise verbs here and update
+# automountServiceAccountToken on the ServiceAccount + Pod template.
+# Audit ref: E-C1, E-C2.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "engine.fullname" . }}
+  namespace: {{ include "engine.namespace" . }}
   labels:
     {{- include "engine.labels" . | nindent 4 }}
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "services"]
-    verbs: ["create", "get", "list", "watch", "delete"]
+    app.kubernetes.io/component: rbac
+rules: []
 {{- end }}

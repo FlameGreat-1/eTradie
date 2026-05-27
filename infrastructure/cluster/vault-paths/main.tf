@@ -20,12 +20,13 @@ provider "vault" {
   namespace = var.vault_namespace
 }
 
+# edge-ingress TLS. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "edge_ingress_tls" {
   mount               = var.vault_mount
   name                = "etradie/services/edge-ingress/${var.environment}/tls"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; operator must populate before edge-ingress can roll out"
+    bootstrap = "placeholder; populate keys api_cert + api_key + wildcard_cert + wildcard_key (production) or staging_api_cert + staging_api_key + staging_wildcard_cert + staging_wildcard_key (staging). Values are PEM-encoded certificate / key strings."
   })
   lifecycle {
     ignore_changes = [data_json]
@@ -56,60 +57,73 @@ resource "vault_kv_secret_v2" "edge_ingress_tunnel" {
   }
 }
 
+# MaxMind GeoLite credentials. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "edge_ingress_maxmind" {
   mount               = var.vault_mount
   name                = "etradie/services/edge-ingress/${var.environment}/maxmind"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with MaxMind license_key + account_id"
+    bootstrap = "placeholder; populate keys license_key + account_id with a free GeoLite2 sign-up at https://www.maxmind.com/en/geolite2/signup. Both required."
   })
   lifecycle {
     ignore_changes = [data_json]
   }
 }
 
+# Gateway secrets. Single source of truth for every key the gateway's
+# ExternalSecret reads, including billing_internal_shared_secret
+# (which the gateway sends to billing-service in X-Internal-Auth
+# and MUST equal etradie/services/billing/<env>:internal_shared_secret).
+# Audit ref: IV-C1, IV-M3.
 resource "vault_kv_secret_v2" "gateway" {
   mount               = var.vault_mount
   name                = "etradie/services/gateway/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with auth_database_url, auth_jwt_secret, broker_encryption_key, llm_encryption_key, ..."
+    bootstrap = "placeholder; populate keys: auth_database_url, postgres_user, postgres_password, postgres_host, postgres_port, postgres_db, gateway_redis_url, auth_jwt_secret, auth_admin_password, broker_encryption_key, llm_encryption_key, engine_internal_shared_secret (must equal etradie/services/engine/${var.environment}:engine_internal_shared_secret if you also store it there), billing_internal_shared_secret (MUST EQUAL etradie/services/billing/${var.environment}:internal_shared_secret)."
   })
   lifecycle {
     ignore_changes = [data_json]
   }
 }
 
+# Engine secrets. Every key below is read by helm/engine/templates/externalsecret.yaml.
+# rag_chroma_auth_token is INTENTIONALLY NOT in this path; the canonical
+# Vault location is etradie/data-layer/chromadb/<env>:auth_token so that
+# the chromadb server and the engine read the SAME source. Audit ref:
+# IV-C2, X-6, D-C3.
 resource "vault_kv_secret_v2" "engine" {
   mount               = var.vault_mount
   name                = "etradie/services/engine/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with anthropic_api_key, openai_api_key, twelvedata_api_key, fred_api_key, ..."
+    bootstrap = "placeholder; populate keys: database_url, postgres_user, postgres_password, redis_url, redis_password, broker_encryption_key, llm_encryption_key, auth_jwt_secret, cftc_app_token, fred_api_key, twelvedata_api_key, processor_anthropic_api_key, processor_openai_api_key, processor_gemini_api_key, mt5_metaapi_token. Note: rag_chroma_auth_token is NOT in this path; populate etradie/data-layer/chromadb/${var.environment}:auth_token instead (single source of truth shared with the ChromaDB server)."
   })
   lifecycle {
     ignore_changes = [data_json]
   }
 }
 
+# Execution service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "execution" {
   mount               = var.vault_mount
   name                = "etradie/services/execution/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with execution_database_url, broker credentials"
+    bootstrap = "placeholder; populate keys: execution_database_url, execution_redis_url, auth_jwt_secret, broker_encryption_key, llm_encryption_key. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret."
   })
   lifecycle {
     ignore_changes = [data_json]
   }
 }
 
+# Management service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "management" {
   mount               = var.vault_mount
   name                = "etradie/services/management/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with management_database_url, broker credentials"
+    bootstrap = "placeholder; populate keys: management_database_url, management_redis_url, auth_jwt_secret, broker_encryption_key, llm_encryption_key. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret."
   })
   lifecycle {
     ignore_changes = [data_json]
@@ -164,26 +178,13 @@ resource "vault_kv_secret_v2" "billing" {
   }
 }
 
-# Gateway billing shared secret. The gateway reads this as
-# GATEWAY_BILLING_INTERNAL_SHARED_SECRET. It MUST equal the value
-# stored at etradie/services/billing/<env>/internal_shared_secret.
-# Stored separately so the gateway Vault path does not need read
-# access to the billing path (least-privilege).
-resource "vault_kv_secret_v2" "gateway_billing_secret" {
-  mount               = var.vault_mount
-  name                = "etradie/services/gateway/${var.environment}"
-  delete_all_versions = false
-  # This resource manages only the billing_internal_shared_secret key.
-  # All other gateway keys are managed by the operator post-bootstrap.
-  # ignore_changes prevents Terraform from overwriting operator-set
-  # values on subsequent applies.
-  data_json = jsonencode({
-    billing_internal_shared_secret = "placeholder; replace with the same 32-byte hex value stored at etradie/services/billing/${var.environment}/internal_shared_secret"
-  })
-  lifecycle {
-    ignore_changes = [data_json]
-  }
-}
+# NOTE: the previous separate vault_kv_secret_v2.gateway_billing_secret
+# resource was REMOVED. It managed the SAME Vault path as the
+# vault_kv_secret_v2.gateway resource above, producing perpetual
+# Terraform drift. Vault KV-v2 stores ONE document per path; two
+# Terraform resources cannot co-own it. The gateway resource above
+# already enumerates billing_internal_shared_secret in its bootstrap
+# payload. Audit ref: IV-C1.
 
 # Data-layer paths. The data-layer chart's ExternalSecrets
 # (helm/data-layer/templates/{postgres,redis,chromadb}-externalsecret.yaml)
@@ -215,12 +216,20 @@ resource "vault_kv_secret_v2" "data_layer_redis" {
   }
 }
 
+# ChromaDB auth token. THIS IS THE CANONICAL LOCATION. Both the
+# chromadb StatefulSet (reads CHROMA_SERVER_AUTHN_CREDENTIALS) AND
+# the engine pod (reads RAG_CHROMA_AUTH_TOKEN) MUST read this single
+# Vault document so they cannot get out of sync. Key name is the
+# simpler 'auth_token' (was previously 'chroma_auth_token' on the
+# server side and 'rag_chroma_auth_token' on the engine side - two
+# separate keys in two separate paths held by convention only).
+# Audit ref: IV-C2, X-6, D-C3, SC-C2.
 resource "vault_kv_secret_v2" "data_layer_chromadb" {
   mount               = var.vault_mount
   name                = "etradie/data-layer/chromadb/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate with chroma_auth_token (must equal engine's RAG_CHROMA_AUTH_TOKEN value)"
+    bootstrap = "placeholder; populate the single key 'auth_token' with the ChromaDB token. Both the ChromaDB server (CHROMA_SERVER_AUTHN_CREDENTIALS) and the engine (RAG_CHROMA_AUTH_TOKEN) read from this exact Vault path. Generate with: openssl rand -hex 32."
   })
   lifecycle {
     ignore_changes = [data_json]

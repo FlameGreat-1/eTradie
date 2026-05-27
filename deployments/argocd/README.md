@@ -57,9 +57,10 @@ Application enforces a clean cold-start order:
 
 | Wave | Component | Why this position |
 |------|-----------|-------------------|
-| -2   | data-layer (postgres, redis, chromadb) | Every other service has these as init-container dependencies; must be Ready first. |
+| -2   | data-layer (postgres, redis, chromadb) | Every other service has these as init-container dependencies; must be Ready first. The data-layer chart also creates the etradie-system Namespace, ResourceQuota and LimitRange. |
 | -1   | engine | Reached by gateway/execution/management at boot for the broker bridge. |
 |  0   | gateway, execution, management | Mutually dial each other; Kubernetes Services reach Ready in any order. |
+|  1   | billing | Reached by gateway billing-client at request time; does not block gateway boot anymore (audit ref: G-H3, DA-H2). |
 |  5   | envoy | Backend cluster `gateway-headless` must already exist. |
 | 10   | edge-ingress (incl. cloudflared) | Public edge; depends on envoy being reachable. |
 

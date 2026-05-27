@@ -56,13 +56,20 @@ services:
           memory: 128M
 
   chromadb:
-    image: chromadb/chroma:latest
+    # Pinned to the same minor as helm/data-layer/values.yaml so dev
+    # and prod cannot read embeddings written by a different version.
+    # Audit ref: DC-C1, DC-C2, DC-H1.
+    image: chromadb/chroma:0.5.20
     container_name: etradie-chromadb
     restart: unless-stopped
     environment:
       - CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
-      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_AUTH_TOKEN:-etradie_chroma_dev_token}
-      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=Authorization
+      # CHROMA_SERVER_AUTHN_CREDENTIALS is the 0.5.x canonical name.
+      # The previous CHROMA_SERVER_AUTH_CREDENTIALS was deprecated in
+      # 0.5.0; using the wrong name silently disabled auth in dev.
+      # Audit ref: DC-C1.
+      - CHROMA_SERVER_AUTHN_CREDENTIALS=${CHROMA_AUTH_TOKEN:-etradie_chroma_dev_token}
+      - CHROMA_SERVER_AUTHN_TOKEN_TRANSPORT_HEADER=Authorization
       - IS_PERSISTENT=TRUE
     ports:
       - "8002:8000"
@@ -286,7 +293,8 @@ services:
           memory: 128M
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    # Pinned (was :latest). Audit ref: DC-C3.
+    image: jaegertracing/all-in-one:1.62.0
     container_name: etradie-jaeger
     restart: unless-stopped
     environment:

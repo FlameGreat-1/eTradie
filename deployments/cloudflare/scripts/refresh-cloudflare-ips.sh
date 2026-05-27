@@ -42,6 +42,12 @@ IPV4_FILE="${CF_DIR}/ip-ranges/ipv4.txt"
 IPV6_FILE="${CF_DIR}/ip-ranges/ipv6.txt"
 AOP_CA_PIN_FILE="${CF_DIR}/origin-pull/aop-ca.sha256"
 AOP_CA_PEM_FILE="${CF_DIR}/origin-pull/origin-pull-ca.pem"
+# Chart-local copies that helm/gateway/templates/configmap-cf-ranges.yaml
+# reads via .Files.Get. Must stay in lockstep with the canonical files
+# above; CI has a drift gate that fails the build if they diverge.
+# Audit ref: DC-H1.
+HELM_IPV4_FILE="${REPO_ROOT}/helm/gateway/files/cloudflare/ipv4.txt"
+HELM_IPV6_FILE="${REPO_ROOT}/helm/gateway/files/cloudflare/ipv6.txt"
 
 MODE="normal"
 if [[ "${1:-}" == "--bootstrap" ]]; then
@@ -172,6 +178,21 @@ fi
 if ! cmp -s "${tmp_ipv6}" "${IPV6_FILE}"; then
   log "ipv6 ranges changed; writing ${IPV6_FILE}"
   cp "${tmp_ipv6}" "${IPV6_FILE}"
+  changed=1
+fi
+
+# Mirror the canonical files into the helm/gateway chart-local copies
+# so the configmap-cf-ranges template stays current. The CI drift gate
+# would otherwise fail every subsequent build. Audit ref: DC-H1.
+mkdir -p "$(dirname "${HELM_IPV4_FILE}")"
+if ! cmp -s "${tmp_ipv4}" "${HELM_IPV4_FILE}"; then
+  log "ipv4 chart-local copy changed; writing ${HELM_IPV4_FILE}"
+  cp "${tmp_ipv4}" "${HELM_IPV4_FILE}"
+  changed=1
+fi
+if ! cmp -s "${tmp_ipv6}" "${HELM_IPV6_FILE}"; then
+  log "ipv6 chart-local copy changed; writing ${HELM_IPV6_FILE}"
+  cp "${tmp_ipv6}" "${HELM_IPV6_FILE}"
   changed=1
 fi
 

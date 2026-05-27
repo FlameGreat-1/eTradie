@@ -16,11 +16,10 @@ spec:
 
   source:
     repoURL: https://github.com/FlameGreat-1/eTradie.git
-    targetRevision: HEAD
+    targetRevision: main
     path: deployments/argocd/children
     directory:
       recurse: true
-      jsonnet: {}
 
   destination:
     server: https://kubernetes.default.svc
@@ -35,6 +34,10 @@ spec:
       - CreateNamespace=false
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
+      # Refuse to prune a child Application without an explicit
+      # operator confirmation. Belt + branch-protection. Audit ref:
+      # DA-C2.
+      - Prune=confirm
     retry:
       limit: 5
       backoff:

@@ -46,9 +46,14 @@ app.kubernetes.io/part-of: etradie
 app.kubernetes.io/component: engine
 {{- end -}}
 
+{{- /*
+selectorLabels are the immutable subset used in spec.selector.matchLabels
+for Deployments, Services, ServiceMonitors and PodDisruptionBudgets.
+Component and version labels MUST NOT live here - they belong in
+engine.labels (full label set). Audit ref: X-4, E-M1, E-M2.
+*/ -}}
 {{- define "engine.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "engine.appName" . }}
-app.kubernetes.io/component: engine
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 

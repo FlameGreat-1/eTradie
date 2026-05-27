@@ -180,9 +180,12 @@ class Settings(BaseSettings):
     # Empty otel_exporter_otlp_endpoint disables tracing cleanly (no
     # OTLP dial attempts, no export-deadline-exceeded noise in the
     # engine log). Operators opt in by setting a real collector URL.
+    #
+    # Metrics are mounted on the FastAPI app at /metrics on the main
+    # HTTP port (see engine.main.create_app), so no separate metrics
+    # port is configured here. Audit ref: SC-H7.
     otel_exporter_otlp_endpoint: str = ""
     otel_service_name: str = "etradie-engine"
-    prometheus_metrics_port: int = Field(default=9090, ge=1024, le=65535)
 
     # ── Cache TTL (seconds) ──────────────────────────────────
     cache_ttl_central_bank: int = Field(default=600, ge=60)
@@ -195,7 +198,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_production_secrets(self) -> Self:
-        """In production and staging, all critical API keys must be set."""
+        """In production and staging, all critical API keys + Redis must be set.
+
+        Audit ref: SC-C4 / XS-1 (Redis localhost fallback), SC-C2 is on
+        RAGConfig._validate_production_chroma_token below.
+        """
         if self.app_env in {AppEnvironment.PRODUCTION, AppEnvironment.STAGING}:
             required_keys = {
                 "twelvedata_api_key": self.twelvedata_api_key,
@@ -205,6 +212,14 @@ class Settings(BaseSettings):
             if missing:
                 msg = f"Production/staging requires API keys: {', '.join(missing)}"
                 raise ValueError(msg)
+            # Refuse the localhost Redis fallback in production. ExternalSecret
+            # failure would otherwise silently break alerts / pub-sub.
+            redis_url_str = str(self.redis_url)
+            if "localhost" in redis_url_str or "127.0.0.1" in redis_url_str:
+                raise ValueError(
+                    f"REDIS_URL points at localhost in {self.app_env.value}; "
+                    "refusing to boot with a Redis fallback that bypasses ExternalSecrets"
+                )
         if self.app_env == AppEnvironment.PRODUCTION and self.app_debug:
             raise ValueError("app_debug must be False in production")
         if self.app_env == AppEnvironment.PRODUCTION and self.db_echo:
@@ -570,6 +585,28 @@ class RAGConfig(BaseSettings):
                 raise ValueError(
                     "RAG_OPENAI_API_KEY is required when embedding_provider "
                     "is 'openai' in production/staging"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_production_chroma_token(self) -> Self:
+        """Refuse to boot with an empty ChromaDB auth token in production.
+
+        ChromaDB's TokenAuthenticationServerProvider rejects unauthenticated
+        requests with 401. Without this guard the engine boots in production,
+        every RAG retrieval fails silently, and the failure only surfaces
+        at the first cycle.
+
+        Audit ref: SC-C2.
+        """
+        if not self.chroma_auth_token:
+            import os
+
+            env = os.getenv("APP_ENV", "development")
+            if env in {"production", "staging"}:
+                raise ValueError(
+                    "RAG_CHROMA_AUTH_TOKEN is required in production/staging; "
+                    "ChromaDB server enforces token auth and rejects unauthenticated requests"
                 )
         return self
 

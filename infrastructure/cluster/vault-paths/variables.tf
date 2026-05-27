@@ -8,7 +8,7 @@ variable "environment" {
 }
 
 variable "vault_address" {
-  description = "Vault HTTPS endpoint."
+  description = "Vault HTTPS endpoint. Authentication is performed via VAULT_TOKEN env var (operator must export before terraform apply). Audit ref: IV-H1."
   type        = string
 }
 
@@ -19,7 +19,7 @@ variable "vault_namespace" {
 }
 
 variable "vault_mount" {
-  description = "KV-v2 mount name. Default 'secret' matches Vault dev defaults; production deployments often use a dedicated mount per app."
+  description = "KV-v2 mount name. Default 'etradie' uses a dedicated mount per app (production posture). The dev 'secret' mount is intentionally NOT the default to prevent an accidental write to an unprivileged path. Audit ref: IV-M2."
   type        = string
-  default     = "secret"
+  default     = "etradie"
 }

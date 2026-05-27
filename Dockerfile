@@ -3,19 +3,29 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-# Copy dependency files first for layer caching.
-COPY torch/ /torch_offline/
-COPY requirements/base.txt requirements/base.txt
-COPY requirements/test.txt requirements/test.txt
+# Optional offline torch wheels. Set TORCH_OFFLINE_DIR build-arg to a
+# subdirectory of the build context containing torch *.whl files to
+# install torch without hitting PyPI. The default (empty) installs
+# torch from PyPI in the requirements/base.txt step so a clean
+# `docker build` works on any host without a pre-populated torch/
+# directory. Audit ref: RD-C1.
+ARG TORCH_OFFLINE_DIR=""
 
-# Install PyTorch from local wheel + all pip dependencies first!
-# We do this BEFORE copying src/, so that this heavy installation
-# step is fully cached by Docker even if your source code changes.
+# Copy dependency files first for layer caching. requirements/test.txt
+# is intentionally NOT installed - test deps must not ship in the
+# runtime image. Audit ref: RD-H1.
+COPY requirements/base.txt requirements/base.txt
+
+# Conditional offline-wheel install OR PyPI install. Audit ref: RD-C1.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --default-timeout=1000 --retries=10 --prefix=/install \
-        /torch_offline/*.whl \
-        -r requirements/base.txt \
-        -r requirements/test.txt
+    if [ -n "${TORCH_OFFLINE_DIR}" ] && [ -d "${TORCH_OFFLINE_DIR}" ]; then \
+        pip install --default-timeout=1000 --retries=10 --prefix=/install \
+            "${TORCH_OFFLINE_DIR}"/*.whl \
+            -r requirements/base.txt ; \
+    else \
+        pip install --default-timeout=1000 --retries=10 --prefix=/install \
+            -r requirements/base.txt ; \
+    fi
 
 # Now copy project files for the package installation
 COPY pyproject.toml pyproject.toml
@@ -63,9 +73,11 @@ COPY --from=builder /install /usr/local
 WORKDIR /app
 
 # Copy runtime files that are NOT part of the Python package.
+# tests/ is intentionally NOT copied into the runtime image; CI runs
+# tests inside the build stage or against the source checkout.
+# Audit ref: RD-H2.
 COPY alembic.ini alembic.ini
 COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
-COPY tests/ tests/
 
 # Ownership
 RUN chown -R etradie:etradie /app

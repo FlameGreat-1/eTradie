@@ -88,3 +88,17 @@ chromadb:
       operator: Equal
       value: etradie-system
       effect: NoSchedule
+
+# Namespace-wide ResourceQuota + LimitRange sizing for production.
+# Sum across data-layer (postgres + redis + chromadb) + 5 services at
+# their production replicaCount * resources.limits.
+resourceQuota:
+  enabled: true
+  hard:
+    requestsCpu: "32"
+    requestsMemory: "64Gi"
+    limitsCpu: "64"
+    limitsMemory: "128Gi"
+    persistentvolumeclaims: "20"
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"

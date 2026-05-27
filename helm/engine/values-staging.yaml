@@ -28,6 +28,9 @@ externalSecrets:
   engine:
     vaultPath: etradie/services/engine/staging
     refreshInterval: 5m
+    # Staging chromadb token path (matches the chromadb StatefulSet's
+    # data-layer staging path). Audit ref: IV-C2.
+    chromadbAuthVaultPath: etradie/data-layer/chromadb/staging
 
 resources:
   requests:

@@ -11,6 +11,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terraform:
+    name: Terraform fmt + validate (all modules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive infrastructure/
+      - name: terraform validate - cloudflare
+        run: |
+          cd infrastructure/cloudflare
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: terraform validate - cluster/vault-paths
+        run: |
+          cd infrastructure/cluster/vault-paths
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: terraform validate - cluster/oci
+        run: |
+          cd infrastructure/cluster/oci
+          terraform init -backend=false -input=false
+          terraform validate
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -285,6 +311,28 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/data-layer-production.yaml
+      - name: helm lint - billing
+        run: helm lint helm/billing
+      - name: helm template + kubeconform - billing staging
+        run: |
+          helm template etradie-billing helm/billing \
+            -f helm/billing/values.yaml \
+            -f helm/billing/values-staging.yaml \
+            > /tmp/billing-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/billing-staging.yaml
+      - name: helm template + kubeconform - billing production
+        run: |
+          helm template etradie-billing helm/billing \
+            -f helm/billing/values.yaml \
+            -f helm/billing/values-production.yaml \
+            > /tmp/billing-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/billing-production.yaml
       - name: argocd manifests parse
         run: |
           # ArgoCD CRDs are schema-checked separately. We only confirm
@@ -440,13 +488,34 @@ jobs:
           - service: edge-ingress
             dockerfile: deployments/edge-ingress/docker/Dockerfile.edge-ingress
             context: .
+          # Billing microservice. helm/billing/values.yaml pins
+          # ghcr.io/flamegreat-1/etradie/billing:0.1.0 and the gateway's
+          # init-container waits for billing-service:8082, so this image
+          # MUST be in the matrix or every fresh ArgoCD sync ImagePullBackOff's.
+          - service: billing
+            dockerfile: src/billing/Dockerfile
+            context: .
     env:
       # Image registry path that helm/<service>/values.yaml encodes.
       # GHCR is case-sensitive: owner + repo must be lowercase.
       REGISTRY: ghcr.io
       IMAGE_BASE: ghcr.io/flamegreat-1/etradie
-      # Chart version that the new ArgoCD production children pin to.
-      RELEASE_TAG: "0.2.0"
+      # Image release tag. MUST match every chart's appVersion +
+      # image.tag pin. Audit ref: CI-H1.
+      #
+      # Every helm chart (engine, gateway, billing, execution,
+      # management, data-layer) currently pins image.tag: "0.1.0".
+      # edge-ingress pins "0.2.0" (a chart-local override; see
+      # helm/edge-ingress/values.yaml). The image build below tags BOTH
+      # the git SHA and RELEASE_TAG so the chart-pinned tag always
+      # resolves in GHCR.
+      #
+      # Bump procedure: cut a new appVersion in every Chart.yaml +
+      # bump image.tag in every chart's values.yaml + bump RELEASE_TAG
+      # here in the same commit. The CI workflow then publishes
+      # ghcr.io/flamegreat-1/etradie/<svc>:<RELEASE_TAG> for every
+      # service, and ArgoCD picks the new images up on next sync.
+      RELEASE_TAG: "0.1.0"
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,77 @@
+{{- if and (eq (.Values.service.cloudProvider | default "cloudflare-tunnel") "cloudflare-tunnel") .Values.networkPolicy.enabled }}
+# Egress + ingress policy for the cloudflared tunnel pod. Without
+# this, a strict default-deny in edge-ingress-system blocks the
+# tunnel binary's outbound dial to the Cloudflare edge on TCP/7844,
+# the tunnel never establishes, and the entire platform is
+# unreachable from the internet. Audit ref: EI-C3.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared-network-policy
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: edge-tunnel
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Prometheus scrapes /metrics on :2000.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace | default "monitoring" }}
+      ports:
+        - protocol: TCP
+          port: 2000
+  egress:
+    # Cloudflare tunnel control plane (TCP/7844 = the tunnel
+    # protocol). cloudflared dials cloudflared.cloudflare.com over
+    # this port; the destination is anycast so we cannot ipBlock-pin
+    # it. The bootstrap dial is over public 443 for the initial
+    # configuration fetch, kept allowed via the 0.0.0.0/0 :443 rule
+    # below. Both TCP and UDP variants are allowed because cloudflared
+    # auto-negotiates between TCP and QUIC (UDP).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 7844
+        - protocol: UDP
+          port: 7844
+        - protocol: TCP
+          port: 443
+    # cloudflared forwards inbound public traffic to edge-ingress on :443
+    # (cloudflareTunnel.upstreamUrl). The edge-ingress pod selector
+    # matches the chart's selectorLabels helper output.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: edge-ingress
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 443
+    # Cluster DNS (cloudflared resolves cloudflared.cloudflare.com
+    # and the upstream FQDN).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

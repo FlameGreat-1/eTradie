@@ -1,8 +1,8 @@
 {{ include "gateway.fullname" . }} (gateway) installed.
 
 Namespace:        {{ include "gateway.namespace" . }}
-ClusterIP:        gateway-service:{{ .Values.service.ports.http.port | default 8080 }} (http)
-                  gateway-service:{{ .Values.service.ports.grpc.port | default 50052 }} (grpc)
+ClusterIP:        gateway:{{ .Values.service.ports.http.port | default 8080 }} (http)
+                  gateway:{{ .Values.service.ports.grpc.port | default 50052 }} (grpc)
 Headless:         gateway-headless
 Image:            {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
 Replicas (HPA):   {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }}
@@ -21,7 +21,7 @@ Verification:
     printenv AUTH_TRUSTED_PROXY_CIDRS AUTH_TRUST_CLOUDFLARE
 
   # 3) Readiness includes Redis + engine probes
-  kubectl -n {{ include "gateway.namespace" . }} get endpoints gateway-service
+  kubectl -n {{ include "gateway.namespace" . }} get endpoints gateway
 
 If endpoints is empty after 60s, /readiness is failing. Check engine
 and Redis health before suspecting the gateway.

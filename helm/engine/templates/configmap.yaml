@@ -97,7 +97,8 @@ data:
   PROCESSOR_REQUIRE_CITATIONS: {{ .Values.config.processor.requireCitations | quote }}
   PROCESSOR_PERSIST_AUDIT_LOGS: {{ .Values.config.processor.persistAuditLogs | quote }}
 
-  # Observability.
+  # Observability. Metrics live on the FastAPI app port (8000) at
+  # /metrics; there is no separate prometheus_metrics_port. Audit ref:
+  # SC-H7 / E-M5.
   OTEL_SERVICE_NAME: {{ .Values.config.observability.otelServiceName | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.observability.otelEndpoint | quote }}
-  PROMETHEUS_METRICS_PORT: {{ .Values.config.observability.prometheusPort | quote }}

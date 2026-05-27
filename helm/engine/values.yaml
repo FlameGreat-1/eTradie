@@ -14,6 +14,9 @@
 
 replicaCount: 2
 
+# Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # The root Dockerfile at the repo root builds the Python engine.
   # CI publishes it to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
@@ -35,7 +38,8 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  automountServiceAccountToken: true
+  # Engine does not call the K8s API at runtime. Audit ref: E-C2, E-C3.
+  automountServiceAccountToken: false
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -156,9 +160,8 @@ config:
     # OTel tracing is opt-in. Empty endpoint means the OTel SDK
     # exporter is a no-op (no retries, no log spam). Production
     # overlay sets this once an OTel collector is actually deployed.
-    # Audit ref: NOTE.md S2-C.
-    otelEndpoint: ""
-    prometheusPort: "9090"
+    # Metrics live on the FastAPI app port (service.ports.http.port)
+    # at /metrics; no separate prometheusPort. Audit ref: SC-H7.
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"
@@ -174,12 +177,15 @@ externalSecrets:
     secretStoreName: vault-backend
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
-    # Production Vault path. Aligns with
-    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.engine
-    # (etradie/services/engine/${environment}). values-staging.yaml
-    # overrides this to etradie/services/engine/staging.
+    # Engine secrets path. Aligns with
+    # infrastructure/cluster/vault-paths/main.tf::vault_kv_secret_v2.engine.
     vaultPath: etradie/services/engine/production
     creationPolicy: Owner
+    # Canonical ChromaDB auth token path. The chromadb StatefulSet's
+    # CHROMA_SERVER_AUTHN_CREDENTIALS and the engine's
+    # RAG_CHROMA_AUTH_TOKEN both read from this exact Vault path so
+    # they cannot drift out of sync. Audit ref: IV-C2, X-6, D-C3.
+    chromadbAuthVaultPath: etradie/data-layer/chromadb/production
 
 resources:
   requests:
@@ -353,14 +359,6 @@ networkPolicy:
     # rule above already covers 443, but adding explicit IP blocks
     # if you later restrict the generic rule is wise. For now, 443 is open.
     
-    # Egress to dynamically provisioned MT5 Node Pods
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-mt-node
-      ports:
-        - protocol: TCP
-          port: 5555
 
 serviceMonitor:
   enabled: true
@@ -419,15 +417,19 @@ livenessProbe:
   successThreshold: 1
   failureThreshold: 4
 
+# Readiness gates on DB + cache + RAG health (not just HTTP listener).
+# failureThreshold 6 x periodSeconds 10s = 60s grace after the
+# startupProbe has already passed, which absorbs RAG bootstrap
+# variation without unnecessary pod drops. Audit ref: V-14, X-8.
 readinessProbe:
   httpGet:
-    path: /health
+    path: /readiness
     port: http
   initialDelaySeconds: 0
   periodSeconds: 10
-  timeoutSeconds: 3
+  timeoutSeconds: 5
   successThreshold: 1
-  failureThreshold: 3
+  failureThreshold: 6
 
 lifecycle:
   preStop:

@@ -15,6 +15,10 @@ variable "zone_id" {
 variable "hostnames" {
   description = "Map of hostname -> CNAME target. With Cloudflare Tunnel the target is `<tunnel-id>.cfargotunnel.com`. Example: { \"api.exoper.com\" = \"abcd1234-....cfargotunnel.com\" }"
   type        = map(string)
+  validation {
+    condition     = length(var.hostnames) > 0
+    error_message = "hostnames must contain at least one entry. Audit ref: IC-M3."
+  }
 }
 
 variable "enable_authenticated_origin_pulls" {
@@ -27,6 +31,10 @@ variable "min_tls_version" {
   description = "Minimum TLS version Cloudflare will negotiate with clients."
   type        = string
   default     = "1.2"
+  validation {
+    condition     = contains(["1.0", "1.1", "1.2", "1.3"], var.min_tls_version)
+    error_message = "min_tls_version must be one of 1.0, 1.1, 1.2, 1.3. Audit ref: IC-M2."
+  }
 }
 
 variable "always_use_https" {

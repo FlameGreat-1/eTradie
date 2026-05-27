@@ -25,16 +25,16 @@ spec:
         app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
         app.kubernetes.io/part-of: etradie
       annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: {{ .Values.service.ports.http.port | default 8000 | quote }}
-        prometheus.io/path: "/metrics"
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        # Prometheus scrape annotations come from .Values.podAnnotations
+        # (single source of truth). Audit ref: E-M3.
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "engine.serviceAccountName" . }}
+      # Audit ref: X-5 - single source of truth on serviceAccount values.
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 60 }}
       {{- with .Values.imagePullSecrets }}

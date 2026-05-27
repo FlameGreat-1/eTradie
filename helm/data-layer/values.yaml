@@ -209,6 +209,47 @@ chromadb:
     creationPolicy: Owner
 
 # ----------------------------------------------------------------------
+# Namespace-wide ResourceQuota + LimitRange. The data-layer chart is
+# the SINGLE owner of the etradie-system namespace (see namespace.yaml).
+# These two governance objects apply to every workload in the
+# namespace: engine, gateway, billing, execution, management.
+# Audit ref: G-C1, X-2, B-M4.
+# ----------------------------------------------------------------------
+resourceQuota:
+  enabled: true
+  hard:
+    # Sized for the staging baseline. Production overlay raises every
+    # value. Sum of: data-layer (postgres + redis + chromadb) +
+    # 5 services at staging-baseline (engine/gateway/billing/execution/management).
+    requestsCpu: "8"
+    requestsMemory: "16Gi"
+    limitsCpu: "16"
+    limitsMemory: "32Gi"
+    # PVCs: postgres data + postgres-backups + redis + chromadb = 4 max.
+    # 20 leaves headroom for any future stateful workload in the namespace.
+    persistentvolumeclaims: "20"
+    # No public LoadBalancer or NodePort in this namespace; edge-ingress
+    # is in a separate namespace.
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"
+
+limitRange:
+  enabled: true
+  container:
+    max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+    default:
+      cpu: "1"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "250m"
+      memory: "512Mi"
+
+# ----------------------------------------------------------------------
 # NetworkPolicy: every datastore here only accepts ingress from the
 # pods that actually need it (selected by app.kubernetes.io/name) and
 # only emits cluster-DNS egress. The chart's per-datastore NetworkPolicy

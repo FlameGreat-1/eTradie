@@ -14,6 +14,7 @@ podAnnotations:
 
 config:
   execution:
+    # Staging explicitly opts into mock; production overlay sets mt5.
     brokerMode: "mock"
     logLevel: "DEBUG"
     logJson: "true"

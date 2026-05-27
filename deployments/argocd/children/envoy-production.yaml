@@ -25,6 +25,12 @@ spec:
       valueFiles:
         - values.yaml
         - values-production.yaml
+      # CI must inject the WASM bytes at promotion time:
+      #   argocd app set envoy-production \
+      #     --helm-set-file wasm.base64=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm \
+      #     --helm-set wasm.sha256=$WASM_SHA256 \
+      #     --helm-set wasm.builtAt=$BUILD_TIMESTAMP
+      # Audit ref: DA-M5.
       parameters: []
 
   destination:

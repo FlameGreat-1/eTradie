@@ -17,6 +17,9 @@
 
 replicaCount: 2
 
+# Audit ref: X-3.
+revisionHistoryLimit: 10
+
 image:
   # CI publishes to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
   repository: ghcr.io/flamegreat-1/etradie/management
@@ -86,7 +89,8 @@ config:
   management:
     grpcPort: "50054"
     httpPort: "8083"
-    brokerMode: "mock"
+    # Audit ref: X-10, MG-M1.
+    brokerMode: ""
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
     mockBrokerBalance: "10000.0"
