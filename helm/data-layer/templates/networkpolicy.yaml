@@ -135,6 +135,51 @@ spec:
         - protocol: TCP
           port: 53
 {{- end }}
+{{- if and .Values.postgres.enabled .Values.postgres.backup.enabled }}
+---
+# Egress policy for the postgres-backup CronJob pods. Without this,
+# a strict default-deny in the namespace would silently break every
+# nightly backup: the postgres NP allows ingress from
+# app.kubernetes.io/name=postgres-backup, but the BACKUP pod also
+# needs an explicit egress rule to reach postgres + DNS. Audit ref:
+# D-C2.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-backup-network-policy
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-backup-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-backup
+  policyTypes:
+    - Egress
+  egress:
+    # Egress to postgres on the standard port.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "postgres.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port | default 5432 }}
+    # Cluster DNS (SRV/A lookup for postgres FQDN).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
 {{- if .Values.chromadb.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

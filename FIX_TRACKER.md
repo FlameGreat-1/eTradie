@@ -20,7 +20,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 4 | DONE | Auth production safety (FV-H1, FV-H2, FV-H3). FV-H4 is documented behavior, no fix. |
 | 5 | DONE | Engine production safety (SC-C2, SC-C4, XS-1, SC-H7, E-H5) |
 | 6 | DONE | Vault path coherence (IV-C1, IV-C2, X-6, D-C3, IV-H4, IV-M2, IV-M3, IV-M4) |
-| 7 | PENDING | NetworkPolicy gaps (D-C2, EI-C3, EI-H1) |
+| 7 | DONE | NetworkPolicy gaps (D-C2, EI-C3, EI-H1) |
 | 8 | PENDING | Helm chart correctness sweep (every E-*, G-C2/C3/C4, G-H3, X-3, X-4, X-5, X-8, X-10, MG-C1, MG-H1, MG-H2, MG-H3, EV-H2, EV-M2, EV-M3, EV-M4) |
 | 9 | PENDING | Data-layer hardening (D-C4, D-H1, D-H2, D-H3, D-H5, EI-C2, D-M1, D-M2, D-M5, D-M7) |
 | 10 | PENDING | Deployments + infra fixes (DA-C2, DA-C3, DA-H1–DA-H6, DC-H1, DC-M1–DC-M3, IC-C1, IC-C2, IC-H1–IC-H4, IC-M1–IC-M3, IO-H1, IO-H2, IO-M1, IO-M2, IV-H1–IV-H5, IV-M1, IV-M2, IB-C1, IB-H1–IB-H4, IB-M1, IB-M2) |
