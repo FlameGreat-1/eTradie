@@ -17,7 +17,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 1 | DONE | CI image tag/build matrix (CI-H1, CI-C1, CI-C2) |
 | 2 | DONE | Service-name + DNS wiring (EX-C1, X-7, G-H4) |
 | 3 | DONE | Namespace ownership consolidation (G-C1, X-2, B-M4) |
-| 4 | PENDING | Auth production safety (FV-H1, FV-H2, FV-H3, FV-H4) |
+| 4 | DONE | Auth production safety (FV-H1, FV-H2, FV-H3). FV-H4 is documented behavior, no fix. |
 | 5 | PENDING | Engine production safety (SC-C2, SC-C4, XS-1, SC-H7, E-H5) |
 | 6 | PENDING | Vault path coherence (IV-C1, IV-C2, X-6, D-C3, IV-H4, IV-M3, IV-M4) |
 | 7 | PENDING | NetworkPolicy gaps (D-C2, EI-C3, EI-H1) |

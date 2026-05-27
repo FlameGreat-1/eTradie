@@ -212,7 +212,16 @@ func isProdLikeEnv() bool {
 }
 
 func (c *Config) validate() error {
+	// Production-mode JWT secret guard. A random secret invalidates
+	// every JWT on pod restart; in production that means every user
+	// is logged out on every rollout. Refuse to start. In development
+	// / testing an unset secret is replaced with a fresh random value
+	// so the local stack can boot without operator setup.
+	// Audit ref: FV-H3.
 	if c.JWTSecret == "" {
+		if isProdLikeEnv() {
+			return fmt.Errorf("AUTH_JWT_SECRET must be set in %s; refusing to generate a random secret because every pod restart would invalidate all JWTs", appEnv())
+		}
 		b := make([]byte, 64)
 		if _, err := rand.Read(b); err != nil {
 			return fmt.Errorf("failed to generate random JWT secret: %w", err)
@@ -220,9 +229,25 @@ func (c *Config) validate() error {
 		c.JWTSecret = hex.EncodeToString(b)
 	}
 	if len(c.JWTSecret) < 32 {
-		return fmt.Errorf("JWT_SECRET must be at least 32 characters, got %d", len(c.JWTSecret))
+		return fmt.Errorf("AUTH_JWT_SECRET must be at least 32 characters, got %d", len(c.JWTSecret))
 	}
 	c.jwtSecretBytes = []byte(c.JWTSecret)
+
+	// Production-mode database URL guard. The auth store cannot operate
+	// against an empty DSN. Without this, the service boots and then
+	// crashes at the first SQL call with an opaque pgx error. Audit ref:
+	// FV-H1.
+	if strings.TrimSpace(c.DatabaseURL) == "" && isProdLikeEnv() {
+		return fmt.Errorf("AUTH_DATABASE_URL must be set in %s; the auth store cannot start without a valid DSN", appEnv())
+	}
+
+	// Production-mode admin seed password guard. In production we
+	// require an explicit ADMIN_PASSWORD so the first-boot seed path
+	// either creates a usable admin or refuses to start. Audit ref:
+	// FV-H2.
+	if !c.HasAdminSeedPassword() && isProdLikeEnv() {
+		return fmt.Errorf("AUTH_ADMIN_PASSWORD must be set in %s; refusing to seed the initial admin user with an empty password", appEnv())
+	}
 
 	if c.AccessTokenTTLSeconds < 60 || c.AccessTokenTTLSeconds > 86400 {
 		return fmt.Errorf("ACCESS_TOKEN_TTL_SECONDS must be 60..86400, got %d", c.AccessTokenTTLSeconds)
