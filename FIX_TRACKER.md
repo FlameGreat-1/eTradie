@@ -25,7 +25,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 9 | DONE | Data-layer hardening: D-C4, D-H1, D-H2, D-H5, EI-C2 done. D-H3 (off-cluster backup copy) deferred - operator decision; D-M1/D-M2/D-M5/D-M7 are docs-only and already accurate in existing comments. |
 | 10 | DONE | Deployments + infra: DA-C2, DA-C3, DA-H1, DA-H2, DA-H3, DA-H6, DC-H1, IC-C1, IC-H4, IO-H1, IV-H1, IV-H3, IV-H5, IB-C1, IB-H1, IB-H2 done. IO-H2 (k8s version), IC-C2 (zone ssl plan), IC-H2/H3, IV-M1, IB-M1/M2 (docs polish) covered in Wave 15. |
 | 11 | DONE | Docker+root+CI: RD-C1, RD-H1, RD-H2, DC-C1, DC-C2, DC-C3, DI-H1, DI-H2, MK-C1, MK-C2, MK-H1, MK-H2, AL-C1, CI-H5 (tf job), CI-M6 (weekly cf workflow), SS-H1 done. Remaining MEDIUM/LOW docs polish in Wave 15. |
-| 12 | PENDING | TLS key purge + .gitignore (DA-C1, DE-C1) — operator must run filter-repo after my deletion commit |
+| 12 | DONE | TLS key + cert deleted from working tree, gitignored, README updated. OPERATOR ACTION: run `git filter-repo` to purge history (see deployments/edge-ingress/docker/certs/README.md). |
 | 13 | PENDING | mt-node — either add helm chart OR remove engine egress reference (E-H5, DMT-C1, DMT-H1–DMT-H3, DMT-M1–DMT-M2) |
 | 14 | PENDING | Engine code fixes (V-14 readiness endpoint, SC-H11 deferred import, SC-H12 metering middleware verify, FV-M1 alembic schema imports) |
 | 15 | PENDING | Cleanup pass (all remaining MEDIUM/LOW) |

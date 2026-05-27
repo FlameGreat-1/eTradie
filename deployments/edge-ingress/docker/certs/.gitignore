@@ -1,0 +1,6 @@
+# Local dev TLS for the docker-compose `edge` profile. NEVER commit
+# the key/cert; they are generated per-workstation by the script
+# documented in deployments/edge-ingress/docker/certs/README.md.
+# Audit ref: DA-C1, DE-C1.
+localhost.crt
+localhost.key
