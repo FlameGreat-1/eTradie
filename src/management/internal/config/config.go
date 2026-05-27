@@ -163,6 +163,12 @@ func (c *Config) validate() error {
 	if c.RedisURL == "" {
 		return fmt.Errorf("REDIS_URL must not be empty")
 	}
+	// Production-mode Redis URL guard. Audit ref: SC-C4 / XS-1.
+	if isProdLike {
+		if strings.Contains(c.RedisURL, "localhost") || strings.Contains(c.RedisURL, "127.0.0.1") {
+			return fmt.Errorf("MANAGEMENT_REDIS_URL points at localhost in %s; refusing the fallback that bypasses ExternalSecrets", env)
+		}
+	}
 
 	validLevels := map[string]bool{
 		"DEBUG": true, "INFO": true, "WARN": true,

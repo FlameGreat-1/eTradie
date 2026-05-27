@@ -156,9 +156,8 @@ config:
     # OTel tracing is opt-in. Empty endpoint means the OTel SDK
     # exporter is a no-op (no retries, no log spam). Production
     # overlay sets this once an OTel collector is actually deployed.
-    # Audit ref: NOTE.md S2-C.
-    otelEndpoint: ""
-    prometheusPort: "9090"
+    # Metrics live on the FastAPI app port (service.ports.http.port)
+    # at /metrics; no separate prometheusPort. Audit ref: SC-H7.
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"
@@ -353,14 +352,6 @@ networkPolicy:
     # rule above already covers 443, but adding explicit IP blocks
     # if you later restrict the generic rule is wise. For now, 443 is open.
     
-    # Egress to dynamically provisioned MT5 Node Pods
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-mt-node
-      ports:
-        - protocol: TCP
-          port: 5555
 
 serviceMonitor:
   enabled: true

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -118,6 +119,20 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
+// isProdLikeEnv returns true when APP_ENV / ENV / ENVIRONMENT indicate
+// production or staging. Mirrors src/auth/config.go::isProdLikeEnv so
+// the gateway and auth services agree on what 'prod-like' means.
+func isProdLikeEnv() bool {
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		v := strings.ToLower(strings.TrimSpace(os.Getenv(k)))
+		switch v {
+		case "production", "prod", "staging":
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Config) validate() error {
 	// Cycle timing bounds.
 	if c.CycleIntervalSeconds < 60 {
@@ -211,6 +226,20 @@ func (c *Config) validate() error {
 	}
 	if c.BillingClientTimeoutMs < 1000 || c.BillingClientTimeoutMs > 60000 {
 		return fmt.Errorf("BILLING_CLIENT_TIMEOUT_MS must be 1000..60000, got %d", c.BillingClientTimeoutMs)
+	}
+
+	// Production-mode Redis URL guard. The default redis://localhost:6379/0
+	// silently masks a missing ExternalSecret in cluster (engine, gateway,
+	// execution, management all share this risk). Refuse to boot in
+	// production when REDIS_URL is empty OR points at localhost.
+	// Audit ref: SC-C4 / XS-1.
+	if isProdLikeEnv() {
+		if strings.TrimSpace(c.RedisURL) == "" {
+			return fmt.Errorf("GATEWAY_REDIS_URL must be set in production; refusing to boot with empty value")
+		}
+		if strings.Contains(c.RedisURL, "localhost") || strings.Contains(c.RedisURL, "127.0.0.1") {
+			return fmt.Errorf("GATEWAY_REDIS_URL points at localhost in production; refusing the fallback that bypasses ExternalSecrets")
+		}
 	}
 
 	return nil
