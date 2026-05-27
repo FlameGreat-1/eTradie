@@ -14,7 +14,7 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | Wave | Status | Scope |
 |------|--------|-------|
 | 0 | DONE | This tracker |
-| 1 | PENDING | CI image tag/build matrix (CI-H1, CI-C1, CI-C2) |
+| 1 | DONE | CI image tag/build matrix (CI-H1, CI-C1, CI-C2) |
 | 2 | PENDING | Service-name + DNS wiring (EX-C1, X-7, G-H4) |
 | 3 | PENDING | Namespace ownership consolidation (G-C1, X-2, B-M4) |
 | 4 | PENDING | Auth production safety (FV-H1, FV-H2, FV-H3, FV-H4) |
