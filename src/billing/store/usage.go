@@ -929,11 +929,58 @@ func (s *UsageStore) GetLLMUsageSnapshot(
 // soft_cap_notified_at is cleared in the same UPDATE so the new monthly
 // window gets one fresh notification opportunity. Without this clear, a
 // user who crossed the soft cap last month would never get warned again.
+//
+// Race-safety (Audit ref: ADMIN-QUOTA-AUDIT-V5-A):
+//
+//	The UPDATE is wrapped in a tx with an explicit row lock so an
+//	in-flight Reserve cannot land its debit AFTER the read snapshot
+//	but BEFORE the reset, losing the debit. The WHERE
+//	monthly_window_start < $2 predicate makes the reset idempotent
+//	and prevents an out-of-order older reset from clobbering a newer
+//	window that has already been advanced by a more recent renewal
+//	event.
 func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStart time.Time) error {
 	if userID == "" {
 		return fmt.Errorf("monthly_reset: user_id is required")
 	}
-	_, err := s.db.Exec(ctx, `
+
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return fmt.Errorf("monthly_reset: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Take an explicit row lock so any concurrent Reserve's SELECT FOR
+	// UPDATE (implicit via INSERT ... ON CONFLICT DO UPDATE) waits for
+	// us. If the row does not exist yet (BYOK / free user who never
+	// transacted), the SELECT returns no rows and the UPDATE is a
+	// no-op -- correct behaviour because there is no counter to reset.
+	var existingWindowStart time.Time
+	err = tx.QueryRow(ctx, `
+		SELECT monthly_window_start FROM billing_usage
+		WHERE user_id = $1
+		FOR UPDATE
+	`, userID).Scan(&existingWindowStart)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			_ = tx.Commit(ctx)
+			return nil
+		}
+		return fmt.Errorf("monthly_reset: lock row: %w", err)
+	}
+
+	// Idempotency / out-of-order guard. If the stored window_start is
+	// already at or after the proposed new windowStart, this reset
+	// would either be a duplicate (same renewal applied twice) or an
+	// out-of-order older event landing after a newer one. Either way,
+	// no-op.
+	newWindow := windowStart.UTC()
+	if !newWindow.After(existingWindowStart.UTC()) {
+		_ = tx.Commit(ctx)
+		return nil
+	}
+
+	if _, err := tx.Exec(ctx, `
 		UPDATE billing_usage SET
 			llm_input_tokens_month        = 0,
 			llm_output_tokens_month       = 0,
@@ -941,9 +988,12 @@ func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStar
 			monthly_window_start          = $2,
 			soft_cap_notified_at          = NULL
 		WHERE user_id = $1
-	`, userID, windowStart.UTC())
-	if err != nil {
+	`, userID, newWindow); err != nil {
 		return fmt.Errorf("monthly_reset: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("monthly_reset: commit: %w", err)
 	}
 	return nil
 }
