@@ -220,7 +220,17 @@ func New(
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, grpcServer)
+	//
+	// quotaPolicyStore + usageStore are forwarded here so the dashboard
+	// REST handler (APIHandler.handleRunCycle) can run the LLM-quota
+	// pre-flight before TA / Macro / RAG resource burn. Both are the
+	// SAME instances every other consumer in this container already
+	// shares: usageStore is the argument passed to New() above, and
+	// quotaPolicyStore was built once a few lines up and is also the
+	// instance handed to meteringHandler and adminQuotaHandler. There
+	// is only one of each in the gateway process. Audit ref:
+	// ADMIN-QUOTA-7.
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, quotaPolicyStore, usageStore, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, grpcServer)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
