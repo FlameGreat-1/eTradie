@@ -20,11 +20,17 @@ export default function UsagePanel() {
   const {
     data: snap,
     isLoading: loading,
+    isError,
     refetch,
   } = useQuery<LLMUsageSnapshot | null>({
     queryKey: ['billing', 'usage'],
     queryFn: getLLMUsageSnapshot,
     staleTime: 30_000,
+    // Two retries with default exponential backoff before surfacing
+    // isError. AUDIT-V2-5 made the API throw on 503; we want a brief
+    // outage window to recover silently before the user sees the
+    // error card.
+    retry: 2,
   });
 
   if (loading) {
@@ -35,6 +41,29 @@ export default function UsagePanel() {
           <div className="h-3 w-full bg-surface-2 rounded" />
           <div className="h-3 w-3/4 bg-surface-2 rounded" />
         </div>
+      </div>
+    );
+  }
+
+  // Transient gateway failure (503 etc). Render a neutral retry card
+  // rather than disappearing entirely. Audit ref: ADMIN-QUOTA-AUDIT-V2-6.
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-border bg-surface-1 p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <Activity size={16} className="text-content-muted" />
+          <h3 className="text-sm font-semibold text-content">AI Token Usage</h3>
+        </div>
+        <p className="text-xs text-content-muted">
+          We couldn&apos;t load your usage right now. This is usually
+          temporary.
+        </p>
+        <button
+          onClick={() => refetch()}
+          className="text-xs font-semibold text-brand hover:underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
