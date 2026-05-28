@@ -139,10 +139,28 @@ func New(
 		pipeline.WithRedisRaw(redisClient.RawClient()),
 	)
 
+	// Tier-quota policy store. Backs the tier_quota_policies table
+	// (migration 0028) and is read by the metering handler on every
+	// Reserve, by the admin quota handler for GET / PUT operations, by
+	// the dashboard REST pre-flight in handleRunCycle, AND by the
+	// scheduler's auto-path pre-flight in executeUserCycle. Same
+	// *pgxpool.Pool as every other billing store, sourced via
+	// subStore.Pool() so connection-pool lifecycle stays uniform.
+	//
+	// Constructed BEFORE the scheduler so the scheduler can hold the
+	// shared instance directly (audit ref: ADMIN-QUOTA-7). Every other
+	// consumer downstream of this point reads the same pointer.
+	quotaPolicyStore := store.NewQuotaPolicyStore(subStore.Pool())
+
 	// Scheduler (with SettingsStore for persisted interval overrides).
 	// tokenService and userStore are passed so the scheduler can issue
 	// service tokens for autonomous 24/7 operation without a logged-in user.
-	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
+	//
+	// quotaPolicyStore + usageStore power the auto-path pre-flight that
+	// short-circuits an exhausted user's tick BEFORE symbol-fetch /
+	// orchestrator cost. Both are the SAME shared instances every
+	// other gateway consumer reads. Audit ref: ADMIN-QUOTA-7.
+	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore, quotaPolicyStore, usageStore)
 
 	// Billing service client. Used by the gateway billing handler to create
 	// checkout URLs without ever holding provider API keys.
@@ -154,13 +172,6 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("container: billing client: %w", err)
 	}
-
-	// Tier-quota policy store. Backs the tier_quota_policies table
-	// (migration 0028) and is read by the metering handler on every
-	// Reserve plus by the admin quota handler for GET / PUT operations.
-	// Same *pgxpool.Pool as every other billing store, sourced via
-	// subStore.Pool() so connection-pool lifecycle stays uniform.
-	quotaPolicyStore := store.NewQuotaPolicyStore(subStore.Pool())
 
 	// LLM metering handler. The same engine shared-secret used by every
 	// /internal/* call from gateway to engine is reused here in the
