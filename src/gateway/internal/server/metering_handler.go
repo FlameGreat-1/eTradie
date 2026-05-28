@@ -323,14 +323,16 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 //
 // The test-and-set already ran inside CommitLLMTokens's transaction
 // so this helper just renders the body and dispatches to the sender
-// goroutine. No re-check, no second store call -- the caller has
-// already established that this user just crossed the threshold for
-// the first time in this monthly window.
+// goroutine. No re-check, no second store call. monthlyWindowStart
+// comes from the same row the test-and-set evaluated against, so the
+// reset-date label is consistent with the threshold check by
+// construction (no extra SELECT, no race vs MonthlyReset).
 //
-// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10, ADMIN-QUOTA-AUDIT-V4-C.
 func (h *MeteringHandler) fireSoftCapEmail(
 	user *auth.User,
 	policy billingstore.LLMQuotaPolicy,
+	monthlyWindowStart time.Time,
 ) {
 	if h.mailer == nil {
 		return
@@ -342,14 +344,8 @@ func (h *MeteringHandler) fireSoftCapEmail(
 		return
 	}
 
-	// Fetch the snapshot so we can render the reset date accurately.
-	// On any error we fall back to a generic phrase rather than skipping
-	// the email entirely.
-	snapCtx, snapCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer snapCancel()
-	snap, snapErr := h.usage.GetLLMUsageSnapshot(snapCtx, user.ID, policy)
 	resetLabel := ""
-	if snapErr == nil && snap != nil && !snap.MonthlyWindowStart.IsZero() {
+	if !monthlyWindowStart.IsZero() {
 		// Loop forward month-by-month until the candidate is strictly
 		// after now -- mirrors the server-side nextMonthlyReset() in
 		// src/billing/store/usage.go AND the SPA's UsagePanel reset
@@ -357,7 +353,7 @@ func (h *MeteringHandler) fireSoftCapEmail(
 		// past for any window whose start is more than a month old.
 		// Audit ref: ADMIN-QUOTA-AUDIT-V3-A1.
 		now := time.Now().UTC()
-		candidate := snap.MonthlyWindowStart.UTC()
+		candidate := monthlyWindowStart.UTC()
 		for !candidate.After(now) {
 			candidate = candidate.AddDate(0, 1, 0)
 		}
@@ -469,9 +465,33 @@ func (h *MeteringHandler) handleCommit(w http.ResponseWriter, r *http.Request) {
 	// we just need to render and send. fireSoftCapEmail itself
 	// dispatches the SMTP work to its own goroutine, so this returns
 	// almost immediately.
-	if outcome.SoftCapJustCrossed && resolvedUser != nil {
-		h.fireSoftCapEmail(resolvedUser, resolvedPolicy)
+	if !outcome.SoftCapJustCrossed {
+		return
 	}
+
+	// V4-B: the test-and-set fired (DB state changed) but the user
+	// lookup may have failed during the pre-Commit phase. If so, retry
+	// ONCE with a fresh context.Background-derived timeout so client
+	// cancellation cannot interrupt the retry. The 200 response is
+	// already on the wire; this work runs on the handler goroutine but
+	// blocks no user-visible path. If the retry also fails we log loud
+	// so the silent one-shot loss is visible and operators can manually
+	// send the warning. Audit ref: ADMIN-QUOTA-AUDIT-V4-B.
+	if resolvedUser == nil {
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer retryCancel()
+		if u, uErr := h.users.GetUserByID(retryCtx, outcome.UserID); uErr == nil {
+			resolvedUser = u
+		} else {
+			h.log.Error().
+				Err(uErr).
+				Str("user_id", outcome.UserID).
+				Msg("soft_cap_email_lost_user_lookup_failed")
+			return
+		}
+	}
+
+	h.fireSoftCapEmail(resolvedUser, resolvedPolicy, outcome.MonthlyWindowStart)
 }
 
 // ---------------------------------------------------------------------------
