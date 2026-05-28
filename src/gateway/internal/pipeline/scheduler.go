@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -432,66 +430,41 @@ func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userL
 		Msg("user_cycle_completed")
 }
 
-// preflightUserQuotaBlocked is the scheduler-side mirror of
-// APIHandler.preflightLLMQuota. Returns true when the tick must be
+// preflightUserQuotaBlocked is the scheduler tick's call site for the
+// shared LLMQuotaPreflight helper. Returns true when the tick must be
 // skipped because the user's platform-managed LLM quota is exhausted.
 //
-// Mirrors the manual-path implementation deliberately so the two paths
-// cannot drift; any change to one MUST land in the other in the same
-// commit. The only intentional difference is the source label on the
-// emitted event ("scheduler" vs "preflight") so a future operator
-// dashboard can split block volume by trigger.
-//
-// Failure posture: lookup errors degrade to fail-open on the
-// optimisation (return false) so a transient DB blip cannot wedge an
-// otherwise-eligible user out of their auto-cycle. The deep
-// metering.reserve inside the cycle stays as the correctness boundary
-// and either accepts the call (DB healthy by then) or returns its own
-// typed 429.
+// The site-specific bits kept here are the source="scheduler" event
+// tag, the user-log emission, and the scheduler-side fail-open posture
+// (lookup errors -> false so a transient DB blip does not wedge a
+// recurring user; the deep Reserve stays as defence-in-depth).
 func (s *Scheduler) preflightUserQuotaBlocked(
 	ctx context.Context,
 	user *auth.User,
 	userLog zerolog.Logger,
 ) bool {
-	tier := strings.ToLower(strings.TrimSpace(user.Tier))
-	if user.Role == auth.RoleAdmin {
-		tier = "admin"
-	}
-	row, err := s.quotaPolicyStore.GetPolicy(ctx, tier)
-	if err != nil {
-		if !errors.Is(err, billingstore.ErrPolicyNotFound) {
-			userLog.Warn().
-				Err(err).
-				Str("tier", tier).
-				Msg("scheduler_preflight_policy_lookup_failed")
-		}
-		return false
-	}
-	if !row.Enforced {
-		// BYOK / free path -- nothing for the platform meter to enforce.
-		// Their provider quota errors surface as LLM_PROVIDER_QUOTA_EXCEEDED
-		// from the engine side.
-		return false
-	}
-	policy := row.ToLLMQuotaPolicy()
-
-	res, err := s.usageStore.PreflightLLMQuota(ctx, user.ID, 0, 0, policy)
+	outcome, err := billingstore.LLMQuotaPreflight(
+		ctx,
+		s.quotaPolicyStore,
+		s.usageStore,
+		billingstore.LLMQuotaPreflightCaller{
+			UserID: user.ID,
+			Role:   string(user.Role),
+			Tier:   user.Tier,
+		},
+	)
 	if err != nil {
 		userLog.Warn().
 			Err(err).
-			Str("tier", tier).
-			Msg("scheduler_preflight_usage_lookup_failed")
+			Str("tier", outcome.Tier).
+			Msg("scheduler_preflight_failed")
 		return false
 	}
-	if res.Allowed {
+	if !outcome.Blocked {
 		return false
 	}
 
-	retryAfter := int(time.Until(res.ResetsAt).Seconds())
-	if retryAfter < 1 {
-		retryAfter = 1
-	}
-	isAdmin := user.Role == auth.RoleAdmin
+	resetsAt := outcome.ResetsAt.UTC().Format(time.RFC3339)
 
 	// Emit user-scoped LLM_QUOTA_EXCEEDED so the SPA modal opens even
 	// on the auto-cycle path (no HTTP response carries the body here).
@@ -505,25 +478,25 @@ func (s *Scheduler) preflightUserQuotaBlocked(
 			).
 				WithUserID(user.ID).
 				WithDetails(map[string]interface{}{
-					"dimension":   res.Dimension,
-					"limit":       res.Limit,
-					"used":        res.Used,
-					"requested":   res.Requested,
-					"resets_at":   res.ResetsAt.UTC().Format(time.RFC3339),
-					"retry_after": retryAfter,
-					"is_admin":    isAdmin,
+					"dimension":   outcome.Dimension,
+					"limit":       outcome.Limit,
+					"used":        outcome.Used,
+					"requested":   outcome.Requested,
+					"resets_at":   resetsAt,
+					"retry_after": outcome.RetryAfter,
+					"is_admin":    outcome.IsAdmin,
 					"source":      "scheduler",
 				}),
 		)
 	}
 
 	userLog.Info().
-		Str("tier", tier).
-		Str("dimension", res.Dimension).
-		Int64("limit", res.Limit).
-		Int64("used", res.Used).
-		Int("retry_after", retryAfter).
-		Bool("is_admin", isAdmin).
+		Str("tier", outcome.Tier).
+		Str("dimension", outcome.Dimension).
+		Int64("limit", outcome.Limit).
+		Int64("used", outcome.Used).
+		Int("retry_after", outcome.RetryAfter).
+		Bool("is_admin", outcome.IsAdmin).
 		Msg("scheduler_preflight_quota_blocked")
 	return true
 }

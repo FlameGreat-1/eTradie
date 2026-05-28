@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -256,68 +255,45 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"outputs": results})
 }
 
-// preflightLLMQuota runs a cheap read-only check that the caller's
-// platform-key quota is not already exhausted. Returns (blocked,
-// responseBody, retryAfterSeconds).
+// preflightLLMQuota runs the shared LLMQuotaPreflight helper and, on
+// block, emits the user-scoped LLM_QUOTA_EXCEEDED event AND returns
+// the structured 429 body. The helper itself owns tier resolution,
+// policy load, enforced-gate, and the read-only usage check; the only
+// site-specific logic kept here is the source="preflight" tag and the
+// HTTP-shaped log line.
 //
-// Posture:
-//   * Tier resolution: claims.Tier; admins are treated as the admin
-//     tier (which carries the same envelope as pro_managed per the
-//     0028 seed).
-//   * Policy not enforced (policy.Enforced=false) -> not blocked.
-//     This is the BYOK / free path; their LLM cost is not on the
-//     platform meter.
-//   * Policy lookup error -> not blocked, log warning. Fail open on
-//     the optimisation: the deep Reserve path inside the cycle
-//     remains as defence-in-depth.
-//   * Usage lookup error -> not blocked, log warning. Same reason.
-//   * Block dimension hit -> blocked. Emit LLM_QUOTA_EXCEEDED event
-//     scoped to the user (carries the structured fields the SPA
-//     needs) and return the same 429 body shape the deep path emits.
+// Failure posture (delegated to the helper):
+//   * Policy lookup error -> not blocked (helper returns Blocked=false
+//     and the error; we log + return so the caller proceeds).
+//   * Usage lookup error -> same.
+//   * Block dimension hit -> blocked.
 func (h *APIHandler) preflightLLMQuota(
 	r *http.Request,
 	claims *auth.Claims,
 ) (bool, map[string]interface{}, int) {
-	tier := strings.ToLower(strings.TrimSpace(claims.Tier))
-	if claims.Role == auth.RoleAdmin {
-		tier = "admin"
-	}
-	row, err := h.quotaPolicyStore.GetPolicy(r.Context(), tier)
-	if err != nil {
-		if !errors.Is(err, billingstore.ErrPolicyNotFound) {
-			h.log.Warn().
-				Err(err).
-				Str("user_id", claims.UserID).
-				Str("tier", tier).
-				Msg("cycle_preflight_policy_lookup_failed")
-		}
-		return false, nil, 0
-	}
-	policy := row.ToLLMQuotaPolicy()
-	if !row.Enforced {
-		// BYOK / free -> nothing to enforce here. Their provider quota
-		// errors are surfaced by the engine as LLM_PROVIDER_QUOTA_EXCEEDED.
-		return false, nil, 0
-	}
-
-	res, err := h.usageStore.PreflightLLMQuota(r.Context(), claims.UserID, 0, 0, policy)
+	outcome, err := billingstore.LLMQuotaPreflight(
+		r.Context(),
+		h.quotaPolicyStore,
+		h.usageStore,
+		billingstore.LLMQuotaPreflightCaller{
+			UserID: claims.UserID,
+			Role:   string(claims.Role),
+			Tier:   claims.Tier,
+		},
+	)
 	if err != nil {
 		h.log.Warn().
 			Err(err).
 			Str("user_id", claims.UserID).
-			Str("tier", tier).
-			Msg("cycle_preflight_usage_lookup_failed")
+			Str("tier", outcome.Tier).
+			Msg("cycle_preflight_failed")
 		return false, nil, 0
 	}
-	if res.Allowed {
+	if !outcome.Blocked {
 		return false, nil, 0
 	}
 
-	retryAfter := int(time.Until(res.ResetsAt).Seconds())
-	if retryAfter < 1 {
-		retryAfter = 1
-	}
-	isAdmin := claims.Role == auth.RoleAdmin
+	resetsAt := outcome.ResetsAt.UTC().Format(time.RFC3339)
 
 	// Emit a user-scoped LLM_QUOTA_EXCEEDED event so any other SPA tab
 	// the user has open also opens the quota modal in lock-step.
@@ -330,37 +306,38 @@ func (h *APIHandler) preflightLLMQuota(
 		).
 			WithUserID(claims.UserID).
 			WithDetails(map[string]interface{}{
-				"dimension":   res.Dimension,
-				"limit":       res.Limit,
-				"used":        res.Used,
-				"requested":   res.Requested,
-				"resets_at":   res.ResetsAt.UTC().Format(time.RFC3339),
-				"retry_after": retryAfter,
-				"is_admin":    isAdmin,
+				"dimension":   outcome.Dimension,
+				"limit":       outcome.Limit,
+				"used":        outcome.Used,
+				"requested":   outcome.Requested,
+				"resets_at":   resetsAt,
+				"retry_after": outcome.RetryAfter,
+				"is_admin":    outcome.IsAdmin,
 				"source":      "preflight",
 			}),
 	)
 
 	h.log.Info().
 		Str("user_id", claims.UserID).
-		Str("tier", tier).
-		Str("dimension", res.Dimension).
-		Int64("limit", res.Limit).
-		Int64("used", res.Used).
-		Bool("is_admin", isAdmin).
+		Str("tier", outcome.Tier).
+		Str("dimension", outcome.Dimension).
+		Int64("limit", outcome.Limit).
+		Int64("used", outcome.Used).
+		Bool("is_admin", outcome.IsAdmin).
 		Msg("cycle_preflight_quota_blocked")
 
 	return true, map[string]interface{}{
 		"error":       "llm_quota_exceeded",
 		"error_code":  "llm_quota_exceeded",
-		"dimension":   res.Dimension,
-		"limit":       res.Limit,
-		"used":        res.Used,
-		"requested":   res.Requested,
-		"resets_at":   res.ResetsAt.UTC().Format(time.RFC3339),
-		"retry_after": retryAfter,
-		"is_admin":    isAdmin,
-	}, retryAfter
+		"message":     "Your AI usage limit for this window has been reached.",
+		"dimension":   outcome.Dimension,
+		"limit":       outcome.Limit,
+		"used":        outcome.Used,
+		"requested":   outcome.Requested,
+		"resets_at":   resetsAt,
+		"retry_after": outcome.RetryAfter,
+		"is_admin":    outcome.IsAdmin,
+	}, outcome.RetryAfter
 }
 
 // ---------------------------------------------------------------------------
