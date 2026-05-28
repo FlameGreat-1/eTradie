@@ -50,12 +50,22 @@ func SoftCapWarningHTML(
 	}
 	safeDashboardURL := html.EscapeString(strings.TrimSpace(dashboardURL))
 
+	// Replace the entire CTA block based on whether we have a usable
+	// URL. An empty href would render as a broken-looking button in
+	// every major email client. When the URL is missing, omit the
+	// button entirely; the body text still carries the essential
+	// warning information. Audit ref: ADMIN-QUOTA-AUDIT-V3-A11.
+	ctaBlock := ""
+	if safeDashboardURL != "" {
+		ctaBlock = `<a href="` + safeDashboardURL + `" style="display:inline-block;padding:12px 24px;background-color:#3b82f6;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:8px;">View usage dashboard</a>`
+	}
+
 	body := strings.ReplaceAll(softCapTemplate, "{{NAME}}", safeName)
 	body = strings.ReplaceAll(body, "{{PERCENT}}", fmt.Sprintf("%d", usagePercent))
 	body = strings.ReplaceAll(body, "{{RESET_DATE}}", safeResetDate)
 	body = strings.ReplaceAll(body, "{{INPUT_LIMIT}}", formatTokens(monthlyInputLimit))
 	body = strings.ReplaceAll(body, "{{OUTPUT_LIMIT}}", formatTokens(monthlyOutputLimit))
-	body = strings.ReplaceAll(body, "{{DASHBOARD_URL}}", safeDashboardURL)
+	body = strings.ReplaceAll(body, "{{CTA_BLOCK}}", ctaBlock)
 	return body
 }
 
@@ -109,7 +119,7 @@ const softCapTemplate = `<!DOCTYPE html>
           </tr>
           <tr>
             <td align="center" style="padding:8px 32px 32px 32px;">
-              <a href="{{DASHBOARD_URL}}" style="display:inline-block;padding:12px 24px;background-color:#3b82f6;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:8px;">View usage dashboard</a>
+              {{CTA_BLOCK}}
             </td>
           </tr>
           <tr>
