@@ -65,10 +65,13 @@ func NewHTTPServer(
 	billingClient *BillingClient,
 	userStore *auth.UserStore,
 	meteringHandler *MeteringHandler,
+	quotaPolicyStore *billingstore.QuotaPolicyStore,
+	usageStore *billingstore.UsageStore,
 	tradingSystemHandler *tradingsystem.Handler,
 	tradingPlanHandler *tradingplan.Handler,
 	perfReviewHandler *performancereview.Handler,
 	adminBillingHandler *AdminBillingHandler,
+	adminQuotaHandler *AdminQuotaHandler,
 	userBillingHandler *UserBillingHandler,
 	grpcServer *GRPCServer,
 ) (*HTTPServer, error) {
@@ -114,7 +117,13 @@ func NewHTTPServer(
 	mux.Handle("/events/recent", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport)))))
 	mux.Handle("/events/since", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport)))))
 
-	api := NewAPIHandler(cfg, authHandler.AuthConfig(), orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport)
+	// quotaPolicyStore + usageStore power the LLM-quota pre-flight at
+	// the top of POST /api/v1/cycle/run. Both are nil-tolerant on the
+	// APIHandler side; passing nil cleanly disables the pre-flight
+	// without breaking startup, which keeps test harnesses and any
+	// future metering-disabled build path working. Audit ref:
+	// ADMIN-QUOTA-7.
+	api := NewAPIHandler(cfg, authHandler.AuthConfig(), orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport, quotaPolicyStore, usageStore)
 	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
 	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)
@@ -180,6 +189,13 @@ func NewHTTPServer(
 	// clean 403 from RequireAdmin; the handler body never runs.
 	if adminBillingHandler != nil {
 		adminBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+	}
+
+	// Admin-only quota policy CRUD. Same chain as the billing admin
+	// surface (auth -> RequireAdmin -> CSRF). Mounted on
+	// /api/v1/admin/quota/policies[/{tier}]. Audit ref: ADMIN-QUOTA-6.
+	if adminQuotaHandler != nil {
+		adminQuotaHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
 	// User-facing billing read surface (Payment Methods card + Invoice

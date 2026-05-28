@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from engine.config import get_settings
+from engine.shared.alert_publisher import AlertPublisher
 from engine.shared.cache import RedisCache
 from engine.shared.concurrency import BackgroundTaskCoordinator
 from engine.shared.db import DatabaseManager
@@ -138,6 +139,14 @@ class Container:
             socket_timeout=s.redis_socket_timeout,
             socket_connect_timeout=s.redis_socket_connect_timeout,
         )
+        # Engine -> gateway alert event bridge over Redis pub/sub. One
+        # instance per Container; injected into AnalysisProcessor at every
+        # construction site so the BYOK retry-exhausted branch can publish
+        # LLM_PROVIDER_QUOTA_EXCEEDED. Stateless beyond self.cache; no
+        # explicit close needed (the underlying RedisCache.close in
+        # Container.shutdown releases the transport). Audit ref:
+        # ADMIN-QUOTA-9.
+        self.alert_publisher = AlertPublisher(self.cache)
         self.http_client = HttpClient(
             timeout_seconds=s.http_timeout_seconds,
             max_retries=s.http_max_retries,
@@ -670,6 +679,7 @@ class Container:
             llm_client=self.processor_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
+            alert_publisher=self.alert_publisher,
         )
 
     async def resolve_user_processor(self, user: "AuthenticatedUser") -> "AnalysisProcessor":
@@ -715,6 +725,7 @@ class Container:
             llm_client=user_llm_client,
             uow_factory=self.processor_uow_factory,
             cache=self.cache,
+            alert_publisher=self.alert_publisher,
         )
 
         self._user_processors[user.user_id] = user_processor

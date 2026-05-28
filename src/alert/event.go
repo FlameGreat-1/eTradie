@@ -122,6 +122,44 @@ const (
 	// authoritative tier; execution-state queries are intentionally
 	// NOT invalidated because nothing changed there.
 	TypeSubscriptionRequired = "SUBSCRIPTION_REQUIRED"
+
+	// TypeLLMQuotaExceeded fires when a platform-key user (pro_managed
+	// or admin) is blocked by the gateway's metering layer or by the
+	// pre-flight check on /api/v1/cycle/run. Distinct from the
+	// provider-side event below because the cause, the remediation,
+	// and the SPA modal copy are all different: this one points the
+	// user at the platform's monthly window reset date and (for admins)
+	// at the admin quota panel; the BYOK one points them at their own
+	// provider dashboard.
+	//
+	// Details carry:
+	//   dimension   (daily_input / daily_output / monthly_input /
+	//                monthly_output / per_call_input)
+	//   limit       (int64) -- the cap the user breached
+	//   used        (int64) -- consumed tokens in the window
+	//   resets_at   (RFC3339 string) -- when the window rolls
+	//   is_admin    (bool)   -- whether the user is an admin (the SPA
+	//                surfaces a "Edit Policy" CTA in that case)
+	TypeLLMQuotaExceeded = "LLM_QUOTA_EXCEEDED"
+
+	// TypeLLMProviderQuotaExceeded fires when a BYOK user's own
+	// provider returns a rate-limit / quota-exhaustion error
+	// (Anthropic 429, OpenAI insufficient_quota, Gemini
+	// RESOURCE_EXHAUSTED, self-hosted 503, etc.). The platform metering
+	// layer never debits a reservation for BYOK users because
+	// uses_platform_key is false; the error flows from the provider
+	// SDK through the typed LLMRateLimitedError and is surfaced to the
+	// user by this event so they know to check their provider account
+	// instead of contacting platform support.
+	//
+	// Details carry:
+	//   provider (string)   -- anthropic / openai / gemini / self_hosted
+	//   model    (string)   -- the model the user had configured
+	//   detail   (string)   -- the provider's raw error message,
+	//                          truncated to 256 chars so a verbose
+	//                          SDK message cannot blow the alert
+	//                          payload size budget
+	TypeLLMProviderQuotaExceeded = "LLM_PROVIDER_QUOTA_EXCEEDED"
 )
 
 // Event is the universal notification payload. Every module publishes

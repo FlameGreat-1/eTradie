@@ -66,7 +66,24 @@ export type EventType =
   | 'SUBSCRIPTION_DOWNGRADED'
   | 'SUBSCRIPTION_STATUS_CHANGED'
   /* Tier-gated UX upsell (not a state-change) */
-  | 'SUBSCRIPTION_REQUIRED';
+  | 'SUBSCRIPTION_REQUIRED'
+  /* Billing / LLM quota (Audit ref: ADMIN-QUOTA-8/10).
+   * Two distinct types so the SPA can render two distinct modals:
+   *   - LLM_QUOTA_EXCEEDED          fires for pro_managed / admin on
+   *                                 the platform key whose monthly /
+   *                                 daily cap is exhausted. Drives the
+   *                                 platform quota modal.
+   *   - LLM_PROVIDER_QUOTA_EXCEEDED fires for ANY BYOK user whose own
+   *                                 provider (Anthropic / OpenAI /
+   *                                 Gemini / self-hosted) returns a
+   *                                 quota or rate-limit error. Drives
+   *                                 the BYOK provider modal with the
+   *                                 "check your provider dashboard"
+   *                                 CTA.
+   * String values MUST match src/alert/event.go on the Go side and
+   * src/engine/shared/alert_publisher.py on the Python side. */
+  | 'LLM_QUOTA_EXCEEDED'
+  | 'LLM_PROVIDER_QUOTA_EXCEEDED';
 
 export interface RealtimeEvent {
   id: string;

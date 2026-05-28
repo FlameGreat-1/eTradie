@@ -106,6 +106,25 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
    * NOT invalidated — nothing in execution state actually changed.
    */
   SUBSCRIPTION_REQUIRED:        [['billing'], ['auth', 'me']],
+
+  /* LLM quota (Audit ref: ADMIN-QUOTA-10).
+   *
+   * LLM_QUOTA_EXCEEDED:
+   *   pro_managed / admin on the platform key has exhausted a cap.
+   *   The gateway recorded the block in billing_usage's blocked
+   *   counters; the next GET /api/v1/billing/usage must reflect the
+   *   freshly-incremented number. Refetching both ['billing'] and
+   *   ['analysis'] keeps the UsagePanel and the analysis row list in
+   *   sync with the server-side state the moment the event lands.
+   *
+   * LLM_PROVIDER_QUOTA_EXCEEDED:
+   *   BYOK users do NOT have a billing_usage row to refetch -- the
+   *   platform never debited their account because uses_platform_key
+   *   is false. Only the analysis row whose cycle just failed needs
+   *   to be picked up.
+   */
+  LLM_QUOTA_EXCEEDED:           [['billing'], ['analysis']],
+  LLM_PROVIDER_QUOTA_EXCEEDED:  [['analysis']],
 };
 
 /**

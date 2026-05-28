@@ -40,6 +40,7 @@ type Container struct {
 	Execution        *infra.ExecutionGRPCAdapter
 	UsageStore       *store.UsageStore
 	SubStore         *store.SubscriptionStore
+	QuotaPolicyStore *store.QuotaPolicyStore
 	PortalAuditStore *store.PortalAuditStore
 	SymbolStore      *symbolstore.Store
 	SettingsStore    *settingsstore.Store
@@ -138,10 +139,28 @@ func New(
 		pipeline.WithRedisRaw(redisClient.RawClient()),
 	)
 
+	// Tier-quota policy store. Backs the tier_quota_policies table
+	// (migration 0028) and is read by the metering handler on every
+	// Reserve, by the admin quota handler for GET / PUT operations, by
+	// the dashboard REST pre-flight in handleRunCycle, AND by the
+	// scheduler's auto-path pre-flight in executeUserCycle. Same
+	// *pgxpool.Pool as every other billing store, sourced via
+	// subStore.Pool() so connection-pool lifecycle stays uniform.
+	//
+	// Constructed BEFORE the scheduler so the scheduler can hold the
+	// shared instance directly (audit ref: ADMIN-QUOTA-7). Every other
+	// consumer downstream of this point reads the same pointer.
+	quotaPolicyStore := store.NewQuotaPolicyStore(subStore.Pool())
+
 	// Scheduler (with SettingsStore for persisted interval overrides).
 	// tokenService and userStore are passed so the scheduler can issue
 	// service tokens for autonomous 24/7 operation without a logged-in user.
-	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore)
+	//
+	// quotaPolicyStore + usageStore power the auto-path pre-flight that
+	// short-circuits an exhausted user's tick BEFORE symbol-fetch /
+	// orchestrator cost. Both are the SAME shared instances every
+	// other gateway consumer reads. Audit ref: ADMIN-QUOTA-7.
+	scheduler := pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, userStore, quotaPolicyStore, usageStore)
 
 	// Billing service client. Used by the gateway billing handler to create
 	// checkout URLs without ever holding provider API keys.
@@ -162,6 +181,7 @@ func New(
 	meteringHandler := server.NewMeteringHandler(
 		usageStore,
 		userStore,
+		quotaPolicyStore,
 		authCfg,
 		cfg.EngineInternalSharedSecret,
 	)
@@ -189,6 +209,11 @@ func New(
 	adminQueries := store.NewAdminQueries(subStore.Pool())
 	adminBillingHandler := server.NewAdminBillingHandler(adminQueries)
 
+	// Admin quota policy handler. Reads / writes tier_quota_policies
+	// rows. Same chain as the billing admin handler:
+	// auth -> RequireAdmin -> CSRF inside the handler's RegisterRoutes.
+	adminQuotaHandler := server.NewAdminQuotaHandler(quotaPolicyStore)
+
 	// User billing handler. Read-only, user-scoped views over
 	// billing_subscriptions (card snapshot) and billing_subscription_events
 	// (per-user financial history) for the dashboard's Payment Methods
@@ -206,7 +231,17 @@ func New(
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, userBillingHandler, grpcServer)
+	//
+	// quotaPolicyStore + usageStore are forwarded here so the dashboard
+	// REST handler (APIHandler.handleRunCycle) can run the LLM-quota
+	// pre-flight before TA / Macro / RAG resource burn. Both are the
+	// SAME instances every other consumer in this container already
+	// shares: usageStore is the argument passed to New() above, and
+	// quotaPolicyStore was built once a few lines up and is also the
+	// instance handed to meteringHandler and adminQuotaHandler. There
+	// is only one of each in the gateway process. Audit ref:
+	// ADMIN-QUOTA-7.
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, quotaPolicyStore, usageStore, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, grpcServer)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
@@ -226,6 +261,7 @@ func New(
 		Execution:        execAdapter,
 		UsageStore:       usageStore,
 		SubStore:         subStore,
+		QuotaPolicyStore: quotaPolicyStore,
 		PortalAuditStore: portalAudStore,
 		SymbolStore:      symStore,
 		SettingsStore:    settStore,

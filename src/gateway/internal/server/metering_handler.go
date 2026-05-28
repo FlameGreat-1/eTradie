@@ -20,6 +20,14 @@ import (
 
 // MeteringHandler exposes:
 //
+// Tier quota policy is loaded on every request from QuotaPolicyStore
+// (DB-backed, 30 s cache). The previous in-memory env snapshot at
+// auth.Config.LLMQuotaPolicyForTier was removed in the same MR; this
+// handler is the SINGLE place that converts a DB row into the
+// LLMQuotaPolicy shape the billing store's Reserve path consumes.
+//
+// Below is the original endpoint list:
+//
 //   - the internal Reserve / Commit / Refund trio that the Python
 //     engine calls before, after, and on-failure of every Pro-Managed
 //     LLM call. Mounted on /internal/metering/* and authenticated
@@ -35,11 +43,12 @@ import (
 // uniform (401 "unauthorized") so a probe cannot distinguish
 // "no secret configured" from "wrong secret supplied".
 type MeteringHandler struct {
-	usage  *billingstore.UsageStore
-	users  *auth.UserStore
-	cfg    *auth.Config
-	secret []byte
-	log    zerolog.Logger
+	usage       *billingstore.UsageStore
+	users       *auth.UserStore
+	policyStore *billingstore.QuotaPolicyStore
+	cfg         *auth.Config
+	secret      []byte
+	log         zerolog.Logger
 
 	// Optional out-of-band soft-cap warning email dispatcher. When nil
 	// the soft-cap check is skipped entirely so the handler keeps its
@@ -57,18 +66,28 @@ type MeteringHandler struct {
 // empty secret disables every internal endpoint (they 401
 // unconditionally) so an operator who forgets to configure the var
 // fails closed.
+//
+// policyStore is the DB-backed source of every tier's LLM quota policy
+// (introduced by migration 0028). A nil policyStore is a programmer
+// error -- the handler refuses to construct without one because the
+// Reserve path cannot evaluate caps in that state.
 func NewMeteringHandler(
 	usage *billingstore.UsageStore,
 	users *auth.UserStore,
+	policyStore *billingstore.QuotaPolicyStore,
 	cfg *auth.Config,
 	internalSecret string,
 ) *MeteringHandler {
+	if policyStore == nil {
+		panic("metering_handler: policyStore must not be nil")
+	}
 	return &MeteringHandler{
-		usage:  usage,
-		users:  users,
-		cfg:    cfg,
-		secret: []byte(internalSecret),
-		log:    observability.Logger("metering_handler"),
+		usage:       usage,
+		users:       users,
+		policyStore: policyStore,
+		cfg:         cfg,
+		secret:      []byte(internalSecret),
+		log:         observability.Logger("metering_handler"),
 	}
 }
 
@@ -176,7 +195,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	policy := h.policyForUser(user)
+	policy := h.policyForUser(r.Context(), user)
 
 	reservationID, err := h.usage.ReserveLLMTokens(
 		r.Context(),
@@ -416,7 +435,7 @@ func (h *MeteringHandler) handleGetUsage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	policy := h.policyForUser(user)
+	policy := h.policyForUser(r.Context(), user)
 	snap, err := h.usage.GetLLMUsageSnapshot(r.Context(), user.ID, policy)
 	if err != nil {
 		h.log.Error().Err(err).Str("user_id", user.ID).Msg("metering_usage_snapshot_failed")
@@ -446,24 +465,29 @@ func tierFor(user *auth.User) string {
 	return user.Tier
 }
 
-// policyForUser resolves the user's LLM quota policy from the auth
-// config. Snapshot copy of the auth-package shape into the billing-store
-// shape so neither package needs to import the other.
-func (h *MeteringHandler) policyForUser(user *auth.User) billingstore.LLMQuotaPolicy {
-	authPol := h.cfg.LLMQuotaPolicyForTier(tierFor(user))
-
-	allowed := make(map[string]bool, len(authPol.AllowedModels))
-	for _, m := range authPol.AllowedModels {
-		allowed[m] = true
+// policyForUser resolves the user's LLM quota policy from the DB.
+// Reads via QuotaPolicyStore.GetPolicy (30 s cache; explicit
+// invalidation on Upsert).
+//
+// Fail-closed posture:
+//   * ErrPolicyNotFound -> log + return zero-access policy. A missing
+//     row means the 0028 seed migration did not run; the deep path
+//     returns tier_not_eligible, the SPA renders the BYOK / upgrade
+//     CTA, and the operator sees the failure in the gateway log.
+//   * Any other store error -> log + return zero-access policy. A
+//     transient DB blip cannot accidentally widen the cap; the SPA
+//     surfaces tier_not_eligible until the next request, which is the
+//     correct conservative behaviour.
+func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) billingstore.LLMQuotaPolicy {
+	tier := tierFor(user)
+	row, err := h.policyStore.GetPolicy(ctx, tier)
+	if err != nil {
+		h.log.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("tier", tier).
+			Msg("metering_policy_lookup_failed_failing_closed")
+		return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}
 	}
-	return billingstore.LLMQuotaPolicy{
-		DailyInputTokens:      authPol.DailyInputTokens,
-		DailyOutputTokens:     authPol.DailyOutputTokens,
-		MonthlyInputTokens:    authPol.MonthlyInputTokens,
-		MonthlyOutputTokens:   authPol.MonthlyOutputTokens,
-		MaxInputTokensPerCall: authPol.MaxInputTokensPerCall,
-		SoftCapPercent:        authPol.SoftCapPercent,
-		AllowedModels:         allowed,
-		ReservationTTL:        authPol.ReservationTTL,
-	}
+	return row.ToLLMQuotaPolicy()
 }

@@ -585,6 +585,139 @@ func (s *UsageStore) JanitorReapStaleReservations(ctx context.Context) (int64, e
 	return refunded, nil
 }
 
+// PreflightResult is the read-only outcome of a quota pre-flight check.
+// Allowed=true means the deep Reserve path will accept a reservation of
+// the supplied size at this instant (subject to a tiny race with another
+// in-flight reservation from the same user; the deep path's SELECT FOR
+// UPDATE is the authority on that race).
+//
+// When Allowed=false, the remaining fields describe the breached
+// dimension so the gateway can return a 429 with the SAME body shape
+// the deep path emits.
+type PreflightResult struct {
+	Allowed   bool
+	Dimension string    // empty when Allowed=true
+	Limit     int64
+	Used      int64
+	Requested int64
+	ResetsAt  time.Time
+}
+
+// PreflightLLMQuota performs a cheap read-only check that the supplied
+// (estimatedInput, maxOutput) reservation would succeed against the
+// caller's current usage counters. Single SELECT, no transaction, no
+// writes. Safe to call on every cycle trigger.
+//
+// Returns Allowed=true and the zero PreflightResult when the user has no
+// row yet (treated as zero usage; the first Reserve will create the row).
+// Returns Allowed=false with the breached dimension populated when any
+// daily or monthly cap would be exceeded.
+//
+// The caller MUST have already established that policy.HasLLMAccess()
+// before invoking this; a tier-not-eligible user should never reach the
+// pre-flight check (the gateway handler enforces that gate separately,
+// because the dimension name 'tier_not_eligible' is informational and
+// requires no counter read).
+func (s *UsageStore) PreflightLLMQuota(
+	ctx context.Context,
+	userID string,
+	estimatedInput, maxOutput int64,
+	policy LLMQuotaPolicy,
+) (*PreflightResult, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("preflight_llm_quota: user_id is required")
+	}
+	if estimatedInput < 0 || maxOutput < 0 {
+		return nil, fmt.Errorf("preflight_llm_quota: token counts must be non-negative (input=%d output=%d)", estimatedInput, maxOutput)
+	}
+
+	// Per-call gate. Deep path applies this too; we short-circuit here
+	// so a too-large prompt fails the pre-flight without burning a DB
+	// round-trip.
+	if policy.MaxInputTokensPerCall > 0 && estimatedInput > policy.MaxInputTokensPerCall {
+		return &PreflightResult{
+			Allowed:   false,
+			Dimension: "per_call_input",
+			Limit:     policy.MaxInputTokensPerCall,
+			Used:      0,
+			Requested: estimatedInput,
+			ResetsAt:  time.Now().UTC(),
+		}, nil
+	}
+
+	now := time.Now().UTC()
+
+	// Single SELECT with the same daily-reset CASE expression Reserve uses.
+	// Returns the four counters AS THEY WOULD BE READ AT THIS INSTANT,
+	// without writing back the reset (the next Reserve will do that).
+	var (
+		inputToday, outputToday int64
+		inputMonth, outputMonth int64
+		monthlyWindowStart      time.Time
+	)
+	err := s.db.QueryRow(ctx, `
+		SELECT
+			CASE WHEN DATE(last_reset_at) < CURRENT_DATE
+			     THEN 0 ELSE llm_input_tokens_today END,
+			CASE WHEN DATE(last_reset_at) < CURRENT_DATE
+			     THEN 0 ELSE llm_output_tokens_today END,
+			llm_input_tokens_month,
+			llm_output_tokens_month,
+			monthly_window_start
+		FROM billing_usage
+		WHERE user_id = $1
+	`, userID).Scan(
+		&inputToday, &outputToday,
+		&inputMonth, &outputMonth,
+		&monthlyWindowStart,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No row yet -> user has zero usage. Pre-flight allowed; the
+			// deep Reserve path will create the row in its tx.
+			return &PreflightResult{Allowed: true}, nil
+		}
+		return nil, fmt.Errorf("preflight_llm_quota: query: %w", err)
+	}
+
+	dailyResetAt := nextDailyReset(now)
+	monthlyResetAt := nextMonthlyReset(monthlyWindowStart)
+
+	// Check each cap. First breach wins so the gateway can render a
+	// dimension-specific message; ordering matches Reserve so the
+	// pre-flight and the deep path agree on which dimension to surface
+	// when multiple caps would breach simultaneously.
+	check := func(dimension string, used, requested, limit int64, resetsAt time.Time) *PreflightResult {
+		if limit <= 0 {
+			return nil
+		}
+		if used+requested > limit {
+			return &PreflightResult{
+				Allowed:   false,
+				Dimension: dimension,
+				Limit:     limit,
+				Used:      used,
+				Requested: requested,
+				ResetsAt:  resetsAt,
+			}
+		}
+		return nil
+	}
+	if r := check("daily_input", inputToday, estimatedInput, policy.DailyInputTokens, dailyResetAt); r != nil {
+		return r, nil
+	}
+	if r := check("daily_output", outputToday, maxOutput, policy.DailyOutputTokens, dailyResetAt); r != nil {
+		return r, nil
+	}
+	if r := check("monthly_input", inputMonth, estimatedInput, policy.MonthlyInputTokens, monthlyResetAt); r != nil {
+		return r, nil
+	}
+	if r := check("monthly_output", outputMonth, maxOutput, policy.MonthlyOutputTokens, monthlyResetAt); r != nil {
+		return r, nil
+	}
+	return &PreflightResult{Allowed: true}, nil
+}
+
 // GetLLMUsageSnapshot returns the SPA-facing usage shape for one user.
 // The policy is supplied by the caller (gateway boundary) and merged in
 // so the SPA can compute remaining/used percentages without doing math

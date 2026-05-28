@@ -15,6 +15,28 @@ import type { RealtimeEvent } from './types';
 import { toast } from '@/hooks/useToast';
 
 /**
+ * Event types whose UX is owned by a dedicated, globally mounted
+ * modal (NOT the generic destructive toast). The Provider:
+ *   1. SUPPRESSES the generic toast for these types so the user does
+ *      not get a double-notification (toast AND modal).
+ *   2. DISPATCHES a window CustomEvent so the modal listener can open
+ *      without prop-drilling or a shared store.
+ *
+ * The CustomEvent name is the canonical hook the modal listens for;
+ * any other source of the same event (e.g. the axios interceptor in
+ * cotradee/src/lib/axios.ts that catches a 429 with error_code
+ * 'llm_quota_exceeded') dispatches the SAME event name so a single
+ * modal subscription covers both the WebSocket and the HTTP code
+ * paths.
+ *
+ * Audit ref: ADMIN-QUOTA-10.
+ */
+const MODAL_DISPATCH_MAP: Record<string, string> = {
+  LLM_QUOTA_EXCEEDED:          'open-llm-quota-modal',
+  LLM_PROVIDER_QUOTA_EXCEEDED: 'open-llm-provider-quota-modal',
+};
+
+/**
  * Single global realtime broadcaster.
  *
  * Mounts ONE WebSocket to the gateway notifications endpoint for the
@@ -60,8 +82,22 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      // Show toast for critical events (especially the new restriction events)
-      if (event.severity === 'WARNING' || event.severity === 'ERROR') {
+      // Modal-owned event types: dispatch the window CustomEvent the
+      // globally mounted modal listens for, and suppress the generic
+      // toast so the user gets exactly one notification (the modal).
+      // Audit ref: ADMIN-QUOTA-10.
+      const modalEventName = MODAL_DISPATCH_MAP[event.type as string];
+      if (modalEventName) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent(modalEventName, { detail: event }),
+          );
+        } catch {
+          /* SSR or non-DOM env: dispatch is a best-effort optimisation */
+        }
+      } else if (event.severity === 'WARNING' || event.severity === 'ERROR') {
+        // Show generic destructive toast for any other WARNING / ERROR
+        // event that does not have a dedicated modal.
         toast({
           title: event.type.replace(/_/g, ' '),
           description: event.message || 'An important event occurred.',
