@@ -8,8 +8,8 @@ cache).
 
 Audit ref: ADMIN-QUOTA-1.
 
-Revision ID: 0028_tier_quota_policies
-Revises: 0027_increase_llm_max_output_tokens
+Revision ID: 0028
+Revises: 0027
 Created:  2026-05-28
 """
 from __future__ import annotations
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # Alembic identifiers.
-revision = "0028_tier_quota_policies"
-down_revision = "0027_increase_llm_max_output_tokens"
+revision = "0028"
+down_revision = "0027"
 branch_labels = None
 depends_on = None
 
