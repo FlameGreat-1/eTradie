@@ -539,20 +539,20 @@ func tierFor(user *auth.User) string {
 // Reads via QuotaPolicyStore.GetPolicy (30 s cache; explicit
 // invalidation on Upsert).
 //
-// Return semantics (Audit ref: ADMIN-QUOTA-AUDIT-12):
+// Return semantics (Audit ref: ADMIN-QUOTA-AUDIT-V2-3):
 //   * Success -> (policy, nil). Normal path.
-//   * ErrPolicyNotFound -> (zero-access policy, nil). A missing row
-//     means the seed migration did not run; the deep path correctly
-//     returns tier_not_eligible, which is the right response for a
-//     user whose tier genuinely has no policy. The error is NOT
-//     surfaced because the absence-of-row is a STATEFUL condition
-//     the caller should treat as a real tier-mismatch, not a
-//     transient infrastructure failure.
-//   * Any other store error -> (zero-access policy, wrapped error).
+//   * ErrPolicyNotFound -> (zero-policy, error). Every canonical
+//     tier is seeded by migration 0028 / SchemaSQL; a missing row
+//     for free/pro_byok/pro_managed/admin is a DEPLOYMENT FAILURE,
+//     not a real tier-mismatch outcome. Surfacing it as
+//     tier_not_eligible would render the SPA modal copy "AI access
+//     is not enabled for your current plan" to a paying user, which
+//     is operationally false. The caller MUST 503 instead so the
+//     engine fails closed and the user sees a generic transient
+//     error, while the operator gets a loud log line.
+//   * Any other store error -> (zero-policy, wrapped error).
 //     A DB connection failure, pool exhaustion, or query timeout is
-//     a TRANSIENT infrastructure issue. The caller MUST respond with
-//     503 so the engine refuses to call the LLM AND the user-facing
-//     surface shows a transient-error toast, not the quota modal.
+//     a TRANSIENT infrastructure issue. Same 503 posture.
 func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) (billingstore.LLMQuotaPolicy, error) {
 	tier := tierFor(user)
 	row, err := h.policyStore.GetPolicy(ctx, tier)
@@ -563,7 +563,7 @@ func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) (b
 				Str("user_id", user.ID).
 				Str("tier", tier).
 				Msg("metering_policy_missing_seed_not_run")
-			return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}, nil
+			return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}, err
 		}
 		h.log.Error().
 			Err(err).
