@@ -456,17 +456,25 @@ func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string
 }
 
 // CommitOutcome carries post-Commit signals the handler needs to act
-// on. Today the only signal is the soft-cap test-and-set: true on
-// the first Commit whose corrected usage crosses the soft-cap
-// threshold in the current monthly window.
+// on:
+//   * SoftCapJustCrossed: true on the first Commit whose corrected
+//     usage crosses the soft-cap threshold in the current monthly
+//     window.
+//   * MonthlyWindowStart: the row's monthly_window_start at the
+//     moment of the test-and-set, so the email's reset-date label
+//     is computed from the SAME row the threshold check evaluated.
+//     Eliminates the extra DB round-trip in fireSoftCapEmail and
+//     closes the sub-millisecond race against a parallel
+//     MonthlyReset (V4-C).
 //
 // UserID is returned so the handler can look up the email / username
 // without a second DB round-trip against the reservations table.
 //
-// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10, ADMIN-QUOTA-AUDIT-V4-C.
 type CommitOutcome struct {
-	UserID                string
-	SoftCapJustCrossed    bool
+	UserID             string
+	SoftCapJustCrossed bool
+	MonthlyWindowStart time.Time
 }
 
 // CommitLLMTokens settles a held reservation with the real token counts
@@ -514,6 +522,7 @@ func (s *UsageStore) CommitLLMTokens(
 	var (
 		userID                    string
 		estimatedInput, maxOutput int64
+		monthlyWindowStart        time.Time
 	)
 	err = tx.QueryRow(ctx, `
 		UPDATE billing_llm_reservations SET
@@ -558,6 +567,50 @@ func (s *UsageStore) CommitLLMTokens(
 		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: adjust counters: %w", err)
 	}
 
+	// Estimation-drift breach detection (Audit ref: ADMIN-QUOTA-AUDIT-V4-A).
+	//
+	// When inputDelta is positive (actualInput > estimatedInput), the
+	// Commit ADDED tokens to the monthly counter. If the post-Commit
+	// monthly counter now exceeds the cap, the engine's byte/4 estimate
+	// drifted enough to let one call land over the cap. We do NOT roll
+	// the LLM call back -- the user already got their response. But we
+	// MUST record the breach so:
+	//   * the audit-counter reflects the over-cap state,
+	//   * the next pre-flight (used >= limit) blocks the next call,
+	//   * operators can grep for the dedicated log line and tune the
+	//     estimator if drift becomes common.
+	//
+	// Only fires when monthlyInputLimit > 0 (enforced tier). For BYOK
+	// and free tiers monthlyInputLimit is 0 and this is a no-op.
+	if inputDelta > 0 && monthlyInputLimit > 0 {
+		var postCommitInputMonth int64
+		if scanErr := tx.QueryRow(ctx, `
+			SELECT llm_input_tokens_month
+			FROM billing_usage WHERE user_id = $1
+		`, userID).Scan(&postCommitInputMonth); scanErr == nil {
+			if postCommitInputMonth > monthlyInputLimit {
+				// V5-B: increment a dedicated counter, NOT the user-visible
+				// blocked_count. The user did not see a 429; conflating the
+				// two would make the operator dashboard's block metric
+				// meaningless. Audit ref: ADMIN-QUOTA-AUDIT-V5-B.
+				if _, err := tx.Exec(ctx, `
+					UPDATE billing_usage SET
+						llm_estimation_overshoot_count_today = llm_estimation_overshoot_count_today + 1,
+						llm_estimation_overshoot_count_month = llm_estimation_overshoot_count_month + 1
+					WHERE user_id = $1
+				`, userID); err == nil {
+					s.log.Warn().
+						Str("user_id", userID).
+						Int64("estimated_input", estimatedInput).
+						Int64("actual_input", actualInput).
+						Int64("monthly_input_limit", monthlyInputLimit).
+						Int64("post_commit_input_month", postCommitInputMonth).
+						Msg("commit_llm_tokens_estimation_drift_overshoot_recorded")
+				}
+			}
+		}
+	}
+
 	// Soft-cap test-and-set inside the same tx so the threshold check
 	// reads the just-adjusted counters. Returns true ONLY on the first
 	// Commit whose corrected usage crosses the threshold in this
@@ -574,7 +627,10 @@ func (s *UsageStore) CommitLLMTokens(
 		inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
 		outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
 
-		var firedAt *time.Time
+		var (
+			firedAt          *time.Time
+			localWindowStart time.Time
+		)
 		scanErr := tx.QueryRow(ctx, `
 			UPDATE billing_usage
 			SET soft_cap_notified_at = NOW()
@@ -584,10 +640,11 @@ func (s *UsageStore) CommitLLMTokens(
 			       ($2 > 0 AND llm_input_tokens_month  >= $2)
 			    OR ($3 > 0 AND llm_output_tokens_month >= $3)
 			  )
-			RETURNING soft_cap_notified_at
-		`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+			RETURNING soft_cap_notified_at, monthly_window_start
+		`, userID, inputThreshold, outputThreshold).Scan(&firedAt, &localWindowStart)
 		if scanErr == nil && firedAt != nil {
 			softCapJustCrossed = true
+			monthlyWindowStart = localWindowStart
 		} else if scanErr != nil && !errors.Is(scanErr, pgx.ErrNoRows) {
 			// Test-and-set itself failed (lock contention, schema drift).
 			// Log + continue: the counter adjustment is correct; we
@@ -605,6 +662,7 @@ func (s *UsageStore) CommitLLMTokens(
 	return CommitOutcome{
 		UserID:             userID,
 		SoftCapJustCrossed: softCapJustCrossed,
+		MonthlyWindowStart: monthlyWindowStart,
 	}, nil
 }
 
