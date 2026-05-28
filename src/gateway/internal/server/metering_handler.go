@@ -374,7 +374,18 @@ func (h *MeteringHandler) maybeFireSoftCapEmail(
 	snap, snapErr := h.usage.GetLLMUsageSnapshot(snapCtx, user.ID, policy)
 	resetLabel := ""
 	if snapErr == nil && snap != nil && !snap.MonthlyWindowStart.IsZero() {
-		resetLabel = snap.MonthlyWindowStart.AddDate(0, 1, 0).Format("2 January 2006")
+		// Loop forward month-by-month until the candidate is strictly
+		// after now -- mirrors the server-side nextMonthlyReset() in
+		// src/billing/store/usage.go AND the SPA's UsagePanel reset
+		// math. A fixed +1 month offset would put the label in the
+		// past for any window whose start is more than a month old.
+		// Audit ref: ADMIN-QUOTA-AUDIT-V3-A1.
+		now := time.Now().UTC()
+		candidate := snap.MonthlyWindowStart.UTC()
+		for !candidate.After(now) {
+			candidate = candidate.AddDate(0, 1, 0)
+		}
+		resetLabel = candidate.Format("2 January 2006")
 	}
 
 	subject := mails.SoftCapWarningSubject
