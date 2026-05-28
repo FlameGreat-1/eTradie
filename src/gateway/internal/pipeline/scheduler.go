@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
+	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore"
@@ -41,6 +44,20 @@ type Scheduler struct {
 	userStore     *auth.UserStore
 	log           zerolog.Logger
 
+	// LLM-quota pre-flight stores (Audit ref: ADMIN-QUOTA-7).
+	//
+	// quotaPolicyStore + usageStore power the read-only short-circuit
+	// at the top of executeUserCycle so a pro_managed / admin user on
+	// the platform key whose monthly cap is exhausted does NOT pay the
+	// symbol-fetch + orchestrator cost on every scheduler tick.
+	//
+	// Nil-tolerant: when either is nil (test harness, future build with
+	// METERING_ENABLED=false), the pre-flight degrades to a no-op and
+	// the deep metering.reserve inside the cycle stays as the
+	// correctness boundary.
+	quotaPolicyStore *billingstore.QuotaPolicyStore
+	usageStore       *billingstore.UsageStore
+
 	// Per-user goroutine management.
 	mu      sync.Mutex
 	runners map[string]*userRunner // keyed by user ID
@@ -62,6 +79,8 @@ func NewScheduler(
 	transport *alertredis.Transport,
 	tokenService *auth.TokenService,
 	userStore *auth.UserStore,
+	quotaPolicyStore *billingstore.QuotaPolicyStore,
+	usageStore *billingstore.UsageStore,
 ) *Scheduler {
 	return &Scheduler{
 		orchestrator:     orchestrator,
@@ -71,6 +90,8 @@ func NewScheduler(
 		transport:        transport,
 		tokenService:     tokenService,
 		userStore:        userStore,
+		quotaPolicyStore: quotaPolicyStore,
+		usageStore:       usageStore,
 		runners:          make(map[string]*userRunner),
 		userScanInterval: 60 * time.Second,
 		log:              observability.Logger("scheduler"),
@@ -373,6 +394,21 @@ func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userL
 		return
 	}
 
+	// ------------------------------------------------------------------
+	// LLM quota pre-flight (Audit ref: ADMIN-QUOTA-7).
+	//
+	// Short-circuit the auto-cycle path BEFORE the symbol fetch + the
+	// orchestrator's TA + Macro + RAG work runs. Only applies to
+	// enforced tiers (pro_managed + admin on the platform key); BYOK
+	// and free users have policy.Enforced=false in the 0028 seed so
+	// the check is a no-op for them. Audit ref: ADMIN-QUOTA-7.
+	// ------------------------------------------------------------------
+	if s.quotaPolicyStore != nil && s.usageStore != nil {
+		if s.preflightUserQuotaBlocked(userCtx, user, userLog) {
+			return
+		}
+	}
+
 	// Load this user's symbol selection from Redis.
 	symbols := s.symbolStore.GetActiveSymbols(userCtx, user.ID)
 
@@ -394,6 +430,102 @@ func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userL
 	userLog.Info().
 		Strs("symbols", symbols).
 		Msg("user_cycle_completed")
+}
+
+// preflightUserQuotaBlocked is the scheduler-side mirror of
+// APIHandler.preflightLLMQuota. Returns true when the tick must be
+// skipped because the user's platform-managed LLM quota is exhausted.
+//
+// Mirrors the manual-path implementation deliberately so the two paths
+// cannot drift; any change to one MUST land in the other in the same
+// commit. The only intentional difference is the source label on the
+// emitted event ("scheduler" vs "preflight") so a future operator
+// dashboard can split block volume by trigger.
+//
+// Failure posture: lookup errors degrade to fail-open on the
+// optimisation (return false) so a transient DB blip cannot wedge an
+// otherwise-eligible user out of their auto-cycle. The deep
+// metering.reserve inside the cycle stays as the correctness boundary
+// and either accepts the call (DB healthy by then) or returns its own
+// typed 429.
+func (s *Scheduler) preflightUserQuotaBlocked(
+	ctx context.Context,
+	user *auth.User,
+	userLog zerolog.Logger,
+) bool {
+	tier := strings.ToLower(strings.TrimSpace(user.Tier))
+	if user.Role == auth.RoleAdmin {
+		tier = "admin"
+	}
+	row, err := s.quotaPolicyStore.GetPolicy(ctx, tier)
+	if err != nil {
+		if !errors.Is(err, billingstore.ErrPolicyNotFound) {
+			userLog.Warn().
+				Err(err).
+				Str("tier", tier).
+				Msg("scheduler_preflight_policy_lookup_failed")
+		}
+		return false
+	}
+	if !row.Enforced {
+		// BYOK / free path -- nothing for the platform meter to enforce.
+		// Their provider quota errors surface as LLM_PROVIDER_QUOTA_EXCEEDED
+		// from the engine side.
+		return false
+	}
+	policy := row.ToLLMQuotaPolicy()
+
+	res, err := s.usageStore.PreflightLLMQuota(ctx, user.ID, 0, 0, policy)
+	if err != nil {
+		userLog.Warn().
+			Err(err).
+			Str("tier", tier).
+			Msg("scheduler_preflight_usage_lookup_failed")
+		return false
+	}
+	if res.Allowed {
+		return false
+	}
+
+	retryAfter := int(time.Until(res.ResetsAt).Seconds())
+	if retryAfter < 1 {
+		retryAfter = 1
+	}
+	isAdmin := user.Role == auth.RoleAdmin
+
+	// Emit user-scoped LLM_QUOTA_EXCEEDED so the SPA modal opens even
+	// on the auto-cycle path (no HTTP response carries the body here).
+	if s.transport != nil {
+		s.transport.Publish(ctx,
+			alert.NewEvent(
+				alert.SourceGateway,
+				alert.TypeLLMQuotaExceeded,
+				alert.SeverityWarning,
+				"Your monthly AI token allowance for the platform-managed key has been reached.",
+			).
+				WithUserID(user.ID).
+				WithDetails(map[string]interface{}{
+					"dimension":   res.Dimension,
+					"limit":       res.Limit,
+					"used":        res.Used,
+					"requested":   res.Requested,
+					"resets_at":   res.ResetsAt.UTC().Format(time.RFC3339),
+					"retry_after": retryAfter,
+					"is_admin":    isAdmin,
+					"source":      "scheduler",
+				}),
+		)
+	}
+
+	userLog.Info().
+		Str("tier", tier).
+		Str("dimension", res.Dimension).
+		Int64("limit", res.Limit).
+		Int64("used", res.Used).
+		Int("retry_after", retryAfter).
+		Bool("is_admin", isAdmin).
+		Msg("scheduler_preflight_quota_blocked")
+	return true
 }
 
 // stopAllRunners cancels all user goroutines.
