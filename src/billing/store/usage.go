@@ -456,17 +456,25 @@ func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string
 }
 
 // CommitOutcome carries post-Commit signals the handler needs to act
-// on. Today the only signal is the soft-cap test-and-set: true on
-// the first Commit whose corrected usage crosses the soft-cap
-// threshold in the current monthly window.
+// on:
+//   * SoftCapJustCrossed: true on the first Commit whose corrected
+//     usage crosses the soft-cap threshold in the current monthly
+//     window.
+//   * MonthlyWindowStart: the row's monthly_window_start at the
+//     moment of the test-and-set, so the email's reset-date label
+//     is computed from the SAME row the threshold check evaluated.
+//     Eliminates the extra DB round-trip in fireSoftCapEmail and
+//     closes the sub-millisecond race against a parallel
+//     MonthlyReset (V4-C).
 //
 // UserID is returned so the handler can look up the email / username
 // without a second DB round-trip against the reservations table.
 //
-// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10, ADMIN-QUOTA-AUDIT-V4-C.
 type CommitOutcome struct {
-	UserID                string
-	SoftCapJustCrossed    bool
+	UserID             string
+	SoftCapJustCrossed bool
+	MonthlyWindowStart time.Time
 }
 
 // CommitLLMTokens settles a held reservation with the real token counts
@@ -514,6 +522,7 @@ func (s *UsageStore) CommitLLMTokens(
 	var (
 		userID                    string
 		estimatedInput, maxOutput int64
+		monthlyWindowStart        time.Time
 	)
 	err = tx.QueryRow(ctx, `
 		UPDATE billing_llm_reservations SET
@@ -614,7 +623,10 @@ func (s *UsageStore) CommitLLMTokens(
 		inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
 		outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
 
-		var firedAt *time.Time
+		var (
+			firedAt          *time.Time
+			localWindowStart time.Time
+		)
 		scanErr := tx.QueryRow(ctx, `
 			UPDATE billing_usage
 			SET soft_cap_notified_at = NOW()
@@ -624,10 +636,11 @@ func (s *UsageStore) CommitLLMTokens(
 			       ($2 > 0 AND llm_input_tokens_month  >= $2)
 			    OR ($3 > 0 AND llm_output_tokens_month >= $3)
 			  )
-			RETURNING soft_cap_notified_at
-		`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+			RETURNING soft_cap_notified_at, monthly_window_start
+		`, userID, inputThreshold, outputThreshold).Scan(&firedAt, &localWindowStart)
 		if scanErr == nil && firedAt != nil {
 			softCapJustCrossed = true
+			monthlyWindowStart = localWindowStart
 		} else if scanErr != nil && !errors.Is(scanErr, pgx.ErrNoRows) {
 			// Test-and-set itself failed (lock contention, schema drift).
 			// Log + continue: the counter adjustment is correct; we
@@ -645,6 +658,7 @@ func (s *UsageStore) CommitLLMTokens(
 	return CommitOutcome{
 		UserID:             userID,
 		SoftCapJustCrossed: softCapJustCrossed,
+		MonthlyWindowStart: monthlyWindowStart,
 	}, nil
 }
 
