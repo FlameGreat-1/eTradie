@@ -304,6 +304,14 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Surface the reservation_id as a response header BEFORE the body.
+	// If the engine's httpx call experiences a body-read failure
+	// (timeout, network blip, connection reset) it can still pick up
+	// the id from the header at the response boundary and call Refund
+	// to release the quota immediately, instead of waiting for the
+	// reconciler janitor to reap the held reservation (up to 5 min by
+	// default). Audit ref: ADMIN-QUOTA-AUDIT-V4-D.
+	w.Header().Set("X-Reservation-Id", reservationID)
 	writeJSON(w, http.StatusOK, &reserveResponse{
 		ReservationID: reservationID,
 		ExpiresInSecs: int(policy.ReservationTTL.Seconds()),

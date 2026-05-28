@@ -222,15 +222,36 @@ async def reserve(
     }
 
     async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
-        resp = await client.post(
-            f"{cfg.gateway_url}/internal/metering/reserve",
-            json=payload,
-            headers={
-                "X-Internal-Auth": cfg.secret,
-                "X-User-Id": user_id,
-                "Content-Type": "application/json",
-            },
-        )
+        try:
+            resp = await client.post(
+                f"{cfg.gateway_url}/internal/metering/reserve",
+                json=payload,
+                headers={
+                    "X-Internal-Auth": cfg.secret,
+                    "X-User-Id": user_id,
+                    "Content-Type": "application/json",
+                },
+            )
+        except (httpx.ReadError, httpx.ReadTimeout) as transport_exc:
+            # Body-read failure after the request was sent. The gateway
+            # may have committed the reservation tx; if so, a held row
+            # is leaking until the reconciler janitor reaps it. We
+            # cannot recover the reservation_id because the body never
+            # arrived AND no header was read. Log loud so operators can
+            # correlate phantom-block reports to this failure mode.
+            # The follow-up V4-D fix that lets us recover the id from a
+            # response header requires a successful response-line read,
+            # which by definition did not happen here.
+            # Audit ref: ADMIN-QUOTA-AUDIT-V4-D.
+            logger.error(
+                "metering_reserve_body_read_failed_possible_leak",
+                extra={
+                    "user_id": user_id,
+                    "trace_id": trace_id,
+                    "error": str(transport_exc),
+                },
+            )
+            raise
 
     if resp.status_code == 429:
         body = _safe_json(resp)
@@ -286,8 +307,26 @@ async def reserve(
         # record the debit. Raise so the processor can surface a 503.
         resp.raise_for_status()
 
+    # Prefer the X-Reservation-Id header so a body-parse failure (e.g.
+    # malformed JSON from a buggy proxy) does not leak the held
+    # reservation. Fall back to the body for backward compat.
+    # Audit ref: ADMIN-QUOTA-AUDIT-V4-D.
+    header_id = resp.headers.get("X-Reservation-Id", "").strip()
     body = _safe_json(resp)
-    reservation_id = body.get("reservation_id", "")
+    reservation_id = header_id or body.get("reservation_id", "")
+    if header_id and body.get("reservation_id", "") and header_id != body.get("reservation_id", ""):
+        # Header and body disagree -- something is rewriting the
+        # response (proxy, middleware). The header wins (closer to the
+        # gateway), but log so this is visible immediately.
+        logger.error(
+            "metering_reserve_header_body_id_mismatch",
+            extra={
+                "user_id": user_id,
+                "trace_id": trace_id,
+                "header_id": header_id,
+                "body_id": body.get("reservation_id", ""),
+            },
+        )
     logger.debug(
         "metering_reserved",
         extra={
