@@ -106,6 +106,10 @@ spec:
                       key: POSTGRES_DB
                 - name: RETENTION_DAYS
                   value: {{ .Values.postgres.backup.retentionDays | default 7 | quote }}
+                {{- if .Values.postgres.backup.offsite.enabled }}
+                - name: OFFSITE_WAIT_SECS
+                  value: {{ .Values.postgres.backup.offsite.uploadTimeoutSeconds | default 1800 | quote }}
+                {{- end }}
               command:
                 - sh
                 - -c
@@ -122,7 +126,7 @@ spec:
                   echo "${TARGET}" > /backups/.dump-ready
                   {{- if .Values.postgres.backup.offsite.enabled }}
                   echo "[backup] waiting for offsite-upload to confirm copy (max ${OFFSITE_WAIT_SECS}s)"
-                  wait_deadline=$(( $(date +%s) + OFFSITE_WAIT_SECS_VAL ))
+                  wait_deadline=$(( $(date +%s) + ${OFFSITE_WAIT_SECS} ))
                   while [ ! -f /backups/.upload-ready ]; do
                     if [ "$(date +%s)" -ge "${wait_deadline}" ]; then
                       echo "[backup] FATAL: offsite-upload did not complete within ${OFFSITE_WAIT_SECS}s; skipping retention prune so the latest dump is preserved locally."
@@ -138,13 +142,6 @@ spec:
                   echo "[backup] retention prune (>${RETENTION_DAYS} days)"
                   find /backups -maxdepth 1 -type f -name 'etradie-*.dump' -mtime "+${RETENTION_DAYS}" -print -delete
                   echo "[backup] done"
-              {{- if .Values.postgres.backup.offsite.enabled }}
-              env:
-                - name: OFFSITE_WAIT_SECS_VAL
-                  value: {{ .Values.postgres.backup.offsite.uploadTimeoutSeconds | default 1800 | quote }}
-                - name: OFFSITE_WAIT_SECS
-                  value: {{ .Values.postgres.backup.offsite.uploadTimeoutSeconds | default 1800 | quote }}
-              {{- end }}
               resources:
                 {{- toYaml .Values.postgres.backup.resources | nindent 16 }}
               volumeMounts:
