@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql  # noqa: F401  # used by JSONB column type
+from sqlalchemy.dialects import postgresql
 
 # Alembic identifiers.
 revision = "0028_tier_quota_policies"
