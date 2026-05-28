@@ -108,17 +108,13 @@ async def _publish_byok_provider_quota_safe(
             },
         )
     except (asyncio.TimeoutError, asyncio.CancelledError):
+        # These two are the only failure modes this wrapper actually
+        # owns (the 2 s wait_for boundary + shutdown cancellation).
+        # The underlying AlertPublisher already catches and logs every
+        # Redis publish error at WARN; a redundant Exception arm here
+        # would just double-log. Audit ref: ADMIN-QUOTA-AUDIT-V2-15.
         logger.warning(
             "llm_provider_quota_event_publish_timeout_or_cancelled",
-            extra={
-                "user_id": user_id,
-                "code": code,
-                "trace_id": trace_id,
-            },
-        )
-    except Exception:
-        logger.warning(
-            "llm_provider_quota_event_publish_failed",
             extra={
                 "user_id": user_id,
                 "code": code,

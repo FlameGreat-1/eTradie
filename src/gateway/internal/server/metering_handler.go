@@ -273,7 +273,11 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 			// the same envelope from both Reserve sites.
 			// Audit ref: ADMIN-QUOTA-AUDIT-1.
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":       "llm_quota_exceeded",
+				// Single canonical key for every consumer: SPA's
+				// is429PlatformQuota() reads error_code; engine's
+				// metering_client.py reads dimension / limit / used / etc.
+				// The legacy "error" duplicate was trimmed in
+				// ADMIN-QUOTA-AUDIT-V2-9.
 				"error_code":  "llm_quota_exceeded",
 				"message":     "Your AI usage limit for this window has been reached.",
 				"dimension":   qerr.Dimension,
