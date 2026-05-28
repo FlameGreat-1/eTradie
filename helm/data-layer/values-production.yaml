@@ -44,6 +44,17 @@ postgres:
       limits:
         cpu: "1"
         memory: 512Mi
+    # Off-cluster backup copy (Audit ref: D-H3). Operator MUST
+    # populate etradie/data-layer/postgres-backup/production in
+    # Vault with rclone_remote_name / rclone_config / remote_bucket
+    # / remote_path_prefix BEFORE the next 02:00 UTC run, otherwise
+    # the ExternalSecret will fail to materialise and the CronJob
+    # pod will refuse to start. See helm/data-layer/values.yaml
+    # postgres.backup.offsite for the full operator runbook.
+    offsite:
+      enabled: true
+      provider: "b2"
+      vaultPath: etradie/data-layer/postgres-backup/production
   tolerations:
     - key: workload
       operator: Equal

@@ -198,12 +198,18 @@ func New(
 	userQueries := store.NewUserQueries(subStore.Pool())
 	userBillingHandler := server.NewUserBillingHandler(userQueries)
 
+	// Build the gRPC server FIRST so the HTTP server's readiness handler
+	// can ask it whether the gRPC surface is bound and serving. Without
+	// this ordering the kubelet would mark the pod Ready before the
+	// gRPC goroutine reached net.Listen, causing transient ECONNREFUSED
+	// at every rollout. Audit ref: G-C4.
+	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
+
 	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, userBillingHandler)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, userBillingHandler, grpcServer)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}
-	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	log.Info().
 		Int("default_cycle_interval", scheduler.DefaultIntervalSeconds()).

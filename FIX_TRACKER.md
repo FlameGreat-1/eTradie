@@ -1,6 +1,29 @@
 # Audit Fix Tracker
 
-**STATUS: ALL 15 WAVES DONE.** Branch `fix/all-audit-findings` carries the tracker + 17 wave commits (Wave 15 split into 15a/15b/15c). Open one MR from this branch into `main` to ship every fix.
+**STATUS: ALL 15 WAVES DONE + POST-MERGE CLEANUP DONE.**
+
+The 15-wave deployment audit landed on `main` via `!26` (branch
+`fix/all-audit-findings`, merge commit `df7c4505`). After merge a
+follow-up pass on branch `fix/post-merge-cleanup` closed the items
+that the 15-wave file had marked PARTIAL or deferred:
+
+- Wave 8 PARTIAL closed: G-C2, G-C3 (gateway), G-C4 / V-9 (gateway
+  gRPC readiness gate), G-C3 sweep across billing / execution /
+  management deployment templates, MG-C1 (management pinned to
+  replicaCount=1 with strategy=Recreate and HPA / PDB disabled
+  until coordination lands), MG-H1 (management Service exposes
+  both 8083 HTTP and 50054 gRPC — wiring verified).
+- Wave 9 deferred closed: D-H3 (off-cluster backup copy via rclone
+  sidecar; default Backblaze B2, generic S3-compatible). Opt-in via
+  Vault population at `etradie/data-layer/postgres-backup/<env>`.
+- Wave 14 deferred closed: SC-H11 (deferred import is intentional,
+  now documented at the call site), SC-H12 (metering is point-of-
+  call, not edge-middleware — documented in metering_client.py),
+  FV-M1 (alembic env.py imports the processor and rag schema
+  packages; their `__init__.py` re-exports each module).
+
+Remaining genuine operator actions (cannot be automated) are listed
+in the **Operator actions** section at the bottom of this file.
 
 Live progress of fixes against the 6 audit files. Updated on every commit.
 
@@ -23,13 +46,13 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 | 5 | DONE | Engine production safety (SC-C2, SC-C4, XS-1, SC-H7, E-H5) |
 | 6 | DONE | Vault path coherence (IV-C1, IV-C2, X-6, D-C3, IV-H4, IV-M2, IV-M3, IV-M4) |
 | 7 | DONE | NetworkPolicy gaps (D-C2, EI-C3, EI-H1) |
-| 8 | PARTIAL | Helm sweep: E-C1, E-C2, E-C3, E-M1, E-M2, E-M3, E-M5, X-3, X-4, X-5, X-10, G-H3, G-M2, EV-H2, EV-M3, EV-M4 done. STILL OPEN: G-C2/C4 (gRPC readiness), G-C3 (automount drive in remaining charts), X-8 (engine readiness endpoint -> Wave 14), MG-C1 (leader election -> Wave 14), MG-H1 (mgmt HTTP url verify) |
-| 9 | DONE | Data-layer hardening: D-C4, D-H1, D-H2, D-H5, EI-C2 done. D-H3 (off-cluster backup copy) deferred - operator decision; D-M1/D-M2/D-M5/D-M7 are docs-only and already accurate in existing comments. |
+| 8 | DONE | Helm sweep: E-C1, E-C2, E-C3, E-M1, E-M2, E-M3, E-M5, X-3, X-4, X-5, X-10, G-H3, G-M2, EV-H2, EV-M3, EV-M4 in Wave 8. G-C2 (gateway endpoints RBAC removed), G-C3 (automount unified across engine/gateway/billing/execution/management), G-C4 / V-9 (gateway HTTP readiness gated on gRPC server actually Serving), MG-C1 (management pinned to singleton + Recreate), MG-H1 (management Service exposes both 8083 + 50054 — verified) closed on fix/post-merge-cleanup. |
+| 9 | DONE | Data-layer hardening: D-C4, D-H1, D-H2, D-H5, EI-C2 in Wave 9. D-H3 (off-cluster backup copy via rclone, default Backblaze B2, generic S3-compatible) closed on fix/post-merge-cleanup. D-M1/D-M2/D-M5/D-M7 are docs-only and already accurate in existing comments. |
 | 10 | DONE | Deployments + infra: DA-C2, DA-C3, DA-H1, DA-H2, DA-H3, DA-H6, DC-H1, IC-C1, IC-H4, IO-H1, IV-H1, IV-H3, IV-H5, IB-C1, IB-H1, IB-H2 done. IO-H2 (k8s version), IC-C2 (zone ssl plan), IC-H2/H3, IV-M1, IB-M1/M2 (docs polish) covered in Wave 15. |
 | 11 | DONE | Docker+root+CI: RD-C1, RD-H1, RD-H2, DC-C1, DC-C2, DC-C3, DI-H1, DI-H2, MK-C1, MK-C2, MK-H1, MK-H2, AL-C1, CI-H5 (tf job), CI-M6 (weekly cf workflow), SS-H1 done. Remaining MEDIUM/LOW docs polish in Wave 15. |
 | 12 | DONE | TLS key + cert deleted from working tree, gitignored, README updated. OPERATOR ACTION: run `git filter-repo` to purge history (see deployments/edge-ingress/docker/certs/README.md). |
 | 13 | DONE | mt-node deployment model documented + SIGTERM trap added. E-H5 closed in Wave 5. DMT-H1/H2 documented as operator decisions. DMT-M1 (image digest pin) in Wave 15 cleanup. |
-| 14 | DONE | V-14 / X-8: distinct /readiness endpoint that gates on DB+cache+RAG; helm engine readinessProbe points at it. SC-H11/H12/FV-M1 in Wave 15 (docs/non-blocking). |
+| 14 | DONE | V-14 / X-8: engine /readiness endpoint that gates on DB+cache+RAG; helm engine readinessProbe points at it. SC-H11 (deferred import is intentional — documented), SC-H12 (metering is point-of-call — documented), FV-M1 (alembic env.py + processor/rag schemas __init__.py re-exports) closed on fix/post-merge-cleanup. |
 | 15 | DONE | Cleanup: IO-H2, IO-M1, IB-H4, IC-M2, IC-M3, IC-H1, IC-H2, IV-M1, DA-M5 done across commits 15a/15b/15c. |
 
 ## Findings closed (no fix needed)
@@ -46,9 +69,11 @@ Live progress of fixes against the 6 audit files. Updated on every commit.
 ## Operator actions (cannot be done by code)
 
 - **DC-C1 / Wave 13:** run `make cf-bootstrap-aop-ca` to populate `aop-ca.sha256` and `origin-pull-ca.pem` with live Cloudflare AOP CA bytes; commit both. Cannot be automated — requires Cloudflare network access.
-- **DA-C1 / Wave 12:** after I delete the leaked TLS key + add gitignore, you must run `git filter-repo --invert-paths --path deployments/edge-ingress/docker/certs/localhost.key` and force-push. The key is also already in git history; my tool cannot rewrite history.
-- **Vault populate:** after Wave 6 changes paths, operator must repopulate Vault entries via `vault kv put`. Existing values keep working until repopulated because of `lifecycle.ignore_changes = [data_json]`.
+- **DA-C1 / Wave 12:** after the leaked TLS key was deleted + .gitignore'd, the operator must run `git filter-repo --invert-paths --path deployments/edge-ingress/docker/certs/localhost.key --path deployments/edge-ingress/docker/certs/localhost.crt` and force-push to purge the file from git history.
+- **Vault populate (Wave 6 paths):** after Wave 6 changed paths, operator must repopulate Vault entries via `vault kv put`. Existing values keep working until repopulated because of `lifecycle.ignore_changes = [data_json]`.
+- **Vault populate (D-H3 — NEW):** to enable off-cluster postgres backups in production, populate `etradie/data-layer/postgres-backup/production` in Vault with FOUR keys: `rclone_remote_name`, `rclone_config` (full INI body), `remote_bucket`, `remote_path_prefix`. The bucket itself must also be created on the chosen provider with object-lock + lifecycle matching `postgres.backup.retentionDays`. Until this is done, the production overlay will fail to reconcile because the ExternalSecret cannot materialise. To roll back, set `postgres.backup.offsite.enabled: false` in `helm/data-layer/values-production.yaml`.
 
-## Branch
+## Branches
 
-All fixes commit to branch `fix/all-audit-findings`. When the wave plan is complete and the user reviews, one MR rolls everything into `main`.
+- `fix/all-audit-findings` — the original 15-wave branch. Merged into `main` via `!26` (commit `df7c4505`). DO NOT push further commits to this branch.
+- `fix/post-merge-cleanup` — follow-up branch on top of `main` carrying the G-C2/C3/C4 gateway commits and the MG-C1 / G-C3 sweep / D-H3 / SC-H11 / SC-H12 / FV-M1 close-out commits documented in the status banner above.

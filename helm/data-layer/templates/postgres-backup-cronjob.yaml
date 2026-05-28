@@ -106,6 +106,10 @@ spec:
                       key: POSTGRES_DB
                 - name: RETENTION_DAYS
                   value: {{ .Values.postgres.backup.retentionDays | default 7 | quote }}
+                {{- if .Values.postgres.backup.offsite.enabled }}
+                - name: OFFSITE_WAIT_SECS
+                  value: {{ .Values.postgres.backup.offsite.uploadTimeoutSeconds | default 1800 | quote }}
+                {{- end }}
               command:
                 - sh
                 - -c
@@ -117,6 +121,24 @@ spec:
                   pg_dump --format=custom --no-owner --no-privileges "${PGDATABASE}" > "${TARGET}.tmp"
                   mv "${TARGET}.tmp" "${TARGET}"
                   echo "[backup] pg_dump complete: $(ls -lh "${TARGET}")"
+                  # Signal the offsite-upload container (if any) that
+                  # a new dump is ready to upload. Audit ref: D-H3.
+                  echo "${TARGET}" > /backups/.dump-ready
+                  {{- if .Values.postgres.backup.offsite.enabled }}
+                  echo "[backup] waiting for offsite-upload to confirm copy (max ${OFFSITE_WAIT_SECS}s)"
+                  wait_deadline=$(( $(date +%s) + ${OFFSITE_WAIT_SECS} ))
+                  while [ ! -f /backups/.upload-ready ]; do
+                    if [ "$(date +%s)" -ge "${wait_deadline}" ]; then
+                      echo "[backup] FATAL: offsite-upload did not complete within ${OFFSITE_WAIT_SECS}s; skipping retention prune so the latest dump is preserved locally."
+                      exit 1
+                    fi
+                    sleep 5
+                  done
+                  echo "[backup] offsite-upload confirmed"
+                  # Reset the flag so the NEXT run's wait blocks until
+                  # the NEXT upload completes.
+                  rm -f /backups/.upload-ready /backups/.dump-ready
+                  {{- end }}
                   echo "[backup] retention prune (>${RETENTION_DAYS} days)"
                   find /backups -maxdepth 1 -type f -name 'etradie-*.dump' -mtime "+${RETENTION_DAYS}" -print -delete
                   echo "[backup] done"
@@ -127,6 +149,61 @@ spec:
                   mountPath: /backups
                 - name: tmp
                   mountPath: /tmp
+            {{- if .Values.postgres.backup.offsite.enabled }}
+            # Off-cluster upload step. rclone copies every freshly
+            # written dump to the S3-compatible remote configured in
+            # the postgres-backup-credentials ExternalSecret. Runs
+            # as a second container in the SAME pod so it sees the
+            # /backups volume the backup container wrote to. The
+            # backup container blocks on .upload-ready before
+            # running retention prune so a failed upload cannot lose
+            # the only off-cluster-pending copy. Audit ref: D-H3.
+            - name: offsite-upload
+              image: "{{ .Values.postgres.backup.offsite.image.repository }}:{{ .Values.postgres.backup.offsite.image.tag }}"
+              imagePullPolicy: {{ .Values.postgres.backup.offsite.image.pullPolicy | default "IfNotPresent" }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 70
+                capabilities:
+                  drop:
+                    - ALL
+              envFrom:
+                - secretRef:
+                    name: postgres-backup-credentials
+                    optional: false
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  echo "[offsite-upload] waiting for backup container to write .dump-ready"
+                  while [ ! -f /backups/.dump-ready ]; do sleep 2; done
+                  TARGET=$(cat /backups/.dump-ready)
+                  echo "[offsite-upload] dump ready: ${TARGET}"
+                  echo "[offsite-upload] materialising rclone.conf from RCLONE_CONFIG env"
+                  mkdir -p /tmp/rclone
+                  printf '%s\n' "${RCLONE_CONFIG}" > /tmp/rclone/rclone.conf
+                  chmod 0600 /tmp/rclone/rclone.conf
+                  echo "[offsite-upload] rclone copy ${TARGET} -> ${RCLONE_REMOTE_NAME}:${REMOTE_BUCKET}/${REMOTE_PATH_PREFIX}"
+                  rclone --config /tmp/rclone/rclone.conf \
+                    copy --immutable --no-traverse \
+                    "${TARGET}" \
+                    "${RCLONE_REMOTE_NAME}:${REMOTE_BUCKET}/${REMOTE_PATH_PREFIX}"
+                  echo "[offsite-upload] rclone copy complete"
+                  touch /backups/.upload-ready
+                  echo "[offsite-upload] done"
+              resources:
+                {{- toYaml .Values.postgres.backup.offsite.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+                - name: rclone-conf
+                  mountPath: /tmp/rclone
+            {{- end }}
           volumes:
             - name: backups
               persistentVolumeClaim:
@@ -134,4 +211,9 @@ spec:
             - name: tmp
               emptyDir:
                 sizeLimit: 64Mi
+            {{- if .Values.postgres.backup.offsite.enabled }}
+            - name: rclone-conf
+              emptyDir:
+                sizeLimit: 1Mi
+            {{- end }}
 {{- end }}

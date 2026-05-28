@@ -1,7 +1,10 @@
 # Production overlay for the etradie-management chart.
 # Cloud-agnostic: no AWS instance-type nodeSelector.
-
-replicaCount: 3
+#
+# SINGLETON CONSTRAINT (see helm/management/values.yaml). replicaCount
+# stays 1 in production; the four background loops do not coordinate
+# and the in-memory state is per-pod. Audit ref: MG-C1.
+replicaCount: 1
 
 image:
   tag: "0.1.0"
@@ -36,38 +39,20 @@ resources:
     memory: 1Gi
     ephemeral-storage: 512Mi
 
+# HPA is intentionally OFF. Scaling above 1 replica would re-introduce
+# the duplicate-firing problem the singleton constraint exists to
+# prevent. Audit ref: MG-C1.
 autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 600
-      policies:
-        - type: Percent
-          value: 25
-          periodSeconds: 120
-        - type: Pods
-          value: 1
-          periodSeconds: 120
-      selectPolicy: Min
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 30
-        - type: Pods
-          value: 2
-          periodSeconds: 30
-      selectPolicy: Max
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# With replicaCount=1 a minAvailable: >=1 PDB would block every node
+# drain forever. Disable the PDB so cluster operators can drain the
+# node holding the management pod normally; the ~30s recreate gap is
+# tolerated by every upstream caller's retry path. Audit ref: MG-C1.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
-  unhealthyPodEvictionPolicy: IfHealthyBudget
+  enabled: false
 
 serviceMonitor:
   enabled: true

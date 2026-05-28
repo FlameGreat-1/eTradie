@@ -6,6 +6,21 @@ and Refund when the call fails after retries are exhausted. The gateway
 writes the provisional debit to billing_usage inside a transaction so
 two parallel calls from the same user cannot both slip past the cap.
 
+Why point-of-call and not HTTP edge-middleware (audit ref: SC-H12):
+
+    1. Per-provider token COUNTS are only known AFTER the LLM
+       response arrives. An HTTP middleware would have to guess or
+       use a flat rate; both drift from the actual provider bill.
+    2. Many engine routes do not call the LLM at all (chart, broker,
+       health, internal admin). An edge middleware would either over-
+       meter them or carry a per-route exemption list (more coupling
+       than the explicit call-site approach).
+    3. Internal-to-internal calls (gateway -> engine /internal/*)
+       MUST NOT be metered. The edge would see them; the call site
+       knows it is internal and skips metering accordingly.
+
+Do NOT add a metering middleware in engine/main.py.
+
 This module is intentionally thin: it does HTTP, maps status codes to
 exceptions, and returns the reservation ID. All policy logic lives in
 the gateway (src/gateway/internal/server/metering_handler.go) and the

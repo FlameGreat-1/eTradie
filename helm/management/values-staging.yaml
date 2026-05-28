@@ -1,5 +1,9 @@
 # Staging overlay for the etradie-management chart.
-
+#
+# SINGLETON CONSTRAINT (see helm/management/values.yaml). Staging was
+# already replicaCount=1; keeping the explicit comment so a future
+# operator does not raise it without first reading the constraint.
+# Audit ref: MG-C1.
 replicaCount: 1
 
 image:

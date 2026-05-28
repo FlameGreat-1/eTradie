@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -36,6 +37,8 @@ import (
 type GRPCServer struct {
 	gatewayv1.UnimplementedGatewayServiceServer
 	server        *grpc.Server
+	healthServer  *health.Server
+	serving       atomic.Bool
 	orchestrator  *pipeline.Orchestrator
 	symbolStore   *symbolstore.Store
 	settingsStore *settingsstore.Store
@@ -92,9 +95,14 @@ func NewGRPCServer(
 
 	gatewayv1.RegisterGatewayServiceServer(grpcServer, s)
 
+	// Wire the health server but DO NOT flip status to SERVING here.
+	// Status is flipped immediately before grpcServer.Serve() inside
+	// Start() so /readiness reports not-ready until the listener is
+	// actually accepting. Audit ref: G-C4.
 	healthServer := health.NewServer()
-	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
+	s.healthServer = healthServer
 
 	reflection.Register(grpcServer)
 
@@ -102,19 +110,49 @@ func NewGRPCServer(
 	return s
 }
 
+// IsServing reports true once the gRPC listener has been bound AND the
+// embedded health server has been flipped to SERVING. The HTTP server's
+// /readiness handler consults this so a pod is not advertised Ready
+// to Kubernetes (and therefore not added to the Service endpoints)
+// until the gRPC surface can actually accept dials. Audit ref: G-C4.
+func (s *GRPCServer) IsServing() bool {
+	return s.serving.Load()
+}
+
 // Start begins serving gRPC. Blocks until the server stops.
+//
+// Order of operations matters for readiness correctness:
+//
+//  1. bind the TCP listener (so subsequent dials succeed),
+//  2. flip the embedded health server + IsServing() flag to SERVING,
+//  3. call Serve() which blocks until Stop / GracefulStop.
+//
+// Step 2 is performed AFTER the listener succeeds; if Listen fails the
+// pod never reports Ready. Audit ref: G-C4.
 func (s *GRPCServer) Start() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		return fmt.Errorf("grpc_server: listen on port %d: %w", s.port, err)
 	}
+	s.healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	s.serving.Store(true)
 	s.log.Info().Int("port", s.port).Msg("grpc_server_starting")
 	return s.server.Serve(lis)
 }
 
 // GracefulStop gracefully stops the gRPC server.
+//
+// Flips IsServing() to false BEFORE GracefulStop so a draining pod
+// fails readiness during connection draining. New dials are refused
+// at the Service-endpoint level once readiness flips; in-flight RPCs
+// continue to completion under GracefulStop's normal semantics.
+// Audit ref: G-C4.
 func (s *GRPCServer) GracefulStop() {
 	s.log.Info().Msg("grpc_server_shutting_down")
+	s.serving.Store(false)
+	if s.healthServer != nil {
+		s.healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+	}
 	s.server.GracefulStop()
 }
 

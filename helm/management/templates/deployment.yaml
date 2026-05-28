@@ -10,11 +10,14 @@ spec:
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  # Recreate so rolling updates cannot briefly run two pods. The four
+  # background loops (EOD scheduler, weekly/monthly reporter, news
+  # polling, service-token renewal) do not coordinate across replicas,
+  # and the in-memory caches (active trades, ticks, service tokens)
+  # are per-pod. Running two pods even transiently duplicates every
+  # EOD / reporter / token-renewal tick. Audit ref: MG-C1.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+    type: Recreate
   selector:
     matchLabels:
       {{- include "management.selectorLabels" . | nindent 6 }}
@@ -35,7 +38,9 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "management.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      # Single source of truth with templates/serviceaccount.yaml.
+      # Audit ref: G-C3, X-5.
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 60 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

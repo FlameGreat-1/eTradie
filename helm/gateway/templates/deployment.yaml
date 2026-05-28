@@ -35,7 +35,10 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "gateway.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      # Single source of truth. The ServiceAccount itself is rendered
+      # with the same flag in templates/serviceaccount.yaml, so the
+      # SA and the pod cannot disagree. Audit ref: G-C3.
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 60 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
