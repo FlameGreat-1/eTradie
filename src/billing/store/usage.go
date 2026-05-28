@@ -558,6 +558,46 @@ func (s *UsageStore) CommitLLMTokens(
 		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: adjust counters: %w", err)
 	}
 
+	// Estimation-drift breach detection (Audit ref: ADMIN-QUOTA-AUDIT-V4-A).
+	//
+	// When inputDelta is positive (actualInput > estimatedInput), the
+	// Commit ADDED tokens to the monthly counter. If the post-Commit
+	// monthly counter now exceeds the cap, the engine's byte/4 estimate
+	// drifted enough to let one call land over the cap. We do NOT roll
+	// the LLM call back -- the user already got their response. But we
+	// MUST record the breach so:
+	//   * the audit-counter reflects the over-cap state,
+	//   * the next pre-flight (used >= limit) blocks the next call,
+	//   * operators can grep for the dedicated log line and tune the
+	//     estimator if drift becomes common.
+	//
+	// Only fires when monthlyInputLimit > 0 (enforced tier). For BYOK
+	// and free tiers monthlyInputLimit is 0 and this is a no-op.
+	if inputDelta > 0 && monthlyInputLimit > 0 {
+		var postCommitInputMonth int64
+		if scanErr := tx.QueryRow(ctx, `
+			SELECT llm_input_tokens_month
+			FROM billing_usage WHERE user_id = $1
+		`, userID).Scan(&postCommitInputMonth); scanErr == nil {
+			if postCommitInputMonth > monthlyInputLimit {
+				if _, err := tx.Exec(ctx, `
+					UPDATE billing_usage SET
+						llm_quota_blocked_count_today = llm_quota_blocked_count_today + 1,
+						llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
+					WHERE user_id = $1
+				`, userID); err == nil {
+					s.log.Warn().
+						Str("user_id", userID).
+						Int64("estimated_input", estimatedInput).
+						Int64("actual_input", actualInput).
+						Int64("monthly_input_limit", monthlyInputLimit).
+						Int64("post_commit_input_month", postCommitInputMonth).
+						Msg("commit_llm_tokens_estimation_drift_overshoot_recorded")
+				}
+			}
+		}
+	}
+
 	// Soft-cap test-and-set inside the same tx so the threshold check
 	// reads the just-adjusted counters. Returns true ONLY on the first
 	// Commit whose corrected usage crosses the threshold in this
