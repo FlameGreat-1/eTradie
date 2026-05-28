@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects import postgresql  # noqa: F401  # used by JSONB column type
 
 # Alembic identifiers.
 revision = "0028_tier_quota_policies"
@@ -228,29 +228,60 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
 
-    # Bulk insert the seed rows. bulk_insert keeps the migration
-    # deterministic across SQLAlchemy versions and avoids triggering
-    # the model layer (which is not yet importable at migration time).
-    bind = op.get_bind()
-    metadata = sa.MetaData()
-    metadata.reflect(bind=bind, only=["tier_quota_policies"])
-    table = metadata.tables["tier_quota_policies"]
-    op.bulk_insert(
-        table,
-        [
-            {
-                **row,
-                # JSONB column wants a JSON string at the SQLAlchemy
-                # Core layer; the bind converts it back to JSONB on
-                # the server. Use sa.text-style cast to keep this
-                # portable to non-Postgres test backends.
-                "allowed_models": sa.text("'[]'::jsonb")
-                if not row["allowed_models"]
-                else None,
-            }
-            for row in _SEED_ROWS
-        ],
+    # Seed the four canonical tier rows with explicit INSERTs. Same
+    # pattern as 0008 / 0009 / 0019 (and the rest of the seed-bearing
+    # migrations in this directory): keep the JSONB cast on the
+    # server side and pass numeric / boolean values as bound
+    # parameters. The allowed_models column is seeded as an empty
+    # JSONB array for every tier; admins populate it later via the
+    # dashboard if they want to restrict the model allow-list.
+    insert_sql = sa.text(
+        """
+        INSERT INTO tier_quota_policies (
+            tier,
+            daily_input_tokens,
+            daily_output_tokens,
+            monthly_input_tokens,
+            monthly_output_tokens,
+            max_input_tokens_per_call,
+            soft_cap_percent,
+            reservation_ttl_seconds,
+            allowed_models,
+            enforced,
+            updated_at,
+            updated_by
+        ) VALUES (
+            :tier,
+            :daily_input_tokens,
+            :daily_output_tokens,
+            :monthly_input_tokens,
+            :monthly_output_tokens,
+            :max_input_tokens_per_call,
+            :soft_cap_percent,
+            :reservation_ttl_seconds,
+            '[]'::jsonb,
+            :enforced,
+            NOW(),
+            NULL
+        )
+        """
     )
+    bind = op.get_bind()
+    for row in _SEED_ROWS:
+        bind.execute(
+            insert_sql,
+            {
+                "tier": row["tier"],
+                "daily_input_tokens": row["daily_input_tokens"],
+                "daily_output_tokens": row["daily_output_tokens"],
+                "monthly_input_tokens": row["monthly_input_tokens"],
+                "monthly_output_tokens": row["monthly_output_tokens"],
+                "max_input_tokens_per_call": row["max_input_tokens_per_call"],
+                "soft_cap_percent": row["soft_cap_percent"],
+                "reservation_ttl_seconds": row["reservation_ttl_seconds"],
+                "enforced": row["enforced"],
+            },
+        )
 
 
 def downgrade() -> None:
