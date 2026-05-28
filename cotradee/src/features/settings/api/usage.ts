@@ -28,6 +28,11 @@ export interface LLMUsageSnapshot {
  * the free tier and the gateway returns 404, or the network is down).
  * The caller renders nothing rather than an error state so the billing
  * section degrades gracefully.
+ *
+ * Audit ref: ADMIN-QUOTA-AUDIT-16. We now log a console warning for
+ * unexpected statuses so a real 500 / 503 surfaces in devtools and any
+ * Sentry-style error reporter, while still degrading gracefully on
+ * the user-facing side.
  */
 export async function getLLMUsageSnapshot(): Promise<LLMUsageSnapshot | null> {
   try {
@@ -35,7 +40,19 @@ export async function getLLMUsageSnapshot(): Promise<LLMUsageSnapshot | null> {
       '/api/v1/billing/usage',
     );
     return data;
-  } catch {
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    // 404 is the expected response when the gateway has no row for
+    // this user yet (BYOK / first-time visitor). 401 is handled by the
+    // global axios interceptor (silent refresh). Anything else is a
+    // real failure the operator should see.
+    if (status && status !== 404 && status !== 401) {
+      // eslint-disable-next-line no-console
+      console.warn('[UsagePanel] usage snapshot fetch failed', {
+        status,
+        error: err,
+      });
+    }
     return null;
   }
 }

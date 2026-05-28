@@ -12,6 +12,8 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -50,6 +52,13 @@ type MeteringHandler struct {
 	secret      []byte
 	log         zerolog.Logger
 
+	// Cross-service event bus. Used to publish LLM_QUOTA_EXCEEDED on
+	// deep-path Reserve breaches so the SPA modal opens regardless of
+	// whether the pre-flight or the deep path detected the breach.
+	// Nil-tolerant: when unset the publish is skipped (test harness).
+	// Audit ref: ADMIN-QUOTA-AUDIT-1.
+	transport *alertredis.Transport
+
 	// Optional out-of-band soft-cap warning email dispatcher. When nil
 	// the soft-cap check is skipped entirely so the handler keeps its
 	// zero-dependency posture for tests and minimal deployments. When
@@ -77,6 +86,7 @@ func NewMeteringHandler(
 	policyStore *billingstore.QuotaPolicyStore,
 	cfg *auth.Config,
 	internalSecret string,
+	transport *alertredis.Transport,
 ) *MeteringHandler {
 	if policyStore == nil {
 		panic("metering_handler: policyStore must not be nil")
@@ -87,6 +97,7 @@ func NewMeteringHandler(
 		policyStore: policyStore,
 		cfg:         cfg,
 		secret:      []byte(internalSecret),
+		transport:   transport,
 		log:         observability.Logger("metering_handler"),
 	}
 }
@@ -195,7 +206,17 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	policy := h.policyForUser(r.Context(), user)
+	policy, polErr := h.policyForUser(r.Context(), user)
+	if polErr != nil {
+		// Transient DB issue. Respond 503 + Retry-After so the engine's
+		// metering_client.py treats this as fail-closed (it does NOT
+		// proceed with the LLM call) AND the user-facing surface shows
+		// a generic transient-error toast instead of the quota modal.
+		// Audit ref: ADMIN-QUOTA-AUDIT-12.
+		w.Header().Set("Retry-After", "5")
+		writeJSONError(w, http.StatusServiceUnavailable, "quota policy unavailable; please retry shortly")
+		return
+	}
 
 	reservationID, err := h.usage.ReserveLLMTokens(
 		r.Context(),
@@ -211,16 +232,57 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 			if retryAfter < 1 {
 				retryAfter = 1
 			}
+			isAdmin := user.IsAdmin()
+			resetsAt := qerr.ResetsAt.UTC().Format(time.RFC3339)
+
+			// Emit a user-scoped LLM_QUOTA_EXCEEDED event so the SPA modal
+			// opens for deep-path breaches, not just pre-flight breaches.
+			// Without this publish the deep-path 429 returned to the
+			// engine would surface through engine_http.go as an opaque
+			// Go error and the user would see a generic CYCLE_FAILED.
+			// Audit ref: ADMIN-QUOTA-AUDIT-1.
+			if h.transport != nil {
+				h.transport.Publish(r.Context(),
+					alert.NewEvent(
+						alert.SourceGateway,
+						alert.TypeLLMQuotaExceeded,
+						alert.SeverityWarning,
+						"Your AI usage limit for this window has been reached.",
+					).
+						WithUserID(user.ID).
+						WithTraceID(req.TraceID).
+						WithDetails(map[string]interface{}{
+							"dimension":   qerr.Dimension,
+							"limit":       qerr.Limit,
+							"used":        qerr.Used,
+							"requested":   qerr.Requested,
+							"resets_at":   resetsAt,
+							"retry_after": retryAfter,
+							"is_admin":    isAdmin,
+							"source":      "reserve",
+						}),
+				)
+			}
+
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
+			// Body matches APIHandler.preflightLLMQuota one-for-one so
+			// every consumer (engine metering_client.py, the SPA axios
+			// interceptor for any future direct call, log readers) sees
+			// the same envelope from both Reserve sites.
+			// Audit ref: ADMIN-QUOTA-AUDIT-1.
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":     "llm quota exceeded",
-				"dimension": qerr.Dimension,
-				"limit":     qerr.Limit,
-				"used":      qerr.Used,
-				"requested": qerr.Requested,
-				"resets_at": qerr.ResetsAt.UTC().Format(time.RFC3339),
+				"error":       "llm_quota_exceeded",
+				"error_code":  "llm_quota_exceeded",
+				"message":     "Your AI usage limit for this window has been reached.",
+				"dimension":   qerr.Dimension,
+				"limit":       qerr.Limit,
+				"used":        qerr.Used,
+				"requested":   qerr.Requested,
+				"resets_at":   resetsAt,
+				"retry_after": retryAfter,
+				"is_admin":    isAdmin,
 			})
 			h.log.Info().
 				Str("user_id", user.ID).
@@ -229,6 +291,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 				Int64("limit", qerr.Limit).
 				Int64("used", qerr.Used).
 				Int64("requested", qerr.Requested).
+				Bool("is_admin", isAdmin).
 				Msg("llm_quota_blocked")
 			return
 		}
@@ -435,7 +498,14 @@ func (h *MeteringHandler) handleGetUsage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	policy := h.policyForUser(r.Context(), user)
+	policy, polErr := h.policyForUser(r.Context(), user)
+	if polErr != nil {
+		// Same transient-failure posture as handleReserve.
+		// Audit ref: ADMIN-QUOTA-AUDIT-12.
+		w.Header().Set("Retry-After", "5")
+		writeJSONError(w, http.StatusServiceUnavailable, "quota policy unavailable; please retry shortly")
+		return
+	}
 	snap, err := h.usage.GetLLMUsageSnapshot(r.Context(), user.ID, policy)
 	if err != nil {
 		h.log.Error().Err(err).Str("user_id", user.ID).Msg("metering_usage_snapshot_failed")
@@ -469,25 +539,38 @@ func tierFor(user *auth.User) string {
 // Reads via QuotaPolicyStore.GetPolicy (30 s cache; explicit
 // invalidation on Upsert).
 //
-// Fail-closed posture:
-//   * ErrPolicyNotFound -> log + return zero-access policy. A missing
-//     row means the 0028 seed migration did not run; the deep path
-//     returns tier_not_eligible, the SPA renders the BYOK / upgrade
-//     CTA, and the operator sees the failure in the gateway log.
-//   * Any other store error -> log + return zero-access policy. A
-//     transient DB blip cannot accidentally widen the cap; the SPA
-//     surfaces tier_not_eligible until the next request, which is the
-//     correct conservative behaviour.
-func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) billingstore.LLMQuotaPolicy {
+// Return semantics (Audit ref: ADMIN-QUOTA-AUDIT-12):
+//   * Success -> (policy, nil). Normal path.
+//   * ErrPolicyNotFound -> (zero-access policy, nil). A missing row
+//     means the seed migration did not run; the deep path correctly
+//     returns tier_not_eligible, which is the right response for a
+//     user whose tier genuinely has no policy. The error is NOT
+//     surfaced because the absence-of-row is a STATEFUL condition
+//     the caller should treat as a real tier-mismatch, not a
+//     transient infrastructure failure.
+//   * Any other store error -> (zero-access policy, wrapped error).
+//     A DB connection failure, pool exhaustion, or query timeout is
+//     a TRANSIENT infrastructure issue. The caller MUST respond with
+//     503 so the engine refuses to call the LLM AND the user-facing
+//     surface shows a transient-error toast, not the quota modal.
+func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) (billingstore.LLMQuotaPolicy, error) {
 	tier := tierFor(user)
 	row, err := h.policyStore.GetPolicy(ctx, tier)
 	if err != nil {
+		if errors.Is(err, billingstore.ErrPolicyNotFound) {
+			h.log.Error().
+				Err(err).
+				Str("user_id", user.ID).
+				Str("tier", tier).
+				Msg("metering_policy_missing_seed_not_run")
+			return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}, nil
+		}
 		h.log.Error().
 			Err(err).
 			Str("user_id", user.ID).
 			Str("tier", tier).
-			Msg("metering_policy_lookup_failed_failing_closed")
-		return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}
+			Msg("metering_policy_lookup_failed_transient")
+		return billingstore.LLMQuotaPolicy{ReservationTTL: 300 * time.Second}, err
 	}
-	return row.ToLLMQuotaPolicy()
+	return row.ToLLMQuotaPolicy(), nil
 }

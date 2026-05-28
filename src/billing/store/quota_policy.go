@@ -116,14 +116,30 @@ func ValidatePolicy(p *QuotaPolicyRow) error {
 		return fmt.Errorf("reservation_ttl_seconds must be 30..3600; got %d", p.ReservationTTLSeconds)
 	}
 
-	// Enforced=true requires non-zero caps on every dimension that
-	// will actually be enforced; allowing all zeros with enforced=true
-	// would silently block 100% of reservations and look like a bug.
+	// Enforced <-> caps invariant (Audit ref: ADMIN-QUOTA-AUDIT-4).
+	//
+	// The pre-flight gates on row.Enforced; the deep Reserve gates on
+	// policy.HasLLMAccess() (= all daily caps > 0). The two MUST agree
+	// or a misconfigured policy yields a silent divergence between the
+	// fast path and the correctness path.
+	//
+	// We enforce the bi-conditional here so the two gates cannot drift:
+	//   enforced = true  <=> all caps strictly > 0
+	//   enforced = false <=> all caps strictly = 0
 	if p.Enforced {
 		if p.DailyInputTokens == 0 || p.DailyOutputTokens == 0 ||
 			p.MonthlyInputTokens == 0 || p.MonthlyOutputTokens == 0 ||
 			p.MaxInputTokensPerCall == 0 {
 			return fmt.Errorf("enforced policy requires all four token caps and max_input_tokens_per_call to be > 0")
+		}
+	} else {
+		if p.DailyInputTokens != 0 || p.DailyOutputTokens != 0 ||
+			p.MonthlyInputTokens != 0 || p.MonthlyOutputTokens != 0 ||
+			p.MaxInputTokensPerCall != 0 {
+			return fmt.Errorf("non-enforced policy requires every token cap to be 0; got daily_input=%d daily_output=%d monthly_input=%d monthly_output=%d max_per_call=%d",
+				p.DailyInputTokens, p.DailyOutputTokens,
+				p.MonthlyInputTokens, p.MonthlyOutputTokens,
+				p.MaxInputTokensPerCall)
 		}
 	}
 

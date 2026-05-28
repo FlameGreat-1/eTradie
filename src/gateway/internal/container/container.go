@@ -184,6 +184,7 @@ func New(
 		quotaPolicyStore,
 		authCfg,
 		cfg.EngineInternalSharedSecret,
+		transport,
 	)
 
 	// Wire the shared *mails.Sender (already used for waitlist and

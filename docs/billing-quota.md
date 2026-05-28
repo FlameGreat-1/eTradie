@@ -327,26 +327,66 @@ rows with the SAME numeric values previously encoded as env defaults.
 Fresh deploy boots with byte-identical behaviour to the previous
 version.
 
-**Deployment that overrode any of the removed env keys:**
-BEFORE rolling the new image:
+**Deployment that overrode any of the removed env keys (rare case):**
 
-1. Note the override values currently in your env.
-2. Apply migration `0028` (the engine migrator job runs this on every
-   upgrade).
-3. UPSERT the overrides into the `pro_managed` and `admin` rows of
-   `tier_quota_policies` so the values match what the deployment was
-   actually using. You can either:
-   - Use the admin dashboard's Tier Quota Policies panel after the
-     pod boots (the policy in effect for the first few requests will
-     be the seed defaults; admin edits apply immediately on the next
-     request after the 30 s cache invalidation).
-   - Run a one-off SQL UPDATE against `tier_quota_policies` BEFORE
-     the pod boots, so the very first request sees the operator's
-     historical values.
+The alembic 0028 seed values are hard-coded. The table cannot be
+upserted before migration 0028 runs (the table does not exist). The
+migrator runs DURING the image rollout in the engine migrator job.
+So the only correct order is: migrate first, then promote your
+overrides into the row.
 
-There is no `seed-quotas-from-env` make target because the env keys
-are already gone from the code; any operator override must be
-promoted to the DB row before the rollout, not after.
+1. **Before rollout.** Read your current `TIER_PRO_MANAGED_*` env
+   values from your config store (Vault, env file, k8s secret).
+   Compare each value against the alembic 0028 seed below; record
+   any deltas:
+
+   | column                       | seed value     |
+   |------------------------------|----------------|
+   | daily_input_tokens           | 2,000,000      |
+   | daily_output_tokens          | 200,000        |
+   | monthly_input_tokens         | 20,000,000     |
+   | monthly_output_tokens        | 2,000,000      |
+   | max_input_tokens_per_call    | 300,000        |
+   | soft_cap_percent             | 80             |
+   | reservation_ttl_seconds      | 300            |
+   | allowed_models               | (empty array)  |
+
+   If every env value matches the seed, no further action is
+   needed.
+
+2. **During rollout.** The engine migrator job runs migration 0028
+   on image start. The `tier_quota_policies` table is created and
+   seeded with the values above. The migrator exits before the
+   user-facing pods (gateway, billing, engine API) begin serving
+   Reserve calls.
+
+3. **Immediately after migration, before serving user traffic.**
+   UPSERT the recorded deltas via either:
+
+   a) The admin dashboard's Tier Quota Policies panel
+      (`/settings` -> Admin -> Tier Quota Policies). Admin edits
+      apply on the next request after the 30 s `QuotaPolicyStore`
+      cache TTL, or instantly on the next request after the
+      explicit cache invalidation triggered by Upsert.
+
+   b) A one-off SQL UPDATE against the running database, e.g.:
+
+      ```sql
+      UPDATE tier_quota_policies
+      SET monthly_input_tokens = 50000000,
+          updated_at           = NOW(),
+          updated_by           = NULL
+      WHERE tier = 'pro_managed';
+      ```
+
+      The store's 30 s cache may briefly serve the seeded value
+      to the first Reserve calls until the TTL expires; the
+      cumulative caps mean this brief stale read cannot let a
+      user breach their real cap.
+
+There is NO `seed-quotas-from-env` make target; the env keys are
+gone from the code so nothing to seed from. (The previous version
+of this doc mentioned one in error.)
 
 ### Rollback
 
@@ -362,20 +402,23 @@ downgrade path is intended for local-development rollback only.
 | Scenario                                                | Pre-flight | Deep Reserve | Event              | Modal                 |
 |---------------------------------------------------------|------------|--------------|---------------------|------------------------|
 | `pro_managed` on platform key, monthly cap OK           | pass       | pass         | none                | none                   |
-| `pro_managed` on platform key, monthly cap hit          | block      | n/a          | `LLM_QUOTA_EXCEEDED` | `QuotaExhaustedModal` (Pro Managed CTA: Contact Support) |
+| `pro_managed` on platform key, monthly cap hit          | block      | n/a          | `LLM_QUOTA_EXCEEDED` (`source=preflight`) | `QuotaExhaustedModal` (Pro Managed CTAs: Use Your Own API Key + Contact Support) |
 | `pro_managed` switched to BYOK, provider 429            | n/a        | n/a          | `LLM_PROVIDER_QUOTA_EXCEEDED` | `ProviderQuotaModal` |
 | `admin` on platform key, cap hit                        | block      | n/a          | `LLM_QUOTA_EXCEEDED` (`is_admin=true`) | `QuotaExhaustedModal` (Admin CTA: Edit Policy) |
 | `admin` switched to BYOK, provider 429                  | n/a        | n/a          | `LLM_PROVIDER_QUOTA_EXCEEDED` | `ProviderQuotaModal` |
 | `pro_byok`, provider 429                                | n/a        | n/a          | `LLM_PROVIDER_QUOTA_EXCEEDED` | `ProviderQuotaModal` |
 | `free`, provider 429                                    | n/a        | n/a          | `LLM_PROVIDER_QUOTA_EXCEEDED` | `ProviderQuotaModal` |
-| `pro_managed` on platform key, daily input cap hit MID-cycle (pre-flight raced) | pass | block | `LLM_QUOTA_EXCEEDED` (deep) | `QuotaExhaustedModal` |
+| `pro_managed` on platform key, daily input cap hit MID-cycle (pre-flight raced) | pass | block | `LLM_QUOTA_EXCEEDED` (`source=reserve`) | `QuotaExhaustedModal` |
 
 In the last row the pre-flight passes because the cumulative counter
 was just under cap at SELECT time, but a concurrent reservation from
 another session won the `SELECT FOR UPDATE` race and pushed the user
-over. The deep path catches the breach, the `recordBlocked` increment
-fires, and the same event + modal flow runs. This is the
-defence-in-depth guarantee.
+over. The deep `handleReserve` path catches the breach, calls
+`recordBlocked` to bump the audit counter, publishes the user-scoped
+`LLM_QUOTA_EXCEEDED` event (Audit ref: ADMIN-QUOTA-AUDIT-1) with
+`details.source = "reserve"`, and returns the same structured 429
+envelope the pre-flight returns. The SPA modal opens identically.
+This is the defence-in-depth guarantee.
 
 ---
 

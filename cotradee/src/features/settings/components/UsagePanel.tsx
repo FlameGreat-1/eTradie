@@ -1,31 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Activity, AlertTriangle, CheckCircle } from 'lucide-react';
 import { getLLMUsageSnapshot, type LLMUsageSnapshot } from '../api/usage';
 
 /**
- * UsagePanel renders the Pro Managed LLM token usage for the current
- * billing period. It is only shown when quota_enforced is true (i.e.
- * the user is on the pro_managed tier and the gateway has metering
- * configured). For BYOK users and free users the component renders
- * nothing.
+ * UsagePanel renders the platform-managed LLM token usage for the
+ * current billing period. It is only shown when quota_enforced is
+ * true (i.e. the user is on pro_managed/admin and the gateway has
+ * metering configured). For BYOK users and free users the component
+ * renders nothing.
  *
- * The panel polls once on mount. A manual refresh button lets the user
- * re-fetch without reloading the page.
+ * Data flow: useQuery against the shared ['billing', 'usage'] key so
+ * the realtime LLM_QUOTA_EXCEEDED invalidation in
+ * features/realtime/eventMap.ts auto-refreshes the panel without any
+ * extra wiring. Refresh button triggers a manual refetch.
+ *
+ * Audit ref: ADMIN-QUOTA-AUDIT-6.
  */
 export default function UsagePanel() {
-  const [snap, setSnap] = useState<LLMUsageSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    const data = await getLLMUsageSnapshot();
-    setSnap(data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const {
+    data: snap,
+    isLoading: loading,
+    refetch,
+  } = useQuery<LLMUsageSnapshot | null>({
+    queryKey: ['billing', 'usage'],
+    queryFn: getLLMUsageSnapshot,
+    staleTime: 30_000,
+  });
 
   if (loading) {
     return (
@@ -58,9 +58,22 @@ export default function UsagePanel() {
 
   const isHardCapBreached = monthlyInputPct >= 100 || monthlyOutputPct >= 100;
 
-  const resetDate = new Date(snap.monthly_window_start);
-  // Next monthly anniversary
-  resetDate.setMonth(resetDate.getMonth() + 1);
+  // Match src/billing/store/usage.go::nextMonthlyReset one-for-one:
+  // loop forward one month at a time until the candidate is strictly
+  // after now. setMonth(getMonth()+1) once collapses all multi-month
+  // gaps to a single step, which puts the label in the past for any
+  // window that started more than a month ago. Audit ref:
+  // ADMIN-QUOTA-AUDIT-6.
+  const resetDate = (() => {
+    const start = new Date(snap.monthly_window_start);
+    if (Number.isNaN(start.getTime())) return new Date();
+    const candidate = new Date(start);
+    const now = new Date();
+    while (candidate <= now) {
+      candidate.setMonth(candidate.getMonth() + 1);
+    }
+    return candidate;
+  })();
   const resetLabel = resetDate.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -81,7 +94,7 @@ export default function UsagePanel() {
           <h3 className="text-sm font-semibold text-content">AI Token Usage</h3>
         </div>
         <button
-          onClick={load}
+          onClick={() => refetch()}
           className="text-xs text-content-muted hover:text-content transition-colors"
         >
           Refresh
