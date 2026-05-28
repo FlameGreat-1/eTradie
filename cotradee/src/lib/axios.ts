@@ -120,6 +120,45 @@ export function is403TierDenial(body: unknown): body is TierRequiredBody {
 }
 
 /**
+ * Shape of a platform-quota 429 response body emitted by the gateway
+ * (api_handlers.go::preflightLLMQuota and metering_handler.go::handleReserve).
+ * Carries the exact dimension and reset timestamp the platform quota
+ * modal renders without a follow-up fetch. Audit ref: ADMIN-QUOTA-11.
+ */
+export interface LLMQuotaExceededBody {
+  error?: string;
+  error_code?: string;
+  dimension?: string;
+  limit?: number;
+  used?: number;
+  requested?: number;
+  resets_at?: string;
+  retry_after?: number;
+  is_admin?: boolean;
+}
+
+/**
+ * Pure predicate: true when a 429 response body is the platform LLM
+ * quota envelope, i.e. carries error_code === 'llm_quota_exceeded'.
+ * Any other 429 (cycle-rpm rate-limit, admin handler rate-limit) lacks
+ * this code and is handled by the generic 'Limit Reached' toast.
+ */
+export function is429PlatformQuota(body: unknown): body is LLMQuotaExceededBody {
+  if (!body || typeof body !== 'object') return false;
+  const code = (body as { error_code?: unknown }).error_code;
+  return typeof code === 'string' && code === 'llm_quota_exceeded';
+}
+
+/**
+ * Window CustomEvent name the platform quota modal listens for. Kept
+ * in lock-step with cotradee/src/features/realtime/RealtimeProvider.tsx
+ * (MODAL_DISPATCH_MAP) so the WS path and the axios path open the
+ * SAME modal subscription. Drift between the two would break the
+ * manual-button-click UX silently. Audit ref: ADMIN-QUOTA-11.
+ */
+export const LLM_QUOTA_MODAL_EVENT = 'open-llm-quota-modal';
+
+/**
  * Read a cookie value by name from document.cookie.
  * Returns '' when the cookie is absent.
  */
@@ -345,19 +384,40 @@ function createClient(baseURL: string): AxiosInstance {
       }
 
       if (error.response?.status === 429) {
-        const data = error.response.data as { detail?: string; error?: string } | undefined;
-        const retryAfterHeader = error.response.headers?.['retry-after'];
-        const retryAfterSecs = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-        const baseMsg = data?.detail || data?.error || 'Rate limit exceeded.';
-        const retryMsg =
-          retryAfterSecs && !isNaN(retryAfterSecs)
-            ? ` Try again in ${retryAfterSecs < 60 ? `${retryAfterSecs}s` : `${Math.ceil(retryAfterSecs / 60)} min`}.`
-            : '';
-        toast({
-          title: 'Limit Reached',
-          description: baseMsg + retryMsg,
-          variant: 'warning',
-        });
+        const data = error.response.data as
+          | { detail?: string; error?: string; error_code?: string }
+          | undefined;
+
+        // Platform LLM quota 429: open the dedicated modal (Step 13)
+        // and SUPPRESS the generic 'Limit Reached' toast so the user
+        // gets exactly one notification. The CustomEvent name MUST
+        // match RealtimeProvider's MODAL_DISPATCH_MAP so the WS path
+        // and the HTTP path open the same modal subscription. Audit
+        // ref: ADMIN-QUOTA-11.
+        if (is429PlatformQuota(data)) {
+          if (typeof window !== 'undefined') {
+            try {
+              window.dispatchEvent(
+                new CustomEvent(LLM_QUOTA_MODAL_EVENT, { detail: data }),
+              );
+            } catch {
+              /* SSR or non-DOM env: dispatch is a best-effort optimisation */
+            }
+          }
+        } else {
+          const retryAfterHeader = error.response.headers?.['retry-after'];
+          const retryAfterSecs = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+          const baseMsg = data?.detail || data?.error || 'Rate limit exceeded.';
+          const retryMsg =
+            retryAfterSecs && !isNaN(retryAfterSecs)
+              ? ` Try again in ${retryAfterSecs < 60 ? `${retryAfterSecs}s` : `${Math.ceil(retryAfterSecs / 60)} min`}.`
+              : '';
+          toast({
+            title: 'Limit Reached',
+            description: baseMsg + retryMsg,
+            variant: 'warning',
+          });
+        }
       }
 
       if (!original || error.response?.status !== 401) {
