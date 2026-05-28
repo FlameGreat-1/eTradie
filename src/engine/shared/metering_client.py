@@ -63,7 +63,7 @@ from typing import Optional
 
 import httpx
 
-from engine.shared.exceptions import QuotaExceededError
+from engine.shared.exceptions import MeteringUnavailableError, QuotaExceededError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -247,6 +247,28 @@ async def reserve(
             used=used,
             requested=requested,
             resets_at=resets_at,
+            retry_after=retry_after,
+        )
+
+    if resp.status_code == 503:
+        # Gateway said the policy / metering layer is temporarily
+        # unavailable (transient DB error, seed-row missing, etc.).
+        # Surface as a typed transient error so the orchestrator can
+        # render the right user-facing message and operators can grep
+        # the discriminator. The LLM call is NOT made (fail-closed).
+        # Audit ref: ADMIN-QUOTA-AUDIT-V3-A8.
+        retry_after = _retry_after_seconds("", resp.headers.get("Retry-After", "5"))
+        logger.warning(
+            "metering_reserve_unavailable_transient",
+            extra={
+                "status": resp.status_code,
+                "retry_after": retry_after,
+                "user_id": user_id,
+                "trace_id": trace_id,
+            },
+        )
+        raise MeteringUnavailableError(
+            "Metering layer is temporarily unavailable; please retry shortly.",
             retry_after=retry_after,
         )
 
