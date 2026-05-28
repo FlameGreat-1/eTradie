@@ -55,6 +55,34 @@ class CollectorAllProvidersFailedError(CollectorError):
     pass
 
 
+class MeteringUnavailableError(ETradieBaseError):
+    """Raised by MeteringClient.reserve() on HTTP 503 from the gateway.
+
+    Signals a transient infrastructure condition (DB pool exhaustion,
+    seed migration not yet run on a fresh deploy, brief Postgres
+    failover) that the engine should treat as fail-closed: do NOT
+    proceed with the LLM call. Distinct from QuotaExceededError
+    (real cap breach) so the operator log line and the user-facing
+    surface render the correct discriminator.
+
+    Attributes:
+        retry_after : seconds the gateway recommends waiting before
+                      retry. Parsed from the Retry-After header.
+
+    Audit ref: ADMIN-QUOTA-AUDIT-V3-A8.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after: int = 5,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details=details or {})
+        self.retry_after = retry_after
+
+
 class QuotaExceededError(ETradieBaseError):
     """Raised by MeteringClient.reserve() when the user has hit a
     per-tier LLM token cap. The gateway returns a structured 429 body;

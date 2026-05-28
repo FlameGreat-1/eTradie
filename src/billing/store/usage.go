@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 // ---------------------------------------------------------------------------
@@ -134,11 +136,15 @@ type LLMReservation struct {
 // ---------------------------------------------------------------------------
 
 type UsageStore struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	log zerolog.Logger
 }
 
 func NewUsageStore(db *pgxpool.Pool) *UsageStore {
-	return &UsageStore{db: db}
+	return &UsageStore{
+		db:  db,
+		log: zerolog.New(os.Stdout).With().Timestamp().Str("component", "usage_store").Logger(),
+	}
 }
 
 // generateReservationID returns a 32-hex-char id used as the primary
@@ -428,11 +434,39 @@ func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string
 			llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
 		WHERE user_id = $1
 	`, userID); err != nil {
+		// Audit-counter UPDATE failed. The user-facing 429 still fires
+		// (qerr is authoritative), but the operator MUST see this so a
+		// silently-broken blocked counter does not hide a quota incident
+		// from the dashboard. Audit ref: ADMIN-QUOTA-AUDIT-V3-A6.
+		s.log.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("usage_store_commit_blocked_audit_update_failed")
 		_ = tx.Rollback(ctx)
 		return qerr
 	}
-	_ = tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		s.log.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("usage_store_commit_blocked_tx_commit_failed")
+		return qerr
+	}
 	return qerr
+}
+
+// CommitOutcome carries post-Commit signals the handler needs to act
+// on. Today the only signal is the soft-cap test-and-set: true on
+// the first Commit whose corrected usage crosses the soft-cap
+// threshold in the current monthly window.
+//
+// UserID is returned so the handler can look up the email / username
+// without a second DB round-trip against the reservations table.
+//
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+type CommitOutcome struct {
+	UserID                string
+	SoftCapJustCrossed    bool
 }
 
 // CommitLLMTokens settles a held reservation with the real token counts
@@ -441,23 +475,37 @@ func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string
 // side is corrected for the (rare) case where the tokeniser estimate
 // diverged from the model's count.
 //
+// The soft-cap test-and-set runs INSIDE the same transaction so the
+// counter adjustment and the threshold evaluation see a consistent
+// snapshot. Firing the email from Reserve (pre-correction) would
+// observe inflated usage and emit premature warnings.
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+//
 // Idempotent: re-committing an already-committed reservation is a
 // no-op so an at-least-once retry from the engine cannot double-charge.
+//
+// softCapPercent / monthlyInputLimit / monthlyOutputLimit are the
+// resolved policy values for this user's tier. The caller (gateway
+// metering handler) has them in hand from the same QuotaPolicyStore
+// read that gated Reserve; passing them through avoids a second
+// policy lookup inside the store.
 func (s *UsageStore) CommitLLMTokens(
 	ctx context.Context,
 	reservationID string,
 	actualInput, actualOutput int64,
-) error {
+	softCapPercent int,
+	monthlyInputLimit, monthlyOutputLimit int64,
+) (CommitOutcome, error) {
 	if reservationID == "" {
-		return fmt.Errorf("commit_llm_tokens: reservation_id is required")
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: reservation_id is required")
 	}
 	if actualInput < 0 || actualOutput < 0 {
-		return fmt.Errorf("commit_llm_tokens: token counts must be non-negative")
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: token counts must be non-negative")
 	}
 
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
-		return fmt.Errorf("commit_llm_tokens: begin tx: %w", err)
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -481,9 +529,9 @@ func (s *UsageStore) CommitLLMTokens(
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Already settled or never existed. Idempotent: no-op.
 			_ = tx.Commit(ctx)
-			return nil
+			return CommitOutcome{}, nil
 		}
-		return fmt.Errorf("commit_llm_tokens: update reservation: %w", err)
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: update reservation: %w", err)
 	}
 
 	// Adjust the counters: the input estimate is replaced with the
@@ -507,10 +555,57 @@ func (s *UsageStore) CommitLLMTokens(
 			llm_last_metered_at     = $5
 		WHERE user_id = $1
 	`, userID, inputDelta, outputRefund, actualInput+actualOutput, now); err != nil {
-		return fmt.Errorf("commit_llm_tokens: adjust counters: %w", err)
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: adjust counters: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	// Soft-cap test-and-set inside the same tx so the threshold check
+	// reads the just-adjusted counters. Returns true ONLY on the first
+	// Commit whose corrected usage crosses the threshold in this
+	// monthly window (soft_cap_notified_at IS NULL guard).
+	softCapJustCrossed := false
+	if softCapPercent > 0 && softCapPercent <= 100 &&
+		(monthlyInputLimit > 0 || monthlyOutputLimit > 0) {
+		ceilDiv := func(limit int64, pct int) int64 {
+			if limit <= 0 {
+				return 0
+			}
+			return (limit*int64(pct) + 99) / 100
+		}
+		inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
+		outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
+
+		var firedAt *time.Time
+		scanErr := tx.QueryRow(ctx, `
+			UPDATE billing_usage
+			SET soft_cap_notified_at = NOW()
+			WHERE user_id = $1
+			  AND soft_cap_notified_at IS NULL
+			  AND (
+			       ($2 > 0 AND llm_input_tokens_month  >= $2)
+			    OR ($3 > 0 AND llm_output_tokens_month >= $3)
+			  )
+			RETURNING soft_cap_notified_at
+		`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+		if scanErr == nil && firedAt != nil {
+			softCapJustCrossed = true
+		} else if scanErr != nil && !errors.Is(scanErr, pgx.ErrNoRows) {
+			// Test-and-set itself failed (lock contention, schema drift).
+			// Log + continue: the counter adjustment is correct; we
+			// just miss the email this round. The next Commit retries.
+			s.log.Error().
+				Err(scanErr).
+				Str("user_id", userID).
+				Msg("commit_llm_tokens_soft_cap_check_failed")
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return CommitOutcome{}, fmt.Errorf("commit_llm_tokens: commit: %w", err)
+	}
+	return CommitOutcome{
+		UserID:             userID,
+		SoftCapJustCrossed: softCapJustCrossed,
+	}, nil
 }
 
 // RefundLLMTokens rolls back the full provisional debit on a held
@@ -853,76 +948,37 @@ func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStar
 	return nil
 }
 
-// MarkSoftCapNotifiedIfCrossed performs a one-shot test-and-set inside
-// a single atomic UPDATE: returns (true, nil) the first time the user's
-// current-window monthly usage crosses softCapPercent of either the
-// input or output cap; returns (false, nil) on every subsequent call
-// until MonthlyReset clears soft_cap_notified_at.
+// PeekReservationOwner returns (user_id, tier) for a 'held' reservation
+// without locking the row or modifying any state. Used by the gateway's
+// handleCommit to resolve the per-tier soft-cap policy BEFORE calling
+// CommitLLMTokens, so the in-tx test-and-set inside CommitLLMTokens
+// can run atomically with the counter adjustment.
 //
-// The handler calls this immediately after a successful Reserve and
-// fires the warning email when the return is true. The test-and-set
-// happens entirely in SQL so two parallel reserve calls from the same
-// user cannot both observe "just crossed" and double-fire the email
-// (PostgreSQL serialises the UPDATE on the row's MVCC version).
+// Returns ("", "", nil) when the reservation is missing OR is no longer
+// in 'held' status (already committed / refunded / reaped). The caller
+// proceeds to CommitLLMTokens with softCapPercent=0 which short-circuits
+// the test-and-set; the Commit itself remains idempotent.
 //
-// Inputs:
-//
-//	softCapPercent       : 0..100. Values <= 0 disable the check
-//	                       (returns false, nil) so a tier without a
-//	                       configured soft cap never triggers a notice.
-//	monthlyInputLimit    : tier policy cap on input tokens this window.
-//	                       Values <= 0 disable the input-side trigger.
-//	monthlyOutputLimit   : same, for output tokens.
-//
-// The threshold is computed as ceil(limit * pct / 100) so a soft cap of
-// 80% on a 20,000,000 input cap fires at exactly 16,000,000 tokens, not
-// at 15,999,999.
-func (s *UsageStore) MarkSoftCapNotifiedIfCrossed(
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+func (s *UsageStore) PeekReservationOwner(
 	ctx context.Context,
-	userID string,
-	softCapPercent int,
-	monthlyInputLimit, monthlyOutputLimit int64,
-) (bool, error) {
-	if userID == "" {
-		return false, fmt.Errorf("mark_soft_cap_notified: user_id is required")
+	reservationID string,
+) (userID, tier string, err error) {
+	if reservationID == "" {
+		return "", "", fmt.Errorf("peek_reservation_owner: reservation_id is required")
 	}
-	if softCapPercent <= 0 || softCapPercent > 100 {
-		return false, nil
-	}
-	if monthlyInputLimit <= 0 && monthlyOutputLimit <= 0 {
-		return false, nil
-	}
-
-	// ceilDiv computes ⌈a * pct / 100⌉ without floating-point error.
-	ceilDiv := func(limit int64, pct int) int64 {
-		if limit <= 0 {
-			return 0
-		}
-		num := limit * int64(pct)
-		return (num + 99) / 100
-	}
-	inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
-	outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
-
-	var firedAt *time.Time
-	err := s.db.QueryRow(ctx, `
-		UPDATE billing_usage
-		SET soft_cap_notified_at = NOW()
-		WHERE user_id = $1
-		  AND soft_cap_notified_at IS NULL
-		  AND (
-		       ($2 > 0 AND llm_input_tokens_month  >= $2)
-		    OR ($3 > 0 AND llm_output_tokens_month >= $3)
-		  )
-		RETURNING soft_cap_notified_at
-	`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+	err = s.db.QueryRow(ctx, `
+		SELECT user_id, tier
+		FROM billing_llm_reservations
+		WHERE id = $1 AND status = 'held'
+	`, reservationID).Scan(&userID, &tier)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
+			return "", "", nil
 		}
-		return false, fmt.Errorf("mark_soft_cap_notified: %w", err)
+		return "", "", fmt.Errorf("peek_reservation_owner: %w", err)
 	}
-	return firedAt != nil, nil
+	return userID, tier, nil
 }
 
 // ---------------------------------------------------------------------------

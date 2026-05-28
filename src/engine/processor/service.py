@@ -21,6 +21,7 @@ import orjson
 
 from engine.shared.alert_publisher import AlertPublisher
 from engine.shared.exceptions import (
+    MeteringUnavailableError,
     ProcessorError,
     ProcessorInsufficientDataError,
     QuotaExceededError,
@@ -216,6 +217,16 @@ class AnalysisProcessor(ProcessorPort):
             # Propagate immediately: the metering layer already recorded
             # the blocked-count; no audit row is needed for a quota
             # rejection (the user never got an LLM response).
+            raise
+
+        except MeteringUnavailableError:
+            # Gateway said the metering layer is temporarily down.
+            # Fail-closed: do NOT proceed with the LLM call. Propagate
+            # so the internal router can map it to HTTP 503 with the
+            # parsed Retry-After. No audit row is persisted; the user
+            # never got an LLM response and the failure is
+            # infrastructure-side, not user-side.
+            # Audit ref: ADMIN-QUOTA-AUDIT-V3-A8.
             raise
 
         except asyncio.TimeoutError:
