@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 import orjson
 
+from engine.shared.alert_publisher import AlertPublisher
 from engine.shared.exceptions import (
     ProcessorError,
     ProcessorInsufficientDataError,
@@ -38,6 +39,11 @@ from engine.processor.audit.logger import (
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
 from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.error_classifier import (
+    CODE_QUOTA_EXCEEDED,
+    CODE_RATE_LIMITED,
+    classify_llm_failure,
+)
 from engine.processor.llm.errors import LLMTruncatedError
 from engine.processor.llm.retry import retry_llm_call
 from engine.processor.mapping.output_mapper import map_to_processor_output
@@ -79,11 +85,24 @@ class AnalysisProcessor(ProcessorPort):
         llm_client: LLMClient,
         uow_factory: Optional[ProcessorUOWFactory] = None,
         cache: Optional[Any] = None,
+        alert_publisher: Optional[AlertPublisher] = None,
     ) -> None:
         self._config = config
         self._llm = llm_client
         self._uow_factory = uow_factory
         self._cache = cache
+        # alert_publisher is the bridge that emits typed events to the
+        # gateway's alert bus over Redis pub/sub. Used today exclusively
+        # by the BYOK retry-exhausted branch in _execute() to surface
+        # LLM_PROVIDER_QUOTA_EXCEEDED when a user's OWN provider returns
+        # a 429 / insufficient_quota error. Optional so the legacy test
+        # harnesses that build a minimal processor with cache=None still
+        # construct; when None the branch logs + skips publishing and
+        // the ProcessorError still raises so the gateway records the
+        # failure -- only the SPA modal is silenced.
+        #
+        # Audit ref: ADMIN-QUOTA-9.
+        self._alert_publisher = alert_publisher
 
     async def process(
         self,
@@ -423,7 +442,7 @@ class AnalysisProcessor(ProcessorPort):
                 config=self._config,
                 trace_id=trace_id,
             )
-        except Exception:
+        except Exception as llm_exc:
             # LLM call failed after all retries. Refund the provisional
             # debit so the user's quota is not permanently consumed for
             # a call that never completed. The refund is best-effort;
@@ -432,6 +451,66 @@ class AnalysisProcessor(ProcessorPort):
             # reservation was made.
             if reservation_id:
                 await metering.refund(reservation_id=reservation_id)
+
+            # --------------------------------------------------------------
+            # BYOK provider-quota notification (Audit ref: ADMIN-QUOTA-9).
+            #
+            # When a BYOK user's OWN provider returns a quota / rate-limit
+            # error and all retries are exhausted, surface a typed event
+            # so the SPA can open the dedicated provider-quota modal whose
+            # copy directs the user to THEIR OWN provider dashboard.
+            #
+            # Gate (per QUOTA.md scope decision):
+            #   - uses_platform_key=False  -> BYOK path; this branch fires.
+            #   - uses_platform_key=True   -> Platform path; the deep
+            #     metering.reserve already raised QuotaExceededError
+            #     above the retry layer, so this code is unreachable in
+            #     that case.
+            #
+            # We only publish for quota-shaped failures (CODE_QUOTA_EXCEEDED
+            # or CODE_RATE_LIMITED). Auth / model-not-found / timeout /
+            # transient errors have different remediation paths and
+            # surface through the existing ProcessorError -> generic
+            # SPA error UX.
+            # --------------------------------------------------------------
+            if (
+                not self._config.uses_platform_key
+                and self._alert_publisher is not None
+                and user_id
+            ):
+                classified = classify_llm_failure(llm_exc)
+                if classified.code in (CODE_QUOTA_EXCEEDED, CODE_RATE_LIMITED):
+                    try:
+                        await self._alert_publisher.publish_llm_provider_quota_exceeded(
+                            user_id=user_id,
+                            provider=getattr(self._llm, "PROVIDER", "unknown"),
+                            model=self._config.model_name,
+                            detail=str(llm_exc),
+                            code=classified.code,
+                        )
+                        logger.info(
+                            "llm_provider_quota_event_published",
+                            extra={
+                                "user_id": user_id,
+                                "provider": getattr(self._llm, "PROVIDER", "unknown"),
+                                "model": self._config.model_name,
+                                "code": classified.code,
+                                "trace_id": trace_id,
+                            },
+                        )
+                    except Exception:
+                        # Defensive: the publisher already swallows its own
+                        # Redis errors; this catches any unexpected exception
+                        # so the primary raise below is never derailed.
+                        logger.warning(
+                            "llm_provider_quota_event_publish_failed",
+                            extra={
+                                "user_id": user_id,
+                                "code": classified.code,
+                                "trace_id": trace_id,
+                            },
+                        )
+
             raise
 
         # Step 4b: Detect LLM output truncation BEFORE parsing.
