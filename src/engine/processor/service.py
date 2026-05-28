@@ -60,6 +60,73 @@ from engine.processor.models.io import ProcessorInput, ProcessorOutput, Processo
 
 logger = get_logger(__name__)
 
+
+async def _publish_byok_provider_quota_safe(
+    publisher: AlertPublisher,
+    *,
+    user_id: str,
+    provider: str,
+    model: str,
+    detail: str,
+    code: str,
+    trace_id: Optional[str],
+) -> None:
+    """Wrap the BYOK provider-quota publish in a tight timeout.
+
+    Used as an asyncio background task from
+    AnalysisProcessor._execute's BYOK error branch so the primary
+    raise is never delayed by a slow Redis. The publisher already
+    swallows its own errors; this wrapper additionally:
+
+      - bounds the wait at 2 seconds with asyncio.wait_for so the task
+        cannot accumulate against a wedged Redis,
+      - swallows TimeoutError / CancelledError so a shutdown-time
+        cancellation does not raise into the asyncio loop's default
+        exception handler.
+
+    Audit ref: ADMIN-QUOTA-AUDIT-14.
+    """
+    try:
+        await asyncio.wait_for(
+            publisher.publish_llm_provider_quota_exceeded(
+                user_id=user_id,
+                provider=provider,
+                model=model,
+                detail=detail,
+                code=code,
+            ),
+            timeout=2.0,
+        )
+        logger.info(
+            "llm_provider_quota_event_published",
+            extra={
+                "user_id": user_id,
+                "provider": provider,
+                "model": model,
+                "code": code,
+                "trace_id": trace_id,
+            },
+        )
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        logger.warning(
+            "llm_provider_quota_event_publish_timeout_or_cancelled",
+            extra={
+                "user_id": user_id,
+                "code": code,
+                "trace_id": trace_id,
+            },
+        )
+    except Exception:
+        logger.warning(
+            "llm_provider_quota_event_publish_failed",
+            extra={
+                "user_id": user_id,
+                "code": code,
+                "trace_id": trace_id,
+            },
+        )
+
+
 # Regex used to progressively extract the `explainable_reasoning` field
 # from the partial LLM JSON stream so the dashboard SSE consumer can
 # render tokens as they arrive. Compiled once at module load to avoid
@@ -480,36 +547,34 @@ class AnalysisProcessor(ProcessorPort):
             ):
                 classified = classify_llm_failure(llm_exc)
                 if classified.code in (CODE_QUOTA_EXCEEDED, CODE_RATE_LIMITED):
-                    try:
-                        await self._alert_publisher.publish_llm_provider_quota_exceeded(
+                    # Background fire-and-forget so a slow Redis cannot
+                    # add latency to the user-visible error path. The
+                    # publisher already swallows its own Redis errors;
+                    # the 2 s wait_for here is a hard upper bound that
+                    # cancels a wedged publish so it cannot leak across
+                    # request boundaries.
+                    #
+                    # NOT registered with container.background_tasks --
+                    # the Processor does not own the coordinator and a
+                    # publish task is short-lived (worst case 2 s); on
+                    # shutdown the Redis client closes and the task's
+                    # next await raises CancelledError, which the
+                    # publisher's own try/except converts to a log line.
+                    #
+                    # Audit ref: ADMIN-QUOTA-AUDIT-14.
+                    provider_name = getattr(self._llm, "PROVIDER", "unknown")
+                    asyncio.create_task(
+                        _publish_byok_provider_quota_safe(
+                            self._alert_publisher,
                             user_id=user_id,
-                            provider=getattr(self._llm, "PROVIDER", "unknown"),
+                            provider=provider_name,
                             model=self._config.model_name,
                             detail=str(llm_exc),
                             code=classified.code,
-                        )
-                        logger.info(
-                            "llm_provider_quota_event_published",
-                            extra={
-                                "user_id": user_id,
-                                "provider": getattr(self._llm, "PROVIDER", "unknown"),
-                                "model": self._config.model_name,
-                                "code": classified.code,
-                                "trace_id": trace_id,
-                            },
-                        )
-                    except Exception:
-                        # Defensive: the publisher already swallows its own
-                        # Redis errors; this catches any unexpected exception
-                        # so the primary raise below is never derailed.
-                        logger.warning(
-                            "llm_provider_quota_event_publish_failed",
-                            extra={
-                                "user_id": user_id,
-                                "code": classified.code,
-                                "trace_id": trace_id,
-                            },
-                        )
+                            trace_id=trace_id,
+                        ),
+                        name=f"alert_publish_byok_quota_{user_id}",
+                    )
 
             raise
 
