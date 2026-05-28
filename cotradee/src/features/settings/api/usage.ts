@@ -24,15 +24,19 @@ export interface LLMUsageSnapshot {
 /**
  * Fetch the authenticated user's LLM token usage snapshot.
  *
- * Returns null when the endpoint is unavailable (e.g. the user is on
- * the free tier and the gateway returns 404, or the network is down).
- * The caller renders nothing rather than an error state so the billing
- * section degrades gracefully.
+ * Returns null for the two EXPECTED silent cases:
+ *   - 404: no billing_usage row yet (BYOK / first-time visitor).
+ *   - 401: cookie refresh in flight; the axios interceptor will
+ *          rotate and re-dispatch the request transparently.
  *
- * Audit ref: ADMIN-QUOTA-AUDIT-16. We now log a console warning for
- * unexpected statuses so a real 500 / 503 surfaces in devtools and any
- * Sentry-style error reporter, while still degrading gracefully on
- * the user-facing side.
+ * Throws for every other status (notably 503 from a transient
+ * gateway DB issue) so React Query's normal retry-with-backoff
+ * kicks in and the consumer can render an error state instead of
+ * silently disappearing. The 503 is now a distinct, recoverable
+ * signal -- AUDIT-V2-3 made the gateway return it on transient
+ * policy lookup failures; pretending it was a 404 hid real outages.
+ *
+ * Audit ref: ADMIN-QUOTA-AUDIT-V2-5.
  */
 export async function getLLMUsageSnapshot(): Promise<LLMUsageSnapshot | null> {
   try {
@@ -42,17 +46,17 @@ export async function getLLMUsageSnapshot(): Promise<LLMUsageSnapshot | null> {
     return data;
   } catch (err) {
     const status = (err as { response?: { status?: number } })?.response?.status;
-    // 404 is the expected response when the gateway has no row for
-    // this user yet (BYOK / first-time visitor). 401 is handled by the
-    // global axios interceptor (silent refresh). Anything else is a
-    // real failure the operator should see.
-    if (status && status !== 404 && status !== 401) {
-      // eslint-disable-next-line no-console
-      console.warn('[UsagePanel] usage snapshot fetch failed', {
-        status,
-        error: err,
-      });
+    if (status === 404 || status === 401) {
+      return null;
     }
-    return null;
+    // Anything else (notably 503): let TanStack Query observe the
+    // error so retry-with-backoff fires and the panel can render
+    // an error state instead of vanishing.
+    // eslint-disable-next-line no-console
+    console.warn('[UsagePanel] usage snapshot fetch failed', {
+      status,
+      error: err,
+    });
+    throw err;
   }
 }

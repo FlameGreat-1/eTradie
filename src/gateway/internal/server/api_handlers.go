@@ -327,7 +327,7 @@ func (h *APIHandler) preflightLLMQuota(
 		Msg("cycle_preflight_quota_blocked")
 
 	return true, map[string]interface{}{
-		"error":       "llm_quota_exceeded",
+		// Single canonical key (Audit ref: ADMIN-QUOTA-AUDIT-V2-9).
 		"error_code":  "llm_quota_exceeded",
 		"message":     "Your AI usage limit for this window has been reached.",
 		"dimension":   outcome.Dimension,

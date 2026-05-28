@@ -356,16 +356,16 @@ func (s *UsageStore) ReserveLLMTokens(
 	monthlyResetAt := nextMonthlyReset(monthlyWindowStart)
 
 	if err := checkCap("daily_input", inputToday, estimatedInput, policy.DailyInputTokens, dailyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("daily_output", outputToday, maxOutput, policy.DailyOutputTokens, dailyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("monthly_input", inputMonth, estimatedInput, policy.MonthlyInputTokens, monthlyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("monthly_output", outputMonth, maxOutput, policy.MonthlyOutputTokens, monthlyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 
 	// All checks passed. Provisionally debit both dimensions in one
@@ -405,16 +405,32 @@ func (s *UsageStore) ReserveLLMTokens(
 	return reservationID, nil
 }
 
-// recordBlocked increments the per-window blocked-count audit counters
-// and commits the tx so the blocked counter is durable even though the
+// commitBlocked increments the per-window blocked-count audit counters
+// AND commits the tx so the audit counter is durable even though the
 // reservation itself is rejected. Returns qerr unchanged for chaining.
-func (s *UsageStore) recordBlocked(ctx context.Context, tx pgx.Tx, userID string, qerr error) error {
-	_, _ = tx.Exec(ctx, `
+//
+// Replaces the older recordBlocked which committed inside the helper
+// but left the outer defer-Rollback running against an already-committed
+// tx (pgx returns an error in that state which was discarded). Now we
+// explicitly Rollback on UPDATE failure and Commit on success, so the
+// caller's outer defer-Rollback is a no-op safety net for panics only.
+//
+// Posture: the quota error is authoritative; a transient audit-counter
+// failure must NOT mask the user-facing 429. So both error paths still
+// return qerr to the caller; the failure is logged at the storage
+// layer's pgx logging, not here, to keep this helper allocation-free.
+//
+// Audit ref: ADMIN-QUOTA-AUDIT-V2-2.
+func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string, qerr error) error {
+	if _, err := tx.Exec(ctx, `
 		UPDATE billing_usage SET
 			llm_quota_blocked_count_today = llm_quota_blocked_count_today + 1,
 			llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
 		WHERE user_id = $1
-	`, userID)
+	`, userID); err != nil {
+		_ = tx.Rollback(ctx)
+		return qerr
+	}
 	_ = tx.Commit(ctx)
 	return qerr
 }
@@ -736,9 +752,24 @@ func (s *UsageStore) PreflightLLMQuota(
 }
 
 // GetLLMUsageSnapshot returns the SPA-facing usage shape for one user.
-// The policy is supplied by the caller (gateway boundary) and merged in
-// so the SPA can compute remaining/used percentages without doing math
-// on potentially-stale environment knobs.
+// The policy is supplied by the caller (gateway boundary) and merged
+// in so the SPA can compute remaining/used percentages without doing
+// math on potentially-stale environment knobs.
+//
+// Pure read: no INSERT, no UPDATE. A GET on /api/v1/billing/usage
+// must not mutate billing_usage (architectural mix-up + audit
+// confusion + read-replica safety + BYOK users have no row and don't
+// need one). The Reserve path creates the row when it actually needs
+// to write. Audit ref: ADMIN-QUOTA-AUDIT-V2-4.
+//
+// Daily-reset semantics: the returned llm_*_tokens_today values
+// reflect the same CASE expression Reserve applies in its UPSERT,
+// so a snapshot taken at 00:01 UTC the day after the user transacted
+// still shows today's empty counters without writing the reset back.
+//
+// No row -> zero snapshot (BYOK / free / first-time visitor). The
+// SPA UsagePanel renders nothing for those users anyway because
+// quota_enforced=false.
 func (s *UsageStore) GetLLMUsageSnapshot(
 	ctx context.Context,
 	userID string,
@@ -747,35 +778,42 @@ func (s *UsageStore) GetLLMUsageSnapshot(
 	if userID == "" {
 		return nil, fmt.Errorf("get_llm_usage_snapshot: user_id is required")
 	}
-	now := time.Now().UTC()
 
-	// Same conditional daily-reset trick as the reservation path so a
-	// snapshot taken at 00:01 reflects today's empty counters even if
-	// the user has not transacted since yesterday.
 	var snap LLMUsageSnapshot
 	err := s.db.QueryRow(ctx, `
-		INSERT INTO billing_usage (user_id, monthly_window_start, last_reset_at)
-		VALUES ($1, $2, $2)
-		ON CONFLICT (user_id) DO UPDATE SET
-			llm_input_tokens_today  = CASE WHEN DATE(billing_usage.last_reset_at) < CURRENT_DATE
-			                                THEN 0 ELSE billing_usage.llm_input_tokens_today END,
-			llm_output_tokens_today = CASE WHEN DATE(billing_usage.last_reset_at) < CURRENT_DATE
-			                                THEN 0 ELSE billing_usage.llm_output_tokens_today END,
-			llm_quota_blocked_count_today = CASE WHEN DATE(billing_usage.last_reset_at) < CURRENT_DATE
-			                                THEN 0 ELSE billing_usage.llm_quota_blocked_count_today END,
-			last_reset_at           = CASE WHEN DATE(billing_usage.last_reset_at) < CURRENT_DATE
-			                                THEN $2 ELSE billing_usage.last_reset_at END
-		RETURNING llm_input_tokens_today, llm_output_tokens_today,
-		          llm_input_tokens_month, llm_output_tokens_month,
-		          llm_quota_blocked_count_today, llm_quota_blocked_count_month,
-		          monthly_window_start, llm_last_metered_at
-	`, userID, now).Scan(
+		SELECT
+			CASE WHEN DATE(last_reset_at) < CURRENT_DATE
+			     THEN 0 ELSE llm_input_tokens_today END,
+			CASE WHEN DATE(last_reset_at) < CURRENT_DATE
+			     THEN 0 ELSE llm_output_tokens_today END,
+			llm_input_tokens_month,
+			llm_output_tokens_month,
+			CASE WHEN DATE(last_reset_at) < CURRENT_DATE
+			     THEN 0 ELSE llm_quota_blocked_count_today END,
+			llm_quota_blocked_count_month,
+			monthly_window_start,
+			llm_last_metered_at
+		FROM billing_usage
+		WHERE user_id = $1
+	`, userID).Scan(
 		&snap.InputTokensToday, &snap.OutputTokensToday,
 		&snap.InputTokensMonth, &snap.OutputTokensMonth,
 		&snap.BlockedToday, &snap.BlockedMonth,
 		&snap.MonthlyWindowStart, &snap.LastMeteredAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No row yet: zero snapshot. Policy fields are still merged
+			// in so the SPA can render "0 / limit" cards for a freshly
+			// upgraded pro_managed user before their first cycle.
+			snap.DailyInputLimit = policy.DailyInputTokens
+			snap.DailyOutputLimit = policy.DailyOutputTokens
+			snap.MonthlyInputLimit = policy.MonthlyInputTokens
+			snap.MonthlyOutputLimit = policy.MonthlyOutputTokens
+			snap.SoftCapPercent = policy.SoftCapPercent
+			snap.QuotaEnforced = policy.HasLLMAccess()
+			return &snap, nil
+		}
 		return nil, fmt.Errorf("get_llm_usage_snapshot: %w", err)
 	}
 

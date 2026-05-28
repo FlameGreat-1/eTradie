@@ -454,11 +454,25 @@ func (s *Scheduler) preflightUserQuotaBlocked(
 		},
 	)
 	if err != nil {
+		// Fail-CLOSED on the scheduler tick (Audit ref: ADMIN-QUOTA-AUDIT-V2-7).
+		//
+		// If we cannot determine the user's quota state, we must NOT
+		// burn the symbol-fetch + orchestrator TA + Macro + RAG cost
+		// for this tick. The deep metering.reserve inside the engine
+		// shares the same DB pool, so on a real DB issue the cycle
+		// would do all the upstream work and STILL fail at Reserve --
+		// the worst possible outcome for both cost and load.
+		//
+		// Skipping the tick costs ~5 minutes of analysis lag (next
+		// scheduled interval); that is acceptable compared with the
+		// amplified load. The manual /api/v1/cycle/run path retains
+		// fail-open so a user clicking the button gets the benefit
+		// of the doubt.
 		userLog.Warn().
 			Err(err).
 			Str("tier", outcome.Tier).
-			Msg("scheduler_preflight_failed")
-		return false
+			Msg("scheduler_preflight_failed_skipping_tick")
+		return true
 	}
 	if !outcome.Blocked {
 		return false

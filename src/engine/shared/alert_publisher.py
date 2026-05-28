@@ -56,17 +56,26 @@ logger = get_logger(__name__)
 # to. MUST stay in lock-step with src/alert/redis/transport.go::defaultChannel.
 ALERT_CHANNEL = "etradie:alerts"
 
-# EventSource values. Mirrors src/alert/event.go::EventSource constants.
-SOURCE_ENGINE = "engine"
-SOURCE_GATEWAY = "gateway"
-SOURCE_EXECUTION = "execution"
-SOURCE_MANAGEMENT = "management"
+# EventSource values. MUST match src/alert/event.go::EventSource
+# constants EXACTLY (uppercase). The Go enum defines only four values:
+# GATEWAY / EXECUTION / TRADE_MANAGER / SYSTEM. The engine is a backend
+# system component without its own EventSource entry, so it publishes
+# under SYSTEM. A lowercase "engine" string (the previous value) was a
+# wire-protocol violation that any future source-based filter / UI
+# would silently misclassify.
+#
+# Audit ref: ADMIN-QUOTA-AUDIT-V2-1.
+SOURCE_ENGINE = "SYSTEM"
 
-# EventSeverity values. Mirrors src/alert/event.go::EventSeverity constants.
-SEVERITY_INFO = "info"
-SEVERITY_WARNING = "warning"
-SEVERITY_ERROR = "error"
-SEVERITY_CRITICAL = "critical"
+# EventSeverity values. MUST match src/alert/event.go::EventSeverity
+# constants EXACTLY (uppercase). The SPA's RealtimeProvider checks
+# `event.severity === 'WARNING'`; lowercase would silently break the
+# generic-toast fallback for any future event type without a
+# dedicated modal.
+SEVERITY_INFO = "INFO"
+SEVERITY_WARNING = "WARNING"
+SEVERITY_ERROR = "ERROR"
+SEVERITY_CRITICAL = "CRITICAL"
 
 # Event type constants. Mirrors src/alert/event.go type-name constants.
 # Add new constants here whenever a new constant lands on the Go side.
