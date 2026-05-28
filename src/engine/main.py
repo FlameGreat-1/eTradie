@@ -93,6 +93,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # The app reference is captured so the cron can resolve the
     # container at fire time via app.state.container and dispatch
     # review-generation jobs IN-PROCESS (no HTTP-to-self).
+    #
+    # The import below is DELIBERATELY in-lifespan rather than at the
+    # top of this module. Top-of-file would (a) create a module-load-
+    # time edge from main.py into the processor package's scheduler,
+    # which would force every reverse path (alembic env.py, pytest
+    # collection, ad-hoc scripts that `import engine.main`) to also
+    # import the LLM SDK adapters and prompts pulled in transitively
+    # by performance_review.scheduler, and (b) make a future
+    # circular-import accident much easier when processor/* starts
+    # depending on anything that touches engine.routers. Lifting this
+    # to the top is the wrong instinct — leave it where it is.
+    # Audit ref: SC-H11.
     from engine.processor.performance_review.scheduler import (
         register_performance_review_jobs,
     )
