@@ -198,6 +198,11 @@ func New(
 	adminQueries := store.NewAdminQueries(subStore.Pool())
 	adminBillingHandler := server.NewAdminBillingHandler(adminQueries)
 
+	// Admin quota policy handler. Reads / writes tier_quota_policies
+	// rows. Same chain as the billing admin handler:
+	// auth -> RequireAdmin -> CSRF inside the handler's RegisterRoutes.
+	adminQuotaHandler := server.NewAdminQuotaHandler(quotaPolicyStore)
+
 	// User billing handler. Read-only, user-scoped views over
 	// billing_subscriptions (card snapshot) and billing_subscription_events
 	// (per-user financial history) for the dashboard's Payment Methods
@@ -215,7 +220,7 @@ func New(
 	grpcServer := server.NewGRPCServer(cfg, orchestrator, symStore, settStore, scheduler, redisClient, engineHTTP, transport, mgmtClient, tokenService)
 
 	// Servers (now with auth + consent support + metering + tradingsystem + admin billing + user billing).
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, userBillingHandler, grpcServer)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, grpcServer)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}

@@ -69,6 +69,7 @@ func NewHTTPServer(
 	tradingPlanHandler *tradingplan.Handler,
 	perfReviewHandler *performancereview.Handler,
 	adminBillingHandler *AdminBillingHandler,
+	adminQuotaHandler *AdminQuotaHandler,
 	userBillingHandler *UserBillingHandler,
 	grpcServer *GRPCServer,
 ) (*HTTPServer, error) {
@@ -180,6 +181,13 @@ func NewHTTPServer(
 	// clean 403 from RequireAdmin; the handler body never runs.
 	if adminBillingHandler != nil {
 		adminBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+	}
+
+	// Admin-only quota policy CRUD. Same chain as the billing admin
+	// surface (auth -> RequireAdmin -> CSRF). Mounted on
+	// /api/v1/admin/quota/policies[/{tier}]. Audit ref: ADMIN-QUOTA-6.
+	if adminQuotaHandler != nil {
+		adminQuotaHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
 	// User-facing billing read surface (Payment Methods card + Invoice
