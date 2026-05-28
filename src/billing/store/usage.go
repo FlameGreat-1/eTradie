@@ -687,11 +687,28 @@ func (s *UsageStore) PreflightLLMQuota(
 	// dimension-specific message; ordering matches Reserve so the
 	// pre-flight and the deep path agree on which dimension to surface
 	// when multiple caps would breach simultaneously.
+	//
+	// Semantics differ slightly from the deep Reserve path's strict >
+	// comparison: the pre-flight callers (handleRunCycle, scheduler
+	// tick) pass requested=0 because the real prompt has not been
+	// built yet. With strict > and requested=0 a user at exactly the
+	// cap (used == limit) would not be blocked, leaking one more call
+	// past the deep Reserve. We pre-emptively block that case here so
+	// the resource-saving short-circuit fires the first time the user
+	// reaches the cap, not one call later. When a future caller passes
+	// a non-zero requested estimate the original semantics are
+	// preserved (a call that would take the user PAST the limit is
+	// blocked; a call that lands exactly at the limit is allowed).
+	// Audit ref: ADMIN-QUOTA-AUDIT-3.
 	check := func(dimension string, used, requested, limit int64, resetsAt time.Time) *PreflightResult {
 		if limit <= 0 {
 			return nil
 		}
-		if used+requested > limit {
+		blocked := used+requested > limit
+		if requested == 0 {
+			blocked = used >= limit
+		}
+		if blocked {
 			return &PreflightResult{
 				Allowed:   false,
 				Dimension: dimension,
