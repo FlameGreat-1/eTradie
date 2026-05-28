@@ -356,16 +356,16 @@ func (s *UsageStore) ReserveLLMTokens(
 	monthlyResetAt := nextMonthlyReset(monthlyWindowStart)
 
 	if err := checkCap("daily_input", inputToday, estimatedInput, policy.DailyInputTokens, dailyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("daily_output", outputToday, maxOutput, policy.DailyOutputTokens, dailyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("monthly_input", inputMonth, estimatedInput, policy.MonthlyInputTokens, monthlyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 	if err := checkCap("monthly_output", outputMonth, maxOutput, policy.MonthlyOutputTokens, monthlyResetAt); err != nil {
-		return "", s.recordBlocked(ctx, tx, userID, err)
+		return "", s.commitBlocked(ctx, tx, userID, err)
 	}
 
 	// All checks passed. Provisionally debit both dimensions in one
@@ -405,16 +405,32 @@ func (s *UsageStore) ReserveLLMTokens(
 	return reservationID, nil
 }
 
-// recordBlocked increments the per-window blocked-count audit counters
-// and commits the tx so the blocked counter is durable even though the
+// commitBlocked increments the per-window blocked-count audit counters
+// AND commits the tx so the audit counter is durable even though the
 // reservation itself is rejected. Returns qerr unchanged for chaining.
-func (s *UsageStore) recordBlocked(ctx context.Context, tx pgx.Tx, userID string, qerr error) error {
-	_, _ = tx.Exec(ctx, `
+//
+// Replaces the older recordBlocked which committed inside the helper
+// but left the outer defer-Rollback running against an already-committed
+// tx (pgx returns an error in that state which was discarded). Now we
+// explicitly Rollback on UPDATE failure and Commit on success, so the
+// caller's outer defer-Rollback is a no-op safety net for panics only.
+//
+// Posture: the quota error is authoritative; a transient audit-counter
+// failure must NOT mask the user-facing 429. So both error paths still
+// return qerr to the caller; the failure is logged at the storage
+// layer's pgx logging, not here, to keep this helper allocation-free.
+//
+// Audit ref: ADMIN-QUOTA-AUDIT-V2-2.
+func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string, qerr error) error {
+	if _, err := tx.Exec(ctx, `
 		UPDATE billing_usage SET
 			llm_quota_blocked_count_today = llm_quota_blocked_count_today + 1,
 			llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
 		WHERE user_id = $1
-	`, userID)
+	`, userID); err != nil {
+		_ = tx.Rollback(ctx)
+		return qerr
+	}
 	_ = tx.Commit(ctx)
 	return qerr
 }
