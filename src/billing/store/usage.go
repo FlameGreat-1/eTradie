@@ -589,10 +589,14 @@ func (s *UsageStore) CommitLLMTokens(
 			FROM billing_usage WHERE user_id = $1
 		`, userID).Scan(&postCommitInputMonth); scanErr == nil {
 			if postCommitInputMonth > monthlyInputLimit {
+				// V5-B: increment a dedicated counter, NOT the user-visible
+				// blocked_count. The user did not see a 429; conflating the
+				// two would make the operator dashboard's block metric
+				// meaningless. Audit ref: ADMIN-QUOTA-AUDIT-V5-B.
 				if _, err := tx.Exec(ctx, `
 					UPDATE billing_usage SET
-						llm_quota_blocked_count_today = llm_quota_blocked_count_today + 1,
-						llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
+						llm_estimation_overshoot_count_today = llm_estimation_overshoot_count_today + 1,
+						llm_estimation_overshoot_count_month = llm_estimation_overshoot_count_month + 1
 					WHERE user_id = $1
 				`, userID); err == nil {
 					s.log.Warn().
