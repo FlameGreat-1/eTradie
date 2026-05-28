@@ -400,5 +400,77 @@ BEGIN
         ON CONFLICT (id) DO NOTHING;
     END IF;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Tier-based LLM quota policy. One row per tier. Admin-mutable from
+-- the dashboard. Mirrors alembic migration 0028_tier_quota_policies.
+-- Audit ref: ADMIN-QUOTA-2.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tier_quota_policies (
+    tier                       VARCHAR(32) PRIMARY KEY,
+    daily_input_tokens         BIGINT      NOT NULL DEFAULT 0,
+    daily_output_tokens        BIGINT      NOT NULL DEFAULT 0,
+    monthly_input_tokens       BIGINT      NOT NULL DEFAULT 0,
+    monthly_output_tokens      BIGINT      NOT NULL DEFAULT 0,
+    max_input_tokens_per_call  BIGINT      NOT NULL DEFAULT 0,
+    soft_cap_percent           SMALLINT    NOT NULL DEFAULT 0,
+    reservation_ttl_seconds    INTEGER     NOT NULL DEFAULT 300,
+    allowed_models             JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    enforced                   BOOLEAN     NOT NULL DEFAULT FALSE,
+    updated_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by                 TEXT        REFERENCES auth_users(id) ON DELETE SET NULL,
+    CONSTRAINT tier_quota_policies_tier_check
+        CHECK (tier IN ('free', 'pro_byok', 'pro_managed', 'admin')),
+    CONSTRAINT tier_quota_policies_soft_cap_range_check
+        CHECK (soft_cap_percent BETWEEN 0 AND 100),
+    CONSTRAINT tier_quota_policies_daily_input_nonneg
+        CHECK (daily_input_tokens >= 0),
+    CONSTRAINT tier_quota_policies_daily_output_nonneg
+        CHECK (daily_output_tokens >= 0),
+    CONSTRAINT tier_quota_policies_monthly_input_nonneg
+        CHECK (monthly_input_tokens >= 0),
+    CONSTRAINT tier_quota_policies_monthly_output_nonneg
+        CHECK (monthly_output_tokens >= 0),
+    CONSTRAINT tier_quota_policies_max_per_call_nonneg
+        CHECK (max_input_tokens_per_call >= 0),
+    CONSTRAINT tier_quota_policies_ttl_range_check
+        CHECK (reservation_ttl_seconds BETWEEN 30 AND 3600)
+);
+
+-- Seed the four canonical rows on first start. ON CONFLICT DO NOTHING
+-- so re-running SchemaSQL against a populated table is a no-op. A
+-- production cluster created via alembic 0028 already has these rows
+-- and the INSERTs here are skipped.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM billing_schema_migrations
+         WHERE id = 'seed_tier_quota_policies_v1'
+    ) THEN
+        INSERT INTO tier_quota_policies (
+            tier,
+            daily_input_tokens,
+            daily_output_tokens,
+            monthly_input_tokens,
+            monthly_output_tokens,
+            max_input_tokens_per_call,
+            soft_cap_percent,
+            reservation_ttl_seconds,
+            allowed_models,
+            enforced,
+            updated_at,
+            updated_by
+        ) VALUES
+            ('pro_managed', 2000000, 200000, 20000000, 2000000, 300000, 80, 300, '[]'::jsonb, TRUE,  NOW(), NULL),
+            ('admin',       2000000, 200000, 20000000, 2000000, 300000, 80, 300, '[]'::jsonb, TRUE,  NOW(), NULL),
+            ('pro_byok',          0,      0,        0,       0,      0,  0, 300, '[]'::jsonb, FALSE, NOW(), NULL),
+            ('free',              0,      0,        0,       0,      0,  0, 300, '[]'::jsonb, FALSE, NOW(), NULL)
+        ON CONFLICT (tier) DO NOTHING;
+
+        INSERT INTO billing_schema_migrations (id)
+        VALUES ('seed_tier_quota_policies_v1')
+        ON CONFLICT (id) DO NOTHING;
+    END IF;
+END $$;
 `
 }
