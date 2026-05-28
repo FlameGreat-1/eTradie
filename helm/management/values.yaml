@@ -14,8 +14,17 @@
 # It does NOT dial gateway. Unlike execution (which calls back into
 # gateway gRPC for instant-mode confirmations), management is
 # strictly downstream from gateway in the call graph.
-
-replicaCount: 2
+#
+# SINGLETON CONSTRAINT. replicaCount MUST stay 1 until the in-memory
+# state (active trades map, tick cache, service-token cache) is
+# migrated behind Redis and the four background loops (EOD scheduler,
+# weekly/monthly reporter, news polling, service-token renewal) are
+# fronted by a coordination.k8s.io Lease or moved to dedicated
+# Kubernetes CronJobs. Running >1 replica today causes EVERY EOD tick
+# / weekly report / token-renewal cycle to fire N times. Deployment
+# strategy is also pinned to Recreate so rolling updates cannot
+# briefly run two pods. Audit ref: MG-C1.
+replicaCount: 1
 
 # Audit ref: X-3.
 revisionHistoryLimit: 10
