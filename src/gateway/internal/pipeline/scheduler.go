@@ -501,7 +501,7 @@ func (s *Scheduler) preflightUserQuotaBlocked(
 				alert.SourceGateway,
 				alert.TypeLLMQuotaExceeded,
 				alert.SeverityWarning,
-				"Your monthly AI token allowance for the platform-managed key has been reached.",
+				"Your AI usage limit for this window has been reached.",
 			).
 				WithUserID(user.ID).
 				WithDetails(map[string]interface{}{

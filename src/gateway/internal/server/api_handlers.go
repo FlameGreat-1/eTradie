@@ -326,7 +326,7 @@ func (h *APIHandler) preflightLLMQuota(
 			alert.SourceGateway,
 			alert.TypeLLMQuotaExceeded,
 			alert.SeverityWarning,
-			"Your monthly AI token allowance for the platform-managed key has been reached.",
+			"Your AI usage limit for this window has been reached.",
 		).
 			WithUserID(claims.UserID).
 			WithDetails(map[string]interface{}{

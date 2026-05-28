@@ -67,25 +67,22 @@ function providerInfo(p: string | undefined): ProviderInfo {
   }
 }
 
-function headlineFor(code: string | undefined, providerLabel: string): string {
-  if ((code || '').toLowerCase() === 'rate_limited') {
-    return `${providerLabel} rate-limited your request`;
-  }
-  return `${providerLabel} quota exhausted`;
-}
-
-function descriptionFor(code: string | undefined): string {
+/**
+ * Body copy for the BYOK modal. Provider name is interpolated inline
+ * so the user does not see 'your provider' when the modal already
+ * knows which one it is. Concrete remediation in the same sentence;
+ * no defensive disclaimers; no internal-architecture terms.
+ */
+function descriptionFor(code: string | undefined, providerLabel: string): string {
   if ((code || '').toLowerCase() === 'rate_limited') {
     return (
-      'Your provider returned a rate-limit error for this request. ' +
-      'Wait a moment and retry, or upgrade your provider plan for ' +
-      'higher rate-limit headroom.'
+      `${providerLabel} is rate-limiting your requests. Wait a moment ` +
+      'and try again, or upgrade your plan with them for higher limits.'
     );
   }
   return (
-    'Your provider account is out of quota or credit. Top up your ' +
-    'account on the provider dashboard, or switch to a different ' +
-    'key on the LLM Connections page.'
+    `Your ${providerLabel} account has run out of credits. Top up ` +
+    'your account or switch to a different API key to continue.'
   );
 }
 
@@ -126,8 +123,7 @@ export default function ProviderQuotaModal() {
   if (!isOpen) return null;
 
   const info = providerInfo(detail.provider);
-  const headline = headlineFor(detail.code, info.label);
-  const description = descriptionFor(detail.code);
+  const description = descriptionFor(detail.code, info.label);
 
   return (
     <div
@@ -144,14 +140,9 @@ export default function ProviderQuotaModal() {
             <div className="p-2 rounded-xl bg-brand/10 border border-brand/20">
               <AlertCircle size={16} className="text-brand" strokeWidth={3} />
             </div>
-            <div className="space-y-0.5">
-              <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">
-                Your AI Provider Hit a Limit
-              </h2>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">
-                {headline}
-              </p>
-            </div>
+            <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">
+              AI Provider Limit Reached
+            </h2>
           </div>
           <button
             type="button"
@@ -209,13 +200,12 @@ export default function ProviderQuotaModal() {
               className="flex items-center justify-center gap-2 w-full rounded-2xl border border-black/10 dark:border-white/10 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             >
               <KeyRound size={14} strokeWidth={3} />
-              Manage Your Keys
+              Manage API Keys
             </Link>
           </div>
 
           <p className="text-[10px] text-black/30 dark:text-white/30 text-center tracking-wide">
-            This limit was set by your provider, not by the platform.
-            The platform never debits your account directly.
+            This limit is set by your AI provider, not by us.
           </p>
         </div>
       </div>

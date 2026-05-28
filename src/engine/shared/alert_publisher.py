@@ -233,11 +233,7 @@ class AlertPublisher:
         await self.publish(
             event_type=TYPE_LLM_PROVIDER_QUOTA_EXCEEDED,
             severity=SEVERITY_WARNING,
-            message=(
-                "Your AI provider rejected the request because your "
-                "account quota or credit is exhausted. Check your "
-                "provider dashboard or switch to a different key."
-            ),
+            message="Your AI provider has reached its usage limit.",
             user_id=user_id,
             details={
                 "provider": provider or "unknown",

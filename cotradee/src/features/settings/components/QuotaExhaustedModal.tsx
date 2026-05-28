@@ -23,7 +23,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Gauge, Clock, RotateCcw, MessageCircle } from 'lucide-react';
+import { X, Gauge, KeyRound, MessageCircle, SlidersHorizontal } from 'lucide-react';
 
 /** Detail payload shape. Matches the Go gateway 429 body verbatim. */
 interface LLMQuotaDetail {
@@ -56,21 +56,18 @@ function extractDetail(raw: unknown): LLMQuotaDetail {
   return r as LLMQuotaDetail;
 }
 
-function labelForDimension(dim?: string): string {
-  switch ((dim || '').toLowerCase()) {
-    case 'daily_input':
-      return 'daily input';
-    case 'daily_output':
-      return 'daily output';
-    case 'monthly_input':
-      return 'monthly input';
-    case 'monthly_output':
-      return 'monthly output';
-    case 'per_call_input':
-      return 'per-request input';
-    default:
-      return dim || 'AI tokens';
-  }
+/**
+ * Map the breached dimension to a short, user-facing window label.
+ * The headline only needs the cadence (daily vs monthly); the
+ * input/output split is surfaced in the detail panel below. Enterprise
+ * SaaS convention: lead with what the user already understands.
+ */
+function windowLabel(dim?: string): string {
+  const d = (dim || '').toLowerCase();
+  if (d.startsWith('daily_')) return 'day';
+  if (d.startsWith('monthly_')) return 'month';
+  if (d === 'per_call_input') return 'request';
+  return 'window';
 }
 
 function formatLocalResetTime(iso?: string): string {
@@ -116,7 +113,7 @@ export default function QuotaExhaustedModal() {
 
   if (!isOpen) return null;
 
-  const dimLabel = labelForDimension(detail.dimension);
+  const win = windowLabel(detail.dimension);
   const resetLocal = formatLocalResetTime(detail.resets_at);
   const isAdmin = Boolean(detail.is_admin);
 
@@ -135,14 +132,9 @@ export default function QuotaExhaustedModal() {
             <div className="p-2 rounded-xl bg-brand/10 border border-brand/20">
               <Gauge size={16} className="text-brand" strokeWidth={3} />
             </div>
-            <div className="space-y-0.5">
-              <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">
-                Platform AI Tokens Exhausted
-              </h2>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">
-                Platform-managed quota
-              </p>
-            </div>
+            <h2 className="text-xl font-black text-black dark:text-white uppercase tracking-tight">
+              AI Usage Limit Reached
+            </h2>
           </div>
           <button
             type="button"
@@ -157,45 +149,48 @@ export default function QuotaExhaustedModal() {
         {/* Body */}
         <div className="p-8 space-y-6">
           <p className="text-sm font-bold text-black/70 dark:text-white/70 leading-relaxed">
-            Your platform-managed AI tokens for the <span className="text-brand">{dimLabel}</span>{' '}
-            window are exhausted. Until they reset, the platform key
-            cannot be used to run new analyses.
+            Your AI usage limit for this <span className="text-brand">{win}</span>{' '}
+            has been reached.
+            {resetLocal ? (
+              <>
+                {' '}Access resumes on{' '}
+                <span className="text-black dark:text-white">{resetLocal}</span>.
+              </>
+            ) : (
+              ''
+            )}
           </p>
 
           {/* Detail grid */}
           <div className="grid grid-cols-2 gap-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] p-4 border border-black/5 dark:border-white/5">
             <DetailRow label="Limit" value={fmtNum(detail.limit)} />
             <DetailRow label="Used" value={fmtNum(detail.used)} />
-            {resetLocal && (
-              <div className="col-span-2 flex items-center gap-2 text-[11px] text-black/60 dark:text-white/60">
-                <Clock size={12} strokeWidth={3} className="text-brand" />
-                <span className="font-bold">Resets:</span>
-                <span>{resetLocal}</span>
-              </div>
-            )}
           </div>
 
-          {/* CTA */}
+          {/* CTAs */}
           {isAdmin ? (
             <Link
               to="/settings"
               onClick={handleClose}
               className="flex items-center justify-center gap-2 w-full rounded-2xl bg-black dark:bg-white text-white dark:text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:opacity-90 transition-opacity"
             >
-              <RotateCcw size={14} strokeWidth={3} />
-              Edit Quota Policy
+              <SlidersHorizontal size={14} strokeWidth={3} />
+              Adjust Limits
             </Link>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs font-bold text-black/50 dark:text-white/50 leading-relaxed">
-                Your subscription includes a monthly token allowance set
-                by the platform administrator. If you need a higher
-                cap, please reach out to support.
-              </p>
+              <Link
+                to="/settings/llm-keys"
+                onClick={handleClose}
+                className="flex items-center justify-center gap-2 w-full rounded-2xl bg-black dark:bg-white text-white dark:text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:opacity-90 transition-opacity"
+              >
+                <KeyRound size={14} strokeWidth={3} />
+                Use Your Own API Key
+              </Link>
               <Link
                 to="/support"
                 onClick={handleClose}
-                className="flex items-center justify-center gap-2 w-full rounded-2xl bg-black dark:bg-white text-white dark:text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:opacity-90 transition-opacity"
+                className="flex items-center justify-center gap-2 w-full rounded-2xl border border-black/10 dark:border-white/10 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 <MessageCircle size={14} strokeWidth={3} />
                 Contact Support
@@ -204,8 +199,8 @@ export default function QuotaExhaustedModal() {
           )}
 
           <p className="text-[10px] text-black/30 dark:text-white/30 text-center tracking-wide">
-            You can continue using other dashboard features. Quota is
-            applied only to analyses that use the platform AI key.
+            Other workspace features remain available while AI access
+            is paused.
           </p>
         </div>
       </div>
