@@ -25,6 +25,7 @@ from engine.processor.llm.errors import (
 )
 from engine.processor.models.io import ProcessorInput
 from engine.shared.exceptions import (
+    MeteringUnavailableError,
     ProcessorInsufficientDataError,
     QuotaExceededError,
 )
@@ -419,6 +420,30 @@ async def internal_processor_process(
                 "requested": exc.requested,
                 "resets_at": exc.resets_at,
                 "retry_after": exc.retry_after,
+            },
+        )
+
+    except MeteringUnavailableError as exc:
+        # Gateway's metering layer is transiently unavailable. Map to
+        # HTTP 503 + Retry-After so the gateway's engine_http.go
+        # retries the call with backoff. No LLM call was made.
+        # Audit ref: ADMIN-QUOTA-AUDIT-V3-A8.
+        logger.warning(
+            "internal_processor_metering_unavailable",
+            extra={
+                "user_id": user.user_id,
+                "trace_id": body.trace_id,
+                "retry_after": exc.retry_after,
+            },
+        )
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": str(exc.retry_after)},
+            content={
+                "error": "metering_unavailable",
+                "detail": "Metering layer is temporarily unavailable; please retry shortly.",
+                "retry_after": exc.retry_after,
+                "trace_id": body.trace_id,
             },
         )
 
