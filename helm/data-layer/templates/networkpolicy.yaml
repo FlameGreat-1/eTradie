@@ -179,6 +179,27 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- if .Values.postgres.backup.offsite.enabled }}
+    # Off-cluster backup upload (Audit ref: D-H3). HTTPS to the
+    # S3-compatible remote configured in postgres-backup-credentials.
+    # The destination cannot be CIDR-pinned because B2/R2/Wasabi/S3
+    # all use varying anycast edges. We permit 443 to 0.0.0.0/0
+    # EXCEPT RFC1918 + link-local + loopback so a compromised pod
+    # cannot scan the cluster pod network via the wildcard. Same
+    # posture the billing chart uses for Paddle/LemonSqueezy.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
 {{- end }}
 {{- if .Values.chromadb.enabled }}
 ---

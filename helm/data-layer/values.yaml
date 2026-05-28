@@ -82,10 +82,10 @@ postgres:
     creationPolicy: Owner
 
   # Daily logical backup via pg_dump. Backups land on a separate
-  # PVC (`postgres-backups`), retained 7 days. For off-cluster
-  # storage (S3/B2/MinIO) replace the CronJob's command with the
-  # appropriate copy step, or set backup.enabled=false and run
-  # backups externally.
+  # PVC (`postgres-backups`), retained for backup.retentionDays.
+  # When backup.offsite.enabled=true an rclone step in the same
+  # pod copies every fresh dump to an S3-compatible remote BEFORE
+  # the retention prune runs (Audit ref: D-H3).
   backup:
     enabled: true
     schedule: "0 2 * * *"  # 02:00 UTC daily
@@ -106,6 +106,62 @@ postgres:
       limits:
         cpu: 500m
         memory: 256Mi
+    # ------------------------------------------------------------------
+    # Off-cluster copy (Audit ref: D-H3).
+    #
+    # When offsite.enabled=true the CronJob's pod adds a second
+    # container `offsite-upload` running rclone that uploads every
+    # freshly written dump to an S3-compatible remote AFTER pg_dump
+    # completes and BEFORE retention prune.
+    #
+    # OPERATOR PREREQUISITES (cannot be automated by the chart):
+    #   1. Create the bucket on the chosen provider with:
+    #      - object-lock or immutability matching retentionDays + grace
+    #      - lifecycle rule mirroring retentionDays so the remote does
+    #        not grow forever (rclone does not enforce retention).
+    #      - server-side encryption enabled.
+    #   2. Populate the Vault path under offsite.vaultPath with FOUR
+    #      keys:
+    #        rclone_remote_name   e.g. "b2-prod"
+    #        rclone_config        full rclone.conf body (multi-line). See
+    #                             https://rclone.org/docs/#config-file for
+    #                             the syntax; supports b2/s3/r2/wasabi/etc.
+    #        remote_bucket        e.g. "etradie-prod-postgres-backups"
+    #        remote_path_prefix   e.g. "production/" (trailing slash)
+    #   3. Test the upload path manually on staging first.
+    #
+    # provider is informational only — the actual provider is encoded
+    # in the rclone_config body in Vault; this field exists so the
+    # chart can render a sane log line. Default "b2" (Backblaze B2 —
+    # cheapest egress-free option for restores at this scale). Set to
+    # "s3", "r2", "wasabi", "minio", or any rclone provider name as
+    # documentation for the operator reading values.yaml.
+    offsite:
+      enabled: false
+      provider: "b2"
+      image:
+        repository: rclone/rclone
+        tag: "1.65.0"
+        pullPolicy: IfNotPresent
+      # When enabled the chart renders the
+      # postgres-backup-credentials Secret from this Vault path.
+      vaultPath: etradie/data-layer/postgres-backup/production
+      externalSecret:
+        secretStoreName: vault-backend
+        secretStoreKind: ClusterSecretStore
+        refreshInterval: 1h
+        creationPolicy: Owner
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      # Soft cap on how long rclone is allowed to run. rclone exits
+      # 0 on success; the backup container only deletes old dumps
+      # after the upload-ready flag is observed.
+      uploadTimeoutSeconds: 1800
 
 # ----------------------------------------------------------------------
 # Redis 7 (shared alert hub + execution/management transport).
