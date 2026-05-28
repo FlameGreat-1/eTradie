@@ -1,0 +1,239 @@
+{
+  "analysis_id": "EURNZD_QMH_BASELINE_BULLISH_1.9708",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "LONG",
+  "entry_price": 1.971,
+  "execution_mode": "INSTANT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_EURNZD_20260527_2330_f8a2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "doc_id": "trading_style_rules.md",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+            "doc_id": "trading_style_rules.md",
+            "section": "4. Permitted Setup Types"
+          }
+        ],
+        "query_summary": "EURNZD bullish SnD setup at H4 demand zone",
+        "strategy_used": "SMC/SnD confluence mapping",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral/missing macro data is treated as aligned per rulebook.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Trade direction is LONG, which perfectly aligns with the dominant BULLISH HTF trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF structure break/reaction",
+          "notes": "Bullish reaction and liquidity sweep confirmed at the H4 demand zone.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "Entry is supported by a high-quality H4 Demand Zone [1.97082, 1.97687].",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "H4 SSL sweep of 14.7 pips swept major sell-side liquidity right into the entry zone.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "No COT data available for EUR/NZD.",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase supports direction",
+          "notes": "Accumulation/Spring phase identified at the HTF demand zone.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news events scheduled for EUR or NZD.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Average R:R of 3.36R meets the minimum 1:3 requirement for Intraday style.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "No COT data available for EUR/NZD",
+      "week_over_week": null
+    },
+    "direction": "LONG",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        1.97082,
+        1.97687
+      ],
+      "evidence": [
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "content_preview": "SnD: QML + SR/RS Flip + Fakeout patterns",
+          "doc_id": "snd_framework.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "EURNZD_QMH_BASELINE_BULLISH_1.9708"
+    },
+    "entry_zone": {
+      "high": 1.9715,
+      "low": 1.9705
+    },
+    "event_risk": [],
+    "execution_mode": "INSTANT",
+    "explainable_reasoning": "The overall HTF trend is strongly BULLISH across MN1, W1, D1, H12, H8, and H6. The MTF trend is BEARISH, representing a healthy counter-trend pullback into a major HTF Demand Zone. Price has tapped the H4/H6 Demand Zone at 1.97082 and swept sell-side liquidity (SSL) by 14.7 pips. We have a high-quality SnD candidate EURNZD_QMH_BASELINE_BULLISH_1.9708 (QMH_BASELINE+RS_FLIP+FAKEOUT+MARUBOZU) at this level. The entry is set at 1.97082 with a structural SL at 1.96757 (below the H4 swing low). Targets are set at structural liquidity pools: TP1 at 1.97732 (M15 swing high), TP2 at 1.98057 (H1 swing high), and TP3 at 1.98888 (H4 FVG / unmitigated OB). This offers an average R:R of 3.36R, making it a highly favorable trade.",
+    "htf_bias": {
+      "key_levels": [
+        1.97082
+      ],
+      "notes": "MN1, W1, D1, H12, H8, and H6 are all strongly bullish, establishing a dominant upward institutional trend.",
+      "structure": "bullish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        1.97968
+      ],
+      "notes": "H4, H3, H1, M30, and M15 are bearish, representing a deep counter-trend pullback into a major HTF demand zone.",
+      "structure": "bearish"
+    },
+    "pair": "EURNZD",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+        "doc_id": "trading_style_rules.md",
+        "section": "4. Permitted Setup Types"
+      }
+    ],
+    "rr_ratio": 3.36,
+    "session": "ASIAN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 1.96757,
+      "reason": "Placed below the H4 swing low and the lower bound of the H4 demand zone with a 3-pip offset to avoid stop hunts."
+    },
+    "take_profits": [
+      {
+        "basis": "M15 swing high / 1:2R target",
+        "level": 1.97732,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 swing high / candidate take profit",
+        "level": 1.98057,
+        "size_pct": 30
+      },
+      {
+        "basis": "H4 FVG / unmitigated Bearish OB",
+        "level": 1.98888,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-05-27T23:30:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "content_preview": "Wyckoff: Spring/Upthrust entry within Accumulation/Distribution phase",
+          "doc_id": "wyckoff_guide.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "phase": "accumulation"
+    }
+  },
+  "reasoning": "The overall HTF trend is strongly BULLISH across MN1, W1, D1, H12, H8, and H6. The MTF trend is BEARISH, representing a healthy counter-trend pullback into a major HTF Demand Zone. Price has tapped the H4/H6 Demand Zone at 1.97082 and swept sell-side liquidity (SSL) by 14.7 pips. We have a high-quality SnD candidate EURNZD_QMH_BASELINE_BULLISH_1.9708 (QMH_BASELINE+RS_FLIP+FAKEOUT+MARUBOZU) at this level. The entry is set at 1.97082 with a structural SL at 1.96757 (below the H4 swing low). Targets are set at structural liquidity pools: TP1 at 1.97732 (M15 swing high), TP2 at 1.98057 (H1 swing high), and TP3 at 1.98888 (H4 FVG / unmitigated OB). This offers an average R:R of 3.36R, making it a highly favorable trade.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 3.36,
+  "session": "ASIAN",
+  "setup_type": "SnD",
+  "stop_loss": 1.96757,
+  "symbol": "EURNZD",
+  "take_profit": 1.98888,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}

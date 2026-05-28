@@ -19,21 +19,21 @@
       "zones_nested": false
     },
     "H1_M30": {
-      "htf_ltf_aligned": true,
+      "htf_ltf_aligned": false,
       "htf_timeframe": "H1",
-      "htf_trend": "BEARISH",
+      "htf_trend": "BULLISH",
       "ltf_timeframe": "M30",
       "ltf_trend": "BEARISH",
-      "trends_aligned": true,
+      "trends_aligned": false,
       "zones_nested": false
     },
     "H3_H1": {
-      "htf_ltf_aligned": true,
+      "htf_ltf_aligned": false,
       "htf_timeframe": "H3",
       "htf_trend": "BEARISH",
       "ltf_timeframe": "H1",
-      "ltf_trend": "BEARISH",
-      "trends_aligned": true,
+      "ltf_trend": "BULLISH",
+      "trends_aligned": false,
       "zones_nested": false
     },
     "H4_H3": {
@@ -61,15 +61,15 @@
       "ltf_timeframe": "H6",
       "ltf_trend": "BEARISH",
       "trends_aligned": true,
-      "zones_nested": false
+      "zones_nested": true
     },
     "M30_M15": {
-      "htf_ltf_aligned": false,
+      "htf_ltf_aligned": true,
       "htf_timeframe": "M30",
       "htf_trend": "BEARISH",
       "ltf_timeframe": "M15",
-      "ltf_trend": "BULLISH",
-      "trends_aligned": false,
+      "ltf_trend": "BEARISH",
+      "trends_aligned": true,
       "zones_nested": false
     },
     "MN1_W1": {
