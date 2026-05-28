@@ -129,31 +129,22 @@ type Config struct {
 	FrontendBaseURL              string `envconfig:"FRONTEND_BASE_URL" default:""`
 
 	// ----------------------------------------------------------------
-	// LLM quota policy (Pro Managed tier metering)
+	// LLM quota policy (Pro Managed / admin tier metering)
 	//
-	// Every Pro Managed LLM call goes through the gateway metering
-	// surface, which reserves a provisional debit before the call,
-	// commits the real token count after it returns, and refunds on
-	// failure. The caps below bound the absolute exposure per user.
+	// The per-tier token caps, soft-cap percent, max-per-call ceiling,
+	// allowed-models list, and reservation TTL previously lived here
+	// as envconfig fields. They have moved to the tier_quota_policies
+	// DB table (migration 0028) and are now mutable at runtime from
+	// the admin dashboard. The gateway reads them via
+	// billing/store.QuotaPolicyStore.GetPolicy(tier) with a 30 s cache
+	// and explicit invalidation on UpsertPolicy.
 	//
-	// All token caps are BIG integers (Anthropic Sonnet 4 input is
-	// roughly $3 / 1M tokens; numbers up to 100M are sane defaults
-	// for monthly caps).
-	//
-	// Free / Pro BYOK users do not hit these caps because their LLM
-	// calls run on their own provider keys (the engine refuses the
-	// platform key for them; see _load_active_llm_connection in
-	// engine/dependencies.py). The cycle RPM knobs DO apply to BYOK
-	// users so a compromised account cannot fan out cycles.
+	// The HTTP-rate-limit knobs below (TierFree/ProByok/ProManaged
+	// CycleRPM/Burst) are a DIFFERENT policy -- per-user anti-abuse
+	// caps on POST /api/v1/cycle/run, enforced by an in-memory token
+	// bucket. They are correctly env-driven (no per-user editing) and
+	// stay here.
 	// ----------------------------------------------------------------
-	TierProManagedDailyInputTokens     int64    `envconfig:"TIER_PRO_MANAGED_DAILY_INPUT_TOKENS" default:"2000000"`
-	TierProManagedDailyOutputTokens    int64    `envconfig:"TIER_PRO_MANAGED_DAILY_OUTPUT_TOKENS" default:"200000"`
-	TierProManagedMonthlyInputTokens   int64    `envconfig:"TIER_PRO_MANAGED_MONTHLY_INPUT_TOKENS" default:"20000000"`
-	TierProManagedMonthlyOutputTokens  int64    `envconfig:"TIER_PRO_MANAGED_MONTHLY_OUTPUT_TOKENS" default:"2000000"`
-	TierProManagedMaxInputPerCall      int64    `envconfig:"TIER_PRO_MANAGED_MAX_INPUT_PER_CALL" default:"300000"`
-	TierProManagedSoftCapPercent       int      `envconfig:"TIER_PRO_MANAGED_SOFT_CAP_PERCENT" default:"80"`
-	TierProManagedAllowedModels        []string `envconfig:"TIER_PRO_MANAGED_ALLOWED_MODELS"`
-	LLMReservationTTLSeconds           int      `envconfig:"LLM_RESERVATION_TTL_SECONDS" default:"300"`
 
 	// Per-user rate limit on POST /api/v1/cycle/run. Tiered so
 	// managed users (who burn the platform key) are tighter than
