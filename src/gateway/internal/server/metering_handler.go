@@ -195,7 +195,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	policy := h.policyForUser(user)
+	policy := h.policyForUser(r.Context(), user)
 
 	reservationID, err := h.usage.ReserveLLMTokens(
 		r.Context(),
@@ -435,7 +435,7 @@ func (h *MeteringHandler) handleGetUsage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	policy := h.policyForUser(user)
+	policy := h.policyForUser(r.Context(), user)
 	snap, err := h.usage.GetLLMUsageSnapshot(r.Context(), user.ID, policy)
 	if err != nil {
 		h.log.Error().Err(err).Str("user_id", user.ID).Msg("metering_usage_snapshot_failed")
