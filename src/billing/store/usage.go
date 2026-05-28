@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 // ---------------------------------------------------------------------------
@@ -134,11 +136,15 @@ type LLMReservation struct {
 // ---------------------------------------------------------------------------
 
 type UsageStore struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	log zerolog.Logger
 }
 
 func NewUsageStore(db *pgxpool.Pool) *UsageStore {
-	return &UsageStore{db: db}
+	return &UsageStore{
+		db:  db,
+		log: zerolog.New(os.Stdout).With().Timestamp().Str("component", "usage_store").Logger(),
+	}
 }
 
 // generateReservationID returns a 32-hex-char id used as the primary
@@ -428,10 +434,24 @@ func (s *UsageStore) commitBlocked(ctx context.Context, tx pgx.Tx, userID string
 			llm_quota_blocked_count_month = llm_quota_blocked_count_month + 1
 		WHERE user_id = $1
 	`, userID); err != nil {
+		// Audit-counter UPDATE failed. The user-facing 429 still fires
+		// (qerr is authoritative), but the operator MUST see this so a
+		// silently-broken blocked counter does not hide a quota incident
+		// from the dashboard. Audit ref: ADMIN-QUOTA-AUDIT-V3-A6.
+		s.log.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("usage_store_commit_blocked_audit_update_failed")
 		_ = tx.Rollback(ctx)
 		return qerr
 	}
-	_ = tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		s.log.Error().
+			Err(err).
+			Str("user_id", userID).
+			Msg("usage_store_commit_blocked_tx_commit_failed")
+		return qerr
+	}
 	return qerr
 }
 
