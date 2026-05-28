@@ -70,6 +70,29 @@ function windowLabel(dim?: string): string {
   return 'window';
 }
 
+/**
+ * The deep handleReserve path can return dimensions other than the
+ * cumulative caps: tier_not_eligible (the user's tier has no LLM
+ * policy) and model_not_allowed (the configured model is not in the
+ * allow-list). For those cases the headline + body need different
+ * copy: there is no usage to reset, the request was rejected up-front.
+ *
+ * Returns null for the cumulative-cap dimensions; the caller falls
+ * back to the default 'usage limit reached' body.
+ *
+ * Audit ref: ADMIN-QUOTA-AUDIT-16.
+ */
+function specialDimensionBody(dim?: string): string | null {
+  switch ((dim || '').toLowerCase()) {
+    case 'tier_not_eligible':
+      return 'AI access is not enabled for your current plan.';
+    case 'model_not_allowed':
+      return 'The requested AI model is not available on your plan.';
+    default:
+      return null;
+  }
+}
+
 function formatLocalResetTime(iso?: string): string {
   if (!iso) return '';
   const ts = Date.parse(iso);
@@ -116,6 +139,7 @@ export default function QuotaExhaustedModal() {
   const win = windowLabel(detail.dimension);
   const resetLocal = formatLocalResetTime(detail.resets_at);
   const isAdmin = Boolean(detail.is_admin);
+  const specialBody = specialDimensionBody(detail.dimension);
 
   return (
     <div
@@ -148,24 +172,34 @@ export default function QuotaExhaustedModal() {
 
         {/* Body */}
         <div className="p-8 space-y-6">
-          <p className="text-sm font-bold text-black/70 dark:text-white/70 leading-relaxed">
-            Your AI usage limit for this <span className="text-brand">{win}</span>{' '}
-            has been reached.
-            {resetLocal ? (
-              <>
-                {' '}Access resumes on{' '}
-                <span className="text-black dark:text-white">{resetLocal}</span>.
-              </>
-            ) : (
-              ''
-            )}
-          </p>
+          {specialBody ? (
+            <p className="text-sm font-bold text-black/70 dark:text-white/70 leading-relaxed">
+              {specialBody}
+            </p>
+          ) : (
+            <p className="text-sm font-bold text-black/70 dark:text-white/70 leading-relaxed">
+              Your AI usage limit for this <span className="text-brand">{win}</span>{' '}
+              has been reached.
+              {resetLocal ? (
+                <>
+                  {' '}Access resumes on{' '}
+                  <span className="text-black dark:text-white">{resetLocal}</span>.
+                </>
+              ) : (
+                ''
+              )}
+            </p>
+          )}
 
-          {/* Detail grid */}
-          <div className="grid grid-cols-2 gap-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] p-4 border border-black/5 dark:border-white/5">
-            <DetailRow label="Limit" value={fmtNum(detail.limit)} />
-            <DetailRow label="Used" value={fmtNum(detail.used)} />
-          </div>
+          {/* Detail grid is only meaningful for the cumulative-cap
+              dimensions; for tier_not_eligible / model_not_allowed the
+              limit/used fields are zero and would be misleading. */}
+          {!specialBody && (
+            <div className="grid grid-cols-2 gap-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] p-4 border border-black/5 dark:border-white/5">
+              <DetailRow label="Limit" value={fmtNum(detail.limit)} />
+              <DetailRow label="Used" value={fmtNum(detail.used)} />
+            </div>
+          )}
 
           {/* CTAs */}
           {isAdmin ? (
