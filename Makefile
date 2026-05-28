@@ -84,75 +84,105 @@ help: ## Display comprehensive help message
 	echo -e ""
 
 ##@ Interactive Menu
-menu: ## Start the interactive guided menu
+# ----------------------------------------------------------------------------
+# `menu` is auto-derived from the SAME `## description` doc lines and
+# `##@ Group` banners that `help` parses. The two surfaces share a
+# single source of truth: $(MAKEFILE_LIST), which already includes
+# both Makefile and Makefile.platform thanks to the `-include`
+# directive at the top of this file.
+#
+# Adding a new target with a `## description` exposes it in BOTH
+# `help` AND `menu` automatically. There is no per-target wiring
+# to maintain in the menu recipe.
+#
+# Two interaction modes, auto-selected at runtime:
+#   - If `fzf` is on $PATH: fuzzy substring picker (preferred on
+#     dev machines; type any part of the target name or description).
+#   - Otherwise: numbered list + `read` prompt (POSIX-portable; works
+#     on minimal CI containers, restricted shells, over SSH, on
+#     macOS / Linux / WSL).
+#
+# Self-exclusion rules baked into the awk filter:
+#   - `help` and `menu` themselves are excluded so the menu never
+#     offers to recurse into itself.
+#   - Targets whose name starts with `.` (`.logo`, `.PHONY`, etc.) are
+#     excluded because the awk pattern only matches
+#     `^[a-zA-Z_0-9-]+:` at the start of a line.
+#   - A target with no `## description` is invisible by design. This
+#     enforces the same discipline `help` already enforces: if it is
+#     operator-facing, it must carry a one-line doc.
+#
+# Exit conventions: entering `0`, an empty line, ESC (in fzf mode),
+# Ctrl-C, or Ctrl-D all exit cleanly without running anything. The
+# temp file used to materialise the target list is removed on every
+# exit path via `trap`.
+# ----------------------------------------------------------------------------
+menu: ## Start the interactive guided menu (auto-derived from ## doc comments)
 	@clear
 	@$(MAKE) .logo
-	@echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
-	echo -e "$(CYAN)│$(NC) $(BOLD)DOCKER ORCHESTRATION$(NC)                                                         $(CYAN)│$(NC)"; \
-	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "1" "Start All Services (Detached)" "docker compose up -d"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "2" "Stop All Services" "docker compose down"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "3" "Rebuild & Start All Services" "docker compose up -d --build"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "4" "Tail All Logs" "docker compose logs -f"; \
+	@set -eu; \
+	targets_file=$$(mktemp); \
+	trap 'rm -f "$$targets_file"' EXIT INT TERM HUP; \
+	awk ' \
+		BEGIN { group = "General" } \
+		/^##@ / { group = substr($$0, 5); next } \
+		/^[a-zA-Z_0-9-]+:.*?##/ { \
+			name = $$1; sub(/:.*/, "", name); \
+			if (name == "help" || name == "menu") next; \
+			desc = $$0; sub(/^[^#]*##[[:space:]]*/, "", desc); \
+			printf "%s\t%s\t%s\n", name, group, desc; \
+		}' $(MAKEFILE_LIST) > "$$targets_file"; \
+	if [ ! -s "$$targets_file" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 No documented targets found in $(MAKEFILE_LIST)$(NC)"; \
+		exit 1; \
+	fi; \
+	if command -v fzf >/dev/null 2>&1; then \
+		echo -e "$(CYAN)Type to filter; ENTER to run; ESC to cancel.$(NC)"; \
+		echo -e ""; \
+		choice=$$(awk -F'\t' '{printf "%-32s  \033[0;36m[%s]\033[0m  %s\n", $$1, $$2, $$3}' "$$targets_file" \
+			| fzf --ansi --reverse --height=80% \
+				--prompt="make > " \
+				--header="Pick a target (auto-derived from Makefile + Makefile.platform)" \
+				--no-mouse \
+				--exit-0) || { echo -e "$(GREEN)Cancelled.$(NC)"; exit 0; }; \
+		target=$$(printf '%s' "$$choice" | awk '{print $$1}'); \
+	else \
+		echo -e ""; \
+		awk -F'\t' ' \
+			BEGIN { last_group = "" } \
+			{ \
+				if ($$2 != last_group) { \
+					last_group = $$2; \
+					printf "\n\033[0;32m%s\033[0m\n", $$2; \
+				} \
+				printf "  \033[1;33m%3d\033[0m  \033[0;34m%-32s\033[0m  %s\n", NR, $$1, $$3; \
+			}' "$$targets_file"; \
+		echo -e ""; \
+		printf "  $(YELLOW)%3s$(NC)  %s\n" "0" "$(RED)Exit$(NC)"; \
+		echo -e ""; \
+		printf "$(CYAN)Enter number (0 or empty to exit):$(NC) "; \
+		read -r n || { echo -e "$(GREEN)Cancelled.$(NC)"; exit 0; }; \
+		if [ -z "$$n" ] || [ "$$n" = "0" ]; then \
+			echo -e "$(GREEN)Goodbye!$(NC)"; exit 0; \
+		fi; \
+		case "$$n" in \
+			*[!0-9]*) echo -e "$(RED)\xE2\x9C\x97 Invalid choice: not a number$(NC)"; exit 1 ;; \
+		esac; \
+		total=$$(wc -l < "$$targets_file" | tr -d ' '); \
+		if [ "$$n" -lt 1 ] || [ "$$n" -gt "$$total" ]; then \
+			echo -e "$(RED)\xE2\x9C\x97 Invalid choice: out of range (1-$$total)$(NC)"; \
+			exit 1; \
+		fi; \
+		target=$$(awk -F'\t' -v n=$$n 'NR==n {print $$1}' "$$targets_file"); \
+	fi; \
+	if [ -z "$$target" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 Could not resolve target$(NC)"; \
+		exit 1; \
+	fi; \
 	echo -e ""; \
-	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
-	echo -e "$(CYAN)│$(NC) $(BOLD)BUILD & COMPILE (LOCAL)$(NC)                                                      $(CYAN)│$(NC)"; \
-	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "5" "Build Gateway (Go)" "make build-gateway"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "6" "Build Execution (Go)" "make build-execution"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "7" "Build Management (Go)" "make build-management"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "8" "Build All Go Binaries" "make build-all-go"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "9" "Generate Protobufs" "make proto-gen"; \
+	echo -e "$(BLUE)\xE2\x96\xB6 Running: $(BOLD)make $$target$(NC)"; \
 	echo -e ""; \
-	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
-	echo -e "$(CYAN)│$(NC) $(BOLD)DATABASE & CODE QUALITY$(NC)                                                      $(CYAN)│$(NC)"; \
-	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "10" "Run Alembic DB Migrations" "make db-migrate"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "11" "Downgrade DB 1 Revision" "make db-downgrade"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "12" "Format Codes (Go/Python)" "make fmt"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(CYAN)%s$(NC)\n" "13" "Lint Codes" "make lint"; \
-	echo -e ""; \
-	echo -e "$(CYAN)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
-	echo -e "$(CYAN)│$(NC) $(BOLD)TESTING & HEALTH$(NC)                                                             $(CYAN)│$(NC)"; \
-	echo -e "$(CYAN)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "14" "Run Python Tests (Local)" "make test-python"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "15" "Run Go Tests" "make test-go"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "16" "Check Service Health" "make health"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "17" "Check Broker Bridge" "make broker-health"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "18" "ZMQ Bridge Test (Native)" "make zmq-test"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(GREEN)%s$(NC)\n" "19" "Run E2E Pipeline Tests" "make test-e2e"; \
-	echo -e ""; \
-	echo -e "$(BLUE)┌──────────────────────────────────────────────────────────────────────────────┐$(NC)"; \
-	echo -e "$(BLUE)│$(NC) $(BOLD)OTHER OPTIONS$(NC)                                                                $(BLUE)│$(NC)"; \
-	echo -e "$(BLUE)└──────────────────────────────────────────────────────────────────────────────┘$(NC)"; \
-	printf "  $(YELLOW)%-4s$(NC) │ %-32s │ $(RED)%s$(NC)\n" "0" "Exit Menu" ""; \
-	echo -e ""; \
-	printf "$(BLUE)║$(NC)  $(CYAN)Enter your choice [0-19]:$(NC) "; \
-	read choice; \
-	echo -e ""; \
-	case $$choice in \
-		1) docker compose up -d ;; \
-		2) docker compose down ;; \
-		3) docker compose up -d --build ;; \
-		4) docker compose logs -f ;; \
-		5) $(MAKE) build-gateway ;; \
-		6) $(MAKE) build-execution ;; \
-		7) $(MAKE) build-management ;; \
-		8) $(MAKE) build-all-go ;; \
-		9) $(MAKE) proto-gen ;; \
-		10) $(MAKE) db-migrate ;; \
-		11) $(MAKE) db-downgrade ;; \
-		12) $(MAKE) fmt ;; \
-		13) $(MAKE) lint ;; \
-		14) $(MAKE) test-python ;; \
-		15) $(MAKE) test-go ;; \
-		16) $(MAKE) health ;; \
-		17) $(MAKE) broker-health ;; \
-		18) $(MAKE) zmq-test ;; \
-		19) $(MAKE) test-e2e ;; \
-		0) echo -e "$(GREEN)Goodbye!$(NC)"; exit 0 ;; \
-		*) echo -e "$(RED)✗ Invalid choice$(NC)" ;; \
-	esac;
+	exec $(MAKE) "$$target"
 
 ##@ Edge profile (Cloudflare → edge-ingress → envoy → gateway, local mTLS)
 dev-certs: ## Generate (or refresh) the local Cloudflare AOP dev CA + client cert
