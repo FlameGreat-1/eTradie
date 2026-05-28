@@ -98,7 +98,7 @@ class AnalysisProcessor(ProcessorPort):
         # a 429 / insufficient_quota error. Optional so the legacy test
         # harnesses that build a minimal processor with cache=None still
         # construct; when None the branch logs + skips publishing and
-        // the ProcessorError still raises so the gateway records the
+        # the ProcessorError still raises so the gateway records the
         # failure -- only the SPA modal is silenced.
         #
         # Audit ref: ADMIN-QUOTA-9.
