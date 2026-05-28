@@ -1179,7 +1179,12 @@ class Container:
         if hasattr(self, "rag_embedding_provider"):
             await self.rag_embedding_provider.close()
         # Close per-user cached processor LLM clients.
-        for user_id, proc in self._user_processors.items():
+        #
+        # Iterate over a snapshot list (NOT the live dict) so a
+        # concurrent invalidate_user_processor call cannot mutate the
+        # dict mid-iteration and raise RuntimeError. The dict is
+        # cleared after the loop. Audit ref: ADMIN-QUOTA-AUDIT-V2-8.
+        for user_id, proc in list(self._user_processors.items()):
             try:
                 await proc._llm.close()
             except Exception:
@@ -1187,17 +1192,16 @@ class Container:
         self._user_processors.clear()
 
         # Close per-user cached background LLM clients (trading-plan +
-        # performance-review). The cache owns the client lifecycle so
-        # this is the only path that closes them on a clean shutdown.
-        for user_id, entry in self._user_background_llm.items():
+        # performance-review). Same snapshot pattern as above.
+        for user_id, entry in list(self._user_background_llm.items()):
             try:
                 await entry.client.close()  # type: ignore[attr-defined]
             except Exception:
                 pass
         self._user_background_llm.clear()
 
-        # Close per-user cached broker clients.
-        for user_id, broker in self._user_brokers.items():
+        # Close per-user cached broker clients. Same snapshot pattern.
+        for user_id, broker in list(self._user_brokers.items()):
             try:
                 if hasattr(broker, "shutdown"):
                     await broker.shutdown()
