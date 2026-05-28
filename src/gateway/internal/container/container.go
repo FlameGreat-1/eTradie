@@ -40,6 +40,7 @@ type Container struct {
 	Execution        *infra.ExecutionGRPCAdapter
 	UsageStore       *store.UsageStore
 	SubStore         *store.SubscriptionStore
+	QuotaPolicyStore *store.QuotaPolicyStore
 	PortalAuditStore *store.PortalAuditStore
 	SymbolStore      *symbolstore.Store
 	SettingsStore    *settingsstore.Store
@@ -154,6 +155,13 @@ func New(
 		return nil, fmt.Errorf("container: billing client: %w", err)
 	}
 
+	// Tier-quota policy store. Backs the tier_quota_policies table
+	// (migration 0028) and is read by the metering handler on every
+	// Reserve plus by the admin quota handler for GET / PUT operations.
+	// Same *pgxpool.Pool as every other billing store, sourced via
+	// subStore.Pool() so connection-pool lifecycle stays uniform.
+	quotaPolicyStore := store.NewQuotaPolicyStore(subStore.Pool())
+
 	// LLM metering handler. The same engine shared-secret used by every
 	// /internal/* call from gateway to engine is reused here in the
 	// opposite direction (engine -> gateway). When the secret is empty
@@ -162,6 +170,7 @@ func New(
 	meteringHandler := server.NewMeteringHandler(
 		usageStore,
 		userStore,
+		quotaPolicyStore,
 		authCfg,
 		cfg.EngineInternalSharedSecret,
 	)
@@ -226,6 +235,7 @@ func New(
 		Execution:        execAdapter,
 		UsageStore:       usageStore,
 		SubStore:         subStore,
+		QuotaPolicyStore: quotaPolicyStore,
 		PortalAuditStore: portalAudStore,
 		SymbolStore:      symStore,
 		SettingsStore:    settStore,
