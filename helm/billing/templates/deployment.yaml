@@ -35,7 +35,9 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "billing.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      # Single source of truth with templates/serviceaccount.yaml.
+      # Audit ref: G-C3, X-5.
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 60 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
