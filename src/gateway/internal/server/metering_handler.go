@@ -421,12 +421,57 @@ func (h *MeteringHandler) handleCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usage.CommitLLMTokens(r.Context(), req.ReservationID, req.ActualInputTokens, req.ActualOutputTokens); err != nil {
+	// Resolve per-tier soft-cap policy values BEFORE the commit tx so
+	// CommitLLMTokens can run the test-and-set atomically with the
+	// counter adjustment. A peek at the reservation gives us user_id
+	// + tier without locking; if the peek fails we fall through with
+	// softCapPercent=0 which short-circuits the in-tx test-and-set,
+	// so the soft-cap email is gracefully skipped on policy lookup
+	// failure. Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+	softCapPercent := 0
+	var monthlyInputLimit, monthlyOutputLimit int64
+	var resolvedPolicy billingstore.LLMQuotaPolicy
+	var resolvedUser *auth.User
+	if peekUserID, peekTier, peekErr := h.usage.PeekReservationOwner(r.Context(), req.ReservationID); peekErr == nil && peekUserID != "" {
+		if row, polErr := h.policyStore.GetPolicy(r.Context(), peekTier); polErr == nil && row != nil {
+			resolvedPolicy = row.ToLLMQuotaPolicy()
+			softCapPercent = resolvedPolicy.SoftCapPercent
+			monthlyInputLimit = resolvedPolicy.MonthlyInputTokens
+			monthlyOutputLimit = resolvedPolicy.MonthlyOutputTokens
+		}
+		// Pre-fetch the user too so we can dispatch the email without
+		// a second lookup on the success path.
+		lookupCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if u, uErr := h.users.GetUserByID(lookupCtx, peekUserID); uErr == nil {
+			resolvedUser = u
+		}
+	}
+
+	outcome, err := h.usage.CommitLLMTokens(
+		r.Context(),
+		req.ReservationID,
+		req.ActualInputTokens,
+		req.ActualOutputTokens,
+		softCapPercent,
+		monthlyInputLimit,
+		monthlyOutputLimit,
+	)
+	if err != nil {
 		h.log.Error().Err(err).Str("reservation_id", req.ReservationID).Msg("metering_commit_failed")
 		writeJSONError(w, http.StatusInternalServerError, "metering commit failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "committed"})
+
+	// Soft-cap email dispatch (post-write so the response is not
+	// delayed). The test-and-set already ran inside CommitLLMTokens;
+	// we just need to render and send. fireSoftCapEmail itself
+	// dispatches the SMTP work to its own goroutine, so this returns
+	// almost immediately.
+	if outcome.SoftCapJustCrossed && resolvedUser != nil {
+		h.fireSoftCapEmail(resolvedUser, resolvedPolicy)
+	}
 }
 
 // ---------------------------------------------------------------------------
