@@ -12,6 +12,8 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/flamegreat-1/etradie/src/alert"
+	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
 	"github.com/flamegreat-1/etradie/src/auth"
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -50,6 +52,13 @@ type MeteringHandler struct {
 	secret      []byte
 	log         zerolog.Logger
 
+	// Cross-service event bus. Used to publish LLM_QUOTA_EXCEEDED on
+	// deep-path Reserve breaches so the SPA modal opens regardless of
+	// whether the pre-flight or the deep path detected the breach.
+	// Nil-tolerant: when unset the publish is skipped (test harness).
+	// Audit ref: ADMIN-QUOTA-AUDIT-1.
+	transport *alertredis.Transport
+
 	// Optional out-of-band soft-cap warning email dispatcher. When nil
 	// the soft-cap check is skipped entirely so the handler keeps its
 	// zero-dependency posture for tests and minimal deployments. When
@@ -77,6 +86,7 @@ func NewMeteringHandler(
 	policyStore *billingstore.QuotaPolicyStore,
 	cfg *auth.Config,
 	internalSecret string,
+	transport *alertredis.Transport,
 ) *MeteringHandler {
 	if policyStore == nil {
 		panic("metering_handler: policyStore must not be nil")
@@ -87,6 +97,7 @@ func NewMeteringHandler(
 		policyStore: policyStore,
 		cfg:         cfg,
 		secret:      []byte(internalSecret),
+		transport:   transport,
 		log:         observability.Logger("metering_handler"),
 	}
 }
@@ -211,16 +222,57 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 			if retryAfter < 1 {
 				retryAfter = 1
 			}
+			isAdmin := user.IsAdmin()
+			resetsAt := qerr.ResetsAt.UTC().Format(time.RFC3339)
+
+			// Emit a user-scoped LLM_QUOTA_EXCEEDED event so the SPA modal
+			// opens for deep-path breaches, not just pre-flight breaches.
+			// Without this publish the deep-path 429 returned to the
+			// engine would surface through engine_http.go as an opaque
+			// Go error and the user would see a generic CYCLE_FAILED.
+			// Audit ref: ADMIN-QUOTA-AUDIT-1.
+			if h.transport != nil {
+				h.transport.Publish(r.Context(),
+					alert.NewEvent(
+						alert.SourceGateway,
+						alert.TypeLLMQuotaExceeded,
+						alert.SeverityWarning,
+						"Your AI usage limit for this window has been reached.",
+					).
+						WithUserID(user.ID).
+						WithTraceID(req.TraceID).
+						WithDetails(map[string]interface{}{
+							"dimension":   qerr.Dimension,
+							"limit":       qerr.Limit,
+							"used":        qerr.Used,
+							"requested":   qerr.Requested,
+							"resets_at":   resetsAt,
+							"retry_after": retryAfter,
+							"is_admin":    isAdmin,
+							"source":      "reserve",
+						}),
+				)
+			}
+
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
+			// Body matches APIHandler.preflightLLMQuota one-for-one so
+			// every consumer (engine metering_client.py, the SPA axios
+			// interceptor for any future direct call, log readers) sees
+			// the same envelope from both Reserve sites.
+			// Audit ref: ADMIN-QUOTA-AUDIT-1.
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":     "llm quota exceeded",
-				"dimension": qerr.Dimension,
-				"limit":     qerr.Limit,
-				"used":      qerr.Used,
-				"requested": qerr.Requested,
-				"resets_at": qerr.ResetsAt.UTC().Format(time.RFC3339),
+				"error":       "llm_quota_exceeded",
+				"error_code":  "llm_quota_exceeded",
+				"message":     "Your AI usage limit for this window has been reached.",
+				"dimension":   qerr.Dimension,
+				"limit":       qerr.Limit,
+				"used":        qerr.Used,
+				"requested":   qerr.Requested,
+				"resets_at":   resetsAt,
+				"retry_after": retryAfter,
+				"is_admin":    isAdmin,
 			})
 			h.log.Info().
 				Str("user_id", user.ID).
@@ -229,6 +281,7 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 				Int64("limit", qerr.Limit).
 				Int64("used", qerr.Used).
 				Int64("requested", qerr.Requested).
+				Bool("is_admin", isAdmin).
 				Msg("llm_quota_blocked")
 			return
 		}
