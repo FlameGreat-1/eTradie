@@ -948,76 +948,37 @@ func (s *UsageStore) MonthlyReset(ctx context.Context, userID string, windowStar
 	return nil
 }
 
-// MarkSoftCapNotifiedIfCrossed performs a one-shot test-and-set inside
-// a single atomic UPDATE: returns (true, nil) the first time the user's
-// current-window monthly usage crosses softCapPercent of either the
-// input or output cap; returns (false, nil) on every subsequent call
-// until MonthlyReset clears soft_cap_notified_at.
+// PeekReservationOwner returns (user_id, tier) for a 'held' reservation
+// without locking the row or modifying any state. Used by the gateway's
+// handleCommit to resolve the per-tier soft-cap policy BEFORE calling
+// CommitLLMTokens, so the in-tx test-and-set inside CommitLLMTokens
+// can run atomically with the counter adjustment.
 //
-// The handler calls this immediately after a successful Reserve and
-// fires the warning email when the return is true. The test-and-set
-// happens entirely in SQL so two parallel reserve calls from the same
-// user cannot both observe "just crossed" and double-fire the email
-// (PostgreSQL serialises the UPDATE on the row's MVCC version).
+// Returns ("", "", nil) when the reservation is missing OR is no longer
+// in 'held' status (already committed / refunded / reaped). The caller
+// proceeds to CommitLLMTokens with softCapPercent=0 which short-circuits
+// the test-and-set; the Commit itself remains idempotent.
 //
-// Inputs:
-//
-//	softCapPercent       : 0..100. Values <= 0 disable the check
-//	                       (returns false, nil) so a tier without a
-//	                       configured soft cap never triggers a notice.
-//	monthlyInputLimit    : tier policy cap on input tokens this window.
-//	                       Values <= 0 disable the input-side trigger.
-//	monthlyOutputLimit   : same, for output tokens.
-//
-// The threshold is computed as ceil(limit * pct / 100) so a soft cap of
-// 80% on a 20,000,000 input cap fires at exactly 16,000,000 tokens, not
-// at 15,999,999.
-func (s *UsageStore) MarkSoftCapNotifiedIfCrossed(
+// Audit ref: ADMIN-QUOTA-AUDIT-V3-A10.
+func (s *UsageStore) PeekReservationOwner(
 	ctx context.Context,
-	userID string,
-	softCapPercent int,
-	monthlyInputLimit, monthlyOutputLimit int64,
-) (bool, error) {
-	if userID == "" {
-		return false, fmt.Errorf("mark_soft_cap_notified: user_id is required")
+	reservationID string,
+) (userID, tier string, err error) {
+	if reservationID == "" {
+		return "", "", fmt.Errorf("peek_reservation_owner: reservation_id is required")
 	}
-	if softCapPercent <= 0 || softCapPercent > 100 {
-		return false, nil
-	}
-	if monthlyInputLimit <= 0 && monthlyOutputLimit <= 0 {
-		return false, nil
-	}
-
-	// ceilDiv computes ⌈a * pct / 100⌉ without floating-point error.
-	ceilDiv := func(limit int64, pct int) int64 {
-		if limit <= 0 {
-			return 0
-		}
-		num := limit * int64(pct)
-		return (num + 99) / 100
-	}
-	inputThreshold := ceilDiv(monthlyInputLimit, softCapPercent)
-	outputThreshold := ceilDiv(monthlyOutputLimit, softCapPercent)
-
-	var firedAt *time.Time
-	err := s.db.QueryRow(ctx, `
-		UPDATE billing_usage
-		SET soft_cap_notified_at = NOW()
-		WHERE user_id = $1
-		  AND soft_cap_notified_at IS NULL
-		  AND (
-		       ($2 > 0 AND llm_input_tokens_month  >= $2)
-		    OR ($3 > 0 AND llm_output_tokens_month >= $3)
-		  )
-		RETURNING soft_cap_notified_at
-	`, userID, inputThreshold, outputThreshold).Scan(&firedAt)
+	err = s.db.QueryRow(ctx, `
+		SELECT user_id, tier
+		FROM billing_llm_reservations
+		WHERE id = $1 AND status = 'held'
+	`, reservationID).Scan(&userID, &tier)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
+			return "", "", nil
 		}
-		return false, fmt.Errorf("mark_soft_cap_notified: %w", err)
+		return "", "", fmt.Errorf("peek_reservation_owner: %w", err)
 	}
-	return firedAt != nil, nil
+	return userID, tier, nil
 }
 
 // ---------------------------------------------------------------------------
