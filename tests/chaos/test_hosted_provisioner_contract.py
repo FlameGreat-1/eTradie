@@ -4,14 +4,18 @@ Validates the full contract:
   - provision_account writes the per-tenant Secret with sealed creds
     AND plain envFrom keys (MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN)
   - provision is idempotent (re-provisioning the same connection_id
-    REPLACES the Deployment / Service / Secret, not duplicates)
+    REPLACES the StatefulSet / Service / Secret, not duplicates)
   - delete is idempotent (404 is treated as success)
-  - gc_orphans deletes Deployments whose connection-id is not in
+  - gc_orphans deletes StatefulSets whose connection-id is not in
     the known set
   - semantic readiness gate raises ProviderTimeoutError when the
-    Deployment never goes Ready (no actual ZMQ probing needed; we
+    StatefulSet never goes Ready (no actual ZMQ probing needed; we
     mock the readiness path)
   - AES-GCM seal round-trips correctly
+
+The HostedProvisioner emits StatefulSets (matching the helm/mt-node
+chart shape). These tests therefore exercise the
+*_namespaced_stateful_set call surface on the AppsV1Api mock.
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ from engine.shared.exceptions import (
 from engine.ta.broker.mt5.hosted.provisioner import (
     HostedProvisioner,
     _load_encryption_key,
+    _pvc_name_for,
     _seal,
 )
 
@@ -59,12 +64,12 @@ def _patch_kube_api(monkeypatch: pytest.MonkeyPatch, core_api: MagicMock, apps_a
     )
 
 
-def _ready_deployment(release: str) -> MagicMock:
-    dep = MagicMock()
-    dep.metadata = MagicMock(name=release, creation_timestamp=None, labels={})
-    dep.metadata.name = release
-    dep.status = MagicMock(ready_replicas=1, replicas=1, conditions=[])
-    return dep
+def _ready_statefulset(release: str) -> MagicMock:
+    sts = MagicMock()
+    sts.metadata = MagicMock(name=release, creation_timestamp=None, labels={})
+    sts.metadata.name = release
+    sts.status = MagicMock(ready_replicas=1, replicas=1, current_replicas=1, conditions=[])
+    return sts
 
 
 async def test_load_encryption_key_rejects_missing_env(monkeypatch: pytest.MonkeyPatch):
@@ -96,6 +101,17 @@ async def test_seal_round_trip_is_unique(sample_encryption_key: str):
     assert len(raw_b) >= 12 + 16 + 1
 
 
+async def test_pvc_name_matches_statefulset_convention():
+    """The provisioner's PVC naming must match the chart's STS
+    volumeClaimTemplate output: '<template>-<sts>-<ordinal>'.
+    With template='wine-prefix' and ordinal=0, the per-replica PVC is
+    'wine-prefix-<release>-0'. An operator who flips a tenant
+    between chart-managed and provisioner-managed paths must NOT lose
+    the Wine prefix - this convention is the contract that makes it
+    safe."""
+    assert _pvc_name_for("etradie-mt-abc123") == "wine-prefix-etradie-mt-abc123-0"
+
+
 async def test_provision_happy_path(
     monkeypatch: pytest.MonkeyPatch,
     sample_encryption_key: str,
@@ -105,14 +121,13 @@ async def test_provision_happy_path(
     apps_api = MagicMock()
     core_api.create_namespaced_secret = AsyncMock(return_value=None)
     core_api.create_namespaced_service = AsyncMock(return_value=None)
-    core_api.create_namespaced_persistent_volume_claim = AsyncMock(return_value=None)
     core_api.api_client = MagicMock(close=AsyncMock())
-    apps_api.create_namespaced_deployment = AsyncMock(return_value=None)
+    apps_api.create_namespaced_stateful_set = AsyncMock(return_value=None)
     apps_api.api_client = MagicMock(close=AsyncMock())
 
-    # Readiness gate: short-circuit by mocking the Deployment-read AND the ZMQ ping.
-    apps_api.read_namespaced_deployment = AsyncMock(
-        return_value=_ready_deployment(release="etradie-mt-111111111111"),
+    # Readiness gate: short-circuit by mocking the StatefulSet-read.
+    apps_api.read_namespaced_stateful_set = AsyncMock(
+        return_value=_ready_statefulset(release="etradie-mt-111111111111"),
     )
 
     _patch_kube_api(monkeypatch, core_api, apps_api)
@@ -140,15 +155,24 @@ async def test_provision_happy_path(
     assert out["zmq_port"] == 5555
     assert out["zmq_auth_token"]
 
-    # Secret + Deployment + Service were each created exactly once.
+    # Secret + StatefulSet + BOTH Services (regular + headless) were
+    # each created exactly once.
     assert core_api.create_namespaced_secret.await_count == 1
-    assert core_api.create_namespaced_service.await_count == 1
-    assert apps_api.create_namespaced_deployment.await_count == 1
+    assert core_api.create_namespaced_service.await_count == 2
+    assert apps_api.create_namespaced_stateful_set.await_count == 1
 
     # Secret body carries plain envFrom keys + the sealed audit blob.
     secret_call = core_api.create_namespaced_secret.await_args.kwargs["body"]
     keys = set(secret_call.data.keys())
     assert {"MT_LOGIN", "MT_PASSWORD", "MT_ZMQ_AUTH_TOKEN", "ETRADIE_SEAL"}.issubset(keys)
+
+    # The two service-create calls must be one headless + one regular.
+    cluster_ips = [
+        call.kwargs["body"].spec.cluster_ip
+        for call in core_api.create_namespaced_service.await_args_list
+    ]
+    assert "None" in cluster_ips  # headless
+    assert any(ip is None for ip in cluster_ips)  # regular (allocated by K8s)
 
 
 async def test_provision_is_idempotent_on_409(
@@ -162,20 +186,16 @@ async def test_provision_is_idempotent_on_409(
     core_api.create_namespaced_secret = AsyncMock(side_effect=_FakeApiException(409))
     core_api.replace_namespaced_secret = AsyncMock(return_value=None)
     core_api.create_namespaced_service = AsyncMock(side_effect=_FakeApiException(409))
-    core_api.read_namespaced_service = AsyncMock(
-        return_value=MagicMock(spec=["spec", "metadata"], spec_set=False),
-    )
     existing_svc = MagicMock()
     existing_svc.spec = MagicMock(cluster_ip="10.96.1.2")
     existing_svc.metadata = MagicMock(resource_version="99")
     core_api.read_namespaced_service = AsyncMock(return_value=existing_svc)
     core_api.replace_namespaced_service = AsyncMock(return_value=None)
-    core_api.create_namespaced_persistent_volume_claim = AsyncMock(side_effect=_FakeApiException(409))
     core_api.api_client = MagicMock(close=AsyncMock())
-    apps_api.create_namespaced_deployment = AsyncMock(side_effect=_FakeApiException(409))
-    apps_api.replace_namespaced_deployment = AsyncMock(return_value=None)
-    apps_api.read_namespaced_deployment = AsyncMock(
-        return_value=_ready_deployment(release="etradie-mt-111111111111"),
+    apps_api.create_namespaced_stateful_set = AsyncMock(side_effect=_FakeApiException(409))
+    apps_api.replace_namespaced_stateful_set = AsyncMock(return_value=None)
+    apps_api.read_namespaced_stateful_set = AsyncMock(
+        return_value=_ready_statefulset(release="etradie-mt-111111111111"),
     )
     apps_api.api_client = MagicMock(close=AsyncMock())
 
@@ -197,10 +217,11 @@ async def test_provision_is_idempotent_on_409(
     )
     assert out["state"] == "running"
 
-    # Every conflicting create was followed by a replace.
+    # Every conflicting create was followed by a replace. Two services
+    # are upserted (regular + headless) so the replace count is 2.
     assert core_api.replace_namespaced_secret.await_count == 1
-    assert core_api.replace_namespaced_service.await_count == 1
-    assert apps_api.replace_namespaced_deployment.await_count == 1
+    assert core_api.replace_namespaced_service.await_count == 2
+    assert apps_api.replace_namespaced_stateful_set.await_count == 1
 
 
 async def test_provision_readiness_gate_times_out(
@@ -212,15 +233,16 @@ async def test_provision_readiness_gate_times_out(
     apps_api = MagicMock()
     core_api.create_namespaced_secret = AsyncMock(return_value=None)
     core_api.create_namespaced_service = AsyncMock(return_value=None)
-    core_api.create_namespaced_persistent_volume_claim = AsyncMock(return_value=None)
     core_api.api_client = MagicMock(close=AsyncMock())
-    apps_api.create_namespaced_deployment = AsyncMock(return_value=None)
+    apps_api.create_namespaced_stateful_set = AsyncMock(return_value=None)
     apps_api.api_client = MagicMock(close=AsyncMock())
 
-    # Deployment never reports ready.
-    apps_api.read_namespaced_deployment = AsyncMock(
-        return_value=MagicMock(status=MagicMock(ready_replicas=0, replicas=1, conditions=[]),
-                              metadata=MagicMock()),
+    # StatefulSet never reports ready.
+    apps_api.read_namespaced_stateful_set = AsyncMock(
+        return_value=MagicMock(
+            status=MagicMock(ready_replicas=0, replicas=1, current_replicas=0, conditions=[]),
+            metadata=MagicMock(),
+        ),
     )
 
     _patch_kube_api(monkeypatch, core_api, apps_api)
@@ -246,7 +268,7 @@ async def test_delete_is_idempotent(monkeypatch: pytest.MonkeyPatch):
     core_api = MagicMock()
     apps_api = MagicMock()
     # Everything returns 404 -> still counts as success.
-    apps_api.delete_namespaced_deployment = AsyncMock(side_effect=_FakeApiException(404))
+    apps_api.delete_namespaced_stateful_set = AsyncMock(side_effect=_FakeApiException(404))
     core_api.delete_namespaced_service = AsyncMock(side_effect=_FakeApiException(404))
     core_api.delete_namespaced_secret = AsyncMock(side_effect=_FakeApiException(404))
     core_api.delete_namespaced_persistent_volume_claim = AsyncMock(side_effect=_FakeApiException(404))
@@ -258,6 +280,17 @@ async def test_delete_is_idempotent(monkeypatch: pytest.MonkeyPatch):
     prov = HostedProvisioner()
     assert await prov.delete_account("etradie-mt-deadbeef0000") is True
 
+    # Both the regular AND the headless service were deleted.
+    assert core_api.delete_namespaced_service.await_count == 2
+    # The per-replica wine-prefix PVC ('wine-prefix-<release>-0') was
+    # deleted explicitly because StatefulSet GC does not cascade to
+    # its volumeClaimTemplate PVCs.
+    pvc_deletion_names = [
+        call.kwargs["name"]
+        for call in core_api.delete_namespaced_persistent_volume_claim.await_args_list
+    ]
+    assert "wine-prefix-etradie-mt-deadbeef0000-0" in pvc_deletion_names
+
 
 async def test_gc_orphans_deletes_unknown_releases(monkeypatch: pytest.MonkeyPatch):
     core_api = MagicMock()
@@ -265,20 +298,20 @@ async def test_gc_orphans_deletes_unknown_releases(monkeypatch: pytest.MonkeyPat
     core_api.api_client = MagicMock(close=AsyncMock())
     apps_api.api_client = MagicMock(close=AsyncMock())
 
-    dep_orphan = MagicMock()
-    dep_orphan.metadata = MagicMock(
+    sts_orphan = MagicMock()
+    sts_orphan.metadata = MagicMock(
         name="etradie-mt-orphan000000",
         labels={"etradie.connection-id": "orphan", "app.kubernetes.io/name": "etradie-mt-node"},
     )
-    dep_known = MagicMock()
-    dep_known.metadata = MagicMock(
+    sts_known = MagicMock()
+    sts_known.metadata = MagicMock(
         name="etradie-mt-known00000",
         labels={"etradie.connection-id": "known", "app.kubernetes.io/name": "etradie-mt-node"},
     )
-    apps_api.list_namespaced_deployment = AsyncMock(
-        return_value=MagicMock(items=[dep_orphan, dep_known]),
+    apps_api.list_namespaced_stateful_set = AsyncMock(
+        return_value=MagicMock(items=[sts_orphan, sts_known]),
     )
-    apps_api.delete_namespaced_deployment = AsyncMock(return_value=None)
+    apps_api.delete_namespaced_stateful_set = AsyncMock(return_value=None)
     core_api.delete_namespaced_service = AsyncMock(return_value=None)
     core_api.delete_namespaced_secret = AsyncMock(return_value=None)
     core_api.delete_namespaced_persistent_volume_claim = AsyncMock(return_value=None)

@@ -62,6 +62,19 @@ HTTP_PORT = int(os.environ.get("WATCHDOG_HTTP_PORT", "9100"))
 SYMBOL = os.environ.get("WATCHDOG_SYMBOL", "EURUSD")
 AUTH_TOKEN = os.environ.get("MT_ZMQ_AUTH_TOKEN") or os.environ.get("DEFAULT_ZMQ_AUTH_TOKEN", "")
 
+# CPU soft-cap (CHECKLIST Section 1: 'Indicator recalculation spikes
+# do not freeze system'). The default 0.5 fraction with 6 consecutive
+# polls (60s at the default cadence) means 'the cgroup has been
+# throttled in more than half of all CFS periods sustained over the
+# last 60s'. Below the threshold, transient indicator-recalc bursts
+# are tolerated.
+CPU_THROTTLE_SOFT_CAP_FRACTION = float(
+    os.environ.get("WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION", "0.5")
+)
+CPU_THROTTLE_CONSECUTIVE_POLLS = int(
+    os.environ.get("WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS", "6")
+)
+
 # ----- Prometheus metrics ---------------------------------------------
 REG = CollectorRegistry()
 
@@ -77,7 +90,44 @@ M_MT5_CPU = Gauge("mt_node_mt5_process_cpu_percent", "CPU%% of the terminal proc
 M_CGROUP_LIMIT = Gauge("mt_node_cgroup_memory_limit_bytes", "Cgroup memory limit", registry=REG)
 M_CGROUP_USAGE = Gauge("mt_node_cgroup_memory_usage_bytes", "Cgroup memory current usage", registry=REG)
 
+# CPU throttling metrics (CHECKLIST Section 1).
+M_CGROUP_CPU_THROTTLED_PERIODS = Counter(
+    "mt_node_cgroup_cpu_throttled_periods_total",
+    "CFS periods in which the cgroup was throttled",
+    registry=REG,
+)
+M_CGROUP_CPU_THROTTLED_USEC = Counter(
+    "mt_node_cgroup_cpu_throttled_usec_total",
+    "Cumulative microseconds the cgroup spent throttled",
+    registry=REG,
+)
+M_CGROUP_CPU_NR_PERIODS = Counter(
+    "mt_node_cgroup_cpu_nr_periods_total",
+    "Total CFS periods the cgroup has been measured over",
+    registry=REG,
+)
+M_CGROUP_CPU_MAX_QUOTA = Gauge(
+    "mt_node_cgroup_cpu_max_quota_usec",
+    "cpu.max quota in microseconds; 0 means unlimited",
+    registry=REG,
+)
+M_CGROUP_CPU_MAX_PERIOD = Gauge(
+    "mt_node_cgroup_cpu_max_period_usec",
+    "cpu.max period in microseconds",
+    registry=REG,
+)
+M_CPU_SOFT_CAP_TRIPS = Counter(
+    "mt_node_watchdog_cpu_soft_cap_trips_total",
+    "Times the CPU throttling soft-cap was tripped",
+    registry=REG,
+)
+
 _last_commands_count = 0
+# CPU throttle tracking state. Updated by maybe_enforce_cpu_soft_cap.
+_last_cpu_nr_throttled: int = 0
+_last_cpu_nr_periods: int = 0
+_last_cpu_throttled_usec: int = 0
+_consecutive_cpu_throttle_polls: int = 0
 
 
 # ----- Shared state for HTTP handlers ----------------------------------
@@ -90,6 +140,137 @@ class State:
 
 
 STATE = State()
+
+# ----- Socket-resets counter (operator-visible) ------------------------
+M_WATCHDOG_SOCKET_RESETS = Counter(
+    "mt_node_watchdog_socket_resets_total",
+    "Cumulative ZMQ REQ socket resets driven by the watchdog",
+    registry=REG,
+)
+
+
+# ----- Long-lived ZMQ REQ socket --------------------------------------
+class ZmqHealthProbe:
+    """Owns the watchdog's REQ socket lifecycle.
+
+    Holds ONE REQ socket for the watchdog process lifetime.
+    Authentication via PING is performed once per (re)connect; the
+    `authenticated` flag short-circuits subsequent HEALTH polls so
+    the auth round-trip cost is paid once, not every cycle.
+
+    The REQ/REP state machine is unrecoverable after a half-completed
+    transaction (libzmq mandates alternating send/recv). On ANY
+    zmq.ZMQError or zmq.Again the socket is torn down and recreated
+    on the next poll; the next poll's PING re-authenticates. This is
+    the only correct way to recover a wedged REQ socket - retrying
+    on the same socket would raise EFSM.
+
+    The socket is protected by a re-entrant lock because both the
+    poll thread AND (potentially future) HTTP handlers might call
+    poll(). Today only the poll thread does; the lock is a cheap
+    invariant for safety.
+
+    The context is process-wide (zmq.Context.instance()) so we do
+    not churn io_threads on socket recreation. The instance() call
+    is idempotent.
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        auth_token: str,
+        recv_timeout_ms: int = 3000,
+        send_timeout_ms: int = 3000,
+    ) -> None:
+        self._endpoint = endpoint
+        self._auth_token = auth_token
+        self._recv_timeout_ms = recv_timeout_ms
+        self._send_timeout_ms = send_timeout_ms
+        self._ctx = zmq.Context.instance()
+        self._lock = threading.Lock()
+        self._socket: Optional[zmq.Socket] = None
+        self._authenticated: bool = False
+
+    def _open(self) -> None:
+        """Create a fresh REQ socket. Caller MUST hold self._lock."""
+        sock = self._ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.setsockopt(zmq.RCVTIMEO, self._recv_timeout_ms)
+        sock.setsockopt(zmq.SNDTIMEO, self._send_timeout_ms)
+        sock.connect(self._endpoint)
+        self._socket = sock
+        self._authenticated = False
+
+    def _reset(self) -> None:
+        """Tear down the current socket. Caller MUST hold self._lock.
+
+        Increments the operator-visible reset counter so an alert
+        rule can fire when a Pod's EA is flaky.
+        """
+        if self._socket is not None:
+            try:
+                self._socket.close(linger=0)
+            except Exception:  # noqa: BLE001
+                pass
+            self._socket = None
+        self._authenticated = False
+        M_WATCHDOG_SOCKET_RESETS.inc()
+
+    def _authenticate(self) -> None:
+        """Run PING with auth_token. Caller MUST hold self._lock AND
+        self._socket must be live."""
+        assert self._socket is not None
+        self._socket.send_string(
+            json.dumps({"command": "PING", "auth_token": self._auth_token})
+        )
+        # Discard reply; if the EA rejects auth it will return an
+        # error JSON which is fine - HEALTH will then also fail and
+        # the consecutive_failures path will trigger an in-pod restart.
+        self._socket.recv()
+        self._authenticated = True
+
+    def poll(self) -> dict:
+        """One HEALTH probe. Returns the parsed reply dict.
+
+        On ANY zmq error / timeout, tears the socket down and raises
+        the underlying exception. The caller's existing
+        consecutive_failures counter handles repeated failures.
+        """
+        with self._lock:
+            try:
+                if self._socket is None:
+                    self._open()
+                if not self._authenticated:
+                    self._authenticate()
+                self._socket.send_string(json.dumps({"command": "HEALTH"}))
+                raw = self._socket.recv()
+                return json.loads(raw.decode("utf-8"))
+            except (zmq.ZMQError, zmq.Again):
+                # REQ state machine is unrecoverable mid-transaction.
+                # Tear down so the next poll opens a fresh socket.
+                self._reset()
+                raise
+            except Exception:
+                # JSON decode / network reset / etc. Same recovery
+                # posture: a fresh socket on next poll.
+                self._reset()
+                raise
+
+    def close(self) -> None:
+        """Idempotent shutdown. Safe to call from signal handlers."""
+        with self._lock:
+            if self._socket is not None:
+                try:
+                    self._socket.close(linger=0)
+                except Exception:  # noqa: BLE001
+                    pass
+                self._socket = None
+            self._authenticated = False
+
+
+# Constructed at first watchdog_loop() entry; module-level so the
+# HTTP server and signal handler can reach it for graceful shutdown.
+PROBE: Optional[ZmqHealthProbe] = None
 
 
 # ----- Helpers ---------------------------------------------------------
@@ -115,6 +296,112 @@ def read_cgroup_usage() -> Optional[int]:
         except (FileNotFoundError, ValueError, OSError):
             continue
     return None
+
+
+def read_cgroup_cpu_stat() -> dict:
+    """Return cgroup CPU stats as a normalised dict.
+
+    Keys (all int):
+        nr_periods       - total CFS periods the cgroup has been
+                           measured over.
+        nr_throttled     - subset of nr_periods in which throttling
+                           was applied.
+        throttled_usec   - cumulative microseconds spent throttled.
+        quota_usec       - cpu.max quota; 0 = unlimited.
+        period_usec      - cpu.max period.
+
+    Returns an empty dict when no cgroup CPU controller is detected
+    (host-mode dev) so callers can no-op gracefully.
+
+    cgroup-v2 layout (/sys/fs/cgroup/cpu.stat is a key:value table):
+        usage_usec ...
+        user_usec ...
+        system_usec ...
+        nr_periods 12345
+        nr_throttled 67
+        throttled_usec 8901
+
+    cgroup-v1 layout (/sys/fs/cgroup/cpu,cpuacct/cpu.stat):
+        nr_periods 12345
+        nr_throttled 67
+        throttled_time 89010000  (note: nanoseconds in v1)
+    """
+    out: dict = {
+        "nr_periods": 0,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "quota_usec": 0,
+        "period_usec": 0,
+    }
+
+    # --- v2 first (most production clusters now run v2 by default) ----
+    try:
+        with open("/sys/fs/cgroup/cpu.stat", "r") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) != 2:
+                    continue
+                key, val = parts
+                try:
+                    v = int(val)
+                except ValueError:
+                    continue
+                if key == "nr_periods":
+                    out["nr_periods"] = v
+                elif key == "nr_throttled":
+                    out["nr_throttled"] = v
+                elif key == "throttled_usec":
+                    out["throttled_usec"] = v
+        try:
+            with open("/sys/fs/cgroup/cpu.max", "r") as fh:
+                # Format: "<quota> <period>" or "max <period>"
+                parts = fh.read().strip().split()
+                if len(parts) == 2:
+                    q, p = parts
+                    out["period_usec"] = int(p)
+                    out["quota_usec"] = 0 if q == "max" else int(q)
+        except (FileNotFoundError, ValueError, OSError):
+            pass
+        if out["nr_periods"] or out["period_usec"]:
+            return out
+    except (FileNotFoundError, OSError):
+        pass
+
+    # --- v1 fallback ---------------------------------------------------
+    try:
+        with open("/sys/fs/cgroup/cpu,cpuacct/cpu.stat", "r") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) != 2:
+                    continue
+                key, val = parts
+                try:
+                    v = int(val)
+                except ValueError:
+                    continue
+                if key == "nr_periods":
+                    out["nr_periods"] = v
+                elif key == "nr_throttled":
+                    out["nr_throttled"] = v
+                elif key == "throttled_time":
+                    # v1 reports throttled_time in NANOSECONDS;
+                    # normalise to microseconds for parity with v2.
+                    out["throttled_usec"] = v // 1000
+        try:
+            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us", "r") as fh:
+                q = int(fh.read().strip())
+                out["quota_usec"] = max(0, q)  # v1 -1 means unlimited
+        except (FileNotFoundError, ValueError, OSError):
+            pass
+        try:
+            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us", "r") as fh:
+                out["period_usec"] = int(fh.read().strip())
+        except (FileNotFoundError, ValueError, OSError):
+            pass
+    except (FileNotFoundError, OSError):
+        pass
+
+    return out
 
 
 def find_mt_processes() -> list[psutil.Process]:
@@ -151,28 +438,23 @@ def terminate_mt_processes(reason: str) -> int:
 
 
 # ----- ZMQ probing -----------------------------------------------------
-def zmq_health_probe(timeout_ms: int = 3000) -> dict:
-    """Send a single HEALTH request to the EA. Returns the parsed reply.
-    Caller is responsible for catching exceptions.
-    """
-    ctx = zmq.Context.instance()
-    sock = ctx.socket(zmq.REQ)
-    sock.setsockopt(zmq.LINGER, 0)
-    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-    sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
-    try:
-        sock.connect(ZMQ_ENDPOINT)
-        # Authenticate first - the EA refuses HEALTH on unauth'd sockets.
-        sock.send_string(json.dumps({"command": "PING", "auth_token": AUTH_TOKEN}))
-        sock.recv()  # discard PING reply
-        sock.send_string(json.dumps({"command": "HEALTH"}))
-        raw = sock.recv()
-        return json.loads(raw.decode("utf-8"))
-    finally:
-        try:
-            sock.close(linger=0)
-        except Exception:  # noqa: BLE001
-            pass
+# The free-function form of zmq_health_probe() has been replaced by
+# the ZmqHealthProbe class above. The class holds a long-lived REQ
+# socket and reuses it across polls; the per-poll cost drops from
+# 'PING+HEALTH = 2 round trips' to 'HEALTH = 1 round trip' on the
+# happy path. On any ZMQError the class tears down + recreates the
+# socket on the next call (REQ state machine semantics).
+#
+# This wrapper preserves the existing call shape for backwards
+# compatibility within this module (watchdog_loop calls it).
+def zmq_health_probe() -> dict:
+    global PROBE
+    if PROBE is None:
+        PROBE = ZmqHealthProbe(
+            endpoint=ZMQ_ENDPOINT,
+            auth_token=AUTH_TOKEN,
+        )
+    return PROBE.poll()
 
 
 # ----- Watchdog loop ---------------------------------------------------
@@ -189,6 +471,102 @@ def record_process_metrics() -> tuple[int, float]:
     M_MT5_RSS.set(rss_total)
     M_MT5_CPU.set(cpu_total)
     return rss_total, cpu_total
+
+
+def maybe_enforce_cpu_soft_cap() -> bool:
+    """Detect sustained CFS throttling and force an in-pod MT restart.
+
+    Computes the fraction of CFS periods in the last poll window
+    that were throttled. Trips when the fraction has been above
+    CPU_THROTTLE_SOFT_CAP_FRACTION for
+    CPU_THROTTLE_CONSECUTIVE_POLLS consecutive cycles.
+
+    Returns True when the soft-cap fires (caller skips the EA HEALTH
+    poll for one cycle to let entrypoint.sh respawn MT).
+
+    Audit ref: CHECKLIST Section 1 'Indicator recalculation spikes
+    do not freeze system'.
+    """
+    global _last_cpu_nr_throttled, _last_cpu_nr_periods
+    global _last_cpu_throttled_usec, _consecutive_cpu_throttle_polls
+
+    stat = read_cgroup_cpu_stat()
+    if not stat["nr_periods"] and not stat["period_usec"]:
+        # No cgroup CPU controller observable (host-mode dev). No-op.
+        return False
+
+    # Expose the gauges + cumulative counters.
+    M_CGROUP_CPU_MAX_QUOTA.set(stat["quota_usec"])
+    M_CGROUP_CPU_MAX_PERIOD.set(stat["period_usec"])
+    # Counter delta (counters only advance; use inc() with delta).
+    if stat["nr_periods"] >= _last_cpu_nr_periods:
+        M_CGROUP_CPU_NR_PERIODS.inc(stat["nr_periods"] - _last_cpu_nr_periods)
+    else:
+        # cgroup reset (rare; cgroup recreated under us). Treat as fresh.
+        M_CGROUP_CPU_NR_PERIODS.inc(stat["nr_periods"])
+    if stat["nr_throttled"] >= _last_cpu_nr_throttled:
+        M_CGROUP_CPU_THROTTLED_PERIODS.inc(stat["nr_throttled"] - _last_cpu_nr_throttled)
+    else:
+        M_CGROUP_CPU_THROTTLED_PERIODS.inc(stat["nr_throttled"])
+    if stat["throttled_usec"] >= _last_cpu_throttled_usec:
+        M_CGROUP_CPU_THROTTLED_USEC.inc(stat["throttled_usec"] - _last_cpu_throttled_usec)
+    else:
+        M_CGROUP_CPU_THROTTLED_USEC.inc(stat["throttled_usec"])
+
+    # Compute the throttling fraction over the last poll interval.
+    d_throttled = stat["nr_throttled"] - _last_cpu_nr_throttled
+    d_periods = stat["nr_periods"] - _last_cpu_nr_periods
+
+    # First poll baseline: just record state and exit without trip.
+    if _last_cpu_nr_periods == 0 and _last_cpu_nr_throttled == 0:
+        _last_cpu_nr_throttled = stat["nr_throttled"]
+        _last_cpu_nr_periods = stat["nr_periods"]
+        _last_cpu_throttled_usec = stat["throttled_usec"]
+        return False
+
+    _last_cpu_nr_throttled = stat["nr_throttled"]
+    _last_cpu_nr_periods = stat["nr_periods"]
+    _last_cpu_throttled_usec = stat["throttled_usec"]
+
+    if d_periods <= 0:
+        # No CFS periods elapsed during this window (cgroup is
+        # unlimited or the period > poll_interval). Reset streak.
+        _consecutive_cpu_throttle_polls = 0
+        return False
+
+    fraction = d_throttled / d_periods
+    if fraction >= CPU_THROTTLE_SOFT_CAP_FRACTION:
+        _consecutive_cpu_throttle_polls += 1
+        log.warning(
+            "cpu_throttle_observed: fraction=%.2f streak=%d/%d periods=%d throttled=%d",
+            fraction,
+            _consecutive_cpu_throttle_polls,
+            CPU_THROTTLE_CONSECUTIVE_POLLS,
+            d_periods,
+            d_throttled,
+        )
+    else:
+        _consecutive_cpu_throttle_polls = 0
+
+    if _consecutive_cpu_throttle_polls >= CPU_THROTTLE_CONSECUTIVE_POLLS:
+        log.error(
+            "CPU soft-cap tripped: fraction=%.2f >= %.2f for %d consecutive polls",
+            fraction,
+            CPU_THROTTLE_SOFT_CAP_FRACTION,
+            _consecutive_cpu_throttle_polls,
+        )
+        M_CPU_SOFT_CAP_TRIPS.inc()
+        terminate_mt_processes(
+            f"CPU soft-cap {fraction:.2f} >= {CPU_THROTTLE_SOFT_CAP_FRACTION:.2f} "
+            f"for {_consecutive_cpu_throttle_polls} consecutive polls"
+        )
+        # Reset the streak so the next trip needs a fresh sustained
+        # window AFTER MT respawns. Without this, a slow MT-startup
+        # path would trip the cap again before the new process has
+        # had a chance to settle.
+        _consecutive_cpu_throttle_polls = 0
+        return True
+    return False
 
 
 def maybe_enforce_memory_soft_cap() -> bool:
@@ -224,6 +602,8 @@ def watchdog_loop() -> None:
         try:
             record_process_metrics()
             tripped = maybe_enforce_memory_soft_cap()
+            if not tripped:
+                tripped = maybe_enforce_cpu_soft_cap()
             if tripped:
                 # Give entrypoint.sh time to respawn before next probe
                 time.sleep(POLL_INTERVAL)
@@ -338,6 +718,14 @@ def main() -> int:
 
     def _term(signum, _frame):
         log.info("watchdog received signal %s, exiting", signum)
+        # Close the long-lived REQ socket so the kernel reclaims the
+        # fd immediately rather than waiting on linger=0 in __del__.
+        global PROBE
+        if PROBE is not None:
+            try:
+                PROBE.close()
+            except Exception:  # noqa: BLE001
+                pass
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, _term)

@@ -23,7 +23,6 @@ spec:
       port: {{ .Values.service.watchdogPort | default 9100 }}
       targetPort: watchdog
       protocol: TCP
-{{- end }}
       appProtocol: http
 ---
 # Headless variant used by the StatefulSet for stable pod-DNS.
@@ -49,3 +48,4 @@ spec:
       port: {{ .Values.service.watchdogPort | default 9100 }}
       targetPort: watchdog
       protocol: TCP
+{{- end }}

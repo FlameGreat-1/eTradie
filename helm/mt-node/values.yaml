@@ -155,6 +155,16 @@ sidecar:
       # in-pod restart BEFORE the kernel OOM-killer kicks in (which
       # corrupts journal writes mid-trade).
       memorySoftCapFraction: 0.8
+      # CPU soft-cap (CHECKLIST Section 1 'Indicator recalculation
+      # spikes do not freeze system'). When more than
+      # cpuThrottleSoftCapFraction of CFS periods are throttled for
+      # cpuThrottleConsecutivePolls consecutive poll windows, the
+      # watchdog forces an in-pod MT restart. Default tuning is
+      # 0.5 fraction over 60s (6 polls @ 10s) - transient
+      # indicator-recalc bursts do not trip; sustained saturation
+      # does. See docker/mt-node/watchdog.py maybe_enforce_cpu_soft_cap.
+      cpuThrottleSoftCapFraction: 0.5
+      cpuThrottleConsecutivePolls: 6
       # When the watchdog itself misses N consecutive checks (e.g. it's
       # wedged), K8s livenessProbe will fail and the kubelet will kill
       # the whole Pod. This is the LAST resort.
@@ -286,11 +296,34 @@ networkPolicy:
           port: 53
         - protocol: TCP
           port: 53
-    # Broker servers are reached over the public internet. MetaQuotes
-    # uses TCP 443 by default; some brokers expose alternative ports
-    # (443/1950/1951 are common). Allowlist the union here.
+    # Broker servers are reached over the PUBLIC INTERNET. MetaQuotes
+    # uses TCP 443 by default; some brokers expose 1950/1951 too.
+    # Use ipBlock with explicit RFC1918 / link-local / multicast /
+    # reserved exclusions so a compromised mt-node cannot pivot to
+    # in-cluster services (other tenants' mt-nodes, engine, Loki) on
+    # those ports, AND cannot reach the cloud metadata IMDS endpoint
+    # at 169.254.169.254 (the OWASP cloud-pivot vector).
+    #
+    # The except list covers every IANA-reserved private range so the
+    # rule remains correct on any cloud (AWS / GCP / OCI / Contabo /
+    # bare metal). Brokers never live in these ranges.
+    #
+    # Audit ref: CHECKLIST Section 9 + CIS K8s Benchmark v1.8 5.3.2.
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+              - 192.0.0.0/24
+              - 192.0.2.0/24
+              - 198.51.100.0/24
+              - 203.0.113.0/24
+              - 224.0.0.0/4
+              - 240.0.0.0/4
       ports:
         - protocol: TCP
           port: 443
