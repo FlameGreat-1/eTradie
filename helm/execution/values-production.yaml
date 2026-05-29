@@ -22,6 +22,14 @@ config:
     brokerMode: "mt5"
     logLevel: "INFO"
     logJson: "true"
+    # Section 3 (CHECKLIST): broker retry-with-backoff. Production
+    # mirrors the chart defaults; an operator override must be
+    # backed by an SLO measurement.
+    brokerRetryAttempts: "3"
+    brokerRetryBaseMs: "200"
+    brokerRetryCapMs: "2000"
+    maxOrderLatencyMs: "5000"
+    orderIdempotencyTtlSecs: "86400"
 
 externalSecrets:
   enabled: true
