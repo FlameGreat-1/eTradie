@@ -273,15 +273,70 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
-build-mt-node: ## Build the MetaTrader headless Docker image
+build-mt-node: ## Build the MetaTrader headless Docker image (requires MT5_INSTALLER_SHA256 + MT4_INSTALLER_SHA256 env vars in prod; pass 'skip' for dev)
 	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
-	docker build -t ghcr.io/flamegreat-1/etradie-mt-node:latest docker/mt-node/
+	docker build \
+		--build-arg MT5_INSTALLER_SHA256=$${MT5_INSTALLER_SHA256:-skip} \
+		--build-arg MT4_INSTALLER_SHA256=$${MT4_INSTALLER_SHA256:-skip} \
+		-t ghcr.io/flamegreat-1/etradie-mt-node:$${MT_NODE_TAG:-0.1.0} \
+		docker/mt-node/
 	echo -e "$(GREEN)✓ etradie-mt-node built$(NC)"
 
 push-mt-node: build-mt-node ## Push the MetaTrader Docker image to GHCR
 	echo -e "$(BLUE)Pushing etradie-mt-node to GHCR...$(NC)"
-	docker push ghcr.io/flamegreat-1/etradie-mt-node:latest
+	docker push ghcr.io/flamegreat-1/etradie-mt-node:$${MT_NODE_TAG:-0.1.0}
 	echo -e "$(GREEN)✓ etradie-mt-node pushed$(NC)"
+
+mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + platform render paths)
+	echo -e "$(BLUE)Lint mt-node chart (per-tenant render path)...$(NC)"
+	helm lint helm/mt-node \
+		--set mtConnection.connectionId=test-conn-0000 \
+		--set mtConnection.userId=test-user-0000 \
+		--set mtConnection.platform=mt5 \
+		--set mtConnection.server=Exness-MT5Trial9 \
+		--set mtConnection.sealedSecretName=test-conn-creds \
+		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+	echo -e "$(BLUE)Lint mt-node chart (platform-only render path)...$(NC)"
+	helm lint helm/mt-node \
+		--set mtConnection.enabled=false \
+		--set mtConnection.connectionId=platform \
+		--set mtConnection.userId=platform \
+		--set mtConnection.platform=mt5 \
+		--set mtConnection.server=platform \
+		--set mtConnection.sealedSecretName=platform \
+		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+	echo -e "$(GREEN)✓ mt-node chart lint passed$(NC)"
+
+mt-node-deploy-dry-run: ## helm template the chart against both render paths and print to stdout
+	echo -e "$(BLUE)Render mt-node (per-tenant)...$(NC)"
+	helm template etradie-mt-test-0000 helm/mt-node \
+		--set mtConnection.connectionId=test-conn-0000 \
+		--set mtConnection.userId=test-user-0000 \
+		--set mtConnection.platform=mt5 \
+		--set mtConnection.server=Exness-MT5Trial9 \
+		--set mtConnection.sealedSecretName=test-conn-creds \
+		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+	echo -e "$(BLUE)Render mt-node (platform-only)...$(NC)"
+	helm template etradie-mt-node-platform helm/mt-node \
+		--set mtConnection.enabled=false \
+		--set mtConnection.connectionId=platform \
+		--set mtConnection.userId=platform \
+		--set mtConnection.platform=mt5 \
+		--set mtConnection.server=platform \
+		--set mtConnection.sealedSecretName=platform \
+		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+
+mt-node-soak: ## 30-min mt-node soak test (CI default). Set SOAK_DURATION_SECONDS to override.
+	echo -e "$(BLUE)mt-node soak test ($${SOAK_DURATION_SECONDS:-1800}s)...$(NC)"
+	SOAK_DURATION_SECONDS=$${SOAK_DURATION_SECONDS:-1800} \
+		docker compose exec -T engine python -m pytest tests/chaos/test_mt_node_soak.py -v --tb=short
+
+mt-node-soak-nightly: ## 24-h mt-node soak test
+	SOAK_DURATION_SECONDS=86400 $(MAKE) mt-node-soak
+
+mt-node-chaos: ## Run every test in tests/chaos/ (provisioner contract + soak + OOM + broker disconnect)
+	echo -e "$(BLUE)mt-node chaos suite...$(NC)"
+	docker compose exec -T engine python -m pytest tests/chaos/ -v --tb=short -m chaos
 
 ##@ Go Local Builds
 build-gateway: ## Build Gateway binary locally
