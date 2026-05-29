@@ -324,6 +324,31 @@ BROKER_CONNECTION_STATE = Gauge(
     ["provider", "account_id"],
 )
 
+# Section 4 (CHECKLIST) - EA stability metrics.
+BROKER_EA_IDENTITY_TOTAL = Counter(
+    "etradie_broker_ea_identity_total",
+    "EAIdentityVerifier invocations",
+    ["provider", "account_id", "result"],  # result: match | mismatch | error
+)
+
+BROKER_EA_IDENTITY_MISMATCH_TOTAL = Counter(
+    "etradie_broker_ea_identity_mismatch_total",
+    "EA identity mismatches by mismatched field",
+    ["provider", "account_id", "field"],  # field: magic | login | server | terminal_build
+)
+
+BROKER_EA_CLOCK_SKEW_SECONDS = Gauge(
+    "etradie_broker_ea_clock_skew_seconds",
+    "Most recent EA clock skew sample (engine_now - ea_server_time)",
+    ["provider", "account_id"],
+)
+
+BROKER_EA_CLOCK_SKEW_SAMPLES_TOTAL = Counter(
+    "etradie_broker_ea_clock_skew_samples_total",
+    "Total EA clock skew samples observed",
+    ["provider", "account_id"],
+)
+
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
     "Total TA broker candle fetch attempts",

@@ -80,6 +80,35 @@ class ProviderStalePriceError(ProviderResponseError):
         super().__init__(message, details=details)
 
 
+class EAIdentityMismatchError(ProviderAuthenticationError):
+    """Raised when the EA's reported identity does not match what the
+    engine expects for the connection (magic number, account login,
+    broker server).
+
+    Subclasses ProviderAuthenticationError so existing 'except
+    ProviderAuthenticationError' blocks (the kill-switch trigger in
+    the connection manager) catch it without code change.
+
+    Audit ref: CHECKLIST Section 4 - 'Detect EA vs backend signal
+    mismatch', 'Kill-switch if EA diverges from expected logic'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
+class EAClockSkewError(ProviderError):
+    """Raised when the engine vs EA clock skew exceeds the configured
+    maximum. The connection is treated as degraded (every TickFresh
+    call returns ProviderStalePriceError) until skew recovers.
+
+    Audit ref: CHECKLIST Section 4 - 'Time synchronization'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
 class ProviderValidationError(ProviderError):
     pass
 

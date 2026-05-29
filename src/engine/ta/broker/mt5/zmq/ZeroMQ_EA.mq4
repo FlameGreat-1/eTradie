@@ -1,4 +1,11 @@
 //+------------------------------------------------------------------+
+//| Section 4 (CHECKLIST) parity with the MT5 EA: the MT4 EA carries  |
+//| the same duplicate-instance guard, EA_IDENTITY and EA_CLOCK       |
+//| commands, and command idempotency cache. The MT4 EA source is     |
+//| kept in sync with the MT5 source in this repo; a separate         |
+//| compile-time patch wires the MT4-specific account/symbol/terminal |
+//| accessors. Section 4 metric exposure is identical.                |
+//+------------------------------------------------------------------+
 //| ZeroMQ_EA.mq4 - eTradie ZeroMQ Bridge Expert Advisor             |
 //| MT4 VERSION                                                      |
 //+------------------------------------------------------------------+

@@ -31,10 +31,17 @@
 //|   2.00 - Production hardening: auth, validation, logging         |
 //+------------------------------------------------------------------+
 #property copyright "eTradie"
-#property version   "2.00"
+#property version   "2.10"
 
 #include <Zmq/Zmq.mqh>
 #include <JAson.mqh>
+
+//+------------------------------------------------------------------+
+//| eTradie EA build version. Bump this whenever ANY of the          |
+//| Section 4 (CHECKLIST) contracts change so the engine-side        |
+//| EAIdentityVerifier can reject older builds via minimum_ea_version.|
+//+------------------------------------------------------------------+
+#define ETRADIE_EA_VERSION "2.10.0"
 
 //+------------------------------------------------------------------+
 //| Input Parameters                                                 |
@@ -71,6 +78,30 @@ bool    g_authenticated = false;
 datetime g_start_time = 0;
 long    g_command_count = 0;
 string  g_last_error = "";
+string  g_instance_guard_var = ""; // MT5 Global Variable name reserved at OnInit
+
+//+------------------------------------------------------------------+
+//| Section 4 (CHECKLIST): command-level idempotency cache.          |
+//|                                                                  |
+//| A trading command carrying an 'idempotency_key' (or 'comment')   |
+//| field is cached for EA_IDEMPOTENCY_TTL_SECS. A second command    |
+//| with the same key within the TTL returns the cached reply WITHOUT|
+//| re-submitting to the broker. Bounded LRU of EA_IDEMPOTENCY_LIMIT |
+//| entries.                                                         |
+//|                                                                  |
+//| Only ORDER_SEND / ORDER_CANCEL / POSITION_MODIFY /               |
+//| POSITION_CLOSE / POSITION_CLOSE_PARTIAL participate. Read-only   |
+//| commands (CANDLES, TICK_PRICE, ACCOUNT_INFO, etc.) are NOT       |
+//| cached because their replies are time-sensitive.                 |
+//+------------------------------------------------------------------+
+#define EA_IDEMPOTENCY_LIMIT     256
+#define EA_IDEMPOTENCY_TTL_SECS  120
+
+string   g_idem_keys[EA_IDEMPOTENCY_LIMIT];
+string   g_idem_replies[EA_IDEMPOTENCY_LIMIT];
+datetime g_idem_expires[EA_IDEMPOTENCY_LIMIT];
+int      g_idem_count = 0;
+int      g_idem_next = 0; // round-robin slot for LRU eviction
 
 //+------------------------------------------------------------------+
 //| Logging Levels                                                   |
@@ -91,6 +122,27 @@ int OnInit()
    g_start_time = TimeCurrent();
    string endpoint = "tcp://*:" + IntegerToString(ZMQ_PORT);
 
+   //--- Section 4 (CHECKLIST): duplicate-instance guard ---
+   // A second attach of the EA (second chart or second compile cycle
+   // on the same chart) would silently fail at g_socket.bind() with
+   // EADDRINUSE. We surface this as a clear INIT_FAILED with a log
+   // entry and Alert(), keyed by a global variable scoped to the
+   // ZMQ_PORT so two EAs on DIFFERENT ports remain allowed.
+   g_instance_guard_var = "etradie:zmq_ea:" + IntegerToString(ZMQ_PORT);
+   if(GlobalVariableCheck(g_instance_guard_var))
+   {
+      // Another instance claims this port. Reject this OnInit to
+      // prevent the second socket attempt that would leak state.
+      double held_since = GlobalVariableGet(g_instance_guard_var);
+      Log(LOG_ERROR, "Duplicate EA instance on port " + IntegerToString(ZMQ_PORT) +
+          " - prior instance started at unix=" + DoubleToString(held_since, 0));
+      Alert("ZMQ_EA: Duplicate instance on port " + IntegerToString(ZMQ_PORT) +
+            "; remove the other EA before attaching this one.");
+      g_instance_guard_var = ""; // do NOT clear the held var in OnDeinit
+      return INIT_FAILED;
+   }
+   GlobalVariableSet(g_instance_guard_var, (double)TimeCurrent());
+
    // Configure socket timeouts
    g_socket.setReceiveTimeout(RECV_TIMEOUT_MS);
    g_socket.setSendTimeout(SEND_TIMEOUT_MS);
@@ -99,6 +151,10 @@ int OnInit()
    // Bind to endpoint
    if(!g_socket.bind(endpoint))
    {
+      // Surrender the guard so a subsequent retry can succeed.
+      if(g_instance_guard_var != "")
+         GlobalVariableDel(g_instance_guard_var);
+      g_instance_guard_var = "";
       Log(LOG_ERROR, "FATAL: Failed to bind to " + endpoint);
       Alert("ZMQ_EA: Failed to bind to port " + IntegerToString(ZMQ_PORT));
       return INIT_FAILED;
@@ -138,6 +194,14 @@ void OnDeinit(const int reason)
       Log(LOG_INFO, "Total commands processed: " + IntegerToString(g_command_count));
       Log(LOG_INFO, "Uptime: " + IntegerToString((long)(TimeCurrent() - g_start_time)) + " seconds");
    }
+
+   // Section 4 (CHECKLIST): release the duplicate-instance guard so
+   // a normal recompile / re-attach cycle is not blocked.
+   if(g_instance_guard_var != "")
+   {
+      GlobalVariableDel(g_instance_guard_var);
+      g_instance_guard_var = "";
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -174,9 +238,40 @@ void OnTimer()
    // Route command to handler
    string response = "";
    
+   //--- Section 4 (CHECKLIST): command idempotency cache ---
+   // For trading commands carrying an 'idempotency_key' (or falling
+   // back to 'comment'), serve a cached reply when the same key was
+   // seen within EA_IDEMPOTENCY_TTL_SECS. Read-only commands skip
+   // the cache.
+   bool is_trading_cmd = (command == "ORDER_SEND" ||
+                          command == "ORDER_CANCEL" ||
+                          command == "POSITION_MODIFY" ||
+                          command == "POSITION_CLOSE" ||
+                          command == "POSITION_CLOSE_PARTIAL");
+   string idem_key = "";
+   if(is_trading_cmd)
+   {
+      idem_key = cmd["idempotency_key"].ToStr();
+      if(StringLen(idem_key) == 0)
+         idem_key = cmd["comment"].ToStr();
+      if(StringLen(idem_key) > 0)
+      {
+         string cached = IdempotencyLookup(idem_key);
+         if(StringLen(cached) > 0)
+         {
+            Log(LOG_INFO, "Idempotent reply for key=" + idem_key + " cmd=" + command);
+            ZmqMsg reply_cached(cached);
+            g_socket.send(reply_cached);
+            return;
+         }
+      }
+   }
+
    if(command == "PING")                         response = HandlePing(cmd);
    else if(command == "HEALTH")                  response = HandleHealth();
    else if(!g_authenticated)                     response = "{\"error\":\"Not authenticated. Send PING with valid auth_token first.\"}";
+   else if(command == "EA_IDENTITY")             response = HandleEAIdentity();
+   else if(command == "EA_CLOCK")                response = HandleEAClock();
    else if(command == "CANDLES")                 response = HandleCandles(cmd);
    else if(command == "CANDLE_LATEST")           response = HandleCandleLatest(cmd);
    else if(command == "SYMBOL_INFO")             response = HandleSymbolInfo(cmd);
@@ -193,6 +288,12 @@ void OnTimer()
    else if(command == "GET_ALL_SYMBOLS")          response = HandleGetAllSymbols();
    else if(command == "HISTORY")                 response = HandleHistory(cmd);
    else                                          response = "{\"error\":\"Unknown command: " + command + "\"}";
+
+   // Section 4: cache successful trading replies. We intentionally
+   // cache failure replies too - a duplicate retry should see the
+   // same failure rather than re-submit and risk a different outcome.
+   if(is_trading_cmd && StringLen(idem_key) > 0)
+      IdempotencyStore(idem_key, response);
 
    // Send response
    ZmqMsg reply(response);
@@ -274,6 +375,93 @@ string HandlePing(CJAVal &cmd)
    j["magic_number"] = MAGIC_NUMBER;
    j["server_time"] = (long)TimeCurrent();
    return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| EA_IDENTITY - returns the EA's runtime identity for the engine's |
+//| EAIdentityVerifier (Section 4 of CHECKLIST).                     |
+//+------------------------------------------------------------------+
+string HandleEAIdentity()
+{
+   CJAVal j;
+   j["magic_number"]     = (long)MAGIC_NUMBER;
+   j["account_login"]    = IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+   j["account_server"]   = AccountInfoString(ACCOUNT_SERVER);
+   j["account_company"]  = AccountInfoString(ACCOUNT_COMPANY);
+   j["account_name"]     = AccountInfoString(ACCOUNT_NAME);
+   j["terminal_build"]   = (long)TerminalInfoInteger(TERMINAL_BUILD);
+   j["terminal_company"] = TerminalInfoString(TERMINAL_COMPANY);
+   j["ea_version"]       = ETRADIE_EA_VERSION;
+   j["zmq_port"]         = (long)ZMQ_PORT;
+   j["started_at"]       = (long)g_start_time;
+   Log(LOG_DEBUG, "EA_IDENTITY served");
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| EA_CLOCK - returns broker server time + EA host clock + latest   |
+//| tick time so the engine can compute and compensate for skew.     |
+//| Section 4 of CHECKLIST.                                          |
+//+------------------------------------------------------------------+
+string HandleEAClock()
+{
+   CJAVal j;
+   j["server_time"]   = (long)TimeCurrent();
+   j["ea_local_time"] = (long)TimeLocal();
+   long tick_time = 0;
+   MqlTick tick;
+   if(SymbolInfoTick(_Symbol, tick))
+      tick_time = (long)tick.time;
+   j["tick_time"] = tick_time;
+   Log(LOG_DEBUG, "EA_CLOCK served");
+   return j.Serialize();
+}
+
+//+------------------------------------------------------------------+
+//| Idempotency cache helpers - Section 4 of CHECKLIST.              |
+//+------------------------------------------------------------------+
+string IdempotencyLookup(string key)
+{
+   datetime now = TimeCurrent();
+   for(int i = 0; i < EA_IDEMPOTENCY_LIMIT; i++)
+   {
+      if(g_idem_keys[i] == key)
+      {
+         if(g_idem_expires[i] >= now)
+            return g_idem_replies[i];
+         // expired - clear the slot so future stores can reuse it
+         g_idem_keys[i] = "";
+         g_idem_replies[i] = "";
+         g_idem_expires[i] = 0;
+         return "";
+      }
+   }
+   return "";
+}
+
+void IdempotencyStore(string key, string reply)
+{
+   datetime now = TimeCurrent();
+   // Find an empty / expired slot first.
+   int slot = -1;
+   for(int i = 0; i < EA_IDEMPOTENCY_LIMIT; i++)
+   {
+      if(StringLen(g_idem_keys[i]) == 0 || g_idem_expires[i] < now)
+      {
+         slot = i;
+         break;
+      }
+   }
+   if(slot < 0)
+   {
+      // No free slot - evict round-robin (LRU approximation).
+      slot = g_idem_next;
+      g_idem_next = (g_idem_next + 1) % EA_IDEMPOTENCY_LIMIT;
+   }
+   g_idem_keys[slot] = key;
+   g_idem_replies[slot] = reply;
+   g_idem_expires[slot] = now + EA_IDEMPOTENCY_TTL_SECS;
+   if(g_idem_count < EA_IDEMPOTENCY_LIMIT) g_idem_count++;
 }
 
 //+------------------------------------------------------------------+
