@@ -16,6 +16,7 @@ from engine.ta.broker.connectivity.heartbeat import (
     HeartbeatResult,
     HeartbeatState,
 )
+from engine.ta.broker.connectivity.outbound_limiter import OutboundRateLimiter
 from engine.ta.broker.connectivity.reconnect import ReconnectPolicy
 from engine.ta.broker.connectivity.symbol_resolver import SymbolResolver
 
@@ -24,6 +25,7 @@ __all__ = [
     "HeartbeatProbeFn",
     "HeartbeatResult",
     "HeartbeatState",
+    "OutboundRateLimiter",
     "ReconnectPolicy",
     "SymbolResolver",
     "TickFreshnessGuard",

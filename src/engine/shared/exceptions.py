@@ -97,6 +97,21 @@ class EAIdentityMismatchError(ProviderAuthenticationError):
         super().__init__(message, details=details)
 
 
+class OutboundRateLimitExceededError(ProviderError):
+    """Raised when the per-connection outbound rate limiter denies a
+    request because the token bucket is empty and the caller-supplied
+    deadline elapsed without a refill.
+
+    Subclasses ProviderError so existing 'except ProviderError' blocks
+    in the routers return HTTP 429 with a 'Retry-After' header.
+
+    Audit ref: CHECKLIST Section 5 - 'Rate limits prevent EA flooding'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
 class EAClockSkewError(ProviderError):
     """Raised when the engine vs EA clock skew exceeds the configured
     maximum. The connection is treated as degraded (every TickFresh

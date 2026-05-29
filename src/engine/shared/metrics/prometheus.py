@@ -349,6 +349,44 @@ BROKER_EA_CLOCK_SKEW_SAMPLES_TOTAL = Counter(
     ["provider", "account_id"],
 )
 
+# Section 5 (CHECKLIST) - scaling + load control metrics.
+BROKER_OUTBOUND_LIMIT_TOTAL = Counter(
+    "etradie_broker_outbound_limit_total",
+    "Outbound rate-limiter decisions",
+    ["provider", "account_id", "result"],  # result: allowed | throttled | exhausted
+)
+
+BROKER_CLIENT_POOL_SIZE = Gauge(
+    "etradie_broker_client_pool_size",
+    "Number of broker clients currently held in the process-local pool",
+    ["provider"],
+)
+
+BROKER_CLIENT_POOL_EVICTIONS_TOTAL = Counter(
+    "etradie_broker_client_pool_evictions_total",
+    "Broker client pool evictions by reason",
+    ["reason"],  # reason: idle | error | close | explicit
+)
+
+BROKER_INFLIGHT_GATE_WAIT_SECONDS = Histogram(
+    "etradie_broker_inflight_gate_wait_seconds",
+    "Wait time at the per-client in-flight gate (Section 5 backpressure)",
+    ["provider"],
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
+BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL = Counter(
+    "etradie_broker_inflight_gate_rejections_total",
+    "Requests rejected at the in-flight gate (deadline elapsed)",
+    ["provider", "account_id"],
+)
+
+BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL = Counter(
+    "etradie_broker_request_deadline_exceeded_total",
+    "Inbound HTTP request deadline expired before broker call finished",
+    ["provider", "account_id"],
+)
+
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
     "Total TA broker candle fetch attempts",
