@@ -54,6 +54,13 @@ spec:
       kind: ClusterSecretStore
     - group: ""
       kind: Namespace
+    # Section 6 (CHECKLIST): the observability-logs chart deploys
+    # Promtail with a narrow ClusterRole (pods/nodes get,list,watch)
+    # for kubernetes_sd_configs service discovery.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
 
   # Namespace-scoped resources the Applications are allowed to manage.
   namespaceResourceWhitelist:
@@ -75,6 +82,9 @@ spec:
       kind: Deployment
     - group: apps
       kind: StatefulSet
+    # Section 6 (CHECKLIST): Promtail DaemonSet for log aggregation.
+    - group: apps
+      kind: DaemonSet
     - group: autoscaling
       kind: HorizontalPodAutoscaler
     - group: policy
