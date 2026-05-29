@@ -14,6 +14,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
+	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
 // IdentityProvider yields a per-user identity context for broker
@@ -29,13 +30,24 @@ type IdentityProvider interface {
 // Reconciler periodically compares the broker's view of open
 // positions + pending orders against the engine's view, per-user,
 // and surfaces drift to Prometheus + the audit log.
-// Section 3 of CHECKLIST.
+//
+// Section 3 of CHECKLIST: drift classification (broker_only / mismatch /
+// engine_only / broker_only_pending).
+//
+// Section 7 of CHECKLIST: per-user position snapshots persisted at the
+// end of every cycle. The snapshot store carries the engine's
+// post-reconcile view across restarts; the ghost-position rule reads
+// the latest snapshot and removes positions the broker no longer
+// reports after a min-age threshold.
 type Reconciler struct {
-	broker   broker.Port
-	state    *Manager
-	identity IdentityProvider
-	interval time.Duration
-	log      zerolog.Logger
+	broker      broker.Port
+	state       *Manager
+	identity    IdentityProvider
+	interval    time.Duration
+	log         zerolog.Logger
+	snapshots   *store.PositionSnapshotStore
+	ghostMinAge time.Duration
+	snapEnabled bool
 
 	mu      sync.Mutex
 	stopped bool
@@ -47,10 +59,16 @@ var (
 		Help: "Reconciliation cycles by outcome",
 	}, []string{"outcome"}) // outcome: ok | broker_error | identity_error
 
+	// reconcileDrift labels:
+	//   broker_only_position | engine_only_position | mismatch |
+	//   broker_only_pending  | ghost_position
+	// ghost_position is the Section 7 addition; it fires when a
+	// position present in the latest snapshot is NOT in the current
+	// broker reply AND the snapshot is older than ghostMinAge.
 	reconcileDrift = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_reconcile_drift_total",
 		Help: "Drift observations by class",
-	}, []string{"class"}) // class: broker_only_position | engine_only_position | mismatch | broker_only_pending
+	}, []string{"class"})
 
 	reconcileDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "etradie_execution_reconcile_duration_seconds",
@@ -59,24 +77,45 @@ var (
 	})
 )
 
-// NewReconciler constructs a reconciler. interval <= 0 falls back to 60s.
+// NewReconciler constructs a reconciler.
+//
+// interval <= 0 falls back to 60s.
+// ghostMinAge <= 0 falls back to 5m.
 // identity is REQUIRED to drive per-user broker calls; a nil provider
 // disables the reconciler (it logs once and Loop returns immediately).
+//
+// snapshots may be nil OR snapEnabled may be false, in which case the
+// reconciler runs exactly as before with no snapshot writes and no
+// ghost detection (legacy Section-3 behaviour). When both are set the
+// reconciler writes one snapshot per per-user cycle AFTER the
+// adopt/replace/mismatch classification, AND it runs ghost detection
+// before the write so the new snapshot reflects the cleaned state.
+//
+// Audit ref: CHECKLIST Section 7.
 func NewReconciler(
 	bp broker.Port,
 	st *Manager,
 	identity IdentityProvider,
 	interval time.Duration,
+	snapshots *store.PositionSnapshotStore,
+	ghostMinAge time.Duration,
+	snapEnabled bool,
 ) *Reconciler {
 	if interval <= 0 {
 		interval = 60 * time.Second
 	}
+	if ghostMinAge <= 0 {
+		ghostMinAge = 5 * time.Minute
+	}
 	return &Reconciler{
-		broker:   bp,
-		state:    st,
-		identity: identity,
-		interval: interval,
-		log:      observability.Logger("reconciler"),
+		broker:      bp,
+		state:       st,
+		identity:    identity,
+		interval:    interval,
+		log:         observability.Logger("reconciler"),
+		snapshots:   snapshots,
+		ghostMinAge: ghostMinAge,
+		snapEnabled: snapEnabled,
 	}
 }
 
@@ -147,12 +186,89 @@ func (r *Reconciler) runOnceForUser(parent context.Context, userID string) {
 	r.reconcilePositions(userID, brokerPositions)
 	r.reconcilePending(userID, brokerPending)
 
+	// Section 7 (CHECKLIST): ghost-position detection + snapshot write.
+	//
+	// Ghost detection runs FIRST so its removals are reflected in the
+	// snapshot we are about to write. Snapshot write runs AFTER
+	// reconcilePositions so the persisted view captures the
+	// adopt/replace state, not the pre-reconcile state.
+	if r.snapEnabled && r.snapshots != nil {
+		r.detectGhostPositions(ctx, userID, brokerPositions)
+		if err := r.snapshots.WriteSnapshot(ctx, userID, r.state.Positions(userID), ""); err != nil {
+			r.log.Warn().
+				Err(err).
+				Str("user_id", userID).
+				Msg("reconcile_snapshot_write_failed")
+		}
+	}
+
 	reconcileTotal.WithLabelValues("ok").Inc()
 	r.log.Debug().
 		Str("user_id", userID).
 		Int("broker_positions", len(brokerPositions)).
 		Int("broker_pending", len(brokerPending)).
 		Msg("reconcile_user_complete")
+}
+
+// detectGhostPositions inspects the engine's last persisted snapshot
+// for positions that:
+//   (a) appear in the snapshot, AND
+//   (b) do NOT appear in the current broker reply, AND
+//   (c) the snapshot is at least ghostMinAge old.
+//
+// Those positions are removed from the engine view (the broker has
+// authoritatively closed them between reconcile cycles) and counted
+// as 'ghost_position' drift. Every removal emits an ERROR-level
+// structured log carrying the OrderID + Symbol + Direction +
+// LotSize + snapshot_age so an operator can grep / page on it.
+//
+// When LatestSnapshot returns (nil, nil) there is no prior snapshot
+// for this user yet (first cycle); the method silently returns and
+// the reconciler proceeds to write the first one.
+//
+// Audit ref: CHECKLIST Section 7 'No ghost positions'.
+func (r *Reconciler) detectGhostPositions(
+	ctx context.Context, userID string, brokerPositions []models.Position,
+) {
+	latest, err := r.snapshots.LatestSnapshot(ctx, userID)
+	if err != nil {
+		r.log.Warn().
+			Err(err).
+			Str("user_id", userID).
+			Msg("reconcile_latest_snapshot_read_failed")
+		return
+	}
+	if latest == nil {
+		return
+	}
+	if time.Since(latest.SnapshotTS) < r.ghostMinAge {
+		return
+	}
+	brokerSet := make(map[string]struct{}, len(brokerPositions))
+	for _, bp := range brokerPositions {
+		brokerSet[bp.OrderID] = struct{}{}
+	}
+	for i := range latest.Positions {
+		sp := &latest.Positions[i]
+		if sp.OrderID == "" {
+			continue
+		}
+		if _, present := brokerSet[sp.OrderID]; present {
+			continue
+		}
+		if !r.state.RemoveGhostPosition(userID, sp.OrderID) {
+			continue
+		}
+		reconcileDrift.WithLabelValues("ghost_position").Inc()
+		r.log.Error().
+			Str("user_id", userID).
+			Str("broker_order_id", sp.OrderID).
+			Str("symbol", sp.Symbol).
+			Str("direction", sp.Direction).
+			Float64("lot_size", sp.LotSize).
+			Dur("snapshot_age", time.Since(latest.SnapshotTS)).
+			Msg("reconcile_ghost_position_detected_removing")
+	}
 }
 
 func (r *Reconciler) reconcilePositions(userID string, brokerPositions []models.Position) {
