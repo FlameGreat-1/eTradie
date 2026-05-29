@@ -38,6 +38,19 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Module-level dedupe set for the connection_type='ea' unencrypted-ZMQ
+# warning. Holds connection_id strings (UUIDs). One entry per
+# unique 'ea' connection ever constructed in this engine process.
+# Cleared automatically on engine restart - which is the desired
+# behaviour: a fresh engine should re-emit the warning so the
+# operator's startup-time log review surfaces every exposed tenant.
+#
+# Memory ceiling: at the platform's 1000-user target with every
+# user on 'ea' mode (a pessimistic upper bound; most users will be
+# on 'hosted' or 'metaapi'), the set holds ~36KB. No eviction
+# needed.
+_ea_unencrypted_warned: set[str] = set()
+
 
 # ---------------------------------------------------------------------
 # Section 2: connectivity primitive wiring
@@ -258,6 +271,46 @@ def create_mt5_broker_from_connection(
             raise ConfigurationError(
                 "EA connection requires host and port",
                 details={"connection_id": str(row.id)},
+            )
+
+        # CHECKLIST hardening (Gap #16 mitigation): warn loudly the
+        # FIRST time a given 'ea' connection is constructed. ZMQ to
+        # a remote VPS is unencrypted on the wire today; the strict
+        # ZMQ-CURVE fix ships in a follow-up MR. Until then we make
+        # the exposure visible via structured logs + a Prometheus
+        # counter so a PrometheusRule can alert when a new exposed
+        # tenant appears.
+        connection_id_str = str(row.id)
+        if connection_id_str not in _ea_unencrypted_warned:
+            _ea_unencrypted_warned.add(connection_id_str)
+            try:
+                from engine.shared.metrics.prometheus import (
+                    BROKER_EA_CONNECTION_UNENCRYPTED_TOTAL,
+                )
+                BROKER_EA_CONNECTION_UNENCRYPTED_TOTAL.labels(
+                    connection_id_suffix=connection_id_str[:12],
+                ).inc()
+            except ImportError:
+                # The metric is added in the same commit; the log is
+                # the source of truth so a downstream consumer of an
+                # older prometheus.py still surfaces the exposure.
+                pass
+            logger.warning(
+                "ea_connection_unencrypted_zmq",
+                extra={
+                    "connection_id": connection_id_str,
+                    "user_id": row.user_id,
+                    "name": row.name,
+                    "ea_host": row.ea_host,
+                    "ea_port": row.ea_port,
+                    "message": (
+                        "ZMQ traffic to a remote VPS is unencrypted. "
+                        "Run the engine and the VPS on the same private "
+                        "network via WireGuard / Tailscale (recommended "
+                        "interim) OR wait for the ZMQ-CURVE follow-up MR. "
+                        "See docs/vps/deployment_guide.md."
+                    ),
+                },
             )
 
         # Build MT5Config for ZeroMQ native provider.

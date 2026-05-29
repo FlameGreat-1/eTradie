@@ -169,14 +169,40 @@ For users who already own a Windows VPS and prefer running MT there
    - ZMQ port (default 5555)
    - Auth token (the one you set in `setup_vps.ps1`)
 
-### Security caveats
+### Security caveats (READ THIS)
 
-- ZeroMQ traffic to a remote VPS is **unencrypted**. Use a VPN or
-  whitelist the engine egress IP in Windows Firewall (the
-  `setup_vps.ps1` script does this if you pass `-LinuxMachineIP`).
-- Credentials live in `startup.ini` on the VPS disk.
-- Rotate the auth token by re-running `setup_vps.ps1` AND updating
-  the dashboard.
+**ZeroMQ traffic to a remote VPS is unencrypted at the wire level.**
+A full ZMQ-CURVE encryption fix (libzmq's native key-pair scheme)
+is tracked as a follow-up MR; it requires EA-side MQL5 changes
+plus a `broker_connections` schema migration to carry the public/
+secret key pair per tenant.
+
+**Interim posture you MUST adopt for production EA-on-VPS:**
+
+1. **WireGuard or Tailscale overlay (recommended).** Add the VPS
+   and the engine egress IP (or in K8s deployments, every node
+   the engine pod may schedule on) to a private WireGuard mesh.
+   The ZMQ traffic then traverses the encrypted tunnel and the
+   public internet sees no plaintext. Tailscale's `tailscale up`
+   + ACLs is the lowest-overhead way to do this; WireGuard works
+   equally well with a fixed peer list.
+
+2. **Source-IP whitelist on Windows Firewall.** The
+   `setup_vps.ps1` script does this when you pass
+   `-LinuxMachineIP <engine-egress-ip>`. This stops a remote
+   attacker from connecting to TCP/5555 at all; it does NOT
+   stop on-path passive sniffing on the public internet.
+
+3. **Operator-visible warning.** When a tenant opens an `ea`
+   connection, the engine emits a structured log line
+   `ea_connection_unencrypted_zmq` and bumps the metric
+   `etradie_broker_ea_connection_unencrypted_total`. Operators
+   should add a PrometheusRule that alerts on a non-zero rate
+   so a new exposed tenant is caught at sign-up time.
+
+Credentials live in `startup.ini` on the VPS disk; rotate the
+auth token by re-running `setup_vps.ps1` AND updating the
+dashboard.
 
 ---
 

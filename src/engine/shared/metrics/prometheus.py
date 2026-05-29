@@ -387,6 +387,21 @@ BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL = Counter(
     ["provider", "account_id"],
 )
 
+# CHECKLIST hardening (Gap #16 mitigation): one-shot operator-visible
+# counter that increments the first time the engine constructs a
+# broker client for a given 'ea' connection_id. ZMQ traffic to a
+# remote VPS is unencrypted on the wire today; this counter +
+# the matching ea_connection_unencrypted_zmq structured log are
+# the surface area an operator needs to alert on new exposed
+# tenants. The label uses the first 12 chars of the connection_id
+# (matches everywhere else in the codebase) so cardinality is
+# bounded at one-per-tenant.
+BROKER_EA_CONNECTION_UNENCRYPTED_TOTAL = Counter(
+    "etradie_broker_ea_connection_unencrypted_total",
+    "First-time construction of a connection_type='ea' broker client. Each EA tenant counts exactly once per engine process lifetime; restart clears the dedupe set.",
+    ["connection_id_suffix"],
+)
+
 ACTIVE_USER_CONNECTIONS = Gauge(
     "etradie_active_user_connections",
     "Number of users with at least one active broker connection by type",
