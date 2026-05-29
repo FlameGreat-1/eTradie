@@ -110,7 +110,8 @@ spec:
     - group: argoproj.io
       kind: Application
     # batch/CronJob is required for the postgres nightly backup job
-    # created by helm/data-layer/templates/postgres-backup-cronjob.yaml.
+    # created by helm/data-layer/templates/postgres-backup-cronjob.yaml
+    # AND for the helm/mt-node Wine-prefix snapshot CronJob.
     # batch/Job is required because the CronJob controller spawns Jobs
     # in this project; ArgoCD must be allowed to observe them so
     # selfHeal does not mistakenly try to prune controller-owned Jobs.
@@ -118,6 +119,13 @@ spec:
       kind: CronJob
     - group: batch
       kind: Job
+    # CHECKLIST hardening (Gap #10): VolumeSnapshot is the resource
+    # the mt-node snapshotter CronJob creates daily for every Wine
+    # prefix PVC. Namespace-scoped resource. The VolumeSnapshotClass
+    # is cluster-scoped and operator-managed (created once at cluster
+    # bootstrap, not by the chart) so it is NOT whitelisted here.
+    - group: snapshot.storage.k8s.io
+      kind: VolumeSnapshot
 
   # Roles the project grants. Maintainers can sync; readers cannot.
   roles:

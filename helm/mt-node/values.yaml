@@ -406,3 +406,46 @@ topologySpreadConstraints:
 nodeSelector: {}
 
 tolerations: []
+
+# ---------------------------------------------------------------------
+# Wine-prefix VolumeSnapshot CronJob (CHECKLIST Gap #10)
+#
+# Renders ONLY on the platform-only render path (mtConnection.enabled=false)
+# because one CronJob services every tenant in the namespace. The script
+# (src/engine/admin/snapshot_wine_prefixes.py) discovers PVCs by label
+# so it picks up new tenants automatically without a CronJob update.
+#
+# The VolumeSnapshotClass is CSI-specific (e.g. 'csi-disk-snapclass'
+# on OCI Block Volume, 'ebs-csi-snapclass' on AWS EBS, etc.) and is
+# created by the operator once at cluster bootstrap, not by this
+# chart. snapshotter.volumeSnapshotClassName MUST be set in the
+# overlay before enabling.
+# ---------------------------------------------------------------------
+snapshotter:
+  enabled: true
+  # Daily 02:00 UTC. Adjust to match the trading session schedule -
+  # snapshots fired during market hours are fine (the CSI driver
+  # produces a crash-consistent snapshot in seconds) but the operator
+  # may prefer the quiet window between London close and NY open.
+  schedule: "0 2 * * *"
+  retentionDays: 7
+  # CSI-specific name; REQUIRED. Lint will fail if unset.
+  volumeSnapshotClassName: ""
+  # The snapshotter reuses the engine image (the script lives at
+  # engine.admin.snapshot_wine_prefixes). Pin the same tag the engine
+  # chart pins so version drift cannot land us with a stale
+  # kubernetes_asyncio client wheel.
+  image:
+    repository: ""   # REQUIRED. e.g. ghcr.io/<org>/etradie/engine
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  backoffLimit: 3
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
