@@ -273,8 +273,11 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
-build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256; pass 'skip' for dev)
+build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256, WINEHQ_VERSION; pass 'skip' for dev)
 	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
+	@if [ -z "$${WINEHQ_VERSION:-}" ]; then \
+		echo -e "$(YELLOW)WARN: WINEHQ_VERSION not set - image will NOT be reproducible. Production CI MUST set it. See docker/mt-node/README.md for the discovery snippet.$(NC)"; \
+	fi
 	docker build \
 		--build-arg MT5_INSTALLER_SHA256=$${MT5_INSTALLER_SHA256:-skip} \
 		--build-arg MT4_INSTALLER_SHA256=$${MT4_INSTALLER_SHA256:-skip} \
@@ -282,6 +285,7 @@ build-mt-node: ## Build the MetaTrader headless Docker image (production CI must
 		--build-arg MT4_INSTALLER_URL=$${MT4_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe} \
 		--build-arg EA_EX5_SHA256=$${EA_EX5_SHA256:-skip} \
 		--build-arg EA_EX4_SHA256=$${EA_EX4_SHA256:-skip} \
+		--build-arg WINEHQ_VERSION=$${WINEHQ_VERSION:-} \
 		-t ghcr.io/flamegreat-1/etradie-mt-node:$${MT_NODE_TAG:-0.1.0} \
 		docker/mt-node/
 	echo -e "$(GREEN)✓ etradie-mt-node built$(NC)"
