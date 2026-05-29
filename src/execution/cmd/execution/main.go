@@ -142,6 +142,12 @@ func main() {
 	pnlStore := store.NewPnLStore(pool)
 	settingsStore := store.NewSettingsStore(pool)
 
+	// Section 7 (CHECKLIST): position snapshots. The store persists
+	// the engine's post-reconcile view per user every cycle so the
+	// reconciler can detect ghost positions across restarts and the
+	// Step B replay endpoint can walk the history.
+	snapshotStore := store.NewPositionSnapshotStore(pool)
+
 	// ── Gateway gRPC client (for instant-mode confirmation callbacks) ──
 	gwClient, err := watcher.NewGatewayGRPCClient(cfg.GatewayAddr)
 	if err != nil {
@@ -363,16 +369,87 @@ func main() {
 	defer gcCancel()
 	go idempotencyGCLoop(gcCtx, idempotencyStore, cfg.OrderIdempotencyTTLSecs)
 
-	// Section 3 (CHECKLIST): reconciliation loop - broker positions +
-	// pending orders vs engine state. Runs on the same gcCtx so it
-	// stops together with the idempotency GC at shutdown.
+	// Section 3 + Section 7 (CHECKLIST): reconciliation loop. Compares
+	// broker positions + pending orders against the engine view, AND
+	// (when enabled) writes a post-reconcile snapshot per cycle to
+	// drive ghost-position detection across restarts.
+	// Runs on the same gcCtx so it stops together with the idempotency
+	// GC + snapshot retention sweeper at shutdown.
 	reconciler := state.NewReconciler(
 		bp,
 		sm,
 		reconcileIdentity,
 		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+		snapshotStore,
+		time.Duration(cfg.GhostPositionMinAgeSecs)*time.Second,
+		cfg.PositionSnapshotEnabled,
 	)
 	go reconciler.Loop(gcCtx)
+
+	// Section 7 Step C (CHECKLIST): eager position preload on startup.
+	//
+	// Before the gRPC listener opens, eagerly call Refresh() for every
+	// active user so the engine's in-memory position state is hot.
+	// Without this, the engine's view is empty on restart and the
+	// reconciler closes the gap lazily within 60s. During that window:
+	//   - MaxConcurrentTrades guard sees 0 open positions -> may allow
+	//     a trade that would be blocked if the engine knew the real count.
+	//   - Ghost-position detection has no baseline to compare against.
+	//
+	// The preload runs AFTER the reconciler goroutine is started (so
+	// the reconciler's first cycle does not race with the preload) and
+	// BEFORE the gRPC listener opens (so no user request can land
+	// before the state is warm).
+	//
+	// Gated by cfg.PreloadPositionsOnStart so dev/test environments
+	// where the broker bridge is not available at startup can disable
+	// it without code change.
+	if cfg.PreloadPositionsOnStart && cfg.IsMT5Mode() {
+		preloadCtx, preloadCancel := context.WithTimeout(ctx, 60*time.Second)
+		preloadUsers, preloadErr := userStore.ListActiveUsers(preloadCtx)
+		if preloadErr != nil {
+			log.Warn().Err(preloadErr).Msg("preload_positions_user_list_failed")
+		} else {
+			preloaded := 0
+			for _, u := range preloadUsers {
+				// Build a per-user identity context the same way the
+				// reconciler does: issue a service token, inject it.
+				svcToken, tokenErr := tokenService.IssueServiceToken(
+					u.ID, u.Username, u.Role, u.Tier, u.Status,
+				)
+				if tokenErr != nil {
+					log.Warn().Err(tokenErr).Str("user_id", u.ID).Msg("preload_positions_token_failed")
+					continue
+				}
+				identityCtx, identityErr := reconcileIdentity.IdentityContext(preloadCtx, u.ID)
+				if identityErr != nil {
+					log.Warn().Err(identityErr).Str("user_id", u.ID).Msg("preload_positions_identity_failed")
+					continue
+				}
+				_ = svcToken // token is embedded in identityCtx via reconcileIdentity
+				if err := sm.Refresh(identityCtx, u.ID); err != nil {
+					log.Warn().Err(err).Str("user_id", u.ID).Msg("preload_positions_refresh_failed")
+					continue
+				}
+				preloaded++
+			}
+			log.Info().
+				Int("total_users", len(preloadUsers)).
+				Int("preloaded", preloaded).
+				Msg("preload_positions_complete")
+		}
+		preloadCancel()
+	}
+
+	// Section 7 (CHECKLIST): retention sweeper. Prunes snapshots older
+	// than PositionSnapshotRetentionHours every 1h. Runs on gcCtx so it
+	// shuts down together with the reconciler + idempotency GC.
+	go snapshotRetentionLoop(
+		gcCtx,
+		snapshotStore,
+		cfg.PositionSnapshotRetentionHours,
+		cfg.PositionSnapshotEnabled,
+	)
 
 	// ──────────────────────────────────────────────────────────────────────
 	// At this point, state is fully restored and background loops are
@@ -450,6 +527,47 @@ func main() {
 	pool.Close()
 
 	log.Info().Msg("execution_engine_stopped")
+}
+
+// snapshotRetentionLoop periodically prunes position snapshots older
+// than the configured retention. Runs hourly. Exits when ctx is
+// cancelled (engine shutdown).
+//
+// When enabled=false the loop returns immediately; the snapshot store
+// is still constructed but no writes happen (the reconciler skips the
+// write path under the same flag), so there is nothing to prune.
+//
+// Audit ref: CHECKLIST Section 7 'Recovery after full system restart'.
+func snapshotRetentionLoop(
+	ctx context.Context,
+	st *store.PositionSnapshotStore,
+	retentionHours int,
+	enabled bool,
+) {
+	if !enabled || st == nil || retentionHours <= 0 {
+		return
+	}
+	log := observability.Logger("snapshot_retention")
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-time.Duration(retentionHours) * time.Hour)
+			sweepCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+			pruned, err := st.PruneOlderThan(sweepCtx, cutoff)
+			cancel()
+			if err != nil {
+				log.Warn().Err(err).Time("cutoff", cutoff).Msg("snapshot_retention_failed")
+				continue
+			}
+			if pruned > 0 {
+				log.Info().Int64("pruned", pruned).Time("cutoff", cutoff).Msg("snapshot_retention_ran")
+			}
+		}
+	}
 }
 
 // idempotencyGCLoop periodically prunes expired idempotency keys.

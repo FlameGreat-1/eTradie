@@ -131,6 +131,13 @@ data:
   ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS: {{ .Values.config.connectivity.brokerPoolIdleTimeoutSecs | quote }}
   ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.brokerPoolSweepIntervalSecs | quote }}
 
+  # Section 8 (CHECKLIST): hosted MT-node failure recovery. Consumed by
+  # engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig.from_env().
+  ENGINE_HOSTED_RECOVERY_ENABLED: {{ .Values.config.connectivity.hostedRecoveryEnabled | quote }}
+  ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.hostedRecoverySweepIntervalSecs | quote }}
+  ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS: {{ .Values.config.connectivity.hostedRecoveryUnhealthyThresholdSecs | quote }}
+  ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS: {{ .Values.config.connectivity.hostedRecoveryReprovisionCooldownSecs | quote }}
+
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
   MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}

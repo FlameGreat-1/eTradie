@@ -51,6 +51,43 @@ type Config struct {
 	// against the engine's view and surfaces drift.
 	ReconcileIntervalSecs int `envconfig:"RECONCILE_INTERVAL_SECS" default:"60"`
 
+	// Section 7 (CHECKLIST): position snapshots.
+	//
+	// PositionSnapshotEnabled is the operator kill-switch. When false
+	// the reconciler runs the legacy Section-3 path (no snapshot writes,
+	// no ghost detection). The execution_positions_snapshot table is
+	// still created by SchemaSQL() but remains empty.
+	PositionSnapshotEnabled bool `envconfig:"POSITION_SNAPSHOT_ENABLED" default:"true"`
+
+	// PositionSnapshotRetentionHours bounds the snapshot table. The
+	// retention sweeper goroutine in main.go prunes rows older than
+	// this value every 1h. Default 168 (7 days) matches the regulatory
+	// minimum for retail trading audit. Range 1..720 (1h to 30d).
+	PositionSnapshotRetentionHours int `envconfig:"POSITION_SNAPSHOT_RETENTION_HOURS" default:"168"`
+
+	// GhostPositionMinAgeSecs is the minimum age the latest snapshot
+	// must have before the reconciler classifies a 'broker no longer
+	// reports' position as a ghost. Without this threshold, a position
+	// closed in the SAME reconcile cycle as the broker reply would be
+	// classified as a ghost even though the close is fresh. Default
+	// 300s (5 min) comfortably exceeds the default 60s reconcile
+	// cadence + broker REST latency. Range 60..3600 (1min..1h).
+	GhostPositionMinAgeSecs int `envconfig:"GHOST_POSITION_MIN_AGE_SECS" default:"300"`
+
+	// Section 7 Step C (CHECKLIST): eager position preload on startup.
+	//
+	// PreloadPositionsOnStart controls whether the execution service
+	// eagerly calls state.Manager.Refresh() for every active user
+	// BEFORE the gRPC listener opens. When true, the engine's in-memory
+	// position state is hot before the first user request lands,
+	// eliminating the 'memory empty on restart' gap that the reconciler
+	// would otherwise close lazily within 60s.
+	//
+	// Set to false in dev/test environments where the broker bridge is
+	// not available at startup (the Refresh() call would fail and log
+	// errors for every user). Default true for production.
+	PreloadPositionsOnStart bool `envconfig:"PRELOAD_POSITIONS_ON_START" default:"true"`
+
 	// Shared secret for the engine's /internal/* surface.
 	//
 	// The Python engine's broker bridge endpoints
@@ -287,6 +324,15 @@ func (c *Config) validate() error {
 	if c.GatewayAddr == "" {
 		return fmt.Errorf("GATEWAY_ADDR must not be empty")
 	}
+
+	// Section 7 (CHECKLIST): position snapshot ranges.
+	if c.PositionSnapshotRetentionHours < 1 || c.PositionSnapshotRetentionHours > 720 {
+		return fmt.Errorf("POSITION_SNAPSHOT_RETENTION_HOURS must be 1..720, got %d", c.PositionSnapshotRetentionHours)
+	}
+	if c.GhostPositionMinAgeSecs < 60 || c.GhostPositionMinAgeSecs > 3600 {
+		return fmt.Errorf("GHOST_POSITION_MIN_AGE_SECS must be 60..3600, got %d", c.GhostPositionMinAgeSecs)
+	}
+	// PreloadPositionsOnStart is a bool; no range check.
 
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL must not be empty")

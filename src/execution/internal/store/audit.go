@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -67,6 +68,105 @@ type AuditEntry struct {
 	RejectionCheck  int32
 	RejectionReason string
 	Details         map[string]interface{}
+}
+
+// AuditLogRow is the in-process representation of one audit log row.
+// Used by the replay endpoint (Section 7 Step B).
+type AuditLogRow struct {
+	ID              int64
+	UserID          string
+	Timestamp       time.Time
+	Action          string
+	Symbol          string
+	Direction       string
+	OrderID         string
+	AnalysisID      string
+	TraceID         string
+	ExecutionMode   string
+	EntryPrice      float64
+	StopLoss        float64
+	LotSize         float64
+	RiskAmount      float64
+	RiskPercent     float64
+	Grade           string
+	TradingStyle    string
+	Session         string
+	RRRatio         float64
+	ConfluenceScore float64
+	RejectionCheck  int32
+	RejectionReason string
+	Details         json.RawMessage
+}
+
+// QueryAuditLog returns audit log rows for the given user within the
+// inclusive timestamp range, ordered chronologically.
+//
+// This is the read path for the Section 7 Step B replay endpoint.
+// The caller is responsible for bounding the range; the store does
+// NOT cap. The HTTP handler enforces a maximum window of 7 days.
+//
+// Returns an empty slice (not nil) when no rows match.
+func (s *AuditStore) QueryAuditLog(
+	ctx context.Context,
+	userID string,
+	since, until time.Time,
+) ([]*AuditLogRow, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("audit query: user_id must not be empty")
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+		    id, user_id, timestamp, action, symbol, direction, order_id,
+		    analysis_id, trace_id, execution_mode, entry_price, stop_loss,
+		    lot_size, risk_amount, risk_percent, grade, trading_style,
+		    session, rr_ratio, confluence_score, rejection_check,
+		    rejection_reason, details
+		FROM execution_audit_logs
+		WHERE user_id = $1
+		  AND timestamp BETWEEN $2 AND $3
+		ORDER BY timestamp ASC
+	`, userID, since, until)
+	if err != nil {
+		return nil, fmt.Errorf("audit query for %s: %w", userID, err)
+	}
+	defer rows.Close()
+
+	out := make([]*AuditLogRow, 0)
+	for rows.Next() {
+		var r AuditLogRow
+		if err := rows.Scan(
+			&r.ID,
+			&r.UserID,
+			&r.Timestamp,
+			&r.Action,
+			&r.Symbol,
+			&r.Direction,
+			&r.OrderID,
+			&r.AnalysisID,
+			&r.TraceID,
+			&r.ExecutionMode,
+			&r.EntryPrice,
+			&r.StopLoss,
+			&r.LotSize,
+			&r.RiskAmount,
+			&r.RiskPercent,
+			&r.Grade,
+			&r.TradingStyle,
+			&r.Session,
+			&r.RRRatio,
+			&r.ConfluenceScore,
+			&r.RejectionCheck,
+			&r.RejectionReason,
+			&r.Details,
+		); err != nil {
+			return nil, fmt.Errorf("scan audit row for %s: %w", userID, err)
+		}
+		out = append(out, &r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate audit rows for %s: %w", userID, err)
+	}
+	return out, nil
 }
 
 // Write persists an audit entry to PostgreSQL.

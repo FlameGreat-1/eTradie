@@ -226,6 +226,17 @@ class Container:
         # full audit confirms no external reads remain.
         self._user_brokers: dict[str, BrokerBase] = {}
 
+        # Section 8 (CHECKLIST): hosted MT-node failure recovery. The
+        # service is built lazily on the first access via the
+        # `hosted_recovery_service` property because it depends on
+        # HostedProvisioner which in turn loads MT_NODE_CREDENTIAL_
+        # ENCRYPTION_KEY at construction time. Building it here would
+        # force every engine bootstrap path that imports Container
+        # (alembic env.py, pytest collection, etc.) to also resolve
+        # that env var; lazy construction keeps those paths working
+        # without the platform key set.
+        self._hosted_recovery_service: Optional["HostedRecoveryService"] = None  # type: ignore[name-defined]
+
     def _build_providers(self) -> None:
         s = self.settings
         h = self.http_client
@@ -628,6 +639,43 @@ class Container:
                 extra={"error": str(exc), "user_id": user_id},
             )
             return None
+
+    # -- Section 8 (CHECKLIST): hosted MT-node failure recovery -----------
+
+    @property
+    def hosted_recovery_service(self):
+        """Lazy-built singleton HostedRecoveryService.
+
+        First access constructs the service. Subsequent accesses return
+        the cached instance. None is never returned - construction
+        failure raises ConfigurationError so the lifespan boot path
+        surfaces it immediately.
+        """
+        if self._hosted_recovery_service is not None:
+            return self._hosted_recovery_service
+        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+        from engine.ta.broker.mt5.hosted.recovery import (
+            HostedRecoveryConfig,
+            HostedRecoveryService,
+        )
+
+        cfg = HostedRecoveryConfig.from_env()
+        provisioner = HostedProvisioner()
+        self._hosted_recovery_service = HostedRecoveryService(
+            provisioner=provisioner,
+            db=self.db,
+            config=cfg,
+        )
+        _logger.info(
+            "hosted_recovery_service_built",
+            extra={
+                "enabled": cfg.enabled,
+                "sweep_interval_secs": cfg.sweep_interval_secs,
+                "unhealthy_threshold_secs": cfg.unhealthy_threshold_secs,
+                "reprovision_cooldown_secs": cfg.reprovision_cooldown_secs,
+            },
+        )
+        return self._hosted_recovery_service
 
     async def invalidate_user_broker(self, user_id: str) -> None:
         """Invalidate the cached broker connection for a user.
@@ -1317,6 +1365,19 @@ class Container:
 
 
     async def shutdown(self) -> None:
+        # Section 8 (CHECKLIST): stop the hosted recovery service BEFORE
+        # the background-task coordinator drains. The coordinator will
+        # also cancel the recovery loop, but calling stop() first lets
+        # the service log its own cancellation cleanly.
+        if self._hosted_recovery_service is not None:
+            try:
+                await self._hosted_recovery_service.stop()
+            except Exception as exc:  # noqa: BLE001
+                _logger.warning(
+                    "hosted_recovery_service_stop_failed",
+                    extra={"error": str(exc)},
+                )
+
         # Cancel pending background work BEFORE we tear down the resources
         # those tasks may be holding (broker clients, http client, redis).
         # The coordinator drains with a short bounded timeout so a wedged

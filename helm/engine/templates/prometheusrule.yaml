@@ -194,4 +194,78 @@ spec:
               to find the crash cause. ArgoCD selfHeal is not the
               answer here - the Pod is restarting itself.
             runbook_url: "https://docs.etradie.com/runbooks/engine-pod-high-restarts"
+
+    - name: engine.hosted_recovery
+      interval: 60s
+      rules:
+        - alert: HostedRecoveryReprovisionsHigh
+          expr: |
+            sum(rate(etradie_hosted_recovery_reprovisions_total[1h])) > 0.000277
+          for: 2h
+          labels:
+            severity: critical
+            component: engine
+            team: platform
+          annotations:
+            summary: "Hosted recovery is reprovisioning > 1/h sustained 2h"
+            description: |
+              The HostedRecoveryService has been reprovisioning
+              mt-node StatefulSets at a rate exceeding 1/h for 2
+              hours. Either an external actor (operator kubectl
+              delete, ArgoCD prune, namespace wipe) is reaping
+              StatefulSets the engine just created, or
+              HostedProvisioner.provision_account is failing the
+              readiness gate so the service retries the same
+              connection after the cooldown expires.
+
+              Investigate:
+                kubectl -n etradie-system get events --sort-by=.lastTimestamp | tail -50
+                kubectl -n etradie-system logs deploy/engine -c engine | grep hosted_recovery_reprovision
+            runbook_url: "https://docs.etradie.com/runbooks/section-8-failure-recovery#reprovisions-high"
+
+        - alert: HostedRecoveryServiceStuck
+          expr: |
+            (time() - etradie_hosted_recovery_last_run_timestamp_seconds) > 300
+            and
+            etradie_hosted_recovery_last_run_timestamp_seconds > 0
+          for: 0m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Hosted recovery sweep has not completed in > 5 minutes"
+            description: |
+              The HostedRecoveryService background loop is wedged.
+              No sweep has completed for over 5 minutes (5x the
+              default 60s interval). The loop should never exceed
+              one sweep_interval cadence; a stall indicates either
+              a K8s API hang mid-iteration or an asyncio deadlock
+              upstream. Restart the engine pod:
+
+                kubectl -n etradie-system rollout restart deploy/engine
+            runbook_url: "https://docs.etradie.com/runbooks/section-8-failure-recovery#service-stuck"
+
+        - alert: HostedRecoveryPodsUnhealthyPersistent
+          expr: |
+            etradie_hosted_recovery_pods_unhealthy > 0
+          for: 30m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Hosted mt-node Pods remain unhealthy after 30m of recovery attempts"
+            description: |
+              One or more hosted mt-node Pods have been observed
+              unhealthy by the recovery sweep for 30 minutes. The
+              per-connection cooldown is suppressing further
+              reprovision attempts because the previous attempts
+              did not land. Manual investigation required.
+
+              Find affected connection_ids:
+                kubectl -n etradie-system logs deploy/engine -c engine \\
+                  | grep hosted_recovery_reprovision_failed \\
+                  | jq '{connection_id, user_id, error}'
+            runbook_url: "https://docs.etradie.com/runbooks/section-8-failure-recovery#pods-unhealthy-persistent"
 {{- end }}

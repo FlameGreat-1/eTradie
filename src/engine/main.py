@@ -152,6 +152,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await container.build_broker()
 
+    # Section 8 (CHECKLIST): hosted MT-node failure recovery.
+    #
+    # The eager startup sweep MUST run before yield so that every
+    # broker_connections row with connection_type='hosted' is
+    # guaranteed to have a healthy K8s StatefulSet before FastAPI
+    # starts accepting traffic. If a request lands during the gap
+    # between the lifespan's first await and the sweep completion,
+    # it might observe a stale 'connection exists in DB but no Pod'
+    # state and fail with a confusing 503.
+    #
+    # Construction failure (missing MT_NODE_CREDENTIAL_ENCRYPTION_KEY
+    # in production/staging) is a configuration error - log and
+    # continue, so the rest of the engine still boots. Hosted
+    # connections will fail their per-request resolution with the
+    # same ConfigurationError, surfacing the misconfig to the
+    # dashboard exactly once. Audit ref: CHECKLIST Section 8.
+    try:
+        recovery_service = container.hosted_recovery_service
+        startup_summary = await recovery_service.run_once_at_startup()
+        recovery_service.start_background_loop(
+            coordinator=container.background_tasks,
+        )
+        logger.info(
+            "hosted_recovery_startup_complete",
+            extra=startup_summary,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "hosted_recovery_startup_failed",
+            extra={"error": str(exc), "error_type": type(exc).__name__},
+        )
+
     await container.build_processor()
     logger.info(
         "processor_built",

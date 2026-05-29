@@ -432,3 +432,39 @@ func (m *Manager) ReplaceBrokerPosition(userID string, p *models.Position) {
 	us.positions = append(us.positions, *p)
 	observability.OpenPositionCount.Set(float64(len(us.positions)))
 }
+
+// RemoveGhostPosition deletes a position the broker no longer
+// reports. Returns true when an entry was actually removed.
+//
+// Called by the reconciler's ghost-position branch when the engine's
+// view contains a position that:
+//   (a) is NOT in the current broker positions list, AND
+//   (b) was present in the last persisted positions snapshot >= the
+//       configured ghost-position min-age threshold ago.
+// Together, those two facts say 'the broker closed this cleanly
+// between cycles'. The engine adopts the close.
+//
+// Idempotent: returns false when the user is unknown OR the
+// broker_order_id is not in the slice. The OpenPositionCount gauge
+// is updated atomically with the in-memory mutation.
+//
+// Audit ref: CHECKLIST Section 7 'No ghost positions'.
+func (m *Manager) RemoveGhostPosition(userID, brokerOrderID string) bool {
+	if userID == "" || brokerOrderID == "" {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	us := m.getUserRead(userID)
+	if us == nil {
+		return false
+	}
+	for i := range us.positions {
+		if us.positions[i].OrderID == brokerOrderID {
+			us.positions = append(us.positions[:i], us.positions[i+1:]...)
+			observability.OpenPositionCount.Set(float64(len(us.positions)))
+			return true
+		}
+	}
+	return false
+}

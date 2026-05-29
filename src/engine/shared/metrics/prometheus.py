@@ -622,3 +622,38 @@ RATE_LIMIT_REMAINING = Gauge(
     "Remaining rate limit quota",
     ["resource", "limit_type"],
 )
+
+# ==============================================================
+# Section 8 (CHECKLIST): Hosted MT-node Failure Recovery
+# ==============================================================
+# Emitted by engine.ta.broker.mt5.hosted.recovery.HostedRecoveryService.
+# All four metrics are operator-facing and feed the PrometheusRule
+# group execution.hosted_recovery shipped alongside Section 8 step B.
+#
+# Cardinality posture:
+#   - outcome label is bounded: {"ok", "error", "partial", "skipped"}.
+#   - reason  label is bounded: {"missing", "unhealthy", "startup"}.
+# No per-user or per-connection labels are emitted; per-connection
+# detail is recorded in structured logs so high-cardinality time
+# series do not enter Prometheus.
+HOSTED_RECOVERY_RUNS_TOTAL = Counter(
+    "etradie_hosted_recovery_runs_total",
+    "Total recovery sweep runs by outcome",
+    ["outcome"],
+)
+
+HOSTED_RECOVERY_REPROVISIONS_TOTAL = Counter(
+    "etradie_hosted_recovery_reprovisions_total",
+    "Total per-connection re-provision attempts by reason",
+    ["reason"],
+)
+
+HOSTED_RECOVERY_PODS_UNHEALTHY = Gauge(
+    "etradie_hosted_recovery_pods_unhealthy",
+    "Hosted mt-node connections judged unhealthy at the most recent sweep",
+)
+
+HOSTED_RECOVERY_LAST_RUN_TS = Gauge(
+    "etradie_hosted_recovery_last_run_timestamp_seconds",
+    "Unix timestamp of the most recent recovery sweep completion",
+)

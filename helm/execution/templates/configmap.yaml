@@ -24,8 +24,14 @@ data:
   EXECUTION_MAX_ORDER_LATENCY_MS: {{ .Values.config.execution.maxOrderLatencyMs | default "5000" | quote }}
   # Section 3: order idempotency window.
   EXECUTION_ORDER_IDEMPOTENCY_TTL_SECS: {{ .Values.config.execution.orderIdempotencyTtlSecs | default "86400" | quote }}
-  # Section 3: broker reconciliation cadence.
+    # Section 3: broker reconciliation cadence.
   EXECUTION_RECONCILE_INTERVAL_SECS: {{ .Values.config.execution.reconcileIntervalSecs | default "60" | quote }}
+  # Section 7 (CHECKLIST): position snapshots + ghost detection.
+  EXECUTION_POSITION_SNAPSHOT_ENABLED: {{ .Values.config.execution.positionSnapshotEnabled | default "true" | quote }}
+  EXECUTION_POSITION_SNAPSHOT_RETENTION_HOURS: {{ .Values.config.execution.positionSnapshotRetentionHours | default "168" | quote }}
+  EXECUTION_GHOST_POSITION_MIN_AGE_SECS: {{ .Values.config.execution.ghostPositionMinAgeSecs | default "300" | quote }}
+  # Section 7 Step C: eager position preload on startup.
+  EXECUTION_PRELOAD_POSITIONS_ON_START: {{ .Values.config.execution.preloadPositionsOnStart | default "true" | quote }}
 
   # Gateway.
   EXECUTION_GATEWAY_ADDR: {{ .Values.config.execution.gatewayAddr | quote }}

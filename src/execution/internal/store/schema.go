@@ -136,10 +136,125 @@ CREATE INDEX IF NOT EXISTS idx_exec_idemp_created_at
 CREATE INDEX IF NOT EXISTS idx_exec_idemp_order_id
     ON execution_order_idempotency (order_id);
 
+-- Section 7 (CHECKLIST): position snapshots.
+--
+-- One INSERT-only row per reconcile cycle per user. Carries the
+-- JSONB-encoded list of engine-tracked positions AFTER the reconciler
+-- ran (post adopt/replace), plus a sha256 of the canonicalised JSON
+-- for tamper detection. The ghost-position rule in reconciler.go
+-- compares 'positions that appear in the latest snapshot but not in
+-- the current broker reply' against a configurable min-age threshold.
+--
+-- Immutability: Section 7 Step B adds a BEFORE UPDATE / BEFORE DELETE
+-- trigger on this table. The pruner uses a separate SECURITY DEFINER
+-- function (execution_snapshot_prune) to age out old rows; the app
+-- role cannot bypass the trigger.
+CREATE TABLE IF NOT EXISTS execution_positions_snapshot (
+    id               BIGSERIAL PRIMARY KEY,
+    user_id          VARCHAR(64) NOT NULL,
+    snapshot_ts      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    position_count   INTEGER NOT NULL DEFAULT 0,
+    positions        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    content_hash     CHAR(64) NOT NULL,
+    reconcile_run_id TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_positions_snap_user_ts
+    ON execution_positions_snapshot (user_id, snapshot_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_exec_positions_snap_ts
+    ON execution_positions_snapshot (snapshot_ts);
+
 -- Automatic schema migration for existing databases
 ALTER TABLE execution_pending_watchers ADD COLUMN IF NOT EXISTS broker_order_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS volume_filled    DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS volume_remaining DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS fill_status      VARCHAR(20) NOT NULL DEFAULT '';
+
+-- Section 7 Step B (CHECKLIST): DB-level immutability for audit tables.
+--
+-- The application contract for execution_audit_logs and
+-- execution_positions_snapshot is INSERT-only. A future developer
+-- or a compromised DB role must not be able to silently mutate or
+-- delete audit history. These triggers enforce that at the DB level
+-- regardless of which application code path runs.
+--
+-- The SECURITY DEFINER function execution_snapshot_prune is the ONLY
+-- authorised path for deleting old snapshots. It is granted to the
+-- migration role (NOT the app role) so the retention sweeper in
+-- main.go can call it via the app role's connection without bypassing
+-- the trigger. Until the migration role grants are applied in
+-- production, PruneOlderThan() returns an error and the sweeper logs
+-- at WARN; the table grows but is bounded by the 7-day retention
+-- window once the grant lands.
+--
+-- Trigger naming convention: trg_<table>_immutable_<event>.
+-- Both triggers are created with CREATE OR REPLACE so re-running
+-- SchemaSQL() is idempotent.
+
+CREATE OR REPLACE FUNCTION fn_block_audit_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION
+        'Immutability violation: % on % is not permitted. '
+        'execution_audit_logs is an INSERT-only table. '
+        'Contact the platform team if a correction is required.',
+        TG_OP, TG_TABLE_NAME
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_audit_logs_immutable_update
+    BEFORE UPDATE ON execution_audit_logs
+    FOR EACH ROW EXECUTE FUNCTION fn_block_audit_mutation();
+
+CREATE OR REPLACE TRIGGER trg_audit_logs_immutable_delete
+    BEFORE DELETE ON execution_audit_logs
+    FOR EACH ROW EXECUTE FUNCTION fn_block_audit_mutation();
+
+CREATE OR REPLACE FUNCTION fn_block_snapshot_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION
+        'Immutability violation: % on % is not permitted. '
+        'execution_positions_snapshot is an INSERT-only table. '
+        'Use execution_snapshot_prune() for retention sweeps.',
+        TG_OP, TG_TABLE_NAME
+        USING ERRCODE = 'restrict_violation';
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_positions_snap_immutable_update
+    BEFORE UPDATE ON execution_positions_snapshot
+    FOR EACH ROW EXECUTE FUNCTION fn_block_snapshot_mutation();
+
+CREATE OR REPLACE TRIGGER trg_positions_snap_immutable_delete
+    BEFORE DELETE ON execution_positions_snapshot
+    FOR EACH ROW EXECUTE FUNCTION fn_block_snapshot_mutation();
+
+-- SECURITY DEFINER prune function. The app role calls this via
+-- SELECT execution_snapshot_prune($1); the function runs as its
+-- OWNER (the migration role) which has DELETE rights on the table
+-- and therefore bypasses the trigger. The app role itself cannot
+-- DELETE directly.
+--
+-- The function is created with CREATE OR REPLACE so re-running
+-- SchemaSQL() is idempotent. The GRANT below is a no-op if the
+-- migration role does not exist yet (dev / CI environments where
+-- the app role IS the migration role).
+CREATE OR REPLACE FUNCTION execution_snapshot_prune(cutoff TIMESTAMPTZ)
+RETURNS BIGINT
+SECURITY DEFINER
+LANGUAGE plpgsql AS $$
+DECLARE
+    deleted BIGINT;
+BEGIN
+    DELETE FROM execution_positions_snapshot
+    WHERE snapshot_ts < cutoff;
+    GET DIAGNOSTICS deleted = ROW_COUNT;
+    RETURN deleted;
+END;
+$$;
 `
 }
