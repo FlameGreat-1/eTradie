@@ -1,0 +1,21 @@
+{{- include "mt-node.preflight" . -}}
+
+etradie-mt-node release {{ .Release.Name }} installed.
+
+Connection ID:  {{ .Values.mtConnection.connectionId }}
+User ID:        {{ .Values.mtConnection.userId }}
+Platform:       {{ .Values.mtConnection.platform }}
+Broker server:  {{ .Values.mtConnection.server }}
+Default symbol: {{ .Values.mtConnection.symbol }}
+
+The engine's ZmqClient should dial:
+    tcp://{{ include "mt-node.fullname" . }}.{{ include "mt-node.namespace" . }}.svc.cluster.local:{{ .Values.service.zmqPort }}
+
+Probes are wired to the watchdog sidecar's HTTP endpoints. Readiness
+only turns true once the EA reports mt5_connected=true AND
+authenticated=true within the last 30s.
+
+Live status:
+    kubectl -n {{ include "mt-node.namespace" . }} get sts {{ include "mt-node.fullname" . }}
+    kubectl -n {{ include "mt-node.namespace" . }} port-forward sts/{{ include "mt-node.fullname" . }} {{ .Values.service.watchdogPort }}:{{ .Values.service.watchdogPort }}
+    curl http://localhost:{{ .Values.service.watchdogPort }}/metrics

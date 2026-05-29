@@ -1,0 +1,20 @@
+{{- include "mt-node.preflight" . -}}
+{{- if .Values.priorityClass.create }}
+# Cluster-scoped PriorityClass. Created ONCE per cluster; subsequent
+# releases that also have priorityClass.create=true will see
+# 'already exists' and Helm will adopt the existing resource via
+# ServerSideApply. Audit ref: ArgoCD AppProject must whitelist
+# scheduling.k8s.io/PriorityClass (it already does for envoy/
+# edge-ingress).
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.priorityClass.name }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priority
+value: {{ .Values.priorityClass.value }}
+globalDefault: {{ .Values.priorityClass.globalDefault }}
+description: {{ .Values.priorityClass.description | quote }}
+preemptionPolicy: PreemptLowerPriority
+{{- end }}

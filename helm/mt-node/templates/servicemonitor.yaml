@@ -1,0 +1,35 @@
+{{- include "mt-node.preflight" . -}}
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "mt-node.fullname" . }}
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app.kubernetes.io/component: servicemonitor
+spec:
+  selector:
+    matchLabels:
+      {{- include "mt-node.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "mt-node.namespace" . }}
+  endpoints:
+    - port: watchdog
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+      scheme: http
+      {{- with .Values.serviceMonitor.metricRelabelDropPrefixes }}
+      metricRelabelings:
+        {{- range . }}
+        - sourceLabels: [__name__]
+          regex: ^{{ . }}.*
+          action: drop
+        {{- end }}
+      {{- end }}
+{{- end }}
