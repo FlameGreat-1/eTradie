@@ -993,18 +993,30 @@ class HostedProvisioner:
         When headless=True, sets clusterIP='None' so the Service is
         used only for stable per-pod DNS by the StatefulSet. When
         False (the regular ClusterIP Service), engine ZmqClient
-        traffic flows through this Service.
+        traffic flows through this Service AND Prometheus scrapes
+        the watchdog /metrics on :9100.
         """
+        watchdog_port = DEFAULT_WATCHDOG_PORT
+        # The headless Service is for stable pod-DNS only; it does not
+        # need to expose the watchdog port because Prometheus discovers
+        # the watchdog via the regular ClusterIP Service's ServiceMonitor.
+        ports = [
+            client.V1ServicePort(
+                name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
+            ),
+        ]
+        if not headless:
+            ports.append(
+                client.V1ServicePort(
+                    name="watchdog", port=watchdog_port, target_port="watchdog", protocol="TCP",
+                ),
+            )
         service_spec = client.V1ServiceSpec(
             type="ClusterIP",
             cluster_ip="None" if headless else None,
             publish_not_ready_addresses=False,
             selector=selector,
-            ports=[
-                client.V1ServicePort(
-                    name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
-                ),
-            ],
+            ports=ports,
         )
         service = client.V1Service(
             metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
