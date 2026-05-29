@@ -38,6 +38,7 @@ externalSecrets:
     vaultPath: etradie/services/engine/production
     refreshInterval: 1h
     chromadbAuthVaultPath: etradie/data-layer/chromadb/production
+    mtNodeVaultPath: etradie/services/mt-node/production
 
 resources:
   requests:

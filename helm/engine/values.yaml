@@ -171,6 +171,25 @@ config:
     # overlay sets this once an OTel collector is actually deployed.
     # Metrics live on the FastAPI app port (service.ports.http.port)
     # at /metrics; no separate prometheusPort. Audit ref: SC-H7.
+  # mt-node runtime tunables read by HostedProvisioner (Step 4 of
+  # the mt-node hardening series). Non-secret; the credential
+  # encryption key comes from ExternalSecret (see externalSecrets
+  # below). Resource sizing here MUST stay in sync with
+  # helm/mt-node/values{,-production,-staging}.yaml so a Pod the
+  # engine creates lands within the chart's PDB/quota envelope.
+  mtNode:
+    namespace: "etradie-system"
+    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    memLimit: "1536Mi"
+    memRequest: "1Gi"
+    cpuLimit: "1500m"
+    cpuRequest: "500m"
+    ephemeralLimit: "1Gi"
+    ephemeralRequest: "512Mi"
+    pvcSize: "4Gi"
+    readinessTimeoutSecs: "300"
+    readinessPollSecs: "3"
+    zmqProbeTimeoutSecs: "5"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"
@@ -195,6 +214,12 @@ externalSecrets:
     # RAG_CHROMA_AUTH_TOKEN both read from this exact Vault path so
     # they cannot drift out of sync. Audit ref: IV-C2, X-6, D-C3.
     chromadbAuthVaultPath: etradie/data-layer/chromadb/production
+    # mt-node platform path: holds the AES-GCM credential encryption
+    # key the engine uses to seal per-user MT broker credentials
+    # before writing them to a per-tenant K8s Secret. Single source
+    # of truth - rotation invalidates every in-flight per-tenant
+    # Secret (runbook in cluster/bootstrap/README.md step 10).
+    mtNodeVaultPath: etradie/services/mt-node/production
 
 resources:
   requests:

@@ -214,7 +214,9 @@ def create_mt5_broker_from_connection(
                 details={"connection_id": str(row.id)},
             )
 
-        # Resolve the container's internal IP on the Docker bridge network.
+        # Resolve the in-cluster Service DNS for the per-user mt-node
+        # release. HostedProvisioner (Step 4 of the mt-node hardening
+        # series) deploys the Service with this exact naming.
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 
         try:
@@ -225,8 +227,30 @@ def create_mt5_broker_from_connection(
 
         if not zmq_host:
             raise ConfigurationError(
-                "Cannot resolve hosted container IP. "
-                "The container may have been removed.",
+                "Cannot resolve hosted mt-node Service DNS. "
+                "The release may have been deleted.",
+                details={
+                    "connection_id": str(row.id),
+                    "container_id": row.hosted_container_id,
+                },
+            )
+
+        # Per-tenant ZMQ auth token. HostedProvisioner generates one
+        # at provision_account() time and the caller stores it in
+        # broker_connections.ea_auth_token (column-encrypted at rest
+        # by broker_encryption_key). ea_auth_token reaches this code
+        # path already DECRYPTED via the same path used for
+        # connection_type=='ea' (see line ~98 above).
+        #
+        # Backwards-compatibility: rows that pre-date this contract
+        # have ea_auth_token=NULL. We surface a clear ConfigurationError
+        # because a hosted release whose token the engine no longer
+        # knows cannot be authenticated against the EA - the user must
+        # re-provision via the dashboard.
+        if not ea_auth_token:
+            raise ConfigurationError(
+                "Hosted connection has no ea_auth_token. "
+                "Re-provision via the dashboard to regenerate one.",
                 details={
                     "connection_id": str(row.id),
                     "container_id": row.hosted_container_id,
@@ -234,7 +258,7 @@ def create_mt5_broker_from_connection(
             )
 
         # Build MT5Config for ZeroMQ native provider pointed at the
-        # Docker container's internal IP address.
+        # in-cluster Service DNS.
         config = MT5Config.model_construct(
             enabled=True,
             provider="native",
@@ -243,7 +267,7 @@ def create_mt5_broker_from_connection(
             metaapi_base_url="",
             zmq_host=zmq_host,
             zmq_port=5555,
-            zmq_auth_token="",
+            zmq_auth_token=ea_auth_token,
             terminal_path=None,
             account=0,
             password="",
@@ -259,7 +283,7 @@ def create_mt5_broker_from_connection(
 
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config, auth_token="")
+        client = ZmqClient(config=config, auth_token=ea_auth_token)
         logger.info(
             "mt5_broker_created_from_db",
             extra={

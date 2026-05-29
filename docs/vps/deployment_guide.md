@@ -1,89 +1,195 @@
-# MT4/MT5 Auto-Provisioning Deployment Guide
+# MetaTrader Hosting Deployment Guide
 
-> Production deployment guide for the headless MetaTrader 4 and 5 integration.
+> Production deployment guide for eTradie's three MetaTrader integration paths.
 >
-> The eTradie platform automatically spins up containerized MetaTrader terminals natively within your Kubernetes (K3s) cluster. **You do NOT need a dedicated Windows VPS.**
+> The eTradie platform supports three connection types for MetaTrader 4 and 5.
+> Pick the one that matches your hosting model.
 
 ---
 
-## 1. Cloud-Agnostic Architecture
+## 1. Connection types at a glance
 
-The eTradie Engine dynamically provisions broker instances on-demand using the `kubernetes_asyncio` library. When a user connects a broker account via the dashboard, the Engine spawns a dedicated pod running the custom `etradie-mt-node` Docker image.
+| Type | Where MT runs | Provisioning | Auto-recovery | Production-ready |
+|------|---------------|--------------|---------------|------------------|
+| `hosted` | Linux container inside your K8s cluster (helm/mt-node chart) | Engine API at runtime | K8s controllers + watchdog sidecar | YES (this guide, sections 2-4) |
+| `metaapi` | MetaApi.cloud (managed) | MetaApiProvisioner | MetaApi.cloud SLA | YES (no infra to manage; see MetaApi docs) |
+| `ea` | A Windows VPS YOU operate | manual (scripts/vps/*.ps1) | Windows Task Scheduler watchdog | YES, but the engine must be reachable FROM the cluster TO your VPS at TCP/5555. Inside the standard Cloudflare-Tunnel-only topology this requires an opt-in network policy exception. See section 5 below. |
+
+---
+
+## 2. Hosted MetaTrader (recommended)
+
+The eTradie engine spins up a dedicated per-user Kubernetes Deployment
+running the custom `etradie-mt-node` Docker image (Wine + Xvfb +
+MetaTrader + ZeroMQ EA + a watchdog sidecar).
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│ Kubernetes Cluster (K3s)                               │
-│                                                        │
-│  ┌─────────────────┐       ┌───────────────────────┐   │
-│  │ eTradie Engine  │       │ etradie-mt-node Pod   │   │
-│  │ (Python)        ├──────►│ (Headless Wine/Xvfb)  │   │
-│  │                 │ ZMQ   │                       │   │
-│  └──────┬──────────┘       │ ┌───────────────────┐ │   │
-│         │                  │ │ MT4 / MT5         │ │   │
-│         ▼ API              │ │ + ZeroMQ_EA       │ │   │
-│  ┌─────────────────┐       │ └───────────────────┘ │   │
-│  │ Kubernetes API  │◄──────┤                       │   │
-│  └─────────────────┘       └───────────────────────┘   │
-└────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Kubernetes Cluster (etradie-system namespace)        │
+│                                                      │
+│  ┌────────────────┐         ┌─────────────────────┐   │
+│  │ etradie-engine │  ZMQ    │ etradie-mt-<conn>   │   │
+│  │ (FastAPI)      ├───────►│ (Deployment+Svc)   │   │
+│  │                │ :5555   │   - mt-node ctr      │   │
+│  │ HostedProv.    │         │   - watchdog sidecar │   │
+│  │ +K8s API RBAC  │         │   - PVC (.wine)      │   │
+│  └────┬──────────┘         └─────────────────────┘   │
+│       │ manages via apps/v1.Deployment             │
+│       ▼                                              │
+│  ┌────────────────┐                                 │
+│  │ K8s API server │                                 │
+│  └────────────────┘                                 │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Key Advantages
-1. **No Windows Server Required**: Completely eliminates the need for expensive Windows VPS licenses.
-2. **Headless Execution**: Uses `Xvfb` (X Virtual Framebuffer) and Wine to run the Windows GUI terminals completely headlessly.
-3. **High Security**: The ZeroMQ port (5555) is only exposed internally within the Kubernetes cluster, preventing external internet attacks.
-4. **Instant Scalability**: Handles dozens of independent MT4/MT5 accounts by spinning up isolated pods for each connection.
+### Production guarantees
 
----
+- **No Windows server required.** Wine + Xvfb run MT terminals headlessly.
+- **No public network exposure.** The ZMQ port 5555 is reachable only
+  via the in-cluster ClusterIP Service. The chart's NetworkPolicy
+  allows ingress only from `app.kubernetes.io/name=etradie-engine`.
+- **Per-tenant credentials sealed via AES-GCM** by the engine before
+  writing to the per-tenant Kubernetes Secret. The encryption key
+  lives in `etradie/services/mt-node/<env>:mt_node_credential_encryption_key`.
+- **Auto-recovery in three layers:**
+  1. `entrypoint.sh` supervises MT5 inside the container (up to 5
+     in-pod restarts within 5 min before the kubelet restarts the Pod).
+  2. The watchdog sidecar polls the EA's HEALTH command every 10s and
+     signals MT5 to terminate on `mt5_connected=false`, `authenticated=false`,
+     or RSS ≥ 80% of the cgroup limit.
+  3. K8s `Deployment` + `restartPolicy=Always` cycles the Pod if the
+     watchdog itself wedges (livenessProbe fail).
+- **Persistent Wine prefix** via PVC so chart profile, symbol cache,
+  and EA settings survive Pod restarts.
 
-## 2. The `etradie-mt-node` Docker Image
+### One-time platform setup
 
-The custom MetaTrader container acts as the backbone of the auto-provisioning system.
+Done once per environment by an operator with kubeconfig + vault token.
 
-### Build Process
-Before deployment, you must bake your compiled `.ex4` and `.ex5` ZeroMQ Expert Advisors into the image.
+1. Provision the cluster + node pool (`infrastructure/cluster/oci/`)
+   or follow the manual K3s bootstrap (`infrastructure/cluster/bootstrap/`).
+2. Apply Vault path schema (`infrastructure/cluster/vault-paths/`).
+3. Populate the mt-node platform path:
+   ```bash
+   vault kv put secret/etradie/services/mt-node/production \
+     mt_node_credential_encryption_key="$(openssl rand -hex 32)" \
+     default_zmq_auth_token="$(openssl rand -hex 32)"
+   ```
+4. Apply the ArgoCD `mt-node-production` child Application. ArgoCD
+   reconciles the PriorityClass + platform ExternalSecret + watchdog
+   ConfigMap. Per-user Deployments are NOT managed by ArgoCD; the
+   engine creates them at runtime.
 
-1. Compile the MT4 EA (`ZeroMQ_EA.ex4`) and MT5 EA (`ZeroMQ_EA.ex5`) using MetaEditor on your local PC.
-2. Place them in `docker/mt-node/ea/`.
-3. Build the image:
+### Per-user provisioning (transparent)
+
+1. User signs in to dashboard, picks 'MetaTrader 5'.
+2. User enters MT login + password + broker server, clicks Connect.
+3. Engine calls `HostedProvisioner.provision_account()`:
+   - Creates per-tenant K8s Secret with sealed creds (`etradie-mt-<id>-creds`).
+   - Creates `Deployment` + `ClusterIP Service` + `PVC`.
+   - Blocks up to 300s waiting for Deployment Ready + ZMQ PING success.
+4. On success, engine writes `broker_connections.hosted_container_id`
+   = release name, `broker_connections.ea_auth_token` = per-tenant ZMQ
+   token (column-encrypted at rest by `broker_encryption_key`).
+5. Dashboard shows the connection as Active.
+
+### Build the mt-node image
+
+CI publishes a digest-pinned image to GHCR. Local builds:
+
 ```bash
-make build-mt-node
-make push-mt-node
+# Compile EA binaries in MetaEditor first, then drop into docker/mt-node/ea/
+make build-mt-node    # uses 'skip' SHA in dev
+MT5_INSTALLER_SHA256=<hash> MT4_INSTALLER_SHA256=<hash> make build-mt-node  # prod
 ```
 
-### Dynamic Startup Injection
-When the Pod boots up, the `entrypoint.sh` script executes the following sequence:
-1. Detects the requested platform via the `MT_PLATFORM` environment variable (`mt4` or `mt5`).
-2. Copies the corresponding binary (`terminal.exe` vs `terminal64.exe`) and EA (`.ex4` vs `.ex5`).
-3. Generates a custom `startup.ini` config on the fly, injecting the user's `MT_LOGIN`, `MT_PASSWORD`, and `MT_SERVER`.
-4. Starts `Xvfb` on Display :99 and launches the MetaTrader terminal natively in Wine.
+The Dockerfile's build will FAIL with no `MT*_INSTALLER_SHA256` set,
+this is deliberate.
+
+### Verify
+
+```bash
+make mt-node-lint              # helm lint (both render paths)
+make mt-node-deploy-dry-run    # helm template (both render paths)
+make mt-node-chaos             # provisioner contract + soak + OOM + disconnect
+```
 
 ---
 
-## 3. Connecting via the Dashboard
+## 3. MetaApi cloud
 
-Because the system manages the infrastructure, connecting a broker account is fully automated.
-
-1. Go to **My Broker** in the dashboard.
-2. Select **MetaTrader 4** or **MetaTrader 5**.
-3. Enter your account credentials (Login, Password, Server).
-4. Click **Connect**.
-
-Behind the scenes:
-- The Engine contacts the Kubernetes API and requests a new Pod.
-- The Pod pulls the `etradie-mt-node` image and injects your credentials.
-- The MetaTrader terminal launches, authenticates with the broker, and attaches the ZeroMQ EA.
-- The Engine verifies the ZMQ connection via an internal cluster IP address.
+No additional infra required. The engine reads `MT5_METAAPI_TOKEN`
+from Vault path `etradie/services/engine/<env>:mt5_metaapi_token`.
+Dashboard 'MetaApi (managed)' option triggers per-user account
+provisioning by `MetaApiProvisioner`.
 
 ---
 
-## 4. Legacy Windows PC Connection (Fallback)
+## 4. EA on Windows VPS (fallback)
 
-If you prefer to run the EA on your local Windows PC for testing or debugging, the system still supports the legacy `native` mode over the public internet or local network.
+For users who already own a Windows VPS and prefer running MT there
+(e.g. broker-pinned IP whitelisting).
 
-### Steps for Local Connection:
-1. Ensure your local PC's port `5555` is open in Windows Firewall to allow the Engine to connect.
-2. Open MetaTrader 4/5 on your local PC and manually attach the `ZeroMQ_EA`.
-3. Configure the `AUTH_TOKEN` in the EA settings.
-4. In the dashboard, choose **Custom EA Connection**, provide your local PC's IP address, and the exact same Auth Token.
+```text
+ IMPORTANT: In the standard eTradie cluster topology, the engine
+ sits behind Cloudflare Tunnel and its NetworkPolicy egress allows
+ outbound TCP only on 80/443 (broker REST), DNS, and the in-cluster
+ mt-node :5555 selector. Outbound TCP/5555 to an arbitrary public
+ VPS is NOT allowed.
 
-> **SECURITY WARNING:** If you use this fallback over the public internet, ensure your Windows Firewall strictly whitelists the IP address of your Linux server. ZeroMQ traffic is unencrypted in transit.
+ To use the VPS path in production, you have two options:
+   (a) Run the engine OUTSIDE the cluster (the docker-compose dev
+       deployment). The engine's NetworkPolicy does not apply.
+   (b) Add a NetworkPolicy egress exception for the VPS IP/24,
+       reviewed and applied as a one-off Vault-CIDR-allowlist diff
+       to helm/engine/values-production.yaml. This is operator-
+       initiated and out of scope for the dashboard flow.
+
+ Most users should pick the 'hosted' option (section 2) or MetaApi
+ (section 3). The VPS path is supported for completeness, not as the
+ default.
+```
+
+### Windows VPS setup steps
+
+1. Provision a Windows Server 2022 VPS.
+2. Install MetaTrader and log in to your broker account.
+3. Open MetaEditor, compile `ZeroMQ_EA.mq5` (source in
+   `src/engine/ta/broker/mt5/zmq/`).
+4. Run the automation scripts as Administrator:
+   ```powershell
+   .\setup_vps.ps1 `
+     -MT5DataFolder "C:\Users\Administrator\AppData\Roaming\MetaQuotes\Terminal\ABC123" `
+     -LinuxMachineIP "<engine-egress-ip>" `
+     -VPSPassword "<strong-password>"
+   .\install_monitor_task.ps1 -Action install
+   ```
+5. In the dashboard, choose 'Custom EA Connection' and provide:
+   - VPS public IP
+   - ZMQ port (default 5555)
+   - Auth token (the one you set in `setup_vps.ps1`)
+
+### Security caveats
+
+- ZeroMQ traffic to a remote VPS is **unencrypted**. Use a VPN or
+  whitelist the engine egress IP in Windows Firewall (the
+  `setup_vps.ps1` script does this if you pass `-LinuxMachineIP`).
+- Credentials live in `startup.ini` on the VPS disk.
+- Rotate the auth token by re-running `setup_vps.ps1` AND updating
+  the dashboard.
+
+---
+
+## 5. Choosing between paths
+
+| Need | Use |
+|------|-----|
+| Lowest operational overhead | `metaapi` |
+| Full control + no third-party SaaS | `hosted` |
+| Already own a Windows VPS for broker reasons | `ea` (with cluster egress exception) |
+
+The `hosted` path is what the rest of this CHECKLIST section refers
+to when it says 'self-hosted MetaTrader'. The previous version of
+this document claimed `hosted` was production-ready while the engine
+lacked the RBAC + NetworkPolicy + chart needed to make it work; that
+is now resolved by the mt-node hardening series (this MR).
