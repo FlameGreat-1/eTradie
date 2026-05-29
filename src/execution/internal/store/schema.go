@@ -136,6 +136,34 @@ CREATE INDEX IF NOT EXISTS idx_exec_idemp_created_at
 CREATE INDEX IF NOT EXISTS idx_exec_idemp_order_id
     ON execution_order_idempotency (order_id);
 
+-- Section 7 (CHECKLIST): position snapshots.
+--
+-- One INSERT-only row per reconcile cycle per user. Carries the
+-- JSONB-encoded list of engine-tracked positions AFTER the reconciler
+-- ran (post adopt/replace), plus a sha256 of the canonicalised JSON
+-- for tamper detection. The ghost-position rule in reconciler.go
+-- compares 'positions that appear in the latest snapshot but not in
+-- the current broker reply' against a configurable min-age threshold.
+--
+-- Immutability: Section 7 Step B adds a BEFORE UPDATE / BEFORE DELETE
+-- trigger on this table. The pruner uses a separate SECURITY DEFINER
+-- function (execution_snapshot_prune) to age out old rows; the app
+-- role cannot bypass the trigger.
+CREATE TABLE IF NOT EXISTS execution_positions_snapshot (
+    id               BIGSERIAL PRIMARY KEY,
+    user_id          VARCHAR(64) NOT NULL,
+    snapshot_ts      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    position_count   INTEGER NOT NULL DEFAULT 0,
+    positions        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    content_hash     CHAR(64) NOT NULL,
+    reconcile_run_id TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_positions_snap_user_ts
+    ON execution_positions_snapshot (user_id, snapshot_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_exec_positions_snap_ts
+    ON execution_positions_snapshot (snapshot_ts);
+
 -- Automatic schema migration for existing databases
 ALTER TABLE execution_pending_watchers ADD COLUMN IF NOT EXISTS broker_order_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS volume_filled    DOUBLE PRECISION NOT NULL DEFAULT 0;
