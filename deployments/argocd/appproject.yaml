@@ -69,6 +69,8 @@ spec:
       kind: ResourceQuota
     - group: ""
       kind: LimitRange
+    - group: ""
+      kind: PersistentVolumeClaim
     - group: apps
       kind: Deployment
     - group: apps
@@ -144,4 +146,17 @@ spec:
       duration: 8h
       applications:
         - "*-production"
+      manualSync: true
+    # 24/7 selfHeal window scoped to mt-node-* Applications.
+    # Trading is 24/5 and an mt-node platform Secret rotation or
+    # PriorityClass drift cannot wait for Monday 13:00 UTC. The
+    # business-hours window above continues to gate every other
+    # production Application as before. ArgoCD evaluates allow windows
+    # additively: an mt-node-* Application sees BOTH windows and uses
+    # the union, i.e. 24/7.
+    - kind: allow
+      schedule: "* * * * *"      # always
+      duration: 24h
+      applications:
+        - "mt-node-*"
       manualSync: true

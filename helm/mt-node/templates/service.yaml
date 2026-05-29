@@ -1,3 +1,4 @@
+{{- if .Values.mtConnection.enabled }}
 {{- include "mt-node.preflight" . -}}
 apiVersion: v1
 kind: Service
@@ -22,6 +23,7 @@ spec:
       port: {{ .Values.service.watchdogPort | default 9100 }}
       targetPort: watchdog
       protocol: TCP
+{{- end }}
       appProtocol: http
 ---
 # Headless variant used by the StatefulSet for stable pod-DNS.

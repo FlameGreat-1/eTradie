@@ -17,8 +17,18 @@
 # Per-tenant settings the engine populates at release-create time.
 # Every field here MUST be set by HostedProvisioner via --set; an
 # unset connectionId / sealedSecretName aborts the chart render.
+#
+# Set mtConnection.enabled=false in the PLATFORM ArgoCD Application
+# (deployments/argocd/children/mt-node-{staging,production}.yaml)
+# so per-tenant resources are skipped and only the PriorityClass +
+# platform ExternalSecret + watchdog ConfigMap render.
 # ---------------------------------------------------------------------
 mtConnection:
+  # When false, every per-tenant template (StatefulSet, Service, PDB,
+  # NetworkPolicy, ServiceMonitor, SA, watchdog ConfigMap) is skipped.
+  # Only the cluster-scoped PriorityClass and the platform
+  # ExternalSecret render. Used by the platform ArgoCD Application.
+  enabled: true
   # Stable 36-char UUID assigned by the engine. Used as a label on
   # every resource and embedded in the release name.
   connectionId: ""

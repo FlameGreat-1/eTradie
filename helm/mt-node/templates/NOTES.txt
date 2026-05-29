@@ -1,6 +1,15 @@
+{{- if .Values.mtConnection.enabled }}
 {{- include "mt-node.preflight" . -}}
+{{- end }}
 
 etradie-mt-node release {{ .Release.Name }} installed.
+{{- if not .Values.mtConnection.enabled }}
+
+PLATFORM-ONLY render (mtConnection.enabled=false). Only the
+PriorityClass + platform ExternalSecret + watchdog ConfigMap landed.
+Per-tenant releases are created by the engine at runtime.
+
+{{- else }}
 
 Connection ID:  {{ .Values.mtConnection.connectionId }}
 User ID:        {{ .Values.mtConnection.userId }}
@@ -19,3 +28,4 @@ Live status:
     kubectl -n {{ include "mt-node.namespace" . }} get sts {{ include "mt-node.fullname" . }}
     kubectl -n {{ include "mt-node.namespace" . }} port-forward sts/{{ include "mt-node.fullname" . }} {{ .Values.service.watchdogPort }}:{{ .Values.service.watchdogPort }}
     curl http://localhost:{{ .Values.service.watchdogPort }}/metrics
+{{- end }}

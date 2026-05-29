@@ -1,5 +1,5 @@
+{{- if and .Values.mtConnection.enabled .Values.podDisruptionBudget.enabled }}
 {{- include "mt-node.preflight" . -}}
-{{- if .Values.podDisruptionBudget.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
