@@ -325,6 +325,17 @@ serviceMonitor:
     - promhttp_
 
 # ---------------------------------------------------------------------
+# PrometheusRule. Section 5 (CHECKLIST) - cluster-capacity + EA-health
+# alarms. The rule renders only when the per-tenant release renders
+# (mtConnection.enabled=true) so the platform render skips it.
+# ---------------------------------------------------------------------
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
+# ---------------------------------------------------------------------
 # External Secrets (platform-level only). The per-tenant credential
 # Secret is created by the engine at runtime, NOT here.
 # ---------------------------------------------------------------------

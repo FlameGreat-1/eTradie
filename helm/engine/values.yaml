@@ -296,6 +296,23 @@ autoscaling:
   maxReplicas: 4
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
+  # Section 5 (CHECKLIST): the engine exposes
+  # etradie_active_user_connections{connection_type} via /metrics.
+  # To wire this as an HPA scaling signal, deploy prometheus-adapter
+  # with a 'series' rule that exposes the metric as an external
+  # metric in the K8s metrics API, then add an entry under
+  # customMetrics below. We do NOT add the External metric to the
+  # HPA spec by default because the cluster may not have the
+  # prometheus-adapter installed; the operator opts in by setting
+  # this to a non-empty list. Example:
+  #   customMetrics:
+  #     - external:
+  #         metric:
+  #           name: etradie_active_user_connections
+  #         target:
+  #           type: AverageValue
+  #           averageValue: "25"  # one engine pod per 25 connections
+  customMetrics: []
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 600
