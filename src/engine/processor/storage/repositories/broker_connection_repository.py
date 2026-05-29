@@ -56,29 +56,39 @@ STATUS_ERROR = "error"
 def _derive_encryption_key() -> bytes:
     """Derive a Fernet encryption key for credential encryption.
 
-    Uses the same derivation chain as the LLM connection repository
-    so both share the same key. Priority:
-      1. BROKER_ENCRYPTION_KEY env var (shared across all credential stores)
-      2. LLM_ENCRYPTION_KEY env var (legacy alias)
-      3. DATABASE_URL env var
-      4. Hardcoded fallback (dev only, never in production)
+    Reads BROKER_ENCRYPTION_KEY exclusively. No fallback chain to
+    DATABASE_URL or hardcoded defaults — those patterns silently
+    produce different keys across environments and make every
+    existing ciphertext undecryptable after a legitimate key rotation.
 
-    In production/staging, fails fast if no explicit key is configured
-    to prevent encrypting credentials with a publicly known default.
+    In production/staging, fails fast if the key is not set.
+    In development, falls back to a well-known dev-only literal so
+    docker-compose and pytest work without secrets management, but
+    logs a loud warning so the gap is visible.
+
+    The key is SHA-256 hashed to produce a URL-safe base64 Fernet key
+    regardless of the raw value's length.
     """
-    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("DATABASE_URL", "")
+    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "").strip()
     if not raw:
         app_env = os.environ.get("APP_ENV", "development").lower()
         if app_env in ("production", "staging"):
             raise ValueError(
-                "Credential encryption key is required in production/staging. "
-                "Set BROKER_ENCRYPTION_KEY or LLM_ENCRYPTION_KEY environment variable."
+                "BROKER_ENCRYPTION_KEY is required in production/staging. "
+                "Set it via the engine ExternalSecret "
+                "(Vault path etradie/services/engine/<env>:broker_encryption_key)."
             )
-        raw = "etradie-default-key"
+        # Dev-only fallback. Loud warning so it is never missed.
+        logger.warning(
+            "broker_encryption_key_missing_using_dev_fallback",
+            extra={
+                "warning": (
+                    "BROKER_ENCRYPTION_KEY is not set. Using the dev-only fallback. "
+                    "DO NOT use this in production or staging."
+                )
+            },
+        )
+        raw = "etradie-dev-only-broker-key-do-not-use-in-production"
     digest = hashlib.sha256(raw.encode()).digest()
     return base64.urlsafe_b64encode(digest)
 
