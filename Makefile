@@ -273,14 +273,31 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
-build-mt-node: ## Build the MetaTrader headless Docker image (requires MT5_INSTALLER_SHA256 + MT4_INSTALLER_SHA256 env vars in prod; pass 'skip' for dev)
+build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256; pass 'skip' for dev)
 	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
 	docker build \
 		--build-arg MT5_INSTALLER_SHA256=$${MT5_INSTALLER_SHA256:-skip} \
 		--build-arg MT4_INSTALLER_SHA256=$${MT4_INSTALLER_SHA256:-skip} \
+		--build-arg MT5_INSTALLER_URL=$${MT5_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe} \
+		--build-arg MT4_INSTALLER_URL=$${MT4_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe} \
+		--build-arg EA_EX5_SHA256=$${EA_EX5_SHA256:-skip} \
+		--build-arg EA_EX4_SHA256=$${EA_EX4_SHA256:-skip} \
 		-t ghcr.io/flamegreat-1/etradie-mt-node:$${MT_NODE_TAG:-0.1.0} \
 		docker/mt-node/
 	echo -e "$(GREEN)✓ etradie-mt-node built$(NC)"
+
+mt-node-ea-sha: ## Print the sha256 of the committed EA binaries (for CI pinning via EA_EX5_SHA256 / EA_EX4_SHA256)
+	echo -e "$(BLUE)Computing EA binary SHAs...$(NC)"
+	@if [ -f docker/mt-node/ea/ZeroMQ_EA.ex5 ]; then \
+		printf "  EA_EX5_SHA256=%s\n" "$$(sha256sum docker/mt-node/ea/ZeroMQ_EA.ex5 | awk '{print $$1}')"; \
+	else \
+		echo -e "  $(YELLOW)docker/mt-node/ea/ZeroMQ_EA.ex5 not present$(NC)"; \
+	fi
+	@if [ -f docker/mt-node/ea/ZeroMQ_EA.ex4 ]; then \
+		printf "  EA_EX4_SHA256=%s\n" "$$(sha256sum docker/mt-node/ea/ZeroMQ_EA.ex4 | awk '{print $$1}')"; \
+	else \
+		echo -e "  $(YELLOW)docker/mt-node/ea/ZeroMQ_EA.ex4 not present$(NC)"; \
+	fi
 
 push-mt-node: build-mt-node ## Push the MetaTrader Docker image to GHCR
 	echo -e "$(BLUE)Pushing etradie-mt-node to GHCR...$(NC)"
