@@ -1,29 +1,38 @@
-"""Hosted MetaTrader provisioner using Kubernetes Deployments.
+"""Hosted MetaTrader provisioner using Kubernetes StatefulSets.
 
-Spawns isolated Kubernetes Deployments running headless MetaTrader 4 or
-5 terminals via Wine/Xvfb. Each Deployment is fronted by a ClusterIP
-Service on :5555 (ZMQ) + :9100 (watchdog). The engine's ZmqClient
-dials the Service in-cluster.
+Spawns isolated Kubernetes StatefulSets running headless MetaTrader 4
+or 5 terminals via Wine/Xvfb. Each StatefulSet is fronted by both a
+ClusterIP Service on :5555 (ZMQ) + :9100 (watchdog) AND a headless
+Service that gives the per-replica pod a stable DNS name. The
+engine's ZmqClient dials the regular ClusterIP Service in-cluster.
 
-Production posture (mirrors the helm/mt-node chart exactly):
-  - Deployment is created with the same labels the chart uses, so the
-    chart's NetworkPolicy / PodDisruptionBudget / ServiceMonitor
+Production posture (mirrors the helm/mt-node chart EXACTLY):
+  - StatefulSet is created with the same labels the chart uses, so
+    the chart's NetworkPolicy / PodDisruptionBudget / ServiceMonitor
     selectors match and the engine NetworkPolicy egress allowlist
     (etradie-mt-node) reaches it.
+  - volumeClaimTemplates owns the Wine prefix PVC. K8s produces the
+    per-replica PVC named 'wine-prefix-<release>-0' automatically.
+    There is NO explicit _ensure_pvc helper; the STS reconcile loop
+    creates the PVC as part of the StatefulSet's first pod scheduling.
   - Credentials are AES-GCM sealed before writing to the per-tenant
-    Secret; the Deployment mounts the Secret via envFrom so creds
+    Secret; the StatefulSet mounts the Secret via envFrom so creds
     never appear in V1EnvVar value strings.
-  - provision_account() does NOT return until the Deployment is
-    Ready AND a ZMQ PING succeeds through the Service. Up to 300s.
-  - delete_account() removes the Deployment, both Services, the
-    per-tenant Secret, and the PVC.
+  - provision_account() does NOT return until the StatefulSet has at
+    least one Ready replica AND a ZMQ PING succeeds through the
+    Service. Up to 300s.
+  - delete_account() removes the StatefulSet, both Services, the
+    per-tenant Secret, and the per-replica PVC (StatefulSet GC does
+    NOT cascade to volumeClaimTemplate PVCs by design - we delete
+    them explicitly here).
   - gc_orphans() can be called by a background task to delete
-    Deployments whose connection_id has been removed from the DB.
+    StatefulSets whose connection_id has been removed from the DB.
 
-Resilience: K8s ReplicaSet+Deployment controller handles process-
-restart loops; the chart's in-pod entrypoint supervises MT5 inside
-the container; the watchdog sidecar enforces semantic restart
-(EA disconnected, memory soft-cap). All three layers are independent.
+Resilience: the K8s StatefulSet controller handles process-restart
+loops; the chart's in-pod entrypoint supervises MT5 inside the
+container; the watchdog sidecar enforces semantic restart
+(EA disconnected, memory soft-cap, CPU soft-cap). All three layers
+are independent.
 """
 
 from __future__ import annotations
@@ -67,6 +76,15 @@ CONTAINER_PREFIX = "etradie-mt-"  # release-name prefix; first 12 chars of conne
 DEFAULT_ZMQ_PORT = 5555
 DEFAULT_WATCHDOG_PORT = 9100
 NAMESPACE_DEFAULT = "etradie-system"
+
+# volumeClaimTemplate name MUST match helm/mt-node/templates/statefulset.yaml.
+# StatefulSet produces per-replica PVCs named '<tmpl>-<sts>-<ordinal>'.
+# With template 'wine-prefix' + sts '<release>' + ordinal 0, the PVC is
+# 'wine-prefix-<release>-0'. Both the chart and this provisioner
+# converge on this name; an operator can flip a tenant between
+# GitOps-managed (chart) and runtime-managed (this provisioner)
+# without losing the Wine prefix.
+_PVC_TEMPLATE_NAME = "wine-prefix"
 
 # Labels matching helm/mt-node's selectorLabels + labels helpers.
 _LABEL_APP_NAME = "app.kubernetes.io/name"
@@ -140,12 +158,6 @@ def _seal(plaintext: str, key: bytes) -> str:
     plain MT_LOGIN/MT_PASSWORD/MT_ZMQ_AUTH_TOKEN via envFrom; that
     is acceptable because the Pod is per-tenant + read-only-rootfs
     + non-root.
-
-    NOTE: the sealing here applies to a hardened-store variant the
-    engine writes ALSO into broker_connections.audit_seal so that an
-    audit trail of which connections existed at what time can be
-    reconstructed even if the K8s Secret is GC'd. The mt-node
-    container always reads the unsealed envFrom values.
     """
     nonce = secrets.token_bytes(12)
     aead = AESGCM(key)
@@ -157,8 +169,17 @@ def _b64(value: str) -> str:
     return base64.b64encode(value.encode("utf-8")).decode("ascii")
 
 
+def _pvc_name_for(release: str) -> str:
+    """Return the per-replica PVC name that the StatefulSet's
+    volumeClaimTemplate produces. The format is
+    '<template-name>-<sts-name>-<ordinal>' and ordinal is always 0
+    because the chart runs a single replica per tenant.
+    """
+    return f"{_PVC_TEMPLATE_NAME}-{release}-0"
+
+
 class HostedProvisioner:
-    """Manages the lifecycle of per-user mt-node Deployments + Services."""
+    """Manages the lifecycle of per-user mt-node StatefulSets + Services."""
 
     def __init__(
         self,
@@ -170,16 +191,20 @@ class HostedProvisioner:
         self._namespace = namespace or os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
         self._image = image or os.environ.get("MT_NODE_IMAGE", MT_NODE_IMAGE_DEFAULT)
         # Platform Secret name the chart provisions. Defaults to the
-        # name helm/mt-node's helper renders for a release
-        # 'etradie-mt-platform' shared across releases is NOT used
-        # here; the chart creates one per release. We mount the
-        # release-scoped platform Secret with the same naming rule.
+        # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
 
     # -- K8s client -----------------------------------------------------------
 
     async def _api_clients(self) -> tuple[client.CoreV1Api, client.AppsV1Api]:
-        """Initialise CoreV1 + AppsV1 with in-cluster auth."""
+        """Initialise CoreV1 + AppsV1 with in-cluster auth.
+
+        Construction is NOT cheap (parses kubeconfig OR reads
+        the in-cluster service-account token + builds the
+        ApiClient + per-resource client). Callers should hold the
+        returned pair for the duration of a logical operation
+        rather than reopening per-iteration.
+        """
         try:
             try:
                 config.load_incluster_config()
@@ -193,7 +218,7 @@ class HostedProvisioner:
         return client.CoreV1Api(), client.AppsV1Api()
 
     @staticmethod
-    async def _close(api: client.CoreV1Api) -> None:
+    async def _close(api) -> None:
         try:
             await api.api_client.close()
         except Exception:  # noqa: BLE001
@@ -204,6 +229,10 @@ class HostedProvisioner:
     @staticmethod
     def _release_name(connection_id: str) -> str:
         return f"{CONTAINER_PREFIX}{connection_id[:12]}"
+
+    @staticmethod
+    def _headless_service_name(release: str) -> str:
+        return f"{release}-headless"
 
     @classmethod
     def _labels(
@@ -268,9 +297,12 @@ class HostedProvisioner:
 
         Side effects (idempotent w.r.t. an existing release of the same name):
           1. Create / update the per-tenant Secret with sealed creds.
-          2. Create / update the Deployment.
-          3. Create / update the ClusterIP Service.
-          4. Wait until Deployment is Ready AND ZMQ PING succeeds.
+          2. Create / update the StatefulSet (volumeClaimTemplates
+             owns the Wine prefix PVC).
+          3. Create / update the regular ClusterIP Service AND the
+             headless Service the StatefulSet needs for stable pod-DNS.
+          4. Wait until the StatefulSet has at least one Ready replica
+             AND a ZMQ PING succeeds.
 
         Raises:
             ConfigurationError    - missing platform encryption key.
@@ -289,6 +321,7 @@ class HostedProvisioner:
         labels = self._labels(connection_id, user_id, platform, release)
         selector = self._selector_labels(connection_id, release)
         service_name = release
+        headless_service_name = self._headless_service_name(release)
         secret_name = f"{release}-creds"
 
         dns_name = f"{service_name}.{self._namespace}.svc.cluster.local"
@@ -300,76 +333,92 @@ class HostedProvisioner:
         # ZmqClient can re-read it.
         effective_token = (per_user_zmq_token or secrets.token_hex(32)).strip()
 
+        # Persistent api clients for the WHOLE provision flow including
+        # the readiness gate. Without this, each readiness poll opened
+        # a fresh ApiClient and closed it - up to ~100 client churns
+        # per provision at 3s poll interval / 300s timeout. The
+        # persistent client also keeps the kube-apiserver connection
+        # warm for the duration.
         core_api, apps_api = await self._api_clients()
         try:
-            await self._upsert_secret(
-                core_api=core_api,
-                name=secret_name,
-                labels=labels,
-                login=login,
-                password=password,
-                token=effective_token,
-                seal_key=key,
-            )
-            await self._upsert_deployment(
-                apps_api=apps_api,
-                release=release,
-                labels=labels,
-                selector=selector,
-                platform=platform,
-                server=server,
-                symbol=symbol,
-                zmq_port=zmq_port,
-                secret_name=secret_name,
-            )
-            await self._upsert_service(
-                core_api=core_api,
-                name=service_name,
-                labels=labels,
-                selector=selector,
-                zmq_port=zmq_port,
-            )
-        except ApiException as exc:
-            logger.error(
-                "hosted_provisioning_k8s_error",
-                extra={
-                    "connection_id": connection_id,
-                    "release": release,
-                    "status": exc.status,
-                    "reason": exc.reason,
-                    "body": (exc.body or "")[:500],
-                },
-            )
-            # Best-effort rollback so we do not leak orphans on a
-            # partial failure.
-            await self._best_effort_cleanup(core_api, apps_api, release, service_name, secret_name)
-            raise ProviderError(
-                f"Failed to create hosted mt-node release: {exc.reason}",
-                details={
-                    "connection_id": connection_id,
-                    "release": release,
-                    "status": exc.status,
-                },
-            ) from exc
-        finally:
-            await self._close(core_api)
-            await self._close(apps_api)
+            try:
+                await self._upsert_secret(
+                    core_api=core_api,
+                    name=secret_name,
+                    labels=labels,
+                    login=login,
+                    password=password,
+                    token=effective_token,
+                    seal_key=key,
+                )
+                await self._upsert_statefulset(
+                    apps_api=apps_api,
+                    release=release,
+                    headless_service_name=headless_service_name,
+                    labels=labels,
+                    selector=selector,
+                    platform=platform,
+                    server=server,
+                    symbol=symbol,
+                    zmq_port=zmq_port,
+                    secret_name=secret_name,
+                )
+                await self._upsert_service(
+                    core_api=core_api,
+                    name=service_name,
+                    labels=labels,
+                    selector=selector,
+                    zmq_port=zmq_port,
+                    headless=False,
+                )
+                await self._upsert_service(
+                    core_api=core_api,
+                    name=headless_service_name,
+                    labels=labels,
+                    selector=selector,
+                    zmq_port=zmq_port,
+                    headless=True,
+                )
+            except ApiException as exc:
+                logger.error(
+                    "hosted_provisioning_k8s_error",
+                    extra={
+                        "connection_id": connection_id,
+                        "release": release,
+                        "status": exc.status,
+                        "reason": exc.reason,
+                        "body": (exc.body or "")[:500],
+                    },
+                )
+                # Best-effort rollback so we do not leak orphans on a
+                # partial failure.
+                await self._best_effort_cleanup(
+                    core_api, apps_api, release,
+                    service_name, headless_service_name, secret_name,
+                )
+                raise ProviderError(
+                    f"Failed to create hosted mt-node release: {exc.reason}",
+                    details={
+                        "connection_id": connection_id,
+                        "release": release,
+                        "status": exc.status,
+                    },
+                ) from exc
 
-        # Readiness gate runs through its own client to avoid serialising
-        # behind the close() above.
-        timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
-        try:
+            # Readiness gate uses the SAME api clients - no churn.
+            timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
             await self._wait_ready(
+                core_api=core_api,
+                apps_api=apps_api,
                 release=release,
                 dns_name=dns_name,
                 zmq_port=zmq_port,
                 token=effective_token,
                 timeout=timeout,
             )
-        except ProviderTimeoutError:
-            # Leave the release in place so an operator can inspect
-            # logs; surface the timeout to the dashboard.
-            raise
+        finally:
+            await self._close(core_api)
+            await self._close(apps_api)
 
         logger.info(
             "hosted_provisioning_success",
@@ -391,11 +440,11 @@ class HostedProvisioner:
         }
 
     async def get_account_status(self, container_id: str) -> dict[str, Any]:
-        """Return Deployment readiness + Service endpoint state."""
+        """Return StatefulSet readiness + Service endpoint state."""
         core_api, apps_api = await self._api_clients()
         try:
             try:
-                dep = await apps_api.read_namespaced_deployment(
+                sts = await apps_api.read_namespaced_stateful_set(
                     name=container_id, namespace=self._namespace,
                 )
             except ApiException as exc:
@@ -409,24 +458,22 @@ class HostedProvisioner:
                         "exit_code": -1,
                     }
                 raise ProviderError(
-                    f"Failed to read Deployment: {exc.reason}",
+                    f"Failed to read StatefulSet: {exc.reason}",
                     details={"container_id": container_id, "status": exc.status},
                 ) from exc
 
-            ready = int(dep.status.ready_replicas or 0)
-            replicas = int(dep.status.replicas or 0)
-            available_cond = next(
-                (c for c in (dep.status.conditions or []) if c.type == "Available"),
-                None,
-            )
-            running = ready >= 1 and (available_cond is None or available_cond.status == "True")
+            ready = int(sts.status.ready_replicas or 0)
+            replicas = int(sts.status.replicas or 0)
+            current = int(sts.status.current_replicas or 0) if hasattr(sts.status, "current_replicas") else replicas
+            running = ready >= 1
             return {
                 "container_id": container_id,
                 "status": "running" if running else "pending",
                 "running": running,
                 "ready_replicas": ready,
                 "replicas": replicas,
-                "started_at": str(dep.metadata.creation_timestamp) if dep.metadata.creation_timestamp else None,
+                "current_replicas": current,
+                "started_at": str(sts.metadata.creation_timestamp) if sts.metadata.creation_timestamp else None,
                 "exit_code": 0 if running else -1,
             }
         finally:
@@ -434,25 +481,35 @@ class HostedProvisioner:
             await self._close(apps_api)
 
     async def delete_account(self, container_id: str) -> bool:
-        """Remove the Deployment, Service, Secret, and PVC for a release."""
+        """Remove the StatefulSet, both Services, the per-tenant Secret,
+        and the per-replica Wine-prefix PVC for a release.
+
+        StatefulSet GC does NOT cascade to its volumeClaimTemplate
+        PVCs by design (the K8s authors decided that stateful data
+        deletion must be explicit). We delete the wine-prefix-<release>-0
+        PVC here so the engine's connection-delete flow is complete.
+        """
         core_api, apps_api = await self._api_clients()
         ok = True
         try:
             ok &= await self._safe_delete(
-                apps_api.delete_namespaced_deployment, container_id, "Deployment",
+                apps_api.delete_namespaced_stateful_set, container_id, "StatefulSet",
             )
             ok &= await self._safe_delete(
                 core_api.delete_namespaced_service, container_id, "Service",
             )
             ok &= await self._safe_delete(
+                core_api.delete_namespaced_service,
+                self._headless_service_name(container_id),
+                "Service(headless)",
+            )
+            ok &= await self._safe_delete(
                 core_api.delete_namespaced_secret, f"{container_id}-creds", "Secret(creds)",
             )
-            # PVC name follows StatefulSet/Deployment volumeClaimTemplates contract.
-            # The chart uses a single PVC named wine-prefix-<release>-0; for the
-            # Deployment variant we manage it explicitly below.
+            # Per-replica PVC the StatefulSet's volumeClaimTemplate produced.
             ok &= await self._safe_delete(
                 core_api.delete_namespaced_persistent_volume_claim,
-                f"{container_id}-wine-prefix",
+                _pvc_name_for(container_id),
                 "PVC(wine-prefix)",
             )
             logger.info(
@@ -468,7 +525,7 @@ class HostedProvisioner:
         return f"{container_id}.{self._namespace}.svc.cluster.local"
 
     async def gc_orphans(self, known_connection_ids: Iterable[str]) -> dict[str, Any]:
-        """Delete Deployments whose connection-id is no longer in the DB.
+        """Delete StatefulSets whose connection-id is no longer in the DB.
 
         Called by a background task on the engine. Idempotent.
         """
@@ -476,27 +533,38 @@ class HostedProvisioner:
         core_api, apps_api = await self._api_clients()
         deleted: list[str] = []
         try:
-            dep_list = await apps_api.list_namespaced_deployment(
+            sts_list = await apps_api.list_namespaced_stateful_set(
                 namespace=self._namespace,
                 label_selector=f"{_LABEL_APP_NAME}={_APP_NAME_VALUE}",
             )
-            for dep in dep_list.items:
-                lbl = (dep.metadata.labels or {}).get(_LABEL_CONN_ID)
+            for sts in sts_list.items:
+                lbl = (sts.metadata.labels or {}).get(_LABEL_CONN_ID)
                 if lbl and lbl not in known:
-                    name = dep.metadata.name
+                    name = sts.metadata.name
                     logger.warning(
                         "hosted_gc_orphan",
-                        extra={"deployment": name, "connection_id": lbl},
+                        extra={"statefulset": name, "connection_id": lbl},
                     )
-                    await self._safe_delete(apps_api.delete_namespaced_deployment, name, "Deployment")
-                    await self._safe_delete(core_api.delete_namespaced_service, name, "Service")
-                    await self._safe_delete(core_api.delete_namespaced_secret, f"{name}-creds", "Secret")
+                    await self._safe_delete(
+                        apps_api.delete_namespaced_stateful_set, name, "StatefulSet",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_service, name, "Service",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_service,
+                        self._headless_service_name(name),
+                        "Service(headless)",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_secret, f"{name}-creds", "Secret",
+                    )
                     await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
-                        f"{name}-wine-prefix", "PVC",
+                        _pvc_name_for(name), "PVC",
                     )
                     deleted.append(name)
-            return {"deleted": deleted, "scanned": len(dep_list.items)}
+            return {"deleted": deleted, "scanned": len(sts_list.items)}
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -557,11 +625,12 @@ class HostedProvisioner:
                         return
                     raise
 
-    async def _upsert_deployment(
+    async def _upsert_statefulset(
         self,
         *,
         apps_api: client.AppsV1Api,
         release: str,
+        headless_service_name: str,
         labels: dict[str, str],
         selector: dict[str, str],
         platform: str,
@@ -570,7 +639,13 @@ class HostedProvisioner:
         zmq_port: int,
         secret_name: str,
     ) -> None:
-        """Create or update the per-tenant Deployment."""
+        """Create or update the per-tenant StatefulSet.
+
+        Wire shape matches helm/mt-node/templates/statefulset.yaml. Any
+        operator-facing inspection (kubectl describe sts <release>)
+        produces an identical resource regardless of whether the chart
+        or this provisioner created it.
+        """
         env = [
             client.V1EnvVar(name="MT_PLATFORM", value=platform),
             client.V1EnvVar(name="MT_SERVER", value=server),
@@ -618,7 +693,11 @@ class HostedProvisioner:
                 failure_threshold=60,
             ),
             volume_mounts=[
-                client.V1VolumeMount(name="wine-prefix", mount_path="/home/mt/.wine"),
+                # NB: this mountPath matches the chart. The volume
+                # 'wine-prefix' is supplied by the volumeClaimTemplate,
+                # NOT by an inline V1Volume entry. K8s wires the
+                # per-replica PVC automatically.
+                client.V1VolumeMount(name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"),
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
                 client.V1VolumeMount(name="tmp", mount_path="/tmp"),
                 client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),
@@ -636,21 +715,14 @@ class HostedProvisioner:
             ),
             termination_grace_period_seconds=60,
             containers=[container],
+            # Inline volumes only; the wine-prefix volume is supplied by
+            # volumeClaimTemplates below.
             volumes=[
-                client.V1Volume(
-                    name="wine-prefix",
-                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=f"{release}-wine-prefix",
-                    ),
-                ),
                 client.V1Volume(name="mt-cache", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
                 client.V1Volume(name="tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
                 client.V1Volume(name="var-tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi")),
             ],
         )
-
-        # Make sure the PVC exists. Best-effort create.
-        await self._ensure_pvc(release)
 
         pod_template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels=selector | {
@@ -661,59 +733,59 @@ class HostedProvisioner:
             }),
             spec=pod_spec,
         )
-        deployment = client.V1Deployment(
+
+        # volumeClaimTemplate. K8s materialises this into a per-replica
+        # PVC named '<template>-<sts>-<ordinal>' = 'wine-prefix-<release>-0'.
+        # The reclaim policy is set at the StorageClass level; the chart's
+        # convention is Retain so the Wine prefix survives a helm uninstall.
+        pvc_template = client.V1PersistentVolumeClaim(
+            metadata=client.V1ObjectMeta(
+                name=_PVC_TEMPLATE_NAME,
+                labels={
+                    _LABEL_APP_NAME: _APP_NAME_VALUE,
+                    _LABEL_INSTANCE: release,
+                    _LABEL_COMPONENT: "wine-prefix",
+                },
+            ),
+            spec=client.V1PersistentVolumeClaimSpec(
+                access_modes=["ReadWriteOnce"],
+                resources=client.V1ResourceRequirements(
+                    requests={"storage": os.environ.get("MT_NODE_PVC_SIZE", "4Gi")},
+                ),
+            ),
+        )
+
+        sts = client.V1StatefulSet(
             metadata=client.V1ObjectMeta(name=release, namespace=self._namespace, labels=labels),
-            spec=client.V1DeploymentSpec(
+            spec=client.V1StatefulSetSpec(
                 replicas=1,
-                strategy=client.V1DeploymentStrategy(type="Recreate"),  # PVC=RWO; rolling would deadlock
+                service_name=headless_service_name,
+                pod_management_policy="OrderedReady",
+                update_strategy=client.V1StatefulSetUpdateStrategy(
+                    type="RollingUpdate",
+                    rolling_update=client.V1RollingUpdateStatefulSetStrategy(partition=0),
+                ),
+                revision_history_limit=5,
                 selector=client.V1LabelSelector(match_labels=selector),
                 template=pod_template,
-                revision_history_limit=5,
-                progress_deadline_seconds=int(_READINESS_TIMEOUT_SECS),
+                volume_claim_templates=[pvc_template],
             ),
         )
 
         async for attempt in await self._retrying():
             with attempt:
                 try:
-                    await apps_api.create_namespaced_deployment(
-                        namespace=self._namespace, body=deployment,
+                    await apps_api.create_namespaced_stateful_set(
+                        namespace=self._namespace, body=sts,
                     )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
-                        await apps_api.replace_namespaced_deployment(
-                            name=release, namespace=self._namespace, body=deployment,
+                        await apps_api.replace_namespaced_stateful_set(
+                            name=release, namespace=self._namespace, body=sts,
                         )
                         return
                     raise
-
-    async def _ensure_pvc(self, release: str) -> None:
-        """Best-effort create of the wine-prefix PVC. Idempotent."""
-        core_api, _ = await self._api_clients()
-        try:
-            pvc = client.V1PersistentVolumeClaim(
-                metadata=client.V1ObjectMeta(
-                    name=f"{release}-wine-prefix",
-                    namespace=self._namespace,
-                    labels={_LABEL_APP_NAME: _APP_NAME_VALUE, _LABEL_INSTANCE: release},
-                ),
-                spec=client.V1PersistentVolumeClaimSpec(
-                    access_modes=["ReadWriteOnce"],
-                    resources=client.V1ResourceRequirements(
-                        requests={"storage": os.environ.get("MT_NODE_PVC_SIZE", "4Gi")},
-                    ),
-                ),
-            )
-            try:
-                await core_api.create_namespaced_persistent_volume_claim(
-                    namespace=self._namespace, body=pvc,
-                )
-            except ApiException as exc:
-                if exc.status != 409:
-                    raise
-        finally:
-            await self._close(core_api)
 
     async def _upsert_service(
         self,
@@ -723,18 +795,29 @@ class HostedProvisioner:
         labels: dict[str, str],
         selector: dict[str, str],
         zmq_port: int,
+        headless: bool,
     ) -> None:
+        """Idempotent create-or-update of a Service.
+
+        When headless=True, sets clusterIP='None' so the Service is
+        used only for stable per-pod DNS by the StatefulSet. When
+        False (the regular ClusterIP Service), engine ZmqClient
+        traffic flows through this Service.
+        """
+        service_spec = client.V1ServiceSpec(
+            type="ClusterIP",
+            cluster_ip="None" if headless else None,
+            publish_not_ready_addresses=False,
+            selector=selector,
+            ports=[
+                client.V1ServicePort(
+                    name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
+                ),
+            ],
+        )
         service = client.V1Service(
             metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
-            spec=client.V1ServiceSpec(
-                type="ClusterIP",
-                selector=selector,
-                ports=[
-                    client.V1ServicePort(
-                        name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
-                    ),
-                ],
-            ),
+            spec=service_spec,
         )
         async for attempt in await self._retrying():
             with attempt:
@@ -748,7 +831,10 @@ class HostedProvisioner:
                         existing = await core_api.read_namespaced_service(
                             name=name, namespace=self._namespace,
                         )
-                        # Preserve clusterIP (immutable).
+                        # Preserve clusterIP (immutable). For a headless
+                        # service the existing clusterIP is 'None' and
+                        # we keep it; for a regular service it's the
+                        # allocated IP and we must also keep it.
                         service.spec.cluster_ip = existing.spec.cluster_ip
                         service.metadata.resource_version = existing.metadata.resource_version
                         await core_api.replace_namespaced_service(
@@ -762,39 +848,44 @@ class HostedProvisioner:
     async def _wait_ready(
         self,
         *,
+        core_api: client.CoreV1Api,
+        apps_api: client.AppsV1Api,
         release: str,
         dns_name: str,
         zmq_port: int,
         token: str,
         timeout: float,
     ) -> None:
-        """Block until Deployment Ready AND ZMQ PING returns ok, or raise."""
+        """Block until StatefulSet has a Ready replica AND ZMQ PING
+        returns ok, or raise.
+
+        Uses the api clients provided by the caller - no per-iteration
+        construction/close churn. The caller (provision_account) owns
+        the lifecycle.
+        """
+        del core_api  # unused here; reserved for future use
         deadline = _time.monotonic() + timeout
         last_error: Exception | None = None
 
-        # Phase 1 - Deployment Ready.
+        # Phase 1 - StatefulSet has at least one Ready replica.
         while _time.monotonic() < deadline:
             try:
-                _, apps_api = await self._api_clients()
-                try:
-                    dep = await apps_api.read_namespaced_deployment(
-                        name=release, namespace=self._namespace,
-                    )
-                finally:
-                    await self._close(apps_api)
-                ready = int(dep.status.ready_replicas or 0)
+                sts = await apps_api.read_namespaced_stateful_set(
+                    name=release, namespace=self._namespace,
+                )
+                ready = int(sts.status.ready_replicas or 0)
                 if ready >= 1:
                     break
             except ApiException as exc:
                 last_error = exc
                 logger.debug(
-                    "hosted_readiness_deploy_poll_error",
+                    "hosted_readiness_sts_poll_error",
                     extra={"release": release, "status": exc.status, "reason": exc.reason},
                 )
             await asyncio.sleep(_READINESS_POLL_SECS)
         else:
             raise ProviderTimeoutError(
-                "mt-node Deployment did not become Ready within timeout",
+                "mt-node StatefulSet did not become Ready within timeout",
                 details={
                     "release": release,
                     "timeout_secs": timeout,
@@ -870,15 +961,17 @@ class HostedProvisioner:
         apps_api: client.AppsV1Api,
         release: str,
         service_name: str,
+        headless_service_name: str,
         secret_name: str,
     ) -> None:
         for fn, name, kind in (
-            (apps_api.delete_namespaced_deployment, release, "Deployment"),
+            (apps_api.delete_namespaced_stateful_set, release, "StatefulSet"),
             (core_api.delete_namespaced_service, service_name, "Service"),
+            (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
             (core_api.delete_namespaced_secret, secret_name, "Secret"),
             (
                 core_api.delete_namespaced_persistent_volume_claim,
-                f"{release}-wine-prefix",
+                _pvc_name_for(release),
                 "PVC",
             ),
         ):
