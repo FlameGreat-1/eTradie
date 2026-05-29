@@ -290,6 +290,17 @@ initContainer:
       cpu: 50m
       memory: 32Mi
 
+# Section 6 (CHECKLIST): PrometheusRule covering broker call SLO
+# breaches, leak detection, restart loops, EA identity / clock
+# kill-switch firings. Renders only when monitoring.coreos.com is
+# installed (Prometheus Operator). Set enabled=false on a cluster
+# without the operator to skip rendering.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
 autoscaling:
   enabled: true
   minReplicas: 2

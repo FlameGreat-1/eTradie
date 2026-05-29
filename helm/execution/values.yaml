@@ -181,6 +181,15 @@ initContainer:
       cpu: 50m
       memory: 32Mi
 
+# Section 6 (CHECKLIST): PrometheusRule covering order failure rate,
+# placement latency, queue drops, latency kill-switch, audit write
+# failures. Renders only when monitoring.coreos.com is installed.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
 autoscaling:
   enabled: true
   minReplicas: 2
