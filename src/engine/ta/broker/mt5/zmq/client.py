@@ -53,7 +53,13 @@ from engine.ta.broker.connectivity import (
     ReconnectPolicy,
     TickFreshnessGuard,
 )
+from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor, EAClockSample
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.ea_identity import (
+    EAIdentitySnapshot,
+    EAIdentityVerifier,
+    ExpectedEAIdentity,
+)
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
@@ -87,6 +93,9 @@ class ZmqClient(BrokerBase):
         *,
         freshness_guard: Optional[TickFreshnessGuard] = None,
         reconnect_policy: Optional[ReconnectPolicy] = None,
+        identity_verifier: Optional[EAIdentityVerifier] = None,
+        expected_identity: Optional[ExpectedEAIdentity] = None,
+        clock_skew_monitor: Optional[ClockSkewMonitor] = None,
     ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
@@ -97,6 +106,11 @@ class ZmqClient(BrokerBase):
         # ZmqClient directly are unaffected. Audit ref: CHECKLIST Section 2.
         self._freshness_guard = freshness_guard
         self._reconnect_policy = reconnect_policy
+        # Section 4 (CHECKLIST): EA identity verification + clock skew.
+        self._identity_verifier = identity_verifier
+        self._expected_identity = expected_identity
+        self._clock_skew = clock_skew_monitor
+        self._identity_verified = False
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
         # account info, positions, order placement, modifications. It must
@@ -257,6 +271,35 @@ class ZmqClient(BrokerBase):
                         await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
                     except ProviderResponseError as e:
                         logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
+                # Section 4 (CHECKLIST): one-shot identity verification on
+                # every fresh authenticated socket. Reset _identity_verified
+                # so a reconnect re-verifies. Skipped for EA_IDENTITY itself
+                # to avoid infinite recursion, and for the lightweight
+                # PING/HEALTH/EA_CLOCK heartbeat paths to keep them cheap.
+                if (
+                    not was_initialized
+                    and self._identity_verifier is not None
+                    and self._expected_identity is not None
+                    and not self._identity_verified
+                    and request.get("command") not in (
+                        "PING", "HEALTH", "EA_IDENTITY", "EA_CLOCK",
+                    )
+                ):
+                    try:
+                        ident_raw = await self._send_recv_async({"command": "EA_IDENTITY"})
+                        if isinstance(ident_raw, dict):
+                            snapshot = EAIdentitySnapshot.from_dict(ident_raw)
+                            self._identity_verifier.verify(snapshot, self._expected_identity)
+                            self._identity_verified = True
+                    except ProviderResponseError:
+                        # Old EA build does not understand EA_IDENTITY -
+                        # leave _identity_verified=False; callers can
+                        # still drive verification explicitly via
+                        # ea_identity().
+                        logger.warning(
+                            "zmq_identity_command_unsupported",
+                            extra={"endpoint": self._endpoint},
+                        )
                 
                 try:
                     return await self._send_recv_async(request)
@@ -294,6 +337,9 @@ class ZmqClient(BrokerBase):
                     self._socket.close(linger=0)
                     self._socket = None
                 self._initialized = False
+                # Section 4: a reset wipes the identity-verified flag
+                # so the next request re-verifies on the new socket.
+                self._identity_verified = False
                 raise
 
     async def _request_candles(
@@ -772,6 +818,44 @@ class ZmqClient(BrokerBase):
         if self._freshness_guard is not None:
             self._freshness_guard.assert_fresh(symbol=symbol, tick_unix_ts=tick.time)
         return tick
+
+    async def ea_identity(self) -> EAIdentitySnapshot:
+        """Fetch + parse the EA's EA_IDENTITY reply.
+
+        When an EAIdentityVerifier + ExpectedEAIdentity are injected,
+        the snapshot is verified BEFORE being returned. An identity
+        mismatch raises EAIdentityMismatchError which the caller
+        propagates to the connection manager's kill-switch.
+        Audit ref: CHECKLIST Section 4.
+        """
+        raw = await self._request({"command": "EA_IDENTITY"})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid EA_IDENTITY reply",
+                details={"raw_type": type(raw).__name__},
+            )
+        snapshot = EAIdentitySnapshot.from_dict(raw)
+        if self._identity_verifier is not None and self._expected_identity is not None:
+            self._identity_verifier.verify(snapshot, self._expected_identity)
+            self._identity_verified = True
+        return snapshot
+
+    async def ea_clock(self) -> EAClockSample:
+        """Fetch + parse the EA's EA_CLOCK reply.
+
+        When a ClockSkewMonitor is injected, the new sample is fed
+        into the monitor. Returns the parsed sample regardless.
+        """
+        raw = await self._request({"command": "EA_CLOCK"})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid EA_CLOCK reply",
+                details={"raw_type": type(raw).__name__},
+            )
+        sample = EAClockSample.from_dict(raw)
+        if self._clock_skew is not None:
+            self._clock_skew.sample(_time.time(), sample)
+        return sample
 
     async def heartbeat_probe(self) -> HeartbeatResult:
         """Single-shot HEALTH probe consumed by BrokerHeartbeatService.
