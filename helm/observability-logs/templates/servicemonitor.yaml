@@ -1,0 +1,49 @@
+{{- if .Values.loki.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "olog.loki.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+    {{- with .Values.loki.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "olog.loki.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "olog.namespace" . }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.loki.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.loki.serviceMonitor.scrapeTimeout | default "10s" }}
+{{- end }}
+---
+{{- if .Values.promtail.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "olog.promtail.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.promtail.selectorLabels" . | nindent 4 }}
+    {{- with .Values.promtail.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "olog.promtail.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "olog.namespace" . }}
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: {{ .Values.promtail.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.promtail.serviceMonitor.scrapeTimeout | default "10s" }}
+{{- end }}

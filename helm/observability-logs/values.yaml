@@ -1,0 +1,176 @@
+# Default values for etradie-observability-logs.
+#
+# Loki + Promtail deployed in the `etradie-observability` namespace.
+# Production and staging overlays tune retention and resources.
+#
+# This chart is intentionally minimal: it does NOT deploy Grafana.
+# The platform expects Grafana to live in the `monitoring` namespace
+# (alongside the Prometheus Operator) and to consume Loki via its
+# in-cluster Service DNS.
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  # Same namespace the engine + mt-node charts whitelist in their
+  # NetworkPolicy egress for the OTel collector. Promtail does NOT
+  # need egress out of this namespace; it scrapes node-local files.
+  name: etradie-observability
+  create: true
+  # The kube-apiserver populates kubernetes.io/metadata.name=<ns>
+  # automatically (NamespaceDefaultLabelName admission, GA 1.22+).
+  # The mt-node + engine charts select on that label.
+
+# ---------------------------------------------------------------------
+# Loki
+# ---------------------------------------------------------------------
+loki:
+  image:
+    repository: grafana/loki
+    tag: "2.9.4"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3100
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 50Gi
+    accessMode: ReadWriteOnce
+
+  # Retention. Loki's built-in retention runs as part of the compactor.
+  # Default 14d matches the mt-node soak SLO + the engine's processor
+  # audit retention so cross-correlation is trivial.
+  retentionPeriod: "336h"  # 14 days
+
+  # Per-stream rate limits. Defaults are conservative; production
+  # overlay tightens them once we have real volume data.
+  limits:
+    ingestionRateMB: 8
+    ingestionBurstSizeMB: 16
+    maxStreamsPerUser: 10000
+    maxLineSizeBytes: 262144  # 256 KiB - covers EA reply payloads.
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    capabilities:
+      drop:
+        - ALL
+
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      prometheus: kube-prometheus
+
+# ---------------------------------------------------------------------
+# Promtail
+# ---------------------------------------------------------------------
+promtail:
+  image:
+    repository: grafana/promtail
+    tag: "2.9.4"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  # Promtail must mount the node's /var/log/pods to discover container
+  # log files. The mount is hostPath-readonly to minimise escape risk;
+  # combined with readOnlyRootFilesystem + drop ALL capabilities the
+  # daemon has zero write paths.
+  hostMounts:
+    varLogPods: /var/log/pods
+    varLibDockerContainers: /var/lib/docker/containers
+
+  service:
+    enabled: true   # publishes promtail's /metrics for prometheus
+    port: 3101
+
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      prometheus: kube-prometheus
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10002
+    runAsGroup: 10002
+    fsGroup: 10002
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10002
+    capabilities:
+      drop:
+        - ALL
+
+  # Promtail tolerates control-plane nodes so logs from control-plane
+  # pods (apiserver, etcd) are also aggregated. Comment out if your
+  # cluster's control plane is managed (e.g. GKE / OKE).
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+
+  # Promtail's pipeline drops kubelet + containerd noise, parses
+  # JSON logs, and re-labels each stream with namespace, pod,
+  # container, plus the eTradie-specific labels exported by the
+  # mt-node and engine charts. The full pipeline lives in
+  # templates/promtail-config.yaml; this map is the per-overlay
+  # tuning surface.
+  pipeline:
+    dropContainers:
+      - kube-proxy
+      - calico-node
+      - csi-node-driver-registrar
+
+# ---------------------------------------------------------------------
+# NetworkPolicy. Loki accepts ingress from Promtail and from Grafana
+# (monitoring namespace). Promtail egresses ONLY to Loki and the K8s
+# API server (for service discovery).
+# ---------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  grafanaNamespace: monitoring
+  grafanaPodLabel:
+    name: grafana
+    value: ""

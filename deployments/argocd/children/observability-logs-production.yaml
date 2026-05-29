@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-logs-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: observability-logs
+    exoper.com/environment: production
+  annotations:
+    # Logs land BEFORE the rest of the platform so we capture boot logs.
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: etradie
+
+  source:
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
+    targetRevision: main
+    path: helm/observability-logs
+    helm:
+      releaseName: etradie-observability-logs
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: etradie-observability
+
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  syncPolicy:
+    # Production observability is gated by the AppProject's business-hours
+    # window. selfHeal=true so a deleted Promtail Pod is reinstated 24/7
+    # within the AppProject's mt-node-* allow window (logs are mission-
+    # critical for incident response).
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

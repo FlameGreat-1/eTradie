@@ -1,0 +1,23 @@
+apiVersion: v2
+name: etradie-observability-logs
+description: |
+  Centralized log aggregation for the eTradie platform.
+  Deploys Loki (single-binary) + Promtail (DaemonSet) in the
+  etradie-observability namespace.
+
+  Operators query logs via Grafana (already in the monitoring
+  namespace) by adding Loki as a datasource:
+    URL: http://loki.etradie-observability.svc.cluster.local:3100
+
+  Audit ref: CHECKLIST Section 6 'Centralized log aggregation'.
+type: application
+version: 0.1.0
+appVersion: "2.9.4"
+kubeVersion: ">=1.27.0-0"
+keywords:
+  - logging
+  - loki
+  - promtail
+  - observability
+maintainers:
+  - name: etradie-platform
