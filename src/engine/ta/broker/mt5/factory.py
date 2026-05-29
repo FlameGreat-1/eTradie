@@ -19,7 +19,12 @@ from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
 from engine.ta.broker.connectivity import ReconnectPolicy, TickFreshnessGuard
+from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.ea_identity import (
+    EAIdentityVerifier,
+    ExpectedEAIdentity,
+)
 
 if TYPE_CHECKING:
     from engine.processor.storage.schemas.broker_connection_schema import (
@@ -73,6 +78,59 @@ def _build_connectivity_kwargs(provider: str, account_id: str) -> dict[str, Any]
             max_attempts=_i("ENGINE_CONNECTIVITY_RECONNECT_MAX_ATTEMPTS", 10),
             provider=provider,
             account_id=account_id or "unknown",
+        ),
+    }
+
+
+def _ea_verify_enabled() -> bool:
+    """Operator kill-switch for the Section 4 verifier.
+
+    Set ENGINE_EA_IDENTITY_VERIFY_ENABLED=false to disable identity
+    verification WITHOUT redeploying. Same pattern as Section 2's
+    heartbeat opt-out. Defaults to true.
+    """
+    val = os.environ.get("ENGINE_EA_IDENTITY_VERIFY_ENABLED", "true").strip().lower()
+    return val not in ("false", "0", "no", "off", "")
+
+
+def _build_ea_verification_kwargs(
+    provider: str,
+    account_id: str,
+    row: "BrokerConnectionRow | None",
+) -> dict[str, Any]:
+    """Construct the Section-4 EA identity verifier + clock skew
+    monitor kwargs the ZmqClient accepts.
+
+    The expected identity is read from the connection row's mt5_login
+    + mt5_server columns. magic_number is left at the sentinel 0 ('do
+    not enforce') because the schema does not store it today. When
+    the row is None (the pure-config create_mt5_broker path), no
+    verifier is wired - tests and the legacy compose flow continue
+    to work unchanged. When the operator kill-switch is off, an
+    empty dict is returned so the client falls back to the
+    pre-Section-4 behaviour.
+
+    Audit ref: CHECKLIST Section 4.
+    """
+    if not _ea_verify_enabled() or row is None:
+        return {}
+    expected = ExpectedEAIdentity(
+        magic_number=0,  # schema does not store this yet; sentinel = any
+        account_login=(row.mt5_login or "").strip(),
+        account_server=(row.mt5_server or "").strip(),
+        minimum_ea_version=os.environ.get("ENGINE_EA_MIN_VERSION", "").strip(),
+    )
+    return {
+        "identity_verifier": EAIdentityVerifier(
+            provider=provider,
+            account_id=account_id or "unknown",
+        ),
+        "expected_identity": expected,
+        "clock_skew_monitor": ClockSkewMonitor(
+            provider=provider,
+            account_id=account_id or "unknown",
+            window_size=16,
+            max_acceptable_skew_secs=_f("ENGINE_EA_MAX_CLOCK_SKEW_SECS", 10.0),
         ),
     }
 
@@ -203,6 +261,7 @@ def create_mt5_broker_from_connection(
             config=config,
             auth_token=ea_auth_token,
             **_build_connectivity_kwargs("zmq-ea", endpoint_account),
+            **_build_ea_verification_kwargs("zmq-ea", endpoint_account, row),
         )
         logger.info(
             "mt5_broker_created_from_db",
@@ -354,6 +413,7 @@ def create_mt5_broker_from_connection(
             config=config,
             auth_token=ea_auth_token,
             **_build_connectivity_kwargs("zmq-hosted", row.hosted_container_id),
+            **_build_ea_verification_kwargs("zmq-hosted", row.hosted_container_id, row),
         )
         logger.info(
             "mt5_broker_created_from_db",

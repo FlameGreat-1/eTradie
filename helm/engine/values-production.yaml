@@ -21,6 +21,13 @@ podAnnotations:
   tier: production
 
 config:
+  connectivity:
+    # Production: same defaults but enforce a minimum EA build so a
+    # stale terminal cannot trade. Bump this whenever the EA contract
+    # changes (we last bumped to 2.10.0 in Section 4 step A).
+    eaIdentityVerifyEnabled: "true"
+    eaMaxClockSkewSecs: "5"
+    eaMinVersion: "2.10.0"
   app:
     env: "production"
     debug: "false"

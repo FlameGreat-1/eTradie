@@ -186,6 +186,14 @@ config:
     reconnectMaxAttempts: "10"
     tickMaxAgeSecs: "10"
     symbolResolverCacheTtlSecs: "3600"
+    # Section 4 (EA stability). Identity verification + clock skew
+    # monitor. Set eaIdentityVerifyEnabled to 'false' for an
+    # operator kill-switch without redeploying. eaMinVersion is
+    # advisory - empty string disables the version floor check.
+    eaIdentityVerifyEnabled: "true"
+    eaMaxClockSkewSecs: "10"
+    eaClockSkewSampleEvery: "60"
+    eaMinVersion: ""
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential

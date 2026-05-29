@@ -114,6 +114,13 @@ data:
   ENGINE_CONNECTIVITY_TICK_MAX_AGE_SECS: {{ .Values.config.connectivity.tickMaxAgeSecs | quote }}
   ENGINE_CONNECTIVITY_SYMBOL_RESOLVER_CACHE_TTL_SECS: {{ .Values.config.connectivity.symbolResolverCacheTtlSecs | quote }}
 
+  # EA stability (Section 4). Consumed by EAIdentityVerifier and
+  # ClockSkewMonitor inside ZmqClient. Non-secret.
+  ENGINE_EA_IDENTITY_VERIFY_ENABLED: {{ .Values.config.connectivity.eaIdentityVerifyEnabled | quote }}
+  ENGINE_EA_MAX_CLOCK_SKEW_SECS: {{ .Values.config.connectivity.eaMaxClockSkewSecs | quote }}
+  ENGINE_EA_CLOCK_SKEW_SAMPLE_EVERY_SECS: {{ .Values.config.connectivity.eaClockSkewSampleEvery | quote }}
+  ENGINE_EA_MIN_VERSION: {{ .Values.config.connectivity.eaMinVersion | quote }}
+
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
   MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}
