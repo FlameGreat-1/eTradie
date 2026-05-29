@@ -376,3 +376,59 @@ func (m *Manager) WeeklyPnL(userID string) float64 {
 	}
 	return us.weeklyPnL
 }
+
+// ActiveUserIDs returns the snapshot of user ids that have a tracked
+// state entry. Used by the broker reconciler to iterate over users
+// whose broker state should be sync-checked. Order is not
+// guaranteed; callers must not rely on it.
+func (m *Manager) ActiveUserIDs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]string, 0, len(m.users))
+	for uid := range m.users {
+		out = append(out, uid)
+	}
+	return out
+}
+
+// AdoptBrokerPosition adds a broker-reported position to the user's
+// in-memory slice if no entry with the same OrderID already exists.
+// Called by the reconciler when the broker reports a position the
+// engine did not previously know about (broker_only drift).
+// Idempotent.
+func (m *Manager) AdoptBrokerPosition(userID string, p *models.Position) {
+	if userID == "" || p == nil || p.OrderID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	us := m.getOrCreateUser(userID)
+	for i := range us.positions {
+		if us.positions[i].OrderID == p.OrderID {
+			return // already tracked
+		}
+	}
+	us.positions = append(us.positions, *p)
+	observability.OpenPositionCount.Set(float64(len(us.positions)))
+}
+
+// ReplaceBrokerPosition overwrites the engine's in-memory copy of a
+// position with the broker-reported one (mismatch drift). The broker
+// is the source of truth for SL/TP/lot-size; the engine adopts.
+func (m *Manager) ReplaceBrokerPosition(userID string, p *models.Position) {
+	if userID == "" || p == nil || p.OrderID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	us := m.getOrCreateUser(userID)
+	for i := range us.positions {
+		if us.positions[i].OrderID == p.OrderID {
+			us.positions[i] = *p
+			return
+		}
+	}
+	// Not present yet - same as adopt.
+	us.positions = append(us.positions, *p)
+	observability.OpenPositionCount.Set(float64(len(us.positions)))
+}

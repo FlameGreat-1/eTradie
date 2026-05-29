@@ -268,6 +268,131 @@ LOG_ENTRIES_TOTAL = Counter(
 # Technical Analysis (TA) Metrics
 # ==============================================================
 
+# ==============================================================
+# Broker Connectivity Metrics (Section 2 of CHECKLIST)
+# Cardinality note: provider + account_id is bounded by the active
+# broker-connections set per cluster (low single-digit thousands at
+# most). All other labels are bounded enumerations (status,
+# error_type, result, layer).
+# ==============================================================
+
+BROKER_HEARTBEAT_TOTAL = Counter(
+    "etradie_broker_heartbeat_total",
+    "Broker heartbeat ticks emitted by BrokerHeartbeatService",
+    ["provider", "account_id", "status"],
+)
+
+BROKER_HEARTBEAT_FAILURES_TOTAL = Counter(
+    "etradie_broker_heartbeat_failures_total",
+    "Broker heartbeat ticks that surfaced a non-ok health response or raised",
+    ["provider", "account_id", "error_type"],
+)
+
+BROKER_RECONNECT_ATTEMPTS_TOTAL = Counter(
+    "etradie_broker_reconnect_attempts_total",
+    "Broker reconnect attempts driven by ReconnectPolicy",
+    ["provider", "account_id"],
+)
+
+BROKER_TICK_STALE_TOTAL = Counter(
+    "etradie_broker_tick_stale_total",
+    "Tick responses rejected by TickFreshnessGuard",
+    ["provider", "account_id", "symbol"],
+)
+
+BROKER_SYMBOL_RESOLVE_TOTAL = Counter(
+    "etradie_broker_symbol_resolve_total",
+    "SymbolResolver invocations",
+    ["provider", "account_id", "result"],
+)
+
+BROKER_SYMBOL_RESOLVE_CACHE_HITS_TOTAL = Counter(
+    "etradie_broker_symbol_resolve_cache_hits_total",
+    "SymbolResolver cache hits, partitioned by cache layer",
+    ["provider", "account_id", "layer"],
+)
+
+BROKER_CANDLES_DEDUP_SKIPPED_TOTAL = Counter(
+    "etradie_broker_candles_dedup_skipped_total",
+    "Candle rows skipped by ON CONFLICT DO NOTHING during bulk_create",
+    ["provider", "symbol", "timeframe"],
+)
+
+BROKER_CONNECTION_STATE = Gauge(
+    "etradie_broker_connection_state",
+    "Last observed broker connection state (1=connected, 0=disconnected)",
+    ["provider", "account_id"],
+)
+
+# Section 4 (CHECKLIST) - EA stability metrics.
+BROKER_EA_IDENTITY_TOTAL = Counter(
+    "etradie_broker_ea_identity_total",
+    "EAIdentityVerifier invocations",
+    ["provider", "account_id", "result"],  # result: match | mismatch | error
+)
+
+BROKER_EA_IDENTITY_MISMATCH_TOTAL = Counter(
+    "etradie_broker_ea_identity_mismatch_total",
+    "EA identity mismatches by mismatched field",
+    ["provider", "account_id", "field"],  # field: magic | login | server | terminal_build
+)
+
+BROKER_EA_CLOCK_SKEW_SECONDS = Gauge(
+    "etradie_broker_ea_clock_skew_seconds",
+    "Most recent EA clock skew sample (engine_now - ea_server_time)",
+    ["provider", "account_id"],
+)
+
+BROKER_EA_CLOCK_SKEW_SAMPLES_TOTAL = Counter(
+    "etradie_broker_ea_clock_skew_samples_total",
+    "Total EA clock skew samples observed",
+    ["provider", "account_id"],
+)
+
+# Section 5 (CHECKLIST) - scaling + load control metrics.
+BROKER_OUTBOUND_LIMIT_TOTAL = Counter(
+    "etradie_broker_outbound_limit_total",
+    "Outbound rate-limiter decisions",
+    ["provider", "account_id", "result"],  # result: allowed | throttled | exhausted
+)
+
+BROKER_CLIENT_POOL_SIZE = Gauge(
+    "etradie_broker_client_pool_size",
+    "Number of broker clients currently held in the process-local pool",
+    ["provider"],
+)
+
+BROKER_CLIENT_POOL_EVICTIONS_TOTAL = Counter(
+    "etradie_broker_client_pool_evictions_total",
+    "Broker client pool evictions by reason",
+    ["reason"],  # reason: idle | error | close | explicit
+)
+
+BROKER_INFLIGHT_GATE_WAIT_SECONDS = Histogram(
+    "etradie_broker_inflight_gate_wait_seconds",
+    "Wait time at the per-client in-flight gate (Section 5 backpressure)",
+    ["provider"],
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
+BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL = Counter(
+    "etradie_broker_inflight_gate_rejections_total",
+    "Requests rejected at the in-flight gate (deadline elapsed)",
+    ["provider", "account_id"],
+)
+
+BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL = Counter(
+    "etradie_broker_request_deadline_exceeded_total",
+    "Inbound HTTP request deadline expired before broker call finished",
+    ["provider", "account_id"],
+)
+
+ACTIVE_USER_CONNECTIONS = Gauge(
+    "etradie_active_user_connections",
+    "Number of users with at least one active broker connection by type",
+    ["connection_type"],  # ea | metaapi | hosted | total
+)
+
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
     "Total TA broker candle fetch attempts",

@@ -1,0 +1,375 @@
+# Default values for the etradie-mt-node chart.
+#
+# One Helm release per user broker connection. The release name is
+# set by the engine to: etradie-mt-<connection_id[:12]>. Values are
+# parameterised per release (mtConnection.*) and per environment
+# (defaults + values-{staging,production}.yaml overlays).
+#
+# This chart deploys ONE StatefulSet (the MT terminal + watchdog
+# sidecar) and supporting Service/PDB/NetworkPolicy/PriorityClass/
+# ServiceMonitor/ExternalSecret resources.
+#
+# The chart is rendered identically on Contabo K3s, OCI OKE, and
+# any conformant Kubernetes cluster (cloud-agnostic; tolerations are
+# opt-in via values).
+
+# ---------------------------------------------------------------------
+# Per-tenant settings the engine populates at release-create time.
+# Every field here MUST be set by HostedProvisioner via --set; an
+# unset connectionId / sealedSecretName aborts the chart render.
+#
+# Set mtConnection.enabled=false in the PLATFORM ArgoCD Application
+# (deployments/argocd/children/mt-node-{staging,production}.yaml)
+# so per-tenant resources are skipped and only the PriorityClass +
+# platform ExternalSecret + watchdog ConfigMap render.
+# ---------------------------------------------------------------------
+mtConnection:
+  # When false, every per-tenant template (StatefulSet, Service, PDB,
+  # NetworkPolicy, ServiceMonitor, SA, watchdog ConfigMap) is skipped.
+  # Only the cluster-scoped PriorityClass and the platform
+  # ExternalSecret render. Used by the platform ArgoCD Application.
+  enabled: true
+  # Stable 36-char UUID assigned by the engine. Used as a label on
+  # every resource and embedded in the release name.
+  connectionId: ""
+  # User-id the connection belongs to. Surfaces in the workload labels
+  # so per-tenant RBAC and audit queries are trivial.
+  userId: ""
+  # "mt4" or "mt5". Selects which terminal binary and EA file the
+  # entrypoint.sh launches.
+  platform: "mt5"
+  # Broker server name (e.g. "Exness-MT5Trial9"). The engine reads
+  # this from broker_connections.mt5_server and passes it through.
+  # The actual login/password live in the sealed Secret below; this
+  # field is non-secret and lives in the StatefulSet env block.
+  server: ""
+  # Default chart symbol the terminal opens. The watchdog probes this
+  # symbol's tick stream to verify the broker connection is live.
+  # If the user's broker uses a suffix (e.g. "EURUSDm" on Exness),
+  # the engine resolves the real symbol before --set'ing this value
+  # via the GET_ALL_SYMBOLS pre-check.
+  symbol: "EURUSD"
+  # Name of the per-tenant Secret the engine created BEFORE installing
+  # this release. The StatefulSet mounts it via envFrom. The chart
+  # does NOT create this Secret; the engine owns its lifecycle.
+  sealedSecretName: ""
+
+image:
+  repository: ghcr.io/flamegreat-1/etradie-mt-node
+  pullPolicy: IfNotPresent
+  # Pinned digest is preferred over a tag. The engine resolves the
+  # digest at provision time and --set's it here. CI publishes both.
+  tag: "0.1.0"
+  # When set, takes precedence over .tag for immutability.
+  digest: ""
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  name: etradie-system
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  # mt-node never calls the K8s API. Token is NOT mounted.
+  automountServiceAccountToken: false
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9100"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# ---------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------
+service:
+  type: ClusterIP
+  sessionAffinity: None
+  # ZMQ REQ/REP endpoint the engine's ZmqClient dials.
+  zmqPort: 5555
+  # Watchdog HTTP endpoint (health + metrics).
+  watchdogPort: 9100
+
+# ---------------------------------------------------------------------
+# Resources
+# Defaults sized for dev/staging soaks (MT5 + Wine + Xvfb settled at
+# ~520Mi RSS with three indicators on H1, spiking to ~680Mi during
+# recalc). Production overlay raises the ceiling.
+# ---------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 300m
+    memory: 512Mi
+    ephemeral-storage: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+    ephemeral-storage: 512Mi
+
+# Sidecar watchdog. Polls the EA HEALTH command, exposes /healthz,
+# /livez, /metrics on :9100. Restarts MT5 in-place when EA stops
+# responding or reports mt5_connected=false for >60s.
+sidecar:
+  watchdog:
+    enabled: true
+    image:
+      # Reuses the mt-node image - the watchdog is a small Python
+      # script in /opt/watchdog/watchdog.py (added by Step 3's
+      # Dockerfile rework). Pin via .image.tag above.
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    config:
+      # Watchdog poll cadence (seconds).
+      pollIntervalSeconds: 10
+      # Tolerated consecutive failures before forcing an in-pod restart.
+      maxFailures: 6
+      # Memory soft-cap: when the MT5 process RSS exceeds this fraction
+      # of the cgroup memory limit, the watchdog triggers a clean
+      # in-pod restart BEFORE the kernel OOM-killer kicks in (which
+      # corrupts journal writes mid-trade).
+      memorySoftCapFraction: 0.8
+      # When the watchdog itself misses N consecutive checks (e.g. it's
+      # wedged), K8s livenessProbe will fail and the kubelet will kill
+      # the whole Pod. This is the LAST resort.
+      livezGracePeriodSeconds: 60
+
+# ---------------------------------------------------------------------
+# Persistence
+# Wine prefix + MT data folder live in a PVC so they survive Pod
+# restarts. WITHOUT this, every restart re-runs MT5 first-boot (3-5
+# min) and the broker's 'new device' security flow.
+# ---------------------------------------------------------------------
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 4Gi
+  accessMode: ReadWriteOnce
+  # If your StorageClass has reclaim policy Retain, the PVC outlives
+  # the StatefulSet and a `helm uninstall` will not wipe Wine state.
+  # Engine's connection-delete path explicitly deletes the PVC.
+  annotations: {}
+
+# ---------------------------------------------------------------------
+# Probes - wired to the watchdog sidecar's HTTP endpoints, not to the
+# MT5 process directly (MT5 is a Wine GUI binary; it has no health
+# endpoint of its own).
+# ---------------------------------------------------------------------
+startupProbe:
+  tcpSocket:
+    port: zmq
+  initialDelaySeconds: 20
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 60  # 20 + 5*60 = 320s budget (cold Wine boot)
+
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: watchdog
+  initialDelaySeconds: 0
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: watchdog
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# ---------------------------------------------------------------------
+# Lifecycle hook: give Wine 5s to flush its journal cleanly when the
+# Pod is being terminated. Combined with entrypoint.sh's SIGTERM trap
+# this gives a clean shutdown.
+# ---------------------------------------------------------------------
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 5"]
+
+terminationGracePeriodSeconds: 60
+
+# ---------------------------------------------------------------------
+# PodDisruptionBudget
+# ---------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+# ---------------------------------------------------------------------
+# PriorityClass
+# Optional cluster-scoped resource. Enabled in production overlay so
+# mt-node Pods evict before stateless workers if the node fills up.
+# ---------------------------------------------------------------------
+priorityClass:
+  create: false
+  name: etradie-mt-node-priority
+  value: 100000
+  globalDefault: false
+  description: "Per-user MT terminal Pods. Prefer evicting before this."
+
+# ---------------------------------------------------------------------
+# NetworkPolicy
+# ---------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Engine dials mt-node on :5555 (ZMQ REQ/REP). Allowed pod
+    # selector matches helm/engine.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-engine
+              app.kubernetes.io/part-of: etradie
+      ports:
+        - protocol: TCP
+          port: 5555
+    # Prometheus in 'monitoring' namespace scrapes /metrics on :9100.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9100
+  egress:
+    # Cluster DNS for resolving the broker server hostname.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Broker servers are reached over the public internet. MetaQuotes
+    # uses TCP 443 by default; some brokers expose alternative ports
+    # (443/1950/1951 are common). Allowlist the union here.
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 1950
+        - protocol: TCP
+          port: 1951
+    # OTel collector (optional; mirrors the engine chart pattern).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4317
+
+# ---------------------------------------------------------------------
+# ServiceMonitor (Prometheus Operator). Targets the watchdog's :9100.
+# ---------------------------------------------------------------------
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    prometheus: kube-prometheus
+  metricRelabelDropPrefixes:
+    - python_gc_
+    - process_
+    - promhttp_
+
+# ---------------------------------------------------------------------
+# PrometheusRule. Section 5 (CHECKLIST) - cluster-capacity + EA-health
+# alarms. The rule renders only when the per-tenant release renders
+# (mtConnection.enabled=true) so the platform render skips it.
+# ---------------------------------------------------------------------
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
+# ---------------------------------------------------------------------
+# External Secrets (platform-level only). The per-tenant credential
+# Secret is created by the engine at runtime, NOT here.
+# ---------------------------------------------------------------------
+externalSecrets:
+  enabled: true
+  platform:
+    secretStoreName: vault-backend
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    # Set by overlays. values-{staging,production}.yaml.
+    vaultPath: ""
+    creationPolicy: Owner
+
+# ---------------------------------------------------------------------
+# Scheduling
+# ---------------------------------------------------------------------
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+          topologyKey: kubernetes.io/hostname
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-mt-node
+
+nodeSelector: {}
+
+tolerations: []

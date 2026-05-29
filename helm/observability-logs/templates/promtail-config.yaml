@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "olog.promtail.fullname" . }}-config
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.promtail.selectorLabels" . | nindent 4 }}
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: {{ .Values.promtail.service.port | default 3101 }}
+      grpc_listen_port: 0
+      log_level: info
+
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    clients:
+      - url: http://loki.{{ include "olog.namespace" . }}.svc.cluster.local:{{ .Values.loki.service.port | default 3100 }}/loki/api/v1/push
+        backoff_config:
+          min_period: 500ms
+          max_period: 5m
+          max_retries: 10
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        pipeline_stages:
+          # Drop the noisy infra containers listed in values.
+          {{- range .Values.promtail.pipeline.dropContainers }}
+          - match:
+              selector: '{container="{{ . }}"}'
+              action: drop
+          {{- end }}
+          # Parse cri-o / containerd format: time stream _ message
+          - cri: {}
+          # Parse engine + execution + management JSON logs. Loki
+          # only attempts to parse when the log line starts with '{'.
+          - match:
+              selector: '{job="kubernetes-pods"} |~ "^{"'
+              stages:
+                - json:
+                    expressions:
+                      level: level
+                      logger: logger
+                      user_id: user_id
+                      connection_id: connection_id
+                      request_id: request_id
+                - labels:
+                    level:
+                    logger:
+          # Add a 'log_level' index label even for non-JSON logs by
+          # scraping the level prefix the engine emits.
+          - regex:
+              expression: '(?P<log_level>(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL))'
+          - labels:
+              log_level:
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: app
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of]
+            target_label: part_of
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            target_label: component
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+          # eTradie tenant labels exported by the mt-node chart.
+          - source_labels: [__meta_kubernetes_pod_label_etradie_user_id]
+            target_label: user_id
+          - source_labels: [__meta_kubernetes_pod_label_etradie_platform]
+            target_label: platform
+          # The actual file path. Promtail tails this.
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+            separator: /
+            replacement: /var/log/pods/*$1/*.log

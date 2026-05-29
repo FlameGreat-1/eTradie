@@ -1,0 +1,197 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "engine.appName" . }}
+  namespace: {{ include "engine.namespace" . }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Engine -> broker call health. Catches the failure modes Section 2
+    # / 4 / 5 expose as metrics.
+    - name: engine.broker
+      interval: 30s
+      rules:
+        # In-flight gate p95 > 2s = the engine is queuing requests on
+        # its ZmqClient pool faster than the broker can drain them.
+        - alert: EngineBrokerInflightGateP95High
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (provider, le) (
+                rate(etradie_broker_inflight_gate_wait_seconds_bucket[5m])
+              )
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Engine ZMQ in-flight gate wait p95 > 2s (provider={{`{{ $labels.provider }}`}})"
+            description: |
+              Engine is queuing broker calls at the in-flight gate
+              for more than 2 seconds at p95. Likely causes: slow EA,
+              cluster saturation, or an mt-node Pod that needs
+              restarting. Check the related MTNodeWatchdogDown /
+              MTNodeBrokerDisconnected alerts before paging on-call.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-broker-inflight-gate-p95-high"
+
+        # In-flight gate rejections = callers gave up waiting.
+        - alert: EngineBrokerInflightGateExhausted
+          expr: |
+            sum by (provider, account_id) (
+              rate(etradie_broker_inflight_gate_rejections_total[5m])
+            ) > 0.0167
+          for: 5m
+          labels:
+            severity: critical
+            component: engine
+            team: platform
+          annotations:
+            summary: "Engine in-flight gate rejected > 1/min for 5m ({{`{{ $labels.provider }}`}}/{{`{{ $labels.account_id }}`}})"
+            description: |
+              The engine is dropping broker calls because the in-flight
+              gate semaphore is full. Either the broker has slowed down
+              dramatically or the upstream gateway is sending more
+              traffic than the configured ENGINE_ZMQ_INFLIGHT_LIMIT
+              can absorb.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-broker-inflight-gate-exhausted"
+
+        # Upstream HTTP deadline expired mid-broker-call.
+        - alert: EngineBrokerRequestDeadlineSpike
+          expr: |
+            sum by (provider, account_id) (
+              rate(etradie_broker_request_deadline_exceeded_total[5m])
+            ) > 0.0167
+          for: 5m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Engine deadline-exceeded > 1/min for 5m"
+            description: |
+              Upstream HTTP requests are giving up on engine broker
+              calls because the deadline elapsed. Either the EA is
+              slow or the upstream gateway is setting too-tight
+              deadlines.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-broker-request-deadline-spike"
+
+        # Outbound limiter exhaustion = a tenant is being throttled persistently.
+        - alert: EngineOutboundRateExhausted
+          expr: |
+            sum by (provider, account_id) (
+              rate(etradie_broker_outbound_limit_total{result="exhausted"}[5m])
+            ) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Outbound rate exhausted for {{`{{ $labels.provider }}`}}/{{`{{ $labels.account_id }}`}}"
+            description: |
+              The per-connection outbound limiter has been refusing
+              broker calls at > 0.1/s for 5 minutes. Either the
+              tenant is misbehaving (e.g. infinite analysis loop)
+              or the configured ENGINE_OUTBOUND_RATE_PER_SECOND is
+              too tight for legitimate traffic.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-outbound-rate-exhausted"
+
+        # EA identity mismatch - Section 4 kill-switch fired.
+        - alert: EngineEAIdentityMismatch
+          expr: |
+            increase(etradie_broker_ea_identity_mismatch_total[1m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+            component: engine
+            team: trading
+          annotations:
+            summary: "EA identity mismatch detected ({{`{{ $labels.provider }}`}}/{{`{{ $labels.account_id }}`}} field={{`{{ $labels.field }}`}})"
+            description: |
+              An EA's reported identity (magic / login / server /
+              version) did not match what the engine expected. The
+              connection has been disabled via the Section 4
+              kill-switch. Operator must verify the user's broker
+              account before re-enabling.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-ea-identity-mismatch"
+
+        # EA clock skew sustained above the SLO.
+        - alert: EngineEAClockSkewHigh
+          expr: |
+            abs(etradie_broker_ea_clock_skew_seconds) > 5
+          for: 5m
+          labels:
+            severity: warning
+            component: engine
+            team: trading
+          annotations:
+            summary: "EA clock skew > 5s for 5m ({{`{{ $labels.provider }}`}}/{{`{{ $labels.account_id }}`}})"
+            description: |
+              The broker server clock has drifted from the engine
+              clock by more than 5 seconds for 5 minutes. Tick
+              freshness checks will be using compensated time but
+              the broker may be operating on a different schedule.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-ea-clock-skew-high"
+
+    # Process-level alerts. Memory leak + restart loop detection.
+    - name: engine.process
+      interval: 1m
+      rules:
+        # Slow leak: working-set grows > 50 MB/h sustained over 6h.
+        # The container memory limit alone would only trigger an OOM
+        # at hour ~10-15; this catches it 6 hours earlier.
+        - alert: EnginePodMemoryGrowth
+          expr: |
+            deriv(
+              container_memory_working_set_bytes{
+                namespace="{{ include "engine.namespace" . }}",
+                pod=~"{{ include "engine.appName" . }}-.*",
+                container="engine"
+              }[6h]
+            ) > 50 * 1024 * 1024 / 3600
+          for: 30m
+          labels:
+            severity: warning
+            component: engine
+            team: platform
+          annotations:
+            summary: "Engine pod {{`{{ $labels.pod }}`}} memory growing > 50 MB/h"
+            description: |
+              Slope of container_memory_working_set_bytes over the
+              last 6 hours exceeds 50 MB/h. This is a leak signature
+              the resource limit would only catch hours later as an
+              OOM kill. Capture a heap snapshot before restarting:
+                kubectl -n {{ include "engine.namespace" . }} exec {{`{{ $labels.pod }}`}} -- \\
+                  python -c 'import tracemalloc; print(tracemalloc.snapshot()...)'
+            runbook_url: "https://docs.etradie.com/runbooks/engine-pod-memory-growth"
+
+        - alert: EnginePodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "engine.namespace" . }}",
+                pod=~"{{ include "engine.appName" . }}-.*",
+                container="engine"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: critical
+            component: engine
+            team: platform
+          annotations:
+            summary: "Engine pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              Container restart loop. Check kubectl logs --previous
+              to find the crash cause. ArgoCD selfHeal is not the
+              answer here - the Pod is restarting itself.
+            runbook_url: "https://docs.etradie.com/runbooks/engine-pod-high-restarts"
+{{- end }}

@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "olog.loki.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "olog.loki.fullname" . }}-headless
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      {{- include "olog.loki.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "olog.loki.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/loki-config.yaml") . | sha256sum }}
+        {{- with .Values.loki.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "olog.loki.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        {{- toYaml .Values.loki.podSecurityContext | nindent 8 }}
+      containers:
+        - name: loki
+          image: "{{ .Values.loki.image.repository }}:{{ .Values.loki.image.tag }}"
+          imagePullPolicy: {{ .Values.loki.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.loki.securityContext | nindent 12 }}
+          args:
+            - -config.file=/etc/loki/loki.yaml
+            - -target=all
+          ports:
+            - name: http
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.loki.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: storage
+              mountPath: /var/loki
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "olog.loki.fullname" . }}-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+        labels:
+          {{- include "olog.loki.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.loki.persistence.accessMode | default "ReadWriteOnce" }}
+        {{- if .Values.loki.persistence.storageClass }}
+        storageClassName: {{ .Values.loki.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.loki.persistence.size | default "50Gi" }}

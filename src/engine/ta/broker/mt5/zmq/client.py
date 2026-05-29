@@ -25,8 +25,10 @@ import zmq
 import zmq.asyncio as zmq_async
 
 from engine.shared.exceptions import (
+    ProviderDisconnectedError,
     ProviderError,
     ProviderResponseError,
+    ProviderStalePriceError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -46,7 +48,24 @@ from engine.ta.broker.base import (
     HistoryDealInfo,
     TickPrice,
 )
+from engine.ta.broker.connectivity import (
+    HeartbeatResult,
+    OutboundRateLimiter,
+    ReconnectPolicy,
+    TickFreshnessGuard,
+)
+from engine.shared.metrics.prometheus import (
+    BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL,
+    BROKER_INFLIGHT_GATE_WAIT_SECONDS,
+    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL,
+)
+from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor, EAClockSample
 from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.ea_identity import (
+    EAIdentitySnapshot,
+    EAIdentityVerifier,
+    ExpectedEAIdentity,
+)
 from engine.ta.broker.validator import BrokerDataValidator
 from engine.ta.constants import Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
@@ -73,11 +92,47 @@ _ZMQ_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
-    def __init__(self, config: MT5Config, auth_token: str = "") -> None:
+    def __init__(
+        self,
+        config: MT5Config,
+        auth_token: str = "",
+        *,
+        freshness_guard: Optional[TickFreshnessGuard] = None,
+        reconnect_policy: Optional[ReconnectPolicy] = None,
+        identity_verifier: Optional[EAIdentityVerifier] = None,
+        expected_identity: Optional[ExpectedEAIdentity] = None,
+        clock_skew_monitor: Optional[ClockSkewMonitor] = None,
+        outbound_limiter: Optional[OutboundRateLimiter] = None,
+        inflight_limit: int = 0,
+        outbound_limit_deadline_secs: float = 0.5,
+    ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
         self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
+        # None defaults preserve prior behaviour bit-for-bit. The engine
+        # factory wires production-grade defaults; tests that construct
+        # ZmqClient directly are unaffected. Audit ref: CHECKLIST Section 2.
+        self._freshness_guard = freshness_guard
+        self._reconnect_policy = reconnect_policy
+        # Section 4 (CHECKLIST): EA identity verification + clock skew.
+        self._identity_verifier = identity_verifier
+        self._expected_identity = expected_identity
+        self._clock_skew = clock_skew_monitor
+        self._identity_verified = False
+        # Section 5 (CHECKLIST): outbound rate limit + in-flight gate.
+        # The outbound limiter throttles ENGINE -> EA traffic so a
+        # misbehaving analysis loop cannot flood one user's EA. The
+        # in-flight gate caps the number of concurrent commands on the
+        # TRADING socket only (candles socket already runs on its own
+        # lock+socket pair and must remain unthrottled to keep CANDLES
+        # independent of trading throughput).
+        self._outbound_limiter = outbound_limiter
+        self._outbound_limit_deadline_secs = max(0.0, float(outbound_limit_deadline_secs))
+        self._inflight_limit = max(0, int(inflight_limit))
+        self._inflight_gate: Optional[asyncio.Semaphore] = (
+            asyncio.Semaphore(self._inflight_limit) if self._inflight_limit > 0 else None
+        )
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
         # account info, positions, order placement, modifications. It must
@@ -224,8 +279,72 @@ class ZmqClient(BrokerBase):
 
         return cast(dict[str, Any] | list[Any], reply)
 
-    async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Thread-safe async wrapper around the trading-socket ZMQ call."""
+    async def _request(
+        self,
+        request: dict[str, Any],
+        *,
+        request_deadline_secs: Optional[float] = None,
+    ) -> dict[str, Any] | list[Any]:
+        """Thread-safe async wrapper around the trading-socket ZMQ call.
+
+        Section 5 additions:
+          - outbound rate limiter is checked BEFORE acquiring the lock
+            so a throttled call returns fast and does not block the
+            socket.
+          - in-flight gate caps concurrent trading-socket commands.
+          - request_deadline_secs propagates the upstream HTTP request
+            deadline so a slow EA cannot pin the engine after the
+            upstream gateway has given up.
+        """
+        # 1) Outbound rate limit (per provider/account_id).
+        if self._outbound_limiter is not None:
+            await self._outbound_limiter.raise_if_exhausted(
+                deadline_secs=self._outbound_limit_deadline_secs
+            )
+
+        # 2) In-flight gate. Bounded by request_deadline so a backlog
+        # cannot silently build up.
+        gate_deadline = request_deadline_secs if request_deadline_secs and request_deadline_secs > 0 else 5.0
+        if self._inflight_gate is not None:
+            gate_start = _time.monotonic()
+            try:
+                async with asyncio.timeout(gate_deadline):
+                    await self._inflight_gate.acquire()
+            except asyncio.TimeoutError:
+                BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL.labels(
+                    provider="zmq",
+                    account_id=self.account_id,
+                ).inc()
+                raise ProviderTimeoutError(
+                    "in-flight gate exhausted before deadline",
+                    details={
+                        "endpoint": self._endpoint,
+                        "gate_deadline_secs": gate_deadline,
+                        "inflight_limit": self._inflight_limit,
+                    },
+                )
+            BROKER_INFLIGHT_GATE_WAIT_SECONDS.labels(provider="zmq").observe(
+                _time.monotonic() - gate_start
+            )
+
+        try:
+            return await self._request_inner(
+                request, request_deadline_secs=request_deadline_secs
+            )
+        finally:
+            if self._inflight_gate is not None:
+                self._inflight_gate.release()
+
+    async def _request_inner(
+        self,
+        request: dict[str, Any],
+        *,
+        request_deadline_secs: Optional[float] = None,
+    ) -> dict[str, Any] | list[Any]:
+        """Original _request body. Kept as a separate inner method so
+        the Section-5 gating wraps it without disturbing the legacy
+        socket recovery logic.
+        """
         async with self._lock:
             try:
                 was_initialized = self._initialized
@@ -238,9 +357,55 @@ class ZmqClient(BrokerBase):
                         await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
                     except ProviderResponseError as e:
                         logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
+                # Section 4 (CHECKLIST): one-shot identity verification on
+                # every fresh authenticated socket. Reset _identity_verified
+                # so a reconnect re-verifies. Skipped for EA_IDENTITY itself
+                # to avoid infinite recursion, and for the lightweight
+                # PING/HEALTH/EA_CLOCK heartbeat paths to keep them cheap.
+                if (
+                    not was_initialized
+                    and self._identity_verifier is not None
+                    and self._expected_identity is not None
+                    and not self._identity_verified
+                    and request.get("command") not in (
+                        "PING", "HEALTH", "EA_IDENTITY", "EA_CLOCK",
+                    )
+                ):
+                    try:
+                        ident_raw = await self._send_recv_async({"command": "EA_IDENTITY"})
+                        if isinstance(ident_raw, dict):
+                            snapshot = EAIdentitySnapshot.from_dict(ident_raw)
+                            self._identity_verifier.verify(snapshot, self._expected_identity)
+                            self._identity_verified = True
+                    except ProviderResponseError:
+                        # Old EA build does not understand EA_IDENTITY -
+                        # leave _identity_verified=False; callers can
+                        # still drive verification explicitly via
+                        # ea_identity().
+                        logger.warning(
+                            "zmq_identity_command_unsupported",
+                            extra={"endpoint": self._endpoint},
+                        )
                 
+                # Section 5: if a deadline is in play, wrap the send/recv
+                # in asyncio.timeout so a slow EA does not pin the engine.
                 try:
+                    if request_deadline_secs and request_deadline_secs > 0:
+                        async with asyncio.timeout(request_deadline_secs):
+                            return await self._send_recv_async(request)
                     return await self._send_recv_async(request)
+                except asyncio.TimeoutError:
+                    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL.labels(
+                        provider="zmq",
+                        account_id=self.account_id,
+                    ).inc()
+                    raise ProviderTimeoutError(
+                        "request deadline elapsed waiting for EA reply",
+                        details={
+                            "endpoint": self._endpoint,
+                            "request_deadline_secs": request_deadline_secs,
+                        },
+                    )
                 except ProviderResponseError as e:
                     # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
                     if "Not authenticated" in str(e):
@@ -275,6 +440,9 @@ class ZmqClient(BrokerBase):
                     self._socket.close(linger=0)
                     self._socket = None
                 self._initialized = False
+                # Section 4: a reset wipes the identity-verified flag
+                # so the next request re-verifies on the new socket.
+                self._identity_verified = False
                 raise
 
     async def _request_candles(
@@ -741,11 +909,96 @@ class ZmqClient(BrokerBase):
                 details={"symbol": symbol},
             )
 
-        return TickPrice(
+        tick = TickPrice(
             bid=float(raw.get("bid", 0)),
             ask=float(raw.get("ask", 0)),
             time=int(raw.get("time", 0)),
         )
+        # Section 2 anti-stale guard. Raises ProviderStalePriceError
+        # when the broker's reported tick timestamp is older than
+        # config.connectivity.tickMaxAgeSecs. Bypassed when no guard
+        # was injected (test path / back-test replay).
+        if self._freshness_guard is not None:
+            self._freshness_guard.assert_fresh(symbol=symbol, tick_unix_ts=tick.time)
+        return tick
+
+    async def ea_identity(self) -> EAIdentitySnapshot:
+        """Fetch + parse the EA's EA_IDENTITY reply.
+
+        When an EAIdentityVerifier + ExpectedEAIdentity are injected,
+        the snapshot is verified BEFORE being returned. An identity
+        mismatch raises EAIdentityMismatchError which the caller
+        propagates to the connection manager's kill-switch.
+        Audit ref: CHECKLIST Section 4.
+        """
+        raw = await self._request({"command": "EA_IDENTITY"})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid EA_IDENTITY reply",
+                details={"raw_type": type(raw).__name__},
+            )
+        snapshot = EAIdentitySnapshot.from_dict(raw)
+        if self._identity_verifier is not None and self._expected_identity is not None:
+            self._identity_verifier.verify(snapshot, self._expected_identity)
+            self._identity_verified = True
+        return snapshot
+
+    async def ea_clock(self) -> EAClockSample:
+        """Fetch + parse the EA's EA_CLOCK reply.
+
+        When a ClockSkewMonitor is injected, the new sample is fed
+        into the monitor. Returns the parsed sample regardless.
+        """
+        raw = await self._request({"command": "EA_CLOCK"})
+        if not isinstance(raw, dict):
+            raise ProviderResponseError(
+                "Invalid EA_CLOCK reply",
+                details={"raw_type": type(raw).__name__},
+            )
+        sample = EAClockSample.from_dict(raw)
+        if self._clock_skew is not None:
+            self._clock_skew.sample(_time.time(), sample)
+        return sample
+
+    async def heartbeat_probe(self) -> HeartbeatResult:
+        """Single-shot HEALTH probe consumed by BrokerHeartbeatService.
+
+        Uses the same _request() path as the rest of the client so the
+        same socket-poison recovery applies. Returns a HeartbeatResult;
+        never raises (errors are folded into ok=False).
+        Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'
+        + 'Heartbeat system per MT terminal'.
+        """
+        try:
+            raw = await self._request({"command": "HEALTH"})
+            if not isinstance(raw, dict):
+                return HeartbeatResult(
+                    ok=False,
+                    error_type="ProviderResponseError",
+                    error_message=f"HEALTH returned non-dict: {type(raw).__name__}",
+                )
+            broker_connected = bool(raw.get("mt5_connected"))
+            authenticated = bool(raw.get("authenticated"))
+            ok = broker_connected and authenticated
+            return HeartbeatResult(
+                ok=ok,
+                broker_connected=broker_connected,
+                authenticated=authenticated,
+                uptime_seconds=float(raw.get("uptime_seconds") or 0.0),
+                raw=raw,
+                error_type="" if ok else "DisconnectedFromBroker",
+                error_message=(
+                    ""
+                    if ok
+                    else f"mt5_connected={broker_connected} authenticated={authenticated}"
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return HeartbeatResult(
+                ok=False,
+                error_type=type(exc).__name__,
+                error_message=str(exc)[:500],
+            )
 
     async def place_order(
         self,

@@ -93,25 +93,87 @@ class CandleRepository:
         return schema
 
     async def bulk_create(self, candles: list[Candle], *, user_id: str) -> list[CandleSchema]:
-        """Batch insert multiple candles owned by user_id."""
+        """Batch insert multiple candles owned by user_id, idempotently.
+
+        Uses Postgres `INSERT ... ON CONFLICT DO NOTHING` against the
+        unique index ix_candles_user_symbol_timeframe_timestamp so the
+        repository is safe to call with overlapping ranges. Re-fetching
+        the same time window after a broker reconnect, a pre-warm wave,
+        or a manual backfill no longer raises UniqueViolation.
+
+        Returns the list of CandleSchema rows ACTUALLY inserted; rows
+        skipped by the conflict resolution are NOT returned. Callers
+        that only need the inserted count can `len()` the result.
+
+        Audit ref: CHECKLIST Section 2 - 'No tick / candle data
+        duplication after reconnect'.
+        """
         if not candles:
             return []
 
-        schemas = [_candle_to_schema(c, user_id) for c in candles]
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from sqlalchemy import select as sa_select
 
-        self.session.add_all(schemas)
+        from engine.shared.metrics.prometheus import (
+            BROKER_CANDLES_DEDUP_SKIPPED_TOTAL,
+        )
+
+        rows = [
+            {
+                "user_id": user_id,
+                "symbol": c.symbol,
+                "timeframe": (
+                    c.timeframe.value
+                    if hasattr(c.timeframe, "value")
+                    else str(c.timeframe)
+                ),
+                "timestamp": c.timestamp,
+                "open": c.open,
+                "high": c.high,
+                "low": c.low,
+                "close": c.close,
+                "volume": c.volume,
+                "open_time": c.timestamp,
+                "close_time": _derive_close_time(
+                    c.timestamp,
+                    c.timeframe.value if hasattr(c.timeframe, "value") else str(c.timeframe),
+                ),
+            }
+            for c in candles
+        ]
+
+        stmt = (
+            pg_insert(CandleSchema)
+            .values(rows)
+            .on_conflict_do_nothing(
+                index_elements=["user_id", "symbol", "timeframe", "timestamp"],
+            )
+            .returning(CandleSchema)
+        )
+        result = await self.session.execute(stmt)
+        inserted = list(result.scalars().all())
         await self.session.flush()
+
+        skipped = len(rows) - len(inserted)
+        if skipped > 0:
+            BROKER_CANDLES_DEDUP_SKIPPED_TOTAL.labels(
+                provider="unknown",
+                symbol=candles[0].symbol,
+                timeframe=rows[0]["timeframe"],
+            ).inc(skipped)
 
         self._logger.info(
             "candles_bulk_created",
             extra={
-                "count": len(candles),
+                "requested": len(candles),
+                "inserted": len(inserted),
+                "deduped": skipped,
                 "symbol": candles[0].symbol,
-                "timeframe": schemas[0].timeframe,
+                "timeframe": rows[0]["timeframe"],
             },
         )
 
-        return schemas
+        return inserted
 
     async def get_by_id(
         self,

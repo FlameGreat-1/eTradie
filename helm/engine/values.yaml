@@ -38,8 +38,17 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  # Engine does not call the K8s API at runtime. Audit ref: E-C2, E-C3.
-  automountServiceAccountToken: false
+  # Engine DOES call the K8s API at runtime via kubernetes_asyncio:
+  # HostedProvisioner creates per-user mt-node Deployments, Services,
+  # and sealed-credential Secrets in etradie-system when a dashboard
+  # user picks connection_type="hosted". The narrow Role in
+  # templates/role.yaml grants exactly the verbs required (no
+  # wildcards, no ClusterRole). Setting this to true mounts the SA
+  # token at /var/run/secrets/kubernetes.io/serviceaccount/token so
+  # kubernetes_asyncio.config.load_incluster_config() succeeds.
+  # Audit refs: CHECKLIST Section 1 lifecycle pre-req; E-C2, E-C3
+  # (previous posture, now intentionally overridden).
+  automountServiceAccountToken: true
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -162,6 +171,59 @@ config:
     # overlay sets this once an OTel collector is actually deployed.
     # Metrics live on the FastAPI app port (service.ports.http.port)
     # at /metrics; no separate prometheusPort. Audit ref: SC-H7.
+  # Broker connectivity (Section 2 of CHECKLIST). Shared by every
+  # broker client (ZmqClient, MetaApiClient). Heartbeat cadence and
+  # reconnect schedule MUST match the broker's own keep-alive timeout
+  # (MetaAPI: 30s default; the EA: TIMER_MS-bounded). The defaults
+  # below are intentionally conservative; tune via the production
+  # overlay if SLO measurements support it.
+  connectivity:
+    heartbeatIntervalSecs: "15"
+    heartbeatTimeoutSecs: "5"
+    heartbeatFailureThreshold: "3"
+    reconnectBaseSecs: "1.0"
+    reconnectCapSecs: "30.0"
+    reconnectMaxAttempts: "10"
+    tickMaxAgeSecs: "10"
+    symbolResolverCacheTtlSecs: "3600"
+    # Section 4 (EA stability). Identity verification + clock skew
+    # monitor. Set eaIdentityVerifyEnabled to 'false' for an
+    # operator kill-switch without redeploying. eaMinVersion is
+    # advisory - empty string disables the version floor check.
+    eaIdentityVerifyEnabled: "true"
+    eaMaxClockSkewSecs: "10"
+    eaClockSkewSampleEvery: "60"
+    eaMinVersion: ""
+    # Section 5 (System scaling + load control). Outbound rate limit
+    # (token bucket) + in-flight concurrency gate per ZmqClient +
+    # broker client pool sweep config.
+    outboundRatePerSecond: "10"
+    outboundBurstSize: "20"
+    zmqInflightLimit: "4"
+    outboundLimitDeadlineSecs: "0.5"
+    requestDeadlineSafetyMs: "50"
+    brokerPoolIdleTimeoutSecs: "600"
+    brokerPoolSweepIntervalSecs: "60"
+
+  # mt-node runtime tunables read by HostedProvisioner (Step 4 of
+  # the mt-node hardening series). Non-secret; the credential
+  # encryption key comes from ExternalSecret (see externalSecrets
+  # below). Resource sizing here MUST stay in sync with
+  # helm/mt-node/values{,-production,-staging}.yaml so a Pod the
+  # engine creates lands within the chart's PDB/quota envelope.
+  mtNode:
+    namespace: "etradie-system"
+    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    memLimit: "1536Mi"
+    memRequest: "1Gi"
+    cpuLimit: "1500m"
+    cpuRequest: "500m"
+    ephemeralLimit: "1Gi"
+    ephemeralRequest: "512Mi"
+    pvcSize: "4Gi"
+    readinessTimeoutSecs: "300"
+    readinessPollSecs: "3"
+    zmqProbeTimeoutSecs: "5"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"
@@ -186,6 +248,12 @@ externalSecrets:
     # RAG_CHROMA_AUTH_TOKEN both read from this exact Vault path so
     # they cannot drift out of sync. Audit ref: IV-C2, X-6, D-C3.
     chromadbAuthVaultPath: etradie/data-layer/chromadb/production
+    # mt-node platform path: holds the AES-GCM credential encryption
+    # key the engine uses to seal per-user MT broker credentials
+    # before writing them to a per-tenant K8s Secret. Single source
+    # of truth - rotation invalidates every in-flight per-tenant
+    # Secret (runbook in cluster/bootstrap/README.md step 10).
+    mtNodeVaultPath: etradie/services/mt-node/production
 
 resources:
   requests:
@@ -222,12 +290,40 @@ initContainer:
       cpu: 50m
       memory: 32Mi
 
+# Section 6 (CHECKLIST): PrometheusRule covering broker call SLO
+# breaches, leak detection, restart loops, EA identity / clock
+# kill-switch firings. Renders only when monitoring.coreos.com is
+# installed (Prometheus Operator). Set enabled=false on a cluster
+# without the operator to skip rendering.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 4
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
+  # Section 5 (CHECKLIST): the engine exposes
+  # etradie_active_user_connections{connection_type} via /metrics.
+  # To wire this as an HPA scaling signal, deploy prometheus-adapter
+  # with a 'series' rule that exposes the metric as an external
+  # metric in the K8s metrics API, then add an entry under
+  # customMetrics below. We do NOT add the External metric to the
+  # HPA spec by default because the cluster may not have the
+  # prometheus-adapter installed; the operator opts in by setting
+  # this to a non-empty list. Example:
+  #   customMetrics:
+  #     - external:
+  #         metric:
+  #           name: etradie_active_user_connections
+  #         target:
+  #           type: AverageValue
+  #           averageValue: "25"  # one engine pod per 25 connections
+  customMetrics: []
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 600
@@ -358,6 +454,22 @@ networkPolicy:
     # K8s API Server (usually 10.43.0.1:443 in K3s). The generic HTTPS
     # rule above already covers 443, but adding explicit IP blocks
     # if you later restrict the generic rule is wise. For now, 443 is open.
+
+    # Per-user mt-node Deployments. The engine's ZmqClient dials
+    # tcp://<connection-id>.etradie-system.svc.cluster.local:5555
+    # to bridge to the headless MT4/MT5 terminal running inside a
+    # Wine container. Selector matches helm/mt-node's pod labels.
+    # Audit ref: CHECKLIST Section 1 broker-connectivity pre-req;
+    # previous audit: 'engine NetworkPolicy egress does not allow
+    # :5555 - ZmqClient connect would be dropped by CNI'.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+              app.kubernetes.io/part-of: etradie
+      ports:
+        - protocol: TCP
+          port: 5555
     
 
 serviceMonitor:

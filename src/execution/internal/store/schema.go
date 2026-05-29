@@ -105,7 +105,41 @@ CREATE INDEX IF NOT EXISTS idx_exec_watchers_status ON execution_pending_watcher
 CREATE INDEX IF NOT EXISTS idx_exec_watchers_symbol ON execution_pending_watchers (symbol);
 CREATE INDEX IF NOT EXISTS idx_exec_watchers_watcher_id ON execution_pending_watchers (watcher_id);
 
+-- Section 3 (CHECKLIST): order idempotency table. Every accepted
+-- placement claims a (user_id, idempotency_key) row before the
+-- broker call; a duplicate submission with the same key short-
+-- circuits and returns the prior broker_order_id.
+CREATE TABLE IF NOT EXISTS execution_order_idempotency (
+    user_id         VARCHAR(64) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    order_id        VARCHAR(128) NOT NULL,
+    symbol          VARCHAR(20)  NOT NULL,
+    direction       VARCHAR(10)  NOT NULL,
+    execution_mode  VARCHAR(10)  NOT NULL,
+    entry_price     DOUBLE PRECISION NOT NULL DEFAULT 0,
+    stop_loss       DOUBLE PRECISION NOT NULL DEFAULT 0,
+    lot_size        DOUBLE PRECISION NOT NULL DEFAULT 0,
+    broker_order_id TEXT NOT NULL DEFAULT '',
+    status          VARCHAR(20)  NOT NULL DEFAULT 'CLAIMED',
+    fill_price      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    volume_filled   DOUBLE PRECISION NOT NULL DEFAULT 0,
+    volume_remaining DOUBLE PRECISION NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ,
+    PRIMARY KEY (user_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_idemp_user_id
+    ON execution_order_idempotency (user_id);
+CREATE INDEX IF NOT EXISTS idx_exec_idemp_created_at
+    ON execution_order_idempotency (created_at);
+CREATE INDEX IF NOT EXISTS idx_exec_idemp_order_id
+    ON execution_order_idempotency (order_id);
+
 -- Automatic schema migration for existing databases
 ALTER TABLE execution_pending_watchers ADD COLUMN IF NOT EXISTS broker_order_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS volume_filled    DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS volume_remaining DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_audit_logs ADD COLUMN IF NOT EXISTS fill_status      VARCHAR(20) NOT NULL DEFAULT '';
 `
 }

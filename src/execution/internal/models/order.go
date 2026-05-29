@@ -23,6 +23,15 @@ type Order struct {
 	Direction     constants.Direction
 	ExecutionMode constants.ExecutionMode
 
+	// Section 3: idempotency contract. Populated by the order builder
+	// from order.OrderID by default (UUIDv4). When the gateway passes
+	// an X-Idempotency-Key header on the gRPC RPC, the server stamps
+	// that value here instead so the gateway's idempotency window and
+	// the executor's idempotency window are the SAME window. A second
+	// submission with the same (UserID, IdempotencyKey) short-circuits
+	// inside Executor.placeLimit before any broker call is made.
+	IdempotencyKey string
+
 	// Execution levels.
 	EntryPrice float64
 	StopLoss   float64

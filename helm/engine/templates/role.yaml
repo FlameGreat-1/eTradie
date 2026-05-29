@@ -1,11 +1,32 @@
 {{- if .Values.serviceAccount.create -}}
-# Narrow Role: the engine FastAPI app does not create or delete any
-# Kubernetes resources at runtime. It only reads its own ConfigMap +
-# Secret (via envFrom, which uses the kubelet path, not the pod SA).
-# Keeping the role narrow to zero verbs is intentional; if a future
-# feature needs the K8s API, add the precise verbs here and update
-# automountServiceAccountToken on the ServiceAccount + Pod template.
-# Audit ref: E-C1, E-C2.
+# Engine Role (namespaced to etradie-system).
+#
+# Grants the precise verbs the engine FastAPI app needs to
+# manage per-user mt-node Deployments/Services/Secrets at runtime
+# through kubernetes_asyncio. Used by HostedProvisioner when a
+# dashboard user picks connection_type="hosted".
+#
+# Posture:
+#   - Namespaced Role, NOT ClusterRole. Engine cannot touch any
+#     resource outside etradie-system.
+#   - No wildcards. Every verb/resource is enumerated.
+#   - No 'pods' resource. The engine creates Deployments and lets
+#     the K8s controller manager create Pods on its behalf. This
+#     keeps mt-node lifecycle reconcilable by the standard controllers
+#     (restartPolicy, podDisruptionBudget, rolling updates) instead
+#     of bypassing them with raw Pod creates.
+#   - 'get' on configmaps is included only for downward-config reads
+#     the engine may add later (e.g. broker-server allowlist); it does
+#     NOT have create/update on configmaps to prevent the engine from
+#     mutating its own chart-managed config.
+#
+# Audit refs:
+#   - CHECKLIST.md Section 1 - terminal lifecycle pre-req
+#   - Previous audit: 'engine Role had rules: [] - HostedProvisioner
+#     would 403 on every K8s API call'
+#   - E-C1, E-C2 - rule was deliberately empty; this commit replaces
+#     it because the architecture changed (engine now owns mt-node
+#     lifecycle via Deployments, not via dead code)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -14,5 +35,47 @@ metadata:
   labels:
     {{- include "engine.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
-rules: []
+rules:
+  # Per-user mt-node workloads. Engine creates a Deployment per
+  # broker connection; the K8s controller manager spawns the Pod.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Engine reads the Deployment's controller-managed Pods to surface
+  # phase/restart-count/last-state in the dashboard. NO create/delete
+  # on pods - those are controller-managed.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+  # ClusterIP Service per mt-node so the engine's ZmqClient can
+  # dial tcp://<svc>.etradie-system.svc.cluster.local:5555 .
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Per-tenant Secret holding the sealed MT credentials. Engine
+  # writes the AES-GCM ciphertext at provision time; the mt-node
+  # Deployment mounts it via envFrom. Engine does NOT need to read
+  # the Secret back (it already has the plaintext at create time).
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Downward config reads (broker-server allowlist, symbol-suffix
+  # rules). Engine does NOT mutate ConfigMaps - chart owns them.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+  # Events: engine reads K8s Events for the mt-node Deployment so
+  # the dashboard can show 'ImagePullBackOff', 'OOMKilled' etc.
+  # No create/update/delete - events come from the K8s controllers.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
 {{- end }}

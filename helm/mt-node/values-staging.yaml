@@ -1,0 +1,30 @@
+# Staging overlay for the etradie-mt-node chart.
+#
+# Applied via --values values-staging.yaml after values.yaml.
+# The engine's HostedProvisioner picks the overlay based on the
+# ENV environment variable on the engine Pod.
+
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 300m
+    memory: 512Mi
+    ephemeral-storage: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+    ephemeral-storage: 512Mi
+
+persistence:
+  size: 2Gi
+
+externalSecrets:
+  enabled: true
+  platform:
+    vaultPath: etradie/services/mt-node/staging
+
+priorityClass:
+  create: false

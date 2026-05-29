@@ -1,0 +1,59 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "olog.loki.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "olog.loki.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Promtail in the same namespace pushes logs.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "olog.promtail.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Grafana in the monitoring namespace queries logs.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.grafanaNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Prometheus scrapes /metrics on :3100.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 3100
+  egress:
+    # Cluster DNS only - Loki writes to its local PVC and does not
+    # call out.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

@@ -101,10 +101,17 @@ func main() {
 		// EngineInternalSecret is validated by Config.validate(): in
 		// production/staging it is required, in development an empty
 		// value is allowed but the bridge logs a warning at construction.
-		bp = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+		bridge := mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+		// Section 3 (CHECKLIST): wire retry-with-backoff for transient
+		// broker errors. attempts<=1 disables retry (mock dev mode).
+		bridge = bridge.WithRetry(cfg.BrokerRetryAttempts, cfg.BrokerRetryBaseMs, cfg.BrokerRetryCapMs)
+		bp = bridge
 		log.Info().
 			Str("url", cfg.BrokerBridgeURL).
 			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
+			Int("retry_attempts", cfg.BrokerRetryAttempts).
+			Int("retry_base_ms", cfg.BrokerRetryBaseMs).
+			Int("retry_cap_ms", cfg.BrokerRetryCapMs).
 			Msg("broker_mt5_bridge_configured")
 	} else {
 		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
@@ -150,6 +157,16 @@ func main() {
 
 	watcherStore := store.NewWatcherStore(pool)
 
+	// Section 3 (CHECKLIST): order-level idempotency store.
+	idempotencyStore := store.NewIdempotencyStore(pool)
+
+	// Section 3: reconciler identity adapter. The reconciler must call
+	// the broker bridge under each user's identity so the bridge
+	// resolves the correct per-user broker connection. We reuse
+	// userStore + tokenService - the same building blocks the watcher
+	// restoration path uses.
+	reconcileIdentity := newReconcileIdentityProvider(userStore, tokenService)
+
 	wm := watcher.NewManager(bp, gwClient, al, alertTransport, watcher.Config{
 		PollIntervalMs:          cfg.WatcherPollIntervalMs,
 		TimeoutMinutes:          cfg.WatcherTimeoutMinutes,
@@ -164,7 +181,13 @@ func main() {
 	}
 	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)})
 
-	e := executor.NewExecutor(bp, wm, cfg.BrokerTimeoutMs)
+	e := executor.NewExecutor(
+		bp,
+		wm,
+		idempotencyStore,
+		cfg.BrokerTimeoutMs,
+		cfg.MaxOrderLatencyMs,
+	)
 
 	// ── gRPC server ────────────────────────────────────────────────────────
 	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
@@ -363,9 +386,29 @@ func main() {
 		}
 	}
 
+	// Section 3 (CHECKLIST): garbage-collect expired idempotency rows.
+	// Keeps the table bounded - the idempotency window is finite
+	// (24h default).
+	gcCtx, gcCancel := context.WithCancel(context.Background())
+	defer gcCancel()
+	go idempotencyGCLoop(gcCtx, idempotencyStore, cfg.OrderIdempotencyTTLSecs)
+
+	// Section 3 (CHECKLIST): reconciliation loop - broker positions +
+	// pending orders vs engine state. Runs on the same gcCtx so it
+	// stops together with the idempotency GC at shutdown.
+	reconciler := state.NewReconciler(
+		bp,
+		sm,
+		reconcileIdentity,
+		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+	)
+	go reconciler.Loop(gcCtx)
+
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).
+		Int("max_order_latency_ms", cfg.MaxOrderLatencyMs).
+		Int("order_idempotency_ttl_secs", cfg.OrderIdempotencyTTLSecs).
 		Msg("execution_engine_ready")
 
 	// ── Graceful shutdown ──────────────────────────────────────────────────
@@ -378,6 +421,8 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	gcCancel()
+
 	// Shutdown order: gRPC → watchers → HTTP → alerts → DB.
 	grpcServer.GracefulStop()
 	wm.Shutdown()
@@ -388,6 +433,36 @@ func main() {
 	pool.Close()
 
 	log.Info().Msg("execution_engine_stopped")
+}
+
+// idempotencyGCLoop periodically prunes expired idempotency keys.
+// Runs hourly with a cutoff of (now - ttl). Exits when ctx is
+// cancelled (engine shutdown).
+func idempotencyGCLoop(ctx context.Context, st *store.IdempotencyStore, ttlSecs int) {
+	if st == nil || ttlSecs <= 0 {
+		return
+	}
+	log := observability.Logger("idempotency_gc")
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-time.Duration(ttlSecs) * time.Second)
+			gcCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			deleted, err := st.GarbageCollect(gcCtx, cutoff)
+			cancel()
+			if err != nil {
+				log.Warn().Err(err).Msg("idempotency_gc_failed")
+				continue
+			}
+			if deleted > 0 {
+				log.Info().Int64("deleted", deleted).Time("cutoff", cutoff).Msg("idempotency_gc_ran")
+			}
+		}
+	}
 }
 
 // restoreOrderFromRecord reconstructs an Order from a persisted

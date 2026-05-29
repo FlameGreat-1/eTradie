@@ -235,3 +235,47 @@ resource "vault_kv_secret_v2" "data_layer_chromadb" {
     ignore_changes = [data_json]
   }
 }
+
+# MT-node platform secrets.
+#
+# Holds the platform-level encryption key the engine uses to seal
+# per-user MT broker credentials (login / password / server) before
+# writing them to a per-tenant Kubernetes Secret in etradie-system.
+# The mt-node Deployment (created at runtime by HostedProvisioner)
+# mounts that Secret as envFrom so credentials NEVER appear as a
+# V1EnvVar value field, never in `kubectl describe`, never in audit
+# logs that dump env. The encryption key NEVER leaves the engine pod;
+# only the sealed bytes are stored in the per-tenant Secret.
+#
+# Keys (all required):
+#   mt_node_credential_encryption_key - 32-byte hex string used by the
+#                                       engine to AES-GCM seal user MT
+#                                       creds. Generate once per env
+#                                       with: openssl rand -hex 32 .
+#                                       Rotation invalidates all
+#                                       in-flight per-tenant Secrets;
+#                                       follow the rotation runbook.
+#   default_zmq_auth_token           - Platform-level default token
+#                                       the EA's AUTH_TOKEN inside the
+#                                       container is configured with.
+#                                       Per-user override is supported
+#                                       by the engine via the EA
+#                                       connection path; this default
+#                                       is consumed only by the hosted
+#                                       (in-cluster) container path.
+#                                       Generate with:
+#                                         openssl rand -hex 32 .
+# Audit ref: CHECKLIST Section 1 (credential security pre-requisite
+# for the mt-node Deployment), and refactor of HostedProvisioner in
+# Step 4 of this MR series.
+resource "vault_kv_secret_v2" "mt_node" {
+  mount               = var.vault_mount
+  name                = "etradie/services/mt-node/${var.environment}"
+  delete_all_versions = false
+  data_json = jsonencode({
+    bootstrap = "placeholder; populate keys: mt_node_credential_encryption_key (openssl rand -hex 32), default_zmq_auth_token (openssl rand -hex 32). BOTH required before any user can pick connection_type=hosted in the dashboard."
+  })
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}

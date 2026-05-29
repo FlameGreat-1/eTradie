@@ -21,6 +21,19 @@ podAnnotations:
   tier: production
 
 config:
+  connectivity:
+    # Production: same defaults but enforce a minimum EA build so a
+    # stale terminal cannot trade. Bump this whenever the EA contract
+    # changes (we last bumped to 2.10.0 in Section 4 step A).
+    eaIdentityVerifyEnabled: "true"
+    eaMaxClockSkewSecs: "5"
+    eaMinVersion: "2.10.0"
+    # Section 5: tighter production throughput envelope. Bigger node
+    # pool + bigger HPA ceiling means we can afford 20/s per tenant
+    # with 8 in-flight and a 40-burst.
+    outboundRatePerSecond: "20"
+    outboundBurstSize: "40"
+    zmqInflightLimit: "8"
   app:
     env: "production"
     debug: "false"
@@ -38,6 +51,7 @@ externalSecrets:
     vaultPath: etradie/services/engine/production
     refreshInterval: 1h
     chromadbAuthVaultPath: etradie/data-layer/chromadb/production
+    mtNodeVaultPath: etradie/services/mt-node/production
 
 resources:
   requests:

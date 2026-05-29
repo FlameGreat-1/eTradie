@@ -7,15 +7,30 @@ metadata:
     {{- include "execution.labels" . | nindent 4 }}
     app.kubernetes.io/component: config
 data:
-  # Execution core (envconfig prefix EXECUTION_).
-  # Source of truth: src/execution/internal/config/config.go.
+  # Server.
   EXECUTION_GRPC_PORT: {{ .Values.config.execution.grpcPort | quote }}
   EXECUTION_HTTP_PORT: {{ .Values.config.execution.httpPort | quote }}
+
+  # Broker.
   EXECUTION_BROKER_MODE: {{ .Values.config.execution.brokerMode | quote }}
   EXECUTION_BROKER_BRIDGE_URL: {{ .Values.config.execution.brokerBridgeURL | quote }}
   EXECUTION_BROKER_TIMEOUT_MS: {{ .Values.config.execution.brokerTimeoutMs | quote }}
   EXECUTION_MOCK_BROKER_BALANCE: {{ .Values.config.execution.mockBrokerBalance | quote }}
+  # Section 3 (CHECKLIST): broker retry-with-backoff.
+  EXECUTION_BROKER_RETRY_ATTEMPTS: {{ .Values.config.execution.brokerRetryAttempts | default "3" | quote }}
+  EXECUTION_BROKER_RETRY_BASE_MS: {{ .Values.config.execution.brokerRetryBaseMs | default "200" | quote }}
+  EXECUTION_BROKER_RETRY_CAP_MS: {{ .Values.config.execution.brokerRetryCapMs | default "2000" | quote }}
+  # Section 3: end-to-end latency kill-switch.
+  EXECUTION_MAX_ORDER_LATENCY_MS: {{ .Values.config.execution.maxOrderLatencyMs | default "5000" | quote }}
+  # Section 3: order idempotency window.
+  EXECUTION_ORDER_IDEMPOTENCY_TTL_SECS: {{ .Values.config.execution.orderIdempotencyTtlSecs | default "86400" | quote }}
+  # Section 3: broker reconciliation cadence.
+  EXECUTION_RECONCILE_INTERVAL_SECS: {{ .Values.config.execution.reconcileIntervalSecs | default "60" | quote }}
+
+  # Gateway.
   EXECUTION_GATEWAY_ADDR: {{ .Values.config.execution.gatewayAddr | quote }}
+
+  # Execution policy.
   EXECUTION_DEFAULT_EXECUTION_MODE: {{ .Values.config.execution.defaultExecutionMode | quote }}
   EXECUTION_MIN_LOT_SIZE: {{ .Values.config.execution.minLotSize | quote }}
   EXECUTION_MAX_LOT_SIZE: {{ .Values.config.execution.maxLotSize | quote }}
@@ -27,20 +42,26 @@ data:
   EXECUTION_NEWS_LOCKOUT_MINUTES: {{ .Values.config.execution.newsLockoutMinutes | quote }}
   EXECUTION_NEWS_LOCKOUT_MINUTES_SCALPING: {{ .Values.config.execution.newsLockoutMinutesScalping | quote }}
   EXECUTION_ENABLED_SESSIONS: {{ .Values.config.execution.enabledSessions | quote }}
+
+  # Watcher.
   EXECUTION_OVERSHOOT_TOLERANCE_MULTIPLIER: {{ .Values.config.execution.overshootToleranceMultiplier | quote }}
   EXECUTION_WATCHER_POLL_INTERVAL_MS: {{ .Values.config.execution.watcherPollIntervalMs | quote }}
   EXECUTION_WATCHER_TIMEOUT_MINUTES: {{ .Values.config.execution.watcherTimeoutMinutes | quote }}
   EXECUTION_WATCHER_CONFIRM_POLL_INTERVAL_SECS: {{ .Values.config.execution.watcherConfirmPollIntervalSecs | quote }}
+
+  # Database pool.
   EXECUTION_DATABASE_MAX_CONNS: {{ .Values.config.execution.databaseMaxConns | quote }}
   EXECUTION_DATABASE_MIN_CONNS: {{ .Values.config.execution.databaseMinConns | quote }}
   EXECUTION_DATABASE_MAX_IDLE_MS: {{ .Values.config.execution.databaseMaxIdleMs | quote }}
   EXECUTION_DATABASE_CONN_MAX_LIFE_SECONDS: {{ .Values.config.execution.databaseConnMaxLifeSeconds | quote }}
+
+  # Observability.
   EXECUTION_LOG_LEVEL: {{ .Values.config.execution.logLevel | quote }}
   EXECUTION_LOG_JSON: {{ .Values.config.execution.logJson | quote }}
   EXECUTION_OTEL_ENDPOINT: {{ .Values.config.execution.otelEndpoint | quote }}
   EXECUTION_OTEL_SERVICE_NAME: {{ .Values.config.execution.otelServiceName | quote }}
 
-  # Auth (the same auth package gateway/management use - shared JWT secret).
+  # Auth (used by the gRPC interceptor + service tokens).
   AUTH_ACCESS_TOKEN_TTL_SECONDS: {{ .Values.config.auth.accessTokenTtlSeconds | quote }}
   AUTH_REFRESH_TOKEN_TTL_SECONDS: {{ .Values.config.auth.refreshTokenTtlSeconds | quote }}
   AUTH_SERVICE_TOKEN_TTL_SECONDS: {{ .Values.config.auth.serviceTokenTtlSeconds | quote }}

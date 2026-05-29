@@ -1,0 +1,51 @@
+{{- if .Values.mtConnection.enabled }}
+{{- include "mt-node.preflight" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mt-node.fullname" . }}
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zmq-endpoint
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  sessionAffinity: {{ .Values.service.sessionAffinity | default "None" }}
+  selector:
+    {{- include "mt-node.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: zmq
+      port: {{ .Values.service.zmqPort | default 5555 }}
+      targetPort: zmq
+      protocol: TCP
+      appProtocol: tcp
+    - name: watchdog
+      port: {{ .Values.service.watchdogPort | default 9100 }}
+      targetPort: watchdog
+      protocol: TCP
+{{- end }}
+      appProtocol: http
+---
+# Headless variant used by the StatefulSet for stable pod-DNS.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mt-node.fullname" . }}-headless
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zmq-endpoint-headless
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "mt-node.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: zmq
+      port: {{ .Values.service.zmqPort | default 5555 }}
+      targetPort: zmq
+      protocol: TCP
+    - name: watchdog
+      port: {{ .Values.service.watchdogPort | default 9100 }}
+      targetPort: watchdog
+      protocol: TCP

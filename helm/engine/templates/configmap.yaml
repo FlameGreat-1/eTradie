@@ -102,3 +102,45 @@ data:
   # SC-H7 / E-M5.
   OTEL_SERVICE_NAME: {{ .Values.config.observability.otelServiceName | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.observability.otelEndpoint | quote }}
+
+  # Broker connectivity (Section 2). Consumed by ZmqClient / MetaApiClient
+  # via their connectivity primitives. Non-secret.
+  ENGINE_CONNECTIVITY_HEARTBEAT_INTERVAL_SECS: {{ .Values.config.connectivity.heartbeatIntervalSecs | quote }}
+  ENGINE_CONNECTIVITY_HEARTBEAT_TIMEOUT_SECS: {{ .Values.config.connectivity.heartbeatTimeoutSecs | quote }}
+  ENGINE_CONNECTIVITY_HEARTBEAT_FAILURE_THRESHOLD: {{ .Values.config.connectivity.heartbeatFailureThreshold | quote }}
+  ENGINE_CONNECTIVITY_RECONNECT_BASE_SECS: {{ .Values.config.connectivity.reconnectBaseSecs | quote }}
+  ENGINE_CONNECTIVITY_RECONNECT_CAP_SECS: {{ .Values.config.connectivity.reconnectCapSecs | quote }}
+  ENGINE_CONNECTIVITY_RECONNECT_MAX_ATTEMPTS: {{ .Values.config.connectivity.reconnectMaxAttempts | quote }}
+  ENGINE_CONNECTIVITY_TICK_MAX_AGE_SECS: {{ .Values.config.connectivity.tickMaxAgeSecs | quote }}
+  ENGINE_CONNECTIVITY_SYMBOL_RESOLVER_CACHE_TTL_SECS: {{ .Values.config.connectivity.symbolResolverCacheTtlSecs | quote }}
+
+  # EA stability (Section 4). Consumed by EAIdentityVerifier and
+  # ClockSkewMonitor inside ZmqClient. Non-secret.
+  ENGINE_EA_IDENTITY_VERIFY_ENABLED: {{ .Values.config.connectivity.eaIdentityVerifyEnabled | quote }}
+  ENGINE_EA_MAX_CLOCK_SKEW_SECS: {{ .Values.config.connectivity.eaMaxClockSkewSecs | quote }}
+  ENGINE_EA_CLOCK_SKEW_SAMPLE_EVERY_SECS: {{ .Values.config.connectivity.eaClockSkewSampleEvery | quote }}
+  ENGINE_EA_MIN_VERSION: {{ .Values.config.connectivity.eaMinVersion | quote }}
+
+  # System scaling + load control (Section 5). Consumed by the
+  # OutboundRateLimiter + in-flight gate inside ZmqClient. Non-secret.
+  ENGINE_OUTBOUND_RATE_PER_SECOND: {{ .Values.config.connectivity.outboundRatePerSecond | quote }}
+  ENGINE_OUTBOUND_BURST_SIZE: {{ .Values.config.connectivity.outboundBurstSize | quote }}
+  ENGINE_ZMQ_INFLIGHT_LIMIT: {{ .Values.config.connectivity.zmqInflightLimit | quote }}
+  ENGINE_OUTBOUND_LIMIT_DEADLINE_SECS: {{ .Values.config.connectivity.outboundLimitDeadlineSecs | quote }}
+  ENGINE_REQUEST_DEADLINE_SAFETY_MS: {{ .Values.config.connectivity.requestDeadlineSafetyMs | quote }}
+  ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS: {{ .Values.config.connectivity.brokerPoolIdleTimeoutSecs | quote }}
+  ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.brokerPoolSweepIntervalSecs | quote }}
+
+  # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
+  MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
+  MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}
+  MT_NODE_MEM_LIMIT: {{ .Values.config.mtNode.memLimit | quote }}
+  MT_NODE_MEM_REQUEST: {{ .Values.config.mtNode.memRequest | quote }}
+  MT_NODE_CPU_LIMIT: {{ .Values.config.mtNode.cpuLimit | quote }}
+  MT_NODE_CPU_REQUEST: {{ .Values.config.mtNode.cpuRequest | quote }}
+  MT_NODE_EPHEMERAL_LIMIT: {{ .Values.config.mtNode.ephemeralLimit | quote }}
+  MT_NODE_EPHEMERAL_REQUEST: {{ .Values.config.mtNode.ephemeralRequest | quote }}
+  MT_NODE_PVC_SIZE: {{ .Values.config.mtNode.pvcSize | quote }}
+  MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
+  MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
+  MT_NODE_ZMQ_PROBE_TIMEOUT_SECS: {{ .Values.config.mtNode.zmqProbeTimeoutSecs | quote }}

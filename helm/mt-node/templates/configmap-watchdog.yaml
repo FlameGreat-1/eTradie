@@ -1,0 +1,25 @@
+{{- if .Values.mtConnection.enabled }}
+{{- include "mt-node.preflight" . -}}
+# Watchdog configuration consumed by /opt/watchdog/watchdog.py inside
+# the mt-node container. The script itself is baked into the image
+# (see docker/mt-node/Dockerfile, Step 3 of this MR series); only the
+# runtime tunables come from this ConfigMap so an operator can change
+# them via Helm without rebuilding the image.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mt-node.watchdogConfigMapName" . }}
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: watchdog-config
+data:
+  WATCHDOG_POLL_INTERVAL_SECONDS: {{ .Values.sidecar.watchdog.config.pollIntervalSeconds | quote }}
+  WATCHDOG_MAX_FAILURES: {{ .Values.sidecar.watchdog.config.maxFailures | quote }}
+  WATCHDOG_MEMORY_SOFT_CAP_FRACTION: {{ .Values.sidecar.watchdog.config.memorySoftCapFraction | quote }}
+  WATCHDOG_LIVEZ_GRACE_SECONDS: {{ .Values.sidecar.watchdog.config.livezGracePeriodSeconds | quote }}
+  WATCHDOG_ZMQ_ENDPOINT: "tcp://127.0.0.1:{{ .Values.service.zmqPort }}"
+  WATCHDOG_HTTP_PORT: {{ .Values.service.watchdogPort | quote }}
+  WATCHDOG_SYMBOL: {{ .Values.mtConnection.symbol | quote }}
+  WATCHDOG_CGROUP_MEMORY_LIMIT_BYTES: {{ dict "limits" .Values.resources.limits | toJson | quote }}
+{{- end }}

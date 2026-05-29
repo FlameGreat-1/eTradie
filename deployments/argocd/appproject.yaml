@@ -54,6 +54,13 @@ spec:
       kind: ClusterSecretStore
     - group: ""
       kind: Namespace
+    # Section 6 (CHECKLIST): the observability-logs chart deploys
+    # Promtail with a narrow ClusterRole (pods/nodes get,list,watch)
+    # for kubernetes_sd_configs service discovery.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
 
   # Namespace-scoped resources the Applications are allowed to manage.
   namespaceResourceWhitelist:
@@ -69,10 +76,15 @@ spec:
       kind: ResourceQuota
     - group: ""
       kind: LimitRange
+    - group: ""
+      kind: PersistentVolumeClaim
     - group: apps
       kind: Deployment
     - group: apps
       kind: StatefulSet
+    # Section 6 (CHECKLIST): Promtail DaemonSet for log aggregation.
+    - group: apps
+      kind: DaemonSet
     - group: autoscaling
       kind: HorizontalPodAutoscaler
     - group: policy
@@ -144,4 +156,17 @@ spec:
       duration: 8h
       applications:
         - "*-production"
+      manualSync: true
+    # 24/7 selfHeal window scoped to mt-node-* Applications.
+    # Trading is 24/5 and an mt-node platform Secret rotation or
+    # PriorityClass drift cannot wait for Monday 13:00 UTC. The
+    # business-hours window above continues to gate every other
+    # production Application as before. ArgoCD evaluates allow windows
+    # additively: an mt-node-* Application sees BOTH windows and uses
+    # the union, i.e. 24/7.
+    - kind: allow
+      schedule: "* * * * *"      # always
+      duration: 24h
+      applications:
+        - "mt-node-*"
       manualSync: true

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "olog.promtail.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.promtail.selectorLabels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "olog.promtail.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "olog.promtail.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/promtail-config.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "olog.promtail.fullname" . }}
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- toYaml .Values.promtail.podSecurityContext | nindent 8 }}
+      {{- with .Values.promtail.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: promtail
+          image: "{{ .Values.promtail.image.repository }}:{{ .Values.promtail.image.tag }}"
+          imagePullPolicy: {{ .Values.promtail.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.promtail.securityContext | nindent 12 }}
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+            - -client.url=http://loki.{{ include "olog.namespace" . }}.svc.cluster.local:{{ .Values.loki.service.port | default 3100 }}/loki/api/v1/push
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: http-metrics
+              containerPort: {{ .Values.promtail.service.port | default 3101 }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.promtail.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
+            - name: var-log-pods
+              mountPath: {{ .Values.promtail.hostMounts.varLogPods | quote }}
+              readOnly: true
+            - name: var-lib-docker-containers
+              mountPath: {{ .Values.promtail.hostMounts.varLibDockerContainers | quote }}
+              readOnly: true
+            - name: run
+              mountPath: /run/promtail
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "olog.promtail.fullname" . }}-config
+        - name: var-log-pods
+          hostPath:
+            path: {{ .Values.promtail.hostMounts.varLogPods | quote }}
+        - name: var-lib-docker-containers
+          hostPath:
+            path: {{ .Values.promtail.hostMounts.varLibDockerContainers | quote }}
+        - name: run
+          emptyDir:
+            sizeLimit: 64Mi

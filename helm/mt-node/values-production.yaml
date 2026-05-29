@@ -1,0 +1,89 @@
+# Production overlay for the etradie-mt-node chart.
+#
+# Hardens defaults: larger resource ceiling, priority class enabled,
+# tighter PDB, more frequent scrape interval, and tolerations for the
+# dedicated etradie-system node taint.
+
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9100"
+  prometheus.io/path: "/metrics"
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  tier: production
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+    ephemeral-storage: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 1536Mi
+    ephemeral-storage: 1Gi
+
+persistence:
+  size: 8Gi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+
+priorityClass:
+  create: true
+  name: etradie-mt-node-priority
+  value: 100000
+  globalDefault: false
+  description: "Per-user MT terminal Pods. Trading-critical; evict last."
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: etradie-mt-node
+        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+          topologyKey: topology.kubernetes.io/zone
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-mt-node
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: etradie-mt-node
+
+tolerations:
+  - key: workload
+    operator: Equal
+    value: etradie-system
+    effect: NoSchedule
+
+externalSecrets:
+  enabled: true
+  platform:
+    vaultPath: etradie/services/mt-node/production
+    refreshInterval: 1h
+
+terminationGracePeriodSeconds: 90

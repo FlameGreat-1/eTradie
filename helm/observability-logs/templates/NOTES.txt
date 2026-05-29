@@ -1,0 +1,11 @@
+{{ include "olog.fullname" . }} installed in namespace {{ include "olog.namespace" . }}.
+
+Loki:    http://loki.{{ include "olog.namespace" . }}.svc.cluster.local:{{ .Values.loki.service.port }}
+Promtail: DaemonSet covering every node
+
+Query from Grafana (datasource URL above) or with logcli:
+  kubectl -n {{ include "olog.namespace" . }} port-forward svc/loki 3100
+  logcli query '{namespace="etradie-system"}'
+
+Per-tenant LogQL example:
+  {app="etradie-mt-node", user_id="u-123"}

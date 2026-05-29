@@ -39,8 +39,89 @@ class ProviderUnavailableError(ProviderError):
     pass
 
 
+class ProviderDisconnectedError(ProviderUnavailableError):
+    """Raised when the engine detects the broker terminal is alive but
+    has lost its connection to the broker server.
+
+    Distinct from ProviderUnavailableError so callers can:
+      - Surface a specific 'Broker disconnected; reconnecting' state to
+        the dashboard rather than the generic 'service unavailable'.
+      - Trigger a tighter reconnect cadence than full-on outage backoff.
+
+    Subclasses ProviderUnavailableError so existing `except
+    ProviderUnavailableError` blocks continue to catch the failure
+    (closed-circuit safety in case any callers were depending on the
+    parent type).
+
+    Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
 class ProviderResponseError(ProviderError):
     pass
+
+
+class ProviderStalePriceError(ProviderResponseError):
+    """Raised when a tick / price response is older than the configured
+    max-age threshold.
+
+    Subclasses ProviderResponseError because it is a per-call response
+    problem (the broker replied, just with stale data) and not a
+    connection-level problem.
+
+    Audit ref: CHECKLIST Section 2 - 'Price feed validation layer (anti-stale
+    pricing detection)'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
+class EAIdentityMismatchError(ProviderAuthenticationError):
+    """Raised when the EA's reported identity does not match what the
+    engine expects for the connection (magic number, account login,
+    broker server).
+
+    Subclasses ProviderAuthenticationError so existing 'except
+    ProviderAuthenticationError' blocks (the kill-switch trigger in
+    the connection manager) catch it without code change.
+
+    Audit ref: CHECKLIST Section 4 - 'Detect EA vs backend signal
+    mismatch', 'Kill-switch if EA diverges from expected logic'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
+class OutboundRateLimitExceededError(ProviderError):
+    """Raised when the per-connection outbound rate limiter denies a
+    request because the token bucket is empty and the caller-supplied
+    deadline elapsed without a refill.
+
+    Subclasses ProviderError so existing 'except ProviderError' blocks
+    in the routers return HTTP 429 with a 'Retry-After' header.
+
+    Audit ref: CHECKLIST Section 5 - 'Rate limits prevent EA flooding'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
+class EAClockSkewError(ProviderError):
+    """Raised when the engine vs EA clock skew exceeds the configured
+    maximum. The connection is treated as degraded (every TickFresh
+    call returns ProviderStalePriceError) until skew recovers.
+
+    Audit ref: CHECKLIST Section 4 - 'Time synchronization'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
 
 
 class ProviderValidationError(ProviderError):

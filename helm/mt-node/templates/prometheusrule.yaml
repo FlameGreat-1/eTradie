@@ -1,0 +1,148 @@
+{{- if and .Values.prometheusRule.enabled .Values.mtConnection.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "mt-node.fullname" . }}
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Cluster-capacity alarm. mt-node Pods Pending > 60s means the
+    # cluster needs more nodes (the OCI node-pool autoscaler may be
+    # slow to react during burst signups). Pages the operator to
+    # either bump the maxSize or wait for the autoscaler.
+    - name: mt-node.capacity
+      interval: 30s
+      rules:
+        - alert: MTNodePodPending
+          expr: |
+            sum by (namespace, pod) (
+              kube_pod_status_phase{phase="Pending",namespace="{{ include "mt-node.namespace" . }}"}
+              * on (namespace, pod) group_left
+              kube_pod_labels{label_app_kubernetes_io_name="etradie-mt-node"}
+            ) > 0
+          for: 60s
+          labels:
+            severity: warning
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node Pod {{`{{ $labels.pod }}`}} sat in Pending > 60s"
+            description: |
+              A per-user MT terminal Pod could not schedule for more
+              than 60 seconds. The cluster autoscaler may be saturated
+              or the node-pool maxSize has been hit. Investigate
+              cluster capacity before more users sign up.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-pod-pending"
+
+    # Per-pod watchdog liveness. The watchdog sidecar exposes
+    # /healthz on :9100; a sustained 5xx for 5 min means the EA is
+    # not responding and the in-Pod restart loop has been unable to
+    # recover. Pages the operator to intervene.
+    - name: mt-node.health
+      interval: 30s
+      rules:
+        - alert: MTNodeWatchdogDown
+          expr: |
+            up{job="{{ include "mt-node.fullname" . }}",namespace="{{ include "mt-node.namespace" . }}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node watchdog unreachable for connection {{ .Values.mtConnection.connectionId }}"
+            description: |
+              The watchdog sidecar has been unreachable for 5
+              minutes. The Pod's in-Pod restart loop has also failed.
+              Operator must inspect the Pod and decide whether to
+              kubectl delete (forces a fresh PVC mount cycle).
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-watchdog-down"
+
+        # The watchdog exports etradie_mt_node_broker_connected (1/0).
+        # Sustained 0 means the EA is up but cannot reach the broker.
+        - alert: MTNodeBrokerDisconnected
+          expr: |
+            etradie_mt_node_broker_connected{namespace="{{ include "mt-node.namespace" . }}"} == 0
+          for: 3m
+          labels:
+            severity: warning
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node broker disconnected for connection {{ .Values.mtConnection.connectionId }}"
+            description: |
+              The EA reports mt5_connected=false for more than 3
+              minutes. Likely causes: broker maintenance window,
+              incorrect credentials, NetworkPolicy blocked broker
+              egress. Check Pod logs + verify broker status page.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-broker-disconnected"
+
+    # Memory leak detection. The watchdog soft-cap catches the
+    # acute case (RSS > 0.8 of cgroup limit -> restart MT5). These
+    # rules catch the slow case BEFORE the soft-cap fires.
+    - name: mt-node.memory
+      interval: 1m
+      rules:
+        # Slope of MT5 process RSS over the last 4h exceeds 50 MB/h.
+        # The mt_node_mt5_process_rss_bytes gauge is exported by the
+        # watchdog sidecar's record_process_metrics().
+        - alert: MTNodeMemoryLeak
+          expr: |
+            deriv(
+              mt_node_mt5_process_rss_bytes{namespace="{{ include "mt-node.namespace" . }}"}[4h]
+            ) > 50 * 1024 * 1024 / 3600
+          for: 30m
+          labels:
+            severity: warning
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node memory leak detected ({{`{{ $labels.pod }}`}})"
+            description: |
+              MT5 RSS has been growing at > 50 MB/h sustained over
+              the last 4 hours. This will eventually hit the cgroup
+              memory limit and trigger the watchdog soft-cap (Section
+              1) or an OOM kill. Capture the Pod for analysis before
+              the next watchdog restart: kubectl -n {{ include "mt-node.namespace" . }} exec {{`{{ $labels.pod }}`}} -c mt-node -- ps aux
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-memory-leak"
+
+        # The soft-cap has fired more than once per hour for 2 hours.
+        # This means the leak is now fast enough that the in-pod
+        # watchdog is restarting MT5 repeatedly. Operator must
+        # investigate the EA / indicators in use.
+        - alert: MTNodeMemorySoftCapTripFrequent
+          expr: |
+            sum by (namespace, pod) (
+              rate(mt_node_watchdog_memory_soft_cap_trips_total[1h])
+            ) > 0.000277
+          for: 2h
+          labels:
+            severity: critical
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node memory soft-cap tripping > 1/hour for 2h ({{`{{ $labels.pod }}`}})"
+            description: |
+              The watchdog has had to restart MT5 because RSS
+              exceeded the soft-cap fraction more than once per
+              hour for the last 2 hours. The leak is now severe;
+              the Pod's user-facing trading session is being
+              interrupted on every cap trip.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-memory-soft-cap-trip-frequent"
+{{- end }}

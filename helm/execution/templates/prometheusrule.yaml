@@ -1,0 +1,121 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "execution.appName" . }}
+  namespace: {{ include "execution.namespace" . }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Order placement health. The execution service is the money layer
+    # so alerts here page on-call immediately.
+    - name: execution.orders
+      interval: 30s
+      rules:
+        # Success rate below 80% over 5m. Only fires when there's
+        # actually traffic (>= 10 attempts in the window) so a quiet
+        # period does not page.
+        - alert: ExecutionOrderFailureRateHigh
+          expr: |
+            (
+              sum(rate(etradie_execution_order_placement_total{status="success"}[5m]))
+              /
+              sum(rate(etradie_execution_order_placement_total[5m]))
+            ) < 0.8
+            and
+            sum(increase(etradie_execution_order_placement_total[5m])) >= 10
+          for: 2m
+          labels:
+            severity: critical
+            component: execution
+            team: trading
+          annotations:
+            summary: "Order success rate < 80% over 5m"
+            description: |
+              The execution service is succeeding on fewer than 80%
+              of order placements over the last 5 minutes (>= 10
+              attempts). Likely causes: broker outage, EA disconnect,
+              or a bad symbol mapping. Cross-reference with
+              MTNodeBrokerDisconnected and EngineBrokerInflightGate*.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-order-failure-rate-high"
+
+        # Latency p99 spike.
+        - alert: ExecutionOrderLatencyP99High
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (mode, le) (
+                rate(etradie_execution_order_placement_duration_seconds_bucket[5m])
+              )
+            ) > 1
+          for: 5m
+          labels:
+            severity: warning
+            component: execution
+            team: trading
+          annotations:
+            summary: "Order placement p99 latency > 1s (mode={{`{{ $labels.mode }}`}})"
+            description: |
+              99th percentile of order placement broker round-trip is
+              above 1s for 5 minutes. The user-facing SLO is < 500ms
+              p99; sustained > 1s degrades the trading experience.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-order-latency-p99-high"
+
+        # Burst queue is dropping orders because deadlines elapsed.
+        - alert: ExecutionBurstQueueDrops
+          expr: |
+            sum(rate(etradie_execution_queue_drops_total{reason="deadline"}[2m])) > 0.083
+          for: 2m
+          labels:
+            severity: warning
+            component: execution
+            team: trading
+          annotations:
+            summary: "Execution burst queue dropping > 5/min for 2m"
+            description: |
+              The execution burst queue is dropping orders because the
+              configured deadline passed before a slot freed up. Scale
+              the execution Deployment or tune QueueConfig.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-burst-queue-drops"
+
+        # Latency-breach kill switch firing.
+        - alert: ExecutionLatencyBreachSpike
+          expr: |
+            sum(rate(etradie_execution_order_latency_breach_total[5m])) > 0.0167
+          for: 5m
+          labels:
+            severity: warning
+            component: execution
+            team: trading
+          annotations:
+            summary: "Execution latency kill-switch firing > 1/min"
+            description: |
+              Orders are being rejected because end-to-end latency
+              exceeded max_order_latency_ms (Section 3 kill-switch).
+              The chain (gateway -> engine -> EA -> broker) is too
+              slow.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-latency-breach-spike"
+
+        # Audit write failures = trades happening without DB audit.
+        # This is a COMPLIANCE incident, not just an SLO issue.
+        - alert: ExecutionAuditWriteFailures
+          expr: |
+            sum(rate(etradie_execution_audit_write_failures_total[2m])) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: execution
+            team: trading
+          annotations:
+            summary: "Audit log write failures detected"
+            description: |
+              Trades are being executed but the audit log writes to
+              PostgreSQL are failing. This is a compliance incident.
+              Check DB health + connection pool saturation.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-audit-write-failures"
+{{- end }}

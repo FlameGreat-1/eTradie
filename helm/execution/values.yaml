@@ -88,6 +88,15 @@ config:
     brokerMode: ""
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
+    # Section 3 (CHECKLIST) - broker retry-with-backoff.
+    brokerRetryAttempts: "3"
+    brokerRetryBaseMs: "200"
+    brokerRetryCapMs: "2000"
+    # Section 3 - end-to-end latency kill-switch.
+    maxOrderLatencyMs: "5000"
+    # Section 3 - order idempotency window.
+    orderIdempotencyTtlSecs: "86400"
+    reconcileIntervalSecs: "60"
     mockBrokerBalance: "10000.0"
     gatewayAddr: "gateway.etradie-system.svc.cluster.local:50052"
     defaultExecutionMode: "LIMIT"
@@ -171,6 +180,15 @@ initContainer:
     limits:
       cpu: 50m
       memory: 32Mi
+
+# Section 6 (CHECKLIST): PrometheusRule covering order failure rate,
+# placement latency, queue drops, latency kill-switch, audit write
+# failures. Renders only when monitoring.coreos.com is installed.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
 
 autoscaling:
   enabled: true

@@ -1,0 +1,43 @@
+apiVersion: v2
+name: mt-node
+description: |
+  Per-user headless MetaTrader 4/5 terminal running inside Wine/Xvfb.
+  One Helm release per user broker connection. The eTradie engine
+  (helm/engine) creates a release at runtime when a dashboard user
+  picks connection_type="hosted"; it deletes the release when the
+  connection is removed.
+
+  This chart provisions:
+    - A StatefulSet (1 replica) running the etradie-mt-node container.
+    - A watchdog sidecar that polls the EA over ZMQ and exposes
+      /healthz, /livez, /metrics on :9100.
+    - A ClusterIP Service on :5555 (ZMQ) the engine dials in-cluster.
+    - A PVC for the Wine prefix so chart profile, symbol cache, and
+      EA settings survive Pod restarts.
+    - A NetworkPolicy locked to engine ingress only.
+    - A PodDisruptionBudget, PriorityClass (opt-in), ServiceMonitor.
+    - An ExternalSecret pulling the platform-level encryption key from
+      etradie/services/mt-node/<env>. Per-user credentials are sealed
+      into a separate Secret by the engine at release-create time.
+
+  This chart is registered as the source for the per-user ArgoCD
+  Applications managed by the operator below. The engine creates the
+  Application object directly via the K8s API (RBAC granted in
+  helm/engine/templates/role.yaml).
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - etradie
+  - metatrader
+  - mt5
+  - mt4
+  - wine
+  - trading
+maintainers:
+  - name: eTradie Platform Team
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial release - production-grade per-user MT terminal chart.

@@ -83,12 +83,21 @@ type OrderPlacement struct {
 }
 
 // OrderResult is the broker's response after order placement.
+//
+// Section 3 (CHECKLIST): VolumeFilled and VolumeRemaining are
+// populated by the broker bridge for all placements. A fully
+// filled order has VolumeFilled == LotSize and VolumeRemaining
+// == 0. A partial fill has both > 0 and Status == "FILLED"; the
+// executor maps this to PARTIALLY_FILLED so downstream (watcher,
+// audit, dashboard) can render the partial state accurately.
 type OrderResult struct {
-	BrokerOrderID string
-	FillPrice     float64
-	Slippage      float64
-	Status        string // "PLACED", "FILLED", "REJECTED"
-	ErrorMessage  string
+	BrokerOrderID   string  `json:"broker_order_id"`
+	FillPrice       float64 `json:"fill_price"`
+	Slippage        float64 `json:"slippage"`
+	Status          string  `json:"status"` // "PLACED", "FILLED", "REJECTED", "PARTIALLY_FILLED"
+	ErrorMessage    string  `json:"error_message"`
+	VolumeFilled    float64 `json:"volume_filled"`
+	VolumeRemaining float64 `json:"volume_remaining"`
 }
 
 // TickPrice holds the latest bid/ask for a symbol. Used by the

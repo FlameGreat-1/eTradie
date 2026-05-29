@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.loki.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: {{ .Values.loki.service.port | default 3100 }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+---
+# Headless Service for the StatefulSet's stable Pod DNS.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "olog.loki.fullname" . }}-headless
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "olog.loki.selectorLabels" . | nindent 4 }}

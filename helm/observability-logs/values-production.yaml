@@ -1,0 +1,25 @@
+# Production overlay for observability-logs.
+loki:
+  persistence:
+    size: 100Gi          # ~14d at the projected production volume
+  retentionPeriod: "336h"  # 14 days
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  limits:
+    ingestionRateMB: 16
+    ingestionBurstSizeMB: 32
+    maxStreamsPerUser: 50000
+
+promtail:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
