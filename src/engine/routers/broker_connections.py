@@ -201,8 +201,9 @@ async def create_broker_connection(
             # RAM in production). Without a quota, a single user could
             # exhaust cluster capacity by creating many hosted connections.
             # The limit is configurable via MT_NODE_MAX_HOSTED_PER_USER
-            # (default 3: one active + two standby/test connections).
-            max_hosted = int(os.environ.get("MT_NODE_MAX_HOSTED_PER_USER", "3"))
+            # (default 1: one hosted account per user; raise per-tenant
+            # via the Helm production overlay for power users).
+            max_hosted = int(os.environ.get("MT_NODE_MAX_HOSTED_PER_USER", "1"))
             async with container.db.read_session() as session:
                 repo = BrokerConnectionRepository(session)
                 existing = await repo.get_all(user_id=user.user_id)

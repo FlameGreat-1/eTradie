@@ -263,10 +263,11 @@ config:
     zmqProbeTimeoutSecs: "5"
     # Per-user quota for hosted MetaTrader connections. Each hosted
     # connection consumes a dedicated StatefulSet (2 CPU + 2 GiB RAM
-    # in production). Default 3 allows one active + two standby/test
-    # connections per user. Operators can raise this for power users
-    # via the production overlay.
-    maxHostedPerUser: "3"
+    # in production). Default 1 enforces one hosted account per user
+    # to prevent dashboard-driven cluster-capacity exhaustion. Raise
+    # this for power users via the production overlay or per-tenant
+    # override.
+    maxHostedPerUser: "1"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"

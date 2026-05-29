@@ -5,6 +5,18 @@
 # (see docker/mt-node/Dockerfile); only the runtime tunables come from
 # this ConfigMap so an operator can change them via Helm without
 # rebuilding the image.
+#
+# H7 design note (audit reference):
+# The watchdog sidecar in helm/mt-node/templates/statefulset.yaml reuses
+# the unified mt-node image (Wine + MT5 + Python ~ 1.5 GiB) rather than
+# a slim Python-only image. This is intentional:
+#  - Image layers are cached on the node by the main container, so the
+#    watchdog pulls 0 extra bytes from the registry on Pod start.
+#  - A separate slim image would duplicate the SBOM, CVE scan surface,
+#    Dockerfile, and CI build path with no on-node footprint win.
+#  - The watchdog process itself is a single Python interpreter
+#    (~50 MiB RSS), independent of the image size on disk.
+# Do not split this into a separate image without weighing the above.
 apiVersion: v1
 kind: ConfigMap
 metadata:
