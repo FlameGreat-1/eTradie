@@ -377,15 +377,23 @@ def create_mt5_broker_from_connection(
             )
 
         # Resolve the in-cluster Service DNS for the per-user mt-node
-        # release. HostedProvisioner (Step 4 of the mt-node hardening
-        # series) deploys the Service with this exact naming.
+        # release. HostedProvisioner deploys the Service with this exact
+        # naming convention. resolve_zmq_host() is a pure string
+        # formatter — it does not verify the Service exists. We rely on
+        # the ZmqClient's connect timeout to surface a missing Service
+        # quickly (the startup probe + readiness probe on the Pod ensure
+        # the Service is only reachable when the EA is healthy).
+        #
+        # If the StatefulSet was deleted (operator action, ArgoCD prune,
+        # namespace wipe), the HostedRecoveryService will detect the
+        # missing StatefulSet on its next sweep (within
+        # ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS, default 60s) and
+        # re-provision it. Until then, ZmqClient calls will fail with
+        # ProviderTimeoutError, which the caller surfaces to the user.
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 
-        try:
-            provisioner = HostedProvisioner()
-            zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
-        except Exception:
-            zmq_host = None
+        provisioner = HostedProvisioner()
+        zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
 
         if not zmq_host:
             raise ConfigurationError(
