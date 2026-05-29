@@ -39,6 +39,20 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _ea_connection_type_disabled() -> bool:
+    """Operator kill-switch for connection_type='ea'.
+
+    Default false (preserves dev / docker-compose / self-hosted-engine
+    deployments). Production overlay sets ENGINE_DISALLOW_EA_CONNECTION_TYPE
+    to 'true' so the dashboard rejects new EA connections.
+
+    Treats the empty string as 'false' so a missing-env-var deploy
+    behaves as the default rather than failing closed.
+    """
+    raw = os.environ.get("ENGINE_DISALLOW_EA_CONNECTION_TYPE", "false").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def _serialize_broker_connection(row) -> dict:
     """Serialize a BrokerConnectionRow to a JSON-safe dict."""
     return {
@@ -85,6 +99,29 @@ async def create_broker_connection(
         raise HTTPException(
             status_code=400,
             detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
+        )
+
+    # CHECKLIST hardening: production engines (those running inside
+    # the K8s cluster behind Cloudflare Tunnel) cannot reach a remote
+    # user-owned Windows VPS on TCP/5555 because the NetworkPolicy
+    # egress is restricted to in-cluster mt-node + the broker REST
+    # APIs. Letting the user pick connection_type='ea' in that
+    # topology produces a silent timeout on every broker call.
+    # The kill-switch surfaces the failure synchronously here with
+    # a clear actionable message instead.
+    if body.connection_type == "ea" and _ea_connection_type_disabled():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ea_connection_disabled",
+                "message": (
+                    "Custom EA Connection (your own Windows VPS) is not "
+                    "available on this deployment. Use the 'Hosted' option "
+                    "(eTradie runs MetaTrader for you) or 'MetaAPI' "
+                    "(managed cloud) instead. See "
+                    "docs.etradie.com/connection-types for the comparison."
+                ),
+            },
         )
 
     if not body.name or not body.name.strip():

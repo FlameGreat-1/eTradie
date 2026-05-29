@@ -138,6 +138,10 @@ data:
   ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS: {{ .Values.config.connectivity.hostedRecoveryUnhealthyThresholdSecs | quote }}
   ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS: {{ .Values.config.connectivity.hostedRecoveryReprovisionCooldownSecs | quote }}
 
+  # CHECKLIST hardening (Gap #15): connection_type='ea' kill-switch.
+  # Read by engine.routers.broker_connections._ea_connection_type_disabled().
+  ENGINE_DISALLOW_EA_CONNECTION_TYPE: {{ .Values.config.connectivity.disallowEaConnectionType | default "false" | quote }}
+
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
   MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}

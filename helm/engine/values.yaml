@@ -230,6 +230,14 @@ config:
     hostedRecoverySweepIntervalSecs: "60"
     hostedRecoveryUnhealthyThresholdSecs: "600"
     hostedRecoveryReprovisionCooldownSecs: "300"
+    # CHECKLIST hardening (Gap #15): when 'true', the broker
+    # connection POST endpoint rejects connection_type='ea' with HTTP
+    # 422. Production overlay flips this to 'true' because the
+    # cluster's NetworkPolicy egress does not permit outbound TCP/5555
+    # to arbitrary public IPs (the user's Windows VPS). Dev and the
+    # docker-compose self-hosted profile keep it 'false' so EA-on-VPS
+    # development continues to work.
+    disallowEaConnectionType: "false"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential

@@ -9,6 +9,15 @@
 
 replicaCount: 3
 
+config:
+  connectivity:
+    # CHECKLIST hardening (Gap #15): production must reject
+    # connection_type='ea' because the engine's NetworkPolicy egress
+    # does not permit outbound TCP/5555 to a user's Windows VPS.
+    # The dashboard surfaces the 422 with code='ea_connection_disabled'
+    # so the UI can branch on the failure cleanly.
+    disallowEaConnectionType: "true"
+
 image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
