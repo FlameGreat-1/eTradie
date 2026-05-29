@@ -239,11 +239,36 @@ while :; do
     log ERROR "In-pod restart budget exhausted ($restart_count > $MAX_INPOD_RESTARTS within ${INPOD_RESTART_WINDOW_SECS}s). Exiting so the kubelet restarts the Pod."
     kill $XVFB_PID 2>/dev/null || true
     wineserver -k 2>/dev/null || true
+    # Reap any wine helpers that survived wineserver -k so we do
+    # not hand a half-cleaned PID namespace to the next Pod (the
+    # containerd cleanup race relies on PID 1 exiting cleanly).
+    pkill -9 -f terminal64.exe 2>/dev/null || true
+    pkill -9 -f terminal.exe   2>/dev/null || true
+    pkill -9 -f wineserver     2>/dev/null || true
+    pkill -9 -f wineboot       2>/dev/null || true
     exit $EXIT_CODE
   fi
 
   log INFO "Sleeping 5s before in-pod restart (attempt $restart_count/$MAX_INPOD_RESTARTS in current ${INPOD_RESTART_WINDOW_SECS}s window)"
   sleep 5
   wineserver -k 2>/dev/null || true
+  sleep 1
+  # CHECKLIST Section 1: drain zombie wine processes. wineserver -k
+  # only sends SIGTERM with a short grace window; helpers spawned by
+  # MT (terminal64.exe / terminal.exe / wineboot) frequently survive
+  # and collide with the next wine invocation on the wineprefix lock
+  # at $WINEPREFIX/.update-timestamp.lock OR the wineserver socket
+  # under $XDG_RUNTIME_DIR/wineserver-*. SIGKILL them explicitly.
+  # `pkill -f <pat>` matches against the full command line; the
+  # calling shell's command line is /bin/bash + entrypoint.sh and
+  # does NOT match any of these patterns, so we cannot kill the
+  # supervisor by accident. Verified against procps-ng pkill(1).
+  pkill -9 -f terminal64.exe 2>/dev/null || true
+  pkill -9 -f terminal.exe   2>/dev/null || true
+  pkill -9 -f wineserver     2>/dev/null || true
+  pkill -9 -f wineboot       2>/dev/null || true
+  # Give the kernel 1s to fully reap the SIGKILLed PIDs before the
+  # next wine invocation. Without this, MT5 occasionally races on
+  # /tmp/.X99-lock and hangs at the splash screen.
   sleep 1
 done
