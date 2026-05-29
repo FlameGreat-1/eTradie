@@ -70,6 +70,7 @@ def _serialize_broker_connection(row) -> dict:
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
+        "mt5_symbol": getattr(row, "mt5_symbol", "EURUSD") or "EURUSD",
         "platform": getattr(row, "platform", "mt5"),
         "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
