@@ -155,6 +155,11 @@ fi
 # MT4/5 reads the chart template's <expert>.name then loads inputs
 # from the matching .set file. This injects the per-tenant token
 # WITHOUT recompiling the EA source.
+#
+# Risk parameters (MAX_LOT_SIZE, MAX_TOTAL_EXPOSURE, MAX_DRAWDOWN_PCT)
+# are intentionally absent. Risk enforcement is the exclusive
+# responsibility of the platform's execution and management services.
+# The EA is a wire-protocol adapter only.
 cat > "$MT_DIR/$SET_REL_DST" <<EOF
 ZMQ_PORT=${ZMQ_PORT}
 RECV_TIMEOUT_MS=1000
@@ -162,9 +167,6 @@ SEND_TIMEOUT_MS=5000
 AUTH_TOKEN=${EFFECTIVE_AUTH_TOKEN}
 MAGIC_NUMBER=20260321
 MAX_SLIPPAGE=10
-MAX_LOT_SIZE=10.0
-MAX_TOTAL_EXPOSURE=50.0
-MAX_DRAWDOWN_PCT=20.0
 TIMER_MS=50
 ENABLE_DEBUG_LOG=false
 LOG_COMMANDS=false

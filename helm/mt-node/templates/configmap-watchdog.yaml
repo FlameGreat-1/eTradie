@@ -2,9 +2,9 @@
 {{- include "mt-node.preflight" . -}}
 # Watchdog configuration consumed by /opt/watchdog/watchdog.py inside
 # the mt-node container. The script itself is baked into the image
-# (see docker/mt-node/Dockerfile, Step 3 of this MR series); only the
-# runtime tunables come from this ConfigMap so an operator can change
-# them via Helm without rebuilding the image.
+# (see docker/mt-node/Dockerfile); only the runtime tunables come from
+# this ConfigMap so an operator can change them via Helm without
+# rebuilding the image.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -23,5 +23,4 @@ data:
   WATCHDOG_ZMQ_ENDPOINT: "tcp://127.0.0.1:{{ .Values.service.zmqPort }}"
   WATCHDOG_HTTP_PORT: {{ .Values.service.watchdogPort | quote }}
   WATCHDOG_SYMBOL: {{ .Values.mtConnection.symbol | quote }}
-  WATCHDOG_CGROUP_MEMORY_LIMIT_BYTES: {{ dict "limits" .Values.resources.limits | toJson | quote }}
 {{- end }}
