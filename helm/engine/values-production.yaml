@@ -28,6 +28,12 @@ config:
     eaIdentityVerifyEnabled: "true"
     eaMaxClockSkewSecs: "5"
     eaMinVersion: "2.10.0"
+    # Section 5: tighter production throughput envelope. Bigger node
+    # pool + bigger HPA ceiling means we can afford 20/s per tenant
+    # with 8 in-flight and a 40-burst.
+    outboundRatePerSecond: "20"
+    outboundBurstSize: "40"
+    zmqInflightLimit: "8"
   app:
     env: "production"
     debug: "false"

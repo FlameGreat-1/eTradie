@@ -18,7 +18,11 @@ from typing import TYPE_CHECKING, Any
 from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
-from engine.ta.broker.connectivity import ReconnectPolicy, TickFreshnessGuard
+from engine.ta.broker.connectivity import (
+    OutboundRateLimiter,
+    ReconnectPolicy,
+    TickFreshnessGuard,
+)
 from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.mt5.ea_identity import (
@@ -79,6 +83,31 @@ def _build_connectivity_kwargs(provider: str, account_id: str) -> dict[str, Any]
             provider=provider,
             account_id=account_id or "unknown",
         ),
+    }
+
+
+def _build_throttle_kwargs(provider: str, account_id: str) -> dict[str, Any]:
+    """Build the Section-5 outbound limiter + in-flight gate kwargs.
+
+    Returns kwargs accepted by ZmqClient: outbound_limiter,
+    inflight_limit, outbound_limit_deadline_secs. Defaults are
+    production-safe (10/s, 20 burst, 4 in-flight).
+
+    Audit ref: CHECKLIST Section 5.
+    """
+    rate = _f("ENGINE_OUTBOUND_RATE_PER_SECOND", 10.0)
+    burst = _i("ENGINE_OUTBOUND_BURST_SIZE", 20)
+    inflight = _i("ENGINE_ZMQ_INFLIGHT_LIMIT", 4)
+    deadline = _f("ENGINE_OUTBOUND_LIMIT_DEADLINE_SECS", 0.5)
+    return {
+        "outbound_limiter": OutboundRateLimiter(
+            provider=provider,
+            account_id=account_id or "unknown",
+            rate_per_second=rate,
+            burst_size=burst,
+        ),
+        "inflight_limit": inflight,
+        "outbound_limit_deadline_secs": deadline,
     }
 
 
@@ -262,6 +291,7 @@ def create_mt5_broker_from_connection(
             auth_token=ea_auth_token,
             **_build_connectivity_kwargs("zmq-ea", endpoint_account),
             **_build_ea_verification_kwargs("zmq-ea", endpoint_account, row),
+            **_build_throttle_kwargs("zmq-ea", endpoint_account),
         )
         logger.info(
             "mt5_broker_created_from_db",
@@ -414,6 +444,7 @@ def create_mt5_broker_from_connection(
             auth_token=ea_auth_token,
             **_build_connectivity_kwargs("zmq-hosted", row.hosted_container_id),
             **_build_ea_verification_kwargs("zmq-hosted", row.hosted_container_id, row),
+            **_build_throttle_kwargs("zmq-hosted", row.hosted_container_id),
         )
         logger.info(
             "mt5_broker_created_from_db",

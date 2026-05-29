@@ -121,6 +121,16 @@ data:
   ENGINE_EA_CLOCK_SKEW_SAMPLE_EVERY_SECS: {{ .Values.config.connectivity.eaClockSkewSampleEvery | quote }}
   ENGINE_EA_MIN_VERSION: {{ .Values.config.connectivity.eaMinVersion | quote }}
 
+  # System scaling + load control (Section 5). Consumed by the
+  # OutboundRateLimiter + in-flight gate inside ZmqClient. Non-secret.
+  ENGINE_OUTBOUND_RATE_PER_SECOND: {{ .Values.config.connectivity.outboundRatePerSecond | quote }}
+  ENGINE_OUTBOUND_BURST_SIZE: {{ .Values.config.connectivity.outboundBurstSize | quote }}
+  ENGINE_ZMQ_INFLIGHT_LIMIT: {{ .Values.config.connectivity.zmqInflightLimit | quote }}
+  ENGINE_OUTBOUND_LIMIT_DEADLINE_SECS: {{ .Values.config.connectivity.outboundLimitDeadlineSecs | quote }}
+  ENGINE_REQUEST_DEADLINE_SAFETY_MS: {{ .Values.config.connectivity.requestDeadlineSafetyMs | quote }}
+  ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS: {{ .Values.config.connectivity.brokerPoolIdleTimeoutSecs | quote }}
+  ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.brokerPoolSweepIntervalSecs | quote }}
+
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
   MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}

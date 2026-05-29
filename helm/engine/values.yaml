@@ -194,6 +194,16 @@ config:
     eaMaxClockSkewSecs: "10"
     eaClockSkewSampleEvery: "60"
     eaMinVersion: ""
+    # Section 5 (System scaling + load control). Outbound rate limit
+    # (token bucket) + in-flight concurrency gate per ZmqClient +
+    # broker client pool sweep config.
+    outboundRatePerSecond: "10"
+    outboundBurstSize: "20"
+    zmqInflightLimit: "4"
+    outboundLimitDeadlineSecs: "0.5"
+    requestDeadlineSafetyMs: "50"
+    brokerPoolIdleTimeoutSecs: "600"
+    brokerPoolSweepIntervalSecs: "60"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential

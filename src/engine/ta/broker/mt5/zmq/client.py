@@ -50,8 +50,14 @@ from engine.ta.broker.base import (
 )
 from engine.ta.broker.connectivity import (
     HeartbeatResult,
+    OutboundRateLimiter,
     ReconnectPolicy,
     TickFreshnessGuard,
+)
+from engine.shared.metrics.prometheus import (
+    BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL,
+    BROKER_INFLIGHT_GATE_WAIT_SECONDS,
+    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL,
 )
 from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor, EAClockSample
 from engine.ta.broker.mt5.config import MT5Config
@@ -96,6 +102,9 @@ class ZmqClient(BrokerBase):
         identity_verifier: Optional[EAIdentityVerifier] = None,
         expected_identity: Optional[ExpectedEAIdentity] = None,
         clock_skew_monitor: Optional[ClockSkewMonitor] = None,
+        outbound_limiter: Optional[OutboundRateLimiter] = None,
+        inflight_limit: int = 0,
+        outbound_limit_deadline_secs: float = 0.5,
     ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
@@ -111,6 +120,19 @@ class ZmqClient(BrokerBase):
         self._expected_identity = expected_identity
         self._clock_skew = clock_skew_monitor
         self._identity_verified = False
+        # Section 5 (CHECKLIST): outbound rate limit + in-flight gate.
+        # The outbound limiter throttles ENGINE -> EA traffic so a
+        # misbehaving analysis loop cannot flood one user's EA. The
+        # in-flight gate caps the number of concurrent commands on the
+        # TRADING socket only (candles socket already runs on its own
+        # lock+socket pair and must remain unthrottled to keep CANDLES
+        # independent of trading throughput).
+        self._outbound_limiter = outbound_limiter
+        self._outbound_limit_deadline_secs = max(0.0, float(outbound_limit_deadline_secs))
+        self._inflight_limit = max(0, int(inflight_limit))
+        self._inflight_gate: Optional[asyncio.Semaphore] = (
+            asyncio.Semaphore(self._inflight_limit) if self._inflight_limit > 0 else None
+        )
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
         # account info, positions, order placement, modifications. It must
@@ -257,8 +279,72 @@ class ZmqClient(BrokerBase):
 
         return cast(dict[str, Any] | list[Any], reply)
 
-    async def _request(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
-        """Thread-safe async wrapper around the trading-socket ZMQ call."""
+    async def _request(
+        self,
+        request: dict[str, Any],
+        *,
+        request_deadline_secs: Optional[float] = None,
+    ) -> dict[str, Any] | list[Any]:
+        """Thread-safe async wrapper around the trading-socket ZMQ call.
+
+        Section 5 additions:
+          - outbound rate limiter is checked BEFORE acquiring the lock
+            so a throttled call returns fast and does not block the
+            socket.
+          - in-flight gate caps concurrent trading-socket commands.
+          - request_deadline_secs propagates the upstream HTTP request
+            deadline so a slow EA cannot pin the engine after the
+            upstream gateway has given up.
+        """
+        # 1) Outbound rate limit (per provider/account_id).
+        if self._outbound_limiter is not None:
+            await self._outbound_limiter.raise_if_exhausted(
+                deadline_secs=self._outbound_limit_deadline_secs
+            )
+
+        # 2) In-flight gate. Bounded by request_deadline so a backlog
+        # cannot silently build up.
+        gate_deadline = request_deadline_secs if request_deadline_secs and request_deadline_secs > 0 else 5.0
+        if self._inflight_gate is not None:
+            gate_start = _time.monotonic()
+            try:
+                async with asyncio.timeout(gate_deadline):
+                    await self._inflight_gate.acquire()
+            except asyncio.TimeoutError:
+                BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL.labels(
+                    provider="zmq",
+                    account_id=self.account_id,
+                ).inc()
+                raise ProviderTimeoutError(
+                    "in-flight gate exhausted before deadline",
+                    details={
+                        "endpoint": self._endpoint,
+                        "gate_deadline_secs": gate_deadline,
+                        "inflight_limit": self._inflight_limit,
+                    },
+                )
+            BROKER_INFLIGHT_GATE_WAIT_SECONDS.labels(provider="zmq").observe(
+                _time.monotonic() - gate_start
+            )
+
+        try:
+            return await self._request_inner(
+                request, request_deadline_secs=request_deadline_secs
+            )
+        finally:
+            if self._inflight_gate is not None:
+                self._inflight_gate.release()
+
+    async def _request_inner(
+        self,
+        request: dict[str, Any],
+        *,
+        request_deadline_secs: Optional[float] = None,
+    ) -> dict[str, Any] | list[Any]:
+        """Original _request body. Kept as a separate inner method so
+        the Section-5 gating wraps it without disturbing the legacy
+        socket recovery logic.
+        """
         async with self._lock:
             try:
                 was_initialized = self._initialized
@@ -301,8 +387,25 @@ class ZmqClient(BrokerBase):
                             extra={"endpoint": self._endpoint},
                         )
                 
+                # Section 5: if a deadline is in play, wrap the send/recv
+                # in asyncio.timeout so a slow EA does not pin the engine.
                 try:
+                    if request_deadline_secs and request_deadline_secs > 0:
+                        async with asyncio.timeout(request_deadline_secs):
+                            return await self._send_recv_async(request)
                     return await self._send_recv_async(request)
+                except asyncio.TimeoutError:
+                    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL.labels(
+                        provider="zmq",
+                        account_id=self.account_id,
+                    ).inc()
+                    raise ProviderTimeoutError(
+                        "request deadline elapsed waiting for EA reply",
+                        details={
+                            "endpoint": self._endpoint,
+                            "request_deadline_secs": request_deadline_secs,
+                        },
+                    )
                 except ProviderResponseError as e:
                     # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
                     if "Not authenticated" in str(e):

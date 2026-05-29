@@ -201,6 +201,28 @@ class Container:
 
         # Per-user broker client cache. Keyed by user_id.
         # Invalidated when user changes their broker connection.
+        # Section 5 (CHECKLIST): backed by BrokerClientPool which adds
+        # per-key construction lock + idle eviction + metrics. The
+        # dict above is kept only as a (user_id -> (provider, account_id))
+        # index so invalidate_user_broker can translate user_id to
+        # pool key without re-reading the database.
+        from engine.ta.broker.mt5.client_pool import BrokerClientPool
+
+        import os as _os
+        _pool_idle = float(_os.environ.get("ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS", "600") or 600)
+        _pool_sweep = float(_os.environ.get("ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS", "60") or 60)
+        self.broker_client_pool = BrokerClientPool(
+            idle_timeout_secs=_pool_idle if _pool_idle > 0 else 600.0,
+            sweep_interval_secs=_pool_sweep if _pool_sweep > 0 else 60.0,
+        )
+        # Tracks user_id -> (provider, account_id) so we know which
+        # pool entry to evict when invalidate_user_broker is called.
+        # NOT a client cache - the pool is the source of truth.
+        self._user_broker_keys: dict[str, tuple[str, str]] = {}
+        # Retained ONLY for backwards-compat with code paths that
+        # historically read this dict directly. New code MUST go
+        # through broker_client_pool. Removed in the next MR after a
+        # full audit confirms no external reads remain.
         self._user_brokers: dict[str, BrokerBase] = {}
 
     def _build_providers(self) -> None:
@@ -457,48 +479,92 @@ class Container:
     async def load_user_broker(self, user_id: str):
         """Load the active broker connection for a specific user.
 
-        Called at request time when a user's API request needs broker
-        access (TA analysis, positions, orders, account info, trading).
+        Section 5 (CHECKLIST): routed through BrokerClientPool so
+        concurrent first-touches for the same user collapse into ONE
+        client (the previous implementation built a new client per
+        concurrent caller, racing on the EA's single REP socket).
+
         Returns a BrokerBase instance or None.
-
-        Every user (including admin) MUST configure their own broker
-        connection via the dashboard. There is NO env-var fallback and
-        NO platform-level broker. If a user has not configured a broker
-        connection, this returns None and the caller returns HTTP 503.
-
-        Resolution:
-          1. Cached broker for this user -> return immediately
-          2. Active broker connection from DB for this user -> build, cache, return
-          3. None -> caller raises HTTP 503
         """
-        # Check cache first.
-        cached = self._user_brokers.get(user_id)
-        if cached is not None:
-            return cached
+        # Pre-resolve the active connection metadata so we can key the
+        # pool by (provider, account_id). This MUST happen before
+        # pool.get() because the pool needs a deterministic key.
+        cached_key = self._user_broker_keys.get(user_id)
+        if cached_key is not None:
+            provider, account_id = cached_key
+            # Fast path: pool already has it.
+            existing = self.broker_client_pool._entries.get((provider, account_id))
+            if existing is not None:
+                return existing.client
+            # Pool evicted (idle); drop the stale key and fall through.
+            self._user_broker_keys.pop(user_id, None)
 
-        client = await self._load_active_broker_connection(user_id)
-        if client is not None:
-            self._user_brokers[user_id] = client
+        # Resolve the row first so we know the pool key. This single
+        # DB hit replaces the unbounded per-user dict.
+        row_meta = await self._resolve_broker_row_meta(user_id)
+        if row_meta is None:
+            return None
+        provider, account_id = row_meta
 
+        async def _factory():
+            client = await self._load_active_broker_connection(user_id)
+            if client is None:
+                raise RuntimeError(
+                    f"broker connection vanished between metadata fetch and construction for user_id={user_id}"
+                )
+            return client
+
+        client = await self.broker_client_pool.get(provider, account_id, _factory)
+        self._user_broker_keys[user_id] = (provider, account_id)
         return client
+
+    async def _resolve_broker_row_meta(self, user_id: str) -> Optional[tuple[str, str]]:
+        """Read the active broker_connections row JUST to get the pool
+        key (provider, account_id). Cheap; one indexed lookup.
+        """
+        try:
+            from engine.processor.storage.repositories.broker_connection_repository import (
+                BrokerConnectionRepository,
+            )
+
+            async with self.db.read_session() as session:
+                repo = BrokerConnectionRepository(session)
+                row = await repo.get_active(user_id=user_id)
+            if row is None:
+                return None
+            if row.connection_type == "ea":
+                return ("zmq-ea", f"{row.ea_host}:{row.ea_port}")
+            if row.connection_type == "hosted":
+                return ("zmq-hosted", row.hosted_container_id or "unknown")
+            if row.connection_type == "metaapi":
+                return ("metaapi", row.metaapi_account_id or "unknown")
+            return None
+        except Exception as exc:
+            _logger.warning(
+                "failed_to_resolve_broker_row_meta",
+                extra={"error": str(exc), "user_id": user_id},
+            )
+            return None
 
     async def invalidate_user_broker(self, user_id: str) -> None:
         """Invalidate the cached broker connection for a user.
 
-        Called when the user activates, updates, deactivates, or deletes
-        their broker connection. The next call to load_user_broker()
-        will rebuild from the DB.
+        Section 5 (CHECKLIST): routes through BrokerClientPool.evict
+        so the cached client is closed AND the pool size metric is
+        updated atomically.
         """
-        old_broker = self._user_brokers.pop(user_id, None)
-        if old_broker is not None:
-            try:
-                if hasattr(old_broker, "shutdown"):
-                    await old_broker.shutdown()
-            except Exception:
-                pass
+        # Drop the legacy dict entry too so any straggler reader sees
+        # consistent state.
+        self._user_brokers.pop(user_id, None)
+        key = self._user_broker_keys.pop(user_id, None)
+        if key is not None:
+            provider, account_id = key
+            await self.broker_client_pool.evict(
+                provider, account_id, reason="explicit"
+            )
             _logger.info(
                 "user_broker_invalidated",
-                extra={"user_id": user_id},
+                extra={"user_id": user_id, "provider": provider},
             )
 
     async def _load_active_broker_connection(self, user_id: str):
@@ -1200,13 +1266,16 @@ class Container:
                 pass
         self._user_background_llm.clear()
 
-        # Close per-user cached broker clients. Same snapshot pattern.
-        for user_id, broker in list(self._user_brokers.items()):
-            try:
-                if hasattr(broker, "shutdown"):
-                    await broker.shutdown()
-            except Exception:
-                pass
+        # Close per-user cached broker clients via the pool. The pool's
+        # stop() closes every cached client and cancels the sweeper.
+        try:
+            await self.broker_client_pool.stop()
+        except Exception as exc:  # noqa: BLE001
+            _logger.warning(
+                "broker_client_pool_shutdown_failed",
+                extra={"error": str(exc)},
+            )
+        self._user_broker_keys.clear()
         self._user_brokers.clear()
         
         # Close the global system-level processor LLM client.
