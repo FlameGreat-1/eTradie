@@ -12,11 +12,13 @@ Three creation paths from DB rows:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import os
+from typing import TYPE_CHECKING, Any
 
 from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
+from engine.ta.broker.connectivity import ReconnectPolicy, TickFreshnessGuard
 from engine.ta.broker.mt5.config import MT5Config
 
 if TYPE_CHECKING:
@@ -26,6 +28,53 @@ if TYPE_CHECKING:
     from engine.shared.http.client import HttpClient
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------
+# Section 2: connectivity primitive wiring
+# ---------------------------------------------------------------------
+def _f(env_name: str, default: float) -> float:
+    """Read a positive float from env with a safe fallback."""
+    try:
+        v = float(os.environ.get(env_name, "").strip() or default)
+        return v if v >= 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _i(env_name: str, default: int) -> int:
+    """Read a positive int from env with a safe fallback."""
+    try:
+        v = int(os.environ.get(env_name, "").strip() or default)
+        return v if v >= 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _build_connectivity_kwargs(provider: str, account_id: str) -> dict[str, Any]:
+    """Construct the TickFreshnessGuard + ReconnectPolicy kwargs the
+    broker clients accept.
+
+    Pulled from the ENGINE_CONNECTIVITY_* env vars surfaced by
+    helm/engine/templates/configmap.yaml. Defaults mirror the chart
+    defaults so a missing env var never kills client construction.
+    Audit ref: CHECKLIST Section 2.
+    """
+    tick_max_age = _f("ENGINE_CONNECTIVITY_TICK_MAX_AGE_SECS", 10.0)
+    return {
+        "freshness_guard": TickFreshnessGuard(
+            max_age_seconds=tick_max_age,
+            provider=provider,
+            account_id=account_id or "unknown",
+        ),
+        "reconnect_policy": ReconnectPolicy(
+            base_secs=_f("ENGINE_CONNECTIVITY_RECONNECT_BASE_SECS", 1.0),
+            cap_secs=_f("ENGINE_CONNECTIVITY_RECONNECT_CAP_SECS", 30.0),
+            max_attempts=_i("ENGINE_CONNECTIVITY_RECONNECT_MAX_ATTEMPTS", 10),
+            provider=provider,
+            account_id=account_id or "unknown",
+        ),
+    }
 
 
 def create_mt5_broker(
@@ -52,8 +101,12 @@ def create_mt5_broker(
             )
         from engine.ta.broker.mt5.metaapi.client import MetaApiClient
 
-        client = MetaApiClient(config=config, http_client=http_client)
         acct_id = config.metaapi_account_id
+        client = MetaApiClient(
+            config=config,
+            http_client=http_client,
+            **_build_connectivity_kwargs("metaapi", acct_id or "unknown"),
+        )
         logger.info(
             "mt5_broker_created",
             extra={
@@ -66,12 +119,17 @@ def create_mt5_broker(
     if config.provider == "native":
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config, auth_token=config.zmq_auth_token)
+        endpoint_account = f"{config.zmq_host}:{config.zmq_port}"
+        client = ZmqClient(
+            config=config,
+            auth_token=config.zmq_auth_token,
+            **_build_connectivity_kwargs("zmq", endpoint_account),
+        )
         logger.info(
             "mt5_broker_created",
             extra={
                 "provider": "native",
-                "endpoint": f"tcp://{config.zmq_host}:{config.zmq_port}",
+                "endpoint": f"tcp://{endpoint_account}",
             },
         )
         return client
@@ -140,14 +198,19 @@ def create_mt5_broker_from_connection(
 
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config, auth_token=ea_auth_token)
+        endpoint_account = f"{row.ea_host}:{row.ea_port}"
+        client = ZmqClient(
+            config=config,
+            auth_token=ea_auth_token,
+            **_build_connectivity_kwargs("zmq-ea", endpoint_account),
+        )
         logger.info(
             "mt5_broker_created_from_db",
             extra={
                 "provider": "native",
                 "connection_id": str(row.id),
                 "name": row.name,
-                "endpoint": f"tcp://{row.ea_host}:{row.ea_port}",
+                "endpoint": f"tcp://{endpoint_account}",
             },
         )
         return client
@@ -193,7 +256,11 @@ def create_mt5_broker_from_connection(
 
         from engine.ta.broker.mt5.metaapi.client import MetaApiClient
 
-        client = MetaApiClient(config=config, http_client=http_client)
+        client = MetaApiClient(
+            config=config,
+            http_client=http_client,
+            **_build_connectivity_kwargs("metaapi", row.metaapi_account_id or "unknown"),
+        )
         acct_id = row.metaapi_account_id
         logger.info(
             "mt5_broker_created_from_db",
@@ -283,7 +350,11 @@ def create_mt5_broker_from_connection(
 
         from engine.ta.broker.mt5.zmq.client import ZmqClient
 
-        client = ZmqClient(config=config, auth_token=ea_auth_token)
+        client = ZmqClient(
+            config=config,
+            auth_token=ea_auth_token,
+            **_build_connectivity_kwargs("zmq-hosted", row.hosted_container_id),
+        )
         logger.info(
             "mt5_broker_created_from_db",
             extra={
