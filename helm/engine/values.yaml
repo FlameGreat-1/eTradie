@@ -38,8 +38,17 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  # Engine does not call the K8s API at runtime. Audit ref: E-C2, E-C3.
-  automountServiceAccountToken: false
+  # Engine DOES call the K8s API at runtime via kubernetes_asyncio:
+  # HostedProvisioner creates per-user mt-node Deployments, Services,
+  # and sealed-credential Secrets in etradie-system when a dashboard
+  # user picks connection_type="hosted". The narrow Role in
+  # templates/role.yaml grants exactly the verbs required (no
+  # wildcards, no ClusterRole). Setting this to true mounts the SA
+  # token at /var/run/secrets/kubernetes.io/serviceaccount/token so
+  # kubernetes_asyncio.config.load_incluster_config() succeeds.
+  # Audit refs: CHECKLIST Section 1 lifecycle pre-req; E-C2, E-C3
+  # (previous posture, now intentionally overridden).
+  automountServiceAccountToken: true
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -358,6 +367,22 @@ networkPolicy:
     # K8s API Server (usually 10.43.0.1:443 in K3s). The generic HTTPS
     # rule above already covers 443, but adding explicit IP blocks
     # if you later restrict the generic rule is wise. For now, 443 is open.
+
+    # Per-user mt-node Deployments. The engine's ZmqClient dials
+    # tcp://<connection-id>.etradie-system.svc.cluster.local:5555
+    # to bridge to the headless MT4/MT5 terminal running inside a
+    # Wine container. Selector matches helm/mt-node's pod labels.
+    # Audit ref: CHECKLIST Section 1 broker-connectivity pre-req;
+    # previous audit: 'engine NetworkPolicy egress does not allow
+    # :5555 - ZmqClient connect would be dropped by CNI'.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+              app.kubernetes.io/part-of: etradie
+      ports:
+        - protocol: TCP
+          port: 5555
     
 
 serviceMonitor:

@@ -10,6 +10,7 @@ output "vault_paths" {
     execution            = vault_kv_secret_v2.execution.path
     management           = vault_kv_secret_v2.management.path
     billing              = vault_kv_secret_v2.billing.path
+    mt_node              = vault_kv_secret_v2.mt_node.path
     data_layer_postgres  = vault_kv_secret_v2.data_layer_postgres.path
     data_layer_redis     = vault_kv_secret_v2.data_layer_redis.path
     data_layer_chromadb  = vault_kv_secret_v2.data_layer_chromadb.path
