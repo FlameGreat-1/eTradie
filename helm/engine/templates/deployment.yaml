@@ -66,26 +66,59 @@ spec:
       {{- end }}
       {{- if and .Values.initContainer.enabled .Values.initContainer.dependencies }}
       initContainers:
-        # Migration init container: runs 'alembic upgrade head' before
-        # the engine starts. This is the industry-standard pattern for
-        # zero-downtime schema migrations: the migration runs once per
-        # deploy, completes before any engine replica accepts traffic,
-        # and is idempotent (Alembic tracks applied revisions in the
-        # alembic_version table). The engine image already contains
-        # Alembic and the migration scripts at
-        # src/engine/shared/db/migrations/.
+        # 1. wait-for-deps: confirms Postgres + Redis + ChromaDB are
+        #    reachable before the migration runs. Kubernetes runs init
+        #    containers in list order; this MUST be first.
+        - name: wait-for-deps
+          image: "{{ .Values.initContainer.image }}"
+          imagePullPolicy: {{ .Values.initContainer.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WAIT_FOR_DEPS_TIMEOUT_SECS
+              value: {{ .Values.initContainer.timeoutSeconds | default 180 | quote }}
+            - name: WAIT_FOR_DEPS_INTERVAL_SECS
+              value: {{ .Values.initContainer.intervalSeconds | default 2 | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              deadline=$(( $(date +%s) + ${WAIT_FOR_DEPS_TIMEOUT_SECS} ))
+              {{- range $i, $dep := .Values.initContainer.dependencies }}
+              echo "[wait-for-deps] checking {{ $dep.host }}:{{ $dep.port }}"
+              while ! nc -z -w 2 {{ $dep.host | quote }} {{ $dep.port }}; do
+                if [ "$(date +%s)" -ge "${deadline}" ]; then
+                  echo "[wait-for-deps] FATAL: timed out waiting for {{ $dep.host }}:{{ $dep.port }}"
+                  exit 1
+                fi
+                echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+                sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
+              done
+              echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} reachable"
+              {{- end }}
+              echo "[wait-for-deps] all dependencies reachable"
+          resources:
+            {{- toYaml .Values.initContainer.resources | nindent 12 }}
+        # 2. migrate: runs 'alembic upgrade head' after Postgres is
+        #    confirmed reachable. Industry-standard zero-downtime
+        #    migration pattern. Idempotent: Alembic tracks applied
+        #    revisions in alembic_version and skips already-applied
+        #    migrations. Uses the SAME image as the engine so migration
+        #    scripts are always in sync with the running code.
         #
-        # The init container uses the SAME image as the engine so the
-        # migration scripts are always in sync with the running code.
-        # It reads DATABASE_URL from the same ExternalSecret the engine
-        # reads, so no additional secrets are required.
-        #
-        # Failure behaviour: if the migration fails (e.g. a bad SQL
-        # statement), the init container exits non-zero, the Pod stays
-        # in Init:Error, and the engine never starts. ArgoCD surfaces
-        # the failure immediately. The previous engine replicas continue
-        # serving traffic (RollingUpdate with maxUnavailable=0) so
-        # there is no downtime on a failed migration.
+        #    Failure behaviour: exits non-zero -> Pod stays Init:Error
+        #    -> engine never starts -> previous replicas keep serving
+        #    (RollingUpdate maxUnavailable=0) -> ArgoCD surfaces failure
+        #    immediately. No downtime on a failed migration.
         - name: migrate
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
@@ -133,45 +166,6 @@ spec:
               mountPath: /tmp
             - name: model-cache
               mountPath: /home/etradie/.cache
-        - name: wait-for-deps
-          image: "{{ .Values.initContainer.image }}"
-          imagePullPolicy: {{ .Values.initContainer.pullPolicy | default "IfNotPresent" }}
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          env:
-            - name: WAIT_FOR_DEPS_TIMEOUT_SECS
-              value: {{ .Values.initContainer.timeoutSeconds | default 180 | quote }}
-            - name: WAIT_FOR_DEPS_INTERVAL_SECS
-              value: {{ .Values.initContainer.intervalSeconds | default 2 | quote }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              deadline=$(( $(date +%s) + ${WAIT_FOR_DEPS_TIMEOUT_SECS} ))
-              {{- range $i, $dep := .Values.initContainer.dependencies }}
-              echo "[wait-for-deps] checking {{ $dep.host }}:{{ $dep.port }}"
-              while ! nc -z -w 2 {{ $dep.host | quote }} {{ $dep.port }}; do
-                if [ "$(date +%s)" -ge "${deadline}" ]; then
-                  echo "[wait-for-deps] FATAL: timed out waiting for {{ $dep.host }}:{{ $dep.port }}"
-                  exit 1
-                fi
-                echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
-                sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
-              done
-              echo "[wait-for-deps] {{ $dep.host }}:{{ $dep.port }} reachable"
-              {{- end }}
-              echo "[wait-for-deps] all dependencies reachable"
-          resources:
-            {{- toYaml .Values.initContainer.resources | nindent 12 }}
       {{- end }}
       containers:
         - name: engine
