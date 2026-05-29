@@ -195,6 +195,32 @@ async def create_broker_connection(
                     detail="mt5_login, mt5_password, and mt5_server are required for Hosted connections",
                 )
 
+            # Per-user hosted connection quota. Each hosted connection
+            # consumes a dedicated K8s StatefulSet (2 CPU cores + 2 GiB
+            # RAM in production). Without a quota, a single user could
+            # exhaust cluster capacity by creating many hosted connections.
+            # The limit is configurable via MT_NODE_MAX_HOSTED_PER_USER
+            # (default 3: one active + two standby/test connections).
+            max_hosted = int(os.environ.get("MT_NODE_MAX_HOSTED_PER_USER", "3"))
+            async with container.db.read_session() as session:
+                repo = BrokerConnectionRepository(session)
+                existing = await repo.get_all(user_id=user.user_id)
+            hosted_count = sum(
+                1 for c in existing if c.connection_type == "hosted"
+            )
+            if hosted_count >= max_hosted:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "hosted_quota_exceeded",
+                        "message": (
+                            f"You have reached the maximum of {max_hosted} hosted "
+                            "MetaTrader connection(s). Delete an existing hosted "
+                            "connection before creating a new one."
+                        ),
+                    },
+                )
+
             from uuid import uuid4 as _uuid4
             temp_connection_id = str(_uuid4())
 
