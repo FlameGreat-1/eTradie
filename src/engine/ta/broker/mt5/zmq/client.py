@@ -25,8 +25,10 @@ import zmq
 import zmq.asyncio as zmq_async
 
 from engine.shared.exceptions import (
+    ProviderDisconnectedError,
     ProviderError,
     ProviderResponseError,
+    ProviderStalePriceError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -45,6 +47,11 @@ from engine.ta.broker.base import (
     PositionInfo,
     HistoryDealInfo,
     TickPrice,
+)
+from engine.ta.broker.connectivity import (
+    HeartbeatResult,
+    ReconnectPolicy,
+    TickFreshnessGuard,
 )
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.validator import BrokerDataValidator
@@ -73,11 +80,23 @@ _ZMQ_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
-    def __init__(self, config: MT5Config, auth_token: str = "") -> None:
+    def __init__(
+        self,
+        config: MT5Config,
+        auth_token: str = "",
+        *,
+        freshness_guard: Optional[TickFreshnessGuard] = None,
+        reconnect_policy: Optional[ReconnectPolicy] = None,
+    ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
         self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
+        # None defaults preserve prior behaviour bit-for-bit. The engine
+        # factory wires production-grade defaults; tests that construct
+        # ZmqClient directly are unaffected. Audit ref: CHECKLIST Section 2.
+        self._freshness_guard = freshness_guard
+        self._reconnect_policy = reconnect_policy
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
         # account info, positions, order placement, modifications. It must
@@ -741,11 +760,58 @@ class ZmqClient(BrokerBase):
                 details={"symbol": symbol},
             )
 
-        return TickPrice(
+        tick = TickPrice(
             bid=float(raw.get("bid", 0)),
             ask=float(raw.get("ask", 0)),
             time=int(raw.get("time", 0)),
         )
+        # Section 2 anti-stale guard. Raises ProviderStalePriceError
+        # when the broker's reported tick timestamp is older than
+        # config.connectivity.tickMaxAgeSecs. Bypassed when no guard
+        # was injected (test path / back-test replay).
+        if self._freshness_guard is not None:
+            self._freshness_guard.assert_fresh(symbol=symbol, tick_unix_ts=tick.time)
+        return tick
+
+    async def heartbeat_probe(self) -> HeartbeatResult:
+        """Single-shot HEALTH probe consumed by BrokerHeartbeatService.
+
+        Uses the same _request() path as the rest of the client so the
+        same socket-poison recovery applies. Returns a HeartbeatResult;
+        never raises (errors are folded into ok=False).
+        Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'
+        + 'Heartbeat system per MT terminal'.
+        """
+        try:
+            raw = await self._request({"command": "HEALTH"})
+            if not isinstance(raw, dict):
+                return HeartbeatResult(
+                    ok=False,
+                    error_type="ProviderResponseError",
+                    error_message=f"HEALTH returned non-dict: {type(raw).__name__}",
+                )
+            broker_connected = bool(raw.get("mt5_connected"))
+            authenticated = bool(raw.get("authenticated"))
+            ok = broker_connected and authenticated
+            return HeartbeatResult(
+                ok=ok,
+                broker_connected=broker_connected,
+                authenticated=authenticated,
+                uptime_seconds=float(raw.get("uptime_seconds") or 0.0),
+                raw=raw,
+                error_type="" if ok else "DisconnectedFromBroker",
+                error_message=(
+                    ""
+                    if ok
+                    else f"mt5_connected={broker_connected} authenticated={authenticated}"
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return HeartbeatResult(
+                ok=False,
+                error_type=type(exc).__name__,
+                error_message=str(exc)[:500],
+            )
 
     async def place_order(
         self,

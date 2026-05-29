@@ -18,8 +18,10 @@ import urllib.parse
 
 from engine.shared.exceptions import (
     ProviderAuthenticationError,
+    ProviderDisconnectedError,
     ProviderError,
     ProviderResponseError,
+    ProviderStalePriceError,
     ProviderUnavailableError,
 )
 from engine.shared.http.client import HttpClient
@@ -38,6 +40,11 @@ from engine.ta.broker.base import (
     PositionInfo,
     HistoryDealInfo,
     TickPrice,
+)
+from engine.ta.broker.connectivity import (
+    HeartbeatResult,
+    ReconnectPolicy,
+    TickFreshnessGuard,
 )
 from engine.ta.broker.mt5.config import MT5Config
 from engine.ta.broker.priority import BrokerRequestPriority, get_priority
@@ -75,11 +82,19 @@ class MetaApiClient(BrokerBase):
         self,
         config: MT5Config,
         http_client: HttpClient,
+        *,
+        freshness_guard: Optional[TickFreshnessGuard] = None,
+        reconnect_policy: Optional[ReconnectPolicy] = None,
     ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
         self._http = http_client
         self.validator = BrokerDataValidator()
+        # Section 2: None defaults preserve pre-existing behaviour for
+        # tests + back-test paths. Engine factory wires production
+        # values from ENGINE_CONNECTIVITY_* env (see factory.py).
+        self._freshness_guard = freshness_guard
+        self._reconnect_policy = reconnect_policy
         self._account_id = config.metaapi_account_id
         self._base_url = (
             config.metaapi_base_url
@@ -444,6 +459,52 @@ class MetaApiClient(BrokerBase):
             )
             return False
 
+    async def heartbeat_probe(self) -> HeartbeatResult:
+        """Single-shot probe consumed by BrokerHeartbeatService.
+
+        Identical contract to ZmqClient.heartbeat_probe so the service
+        consumes both uniformly. Never raises.
+        Audit ref: CHECKLIST Section 2.
+        """
+        try:
+            info = await self._http.get(
+                f"{self._base_url}/users/current/accounts/{self._account_id}",
+                provider_name="metaapi",
+                category="heartbeat",
+                headers=self._auth_headers,
+                timeout_override=10,
+            )
+            if not isinstance(info, dict):
+                return HeartbeatResult(
+                    ok=False,
+                    error_type="ProviderResponseError",
+                    error_message=f"account-info returned non-dict: {type(info).__name__}",
+                )
+            state = info.get("state", "")
+            connection_status = info.get("connectionStatus", "")
+            broker_connected = connection_status == "CONNECTED"
+            deployed = state == "DEPLOYED"
+            ok = broker_connected and deployed
+            return HeartbeatResult(
+                ok=ok,
+                broker_connected=broker_connected,
+                authenticated=ok,
+                uptime_seconds=0.0,
+                raw={"state": state, "connectionStatus": connection_status},
+                error_type="" if ok else "DisconnectedFromBroker",
+                error_message=(
+                    ""
+                    if ok
+                    else f"state={state} connectionStatus={connection_status}"
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return HeartbeatResult(
+                ok=False,
+                error_type=type(exc).__name__,
+                error_message=str(exc)[:500],
+            )
+
     async def shutdown(self) -> None:
         logger.info("metaapi_shutdown_complete")
 
@@ -651,11 +712,15 @@ class MetaApiClient(BrokerBase):
                 details={"symbol": symbol},
             )
 
-        return TickPrice(
+        tick = TickPrice(
             bid=float(raw.get("bid", 0)),
             ask=float(raw.get("ask", 0)),
             time=int(raw.get("time", 0)),
         )
+        # Section 2 anti-stale guard. Same contract as ZmqClient.
+        if self._freshness_guard is not None:
+            self._freshness_guard.assert_fresh(symbol=symbol, tick_unix_ts=tick.time)
+        return tick
 
     async def place_order(
         self,
