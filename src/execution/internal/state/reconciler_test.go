@@ -90,7 +90,12 @@ func TestReconcilerHappyPathNoDrift(t *testing.T) {
 	mgr := state.NewManager(fb, nil)
 	seedManager(t, mgr, "u1", []models.Position{posU1})
 
-	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0)
+	// Section 7 (CHECKLIST): the test exercises Section-3 drift
+	// classification ONLY. Pass nil snapshot store + snapEnabled=false
+	// so the snapshot write path stays inert in this test (the
+	// snapshot-store coverage lives in the S7-C chaos test, which
+	// uses a real Postgres fixture). ghostMinAge=0 -> defaults to 5m.
+	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0, nil, 0, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	rec.Loop(ctx)
@@ -111,7 +116,7 @@ func TestReconcilerBrokerOnlyPositionAdopted(t *testing.T) {
 	// without any positions.
 	mgr.AdoptBrokerPosition("u1", &models.Position{OrderID: "sentinel", Symbol: "X"})
 
-	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0)
+	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0, nil, 0, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	rec.Loop(ctx)
@@ -141,7 +146,7 @@ func TestReconcilerMismatchReplacesEngineView(t *testing.T) {
 	mgr := state.NewManager(fb, nil)
 	seedManager(t, mgr, "u1", []models.Position{engineView})
 
-	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0)
+	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0, nil, 0, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	rec.Loop(ctx)
@@ -163,7 +168,7 @@ func TestReconcilerEngineOnlyLoggedNotDeleted(t *testing.T) {
 	mgr := state.NewManager(fb, nil)
 	seedManager(t, mgr, "u1", []models.Position{engineOnly})
 
-	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0)
+	rec := state.NewReconciler(fb, mgr, fakeIdentity{}, 0, nil, 0, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	rec.Loop(ctx)

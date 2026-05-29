@@ -142,6 +142,12 @@ func main() {
 	pnlStore := store.NewPnLStore(pool)
 	settingsStore := store.NewSettingsStore(pool)
 
+	// Section 7 (CHECKLIST): position snapshots. The store persists
+	// the engine's post-reconcile view per user every cycle so the
+	// reconciler can detect ghost positions across restarts and the
+	// Step B replay endpoint can walk the history.
+	snapshotStore := store.NewPositionSnapshotStore(pool)
+
 	// ── Gateway gRPC client (for instant-mode confirmation callbacks) ──
 	gwClient, err := watcher.NewGatewayGRPCClient(cfg.GatewayAddr)
 	if err != nil {
@@ -363,16 +369,32 @@ func main() {
 	defer gcCancel()
 	go idempotencyGCLoop(gcCtx, idempotencyStore, cfg.OrderIdempotencyTTLSecs)
 
-	// Section 3 (CHECKLIST): reconciliation loop - broker positions +
-	// pending orders vs engine state. Runs on the same gcCtx so it
-	// stops together with the idempotency GC at shutdown.
+	// Section 3 + Section 7 (CHECKLIST): reconciliation loop. Compares
+	// broker positions + pending orders against the engine view, AND
+	// (when enabled) writes a post-reconcile snapshot per cycle to
+	// drive ghost-position detection across restarts.
+	// Runs on the same gcCtx so it stops together with the idempotency
+	// GC + snapshot retention sweeper at shutdown.
 	reconciler := state.NewReconciler(
 		bp,
 		sm,
 		reconcileIdentity,
 		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+		snapshotStore,
+		time.Duration(cfg.GhostPositionMinAgeSecs)*time.Second,
+		cfg.PositionSnapshotEnabled,
 	)
 	go reconciler.Loop(gcCtx)
+
+	// Section 7 (CHECKLIST): retention sweeper. Prunes snapshots older
+	// than PositionSnapshotRetentionHours every 1h. Runs on gcCtx so it
+	// shuts down together with the reconciler + idempotency GC.
+	go snapshotRetentionLoop(
+		gcCtx,
+		snapshotStore,
+		cfg.PositionSnapshotRetentionHours,
+		cfg.PositionSnapshotEnabled,
+	)
 
 	// ──────────────────────────────────────────────────────────────────────
 	// At this point, state is fully restored and background loops are
@@ -450,6 +472,47 @@ func main() {
 	pool.Close()
 
 	log.Info().Msg("execution_engine_stopped")
+}
+
+// snapshotRetentionLoop periodically prunes position snapshots older
+// than the configured retention. Runs hourly. Exits when ctx is
+// cancelled (engine shutdown).
+//
+// When enabled=false the loop returns immediately; the snapshot store
+// is still constructed but no writes happen (the reconciler skips the
+// write path under the same flag), so there is nothing to prune.
+//
+// Audit ref: CHECKLIST Section 7 'Recovery after full system restart'.
+func snapshotRetentionLoop(
+	ctx context.Context,
+	st *store.PositionSnapshotStore,
+	retentionHours int,
+	enabled bool,
+) {
+	if !enabled || st == nil || retentionHours <= 0 {
+		return
+	}
+	log := observability.Logger("snapshot_retention")
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-time.Duration(retentionHours) * time.Hour)
+			sweepCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+			pruned, err := st.PruneOlderThan(sweepCtx, cutoff)
+			cancel()
+			if err != nil {
+				log.Warn().Err(err).Time("cutoff", cutoff).Msg("snapshot_retention_failed")
+				continue
+			}
+			if pruned > 0 {
+				log.Info().Int64("pruned", pruned).Time("cutoff", cutoff).Msg("snapshot_retention_ran")
+			}
+		}
+	}
 }
 
 // idempotencyGCLoop periodically prunes expired idempotency keys.

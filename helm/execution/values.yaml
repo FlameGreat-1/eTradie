@@ -97,6 +97,21 @@ config:
     # Section 3 - order idempotency window.
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
+    # Section 7 (CHECKLIST) - position snapshots + ghost detection.
+    # positionSnapshotEnabled is the operator kill-switch; when 'false'
+    # the reconciler runs the legacy Section-3 path with no snapshot
+    # writes and no ghost detection. The table is still created by
+    # SchemaSQL() but stays empty.
+    positionSnapshotEnabled: "true"
+    # Retention sweeper deletes snapshots older than this (hours).
+    # Default 168h = 7 days matches the regulatory minimum for retail
+    # trading audit. Range 1..720 (1h..30d).
+    positionSnapshotRetentionHours: "168"
+    # Minimum age the latest snapshot must have before the reconciler
+    # classifies a 'broker no longer reports' position as a ghost.
+    # Default 300s (5min) > reconcile cadence + broker REST latency.
+    # Range 60..3600 (1min..1h).
+    ghostPositionMinAgeSecs: "300"
     mockBrokerBalance: "10000.0"
     gatewayAddr: "gateway.etradie-system.svc.cluster.local:50052"
     defaultExecutionMode: "LIMIT"
