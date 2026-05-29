@@ -55,17 +55,28 @@ async def test_mt_node_n_tenants_steady_state(
     soak_duration: int,
     n_tenants: int,
 ):
-    """SKELETON. Implementation deferred to the load-test MR."""
+    """Section 10 multi-tenant load test against a real cluster.
+
+    Provisions N hosted tenants in parallel, drives the production-
+    shaped command mix for soak_duration seconds, asserts every SLO
+    in docs/runbooks/section-10-load-testing.md.
+    """
     if not real_cluster_available:
         pytest.skip("ETRADIE_CHAOS_KUBECONFIG not set; load tests require a real cluster")
-    engine_url = os.environ.get("ETRADIE_CHAOS_ENGINE_URL", "")
-    admin_jwt = os.environ.get("ETRADIE_CHAOS_ADMIN_JWT", "")
-    if not engine_url or not admin_jwt:
+    from tests.chaos._load.harness import build_harness_from_env
+    harness = build_harness_from_env()
+    if harness is None:
         pytest.skip(
-            "ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT both required "
-            "for multi-tenant load tests"
+            "ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT + "
+            "ETRADIE_CHAOS_WATCHDOG_URL_TEMPLATE + ETRADIE_CHAOS_TEST_CREDS_FILE "
+            "all required for multi-tenant load tests"
         )
-    pytest.skip(
-        f"SKELETON: N={n_tenants} multi-tenant load test "
-        "implementation deferred to the load-test follow-up MR"
+    result = await harness.run(n_tenants=n_tenants, duration_secs=float(soak_duration))
+    # Provisioning SLO: bounded elapsed time per N.
+    provisioning_slo = {10: 60.0, 50: 180.0, 100: 300.0}[n_tenants]
+    assert result.provisioning.elapsed_secs <= provisioning_slo, (
+        f"N={n_tenants} provisioning took "
+        f"{result.provisioning.elapsed_secs:.1f}s > SLO {provisioning_slo}s"
     )
+    # SLO failures surface every breached invariant in one message.
+    assert result.slo.passed, "\n".join(result.slo.failures)
