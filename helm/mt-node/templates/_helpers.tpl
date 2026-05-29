@@ -86,9 +86,17 @@ etradie.connection-id: {{ .Values.mtConnection.connectionId | quote }}
 {{/*
 Resolve the container image with optional digest pin (preferred over
 tag for immutability).
+
+CHECKLIST hardening (Gap #13): repository is REQUIRED. The base
+values.yaml leaves image.repository empty so a fork cannot silently
+inherit a personal-namespace default; the deployment overlay
+(values-staging.yaml / values-production.yaml) must set it.
+Without the required-template-function call, an empty repository
+would render ":<tag>" or "@<digest>" with an unusable image
+reference.
 */}}
 {{- define "mt-node.image" -}}
-{{- $img := .Values.image.repository -}}
+{{- $img := required "helm/mt-node: .Values.image.repository is REQUIRED. Set it in helm/mt-node/values-{staging,production}.yaml to the pinned mt-node image registry path, e.g. ghcr.io/<your-org>/etradie-mt-node." .Values.image.repository -}}
 {{- if .Values.image.digest -}}
 {{- printf "%s@%s" $img .Values.image.digest -}}
 {{- else -}}

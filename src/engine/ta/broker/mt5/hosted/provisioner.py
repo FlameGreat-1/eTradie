@@ -71,7 +71,11 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------
 # Chart contract (must match helm/mt-node)
 # ---------------------------------------------------------------------
-MT_NODE_IMAGE_DEFAULT = "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+# Dev-only fallback. Production / staging MUST set MT_NODE_IMAGE in
+# the engine ConfigMap (helm/engine/templates/configmap.yaml +
+# helm/engine/values.yaml::config.mtNode.image). The constructor
+# enforces this contract via _resolve_image() below.
+MT_NODE_IMAGE_DEV_FALLBACK = "etradie-mt-node:dev"
 CONTAINER_PREFIX = "etradie-mt-"  # release-name prefix; first 12 chars of connection_id appended
 DEFAULT_ZMQ_PORT = 5555
 DEFAULT_WATCHDOG_PORT = 9100
@@ -189,10 +193,43 @@ class HostedProvisioner:
         platform_default_token_secret_name: str | None = None,
     ) -> None:
         self._namespace = namespace or os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
-        self._image = image or os.environ.get("MT_NODE_IMAGE", MT_NODE_IMAGE_DEFAULT)
+        self._image = image or self._resolve_image()
         # Platform Secret name the chart provisions. Defaults to the
         # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
+
+    @staticmethod
+    def _resolve_image() -> str:
+        """Resolve the mt-node container image with environment-aware
+        strictness.
+
+        Production + staging MUST set MT_NODE_IMAGE explicitly. The
+        helm/engine chart wires this via ConfigMap from
+        config.mtNode.image. Failing to set it in a hosted-MT-node
+        deployment is a deployment misconfiguration that must surface
+        immediately at engine boot - not silently use a dev fallback
+        and ship the wrong image to tenants.
+
+        Dev (APP_ENV != production/staging) keeps the
+        MT_NODE_IMAGE_DEV_FALLBACK so docker-compose, pytest, and
+        ad-hoc engine runs continue to work without ceremony.
+
+        Same posture pattern as
+        broker_connection_repository._derive_encryption_key().
+        """
+        explicit = os.environ.get("MT_NODE_IMAGE", "").strip()
+        if explicit:
+            return explicit
+        app_env = os.environ.get("APP_ENV", "development").strip().lower()
+        if app_env in ("production", "staging"):
+            raise ConfigurationError(
+                "MT_NODE_IMAGE is required when APP_ENV is 'production' or 'staging'. "
+                "Set helm/engine/values.yaml::config.mtNode.image (rendered into the "
+                "engine ConfigMap as MT_NODE_IMAGE) to the pinned mt-node image, "
+                "e.g. ghcr.io/<your-org>/etradie-mt-node@sha256:<digest>.",
+                details={"env_var": "MT_NODE_IMAGE", "app_env": app_env},
+            )
+        return MT_NODE_IMAGE_DEV_FALLBACK
 
     # -- K8s client -----------------------------------------------------------
 
