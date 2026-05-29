@@ -39,8 +39,45 @@ class ProviderUnavailableError(ProviderError):
     pass
 
 
+class ProviderDisconnectedError(ProviderUnavailableError):
+    """Raised when the engine detects the broker terminal is alive but
+    has lost its connection to the broker server.
+
+    Distinct from ProviderUnavailableError so callers can:
+      - Surface a specific 'Broker disconnected; reconnecting' state to
+        the dashboard rather than the generic 'service unavailable'.
+      - Trigger a tighter reconnect cadence than full-on outage backoff.
+
+    Subclasses ProviderUnavailableError so existing `except
+    ProviderUnavailableError` blocks continue to catch the failure
+    (closed-circuit safety in case any callers were depending on the
+    parent type).
+
+    Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
+
+
 class ProviderResponseError(ProviderError):
     pass
+
+
+class ProviderStalePriceError(ProviderResponseError):
+    """Raised when a tick / price response is older than the configured
+    max-age threshold.
+
+    Subclasses ProviderResponseError because it is a per-call response
+    problem (the broker replied, just with stale data) and not a
+    connection-level problem.
+
+    Audit ref: CHECKLIST Section 2 - 'Price feed validation layer (anti-stale
+    pricing detection)'.
+    """
+
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+        super().__init__(message, details=details)
 
 
 class ProviderValidationError(ProviderError):

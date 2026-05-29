@@ -171,6 +171,22 @@ config:
     # overlay sets this once an OTel collector is actually deployed.
     # Metrics live on the FastAPI app port (service.ports.http.port)
     # at /metrics; no separate prometheusPort. Audit ref: SC-H7.
+  # Broker connectivity (Section 2 of CHECKLIST). Shared by every
+  # broker client (ZmqClient, MetaApiClient). Heartbeat cadence and
+  # reconnect schedule MUST match the broker's own keep-alive timeout
+  # (MetaAPI: 30s default; the EA: TIMER_MS-bounded). The defaults
+  # below are intentionally conservative; tune via the production
+  # overlay if SLO measurements support it.
+  connectivity:
+    heartbeatIntervalSecs: "15"
+    heartbeatTimeoutSecs: "5"
+    heartbeatFailureThreshold: "3"
+    reconnectBaseSecs: "1.0"
+    reconnectCapSecs: "30.0"
+    reconnectMaxAttempts: "10"
+    tickMaxAgeSecs: "10"
+    symbolResolverCacheTtlSecs: "3600"
+
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential
   # encryption key comes from ExternalSecret (see externalSecrets

@@ -268,6 +268,62 @@ LOG_ENTRIES_TOTAL = Counter(
 # Technical Analysis (TA) Metrics
 # ==============================================================
 
+# ==============================================================
+# Broker Connectivity Metrics (Section 2 of CHECKLIST)
+# Cardinality note: provider + account_id is bounded by the active
+# broker-connections set per cluster (low single-digit thousands at
+# most). All other labels are bounded enumerations (status,
+# error_type, result, layer).
+# ==============================================================
+
+BROKER_HEARTBEAT_TOTAL = Counter(
+    "etradie_broker_heartbeat_total",
+    "Broker heartbeat ticks emitted by BrokerHeartbeatService",
+    ["provider", "account_id", "status"],
+)
+
+BROKER_HEARTBEAT_FAILURES_TOTAL = Counter(
+    "etradie_broker_heartbeat_failures_total",
+    "Broker heartbeat ticks that surfaced a non-ok health response or raised",
+    ["provider", "account_id", "error_type"],
+)
+
+BROKER_RECONNECT_ATTEMPTS_TOTAL = Counter(
+    "etradie_broker_reconnect_attempts_total",
+    "Broker reconnect attempts driven by ReconnectPolicy",
+    ["provider", "account_id"],
+)
+
+BROKER_TICK_STALE_TOTAL = Counter(
+    "etradie_broker_tick_stale_total",
+    "Tick responses rejected by TickFreshnessGuard",
+    ["provider", "account_id", "symbol"],
+)
+
+BROKER_SYMBOL_RESOLVE_TOTAL = Counter(
+    "etradie_broker_symbol_resolve_total",
+    "SymbolResolver invocations",
+    ["provider", "account_id", "result"],
+)
+
+BROKER_SYMBOL_RESOLVE_CACHE_HITS_TOTAL = Counter(
+    "etradie_broker_symbol_resolve_cache_hits_total",
+    "SymbolResolver cache hits, partitioned by cache layer",
+    ["provider", "account_id", "layer"],
+)
+
+BROKER_CANDLES_DEDUP_SKIPPED_TOTAL = Counter(
+    "etradie_broker_candles_dedup_skipped_total",
+    "Candle rows skipped by ON CONFLICT DO NOTHING during bulk_create",
+    ["provider", "symbol", "timeframe"],
+)
+
+BROKER_CONNECTION_STATE = Gauge(
+    "etradie_broker_connection_state",
+    "Last observed broker connection state (1=connected, 0=disconnected)",
+    ["provider", "account_id"],
+)
+
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
     "Total TA broker candle fetch attempts",
