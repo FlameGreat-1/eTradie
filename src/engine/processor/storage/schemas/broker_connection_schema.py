@@ -119,6 +119,16 @@ class BrokerConnectionRow(ProcessorBase):
         Text,
         nullable=True,
     )
+    # Default chart symbol for the hosted MT terminal. The engine writes
+    # this into the StatefulSet's MT_SYMBOL env var at provision time.
+    # The watchdog uses it to probe the EA's tick stream. Stored here so
+    # the HostedRecoveryService can re-provision with the correct symbol
+    # instead of hardcoding 'EURUSD'.
+    mt5_symbol: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        server_default="EURUSD",
+    )
 
     # -- State flags -----------------------------------------------------------
     is_active: Mapped[bool] = mapped_column(
