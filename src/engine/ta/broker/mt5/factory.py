@@ -5,9 +5,15 @@ implementation.  This is the single entry point for creating
 an MT5-compatible broker client.
 
 Three creation paths from DB rows:
-  1. connection_type='ea'      -> ZmqClient (user's own PC/VPS)
+  1. connection_type='ea'      -> ZmqClient (LOCAL DEVELOPMENT ONLY.
+                                  Reads single-tenant MT5_ZMQ_* env vars
+                                  from the engine's own environment.
+                                  Rejected at the router in production
+                                  and staging.)
   2. connection_type='metaapi'  -> MetaApiClient (cloud REST)
-  3. connection_type='hosted'   -> ZmqClient (Dockerized MT on-server)
+  3. connection_type='hosted'   -> ZmqClient (per-tenant Wine+Xvfb+MT5
+                                   Pod in-cluster, provisioned by
+                                   HostedProvisioner)
 """
 
 from __future__ import annotations
@@ -371,15 +377,23 @@ def create_mt5_broker_from_connection(
             )
 
         # Resolve the in-cluster Service DNS for the per-user mt-node
-        # release. HostedProvisioner (Step 4 of the mt-node hardening
-        # series) deploys the Service with this exact naming.
+        # release. HostedProvisioner deploys the Service with this exact
+        # naming convention. resolve_zmq_host() is a pure string
+        # formatter — it does not verify the Service exists. We rely on
+        # the ZmqClient's connect timeout to surface a missing Service
+        # quickly (the startup probe + readiness probe on the Pod ensure
+        # the Service is only reachable when the EA is healthy).
+        #
+        # If the StatefulSet was deleted (operator action, ArgoCD prune,
+        # namespace wipe), the HostedRecoveryService will detect the
+        # missing StatefulSet on its next sweep (within
+        # ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS, default 60s) and
+        # re-provision it. Until then, ZmqClient calls will fail with
+        # ProviderTimeoutError, which the caller surfaces to the user.
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 
-        try:
-            provisioner = HostedProvisioner()
-            zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
-        except Exception:
-            zmq_host = None
+        provisioner = HostedProvisioner()
+        zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
 
         if not zmq_host:
             raise ConfigurationError(

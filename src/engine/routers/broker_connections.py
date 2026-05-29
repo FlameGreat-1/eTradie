@@ -70,6 +70,7 @@ def _serialize_broker_connection(row) -> dict:
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
+        "mt5_symbol": getattr(row, "mt5_symbol", "EURUSD") or "EURUSD",
         "platform": getattr(row, "platform", "mt5"),
         "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
@@ -195,6 +196,33 @@ async def create_broker_connection(
                     detail="mt5_login, mt5_password, and mt5_server are required for Hosted connections",
                 )
 
+            # Per-user hosted connection quota. Each hosted connection
+            # consumes a dedicated K8s StatefulSet (2 CPU cores + 2 GiB
+            # RAM in production). Without a quota, a single user could
+            # exhaust cluster capacity by creating many hosted connections.
+            # The limit is configurable via MT_NODE_MAX_HOSTED_PER_USER
+            # (default 1: one hosted account per user; raise per-tenant
+            # via the Helm production overlay for power users).
+            max_hosted = int(os.environ.get("MT_NODE_MAX_HOSTED_PER_USER", "1"))
+            async with container.db.read_session() as session:
+                repo = BrokerConnectionRepository(session)
+                existing = await repo.get_all(user_id=user.user_id)
+            hosted_count = sum(
+                1 for c in existing if c.connection_type == "hosted"
+            )
+            if hosted_count >= max_hosted:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "hosted_quota_exceeded",
+                        "message": (
+                            f"You have reached the maximum of {max_hosted} hosted "
+                            "MetaTrader connection(s). Delete an existing hosted "
+                            "connection before creating a new one."
+                        ),
+                    },
+                )
+
             from uuid import uuid4 as _uuid4
             temp_connection_id = str(_uuid4())
 
@@ -202,9 +230,11 @@ async def create_broker_connection(
                 provisioner = HostedProvisioner()
                 hosted_result = await provisioner.provision_account(
                     connection_id=temp_connection_id,
+                    user_id=user.user_id,
                     login=body.mt5_login,
                     password=body.mt5_password,
                     server=body.mt5_server,
+                    symbol=body.mt5_symbol,
                     platform=body.platform,
                 )
                 hosted_container_id = hosted_result["container_id"]
@@ -212,6 +242,7 @@ async def create_broker_connection(
                 # Pod via ZeroMQ on the internal Kubernetes network.
                 ea_host = hosted_result["zmq_host"]
                 ea_port = hosted_result["zmq_port"]
+                ea_auth_token = hosted_result.get("zmq_auth_token", "")
             except Exception as exc:
                 logger.error(
                     "hosted_provisioning_error_in_api",
@@ -238,6 +269,7 @@ async def create_broker_connection(
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
+                mt5_symbol=body.mt5_symbol,
                 platform=body.platform,
                 activate=body.activate,
             )
@@ -329,6 +361,14 @@ async def update_broker_connection(
     Updates are saved to the database. The user's broker is resolved
     per-request from the DB, so the updated values take effect on
     the next trading operation automatically.
+
+    For hosted connections where mt5_password is changed, the per-tenant
+    Kubernetes Secret is re-sealed immediately so the mt-node Pod picks
+    up the new password on its next restart. Without this, the DB row
+    would have the new password but the K8s Secret would retain the old
+    one, causing the EA to fail broker authentication after any Pod
+    restart until the HostedRecoveryService re-provisions the connection
+    (up to ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS = 10 min).
     """
     container: Container = request.app.state.container
 
@@ -349,6 +389,45 @@ async def update_broker_connection(
 
     if row is None:
         raise HTTPException(status_code=404, detail="Connection not found")
+
+    # For hosted connections where credentials changed, re-seal the
+    # per-tenant K8s Secret so the mt-node Pod picks up the new
+    # password on its next restart. This is a best-effort operation:
+    # if it fails, the HostedRecoveryService will re-provision the
+    # connection on its next sweep, but the user may see up to
+    # ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS of downtime.
+    if (
+        row.connection_type == "hosted"
+        and row.hosted_container_id
+        and body.mt5_password is not None
+    ):
+        try:
+            provisioner = HostedProvisioner()
+            # Decrypt the freshly-stored password to pass to the provisioner.
+            ea_auth_token = ""
+            if row.ea_auth_token_encrypted:
+                ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
+            password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
+            await provisioner.provision_account(
+                connection_id=connection_id,
+                user_id=user.user_id,
+                login=row.mt5_login or "",
+                password=password_plain,
+                server=row.mt5_server or "",
+                platform=row.platform or "mt5",
+                per_user_zmq_token=ea_auth_token or None,
+            )
+            logger.info(
+                "hosted_secret_resealed_after_password_update",
+                extra={"connection_id": connection_id, "user_id": user.user_id},
+            )
+        except Exception as exc:
+            # Non-fatal: log and continue. The HostedRecoveryService
+            # will heal the connection on its next sweep.
+            logger.error(
+                "hosted_secret_reseal_failed_after_password_update",
+                extra={"connection_id": connection_id, "error": str(exc)},
+            )
 
     await container.invalidate_user_broker(user.user_id)
 

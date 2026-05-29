@@ -253,10 +253,21 @@ config:
     cpuRequest: "500m"
     ephemeralLimit: "1Gi"
     ephemeralRequest: "512Mi"
+    # PVC size for the Wine prefix volume. MUST stay in sync with
+    # helm/mt-node/values{,-production,-staging}.yaml::persistence.size
+    # so a Pod the engine creates lands within the same storage envelope
+    # as a chart-rendered Pod. Production overlay sets this to 8Gi.
     pvcSize: "4Gi"
     readinessTimeoutSecs: "300"
     readinessPollSecs: "3"
     zmqProbeTimeoutSecs: "5"
+    # Per-user quota for hosted MetaTrader connections. Each hosted
+    # connection consumes a dedicated StatefulSet (2 CPU + 2 GiB RAM
+    # in production). Default 1 enforces one hosted account per user
+    # to prevent dashboard-driven cluster-capacity exhaustion. Raise
+    # this for power users via the production overlay or per-tenant
+    # override.
+    maxHostedPerUser: "1"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"

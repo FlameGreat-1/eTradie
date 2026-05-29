@@ -152,7 +152,7 @@ data:
   MT_NODE_CPU_REQUEST: {{ .Values.config.mtNode.cpuRequest | quote }}
   MT_NODE_EPHEMERAL_LIMIT: {{ .Values.config.mtNode.ephemeralLimit | quote }}
   MT_NODE_EPHEMERAL_REQUEST: {{ .Values.config.mtNode.ephemeralRequest | quote }}
-  MT_NODE_PVC_SIZE: {{ .Values.config.mtNode.pvcSize | quote }}
+  MT_NODE_PVC_SIZE: {{ .Values.config.mtNode.pvcSize | default "4Gi" | quote }}
   MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
   MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
-  MT_NODE_ZMQ_PROBE_TIMEOUT_SECS: {{ .Values.config.mtNode.zmqProbeTimeoutSecs | quote }}
+  MT_NODE_MAX_HOSTED_PER_USER: {{ .Values.config.mtNode.maxHostedPerUser | default "1" | quote }}

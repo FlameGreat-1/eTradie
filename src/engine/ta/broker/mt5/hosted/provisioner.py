@@ -126,8 +126,11 @@ _ENC_KEY_ENV = "MT_NODE_CREDENTIAL_ENCRYPTION_KEY"
 def _load_encryption_key() -> bytes:
     """Return a 32-byte key derived from MT_NODE_CREDENTIAL_ENCRYPTION_KEY.
 
-    The env var carries a hex string (>=32 hex chars => >=16 bytes).
-    32 bytes (AES-256-GCM) is the platform-recommended size.
+    The env var carries a hex string. Production MUST use exactly 32 bytes
+    (AES-256-GCM, 64 hex chars). Development accepts 16 or 24 bytes for
+    convenience but logs a warning. The key is validated at call time so
+    a misconfigured engine pod fails its first hosted provision attempt
+    with a clear ConfigurationError rather than silently using a weak key.
     """
     raw = os.environ.get(_ENC_KEY_ENV, "").strip()
     if not raw:
@@ -141,13 +144,37 @@ def _load_encryption_key() -> bytes:
         key = bytes.fromhex(raw)
     except ValueError as exc:
         raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must be a hex string",
+            f"{_ENC_KEY_ENV} must be a hex string (e.g. output of 'openssl rand -hex 32')",
             details={"env_var": _ENC_KEY_ENV, "error": str(exc)},
         ) from exc
+
+    app_env = os.environ.get("APP_ENV", "development").strip().lower()
+    is_prod_like = app_env in ("production", "staging")
+
+    if is_prod_like and len(key) != 32:
+        raise ConfigurationError(
+            f"{_ENC_KEY_ENV} must decode to exactly 32 bytes (AES-256-GCM) in "
+            f"production/staging. Got {len(key)} bytes. "
+            "Generate with: openssl rand -hex 32",
+            details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
+        )
     if len(key) not in (16, 24, 32):
         raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must decode to 16, 24, or 32 bytes (got {len(key)}). 32 recommended.",
+            f"{_ENC_KEY_ENV} must decode to 16, 24, or 32 bytes (got {len(key)}). "
+            "32 bytes (AES-256-GCM) is required in production.",
             details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
+        )
+    if not is_prod_like and len(key) != 32:
+        logger.warning(
+            "mt_node_credential_encryption_key_not_32_bytes",
+            extra={
+                "byte_len": len(key),
+                "warning": (
+                    f"{_ENC_KEY_ENV} is {len(key)} bytes. "
+                    "Production requires exactly 32 bytes (AES-256-GCM). "
+                    "Generate with: openssl rand -hex 32"
+                ),
+            },
         )
     return key
 
@@ -678,11 +705,21 @@ class HostedProvisioner:
     ) -> None:
         """Create or update the per-tenant StatefulSet.
 
-        Wire shape matches helm/mt-node/templates/statefulset.yaml. Any
-        operator-facing inspection (kubectl describe sts <release>)
+        Wire shape is identical to helm/mt-node/templates/statefulset.yaml.
+        Any operator-facing inspection (kubectl describe sts <release>)
         produces an identical resource regardless of whether the chart
-        or this provisioner created it.
+        or this provisioner created it. Both paths are wire-compatible:
+          - Same labels / selectorLabels.
+          - Same volumeClaimTemplate name ('wine-prefix').
+          - Same watchdog sidecar with /healthz readiness + /livez liveness.
+          - Same lifecycle.preStop (5s sleep for Wine journal flush).
+          - Same terminationGracePeriodSeconds (60s).
+          - Same security context (non-root, drop ALL, readOnlyRootFilesystem).
         """
+        # Watchdog port (matches chart default service.watchdogPort).
+        watchdog_port = DEFAULT_WATCHDOG_PORT
+
+        # ── mt-node container env ──────────────────────────────────────────
         env = [
             client.V1EnvVar(name="MT_PLATFORM", value=platform),
             client.V1EnvVar(name="MT_SERVER", value=server),
@@ -706,21 +743,43 @@ class HostedProvisioner:
                 secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
             ),
         ]
+
+        # ── Shared security context (both containers) ──────────────────────
+        container_security_ctx = client.V1SecurityContext(
+            allow_privilege_escalation=False,
+            read_only_root_filesystem=True,
+            run_as_non_root=True,
+            run_as_user=1000,
+            capabilities=client.V1Capabilities(drop=["ALL"]),
+        )
+
+        # ── Shared lifecycle preStop (Wine journal flush) ──────────────────
+        # Mirrors chart lifecycle.preStop: give Wine 5s to flush its
+        # journal cleanly when the Pod is being terminated. Combined
+        # with entrypoint.sh's SIGTERM trap this gives a clean shutdown.
+        lifecycle = client.V1Lifecycle(
+            pre_stop=client.V1LifecycleHandler(
+                _exec=client.V1ExecAction(command=["/bin/sh", "-c", "sleep 5"]),
+            ),
+        )
+
+        # ── mt-node main container ─────────────────────────────────────────
+        # startupProbe: TCP on ZMQ port. Budgets 20 + 5*60 = 320s for
+        # cold Wine boot (first-time MT5 install into the Wine prefix).
+        # readinessProbe + livenessProbe: HTTP on watchdog /healthz and
+        # /livez. Readiness only turns true once the EA reports
+        # mt5_connected=true AND authenticated=true within the last 30s.
         container = client.V1Container(
             name="mt-node",
             image=self._image,
             image_pull_policy="IfNotPresent",
             env=env,
             env_from=env_from,
-            ports=[client.V1ContainerPort(name="zmq", container_port=zmq_port, protocol="TCP")],
+            ports=[
+                client.V1ContainerPort(name="zmq", container_port=zmq_port, protocol="TCP"),
+            ],
             resources=self._resource_requirements(),
-            security_context=client.V1SecurityContext(
-                allow_privilege_escalation=False,
-                read_only_root_filesystem=True,
-                run_as_non_root=True,
-                run_as_user=1000,
-                capabilities=client.V1Capabilities(drop=["ALL"]),
-            ),
+            security_context=container_security_ctx,
             startup_probe=client.V1Probe(
                 tcp_socket=client.V1TCPSocketAction(port=zmq_port),
                 initial_delay_seconds=20,
@@ -729,17 +788,139 @@ class HostedProvisioner:
                 success_threshold=1,
                 failure_threshold=60,
             ),
+            readiness_probe=client.V1Probe(
+                http_get=client.V1HTTPGetAction(
+                    path="/healthz",
+                    port=watchdog_port,
+                    scheme="HTTP",
+                ),
+                initial_delay_seconds=0,
+                period_seconds=10,
+                timeout_seconds=5,
+                success_threshold=1,
+                failure_threshold=3,
+            ),
+            liveness_probe=client.V1Probe(
+                http_get=client.V1HTTPGetAction(
+                    path="/livez",
+                    port=watchdog_port,
+                    scheme="HTTP",
+                ),
+                initial_delay_seconds=0,
+                period_seconds=30,
+                timeout_seconds=5,
+                success_threshold=1,
+                failure_threshold=3,
+            ),
+            lifecycle=lifecycle,
             volume_mounts=[
-                # NB: this mountPath matches the chart. The volume
-                # 'wine-prefix' is supplied by the volumeClaimTemplate,
-                # NOT by an inline V1Volume entry. K8s wires the
-                # per-replica PVC automatically.
+                # wine-prefix is supplied by volumeClaimTemplates below;
+                # K8s wires the per-replica PVC automatically.
                 client.V1VolumeMount(name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"),
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
                 client.V1VolumeMount(name="tmp", mount_path="/tmp"),
                 client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),
             ],
         )
+
+        # ── Watchdog sidecar ───────────────────────────────────────────────
+        # Mirrors chart sidecar.watchdog. Polls the EA HEALTH command,
+        # exposes /healthz + /livez + /metrics on :9100. Enforces
+        # memory soft-cap (RSS > 0.8 × cgroup limit → restart MT5) and
+        # CPU soft-cap (CFS throttled > 0.5 of periods for 60s → restart).
+        # Reuses the same mt-node image (watchdog.py is baked in at
+        # /opt/watchdog/watchdog.py by the Dockerfile).
+        #
+        # Watchdog resource sizing mirrors chart values-production.yaml:
+        # requests == limits (Guaranteed QoS for the Pod) with sub-core
+        # CPU so the watchdog stays in the shared pool while the mt-node
+        # container can get exclusive cores via static CPU manager.
+        watchdog_resources = client.V1ResourceRequirements(
+            requests={"cpu": "100m", "memory": "64Mi"},
+            limits={"cpu": "100m", "memory": "64Mi"},
+        )
+        # Watchdog env: reads auth token from the same per-tenant Secret
+        # (MT_ZMQ_AUTH_TOKEN) and the platform Secret (DEFAULT_ZMQ_AUTH_TOKEN).
+        watchdog_env_from = [
+            client.V1EnvFromSource(
+                secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
+            ),
+        ]
+        watchdog_env = [
+            client.V1EnvVar(
+                name="WATCHDOG_ZMQ_ENDPOINT",
+                value=f"tcp://127.0.0.1:{zmq_port}",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_HTTP_PORT",
+                value=str(watchdog_port),
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_SYMBOL",
+                value=symbol,
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_POLL_INTERVAL_SECONDS",
+                value="10",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_MAX_FAILURES",
+                value="6",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_MEMORY_SOFT_CAP_FRACTION",
+                value="0.8",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION",
+                value="0.5",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS",
+                value="6",
+            ),
+            client.V1EnvVar(
+                name="WATCHDOG_LIVEZ_GRACE_SECONDS",
+                value="60",
+            ),
+            client.V1EnvVar(
+                name="POD_NAME",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.name"),
+                ),
+            ),
+            client.V1EnvVar(
+                name="POD_NAMESPACE",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace"),
+                ),
+            ),
+        ]
+        watchdog_container = client.V1Container(
+            name="watchdog",
+            image=self._image,
+            image_pull_policy="IfNotPresent",
+            command=[
+                "/usr/bin/tini",
+                "--",
+                "/usr/bin/env",
+                "python3",
+                "/opt/watchdog/watchdog.py",
+            ],
+            env=watchdog_env,
+            env_from=watchdog_env_from,
+            ports=[
+                client.V1ContainerPort(name="watchdog", container_port=watchdog_port, protocol="TCP"),
+            ],
+            resources=watchdog_resources,
+            security_context=container_security_ctx,
+            volume_mounts=[
+                # Watchdog only needs /tmp (for any transient writes).
+                client.V1VolumeMount(name="tmp", mount_path="/tmp"),
+            ],
+        )
+
+        # ── Pod spec ───────────────────────────────────────────────────────
         pod_spec = client.V1PodSpec(
             service_account_name="default",  # mt-node never calls K8s API
             automount_service_account_token=False,
@@ -751,7 +932,7 @@ class HostedProvisioner:
                 seccomp_profile=client.V1SeccompProfile(type="RuntimeDefault"),
             ),
             termination_grace_period_seconds=60,
-            containers=[container],
+            containers=[container, watchdog_container],
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
             volumes=[
@@ -839,18 +1020,30 @@ class HostedProvisioner:
         When headless=True, sets clusterIP='None' so the Service is
         used only for stable per-pod DNS by the StatefulSet. When
         False (the regular ClusterIP Service), engine ZmqClient
-        traffic flows through this Service.
+        traffic flows through this Service AND Prometheus scrapes
+        the watchdog /metrics on :9100.
         """
+        watchdog_port = DEFAULT_WATCHDOG_PORT
+        # The headless Service is for stable pod-DNS only; it does not
+        # need to expose the watchdog port because Prometheus discovers
+        # the watchdog via the regular ClusterIP Service's ServiceMonitor.
+        ports = [
+            client.V1ServicePort(
+                name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
+            ),
+        ]
+        if not headless:
+            ports.append(
+                client.V1ServicePort(
+                    name="watchdog", port=watchdog_port, target_port="watchdog", protocol="TCP",
+                ),
+            )
         service_spec = client.V1ServiceSpec(
             type="ClusterIP",
             cluster_ip="None" if headless else None,
             publish_not_ready_addresses=False,
             selector=selector,
-            ports=[
-                client.V1ServicePort(
-                    name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
-                ),
-            ],
+            ports=ports,
         )
         service = client.V1Service(
             metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),

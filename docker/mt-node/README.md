@@ -40,14 +40,15 @@ bring a specific user's MT terminal back up via GitOps). The
 resulting K8s objects are wire-compatible with what the engine
 provisions.
 
-### 3. EA-on-VPS (legacy fallback for self-hosted MT outside K8s)
+### 3. EA-on-VPS (local development only — NOT a production path)
 
-Users with their own VPS running an MT terminal can register a
-`connection_type=ea` connection in the dashboard, pointing the
-engine at their public IP. mt-node container is NOT involved
-in this path. The engine reaches the user's EA over the public
-internet via ZmqClient. Mostly used by power users; not the
-recommended production path.
+`connection_type='ea'` reads single-tenant `MT5_ZMQ_HOST` / `MT5_ZMQ_PORT` /
+`MT5_ZMQ_AUTH_TOKEN` env vars from the engine's own environment. It is a
+local-development escape hatch so engineers can run MT5 on their own machine
+and point the engine at it during development. The router **rejects this
+connection type in production and staging** (hardcoded `APP_ENV` check in
+`src/engine/routers/broker_connections.py`). The mt-node container is NOT
+involved in this path.
 
 ### 4. MetaAPI cloud (no container)
 

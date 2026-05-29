@@ -10,7 +10,7 @@
 //| MT4 VERSION                                                      |
 //+------------------------------------------------------------------+
 #property copyright "eTradie"
-#property version   "2.00"
+#property version   "3.00"
 #property strict
 
 #include <Zmq/Zmq.mqh>
@@ -24,10 +24,7 @@ input int    RECV_TIMEOUT_MS = 1000;     // ZMQ receive timeout (ms)
 input int    SEND_TIMEOUT_MS = 5000;     // ZMQ send timeout (ms)
 input string AUTH_TOKEN      = "etradie_secure_token_2026";
 input long   MAGIC_NUMBER    = 20260321;
-input int    MAX_SLIPPAGE    = 10;
-input double MAX_LOT_SIZE    = 10.0;
-input double MAX_TOTAL_EXPOSURE = 50.0;
-input double MAX_DRAWDOWN_PCT = 20.0;
+input int    MAX_SLIPPAGE    = 10;       // Broker deviation tolerance (points)
 input int    TIMER_MS        = 50;
 input bool   ENABLE_DEBUG_LOG = false;
 input bool   LOG_COMMANDS     = true;
@@ -560,33 +557,11 @@ string HandleHistory(CJAVal &cmd)
 }
 
 //+------------------------------------------------------------------+
-//| RISK & HELPER FUNCTIONS                                          |
+//| HELPER FUNCTIONS                                                 |
 //+------------------------------------------------------------------+
-bool CheckRiskLimits(string symbol, double lots)
-{
-   double total_exposure = 0.0;
-   int total = OrdersTotal();
-   for(int i = 0; i < total; i++)
-   {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderType() > OP_SELL) continue; 
-      total_exposure += OrderLots();
-   }
-   if(total_exposure + lots > MAX_TOTAL_EXPOSURE) return false;
-   
-   double equity  = AccountInfoDouble(ACCOUNT_EQUITY);
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   if(balance > 0)
-   {
-      double drawdown_pct = ((balance - equity) / balance) * 100.0;
-      if(drawdown_pct > MAX_DRAWDOWN_PCT) return false;
-   }
-   
-   double margin_free = AccountFreeMarginCheck(symbol, OP_BUY, lots);
-   if(margin_free <= 0) return false;
-   
-   return true;
-}
+// CheckRiskLimits() intentionally removed. Risk enforcement is the
+// exclusive responsibility of the platform's execution and management
+// services. See ZeroMQ_EA.mq5 for the full rationale.
 
 double NormalizePrice(string symbol, double price)
 {
@@ -634,16 +609,20 @@ string HandleOrderSend(CJAVal &cmd)
 
    if(!ValidateSymbol(symbol)) return "{\"error\":\"Symbol not available\",\"status\":\"REJECTED\"}";
    
+   // Broker-protocol lot validation only. Platform risk enforcement
+   // (sizing, drawdown, exposure) is handled by the execution service
+   // before this ORDER_SEND reaches the EA.
    double min_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double max_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
    double step    = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
-   if(lots < min_lot || lots > max_lot || lots > MAX_LOT_SIZE) return "{\"error\":\"Invalid lot size\",\"status\":\"REJECTED\"}";
+   if(lots < min_lot)
+      return "{\"error\":\"Lot size below broker minimum: " + DoubleToString(min_lot, 2) + "\",\"status\":\"REJECTED\"}";
+   if(lots > max_lot)
+      return "{\"error\":\"Lot size above broker maximum: " + DoubleToString(max_lot, 2) + "\",\"status\":\"REJECTED\"}";
    
    int lot_digits = (int)MathRound(-MathLog10(step));
    if(lot_digits < 0) lot_digits = 0;
    lots = NormalizeDouble(MathFloor(lots / step) * step, lot_digits);
-   
-   if(!CheckRiskLimits(symbol, lots)) return "{\"error\":\"Risk limits exceeded\",\"status\":\"REJECTED\"}";
 
    int order_type = -1;
    if(type_str == "MARKET") order_type = (direction == "BUY") ? OP_BUY : OP_SELL;

@@ -41,7 +41,7 @@
 //| Section 4 (CHECKLIST) contracts change so the engine-side        |
 //| EAIdentityVerifier can reject older builds via minimum_ea_version.|
 //+------------------------------------------------------------------+
-#define ETRADIE_EA_VERSION "2.10.0"
+#define ETRADIE_EA_VERSION "3.0.0"
 
 //+------------------------------------------------------------------+
 //| Input Parameters                                                 |
@@ -56,10 +56,7 @@ input string AUTH_TOKEN      = "etradie_secure_token_2026";  // Authentication t
 
 input group "=== Trading Configuration ==="
 input long   MAGIC_NUMBER    = 20260321; // Magic number for eTradie orders
-input int    MAX_SLIPPAGE    = 10;       // Maximum slippage in points
-input double MAX_LOT_SIZE    = 10.0;     // Maximum lot size per order
-input double MAX_TOTAL_EXPOSURE = 50.0;  // Maximum total exposure (lots)
-input double MAX_DRAWDOWN_PCT = 20.0;    // Maximum drawdown % before blocking trades
+input int    MAX_SLIPPAGE    = 10;       // Maximum slippage in points (broker deviation tolerance)
 
 input group "=== Performance ==="
 input int    TIMER_MS        = 50;       // Timer interval (ms) - 50ms = 20 polls/sec
@@ -166,9 +163,10 @@ int OnInit()
    Log(LOG_INFO, "=== eTradie ZeroMQ Bridge Started ===");
    Log(LOG_INFO, "Endpoint: " + endpoint);
    Log(LOG_INFO, "Magic Number: " + IntegerToString(MAGIC_NUMBER));
-   Log(LOG_INFO, "Max Slippage: " + IntegerToString(MAX_SLIPPAGE) + " points");
+   Log(LOG_INFO, "Max Slippage: " + IntegerToString(MAX_SLIPPAGE) + " points (broker deviation tolerance)");
    Log(LOG_INFO, "Timer Interval: " + IntegerToString(TIMER_MS) + "ms");
    Log(LOG_INFO, "Authentication: " + (AUTH_TOKEN != "" ? "ENABLED" : "DISABLED"));
+   Log(LOG_INFO, "Risk enforcement: PLATFORM ONLY (execution + management services)");
    Log(LOG_INFO, "Ready for commands");
    
    return INIT_SUCCEEDED;
@@ -977,35 +975,31 @@ string HandleOrderSend(CJAVal &cmd)
       return "{\"error\":\"Trading disabled for symbol: " + symbol + "\",\"status\":\"REJECTED\"}";
    }
 
-   // Validate and normalize lot size
+   // Validate and normalize lot size against broker-reported constraints.
+   // Platform-level risk enforcement (lot sizing, drawdown, exposure caps)
+   // is handled exclusively by src/execution/internal/sizing/engine.go and
+   // src/execution/internal/validator/checks.go BEFORE this ORDER_SEND
+   // reaches the EA. The EA enforces only broker-protocol constraints.
    double min_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double max_lot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
    double step    = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
    
    if(lots < min_lot)
    {
-      Log(LOG_ERROR, "Order rejected - lot size too small: " + DoubleToString(lots, 2) + " (min: " + DoubleToString(min_lot, 2) + ")");
-      return "{\"error\":\"Lot size below minimum: " + DoubleToString(min_lot, 2) + "\",\"status\":\"REJECTED\"}";
+      Log(LOG_ERROR, "Order rejected - lot size below broker minimum: " + DoubleToString(lots, 2) + " (min: " + DoubleToString(min_lot, 2) + ")");
+      return "{\"error\":\"Lot size below broker minimum: " + DoubleToString(min_lot, 2) + "\",\"status\":\"REJECTED\"}";
    }
    
-   if(lots > max_lot || lots > MAX_LOT_SIZE)
+   if(lots > max_lot)
    {
-      double limit = MathMin(max_lot, MAX_LOT_SIZE);
-      Log(LOG_ERROR, "Order rejected - lot size too large: " + DoubleToString(lots, 2) + " (max: " + DoubleToString(limit, 2) + ")");
-      return "{\"error\":\"Lot size exceeds maximum: " + DoubleToString(limit, 2) + "\",\"status\":\"REJECTED\"}";
+      Log(LOG_ERROR, "Order rejected - lot size above broker maximum: " + DoubleToString(lots, 2) + " (max: " + DoubleToString(max_lot, 2) + ")");
+      return "{\"error\":\"Lot size above broker maximum: " + DoubleToString(max_lot, 2) + "\",\"status\":\"REJECTED\"}";
    }
    
-   // Normalize to step - derive precision from step value
+   // Normalize to broker lot step.
    int lot_digits = (int)MathRound(-MathLog10(step));
    if(lot_digits < 0) lot_digits = 0;
    lots = NormalizeDouble(MathFloor(lots / step) * step, lot_digits);
-
-   // Check risk limits
-   if(!CheckRiskLimits(symbol, lots))
-   {
-      Log(LOG_ERROR, "Order rejected - risk limits exceeded");
-      return "{\"error\":\"Risk limits exceeded (max exposure or drawdown)\",\"status\":\"REJECTED\"}";
-   }
 
    // Prepare trade request
    MqlTradeRequest request = {};
@@ -1368,64 +1362,19 @@ string HandlePositionClose(CJAVal &cmd)
 //| Helper Functions                                                 |
 //+------------------------------------------------------------------+
 
-//+------------------------------------------------------------------+
-//| Check Risk Limits Before Opening Position                        |
-//+------------------------------------------------------------------+
-bool CheckRiskLimits(string symbol, double lots)
-{
-   // Check total exposure across all positions
-   double total_exposure = 0.0;
-   int total = PositionsTotal();
-   
-   for(int i = 0; i < total; i++)
-   {
-      ulong tk = PositionGetTicket(i);
-      if(tk == 0) continue;
-      if(!PositionSelectByTicket(tk)) continue;
-      total_exposure += PositionGetDouble(POSITION_VOLUME);
-   }
-   
-   if(total_exposure + lots > MAX_TOTAL_EXPOSURE)
-   {
-      Log(LOG_WARN, "Risk check failed - Total exposure would exceed limit: " + 
-          DoubleToString(total_exposure + lots, 2) + " > " + DoubleToString(MAX_TOTAL_EXPOSURE, 2));
-      return false;
-   }
-   
-   // Check drawdown percentage
-   double equity  = AccountInfoDouble(ACCOUNT_EQUITY);
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   
-   if(balance > 0)
-   {
-      double drawdown_pct = ((balance - equity) / balance) * 100.0;
-      
-      if(drawdown_pct > MAX_DRAWDOWN_PCT)
-      {
-         Log(LOG_WARN, "Risk check failed - Drawdown exceeds limit: " + 
-             DoubleToString(drawdown_pct, 2) + "% > " + DoubleToString(MAX_DRAWDOWN_PCT, 2) + "%");
-         return false;
-      }
-   }
-   
-   // Check free margin
-   double margin_required = 0.0;
-   if(!OrderCalcMargin(ORDER_TYPE_BUY, symbol, lots, SymbolInfoDouble(symbol, SYMBOL_ASK), margin_required))
-   {
-      Log(LOG_ERROR, "Failed to calculate margin requirement");
-      return false;
-   }
-   
-   double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-   if(margin_required > free_margin)
-   {
-      Log(LOG_WARN, "Risk check failed - Insufficient free margin: " + 
-          DoubleToString(free_margin, 2) + " < " + DoubleToString(margin_required, 2));
-      return false;
-   }
-   
-   return true;
-}
+// CheckRiskLimits() has been intentionally removed.
+//
+// Risk enforcement (lot sizing, drawdown limits, exposure caps) is the
+// exclusive responsibility of the platform's execution and management
+// services:
+//   - src/execution/internal/sizing/engine.go  (lot size calculation)
+//   - src/execution/internal/validator/checks.go (pre-trade gates)
+//   - src/management/internal/invalidator/exposure.go (live cascade)
+//
+// The EA is a wire-protocol adapter. It enforces only broker-protocol
+// constraints (min/max lot from broker, stop levels, symbol availability).
+// Duplicating risk logic here with hardcoded literals would silently
+// override the platform's per-user, dashboard-configurable decisions.
 
 //+------------------------------------------------------------------+
 //| Validate Stop Loss and Take Profit Levels                        |
