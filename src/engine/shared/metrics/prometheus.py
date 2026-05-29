@@ -402,6 +402,19 @@ BROKER_EA_CONNECTION_UNENCRYPTED_TOTAL = Counter(
     ["connection_id_suffix"],
 )
 
+# CHECKLIST hardening (tick-reconnect SLO observability). Counts each
+# successful get_tick_price() that fires within ZmqClient's
+# _tick_recovery_window_secs of the most recent socket connect. The
+# counter only fires ONCE per connect, so its rate is the rate at
+# which reconnects are followed by successful tick fetches - i.e.
+# how often the REQ/REP contract delivers clean recovery in
+# practice. See docs/architecture/broker-connectivity.md.
+BROKER_TICK_FETCH_RECOVERY_TOTAL = Counter(
+    "etradie_broker_tick_fetch_recovery_total",
+    "Successful get_tick_price() that fired within the recovery window after a (re)connect. One increment per (re)connect; resets when the connection is torn down.",
+    ["provider", "account_id"],
+)
+
 ACTIVE_USER_CONNECTIONS = Gauge(
     "etradie_active_user_connections",
     "Number of users with at least one active broker connection by type",
