@@ -16,6 +16,12 @@ config:
   # line; the personal-namespace string lives nowhere else.
   mtNode:
     image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    # Production PVC size: 8Gi matches helm/mt-node/values-production.yaml
+    # persistence.size. The base values.yaml defaults to 4Gi (staging).
+    # Both paths (chart-rendered and engine-provisioned) must use the
+    # same size so an operator can flip a tenant between paths without
+    # losing the Wine prefix or hitting a PVC resize.
+    pvcSize: "8Gi"
 
 image:
   tag: "0.1.0"
