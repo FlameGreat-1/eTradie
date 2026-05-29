@@ -316,8 +316,12 @@ jobs:
           # Per-tenant render. Stub identifiers match what the engine's
           # HostedProvisioner --sets at runtime; the chart's preflight
           # rejects unset values via _helpers.tpl, so we satisfy them
-          # here with stable test values.
+          # here with stable test values. image.repository is REQUIRED
+          # by the chart (Gap #13); CI uses a stub registry path so
+          # the lint succeeds without leaking the personal namespace
+          # default into the test surface.
           helm lint helm/mt-node \
+            --set image.repository=ghcr.io/ci-stub/etradie-mt-node \
             --set mtConnection.connectionId=test-conn-0000 \
             --set mtConnection.userId=test-user-0000 \
             --set mtConnection.platform=mt5 \
@@ -330,6 +334,7 @@ jobs:
           # only the PriorityClass + platform ExternalSecret + watchdog
           # ConfigMap that the ArgoCD app installs cluster-wide.
           helm lint helm/mt-node \
+            --set image.repository=ghcr.io/ci-stub/etradie-mt-node \
             --set mtConnection.enabled=false \
             --set mtConnection.connectionId=platform \
             --set mtConnection.userId=platform \
@@ -339,6 +344,8 @@ jobs:
             --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
       - name: helm template + kubeconform - mt-node staging (per-tenant)
         run: |
+          # values-staging.yaml already sets image.repository for the
+          # repo's own staging deployment. No --set override needed.
           helm template etradie-mt-test-0000 helm/mt-node \
             -f helm/mt-node/values.yaml \
             -f helm/mt-node/values-staging.yaml \

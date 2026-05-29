@@ -17,6 +17,12 @@ config:
     # The dashboard surfaces the 422 with code='ea_connection_disabled'
     # so the UI can branch on the failure cleanly.
     disallowEaConnectionType: "true"
+  # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
+  # values.yaml deliberately leaves config.mtNode.image empty so
+  # production cannot inherit a default. Forks override this single
+  # line; the personal-namespace string lives nowhere else.
+  mtNode:
+    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
 
 image:
   tag: "0.1.0"

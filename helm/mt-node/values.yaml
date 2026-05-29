@@ -55,7 +55,12 @@ mtConnection:
   sealedSecretName: ""
 
 image:
-  repository: ghcr.io/flamegreat-1/etradie-mt-node
+  # REQUIRED. The chart fail-fasts on a render with an empty
+  # repository. Set this in the deployment overlay (values-staging.yaml
+  # / values-production.yaml) - NOT in the base, so a fork or
+  # namespace move is a single-file change and the personal-namespace
+  # string never lives in two places.
+  repository: ""
   pullPolicy: IfNotPresent
   # Pinned digest is preferred over a tag. The engine resolves the
   # digest at provision time and --set's it here. CI publishes both.

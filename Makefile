@@ -311,6 +311,7 @@ push-mt-node: build-mt-node ## Push the MetaTrader Docker image to GHCR
 mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + platform render paths)
 	echo -e "$(BLUE)Lint mt-node chart (per-tenant render path)...$(NC)"
 	helm lint helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.connectionId=test-conn-0000 \
 		--set mtConnection.userId=test-user-0000 \
 		--set mtConnection.platform=mt5 \
@@ -319,6 +320,7 @@ mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + plat
 		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
 	echo -e "$(BLUE)Lint mt-node chart (platform-only render path)...$(NC)"
 	helm lint helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.enabled=false \
 		--set mtConnection.connectionId=platform \
 		--set mtConnection.userId=platform \
@@ -331,6 +333,7 @@ mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + plat
 mt-node-deploy-dry-run: ## helm template the chart against both render paths and print to stdout
 	echo -e "$(BLUE)Render mt-node (per-tenant)...$(NC)"
 	helm template etradie-mt-test-0000 helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.connectionId=test-conn-0000 \
 		--set mtConnection.userId=test-user-0000 \
 		--set mtConnection.platform=mt5 \
@@ -339,6 +342,7 @@ mt-node-deploy-dry-run: ## helm template the chart against both render paths and
 		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
 	echo -e "$(BLUE)Render mt-node (platform-only)...$(NC)"
 	helm template etradie-mt-node-platform helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.enabled=false \
 		--set mtConnection.connectionId=platform \
 		--set mtConnection.userId=platform \

@@ -247,7 +247,14 @@ config:
   # engine creates lands within the chart's PDB/quota envelope.
   mtNode:
     namespace: "etradie-system"
-    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    # REQUIRED. The chart fail-fasts on a render with an empty
+    # image. Set this in the deployment overlay (values-staging.yaml
+    # / values-production.yaml) - NOT in the base, so a fork or
+    # namespace move is a single-file change and the personal-
+    # namespace string never lives in two places.
+    # Format: ghcr.io/<org>/etradie-mt-node:<tag> or
+    #         ghcr.io/<org>/etradie-mt-node@sha256:<digest>.
+    image: ""
     memLimit: "1536Mi"
     memRequest: "1Gi"
     cpuLimit: "1500m"
