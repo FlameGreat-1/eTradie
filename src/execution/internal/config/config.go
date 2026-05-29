@@ -74,6 +74,20 @@ type Config struct {
 	// cadence + broker REST latency. Range 60..3600 (1min..1h).
 	GhostPositionMinAgeSecs int `envconfig:"GHOST_POSITION_MIN_AGE_SECS" default:"300"`
 
+	// Section 7 Step C (CHECKLIST): eager position preload on startup.
+	//
+	// PreloadPositionsOnStart controls whether the execution service
+	// eagerly calls state.Manager.Refresh() for every active user
+	// BEFORE the gRPC listener opens. When true, the engine's in-memory
+	// position state is hot before the first user request lands,
+	// eliminating the 'memory empty on restart' gap that the reconciler
+	// would otherwise close lazily within 60s.
+	//
+	// Set to false in dev/test environments where the broker bridge is
+	// not available at startup (the Refresh() call would fail and log
+	// errors for every user). Default true for production.
+	PreloadPositionsOnStart bool `envconfig:"PRELOAD_POSITIONS_ON_START" default:"true"`
+
 	// Shared secret for the engine's /internal/* surface.
 	//
 	// The Python engine's broker bridge endpoints
@@ -318,6 +332,7 @@ func (c *Config) validate() error {
 	if c.GhostPositionMinAgeSecs < 60 || c.GhostPositionMinAgeSecs > 3600 {
 		return fmt.Errorf("GHOST_POSITION_MIN_AGE_SECS must be 60..3600, got %d", c.GhostPositionMinAgeSecs)
 	}
+	// PreloadPositionsOnStart is a bool; no range check.
 
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL must not be empty")

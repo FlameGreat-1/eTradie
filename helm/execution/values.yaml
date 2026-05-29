@@ -112,6 +112,11 @@ config:
     # Default 300s (5min) > reconcile cadence + broker REST latency.
     # Range 60..3600 (1min..1h).
     ghostPositionMinAgeSecs: "300"
+    # Section 7 Step C: eager position preload on startup.
+    # When true, the execution service calls Refresh() for every active
+    # user before the gRPC listener opens. Set to 'false' in dev/test
+    # environments where the broker bridge is not available at startup.
+    preloadPositionsOnStart: "true"
     mockBrokerBalance: "10000.0"
     gatewayAddr: "gateway.etradie-system.svc.cluster.local:50052"
     defaultExecutionMode: "LIMIT"
