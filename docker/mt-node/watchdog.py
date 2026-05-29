@@ -91,6 +91,137 @@ class State:
 
 STATE = State()
 
+# ----- Socket-resets counter (operator-visible) ------------------------
+M_WATCHDOG_SOCKET_RESETS = Counter(
+    "mt_node_watchdog_socket_resets_total",
+    "Cumulative ZMQ REQ socket resets driven by the watchdog",
+    registry=REG,
+)
+
+
+# ----- Long-lived ZMQ REQ socket --------------------------------------
+class ZmqHealthProbe:
+    """Owns the watchdog's REQ socket lifecycle.
+
+    Holds ONE REQ socket for the watchdog process lifetime.
+    Authentication via PING is performed once per (re)connect; the
+    `authenticated` flag short-circuits subsequent HEALTH polls so
+    the auth round-trip cost is paid once, not every cycle.
+
+    The REQ/REP state machine is unrecoverable after a half-completed
+    transaction (libzmq mandates alternating send/recv). On ANY
+    zmq.ZMQError or zmq.Again the socket is torn down and recreated
+    on the next poll; the next poll's PING re-authenticates. This is
+    the only correct way to recover a wedged REQ socket - retrying
+    on the same socket would raise EFSM.
+
+    The socket is protected by a re-entrant lock because both the
+    poll thread AND (potentially future) HTTP handlers might call
+    poll(). Today only the poll thread does; the lock is a cheap
+    invariant for safety.
+
+    The context is process-wide (zmq.Context.instance()) so we do
+    not churn io_threads on socket recreation. The instance() call
+    is idempotent.
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        auth_token: str,
+        recv_timeout_ms: int = 3000,
+        send_timeout_ms: int = 3000,
+    ) -> None:
+        self._endpoint = endpoint
+        self._auth_token = auth_token
+        self._recv_timeout_ms = recv_timeout_ms
+        self._send_timeout_ms = send_timeout_ms
+        self._ctx = zmq.Context.instance()
+        self._lock = threading.Lock()
+        self._socket: Optional[zmq.Socket] = None
+        self._authenticated: bool = False
+
+    def _open(self) -> None:
+        """Create a fresh REQ socket. Caller MUST hold self._lock."""
+        sock = self._ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.setsockopt(zmq.RCVTIMEO, self._recv_timeout_ms)
+        sock.setsockopt(zmq.SNDTIMEO, self._send_timeout_ms)
+        sock.connect(self._endpoint)
+        self._socket = sock
+        self._authenticated = False
+
+    def _reset(self) -> None:
+        """Tear down the current socket. Caller MUST hold self._lock.
+
+        Increments the operator-visible reset counter so an alert
+        rule can fire when a Pod's EA is flaky.
+        """
+        if self._socket is not None:
+            try:
+                self._socket.close(linger=0)
+            except Exception:  # noqa: BLE001
+                pass
+            self._socket = None
+        self._authenticated = False
+        M_WATCHDOG_SOCKET_RESETS.inc()
+
+    def _authenticate(self) -> None:
+        """Run PING with auth_token. Caller MUST hold self._lock AND
+        self._socket must be live."""
+        assert self._socket is not None
+        self._socket.send_string(
+            json.dumps({"command": "PING", "auth_token": self._auth_token})
+        )
+        # Discard reply; if the EA rejects auth it will return an
+        # error JSON which is fine - HEALTH will then also fail and
+        # the consecutive_failures path will trigger an in-pod restart.
+        self._socket.recv()
+        self._authenticated = True
+
+    def poll(self) -> dict:
+        """One HEALTH probe. Returns the parsed reply dict.
+
+        On ANY zmq error / timeout, tears the socket down and raises
+        the underlying exception. The caller's existing
+        consecutive_failures counter handles repeated failures.
+        """
+        with self._lock:
+            try:
+                if self._socket is None:
+                    self._open()
+                if not self._authenticated:
+                    self._authenticate()
+                self._socket.send_string(json.dumps({"command": "HEALTH"}))
+                raw = self._socket.recv()
+                return json.loads(raw.decode("utf-8"))
+            except (zmq.ZMQError, zmq.Again):
+                # REQ state machine is unrecoverable mid-transaction.
+                # Tear down so the next poll opens a fresh socket.
+                self._reset()
+                raise
+            except Exception:
+                # JSON decode / network reset / etc. Same recovery
+                # posture: a fresh socket on next poll.
+                self._reset()
+                raise
+
+    def close(self) -> None:
+        """Idempotent shutdown. Safe to call from signal handlers."""
+        with self._lock:
+            if self._socket is not None:
+                try:
+                    self._socket.close(linger=0)
+                except Exception:  # noqa: BLE001
+                    pass
+                self._socket = None
+            self._authenticated = False
+
+
+# Constructed at first watchdog_loop() entry; module-level so the
+# HTTP server and signal handler can reach it for graceful shutdown.
+PROBE: Optional[ZmqHealthProbe] = None
+
 
 # ----- Helpers ---------------------------------------------------------
 def read_cgroup_limit() -> Optional[int]:
@@ -151,28 +282,23 @@ def terminate_mt_processes(reason: str) -> int:
 
 
 # ----- ZMQ probing -----------------------------------------------------
-def zmq_health_probe(timeout_ms: int = 3000) -> dict:
-    """Send a single HEALTH request to the EA. Returns the parsed reply.
-    Caller is responsible for catching exceptions.
-    """
-    ctx = zmq.Context.instance()
-    sock = ctx.socket(zmq.REQ)
-    sock.setsockopt(zmq.LINGER, 0)
-    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-    sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
-    try:
-        sock.connect(ZMQ_ENDPOINT)
-        # Authenticate first - the EA refuses HEALTH on unauth'd sockets.
-        sock.send_string(json.dumps({"command": "PING", "auth_token": AUTH_TOKEN}))
-        sock.recv()  # discard PING reply
-        sock.send_string(json.dumps({"command": "HEALTH"}))
-        raw = sock.recv()
-        return json.loads(raw.decode("utf-8"))
-    finally:
-        try:
-            sock.close(linger=0)
-        except Exception:  # noqa: BLE001
-            pass
+# The free-function form of zmq_health_probe() has been replaced by
+# the ZmqHealthProbe class above. The class holds a long-lived REQ
+# socket and reuses it across polls; the per-poll cost drops from
+# 'PING+HEALTH = 2 round trips' to 'HEALTH = 1 round trip' on the
+# happy path. On any ZMQError the class tears down + recreates the
+# socket on the next call (REQ state machine semantics).
+#
+# This wrapper preserves the existing call shape for backwards
+# compatibility within this module (watchdog_loop calls it).
+def zmq_health_probe() -> dict:
+    global PROBE
+    if PROBE is None:
+        PROBE = ZmqHealthProbe(
+            endpoint=ZMQ_ENDPOINT,
+            auth_token=AUTH_TOKEN,
+        )
+    return PROBE.poll()
 
 
 # ----- Watchdog loop ---------------------------------------------------
@@ -338,6 +464,14 @@ def main() -> int:
 
     def _term(signum, _frame):
         log.info("watchdog received signal %s, exiting", signum)
+        # Close the long-lived REQ socket so the kernel reclaims the
+        # fd immediately rather than waiting on linger=0 in __del__.
+        global PROBE
+        if PROBE is not None:
+            try:
+                PROBE.close()
+            except Exception:  # noqa: BLE001
+                pass
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, _term)
