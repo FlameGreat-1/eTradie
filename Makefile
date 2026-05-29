@@ -359,6 +359,23 @@ mt-node-chaos: ## Run every test in tests/chaos/ (provisioner contract + soak + 
 	echo -e "$(BLUE)mt-node chaos suite...$(NC)"
 	docker compose exec -T engine python -m pytest tests/chaos/ -v --tb=short -m chaos
 
+mt-node-load-test: ## Section 10 load suite (N=10/50/100 + market-open spike + random kill). Requires ETRADIE_CHAOS_KUBECONFIG + ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT. Defaults to a 30-minute soak; export SOAK_DURATION_SECONDS to override.
+	@echo -e "$(BLUE)Section 10 load suite (multi-tenant + market-open + random kill)...$(NC)"
+	@if [ -z "$${ETRADIE_CHAOS_KUBECONFIG:-}" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 ETRADIE_CHAOS_KUBECONFIG not set. Load tests require a real staging cluster.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -z "$${ETRADIE_CHAOS_ENGINE_URL:-}" ] || [ -z "$${ETRADIE_CHAOS_ADMIN_JWT:-}" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT both required.$(NC)"; \
+		exit 1; \
+	fi
+	SOAK_DURATION_SECONDS=$${SOAK_DURATION_SECONDS:-1800} \
+		docker compose exec -T engine python -m pytest \
+		  tests/chaos/test_mt_node_load_n_tenants.py \
+		  tests/chaos/test_mt_node_market_open_spike.py \
+		  tests/chaos/test_mt_node_random_kill.py \
+		  -v --tb=short -m chaos
+
 ##@ Go Local Builds
 build-gateway: ## Build Gateway binary locally
 	echo -e "$(BLUE)Building Gateway...$(NC)"
