@@ -66,6 +66,73 @@ spec:
       {{- end }}
       {{- if and .Values.initContainer.enabled .Values.initContainer.dependencies }}
       initContainers:
+        # Migration init container: runs 'alembic upgrade head' before
+        # the engine starts. This is the industry-standard pattern for
+        # zero-downtime schema migrations: the migration runs once per
+        # deploy, completes before any engine replica accepts traffic,
+        # and is idempotent (Alembic tracks applied revisions in the
+        # alembic_version table). The engine image already contains
+        # Alembic and the migration scripts at
+        # src/engine/shared/db/migrations/.
+        #
+        # The init container uses the SAME image as the engine so the
+        # migration scripts are always in sync with the running code.
+        # It reads DATABASE_URL from the same ExternalSecret the engine
+        # reads, so no additional secrets are required.
+        #
+        # Failure behaviour: if the migration fails (e.g. a bad SQL
+        # statement), the init container exits non-zero, the Pod stays
+        # in Init:Error, and the engine never starts. ArgoCD surfaces
+        # the failure immediately. The previous engine replicas continue
+        # serving traffic (RollingUpdate with maxUnavailable=0) so
+        # there is no downtime on a failed migration.
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "[migrate] running alembic upgrade head"
+              alembic upgrade head
+              echo "[migrate] migration complete"
+          envFrom:
+            - configMapRef:
+                name: {{ include "engine.configMapName" . }}
+                optional: false
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "engine.secretName" . }}
+                optional: false
+            {{- end }}
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: HOME
+              value: "/home/etradie"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: model-cache
+              mountPath: /home/etradie/.cache
         - name: wait-for-deps
           image: "{{ .Values.initContainer.image }}"
           imagePullPolicy: {{ .Values.initContainer.pullPolicy | default "IfNotPresent" }}
