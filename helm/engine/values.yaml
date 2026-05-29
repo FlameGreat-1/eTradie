@@ -32,7 +32,21 @@ fullnameOverride: ""
 
 namespace:
   name: etradie-system
+  # Render a Namespace resource in this chart. Set to false when the
+  # namespace is created out-of-band (helmfile, terraform, ArgoCD
+  # root-app, or a manual kubectl apply during cluster bootstrap).
+  # Default true because the engine chart is the foundational service
+  # for etradie-system and owns its labels.
+  create: true
+  # PodSecurity Standard target profile. The chart renders this as
+  # the value of BOTH pod-security.kubernetes.io/warn AND audit. The
+  # follow-up MR that flips enforce will set
+  # pod-security.kubernetes.io/enforce to this same value.
   podSecurityStandard: restricted
+  # Pin the PSS rule version so a future minor K8s upgrade does NOT
+  # silently shift the enforced surface area. Bump in lockstep with
+  # the cluster's supported PSS version.
+  podSecurityStandardVersion: v1.30
 
 serviceAccount:
   create: true
