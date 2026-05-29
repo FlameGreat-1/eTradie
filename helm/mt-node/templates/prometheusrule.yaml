@@ -88,4 +88,61 @@ spec:
               incorrect credentials, NetworkPolicy blocked broker
               egress. Check Pod logs + verify broker status page.
             runbook_url: "https://docs.etradie.com/runbooks/mt-node-broker-disconnected"
+
+    # Memory leak detection. The watchdog soft-cap catches the
+    # acute case (RSS > 0.8 of cgroup limit -> restart MT5). These
+    # rules catch the slow case BEFORE the soft-cap fires.
+    - name: mt-node.memory
+      interval: 1m
+      rules:
+        # Slope of MT5 process RSS over the last 4h exceeds 50 MB/h.
+        # The mt_node_mt5_process_rss_bytes gauge is exported by the
+        # watchdog sidecar's record_process_metrics().
+        - alert: MTNodeMemoryLeak
+          expr: |
+            deriv(
+              mt_node_mt5_process_rss_bytes{namespace="{{ include "mt-node.namespace" . }}"}[4h]
+            ) > 50 * 1024 * 1024 / 3600
+          for: 30m
+          labels:
+            severity: warning
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node memory leak detected ({{`{{ $labels.pod }}`}})"
+            description: |
+              MT5 RSS has been growing at > 50 MB/h sustained over
+              the last 4 hours. This will eventually hit the cgroup
+              memory limit and trigger the watchdog soft-cap (Section
+              1) or an OOM kill. Capture the Pod for analysis before
+              the next watchdog restart: kubectl -n {{ include "mt-node.namespace" . }} exec {{`{{ $labels.pod }}`}} -c mt-node -- ps aux
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-memory-leak"
+
+        # The soft-cap has fired more than once per hour for 2 hours.
+        # This means the leak is now fast enough that the in-pod
+        # watchdog is restarting MT5 repeatedly. Operator must
+        # investigate the EA / indicators in use.
+        - alert: MTNodeMemorySoftCapTripFrequent
+          expr: |
+            sum by (namespace, pod) (
+              rate(mt_node_watchdog_memory_soft_cap_trips_total[1h])
+            ) > 0.000277
+          for: 2h
+          labels:
+            severity: critical
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node memory soft-cap tripping > 1/hour for 2h ({{`{{ $labels.pod }}`}})"
+            description: |
+              The watchdog has had to restart MT5 because RSS
+              exceeded the soft-cap fraction more than once per
+              hour for the last 2 hours. The leak is now severe;
+              the Pod's user-facing trading session is being
+              interrupted on every cap trip.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-memory-soft-cap-trip-frequent"
 {{- end }}
