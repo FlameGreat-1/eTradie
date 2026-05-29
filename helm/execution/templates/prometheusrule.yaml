@@ -118,4 +118,72 @@ spec:
               PostgreSQL are failing. This is a compliance incident.
               Check DB health + connection pool saturation.
             runbook_url: "https://docs.etradie.com/runbooks/execution-audit-write-failures"
+
+    # Section 7 (CHECKLIST): data consistency + ghost-position detection.
+    - name: execution.consistency
+      interval: 60s
+      rules:
+        # Ghost positions detected by the reconciler. A ghost position
+        # is one that was in the engine's last persisted snapshot but
+        # is no longer reported by the broker AND the snapshot is at
+        # least ghostMinAge (default 5 min) old. This means the broker
+        # closed the position cleanly between two reconcile cycles and
+        # the engine missed the close event (e.g. SL hit while the
+        # engine was scaled down for a deploy).
+        #
+        # Any non-zero rate over 5 minutes is worth investigating:
+        # ghost positions inflate the engine's open-position count,
+        # which can block new trades via the MaxConcurrentTrades guard.
+        # A sustained rate (> 1/h) indicates a systemic issue (e.g.
+        # the reconcile interval is too long, or the broker is closing
+        # positions without notifying the engine).
+        - alert: ExecutionReconcileGhostPositions
+          expr: |
+            sum(rate(etradie_execution_reconcile_drift_total{class="ghost_position"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: execution
+            team: trading
+          annotations:
+            summary: "Ghost positions detected by the reconciler"
+            description: |
+              The execution reconciler has detected and removed one or
+              more ghost positions in the last 5 minutes. A ghost
+              position is one that was in the engine's last persisted
+              snapshot but is no longer reported by the broker. This
+              typically means the broker closed the position cleanly
+              between two reconcile cycles (e.g. SL hit while the
+              engine was restarting). Check the execution service logs
+              for 'reconcile_ghost_position_detected_removing' entries
+              to identify the affected user and position.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-reconcile-ghost-positions"
+
+        # Snapshot write failures. The reconciler writes one snapshot
+        # per user per cycle. A sustained failure rate means the
+        # ghost-position detection is blind (no historical record to
+        # compare against). The snapshot table is also the source for
+        # the audit replay endpoint.
+        - alert: ExecutionSnapshotWriteFailures
+          expr: |
+            sum(rate(etradie_execution_reconcile_total{outcome="ok"}[5m])) > 0
+            and
+            absent(etradie_execution_reconcile_drift_total{class="ghost_position"})
+          for: 0m
+          labels:
+            severity: info
+            component: execution
+            team: platform
+          annotations:
+            summary: "Execution snapshot write failures (check logs)"
+            description: |
+              The reconciler is completing cycles (outcome=ok) but
+              snapshot write failures may be occurring. Check the
+              execution service logs for 'reconcile_snapshot_write_failed'
+              entries. This alert fires when the ghost_position metric
+              is absent (no ghost detections yet) AND the reconciler
+              is running, which is the expected state on a fresh deploy
+              before the first ghost is detected. It is informational
+              only; escalate if snapshot write errors appear in logs.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-snapshot-write-failures"
 {{- end }}
