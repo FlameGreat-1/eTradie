@@ -55,6 +55,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # container.shutdown() at the bottom of this lifespan.
     await container.broker_client_pool.start()
 
+    # Section 5 (CHECKLIST): refresh the etradie_active_user_connections
+    # gauge so the engine HPA can scale on user count when the operator
+    # has wired prometheus-adapter (see values.yaml autoscaling.customMetrics).
+    await container.start_active_connections_refresh(interval_secs=30.0)
+
     APP_INFO.info({"version": "1.0.0", "environment": settings.app_env.value})
 
     db_ok = await container.db.health_check()

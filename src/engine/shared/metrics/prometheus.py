@@ -387,6 +387,12 @@ BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL = Counter(
     ["provider", "account_id"],
 )
 
+ACTIVE_USER_CONNECTIONS = Gauge(
+    "etradie_active_user_connections",
+    "Number of users with at least one active broker connection by type",
+    ["connection_type"],  # ea | metaapi | hosted | total
+)
+
 TA_BROKER_FETCH_TOTAL = Counter(
     "etradie_ta_broker_fetch_total",
     "Total TA broker candle fetch attempts",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from engine.config import get_settings
@@ -517,6 +518,88 @@ class Container:
         client = await self.broker_client_pool.get(provider, account_id, _factory)
         self._user_broker_keys[user_id] = (provider, account_id)
         return client
+
+    async def refresh_active_user_connections(self) -> None:
+        """Section 5 (CHECKLIST): refresh the active-user-connections
+        gauge so the engine HPA can scale on user count.
+
+        Single SELECT grouped by connection_type. Best-effort: a
+        transient DB hiccup just leaves the gauge at the previous
+        sample.
+        """
+        try:
+            from sqlalchemy import func, select
+
+            from engine.processor.storage.schemas.broker_connection_schema import (
+                BrokerConnectionRow,
+            )
+            from engine.shared.metrics.prometheus import ACTIVE_USER_CONNECTIONS
+
+            async with self.db.read_session() as session:
+                stmt = (
+                    select(
+                        BrokerConnectionRow.connection_type,
+                        func.count(func.distinct(BrokerConnectionRow.user_id)),
+                    )
+                    .where(BrokerConnectionRow.is_active.is_(True))
+                    .group_by(BrokerConnectionRow.connection_type)
+                )
+                result = await session.execute(stmt)
+                rows = result.all()
+
+            total = 0
+            seen: set[str] = set()
+            for conn_type, count in rows:
+                value = int(count or 0)
+                ACTIVE_USER_CONNECTIONS.labels(connection_type=conn_type).set(value)
+                seen.add(conn_type)
+                total += value
+            # Zero out connection types that have no active rows so
+            # we don't carry forward a stale value.
+            for known in ("ea", "metaapi", "hosted"):
+                if known not in seen:
+                    ACTIVE_USER_CONNECTIONS.labels(connection_type=known).set(0)
+            ACTIVE_USER_CONNECTIONS.labels(connection_type="total").set(total)
+        except Exception as exc:
+            _logger.warning(
+                "refresh_active_user_connections_failed",
+                extra={"error": str(exc)},
+            )
+
+    async def _active_connections_refresh_loop(self, interval_secs: float) -> None:
+        try:
+            while True:
+                try:
+                    await self.refresh_active_user_connections()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning(
+                        "active_connections_refresh_iter_failed",
+                        extra={"error": str(exc)},
+                    )
+                await asyncio.sleep(interval_secs)
+        except asyncio.CancelledError:
+            return
+
+    async def start_active_connections_refresh(
+        self, interval_secs: float = 30.0
+    ) -> None:
+        """Launch the periodic gauge refresher.
+
+        Idempotent: a second call is a no-op once the task is running.
+        The task is registered with BackgroundTaskCoordinator so
+        shutdown drains it deterministically.
+        """
+        if getattr(self, "_active_connections_task", None) is not None:
+            return
+        # Prime the gauge immediately so the first HPA scrape after
+        # boot has a real value.
+        await self.refresh_active_user_connections()
+        self._active_connections_task = self.background_tasks.create_task(
+            self._active_connections_refresh_loop(interval_secs),
+            name="active-user-connections-refresh",
+        )
 
     async def _resolve_broker_row_meta(self, user_id: str) -> Optional[tuple[str, str]]:
         """Read the active broker_connections row JUST to get the pool
