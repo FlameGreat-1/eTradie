@@ -86,6 +86,12 @@ func NewHTTPServer(
 	mux.Handle("/api/v1/orders/cancel", wrap(s.handleCancelOrder))
 	mux.Handle("/api/v1/account", wrap(s.handleAccount))
 
+	// Section 7 Step B: audit replay endpoint.
+	// Protected by service-token auth (same RequireAuth middleware).
+	// CSRF is NOT applied because this is a GET-only operator endpoint
+	// called by executionctl, not by the browser dashboard.
+	mux.Handle("/internal/audit/replay", authMw(http.HandlerFunc(s.handleAuditReplay)))
+
 	// WebSocket notifications (auth only; the WS handshake is GET and
 	// the dashboard's WS client never POSTs, so CSRF is N/A here).
 	mux.Handle("/ws/notifications", authMw(http.HandlerFunc(alert.WebSocketHandler(transport.LocalHub()))))
@@ -403,6 +409,87 @@ func (s *HTTPServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// GET /internal/audit/replay
+//
+// Returns a chronologically-ordered JSON array of audit log events
+// for the requested user within the given time window.
+//
+// Query parameters:
+//
+//	user_id  (required) - the user whose audit log to replay.
+//	since    (required) - RFC3339 start timestamp (inclusive).
+//	until    (optional) - RFC3339 end timestamp (inclusive).
+//	                      Defaults to now. Maximum window: 7 days.
+//
+// Authentication: service-token (RequireAuth middleware). The caller
+// must present a valid JWT in the Authorization header. The endpoint
+// is NOT CSRF-protected because it is GET-only and is called by
+// executionctl, not by the browser dashboard.
+//
+// Response:
+//
+//	200 OK  - JSON array of AuditLogRow objects.
+//	400     - missing/invalid parameters.
+//	401     - missing or invalid token.
+//	500     - DB error.
+//
+// Audit ref: CHECKLIST Section 7 'Replay capability (audit + debugging)'.
+func (s *HTTPServer) handleAuditReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	q := r.URL.Query()
+	userID := strings.TrimSpace(q.Get("user_id"))
+	if userID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		return
+	}
+
+	sinceStr := strings.TrimSpace(q.Get("since"))
+	if sinceStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "since is required (RFC3339)"})
+		return
+	}
+	since, err := time.Parse(time.RFC3339, sinceStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "since must be RFC3339: " + err.Error()})
+		return
+	}
+
+	until := time.Now().UTC()
+	if untilStr := strings.TrimSpace(q.Get("until")); untilStr != "" {
+		until, err = time.Parse(time.RFC3339, untilStr)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "until must be RFC3339: " + err.Error()})
+			return
+		}
+	}
+
+	// Enforce maximum window of 7 days to prevent unbounded queries.
+	const maxWindow = 7 * 24 * time.Hour
+	if until.Sub(since) > maxWindow {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "time window exceeds maximum of 7 days",
+		})
+		return
+	}
+	if until.Before(since) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "until must be after since"})
+		return
+	}
+
+	rows, err := s.auditLog.QueryAuditLog(r.Context(), userID, since, until)
+	if err != nil {
+		s.log.Error().Err(err).Str("user_id", userID).Msg("audit_replay_query_failed")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "audit query failed"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, rows)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -25,6 +26,20 @@ func NewLogger(auditStore *store.AuditStore) *Logger {
 		auditStore: auditStore,
 		log:        observability.Logger("audit_logger"),
 	}
+}
+
+// QueryAuditLog returns audit log rows for the given user within the
+// inclusive timestamp range, ordered chronologically.
+//
+// Delegates to the underlying AuditStore. The HTTP replay handler
+// (Section 7 Step B) calls this; it enforces a maximum window of
+// 7 days before calling here.
+func (l *Logger) QueryAuditLog(
+	ctx context.Context,
+	userID string,
+	since, until time.Time,
+) ([]*store.AuditLogRow, error) {
+	return l.auditStore.QueryAuditLog(ctx, userID, since, until)
 }
 
 // LogValidationPassed records a successful validation.
