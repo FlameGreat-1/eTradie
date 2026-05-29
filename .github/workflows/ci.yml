@@ -311,6 +311,106 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/data-layer-production.yaml
+      - name: helm lint - mt-node (per-tenant render path)
+        run: |
+          # Per-tenant render. Stub identifiers match what the engine's
+          # HostedProvisioner --sets at runtime; the chart's preflight
+          # rejects unset values via _helpers.tpl, so we satisfy them
+          # here with stable test values.
+          helm lint helm/mt-node \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+      - name: helm lint - mt-node (platform-only render path)
+        run: |
+          # Platform-only render: skip per-tenant resources, exercise
+          # only the PriorityClass + platform ExternalSecret + watchdog
+          # ConfigMap that the ArgoCD app installs cluster-wide.
+          helm lint helm/mt-node \
+            --set mtConnection.enabled=false \
+            --set mtConnection.connectionId=platform \
+            --set mtConnection.userId=platform \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=platform \
+            --set mtConnection.sealedSecretName=platform \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+      - name: helm template + kubeconform - mt-node staging (per-tenant)
+        run: |
+          helm template etradie-mt-test-0000 helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-staging.yaml \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging \
+            > /tmp/mt-node-staging-tenant.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-staging-tenant.yaml
+      - name: helm template + kubeconform - mt-node production (per-tenant)
+        run: |
+          helm template etradie-mt-test-0000 helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-production.yaml \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/production \
+            > /tmp/mt-node-production-tenant.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-production-tenant.yaml
+      - name: helm template + kubeconform - mt-node production (platform-only)
+        run: |
+          # Platform-only render: PriorityClass + ExternalSecret +
+          # watchdog ConfigMap only. This is what the ArgoCD
+          # `mt-node-production` app installs cluster-wide.
+          helm template etradie-mt-node-platform helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-production.yaml \
+            --set mtConnection.enabled=false \
+            --set mtConnection.connectionId=platform \
+            --set mtConnection.userId=platform \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=platform \
+            --set mtConnection.sealedSecretName=platform \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/production \
+            > /tmp/mt-node-production-platform.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-production-platform.yaml
+      - name: helm lint - observability-logs
+        run: helm lint helm/observability-logs
+      - name: helm template + kubeconform - observability-logs staging
+        run: |
+          helm template etradie-observability-logs helm/observability-logs \
+            -f helm/observability-logs/values.yaml \
+            -f helm/observability-logs/values-staging.yaml \
+            > /tmp/observability-logs-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/observability-logs-staging.yaml
+      - name: helm template + kubeconform - observability-logs production
+        run: |
+          helm template etradie-observability-logs helm/observability-logs \
+            -f helm/observability-logs/values.yaml \
+            -f helm/observability-logs/values-production.yaml \
+            > /tmp/observability-logs-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/observability-logs-production.yaml
       - name: helm lint - billing
         run: helm lint helm/billing
       - name: helm template + kubeconform - billing staging
