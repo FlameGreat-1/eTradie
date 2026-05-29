@@ -204,6 +204,18 @@ config:
     requestDeadlineSafetyMs: "50"
     brokerPoolIdleTimeoutSecs: "600"
     brokerPoolSweepIntervalSecs: "60"
+    # Section 8 (CHECKLIST): hosted MT-node failure recovery loop.
+    # Read by engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig
+    # at engine boot. The eager startup sweep runs unconditionally
+    # when enabled=true; the background sweep ticks every
+    # sweepIntervalSecs. A StatefulSet that has been not-Ready longer
+    # than unhealthyThresholdSecs is reprovisioned, respecting a
+    # per-connection cooldown of reprovisionCooldownSecs to avoid
+    # stampeding a permanently broken connection.
+    hostedRecoveryEnabled: "true"
+    hostedRecoverySweepIntervalSecs: "60"
+    hostedRecoveryUnhealthyThresholdSecs: "600"
+    hostedRecoveryReprovisionCooldownSecs: "300"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential
