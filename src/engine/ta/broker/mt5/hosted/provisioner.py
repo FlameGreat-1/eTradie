@@ -126,8 +126,11 @@ _ENC_KEY_ENV = "MT_NODE_CREDENTIAL_ENCRYPTION_KEY"
 def _load_encryption_key() -> bytes:
     """Return a 32-byte key derived from MT_NODE_CREDENTIAL_ENCRYPTION_KEY.
 
-    The env var carries a hex string (>=32 hex chars => >=16 bytes).
-    32 bytes (AES-256-GCM) is the platform-recommended size.
+    The env var carries a hex string. Production MUST use exactly 32 bytes
+    (AES-256-GCM, 64 hex chars). Development accepts 16 or 24 bytes for
+    convenience but logs a warning. The key is validated at call time so
+    a misconfigured engine pod fails its first hosted provision attempt
+    with a clear ConfigurationError rather than silently using a weak key.
     """
     raw = os.environ.get(_ENC_KEY_ENV, "").strip()
     if not raw:
@@ -141,13 +144,37 @@ def _load_encryption_key() -> bytes:
         key = bytes.fromhex(raw)
     except ValueError as exc:
         raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must be a hex string",
+            f"{_ENC_KEY_ENV} must be a hex string (e.g. output of 'openssl rand -hex 32')",
             details={"env_var": _ENC_KEY_ENV, "error": str(exc)},
         ) from exc
+
+    app_env = os.environ.get("APP_ENV", "development").strip().lower()
+    is_prod_like = app_env in ("production", "staging")
+
+    if is_prod_like and len(key) != 32:
+        raise ConfigurationError(
+            f"{_ENC_KEY_ENV} must decode to exactly 32 bytes (AES-256-GCM) in "
+            f"production/staging. Got {len(key)} bytes. "
+            "Generate with: openssl rand -hex 32",
+            details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
+        )
     if len(key) not in (16, 24, 32):
         raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must decode to 16, 24, or 32 bytes (got {len(key)}). 32 recommended.",
+            f"{_ENC_KEY_ENV} must decode to 16, 24, or 32 bytes (got {len(key)}). "
+            "32 bytes (AES-256-GCM) is required in production.",
             details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
+        )
+    if not is_prod_like and len(key) != 32:
+        logger.warning(
+            "mt_node_credential_encryption_key_not_32_bytes",
+            extra={
+                "byte_len": len(key),
+                "warning": (
+                    f"{_ENC_KEY_ENV} is {len(key)} bytes. "
+                    "Production requires exactly 32 bytes (AES-256-GCM). "
+                    "Generate with: openssl rand -hex 32"
+                ),
+            },
         )
     return key
 
