@@ -189,47 +189,17 @@ func main() {
 		cfg.MaxOrderLatencyMs,
 	)
 
-	// ── gRPC server ────────────────────────────────────────────────────────
-	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
-
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
-	if err != nil {
-		log.Fatal().Err(err).Int("port", cfg.GRPCPort).Msg("grpc_listen_failed")
-	}
-
-	// gRPC methods that bypass authentication (health checks).
-	skipAuth := map[string]bool{
-		"/grpc.health.v1.Health/Check": true,
-		"/grpc.health.v1.Health/Watch": true,
-	}
-
-	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			auth.UnaryAuthInterceptor(tokenService, skipAuth),
-		),
-	)
-	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
-	reflection.Register(grpcServer)
-
-	go func() {
-		log.Info().Int("port", cfg.GRPCPort).Msg("execution_grpc_server_started")
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatal().Err(err).Msg("grpc_serve_failed")
-		}
-	}()
-
-	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────────
-	// authCfg flows through so the HTTP server can build the CSRF
-	// middleware (auth.RequireCSRF) AND emit the configured CSRF header
-	// name in the CORS Allow-Headers preflight response. Without this,
-	// renaming AUTH_CSRF_HEADER silently broke every mutating request.
-	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService, authCfg)
-
-	go func() {
-		if err := httpServer.Start(); err != nil {
-			log.Fatal().Err(err).Msg("http_api_server_failed")
-		}
-	}()
+	// ──────────────────────────────────────────────────────────────────────
+	// CRITICAL BOOT ORDER:
+	//
+	// Restore pending watchers + seed tick-cache + start background
+	// goroutines BEFORE the gRPC listener accepts traffic. Otherwise a
+	// gateway call landing in the window between Serve(lis) and the
+	// restoration block would observe a watcher.Manager with zero
+	// pending watchers and could double-arm the same setup.
+	//
+	// Audit ref: CHECKLIST Section 3 'Trade state recovery after crash'.
+	// ──────────────────────────────────────────────────────────────────────
 
 	// -- Restore pending watchers from database on restart ----------------
 	// Pending watchers are instant-mode orders waiting for price to enter
@@ -403,6 +373,53 @@ func main() {
 		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
 	)
 	go reconciler.Loop(gcCtx)
+
+	// ──────────────────────────────────────────────────────────────────────
+	// At this point, state is fully restored and background loops are
+	// running. NOW it is safe to open the listener and accept traffic.
+	// ──────────────────────────────────────────────────────────────────────
+
+	// ── gRPC server ────────────────────────────────────────────────────────
+	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
+	if err != nil {
+		log.Fatal().Err(err).Int("port", cfg.GRPCPort).Msg("grpc_listen_failed")
+	}
+
+	// gRPC methods that bypass authentication (health checks).
+	skipAuth := map[string]bool{
+		"/grpc.health.v1.Health/Check": true,
+		"/grpc.health.v1.Health/Watch": true,
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			auth.UnaryAuthInterceptor(tokenService, skipAuth),
+		),
+	)
+	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
+	reflection.Register(grpcServer)
+
+	go func() {
+		log.Info().Int("port", cfg.GRPCPort).Msg("execution_grpc_server_started")
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal().Err(err).Msg("grpc_serve_failed")
+		}
+	}()
+
+	// ── HTTP API server (REST + WebSocket + metrics + health) ─────────────
+	// authCfg flows through so the HTTP server can build the CSRF
+	// middleware (auth.RequireCSRF) AND emit the configured CSRF header
+	// name in the CORS Allow-Headers preflight response. Without this,
+	// renaming AUTH_CSRF_HEADER silently broke every mutating request.
+	httpServer := server.NewHTTPServer(cfg.HTTPPort, sm, bp, settingsStore, al, alertTransport, tokenService, authCfg)
+
+	go func() {
+		if err := httpServer.Start(); err != nil {
+			log.Fatal().Err(err).Msg("http_api_server_failed")
+		}
+	}()
 
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
