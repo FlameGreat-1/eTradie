@@ -5,9 +5,15 @@ implementation.  This is the single entry point for creating
 an MT5-compatible broker client.
 
 Three creation paths from DB rows:
-  1. connection_type='ea'      -> ZmqClient (user's own PC/VPS)
+  1. connection_type='ea'      -> ZmqClient (LOCAL DEVELOPMENT ONLY.
+                                  Reads single-tenant MT5_ZMQ_* env vars
+                                  from the engine's own environment.
+                                  Rejected at the router in production
+                                  and staging.)
   2. connection_type='metaapi'  -> MetaApiClient (cloud REST)
-  3. connection_type='hosted'   -> ZmqClient (Dockerized MT on-server)
+  3. connection_type='hosted'   -> ZmqClient (per-tenant Wine+Xvfb+MT5
+                                   Pod in-cluster, provisioned by
+                                   HostedProvisioner)
 """
 
 from __future__ import annotations
