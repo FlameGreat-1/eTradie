@@ -349,3 +349,23 @@ What changes operationally:
 Both pricing options are excellent for the scale of platform you're building. Start on VPS 20, upgrade in-place to VPS 30 the moment you hit consistent 10+ concurrent active users.
 
 **Cost-to-revenue check:** at £13.70/month for VPS 30, if your pro_managed tier sells at even £15/month, **one paying user covers your entire infrastructure**. Margins look healthy.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
