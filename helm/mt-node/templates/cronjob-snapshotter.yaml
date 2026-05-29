@@ -1,0 +1,87 @@
+{{- if and .Values.snapshotter.enabled (not .Values.mtConnection.enabled) }}
+{{- $snapshotClassName := required "helm/mt-node: .Values.snapshotter.volumeSnapshotClassName is required when snapshotter.enabled=true. The operator must create a VolumeSnapshotClass in the cluster (CSI-specific) and pin its name here, e.g. 'csi-disk-snapclass'." .Values.snapshotter.volumeSnapshotClassName -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "mt-node.fullname" . }}-snapshotter
+  namespace: {{ include "mt-node.namespace" . }}
+  labels:
+    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: snapshotter
+spec:
+  schedule: {{ .Values.snapshotter.schedule | default "0 2 * * *" | quote }}
+  # Forbid overlap: VolumeSnapshot creation can be slow on some CSI
+  # drivers; we never want two snapshotter Pods racing on the same
+  # PVC list.
+  concurrencyPolicy: Forbid
+  # Keep some history for diagnostics. Failed jobs stay 7 days; success
+  # only keeps the last 3 because they are noisy.
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  # Skip the run if more than 1h late (kubelet was down, etc.).
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "mt-node.labels" . | nindent 8 }}
+        app.kubernetes.io/component: snapshotter
+    spec:
+      backoffLimit: {{ .Values.snapshotter.backoffLimit | default 3 }}
+      activeDeadlineSeconds: {{ .Values.snapshotter.activeDeadlineSeconds | default 1800 }}
+      ttlSecondsAfterFinished: {{ .Values.snapshotter.ttlSecondsAfterFinished | default 86400 }}
+      template:
+        metadata:
+          labels:
+            {{- include "mt-node.labels" . | nindent 12 }}
+            app.kubernetes.io/component: snapshotter
+        spec:
+          serviceAccountName: {{ include "mt-node.fullname" . }}-snapshotter
+          automountServiceAccountToken: true
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snapshotter
+              image: {{ .Values.snapshotter.image.repository | required "helm/mt-node: .Values.snapshotter.image.repository is required (typically the same image as helm/engine since the script lives in engine.admin)" }}:{{ .Values.snapshotter.image.tag | default .Chart.AppVersion }}
+              imagePullPolicy: {{ .Values.snapshotter.image.pullPolicy | default "IfNotPresent" }}
+              command:
+                - python3
+                - -m
+                - engine.admin.snapshot_wine_prefixes
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1000
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: MT_NODE_NAMESPACE
+                  value: {{ include "mt-node.namespace" . | quote }}
+                - name: MT_NODE_SNAPSHOT_CLASS_NAME
+                  value: {{ $snapshotClassName | quote }}
+                - name: MT_NODE_SNAPSHOT_RETENTION_DAYS
+                  value: {{ .Values.snapshotter.retentionDays | default 7 | quote }}
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              resources:
+                {{- toYaml .Values.snapshotter.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: home
+                  mountPath: /home/etradie
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+            - name: home
+              emptyDir:
+                sizeLimit: 64Mi
+{{- end }}

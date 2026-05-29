@@ -1,11 +1,19 @@
 Place the ZeroMQ_EA compiled binaries here before building the Docker image:
 
-- `ZeroMQ_EA.ex4`
-- `ZeroMQ_EA.ex5`
+- `ZeroMQ_EA.ex5` — MetaTrader 5 compiled EA binary (required)
+- `ZeroMQ_EA.ex4` — MetaTrader 4 compiled EA binary (required for MT4 support)
 
-These will be automatically copied into the `etradie-mt-node` Docker image during the build process, eliminating the need to manually mount them on the host VPS.
+The MQL5 and MQL4 source files live at:
+  `src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5`
+  `src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq4`
 
+Compile using MetaEditor (Windows) and copy the resulting `.ex5` / `.ex4`
+binaries into this directory before running `make build-mt-node`.
 
-How it works automatically now: You no longer need to SSH into your VPS to upload files to /opt/ea/. All you need to do is place your compiled ZeroMQ_EA.ex4 and ZeroMQ_EA.ex5 files inside the docker/mt-node/ea/ folder in this repository before you build the image (docker build -t etradie-mt-node docker/mt-node/).
+The Dockerfile verifies the SHA256 of each binary at build time via the
+`EA_EX5_SHA256` and `EA_EX4_SHA256` build-args. Pass `skip` for dev builds
+that do not require supply-chain verification.
 
-Docker will permanently embed them into the image. When the Engine daemon spins up new user containers, the EA binaries will already be safely isolated inside every single one of them. Fully automatic and 100% VPS-agnostic!
+Note: `ZeroMQ_EA.ex4` is currently absent from the repository. MT4 support
+is therefore non-functional until the `.ex4` binary is compiled and committed.
+MT5 (`.ex5`) is fully functional.

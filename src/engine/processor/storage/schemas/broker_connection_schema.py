@@ -2,9 +2,11 @@
 
 Stores user-configured MT5 broker connections with encrypted credentials.
 Supports three connection types:
-  - 'ea': ZeroMQ EA bridge (local PC or cloud VPS)
+  - 'ea': ZeroMQ EA bridge (LOCAL DEVELOPMENT ONLY - reads single-tenant
+    MT5_ZMQ_* env vars; rejected at the router in production/staging)
   - 'metaapi': MetaApi.cloud REST API
-  - 'hosted': Dockerized MetaTrader running on-server via Wine/Xvfb
+  - 'hosted': Per-tenant Wine+Xvfb+MT5 Pod provisioned by HostedProvisioner
+    in-cluster; the recommended production path for self-hosted MT5.
 
 Only one connection can be active at a time.
 The is_primary flag marks the preferred connection for trading.
@@ -116,6 +118,16 @@ class BrokerConnectionRow(ProcessorBase):
     mt5_password_encrypted: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
+    )
+    # Default chart symbol for the hosted MT terminal. The engine writes
+    # this into the StatefulSet's MT_SYMBOL env var at provision time.
+    # The watchdog uses it to probe the EA's tick stream. Stored here so
+    # the HostedRecoveryService can re-provision with the correct symbol
+    # instead of hardcoding 'EURUSD'.
+    mt5_symbol: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        server_default="EURUSD",
     )
 
     # -- State flags -----------------------------------------------------------

@@ -204,7 +204,7 @@ class Container:
         # Invalidated when user changes their broker connection.
         # Section 5 (CHECKLIST): backed by BrokerClientPool which adds
         # per-key construction lock + idle eviction + metrics. The
-        # dict above is kept only as a (user_id -> (provider, account_id))
+        # dict below is kept only as a (user_id -> (provider, account_id))
         # index so invalidate_user_broker can translate user_id to
         # pool key without re-reading the database.
         from engine.ta.broker.mt5.client_pool import BrokerClientPool
@@ -220,11 +220,6 @@ class Container:
         # pool entry to evict when invalidate_user_broker is called.
         # NOT a client cache - the pool is the source of truth.
         self._user_broker_keys: dict[str, tuple[str, str]] = {}
-        # Retained ONLY for backwards-compat with code paths that
-        # historically read this dict directly. New code MUST go
-        # through broker_client_pool. Removed in the next MR after a
-        # full audit confirms no external reads remain.
-        self._user_brokers: dict[str, BrokerBase] = {}
 
         # Section 8 (CHECKLIST): hosted MT-node failure recovery. The
         # service is built lazily on the first access via the
@@ -684,9 +679,6 @@ class Container:
         so the cached client is closed AND the pool size metric is
         updated atomically.
         """
-        # Drop the legacy dict entry too so any straggler reader sees
-        # consistent state.
-        self._user_brokers.pop(user_id, None)
         key = self._user_broker_keys.pop(user_id, None)
         if key is not None:
             provider, account_id = key
@@ -1420,7 +1412,6 @@ class Container:
                 extra={"error": str(exc)},
             )
         self._user_broker_keys.clear()
-        self._user_brokers.clear()
         
         # Close the global system-level processor LLM client.
         if hasattr(self, "processor_llm_client"):

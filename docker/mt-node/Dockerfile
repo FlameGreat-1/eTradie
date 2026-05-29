@@ -63,6 +63,19 @@ ARG EA_EX5_SHA256=""
 ARG EA_EX4_SHA256=""
 ARG TINI_VERSION=v0.19.0
 ARG WINEHQ_BRANCH=stable
+# WINEHQ_VERSION pins the EXACT apt version string for every winehq-*
+# package. Production CI MUST set this; dev builds may leave it empty
+# (the build then prints a loud WARN). The canonical way to discover
+# the current pin value is to run apt-cache policy winehq-stable
+# inside a fresh ubuntu:24.04 container with the winehq apt source
+# configured. The snippet lives in docker/mt-node/README.md.
+#
+# Pin BOTH the meta-package (winehq-${WINEHQ_BRANCH}) AND the
+# sub-packages (wine-${WINEHQ_BRANCH}, wine-${WINEHQ_BRANCH}-amd64,
+# wine-${WINEHQ_BRANCH}-i386) to the same version string. Otherwise
+# apt resolves the meta-package's deps freely on every build and
+# the pin is effectively cosmetic.
+ARG WINEHQ_VERSION=""
 
 # ── System dependencies + WineHQ apt source ───────────────────────────────
 RUN set -eux; \
@@ -80,8 +93,29 @@ RUN set -eux; \
     echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ ${UBUNTU_CODENAME} main" \
         > /etc/apt/sources.list.d/winehq.list; \
     apt-get update; \
-    apt-get install -y --no-install-recommends --install-recommends \
-        winehq-${WINEHQ_BRANCH}; \
+    # WineHQ packages explicitly need their Recommends (libs for
+    # 32-bit support, mesa, freetype variants, etc.). The previous
+    # Dockerfile carried both --no-install-recommends and
+    # --install-recommends on the same line; apt's last-flag-wins
+    # meant Recommends were always installed but the intent was
+    # unclear. Spell out the correct flag.
+    if [ -n "${WINEHQ_VERSION}" ]; then \
+        echo "INFO: pinning winehq-${WINEHQ_BRANCH} to version ${WINEHQ_VERSION}" >&2; \
+        apt-get install -y --install-recommends \
+            winehq-${WINEHQ_BRANCH}=${WINEHQ_VERSION} \
+            wine-${WINEHQ_BRANCH}=${WINEHQ_VERSION} \
+            wine-${WINEHQ_BRANCH}-amd64=${WINEHQ_VERSION} \
+            wine-${WINEHQ_BRANCH}-i386=${WINEHQ_VERSION}; \
+        apt-mark hold \
+            winehq-${WINEHQ_BRANCH} \
+            wine-${WINEHQ_BRANCH} \
+            wine-${WINEHQ_BRANCH}-amd64 \
+            wine-${WINEHQ_BRANCH}-i386; \
+    else \
+        echo "WARN: WINEHQ_VERSION build-arg is empty - Wine will install at whatever winehq-${WINEHQ_BRANCH} resolves to today. This build is NOT reproducible. Production CI MUST set WINEHQ_VERSION." >&2; \
+        apt-get install -y --install-recommends \
+            winehq-${WINEHQ_BRANCH}; \
+    fi; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 

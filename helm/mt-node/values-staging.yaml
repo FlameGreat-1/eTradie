@@ -5,6 +5,9 @@
 # ENV environment variable on the engine Pod.
 
 image:
+  # CHECKLIST hardening (Gap #13): explicit mt-node image. Same
+  # reasoning as values-production.yaml.
+  repository: ghcr.io/flamegreat-1/etradie-mt-node
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 

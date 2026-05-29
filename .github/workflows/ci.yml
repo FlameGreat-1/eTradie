@@ -311,6 +311,113 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/data-layer-production.yaml
+      - name: helm lint - mt-node (per-tenant render path)
+        run: |
+          # Per-tenant render. Stub identifiers match what the engine's
+          # HostedProvisioner --sets at runtime; the chart's preflight
+          # rejects unset values via _helpers.tpl, so we satisfy them
+          # here with stable test values. image.repository is REQUIRED
+          # by the chart (Gap #13); CI uses a stub registry path so
+          # the lint succeeds without leaking the personal namespace
+          # default into the test surface.
+          helm lint helm/mt-node \
+            --set image.repository=ghcr.io/ci-stub/etradie-mt-node \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+      - name: helm lint - mt-node (platform-only render path)
+        run: |
+          # Platform-only render: skip per-tenant resources, exercise
+          # only the PriorityClass + platform ExternalSecret + watchdog
+          # ConfigMap that the ArgoCD app installs cluster-wide.
+          helm lint helm/mt-node \
+            --set image.repository=ghcr.io/ci-stub/etradie-mt-node \
+            --set mtConnection.enabled=false \
+            --set mtConnection.connectionId=platform \
+            --set mtConnection.userId=platform \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=platform \
+            --set mtConnection.sealedSecretName=platform \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
+      - name: helm template + kubeconform - mt-node staging (per-tenant)
+        run: |
+          # values-staging.yaml already sets image.repository for the
+          # repo's own staging deployment. No --set override needed.
+          helm template etradie-mt-test-0000 helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-staging.yaml \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging \
+            > /tmp/mt-node-staging-tenant.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-staging-tenant.yaml
+      - name: helm template + kubeconform - mt-node production (per-tenant)
+        run: |
+          helm template etradie-mt-test-0000 helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-production.yaml \
+            --set mtConnection.connectionId=test-conn-0000 \
+            --set mtConnection.userId=test-user-0000 \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=Exness-MT5Trial9 \
+            --set mtConnection.sealedSecretName=test-conn-creds \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/production \
+            > /tmp/mt-node-production-tenant.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-production-tenant.yaml
+      - name: helm template + kubeconform - mt-node production (platform-only)
+        run: |
+          # Platform-only render: PriorityClass + ExternalSecret +
+          # watchdog ConfigMap only. This is what the ArgoCD
+          # `mt-node-production` app installs cluster-wide.
+          helm template etradie-mt-node-platform helm/mt-node \
+            -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-production.yaml \
+            --set mtConnection.enabled=false \
+            --set mtConnection.connectionId=platform \
+            --set mtConnection.userId=platform \
+            --set mtConnection.platform=mt5 \
+            --set mtConnection.server=platform \
+            --set mtConnection.sealedSecretName=platform \
+            --set externalSecrets.platform.vaultPath=etradie/services/mt-node/production \
+            > /tmp/mt-node-production-platform.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/mt-node-production-platform.yaml
+      - name: helm lint - observability-logs
+        run: helm lint helm/observability-logs
+      - name: helm template + kubeconform - observability-logs staging
+        run: |
+          helm template etradie-observability-logs helm/observability-logs \
+            -f helm/observability-logs/values.yaml \
+            -f helm/observability-logs/values-staging.yaml \
+            > /tmp/observability-logs-staging.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/observability-logs-staging.yaml
+      - name: helm template + kubeconform - observability-logs production
+        run: |
+          helm template etradie-observability-logs helm/observability-logs \
+            -f helm/observability-logs/values.yaml \
+            -f helm/observability-logs/values-production.yaml \
+            > /tmp/observability-logs-production.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/observability-logs-production.yaml
       - name: helm lint - billing
         run: helm lint helm/billing
       - name: helm template + kubeconform - billing staging
@@ -495,6 +602,17 @@ jobs:
           - service: billing
             dockerfile: src/billing/Dockerfile
             context: .
+          # CHECKLIST hardening: mt-node image was previously not in
+          # the matrix at all. PR-time CI did NOT exercise the
+          # Dockerfile; a breaking change only surfaced at operator
+          # run-time. Adding it here closes the gap and pairs with
+          # Commit 11's production-build guard below that REJECTS
+          # a main-branch build without WINEHQ_VERSION + non-public
+          # MT5_INSTALLER_URL.
+          - service: mt-node
+            dockerfile: docker/mt-node/Dockerfile
+            context: docker/mt-node/
+            extra_build_args: mt-node
     env:
       # Image registry path that helm/<service>/values.yaml encodes.
       # GHCR is case-sensitive: owner + repo must be lowercase.
@@ -534,6 +652,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # CHECKLIST hardening (Gap #12): mt-node production builds
+      # MUST pin Wine version AND MUST NOT depend on the public
+      # mql5.com CDN unless explicitly opted in. This guard runs
+      # ONLY on main-branch builds (PR builds skip so contributors
+      # can iterate); it short-circuits the matrix step with a
+      # clear error message instead of producing an image that is
+      # silently non-reproducible / supply-chain-unsafe.
+      - name: Production build guard - mt-node
+        if: matrix.service == 'mt-node' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          WINEHQ_VERSION: ${{ secrets.WINEHQ_VERSION }}
+          MT5_INSTALLER_URL: ${{ secrets.MT5_INSTALLER_URL }}
+          ALLOW_PUBLIC: ${{ secrets.ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN }}
+        run: |
+          set -eu
+          if [ -z "$WINEHQ_VERSION" ]; then
+            echo "FATAL: secrets.WINEHQ_VERSION must be set for main-branch mt-node builds." >&2
+            echo "       The image would otherwise install whatever winehq-stable resolves" >&2
+            echo "       to today (today's 9.x; tomorrow's bump silently lands in prod)." >&2
+            echo "       Discover the current value with the snippet in docker/mt-node/README.md" >&2
+            echo "       and add it as a GitHub Actions repo secret." >&2
+            exit 1
+          fi
+          case "${MT5_INSTALLER_URL:-https://download.mql5.com/}" in
+            *download.mql5.com*)
+              if [ "${ALLOW_PUBLIC:-false}" != "true" ]; then
+                echo "FATAL: production mt-node builds must NOT depend on the public" >&2
+                echo "       mql5.com CDN. Set secrets.MT5_INSTALLER_URL to your" >&2
+                echo "       internal mirror (Artifactory / S3 / Nexus). To override" >&2
+                echo "       this guard temporarily (e.g. during initial bootstrap)," >&2
+                echo "       set secrets.ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN to the" >&2
+                echo "       literal string 'true'." >&2
+                exit 1
+              fi
+              echo "WARN: building against public mql5.com CDN (opt-in acknowledged via ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN)" >&2
+              ;;
+          esac
+          echo "production build guard passed: WINEHQ_VERSION=$WINEHQ_VERSION"
+
       - name: Build${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && ' and push' || '' }} ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
@@ -548,6 +705,16 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           provenance: false
           sbom: false
+          # mt-node needs the supply-chain build-args plumbed in;
+          # other services have no build args and ignore this block.
+          build-args: |
+            MT5_INSTALLER_SHA256=${{ matrix.service == 'mt-node' && (secrets.MT5_INSTALLER_SHA256 || 'skip') || '' }}
+            MT4_INSTALLER_SHA256=${{ matrix.service == 'mt-node' && (secrets.MT4_INSTALLER_SHA256 || 'skip') || '' }}
+            MT5_INSTALLER_URL=${{ matrix.service == 'mt-node' && (secrets.MT5_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe') || '' }}
+            MT4_INSTALLER_URL=${{ matrix.service == 'mt-node' && (secrets.MT4_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe') || '' }}
+            EA_EX5_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX5_SHA256 || 'skip') || '' }}
+            EA_EX4_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX4_SHA256 || 'skip') || '' }}
+            WINEHQ_VERSION=${{ matrix.service == 'mt-node' && secrets.WINEHQ_VERSION || '' }}
 
       # Smoke-verify the engine image only (it is the one we used to
       # verify before this commit; the Go images are statically linked

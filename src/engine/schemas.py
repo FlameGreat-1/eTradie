@@ -153,6 +153,10 @@ class CreateBrokerConnectionRequest(BaseModel):
     mt5_password: Optional[str] = None
     mt5_server: Optional[str] = None
     platform: str = Field(default="mt5", description="Trading platform (mt4 or mt5)")
+    # Default chart symbol for the hosted MT terminal (broker-correct name,
+    # e.g. 'EURUSDm' on Exness). Defaults to 'EURUSD'. The engine writes
+    # this into the StatefulSet's MT_SYMBOL env var at provision time.
+    mt5_symbol: str = Field(default="EURUSD", description="Default chart symbol (broker-correct name)")
     # EA: no user-facing fields (auto from env)
     activate: bool = True
 

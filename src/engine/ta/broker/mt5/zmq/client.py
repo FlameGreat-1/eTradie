@@ -141,6 +141,17 @@ class ZmqClient(BrokerBase):
         self._socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._lock = asyncio.Lock()
         self._initialized = False
+        # CHECKLIST hardening: track when the trading socket last
+        # came up so a successful tick fetch shortly afterward can
+        # be attributed to a 'recovery' for SLO observability. See
+        # docs/architecture/broker-connectivity.md for the contract.
+        self._connect_ts: float = 0.0
+        # Window during which a successful get_tick_price() after a
+        # (re)connect counts as a 'tick recovery'. Wider than typical
+        # broker reply latency (~250ms) so a slow reply still
+        # counts; tight enough that an unrelated tick fetch hours
+        # later does NOT inflate the metric.
+        self._tick_recovery_window_secs: float = 30.0
         # The candles socket is a fully isolated REQ/REP pair used only by
         # fetch_candles(). The MT5 EA binds a single REP socket but ZMQ
         # serializes replies internally, so two REQ clients can submit work
@@ -179,6 +190,10 @@ class ZmqClient(BrokerBase):
         self._socket.setsockopt(zmq.LINGER, 0)
         self._socket.connect(self._endpoint)
         self._initialized = True
+        # Record the connect moment so a successful tick fetch shortly
+        # afterward can be attributed to recovery. See
+        # get_tick_price() for the metric increment.
+        self._connect_ts = _time.monotonic()
         logger.info(
             "zmq_connected",
             extra={"endpoint": self._endpoint, "socket": "trading"},
@@ -920,6 +935,34 @@ class ZmqClient(BrokerBase):
         # was injected (test path / back-test replay).
         if self._freshness_guard is not None:
             self._freshness_guard.assert_fresh(symbol=symbol, tick_unix_ts=tick.time)
+        # CHECKLIST hardening: when this tick fetch succeeded within
+        # _tick_recovery_window_secs of the most recent socket
+        # connect, count it as a 'recovery'. The metric gives
+        # operators empirical evidence that REQ/REP's request-driven
+        # contract produces clean recovery after a reconnect (the
+        # design property documented in
+        # docs/architecture/broker-connectivity.md).
+        if self._connect_ts > 0.0:
+            since_connect = _time.monotonic() - self._connect_ts
+            if 0.0 <= since_connect <= self._tick_recovery_window_secs:
+                try:
+                    from engine.shared.metrics.prometheus import (
+                        BROKER_TICK_FETCH_RECOVERY_TOTAL,
+                    )
+                    BROKER_TICK_FETCH_RECOVERY_TOTAL.labels(
+                        provider=self.provider_name,
+                        account_id=self.account_id,
+                    ).inc()
+                except ImportError:
+                    # The metric is added alongside this code. A
+                    # downstream consumer pulling an older
+                    # prometheus.py loses only the SLO counter, not
+                    # the actual recovery behaviour.
+                    pass
+                # Reset so the SAME connect only counts once. The
+                # next successful tick on the same socket does NOT
+                # re-fire the metric. A future reconnect re-arms it.
+                self._connect_ts = 0.0
         return tick
 
     async def ea_identity(self) -> EAIdentitySnapshot:

@@ -1,0 +1,46 @@
+{{- if .Values.namespace.create }}
+{{- /*
+Namespace ownership for etradie-system.
+
+Why this lives in the engine chart, not a standalone observability
+chart: the engine is the foundational service for this namespace
+(sync-wave -2 alongside data-layer; mt-node + execution + management
++ gateway depend on it). Two charts cannot both render a Namespace
+resource without ArgoCD reporting a conflict, so we keep ownership
+in exactly one chart - this one.
+
+The three PodSecurity Standard labels follow the canonical
+Kubernetes rollout sequence (docs.kubernetes.io/concepts/security/
+pod-security-standards): warn + audit FIRST, enforce LATER. A
+follow-up MR flips warn/audit -> enforce once the engineering team
+has reviewed one full deploy cycle of audit log events with no
+violations.
+
+Going straight to `enforce` risks rejecting a Pod that warn-only
+would have surfaced safely. Every production-grade PSS rollout
+runbook explicitly recommends this two-step approach.
+
+Audit ref: CHECKLIST Section 9 + CIS Kubernetes Benchmark v1.8 5.2.x.
+*/ -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "engine.namespace" . }}
+  labels:
+    # NamespaceDefaultLabelName admission (GA in K8s 1.22+) sets
+    # kubernetes.io/metadata.name automatically. Re-declare it here
+    # so the label is also visible in `helm template` dry-renders.
+    kubernetes.io/metadata.name: {{ include "engine.namespace" . }}
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    # PodSecurity Standard labels. WARN + AUDIT only at this stage.
+    # Production cutover to ENFORCE is a follow-up MR (commit 4 in
+    # the Section-8 hardening series intentionally does NOT flip
+    # enforce, see commit message for the full reasoning).
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" | quote }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" | quote }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
+  annotations:
+    description: "eTradie platform namespace. PodSecurity Standard warn+audit=restricted. Enforce flip is gated on operator review of one full deploy cycle of audit-log events."
+{{- end }}

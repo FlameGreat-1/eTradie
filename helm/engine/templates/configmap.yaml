@@ -140,14 +140,19 @@ data:
 
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
-  MT_NODE_IMAGE: {{ .Values.config.mtNode.image | quote }}
+  # CHECKLIST hardening (Gap #13): image is REQUIRED. The required-
+  # template-function fails the helm render with a clear message
+  # when the deployment overlay has not set it. Without this, a
+  # silent inheritance of an empty string would render an unusable
+  # ConfigMap (engine pod start crashes at HostedProvisioner._resolve_image).
+  MT_NODE_IMAGE: {{ required "helm/engine: .Values.config.mtNode.image is REQUIRED. Set it in helm/engine/values-{staging,production}.yaml to the pinned mt-node image, e.g. ghcr.io/<your-org>/etradie-mt-node@sha256:<digest>." .Values.config.mtNode.image | quote }}
   MT_NODE_MEM_LIMIT: {{ .Values.config.mtNode.memLimit | quote }}
   MT_NODE_MEM_REQUEST: {{ .Values.config.mtNode.memRequest | quote }}
   MT_NODE_CPU_LIMIT: {{ .Values.config.mtNode.cpuLimit | quote }}
   MT_NODE_CPU_REQUEST: {{ .Values.config.mtNode.cpuRequest | quote }}
   MT_NODE_EPHEMERAL_LIMIT: {{ .Values.config.mtNode.ephemeralLimit | quote }}
   MT_NODE_EPHEMERAL_REQUEST: {{ .Values.config.mtNode.ephemeralRequest | quote }}
-  MT_NODE_PVC_SIZE: {{ .Values.config.mtNode.pvcSize | quote }}
+  MT_NODE_PVC_SIZE: {{ .Values.config.mtNode.pvcSize | default "4Gi" | quote }}
   MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
   MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
-  MT_NODE_ZMQ_PROBE_TIMEOUT_SECS: {{ .Values.config.mtNode.zmqProbeTimeoutSecs | quote }}
+  MT_NODE_MAX_HOSTED_PER_USER: {{ .Values.config.mtNode.maxHostedPerUser | default "1" | quote }}

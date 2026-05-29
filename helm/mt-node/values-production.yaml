@@ -5,6 +5,11 @@
 # dedicated etradie-system node taint.
 
 image:
+  # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
+  # values.yaml deliberately leaves image.repository empty so
+  # production cannot inherit a default. Forks override this single
+  # line; the personal-namespace string lives nowhere else.
+  repository: ghcr.io/flamegreat-1/etradie-mt-node
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
@@ -15,14 +20,28 @@ podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
 
+# CHECKLIST hardening: Guaranteed QoS class for mt-node Pods.
+# requests == limits for CPU AND memory on every container.
+# Integer CPU on the mt-node container so the kubelet's static CPU
+# manager (when enabled cluster-side via --cpu-manager-policy=static)
+# assigns exclusive cores. See docs/runbooks/mt-node-cpu-pinning.md
+# for the operator-side enablement procedure.
+#
+# Why 2 cores: the production soak-test 95p indicator-recalc burst
+# observed in the audit hits ~1.4 cores. 2 gives 40% headroom and
+# is the next integer up.
+# Why 2Gi memory: matches the existing memory ceiling with ~30%
+# headroom over the soak-test's observed 680Mi peak.
+# ephemeral-storage stays burstable because static-CPU-manager does
+# not require it to match limits.
 resources:
   requests:
-    cpu: 500m
-    memory: 1Gi
+    cpu: "2"
+    memory: 2Gi
     ephemeral-storage: 512Mi
   limits:
-    cpu: 1500m
-    memory: 1536Mi
+    cpu: "2"
+    memory: 2Gi
     ephemeral-storage: 1Gi
 
 persistence:
@@ -79,6 +98,21 @@ tolerations:
     operator: Equal
     value: etradie-system
     effect: NoSchedule
+
+# Watchdog sidecar pinning (CHECKLIST CPU hardening).
+# Equal requests/limits = Pod QoS Guaranteed; sub-core CPU value
+# means the watchdog stays in the shared pool while the mt-node
+# container above gets exclusive cores. Memory is also equalised
+# so the Pod-level QoS classification is consistent.
+sidecar:
+  watchdog:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
 
 externalSecrets:
   enabled: true

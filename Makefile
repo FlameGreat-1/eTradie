@@ -273,8 +273,11 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
-build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256; pass 'skip' for dev)
+build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256, WINEHQ_VERSION; pass 'skip' for dev)
 	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
+	@if [ -z "$${WINEHQ_VERSION:-}" ]; then \
+		echo -e "$(YELLOW)WARN: WINEHQ_VERSION not set - image will NOT be reproducible. Production CI MUST set it. See docker/mt-node/README.md for the discovery snippet.$(NC)"; \
+	fi
 	docker build \
 		--build-arg MT5_INSTALLER_SHA256=$${MT5_INSTALLER_SHA256:-skip} \
 		--build-arg MT4_INSTALLER_SHA256=$${MT4_INSTALLER_SHA256:-skip} \
@@ -282,6 +285,7 @@ build-mt-node: ## Build the MetaTrader headless Docker image (production CI must
 		--build-arg MT4_INSTALLER_URL=$${MT4_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe} \
 		--build-arg EA_EX5_SHA256=$${EA_EX5_SHA256:-skip} \
 		--build-arg EA_EX4_SHA256=$${EA_EX4_SHA256:-skip} \
+		--build-arg WINEHQ_VERSION=$${WINEHQ_VERSION:-} \
 		-t ghcr.io/flamegreat-1/etradie-mt-node:$${MT_NODE_TAG:-0.1.0} \
 		docker/mt-node/
 	echo -e "$(GREEN)✓ etradie-mt-node built$(NC)"
@@ -307,6 +311,7 @@ push-mt-node: build-mt-node ## Push the MetaTrader Docker image to GHCR
 mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + platform render paths)
 	echo -e "$(BLUE)Lint mt-node chart (per-tenant render path)...$(NC)"
 	helm lint helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.connectionId=test-conn-0000 \
 		--set mtConnection.userId=test-user-0000 \
 		--set mtConnection.platform=mt5 \
@@ -315,6 +320,7 @@ mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + plat
 		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
 	echo -e "$(BLUE)Lint mt-node chart (platform-only render path)...$(NC)"
 	helm lint helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.enabled=false \
 		--set mtConnection.connectionId=platform \
 		--set mtConnection.userId=platform \
@@ -327,6 +333,7 @@ mt-node-lint: ## helm lint + kubeconform on the mt-node chart (per-tenant + plat
 mt-node-deploy-dry-run: ## helm template the chart against both render paths and print to stdout
 	echo -e "$(BLUE)Render mt-node (per-tenant)...$(NC)"
 	helm template etradie-mt-test-0000 helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.connectionId=test-conn-0000 \
 		--set mtConnection.userId=test-user-0000 \
 		--set mtConnection.platform=mt5 \
@@ -335,6 +342,7 @@ mt-node-deploy-dry-run: ## helm template the chart against both render paths and
 		--set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
 	echo -e "$(BLUE)Render mt-node (platform-only)...$(NC)"
 	helm template etradie-mt-node-platform helm/mt-node \
+		--set image.repository=ghcr.io/local-dev/etradie-mt-node \
 		--set mtConnection.enabled=false \
 		--set mtConnection.connectionId=platform \
 		--set mtConnection.userId=platform \
@@ -354,6 +362,23 @@ mt-node-soak-nightly: ## 24-h mt-node soak test
 mt-node-chaos: ## Run every test in tests/chaos/ (provisioner contract + soak + OOM + broker disconnect)
 	echo -e "$(BLUE)mt-node chaos suite...$(NC)"
 	docker compose exec -T engine python -m pytest tests/chaos/ -v --tb=short -m chaos
+
+mt-node-load-test: ## Section 10 load suite (N=10/50/100 + market-open spike + random kill). Requires ETRADIE_CHAOS_KUBECONFIG + ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT. Defaults to a 30-minute soak; export SOAK_DURATION_SECONDS to override.
+	@echo -e "$(BLUE)Section 10 load suite (multi-tenant + market-open + random kill)...$(NC)"
+	@if [ -z "$${ETRADIE_CHAOS_KUBECONFIG:-}" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 ETRADIE_CHAOS_KUBECONFIG not set. Load tests require a real staging cluster.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -z "$${ETRADIE_CHAOS_ENGINE_URL:-}" ] || [ -z "$${ETRADIE_CHAOS_ADMIN_JWT:-}" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 ETRADIE_CHAOS_ENGINE_URL + ETRADIE_CHAOS_ADMIN_JWT both required.$(NC)"; \
+		exit 1; \
+	fi
+	SOAK_DURATION_SECONDS=$${SOAK_DURATION_SECONDS:-1800} \
+		docker compose exec -T engine python -m pytest \
+		  tests/chaos/test_mt_node_load_n_tenants.py \
+		  tests/chaos/test_mt_node_market_open_spike.py \
+		  tests/chaos/test_mt_node_random_kill.py \
+		  -v --tb=short -m chaos
 
 ##@ Go Local Builds
 build-gateway: ## Build Gateway binary locally

@@ -9,6 +9,20 @@
 
 replicaCount: 3
 
+config:
+  # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
+  # values.yaml deliberately leaves config.mtNode.image empty so
+  # production cannot inherit a default. Forks override this single
+  # line; the personal-namespace string lives nowhere else.
+  mtNode:
+    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    # Production PVC size: 8Gi matches helm/mt-node/values-production.yaml
+    # persistence.size. The base values.yaml defaults to 4Gi (staging).
+    # Both paths (chart-rendered and engine-provisioned) must use the
+    # same size so an operator can flip a tenant between paths without
+    # losing the Wine prefix or hitting a PVC resize.
+    pvcSize: "8Gi"
+
 image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
@@ -23,11 +37,15 @@ podAnnotations:
 config:
   connectivity:
     # Production: same defaults but enforce a minimum EA build so a
-    # stale terminal cannot trade. Bump this whenever the EA contract
-    # changes (we last bumped to 2.10.0 in Section 4 step A).
+    # stale terminal cannot trade. Bumped to 3.0.0 because EA v3.0.0
+    # removes the local risk enforcement (CheckRiskLimits) that
+    # conflicted with the platform's execution + management services.
+    # Any Pod still running EA v2.x will be rejected at the engine's
+    # EAIdentityVerifier and the watchdog will force an in-pod restart
+    # to load the new binary.
     eaIdentityVerifyEnabled: "true"
     eaMaxClockSkewSecs: "5"
-    eaMinVersion: "2.10.0"
+    eaMinVersion: "3.0.0"
     # Section 5: tighter production throughput envelope. Bigger node
     # pool + bigger HPA ceiling means we can afford 20/s per tenant
     # with 8 in-flight and a 40-burst.
