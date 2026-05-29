@@ -488,7 +488,7 @@ class HostedRecoveryService:
             login=row.mt5_login,
             password=password,
             server=row.mt5_server,
-            symbol="EURUSD",  # safe default; the watchdog reads MT_SYMBOL from chart env
+            symbol=row.mt5_symbol or "EURUSD",
             platform=row.platform,
         )
 

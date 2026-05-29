@@ -228,9 +228,11 @@ async def create_broker_connection(
                 provisioner = HostedProvisioner()
                 hosted_result = await provisioner.provision_account(
                     connection_id=temp_connection_id,
+                    user_id=user.user_id,
                     login=body.mt5_login,
                     password=body.mt5_password,
                     server=body.mt5_server,
+                    symbol=body.mt5_symbol,
                     platform=body.platform,
                 )
                 hosted_container_id = hosted_result["container_id"]
@@ -238,6 +240,7 @@ async def create_broker_connection(
                 # Pod via ZeroMQ on the internal Kubernetes network.
                 ea_host = hosted_result["zmq_host"]
                 ea_port = hosted_result["zmq_port"]
+                ea_auth_token = hosted_result.get("zmq_auth_token", "")
             except Exception as exc:
                 logger.error(
                     "hosted_provisioning_error_in_api",
@@ -264,6 +267,7 @@ async def create_broker_connection(
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
+                mt5_symbol=body.mt5_symbol,
                 platform=body.platform,
                 activate=body.activate,
             )

@@ -225,6 +225,7 @@ class BrokerConnectionRepository:
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
+        mt5_symbol: str = "EURUSD",
         platform: str = "mt5",
         # Activation
         activate: bool = True,
@@ -280,6 +281,7 @@ class BrokerConnectionRepository:
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
+            mt5_symbol=mt5_symbol,
             platform=platform,
             is_active=activate,
             is_primary=activate,
