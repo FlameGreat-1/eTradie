@@ -119,3 +119,26 @@ var (
 		Help: "Total tick cache fetch errors by symbol",
 	}, []string{"symbol"})
 )
+
+// Section 3 (CHECKLIST) metrics.
+var (
+	OrderIdempotencyTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_order_idempotency_total",
+		Help: "Order placement idempotency outcomes",
+	}, []string{"result"}) // result: claimed | duplicate
+
+	OrderRetryTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_order_retry_total",
+		Help: "Broker placement retry outcomes",
+	}, []string{"outcome"}) // outcome: retry | give_up | success_after_retry
+
+	OrderLatencyBreachTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "etradie_execution_order_latency_breach_total",
+		Help: "Orders rejected because end-to-end latency exceeded max_order_latency_ms",
+	})
+
+	PartialFillTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_partial_fill_total",
+		Help: "Partial-fill events observed at the broker",
+	}, []string{"symbol", "direction"})
+)

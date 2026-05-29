@@ -27,6 +27,25 @@ type Config struct {
 	BrokerBridgeURL string `envconfig:"BROKER_BRIDGE_URL" default:"http://localhost:8000"`
 	BrokerTimeoutMs int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
 
+	// Section 3 (CHECKLIST): retry-with-backoff for transient broker
+	// failures (HTTP 5xx, network error, short deadline). Full jitter
+	// exponential schedule: delay = uniform(0, min(cap, base*2^(attempt-1))).
+	BrokerRetryAttempts int `envconfig:"BROKER_RETRY_ATTEMPTS" default:"3"`
+	BrokerRetryBaseMs   int `envconfig:"BROKER_RETRY_BASE_MS" default:"200"`
+	BrokerRetryCapMs    int `envconfig:"BROKER_RETRY_CAP_MS" default:"2000"`
+
+	// Section 3: end-to-end latency kill-switch. When a placement
+	// (validate + size + broker round-trip) takes longer than this,
+	// the order is REJECTED even if the broker accepted it, and a
+	// best-effort CancelOrder is fired so the slow placement does
+	// not linger as a real exposure.
+	MaxOrderLatencyMs int `envconfig:"MAX_ORDER_LATENCY_MS" default:"5000"`
+
+	// Section 3: idempotency window. A second submission with the
+	// same (user_id, idempotency_key) within this window short-
+	// circuits without a broker call.
+	OrderIdempotencyTTLSecs int `envconfig:"ORDER_IDEMPOTENCY_TTL_SECS" default:"86400"`
+
 	// Shared secret for the engine's /internal/* surface.
 	//
 	// The Python engine's broker bridge endpoints

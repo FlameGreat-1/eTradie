@@ -3,8 +3,11 @@ package mt5
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,15 +43,50 @@ type Bridge struct {
 	baseURL        string
 	httpClient     *http.Client
 	internalSecret string
+	retry          retryConfig
 	log            zerolog.Logger
+}
+
+// WithRetry configures retry-with-backoff for transient broker errors.
+// Section 3 of CHECKLIST. Returns the receiver for fluent setup.
+func (b *Bridge) WithRetry(attempts, baseMs, capMs int) *Bridge {
+	b.retry = retryConfig{Attempts: attempts, BaseMs: baseMs, CapMs: capMs}
+	return b
 }
 
 // Header names mirror the engine constants. Kept as local consts so a
 // rename on either side is a one-place edit.
 const (
-	headerInternalAuth = "X-Internal-Auth"
-	headerUserID       = "X-User-Id"
+	headerInternalAuth   = "X-Internal-Auth"
+	headerUserID         = "X-User-Id"
+	headerIdempotencyKey = "X-Idempotency-Key"
 )
+
+// retryConfig groups the Section-3 retry knobs. Wired into NewBridge
+// from main.go via WithRetry(). Zero value disables retry entirely.
+type retryConfig struct {
+	Attempts int
+	BaseMs   int
+	CapMs    int
+}
+
+func (rc retryConfig) enabled() bool {
+	return rc.Attempts > 1 && rc.BaseMs > 0 && rc.CapMs > 0
+}
+
+func (rc retryConfig) nextDelay(attempt int) time.Duration {
+	if attempt < 1 {
+		return 0
+	}
+	schedule := rc.BaseMs * (1 << (attempt - 1))
+	if schedule > rc.CapMs {
+		schedule = rc.CapMs
+	}
+	if schedule <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Intn(schedule+1)) * time.Millisecond
+}
 
 // NewBridge creates an MT5 bridge client. internalSecret must match
 // the engine's ENGINE_INTERNAL_SHARED_SECRET. An empty string is
@@ -308,14 +346,55 @@ func (b *Bridge) placeOrder(ctx context.Context, order *models.OrderPlacement, o
 	}
 
 	var resp struct {
-		OrderID int64   `json:"order_id"`
-		Price   float64 `json:"price"`
-		Status  string  `json:"status"` // "PLACED", "FILLED", "REJECTED"
-		Error   string  `json:"error"`
+		OrderID         int64   `json:"order_id"`
+		Price           float64 `json:"price"`
+		Status          string  `json:"status"` // "PLACED", "FILLED", "REJECTED", "PARTIALLY_FILLED"
+		Error           string  `json:"error"`
+		VolumeFilled    float64 `json:"volume_filled"`
+		VolumeRemaining float64 `json:"volume_remaining"`
 	}
 
-	if err := b.post(ctx, "/internal/broker/place_order", payload, &resp); err != nil {
-		return nil, fmt.Errorf("place %s order for %s: %w", orderType, order.Symbol, err)
+	// Section 3 (CHECKLIST): retry transient errors with full jitter
+	// exponential backoff. We DO NOT retry on:
+	//   - 4xx HTTP responses (logical rejection / bad input)
+	//   - decoded payloads with Status="REJECTED" (broker said no)
+	//   - context cancellation (caller gave up)
+	// Retrying any of those is a duplicate-order risk.
+	attempts := 1
+	if b.retry.enabled() {
+		attempts = b.retry.Attempts
+	}
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		err := b.post(ctx, "/internal/broker/place_order", payload, &resp)
+		if err == nil {
+			if attempt > 1 {
+				observability.OrderRetryTotal.WithLabelValues("success_after_retry").Inc()
+			}
+			break
+		}
+		lastErr = err
+		if !b.retry.enabled() || attempt >= attempts || !isTransient(err) || ctx.Err() != nil {
+			if b.retry.enabled() && attempt >= attempts {
+				observability.OrderRetryTotal.WithLabelValues("give_up").Inc()
+			}
+			return nil, fmt.Errorf("place %s order for %s: %w", orderType, order.Symbol, err)
+		}
+		observability.OrderRetryTotal.WithLabelValues("retry").Inc()
+		delay := b.retry.nextDelay(attempt)
+		b.log.Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Int("max_attempts", attempts).
+			Dur("sleep", delay).
+			Str("symbol", order.Symbol).
+			Str("order_type", orderType).
+			Msg("place_order_transient_failure_retrying")
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("place %s order for %s: %w (ctx: %v)", orderType, order.Symbol, lastErr, ctx.Err())
+		}
 	}
 
 	var slippage float64
@@ -323,13 +402,53 @@ func (b *Bridge) placeOrder(ctx context.Context, order *models.OrderPlacement, o
 		slippage = resp.Price - order.Price
 	}
 
+	// Normalise partial fill: some bridge versions emit Status="FILLED"
+	// but VolumeFilled < requested LotSize. Flip to PARTIALLY_FILLED
+	// so downstream knows to act on the remainder.
+	status := resp.Status
+	if status == "FILLED" && resp.VolumeFilled > 0 && resp.VolumeFilled < order.LotSize {
+		status = "PARTIALLY_FILLED"
+	}
+
+	volumeFilled := resp.VolumeFilled
+	volumeRemaining := resp.VolumeRemaining
+	if volumeFilled == 0 && status == "FILLED" {
+		volumeFilled = order.LotSize
+	}
+	if volumeRemaining == 0 && volumeFilled > 0 && volumeFilled < order.LotSize {
+		volumeRemaining = order.LotSize - volumeFilled
+	}
+
 	return &models.OrderResult{
-		BrokerOrderID: fmt.Sprintf("%d", resp.OrderID),
-		FillPrice:     resp.Price,
-		Slippage:      slippage,
-		Status:        resp.Status,
-		ErrorMessage:  resp.Error,
+		BrokerOrderID:   fmt.Sprintf("%d", resp.OrderID),
+		FillPrice:       resp.Price,
+		Slippage:        slippage,
+		Status:          status,
+		ErrorMessage:    resp.Error,
+		VolumeFilled:    volumeFilled,
+		VolumeRemaining: volumeRemaining,
 	}, nil
+}
+
+// isTransient determines whether a bridge error is worth retrying.
+// True for network errors, HTTP 5xx, and 429 Too Many Requests.
+func isTransient(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Network-level errors are always transient.
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	// The post() helper wraps HTTP non-2xx as fmt.Errorf with the status
+	// embedded in the message. We pattern-match on the status string to
+	// avoid changing the post() return shape (zero ripple to callers).
+	msg := err.Error()
+	return strings.Contains(msg, "status 5") ||
+		strings.Contains(msg, "status 429") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "EOF")
 }
 
 func (b *Bridge) CancelOrder(ctx context.Context, brokerOrderID string) error {
