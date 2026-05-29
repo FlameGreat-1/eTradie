@@ -9,6 +9,17 @@
 
 replicaCount: 3
 
+image:
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  tier: production
+
 config:
   # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
   # values.yaml deliberately leaves config.mtNode.image empty so
@@ -22,19 +33,6 @@ config:
     # same size so an operator can flip a tenant between paths without
     # losing the Wine prefix or hitting a PVC resize.
     pvcSize: "8Gi"
-
-image:
-  tag: "0.1.0"
-  pullPolicy: IfNotPresent
-
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8000"
-  prometheus.io/path: "/metrics"
-  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
-  tier: production
-
-config:
   connectivity:
     # Production: same defaults but enforce a minimum EA build so a
     # stale terminal cannot trade. Bumped to 3.0.0 because EA v3.0.0
