@@ -155,6 +155,16 @@ sidecar:
       # in-pod restart BEFORE the kernel OOM-killer kicks in (which
       # corrupts journal writes mid-trade).
       memorySoftCapFraction: 0.8
+      # CPU soft-cap (CHECKLIST Section 1 'Indicator recalculation
+      # spikes do not freeze system'). When more than
+      # cpuThrottleSoftCapFraction of CFS periods are throttled for
+      # cpuThrottleConsecutivePolls consecutive poll windows, the
+      # watchdog forces an in-pod MT restart. Default tuning is
+      # 0.5 fraction over 60s (6 polls @ 10s) - transient
+      # indicator-recalc bursts do not trip; sustained saturation
+      # does. See docker/mt-node/watchdog.py maybe_enforce_cpu_soft_cap.
+      cpuThrottleSoftCapFraction: 0.5
+      cpuThrottleConsecutivePolls: 6
       # When the watchdog itself misses N consecutive checks (e.g. it's
       # wedged), K8s livenessProbe will fail and the kubelet will kill
       # the whole Pod. This is the LAST resort.

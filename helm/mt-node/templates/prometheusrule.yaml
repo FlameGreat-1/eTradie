@@ -145,4 +145,66 @@ spec:
               the Pod's user-facing trading session is being
               interrupted on every cap trip.
             runbook_url: "https://docs.etradie.com/runbooks/mt-node-memory-soft-cap-trip-frequent"
+
+    # CPU throttling. CHECKLIST Section 1 'Indicator recalculation
+    # spikes do not freeze system'. The watchdog soft-cap catches the
+    # acute case (CFS throttled > 0.5 of periods sustained for 60s);
+    # these rules catch the slower / less acute cases.
+    - name: mt-node.cpu
+      interval: 1m
+      rules:
+        # Sustained throttling without yet tripping the soft-cap.
+        # 0.05 throttled periods/sec averaged over 5m = ~3 periods/min,
+        # i.e. the cgroup is being throttled at least every other CFS
+        # period for 10 minutes. Operator-visible 'this Pod is CPU-bound'.
+        - alert: MTNodeCPUThrottledSustained
+          expr: |
+            rate(
+              mt_node_cgroup_cpu_throttled_periods_total{namespace="{{ include "mt-node.namespace" . }}"}[5m]
+            ) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node CPU throttling sustained ({{`{{ $labels.pod }}`}})"
+            description: |
+              The cgroup has been CFS-throttled in at least 5% of
+              CFS periods over the last 5 minutes, sustained for
+              10 minutes. The user's strategy is no longer running
+              on the EA's OnTimer cadence; indicator recalculation
+              is missing windows. Either the EA / indicators in
+              use need optimisation, or the Pod's CPU envelope
+              needs to be raised. The watchdog soft-cap will
+              eventually restart MT if this gets worse.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-cpu-throttled-sustained"
+
+        # The CPU soft-cap has fired more than once per hour for 2h.
+        # Mirror of the memory variant - 'this leak is severe enough
+        # that the in-pod watchdog is restarting MT repeatedly'.
+        - alert: MTNodeCPUSoftCapTripFrequent
+          expr: |
+            sum by (namespace, pod) (
+              rate(mt_node_watchdog_cpu_soft_cap_trips_total[1h])
+            ) > 0.000277
+          for: 2h
+          labels:
+            severity: critical
+            component: mt-node
+            team: platform
+            connection_id: "{{ .Values.mtConnection.connectionId }}"
+            user_id: "{{ .Values.mtConnection.userId }}"
+          annotations:
+            summary: "mt-node CPU soft-cap tripping > 1/hour for 2h ({{`{{ $labels.pod }}`}})"
+            description: |
+              The watchdog has had to restart MT5 because CFS
+              throttling exceeded the soft-cap fraction more than
+              once per hour for the last 2 hours. The user's
+              trading session is being interrupted on every cap
+              trip. The EA / indicators in use need investigation,
+              or the Pod's CPU envelope must be raised.
+            runbook_url: "https://docs.etradie.com/runbooks/mt-node-cpu-soft-cap-trip-frequent"
 {{- end }}
