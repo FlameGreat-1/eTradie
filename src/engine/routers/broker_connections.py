@@ -40,17 +40,22 @@ router = APIRouter()
 
 
 def _ea_connection_type_disabled() -> bool:
-    """Operator kill-switch for connection_type='ea'.
+    """Hardcoded rejection of connection_type='ea' in production / staging.
 
-    Default false (preserves dev / docker-compose / self-hosted-engine
-    deployments). Production overlay sets ENGINE_DISALLOW_EA_CONNECTION_TYPE
-    to 'true' so the dashboard rejects new EA connections.
+    connection_type='ea' is a LOCAL-DEVELOPMENT-ONLY path that reads
+    single-tenant MT5_ZMQ_HOST / MT5_ZMQ_PORT / MT5_ZMQ_AUTH_TOKEN env
+    vars from the engine's own environment. Those env vars have no
+    meaning in a multi-tenant deployment, so the router refuses to
+    create 'ea' rows whenever APP_ENV identifies a non-dev environment.
 
-    Treats the empty string as 'false' so a missing-env-var deploy
-    behaves as the default rather than failing closed.
+    This is intentionally a hardcoded decision, not an env-var
+    kill-switch: there is exactly one correct answer per environment
+    and no legitimate reason to override it. An operator who wants to
+    test 'ea' against staging should use a local docker-compose dev
+    profile instead.
     """
-    raw = os.environ.get("ENGINE_DISALLOW_EA_CONNECTION_TYPE", "false").strip().lower()
-    return raw in ("1", "true", "yes", "on")
+    env = os.environ.get("APP_ENV", "").strip().lower()
+    return env in ("production", "staging")
 
 
 def _serialize_broker_connection(row) -> dict:
@@ -101,25 +106,21 @@ async def create_broker_connection(
             detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
         )
 
-    # CHECKLIST hardening: production engines (those running inside
-    # the K8s cluster behind Cloudflare Tunnel) cannot reach a remote
-    # user-owned Windows VPS on TCP/5555 because the NetworkPolicy
-    # egress is restricted to in-cluster mt-node + the broker REST
-    # APIs. Letting the user pick connection_type='ea' in that
-    # topology produces a silent timeout on every broker call.
-    # The kill-switch surfaces the failure synchronously here with
-    # a clear actionable message instead.
+    # connection_type='ea' is a local-development-only escape hatch
+    # (it reads single-tenant MT5_ZMQ_* env vars from the engine's own
+    # environment). Production and staging always reject it at the
+    # router; dev and the docker-compose self-hosted profile always
+    # accept it. See _ea_connection_type_disabled() above.
     if body.connection_type == "ea" and _ea_connection_type_disabled():
         raise HTTPException(
             status_code=422,
             detail={
                 "code": "ea_connection_disabled",
                 "message": (
-                    "Custom EA Connection (your own Windows VPS) is not "
-                    "available on this deployment. Use the 'Hosted' option "
-                    "(eTradie runs MetaTrader for you) or 'MetaAPI' "
-                    "(managed cloud) instead. See "
-                    "docs.etradie.com/connection-types for the comparison."
+                    "connection_type='ea' is a local-development path only "
+                    "and is not available in production or staging "
+                    "deployments. Use connection_type='hosted' or "
+                    "connection_type='metaapi'."
                 ),
             },
         )
