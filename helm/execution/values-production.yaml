@@ -30,6 +30,7 @@ config:
     brokerRetryCapMs: "2000"
     maxOrderLatencyMs: "5000"
     orderIdempotencyTtlSecs: "86400"
+    reconcileIntervalSecs: "60"
 
 externalSecrets:
   enabled: true

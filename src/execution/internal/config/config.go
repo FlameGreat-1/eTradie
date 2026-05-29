@@ -46,6 +46,11 @@ type Config struct {
 	// circuits without a broker call.
 	OrderIdempotencyTTLSecs int `envconfig:"ORDER_IDEMPOTENCY_TTL_SECS" default:"86400"`
 
+	// Section 3: broker reconciliation cadence. Every N seconds the
+	// reconciler compares the broker's positions + pending orders
+	// against the engine's view and surfaces drift.
+	ReconcileIntervalSecs int `envconfig:"RECONCILE_INTERVAL_SECS" default:"60"`
+
 	// Shared secret for the engine's /internal/* surface.
 	//
 	// The Python engine's broker bridge endpoints

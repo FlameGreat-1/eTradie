@@ -96,6 +96,7 @@ config:
     maxOrderLatencyMs: "5000"
     # Section 3 - order idempotency window.
     orderIdempotencyTtlSecs: "86400"
+    reconcileIntervalSecs: "60"
     mockBrokerBalance: "10000.0"
     gatewayAddr: "gateway.etradie-system.svc.cluster.local:50052"
     defaultExecutionMode: "LIMIT"

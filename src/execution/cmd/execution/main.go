@@ -160,6 +160,13 @@ func main() {
 	// Section 3 (CHECKLIST): order-level idempotency store.
 	idempotencyStore := store.NewIdempotencyStore(pool)
 
+	// Section 3: reconciler identity adapter. The reconciler must call
+	// the broker bridge under each user's identity so the bridge
+	// resolves the correct per-user broker connection. We reuse
+	// userStore + tokenService - the same building blocks the watcher
+	// restoration path uses.
+	reconcileIdentity := newReconcileIdentityProvider(userStore, tokenService)
+
 	wm := watcher.NewManager(bp, gwClient, al, alertTransport, watcher.Config{
 		PollIntervalMs:          cfg.WatcherPollIntervalMs,
 		TimeoutMinutes:          cfg.WatcherTimeoutMinutes,
@@ -385,6 +392,17 @@ func main() {
 	gcCtx, gcCancel := context.WithCancel(context.Background())
 	defer gcCancel()
 	go idempotencyGCLoop(gcCtx, idempotencyStore, cfg.OrderIdempotencyTTLSecs)
+
+	// Section 3 (CHECKLIST): reconciliation loop - broker positions +
+	// pending orders vs engine state. Runs on the same gcCtx so it
+	// stops together with the idempotency GC at shutdown.
+	reconciler := state.NewReconciler(
+		bp,
+		sm,
+		reconcileIdentity,
+		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+	)
+	go reconciler.Loop(gcCtx)
 
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
