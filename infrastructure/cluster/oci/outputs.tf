@@ -1,16 +1,26 @@
-# Placeholder outputs for the OCI cluster skeleton module. Audit ref: IO-M1.
+output "cluster_id" {
+  description = "OCID of the OKE cluster."
+  value       = oci_containerengine_cluster.etradie.id
+}
 
 output "cluster_name" {
-  description = "OKE cluster display name. Empty until main.tf is implemented."
-  value       = local.cluster_name
+  description = "Display name of the OKE cluster."
+  value       = oci_containerengine_cluster.etradie.name
 }
 
-output "cluster_id" {
-  description = "OKE cluster OCID. Empty until main.tf is implemented."
-  value       = ""
+output "cluster_endpoint" {
+  description = "K8s API endpoint(s)."
+  value       = oci_containerengine_cluster.etradie.endpoints
+  sensitive   = false
 }
 
-output "kubeconfig_path" {
-  description = "Path to a generated kubeconfig file. Empty until main.tf is implemented."
-  value       = ""
+output "node_pool_id" {
+  description = "OCID of the platform node pool."
+  value       = oci_containerengine_node_pool.platform.id
+}
+
+output "kubeconfig" {
+  description = "kubeconfig YAML for the cluster (30-day token). Pipe to ~/.kube/etradie-<env>.yaml."
+  value       = data.oci_containerengine_cluster_kube_config.etradie.content
+  sensitive   = true
 }

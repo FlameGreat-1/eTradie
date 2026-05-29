@@ -1,13 +1,16 @@
 # infrastructure/cluster/bootstrap/
 
-Manual bootstrap path for clusters that **do not have a Terraform
-cloud module** in this repo (Contabo K3s, kubeadm, hand-rolled
-bare-metal, kind / k3d for local). Lists the exact steps to bring
-the cluster from "empty" to "ArgoCD can reconcile the platform".
+Bootstrap path for clusters NOT provisioned by the `cluster/oci/`
+Terraform module: Contabo K3s, kubeadm, hand-rolled bare-metal,
+kind / k3d for local. Lists the exact steps to bring the cluster
+from 'empty' to 'ArgoCD can reconcile the platform'.
 
-If you are on OCI see `../oci/`. The platform does NOT deploy on AWS
-(see infrastructure/README.md). For any other cluster, follow this
-guide. Audit ref: IB-C1.
+If you are on OCI use `../oci/` instead (run `terraform apply`,
+then jump to step 1 of this guide for ESO + Vault setup; the OCI
+module already created the cluster + node pool + taint).
+
+The platform does NOT deploy on AWS (see infrastructure/README.md).
+Audit ref: IB-C1.
 
 ## 0. Prerequisites
 
@@ -121,7 +124,38 @@ ArgoCD then reconciles the 14 child Applications. With
 first rollout requires an explicit operator click in the ArgoCD
 UI — deliberate.
 
-## 9. Verify
+## 9. Install the Cluster Autoscaler (OKE / cloud-managed pools only)
+
+```bash
+helm repo add autoscaler https://kubernetes.github.io/autoscaler
+helm install cluster-autoscaler autoscaler/cluster-autoscaler \
+  --namespace kube-system \
+  --set cloudProvider=oci-oke \
+  --set extraArgs.balance-similar-node-groups=true \
+  --set extraArgs.skip-nodes-with-local-storage=false \
+  --set extraArgs.skip-nodes-with-system-pods=false
+```
+
+The OCI Terraform module already tagged the node pool with the
+autoscaler-required tags (`k8s.io_cluster-autoscaler_*`). For K3s /
+kubeadm clusters running on fixed-size pools (Contabo VPS), skip this
+step entirely - the chart's HPAs will autoscale the workloads, but
+the NODE pool stays fixed.
+
+## 10. Populate the mt-node platform Vault path
+
+```bash
+vault kv put secret/etradie/services/mt-node/production \
+  mt_node_credential_encryption_key="$(openssl rand -hex 32)" \
+  default_zmq_auth_token="$(openssl rand -hex 32)"
+```
+
+The engine reads `MT_NODE_CREDENTIAL_ENCRYPTION_KEY` from this path
+to AES-GCM seal per-user MT broker credentials before writing them
+to a per-tenant Kubernetes Secret. Without it, the dashboard's
+'Hosted' connection option fails with a clear ConfigurationError.
+
+## 11. Verify
 
 ```bash
 kubectl -n etradie-system get pods
@@ -132,3 +166,9 @@ kubectl -n envoy-system get pods
 All pods should be Ready. If `cloudflared` is in CrashLoop, check
 step 5 (the tunnel token must be the literal token string, not
 base64-encoded, not JSON-quoted).
+
+If a user picks 'Hosted MT' in the dashboard and the engine fails
+with a 5xx, check:
+  - `kubectl auth can-i create deployments --as system:serviceaccount:etradie-system:etradie-engine -n etradie-system` (should return yes)
+  - `kubectl -n etradie-system get externalsecret etradie-mt-node-platform-platform` (should be Ready)
+  - `kubectl -n etradie-system logs deployment/etradie-engine | grep hosted_`

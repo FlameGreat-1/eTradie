@@ -12,7 +12,7 @@ operator brings up.
 |--------|------|--------------|
 | `cloudflare/` | Cloudflare zone TLS posture, Authenticated Origin Pulls, DNS records that CNAME to the Tunnel UUID. | The Tunnel itself, the Tunnel token, any K8s manifest. |
 | `cluster/vault-paths/` | KV-v2 path schema in Vault (cloud-agnostic; only requires Vault provider). | Any cluster, any K8s manifest. |
-| `cluster/oci/` | OCI OKE cluster bootstrap **skeleton**. Variable surface only; main.tf is a placeholder. | Vault paths, K8s manifests. |
+| `cluster/oci/` | OCI OKE Enhanced cluster + autoscaled platform node pool + workload=etradie-system:NoSchedule taint. | Vault paths, K8s manifests, VCN/subnets. |
 | `cluster/bootstrap/` | Manual bootstrap procedure for Contabo K3s, kubeadm, kind, k3d, or any conformant K8s. | (it's a README, not a module). |
 
 ## Edge strategy
@@ -42,7 +42,7 @@ deliberately removed in this revision.
 
 ```text
 1. Cluster bootstrap
-   - OCI:           cluster/oci/        (when implemented)
+   - OCI:           cluster/oci/        (run terraform apply, then bootstrap step 1+)
    - Contabo / K3s: follow cluster/bootstrap/README.md
 2. Install Vault (HCP, vault chart, or external VM)
 3. Install ESO (helm chart `external-secrets/external-secrets`)
