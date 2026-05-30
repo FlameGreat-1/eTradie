@@ -159,6 +159,16 @@ _AFFINITY_JSON_RAW = os.environ.get("MT_NODE_AFFINITY_JSON", "").strip()
 _TOPOLOGY_SPREAD_JSON_RAW = os.environ.get("MT_NODE_TOPOLOGY_SPREAD_JSON", "").strip()
 _POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").strip()
 
+# Name of the chart-rendered platform Secret that holds
+# DEFAULT_ZMQ_AUTH_TOKEN. When non-empty, every runtime-provisioned
+# mt-node + watchdog container envFroms this Secret so the entrypoint
+# and watchdog have a fallback token if the Vault Agent file render
+# fails. Sourced from the engine ConfigMap so the value lives in one
+# place (helm/engine/values.yaml::config.mtNode.platformSecretName).
+# Empty in dev / docker-compose; the chart-rendered behaviour is the
+# same when externalSecrets.enabled=false.
+_PLATFORM_SECRET_NAME = os.environ.get("MT_NODE_PLATFORM_SECRET_NAME", "").strip()
+
 
 def _parse_json_envelope(env_name: str, raw: str, expected: type):
     """Parse a JSON envelope env var into a dict or list.
@@ -401,6 +411,7 @@ class HostedProvisioner:
         zmq_port: int = DEFAULT_ZMQ_PORT,
         per_user_zmq_token: str | None = None,
         readiness_timeout_secs: float | None = None,
+        existing_chart_symbol: str | None = None,
     ) -> dict[str, Any]:
         """Provision a new hosted mt-node release.
 
@@ -547,31 +558,73 @@ class HostedProvisioner:
                     },
                 ) from exc
 
-            # Readiness gate uses the SAME api clients - no churn.
-            timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
-            await self._wait_ready(
-                core_api=core_api,
-                apps_api=apps_api,
-                release=release,
-                dns_name=dns_name,
-                zmq_port=zmq_port,
-                token=effective_token,
-                timeout=timeout,
-            )
+            # Readiness gate, broker catalog hand-off, and STS env
+            # patch all run AFTER the K8s upserts succeeded. Any
+            # failure here would otherwise leave the StatefulSet +
+            # Services + watchdog CM + SA + Vault path alive in the
+            # cluster while the broker_connections row never gets
+            # persisted (the router rolls back its DB transaction on
+            # ProviderError). That orphan keeps consuming Pod resources
+            # + Vault token leases until gc_orphans() sweeps it.
+            #
+            # Wrap the entire post-upsert sequence in a try/except
+            # that runs _best_effort_cleanup on ANY exception (not
+            # only ApiException) and re-raises so the router still
+            # surfaces the original error to the dashboard.
+            try:
+                timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
+                await self._wait_ready(
+                    core_api=core_api,
+                    apps_api=apps_api,
+                    release=release,
+                    dns_name=dns_name,
+                    zmq_port=zmq_port,
+                    token=effective_token,
+                    timeout=timeout,
+                )
 
-            chart_symbol = await self._populate_broker_catalog(
-                connection_id=connection_id,
-                dns_name=dns_name,
-                zmq_port=zmq_port,
-                token=effective_token,
-            )
+                chart_symbol = await self._populate_broker_catalog(
+                    connection_id=connection_id,
+                    dns_name=dns_name,
+                    zmq_port=zmq_port,
+                    token=effective_token,
+                    existing_chart_symbol=existing_chart_symbol,
+                )
 
-            await self._patch_statefulset_symbol(
-                apps_api=apps_api,
-                release=release,
-                active_symbol=chart_symbol,
-            )
-            await self._chart_symbol_writer(connection_id, chart_symbol)
+                await self._patch_statefulset_symbol(
+                    apps_api=apps_api,
+                    release=release,
+                    active_symbol=chart_symbol,
+                )
+                # Only write back to the DB when the resolver actually
+                # picked a new symbol. A non-empty existing_chart_symbol
+                # short-circuits _populate_broker_catalog above to return
+                # that same value, so this conditional is the H-4 guard
+                # that prevents recovery sweeps from overwriting a
+                # user's previously-resolved mt5_symbol.
+                if not (existing_chart_symbol and existing_chart_symbol.strip()):
+                    await self._chart_symbol_writer(connection_id, chart_symbol)
+            except Exception as post_upsert_exc:  # noqa: BLE001
+                logger.error(
+                    "hosted_provisioning_post_upsert_failed",
+                    extra={
+                        "connection_id": connection_id,
+                        "release": release,
+                        "error": str(post_upsert_exc),
+                        "error_type": type(post_upsert_exc).__name__,
+                    },
+                )
+                await self._best_effort_cleanup(
+                    core_api=core_api,
+                    apps_api=apps_api,
+                    vault=vault,
+                    release=release,
+                    service_name=service_name,
+                    headless_service_name=headless_service_name,
+                    sa_name=sa_name,
+                    vault_path=vault_path,
+                )
+                raise
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -961,12 +1014,28 @@ class HostedProvisioner:
                 ),
             ),
         ]
-        # No per-tenant Secret envFrom: per-tenant credentials are
-        # rendered into /vault/secrets/<file> by the Vault Agent
-        # init-container. The platform Secret (DEFAULT_ZMQ_AUTH_TOKEN)
-        # is still consumed via envFrom by entrypoint.sh as the
-        # fallback when MT_ZMQ_AUTH_TOKEN is unset.
+        # Per-tenant credentials are rendered into /vault/secrets/<file>
+        # by the Vault Agent init-container. The platform Secret
+        # (DEFAULT_ZMQ_AUTH_TOKEN) is consumed via envFrom on BOTH the
+        # mt-node container and the watchdog sidecar so entrypoint.sh
+        # and watchdog.py have a fallback when the Vault Agent file
+        # render fails. optional=True so a brief Secret absence during
+        # cluster bootstrap does not block Pod scheduling - Vault Agent
+        # remains the primary source for per-tenant MT_ZMQ_AUTH_TOKEN.
+        #
+        # When MT_NODE_PLATFORM_SECRET_NAME is empty (dev / docker-
+        # compose / pytest), the envFrom list stays empty, matching
+        # the chart's externalSecrets.enabled=false posture.
         env_from: list[client.V1EnvFromSource] = []
+        if _PLATFORM_SECRET_NAME:
+            env_from.append(
+                client.V1EnvFromSource(
+                    secret_ref=client.V1SecretEnvSource(
+                        name=_PLATFORM_SECRET_NAME,
+                        optional=True,
+                    ),
+                ),
+            )
 
         # ── Shared security context (both containers) ──────────────────────
         container_security_ctx = client.V1SecurityContext(
@@ -1077,6 +1146,19 @@ class HostedProvisioner:
                 ),
             ),
         ]
+        # Same platform-Secret envFrom as the mt-node container above
+        # so the watchdog's AUTH_TOKEN fallback logic (MT_ZMQ_AUTH_TOKEN
+        # or DEFAULT_ZMQ_AUTH_TOKEN) has the platform value available
+        # when the Vault Agent file is not yet rendered.
+        if _PLATFORM_SECRET_NAME:
+            watchdog_env_from.append(
+                client.V1EnvFromSource(
+                    secret_ref=client.V1SecretEnvSource(
+                        name=_PLATFORM_SECRET_NAME,
+                        optional=True,
+                    ),
+                ),
+            )
         watchdog_env = [
             client.V1EnvVar(
                 name="POD_NAME",
@@ -1166,6 +1248,15 @@ class HostedProvisioner:
             node_selector=node_selector,
             affinity=affinity_raw,
             topology_spread_constraints=topology_spread_raw,
+            # Match the chart-rendered PodSpec wire shape exactly so a
+            # 'kubectl get sts -o yaml' diff between chart-rendered and
+            # runtime-provisioned Pods is empty. K8s defaults for both
+            # fields already match these values (ClusterFirst is the
+            # default when hostNetwork is False; Always is the only
+            # valid restartPolicy on a StatefulSet PodTemplate and the
+            # API server enforces it), so this is a pure spec-match.
+            dns_policy="ClusterFirst",
+            restart_policy="Always",
         )
 
         # Vault Agent Injector annotations. The injector mutates the
@@ -1443,6 +1534,7 @@ class HostedProvisioner:
         dns_name: str,
         zmq_port: int,
         token: str,
+        existing_chart_symbol: str | None = None,
     ) -> str:
         """Pick the chart-attach symbol from the broker's Market Watch.
 
@@ -1455,20 +1547,34 @@ class HostedProvisioner:
         read so the user sees their catalogue while metadata enrichment
         finishes asynchronously.
 
-        Raises ProviderError when the broker reports zero instruments
-        so the caller never receives a 'success' result for a Pod
-        whose chart could not be resolved. This prevents the silent
-        stuck-on-sentinel state HostedRecoveryService had to keep
-        retrying out of.
+        When existing_chart_symbol is non-empty (recovery re-provision
+        on an already-resolved connection), the catalog runner is STILL
+        invoked so the background BrokerSyncService refreshes
+        broker_symbols, but the existing symbol is returned for the
+        StatefulSet env patch instead of names[0]. This is the H-4
+        guard: a Market Watch order shift on the broker side cannot
+        silently reshuffle a user's persisted mt5_symbol.
+
+        Raises ProviderError when there is no existing symbol AND the
+        broker reports zero instruments so the caller never receives
+        a 'success' result for a Pod whose chart could not be resolved.
+        This prevents the silent stuck-on-sentinel state
+        HostedRecoveryService had to keep retrying out of.
         """
         assert self._catalog_sync_runner is not None
         assert self._chart_symbol_writer is not None
-        chart_symbol = await self._catalog_sync_runner(
+        # Always run the runner so the background catalog sync fires
+        # (broker_symbols freshness on every provision). The runner's
+        # return value is the first-name pick; we only use it when
+        # there is no existing value to preserve.
+        resolver_pick = await self._catalog_sync_runner(
             dns_name=dns_name,
             zmq_port=zmq_port,
             auth_token=token,
         )
-        if not chart_symbol:
+        if existing_chart_symbol and existing_chart_symbol.strip():
+            return existing_chart_symbol.strip()
+        if not resolver_pick:
             raise ProviderError(
                 "Broker did not publish any tradeable symbols; cannot "
                 "select a chart-attach symbol. The connection has not "
@@ -1478,7 +1584,7 @@ class HostedProvisioner:
                     "dns_name": dns_name,
                 },
             )
-        return chart_symbol
+        return resolver_pick
 
     async def _patch_statefulset_symbol(
         self,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +37,7 @@ class BrokerSymbolRepository:
             path=path,
             digits=digits,
             point=point,
-            last_synced_at=datetime.utcnow(),
+            last_synced_at=datetime.now(UTC),
         )
 
         update_stmt = stmt.on_conflict_do_update(

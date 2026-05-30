@@ -128,6 +128,12 @@ fi
 
 # ── Paths ─────────────────────────────────────────────────────────
 WINE_PREFIX="/home/mt/.wine"
+# The template is baked into the image at build time by the Dockerfile.
+# Holds a fully-initialised Wine prefix plus the MT5 + MT4 install. The
+# seed-from-template block below copies it into the (PVC-mounted)
+# WINE_PREFIX on first boot, then runs 'wineboot -u' to reconcile
+# dosdevices and any absolute-path references in user.reg/system.reg.
+WINE_TEMPLATE="${WINE_TEMPLATE:-/opt/wine-template/.wine}"
 export WINEPREFIX="$WINE_PREFIX"
 export WINEDEBUG="-all"
 
@@ -157,10 +163,49 @@ if [ -d "$WINE_PREFIX" ]; then
     rm -rf "$WINE_PREFIX"
   fi
 fi
+# Seed the (PVC-mounted) Wine prefix from the image-baked template on
+# first boot, or after a corruption-reset above. The template holds a
+# fully-initialised Wine prefix plus the MT5 + MT4 install so we save
+# 3-5 minutes per cold-start vs. running 'wineboot --init' from scratch
+# (which would also leave the prefix without terminal64.exe, since the
+# MT5 installer is baked into the template path, not /home/mt/.wine).
+#
+# After the copy we must reconcile Wine's path-translation state. Some
+# Wine versions write absolute symlinks into dosdevices/* and absolute
+# \??\unix\<path> references into user.reg/system.reg pinned to the
+# template prefix. Removing dosdevices/* and running 'wineboot -u'
+# regenerates them against the destination prefix. wineboot -u runs in
+# update mode (~5s) because system.reg exists; it does NOT re-run the
+# full init.
 if [ ! -d "$WINE_PREFIX/drive_c/windows/system32" ]; then
-  log INFO "Wine prefix missing; initialising"
-  wineboot --init 2>/dev/null || true
-  wineserver --wait 2>/dev/null || true
+  if [ -d "$WINE_TEMPLATE/drive_c/windows/system32" ]; then
+    log INFO "Wine prefix missing; seeding from template $WINE_TEMPLATE"
+    mkdir -p "$WINE_PREFIX"
+    # cp -a preserves ownership/permissions/symlinks/timestamps. The
+    # trailing '/.' copies the directory CONTENTS (avoids nesting the
+    # source dir name inside the destination).
+    cp -a "$WINE_TEMPLATE/." "$WINE_PREFIX/"
+    # Drop dosdevices so wineboot -u rebuilds them pointing at the
+    # destination prefix's drive_c (handles both relative and absolute
+    # symlink layouts).
+    rm -rf "$WINE_PREFIX/dosdevices"
+    # Touch a marker so a future operator/audit can see this prefix
+    # was seeded from the template (vs. user-mutated).
+    date -u +'%Y-%m-%dT%H:%M:%SZ' > "$WINE_PREFIX/.seeded-from-template"
+    log INFO "Reconciling prefix with wineboot -u (update mode)"
+    wineboot -u 2>/dev/null || true
+    wineserver --wait 2>/dev/null || true
+    log INFO "Wine prefix seeded"
+  else
+    # Fallback for images built without the template (rapid-iteration
+    # local builds that skipped the Dockerfile install steps). Logs a
+    # loud WARN because the resulting prefix will NOT contain
+    # terminal64.exe and the launch loop will fail until an operator
+    # manually copies MT5/MT4 into the prefix.
+    log WARN "Wine template $WINE_TEMPLATE not present; falling back to wineboot --init (no MT terminal binary will be available)"
+    wineboot --init 2>/dev/null || true
+    wineserver --wait 2>/dev/null || true
+  fi
 fi
 
 # ── Start virtual framebuffer ─────────────────────────────────────

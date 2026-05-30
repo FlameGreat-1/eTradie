@@ -526,6 +526,16 @@ class HostedRecoveryService:
             },
         )
 
+        # Preserve the previously-resolved chart-attach symbol so a
+        # broker-side Market Watch reshuffle does not silently change
+        # the user's mt5_symbol on every recovery sweep. The audit's
+        # H-4 guard. None / empty falls through to the resolver pick
+        # for connections that were created before this column was
+        # populated.
+        existing_symbol: Optional[str] = None
+        if getattr(row, "mt5_symbol", None):
+            existing_symbol = str(row.mt5_symbol).strip() or None
+
         await self._provisioner.provision_account(
             connection_id=connection_id,
             user_id=user_id,
@@ -534,6 +544,7 @@ class HostedRecoveryService:
             server=row.mt5_server,
             platform=row.platform,
             per_user_zmq_token=existing_token,
+            existing_chart_symbol=existing_symbol,
         )
 
         logger.info(

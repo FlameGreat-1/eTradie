@@ -156,6 +156,12 @@ data:
   MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
   MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
   MT_NODE_MAX_HOSTED_PER_USER: {{ .Values.config.mtNode.maxHostedPerUser | default "1" | quote }}
+  # Name of the chart-rendered platform Secret (holds DEFAULT_ZMQ_AUTH_TOKEN)
+  # that HostedProvisioner envFroms onto every runtime-provisioned
+  # mt-node + watchdog container so the entrypoint and watchdog have a
+  # fallback token if the Vault Agent file render fails. Empty string
+  # disables the envFrom (dev / docker-compose).
+  MT_NODE_PLATFORM_SECRET_NAME: {{ .Values.config.mtNode.platformSecretName | default "" | quote }}
 
   # Vault HTTP client. The engine writes per-tenant MT credentials
   # under VAULT_MOUNT/data/tenants/mt-node/<sa_name>; the per-tenant

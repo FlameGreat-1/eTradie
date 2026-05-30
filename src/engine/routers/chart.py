@@ -34,9 +34,63 @@ router = APIRouter()
 # ── Broker Symbol Directory ────────────────────────────────────────
 # Fetches the entire list of available instruments from the connected
 # broker (Market Watch for ZMQ, or the MetaApi /symbols endpoint).
-# Cached in-memory for 5 minutes to avoid excessive ZMQ round-trips.
+# Cached in-memory keyed by (user_id, provider, account_id) so a
+# multi-tenant deployment cannot serve user A's symbols to user B.
+# The triple-key matches the scope BrokerSymbolRepository uses for
+# its persistent index, so the cache and the registry never disagree
+# on identity.
+#
+# Capacity-bounded (1024 entries) with FIFO eviction on overflow so a
+# high-tenant cluster cannot leak memory through this cache. Per-entry
+# TTL is short (10s on cold path) because BrokerSyncService refreshes
+# the persistent broker_symbols table in the background; this cache
+# is only a hot-path shield against repeated DB reads during a single
+# dashboard render.
+from collections import OrderedDict
 
-_broker_symbols_cache: dict = {"data": None, "expires": 0.0}
+_BROKER_SYMBOLS_CACHE_CAPACITY: int = 1024
+_broker_symbols_cache: "OrderedDict[tuple[str, str, str], tuple[dict, float]]" = OrderedDict()
+
+
+def _broker_symbols_cache_get(
+    key: tuple[str, str, str], *, now: float,
+) -> dict | None:
+    """Return the cached payload for `key` if still fresh, else None.
+
+    Touches the entry's LRU position so frequently-accessed users
+    survive eviction longer than cold ones.
+    """
+    entry = _broker_symbols_cache.get(key)
+    if entry is None:
+        return None
+    payload, expires_at = entry
+    if now >= expires_at:
+        # Stale; remove eagerly so subsequent lookups do not pay the
+        # tuple-unpack cost on a known-bad entry.
+        _broker_symbols_cache.pop(key, None)
+        return None
+    # Touch LRU position (move_to_end is O(1) on OrderedDict).
+    _broker_symbols_cache.move_to_end(key)
+    return payload
+
+
+def _broker_symbols_cache_set(
+    key: tuple[str, str, str],
+    payload: dict,
+    *,
+    now: float,
+    ttl_seconds: float,
+) -> None:
+    """Insert `payload` under `key`; evict the oldest entry when full."""
+    expires_at = now + ttl_seconds
+    if key in _broker_symbols_cache:
+        _broker_symbols_cache.move_to_end(key)
+    _broker_symbols_cache[key] = (payload, expires_at)
+    # FIFO-on-overflow eviction. popitem(last=False) drops the
+    # oldest-inserted entry (which is also the least-recently-touched
+    # because every get() and set() moves to the end).
+    while len(_broker_symbols_cache) > _BROKER_SYMBOLS_CACHE_CAPACITY:
+        _broker_symbols_cache.popitem(last=False)
 
 
 @router.get("/api/broker/symbols")
@@ -53,14 +107,22 @@ async def broker_symbols(
 
     container = request.app.state.container
 
-    # Return cached data if still fresh (1 minute TTL for DB reads).
-    now = _time.time()
-    if _broker_symbols_cache["data"] is not None and now < _broker_symbols_cache["expires"]:
-        return _broker_symbols_cache["data"]
-
+    # Resolve the user's broker client first so we can build the
+    # cache key. Without the client we cannot know which (provider,
+    # account_id) tuple this user's symbols belong to.
     broker_client = await _resolve_user_broker(container, user.user_id)
     if not broker_client:
          raise HTTPException(status_code=503, detail="No active broker connection")
+
+    cache_key = (
+        user.user_id,
+        broker_client.provider_name,
+        broker_client.account_id,
+    )
+    now = _time.time()
+    cached = _broker_symbols_cache_get(cache_key, now=now)
+    if cached is not None:
+        return cached
 
     ta_uow_factory = container.ta_uow_factory
 
@@ -103,8 +165,9 @@ async def broker_symbols(
                 ]
 
         result = {"symbols": symbols, "count": len(symbols)}
-        _broker_symbols_cache["data"] = result
-        _broker_symbols_cache["expires"] = now + 10.0  # Short TTL while syncing
+        _broker_symbols_cache_set(
+            cache_key, result, now=now, ttl_seconds=10.0,
+        )
         return result
 
     except Exception as exc:

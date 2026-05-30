@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# ──────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 # etradie-mt-node — Headless MetaTrader 4/5 via Wine + Xvfb
 #
 # Runs on any x86_64 Linux. No Windows license required.
@@ -38,7 +38,15 @@
 #   MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN (per-tenant)
 #   DEFAULT_ZMQ_AUTH_TOKEN (platform fallback)
 #   MT_SERVER, MT_SYMBOL, ZMQ_PORT (chart env)
-# ──────────────────────────────────────────────────────────────────
+#
+# Wine prefix layout:
+#   WINEPREFIX        = /home/mt/.wine            (runtime; PVC-mounted)
+#   WINE_TEMPLATE     = /opt/wine-template/.wine  (build-time bake;
+#                                                  non-mounted; seeded
+#                                                  into WINEPREFIX on
+#                                                  first boot by
+#                                                  entrypoint.sh)
+# ───────────────────────────────────────────────────────────────────
 FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="etradie-mt-node" \
@@ -47,9 +55,16 @@ LABEL org.opencontainers.image.title="etradie-mt-node" \
       org.opencontainers.image.licenses="Proprietary" \
       org.opencontainers.image.source="https://github.com/FlameGreat-1/eTradie"
 
+# WINEPREFIX is the RUNTIME prefix path the entrypoint and watchdog
+# expect (/home/mt/.wine). At image-build time we install Wine + MT5 +
+# MT4 into the separate NON-MOUNTED template path
+# (/opt/wine-template/.wine) so the bake is not masked by the PVC
+# mount at runtime. The entrypoint then seeds /home/mt/.wine from the
+# template on first boot via 'cp -a' + 'wineboot -u'.
 ENV DEBIAN_FRONTEND=noninteractive \
     WINEDEBUG=-all \
     WINEPREFIX=/home/mt/.wine \
+    WINE_TEMPLATE=/opt/wine-template/.wine \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -77,7 +92,7 @@ ARG WINEHQ_BRANCH=stable
 # the pin is effectively cosmetic.
 ARG WINEHQ_VERSION=""
 
-# ── System dependencies + WineHQ apt source ───────────────────────────────
+# ── System dependencies + WineHQ apt source ─────────────────────────────────
 RUN set -eux; \
     dpkg --add-architecture i386; \
     apt-get update; \
@@ -122,7 +137,7 @@ RUN set -eux; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
-# ── tini as PID 1 ──────────────────────────────────────────────────────────────
+# ── tini as PID 1 ───────────────────────────────────────────────────────────────────
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${arch}"; \
@@ -135,16 +150,27 @@ RUN set -eux; \
 RUN set -eux; \
     groupadd --gid 1000 mt; \
     useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash mt; \
-    install -d -o mt -g mt /home/mt/.wine /home/mt/.cache /opt/ea /opt/watchdog
+    install -d -o mt -g mt \
+        /home/mt/.wine \
+        /home/mt/.cache \
+        /opt/ea \
+        /opt/watchdog \
+        /opt/wine-template \
+        /opt/wine-template/.wine
 
-# ── Pre-initialise Wine prefix as user 'mt' ──────────────────────
+# ── Pre-initialise Wine prefix as user 'mt' INTO THE TEMPLATE PATH ────
+# The wineboot here MUST target the template path (WINEPREFIX override),
+# not the runtime /home/mt/.wine path. At runtime the PVC mounts at
+# /home/mt/.wine and masks anything baked there - so the bake has to
+# live somewhere the PVC can't see, and the entrypoint seeds the PVC
+# from this template on first boot via 'cp -a' + 'wineboot -u'.
 USER mt
 WORKDIR /home/mt
 RUN set -eux; \
-    wineboot --init 2>/dev/null || true; \
-    wineserver --wait 2>/dev/null || true
+    WINEPREFIX="$WINE_TEMPLATE" wineboot --init 2>/dev/null || true; \
+    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true
 
-# ── Download + verify MT5 installer ────────────────────────────────────
+# ── Download + verify MT5 installer ───────────────────────────────────────
 USER root
 RUN set -eux; \
     if [ -z "${MT5_INSTALLER_SHA256}" ]; then \
@@ -163,11 +189,11 @@ RUN set -eux; \
 
 USER mt
 RUN set -eux; \
-    wine /tmp/mt5setup.exe /auto 2>/dev/null || true; \
-    wineserver --wait 2>/dev/null || true; \
+    WINEPREFIX="$WINE_TEMPLATE" wine /tmp/mt5setup.exe /auto 2>/dev/null || true; \
+    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true; \
     rm -f /tmp/mt5setup.exe
 
-# ── Download + verify MT4 installer ────────────────────────────────────
+# ── Download + verify MT4 installer ───────────────────────────────────────
 USER root
 RUN set -eux; \
     if [ -z "${MT4_INSTALLER_SHA256}" ]; then \
@@ -186,11 +212,11 @@ RUN set -eux; \
 
 USER mt
 RUN set -eux; \
-    wine /tmp/mt4setup.exe /auto 2>/dev/null || true; \
-    wineserver --wait 2>/dev/null || true; \
+    WINEPREFIX="$WINE_TEMPLATE" wine /tmp/mt4setup.exe /auto 2>/dev/null || true; \
+    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true; \
     rm -f /tmp/mt4setup.exe
 
-# ── EA binaries + watchdog + entrypoint ───────────────────────────────
+# ── EA binaries + watchdog + entrypoint ─────────────────────────
 USER root
 COPY ea/ /opt/ea/
 COPY watchdog.py /opt/watchdog/watchdog.py
@@ -224,6 +250,12 @@ RUN set -eux; \
     fi; \
     chown -R mt:mt /opt/ea /opt/watchdog; \
     chmod +x /usr/local/bin/entrypoint.sh /opt/watchdog/watchdog.py
+
+# Final ownership sweep on the template so the runtime 'mt' user can
+# read every file produced by the install steps above (the chown -R
+# is cheap because the template is small and only happens once per
+# image build).
+RUN chown -R mt:mt /opt/wine-template
 
 USER mt
 WORKDIR /home/mt
