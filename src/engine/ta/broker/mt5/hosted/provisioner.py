@@ -1040,6 +1040,13 @@ class HostedProvisioner:
                 seccomp_profile=client.V1SeccompProfile(type="RuntimeDefault"),
             ),
             termination_grace_period_seconds=60,
+            # CHECKLIST Section 1 (H3 fix): share PID namespace between
+            # the mt-node container and the watchdog sidecar so the
+            # watchdog's psutil.process_iter can see terminal64.exe and
+            # SIGTERM it on a soft-cap trip. Without this the watchdog's
+            # entire memory + CPU enforcement is a metrics-only no-op.
+            # Mirrors helm/mt-node/templates/statefulset.yaml.
+            share_process_namespace=True,
             containers=[container, watchdog_container],
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
