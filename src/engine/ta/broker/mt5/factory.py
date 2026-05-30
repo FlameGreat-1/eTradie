@@ -313,6 +313,7 @@ def create_mt5_broker_from_connection(
         client = ZmqClient(
             config=config,
             auth_token=ea_auth_token,
+            symbol_map=dict(getattr(row, "symbol_map", {}) or {}),
             **_build_connectivity_kwargs("zmq-ea", endpoint_account),
             **_build_ea_verification_kwargs("zmq-ea", endpoint_account, row),
             **_build_throttle_kwargs("zmq-ea", endpoint_account),
@@ -422,10 +423,12 @@ def create_mt5_broker_from_connection(
         # ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS, default 60s) and
         # re-provision it. Until then, ZmqClient calls will fail with
         # ProviderTimeoutError, which the caller surfaces to the user.
-        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+        from engine.ta.broker.mt5.hosted.provisioner import (
+            namespace_default,
+            service_dns_for,
+        )
 
-        provisioner = HostedProvisioner()
-        zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
+        zmq_host = service_dns_for(row.hosted_container_id, namespace_default())
 
         if not zmq_host:
             raise ConfigurationError(
@@ -488,6 +491,7 @@ def create_mt5_broker_from_connection(
         client = ZmqClient(
             config=config,
             auth_token=ea_auth_token,
+            symbol_map=dict(getattr(row, "symbol_map", {}) or {}),
             **_build_connectivity_kwargs("zmq-hosted", row.hosted_container_id),
             **_build_ea_verification_kwargs("zmq-hosted", row.hosted_container_id, row),
             **_build_throttle_kwargs("zmq-hosted", row.hosted_container_id),

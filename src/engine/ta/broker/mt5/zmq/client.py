@@ -105,11 +105,19 @@ class ZmqClient(BrokerBase):
         outbound_limiter: Optional[OutboundRateLimiter] = None,
         inflight_limit: int = 0,
         outbound_limit_deadline_secs: float = 0.5,
+        symbol_map: Optional[dict[str, str]] = None,
     ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
         self.auth_token = (auth_token or getattr(config, "zmq_auth_token", "")).strip()
         self.validator = BrokerDataValidator()
+        # Canonical -> broker-actual mapping resolved at provision
+        # time by the engine's symbol resolver. Translation happens
+        # at the boundary methods (fetch_candles, place_order, ...).
+        # Inputs that are already broker-actual names (or pairs the
+        # broker does not publish) pass through unchanged so the
+        # dashboard chart-picker contract keeps working.
+        self._symbol_map: dict[str, str] = dict(symbol_map or {})
         # None defaults preserve prior behaviour bit-for-bit. The engine
         # factory wires production-grade defaults; tests that construct
         # ZmqClient directly are unaffected. Audit ref: CHECKLIST Section 2.
@@ -163,6 +171,12 @@ class ZmqClient(BrokerBase):
         self._candles_lock = asyncio.Lock()
         self._candles_initialized = False
     
+    def _translate(self, symbol: str) -> str:
+        """Return the broker-actual name for a canonical pair, else passthrough."""
+        if not symbol:
+            return symbol
+        return self._symbol_map.get(symbol, symbol)
+
     @property
     def provider_name(self) -> str:
         return "zmq"
@@ -555,12 +569,13 @@ class ZmqClient(BrokerBase):
                 details={"timeframe": timeframe},
             )
 
+        broker_symbol = self._translate(symbol)
         start_timer = _time.monotonic()
 
         try:
             request: dict[str, Any] = {
                 "command": "CANDLES",
-                "symbol": symbol,
+                "symbol": broker_symbol,
                 "timeframe": zmq_tf,
             }
             if count:
@@ -674,10 +689,11 @@ class ZmqClient(BrokerBase):
         return sequence.candles[-1]
 
     async def get_symbol_info(self, symbol: str) -> dict:
+        broker_symbol = self._translate(symbol)
         reply = await self._request(
             {
                 "command": "SYMBOL_INFO",
-                "symbol": symbol,
+                "symbol": broker_symbol,
             }
         )
 
@@ -916,8 +932,8 @@ class ZmqClient(BrokerBase):
         )
 
     async def get_tick_price(self, symbol: str) -> TickPrice:
-
-        raw = await self._request({"command": "TICK_PRICE", "symbol": symbol})
+        broker_symbol = self._translate(symbol)
+        raw = await self._request({"command": "TICK_PRICE", "symbol": broker_symbol})
         if not isinstance(raw, dict):
             raise ProviderResponseError(
                 f"Tick price not available for {symbol}",
@@ -1056,9 +1072,10 @@ class ZmqClient(BrokerBase):
         comment: str = "",
     ) -> OrderResult:
 
+        broker_symbol = self._translate(symbol)
         request = {
             "command": "ORDER_SEND",
-            "symbol": symbol,
+            "symbol": broker_symbol,
             "direction": direction.upper(),
             "order_type": order_type.upper(),
             "price": price,
