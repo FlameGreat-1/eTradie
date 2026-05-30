@@ -6,6 +6,11 @@
 # renders correctly on Contabo K3s, OCI OKE, Talos, or any vanilla
 # Kubernetes cluster. Cluster-specific scheduling hints (taints, GPU
 # pools, etc.) belong on the cluster, not in the chart.
+#
+# Image references (etradie-engine + mt-node) live in
+# helm/engine/values-image.yaml. This overlay may pin a
+# production-specific tag below by re-declaring image.tag; the
+# registry path stays in the shared values-image.yaml file.
 
 replicaCount: 3
 
@@ -21,12 +26,9 @@ podAnnotations:
   tier: production
 
 config:
-  # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
-  # values.yaml deliberately leaves config.mtNode.image empty so
-  # production cannot inherit a default. Forks override this single
-  # line; the personal-namespace string lives nowhere else.
+  # mt-node image: defined in helm/engine/values-image.yaml. Only
+  # production-specific tuning lives here.
   mtNode:
-    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
     # Production PVC size: 8Gi matches helm/mt-node/values-production.yaml
     # persistence.size. The base values.yaml defaults to 4Gi (staging).
     # Both paths (chart-rendered and engine-provisioned) must use the

@@ -3,15 +3,11 @@
 # Hardens defaults: larger resource ceiling, priority class enabled,
 # tighter PDB, more frequent scrape interval, and tolerations for the
 # dedicated etradie-system node taint.
-
-image:
-  # CHECKLIST hardening (Gap #13): explicit mt-node image. The base
-  # values.yaml deliberately leaves image.repository empty so
-  # production cannot inherit a default. Forks override this single
-  # line; the personal-namespace string lives nowhere else.
-  repository: ghcr.io/flamegreat-1/etradie-mt-node
-  tag: "0.1.0"
-  pullPolicy: IfNotPresent
+#
+# Image reference: see helm/mt-node/values-image.yaml. This overlay
+# may pin a production-specific tag or digest by re-declaring
+# image.tag / image.digest below; the registry path stays in the
+# shared values-image.yaml file.
 
 podAnnotations:
   prometheus.io/scrape: "true"

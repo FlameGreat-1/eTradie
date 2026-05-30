@@ -24,6 +24,7 @@ spec:
       releaseName: etradie-engine
       valueFiles:
         - values.yaml
+        - values-image.yaml
         - values-production.yaml
       parameters: []
 

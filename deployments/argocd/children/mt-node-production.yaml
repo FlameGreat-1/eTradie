@@ -25,6 +25,7 @@ spec:
       releaseName: etradie-mt-node-platform
       valueFiles:
         - values.yaml
+        - values-image.yaml
         - values-production.yaml
       # Platform-only render: skip per-tenant resources (StatefulSet,
       # Service, NetworkPolicy, PDB, ServiceMonitor, SA). Only the

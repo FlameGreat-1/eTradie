@@ -21,7 +21,12 @@ image:
   # The root Dockerfile at the repo root builds the Python engine.
   # CI publishes it to GHCR (ghcr.io/<owner>/<repo>/<service>:<tag>).
   # Owner + repo are lowercased per GHCR case-sensitivity.
-  repository: ghcr.io/flamegreat-1/etradie/engine
+  #
+  # Repository path is defined in helm/engine/values-image.yaml so a
+  # fork or registry rename is a single-file change. Tag default
+  # stays here so a local `helm template` without the image overlay
+  # still produces a deterministic render.
+  repository: ""
   pullPolicy: IfNotPresent
   tag: "0.1.0"
 
