@@ -1,20 +1,35 @@
-{{- if and .Values.mtConnection.enabled .Values.serviceMonitor.enabled }}
-{{- include "mt-node.preflight" . -}}
+{{- /*
+M7 fix: render the ServiceMonitor ONLY on the platform-only render path
+(mtConnection.enabled=false). A single ServiceMonitor selects EVERY
+mt-node Service in the namespace via the stable app.kubernetes.io/name
+label (hard-pinned to 'etradie-mt-node' in the chart's appName helper),
+so it works for all tenants without needing one CRD per release.
+
+Per-tenant Helm releases (mtConnection.enabled=true) no longer emit a
+ServiceMonitor; their per-tenant Service is still labelled
+app.kubernetes.io/name=etradie-mt-node so the platform-level
+ServiceMonitor below picks it up automatically.
+*/ -}}
+{{- if and (not .Values.mtConnection.enabled) .Values.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "mt-node.fullname" . }}
+  name: etradie-mt-node-platform
   namespace: {{ include "mt-node.namespace" . }}
   labels:
-    {{- include "mt-node.labels" . | nindent 4 }}
+    app.kubernetes.io/name: etradie-mt-node
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/component: servicemonitor
     {{- with .Values.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    app.kubernetes.io/component: servicemonitor
 spec:
+  # Match every mt-node Service in this namespace - one per tenant.
+  # Prometheus discovers them all from this single ServiceMonitor.
   selector:
     matchLabels:
-      {{- include "mt-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: etradie-mt-node
   namespaceSelector:
     matchNames:
       - {{ include "mt-node.namespace" . }}
