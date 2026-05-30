@@ -241,6 +241,25 @@ export default function TradingSystemPage() {
     return () => observer.disconnect();
   }, [mode, view, data?.profile]);
 
+  // Keep the active tab button visible in the scrollable tab bar
+  useEffect(() => {
+    if (mode !== 'view' || view !== 'system') return;
+    
+    const btn = document.getElementById(`tab-btn-${activeSystemTab}`);
+    const container = document.getElementById('system-tab-container');
+    
+    if (btn && container) {
+      const containerRect = container.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      
+      // If button is outside the horizontal viewport of the container, scroll to center it
+      if (btnRect.left < containerRect.left || btnRect.right > containerRect.right) {
+        const scrollLeft = btn.offsetLeft - container.offsetWidth / 2 + btn.offsetWidth / 2;
+        container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+      }
+    }
+  }, [activeSystemTab, mode, view]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col h-full bg-app">
@@ -428,22 +447,22 @@ export default function TradingSystemPage() {
           <div className="relative h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20 custom-scrollbar">
             {/* Tab bar (Sticky) */}
             <div className="sticky top-0 z-20 bg-app pb-4 pt-2 -mt-2">
-              <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full">
+              <div id="system-tab-container" className="flex overflow-x-auto lg:flex-wrap items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full no-scrollbar">
                 {SYSTEM_TABS.map((tab) => {
                   const active = activeSystemTab === tab.id;
                   return (
                     <button
                       key={tab.id}
+                      id={`tab-btn-${tab.id}`}
                       type="button"
                       onClick={() => {
                         const el = document.getElementById(`system-section-${tab.id}`);
                         if (el) {
                           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
-                        // Optionally set it immediately so the UI feels perfectly responsive
                         setActiveSystemTab(tab.id);
                       }}
-                      className={`rounded-lg px-2 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 w-full sm:w-auto text-center ${
+                      className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 whitespace-nowrap shrink-0 ${
                         active
                           ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
                           : 'text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'
