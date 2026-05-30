@@ -43,7 +43,7 @@ import json
 import os
 import secrets
 import time as _time
-from typing import Any, Iterable, Optional
+from typing import Any, Awaitable, Callable, Iterable, Optional
 
 import zmq
 import zmq.asyncio as zmq_async
@@ -67,6 +67,22 @@ from engine.shared.logging import get_logger
 from engine.shared.vault import VaultClient, VaultError
 
 logger = get_logger(__name__)
+
+# Sentinel value written into MT_SYMBOL on first boot. entrypoint.sh
+# treats it as 'skip chart template; keep MT5 logged in only'.
+# Resolution runs once Ready + PING succeed; the provisioner then
+# patches MT_SYMBOL to a real broker-published name and K8s rolls
+# the Pod once.
+SYMBOL_PENDING_SENTINEL = "__pending__"
+
+# Runs BrokerSyncService against a freshly-ready Pod and returns the
+# chart-attach symbol name (the first instrument the broker publishes,
+# or None when the broker exposes nothing). Injected by Container.
+CatalogSyncRunner = Callable[..., Awaitable[Optional[str]]]
+
+# Persists the chart-attach symbol onto broker_connections.mt5_symbol.
+# Injected by Container; keeps DB coupling out of the K8s module.
+ChartSymbolWriter = Callable[[str, str], Awaitable[None]]
 
 # ---------------------------------------------------------------------
 # Chart contract (must match helm/mt-node)
@@ -103,6 +119,28 @@ _LABEL_PLATFORM = "etradie.platform"
 _APP_NAME_VALUE = "etradie-mt-node"
 _PART_OF_VALUE = "etradie"
 _MANAGED_BY_VALUE = "etradie-engine"
+
+
+def release_name_for(connection_id: str) -> str:
+    """Return the StatefulSet/Service/Secret release name for a connection.
+
+    Pure string formatter shared with factory.py so callers that only
+    need name resolution do not instantiate HostedProvisioner with no
+    args (which previously masked missing Vault config).
+    """
+    return f"{CONTAINER_PREFIX}{connection_id[:12]}"
+
+
+def headless_service_name_for(release: str) -> str:
+    return f"{release}-headless"
+
+
+def service_dns_for(release: str, namespace: str) -> str:
+    return f"{release}.{namespace}.svc.cluster.local"
+
+
+def namespace_default() -> str:
+    return os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
 
 # Environment-bound resource sizing (overridable via env, with chart-aligned defaults).
 _MEM_LIMIT = os.environ.get("MT_NODE_MEM_LIMIT", "1536Mi")
@@ -200,13 +238,20 @@ class HostedProvisioner:
         image: str | None = None,
         platform_default_token_secret_name: str | None = None,
         vault_client: Optional[VaultClient] = None,
+        catalog_sync_runner: Optional[CatalogSyncRunner] = None,
+        chart_symbol_writer: Optional[ChartSymbolWriter] = None,
     ) -> None:
-        self._namespace = namespace or os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
+        self._namespace = namespace or namespace_default()
         self._image = image or self._resolve_image()
         # Platform Secret name the chart provisions. Defaults to the
         # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
         self._vault = vault_client
+        # Injected by Container: keeps DB + broker-client coupling out
+        # of the K8s module. Both are required for hosted provisioning;
+        # absence is enforced at provision_account().
+        self._catalog_sync_runner = catalog_sync_runner
+        self._chart_symbol_writer = chart_symbol_writer
 
     def _require_vault(self) -> VaultClient:
         if self._vault is None:
@@ -294,11 +339,11 @@ class HostedProvisioner:
 
     @staticmethod
     def _release_name(connection_id: str) -> str:
-        return f"{CONTAINER_PREFIX}{connection_id[:12]}"
+        return release_name_for(connection_id)
 
     @staticmethod
     def _headless_service_name(release: str) -> str:
-        return f"{release}-headless"
+        return headless_service_name_for(release)
 
     @classmethod
     def _labels(
@@ -353,7 +398,6 @@ class HostedProvisioner:
         login: str,
         password: str,
         server: str,
-        symbol: str = "EURUSD",
         platform: str = "mt5",
         zmq_port: int = DEFAULT_ZMQ_PORT,
         per_user_zmq_token: str | None = None,
@@ -362,24 +406,36 @@ class HostedProvisioner:
         """Provision a new hosted mt-node release.
 
         Side effects (idempotent w.r.t. an existing release of the same name):
-          1. Create / update the per-tenant Secret with sealed creds.
-          2. Create / update the StatefulSet (volumeClaimTemplates
-             owns the Wine prefix PVC).
-          3. Create / update the regular ClusterIP Service AND the
+          1. Create / update the per-tenant Vault secret with sealed creds.
+          2. Create / update the per-tenant ServiceAccount.
+          3. Create / update the StatefulSet with MT_SYMBOL=
+             SYMBOL_PENDING_SENTINEL on first boot so the entrypoint
+             skips chart template writing until the resolver runs.
+          4. Create / update the regular ClusterIP Service AND the
              headless Service the StatefulSet needs for stable pod-DNS.
-          4. Wait until the StatefulSet has at least one Ready replica
+          5. Wait until the StatefulSet has at least one Ready replica
              AND a ZMQ PING succeeds.
+          6. Run automatic broker symbol resolution (GET_ALL_SYMBOLS
+             via one-shot ZMQ REQ, generic scoring, persist to
+             broker_connections.symbol_map + mt5_symbol).
+          7. Patch the StatefulSet pod template env so K8s rolls the
+             Pod once with the resolved broker-actual symbol values.
 
-        Raises:
-            ConfigurationError    - missing platform encryption key.
-            ProviderUnavailableError - K8s API not reachable.
-            ProviderTimeoutError  - readiness gate timed out.
-            ProviderError         - K8s mutation failed.
+        Returns the runtime metadata the router persists onto the
+        broker_connections row plus the resolved symbol_map so the
+        caller can render it in the API response.
         """
         if platform not in ("mt4", "mt5"):
             raise ConfigurationError(
                 f"platform must be mt4 or mt5 (got {platform!r})",
                 details={"platform": platform, "connection_id": connection_id},
+            )
+        if self._catalog_sync_runner is None or self._chart_symbol_writer is None:
+            raise ConfigurationError(
+                "HostedProvisioner requires catalog_sync_runner and "
+                "chart_symbol_writer for automatic broker catalog population. "
+                "Inject them via Container.",
+                details={"connection_id": connection_id},
             )
 
         vault = self._require_vault()
@@ -426,7 +482,7 @@ class HostedProvisioner:
                     selector=selector,
                     platform=platform,
                     server=server,
-                    symbol=symbol,
+                    symbol=SYMBOL_PENDING_SENTINEL,
                     zmq_port=zmq_port,
                     vault_path=vault_path,
                     sa_name=sa_name,
@@ -491,6 +547,19 @@ class HostedProvisioner:
                 token=effective_token,
                 timeout=timeout,
             )
+
+            chart_symbol = await self._populate_broker_catalog(
+                connection_id=connection_id,
+                dns_name=dns_name,
+                zmq_port=zmq_port,
+                token=effective_token,
+            )
+
+            await self._patch_statefulset_symbol(
+                apps_api=apps_api,
+                release=release,
+                active_symbol=chart_symbol or "",
+            )
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -502,16 +571,18 @@ class HostedProvisioner:
                 "release": release,
                 "service": service_name,
                 "dns": dns_name,
+                "chart_symbol": chart_symbol,
             },
         )
 
         return {
-            "container_id": release,  # callers store this in broker_connections.hosted_container_id
+            "container_id": release,
             "container_name": release,
             "zmq_host": dns_name,
             "zmq_port": zmq_port,
             "zmq_auth_token": effective_token,
             "state": "running",
+            "chart_symbol": chart_symbol,
         }
 
     async def get_account_status(self, container_id: str) -> dict[str, Any]:
@@ -933,10 +1004,6 @@ class HostedProvisioner:
                 value=str(watchdog_port),
             ),
             client.V1EnvVar(
-                name="WATCHDOG_SYMBOL",
-                value=symbol,
-            ),
-            client.V1EnvVar(
                 name="WATCHDOG_POLL_INTERVAL_SECONDS",
                 value="10",
             ),
@@ -1301,6 +1368,103 @@ class HostedProvisioner:
                 "last_error": str(last_error) if last_error else None,
             },
         )
+
+    # -- Internal: broker catalog population + StatefulSet env patch --
+
+    async def _populate_broker_catalog(
+        self,
+        *,
+        connection_id: str,
+        dns_name: str,
+        zmq_port: int,
+        token: str,
+    ) -> Optional[str]:
+        """Sync the broker's full Market Watch into broker_symbols.
+
+        Runs BrokerSyncService against the freshly-ready Pod (via the
+        injected runner) and returns the chart-attach symbol name:
+        the first instrument the broker publishes. None means the
+        broker exposes nothing - extremely rare in practice; the
+        caller leaves MT_SYMBOL on the sentinel and HostedRecoveryService
+        retries on its next sweep.
+        """
+        assert self._catalog_sync_runner is not None
+        assert self._chart_symbol_writer is not None
+        chart_symbol = await self._catalog_sync_runner(
+            dns_name=dns_name,
+            zmq_port=zmq_port,
+            auth_token=token,
+        )
+        if chart_symbol:
+            await self._chart_symbol_writer(connection_id, chart_symbol)
+        return chart_symbol
+
+    async def _patch_statefulset_symbol(
+        self,
+        *,
+        apps_api: client.AppsV1Api,
+        release: str,
+        active_symbol: str,
+    ) -> None:
+        """Patch MT_SYMBOL + WATCHDOG_SYMBOL on the pod template.
+
+        The provisioner first-boots the StatefulSet with the
+        SYMBOL_PENDING_SENTINEL value so the entrypoint skips chart
+        template writing. Once resolution succeeds we patch both env
+        vars to the resolved broker-actual symbol; K8s observes the
+        pod template diff and performs one rolling restart, after
+        which the entrypoint writes the chart template normally.
+
+        When resolution returned no symbol (broker exposes none of the
+        canonical pairs in CANONICAL_PAIRS) we leave the sentinel in
+        place; HostedRecoveryService will retry on its next sweep.
+        """
+        if not active_symbol:
+            logger.warning(
+                "hosted_symbol_resolution_empty",
+                extra={"release": release},
+            )
+            return
+
+        env_patch = [
+            {"name": "MT_SYMBOL", "value": active_symbol},
+        ]
+        patch_body = {
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "etradie.io/symbol-resolved-at":
+                                str(int(_time.time())),
+                        },
+                    },
+                    "spec": {
+                        "containers": [
+                            {"name": "mt-node", "env": env_patch},
+                        ],
+                    },
+                },
+            },
+        }
+        try:
+            await apps_api.patch_namespaced_stateful_set(
+                name=release,
+                namespace=self._namespace,
+                body=patch_body,
+            )
+            logger.info(
+                "hosted_statefulset_symbol_patched",
+                extra={"release": release, "active_symbol": active_symbol},
+            )
+        except ApiException as exc:
+            raise ProviderError(
+                f"Failed to patch StatefulSet with resolved symbol: {exc.reason}",
+                details={
+                    "release": release,
+                    "active_symbol": active_symbol,
+                    "status": exc.status,
+                },
+            ) from exc
 
     async def _zmq_ping(self, *, dns_name: str, port: int, token: str) -> bool:
         endpoint = f"tcp://{dns_name}:{port}"

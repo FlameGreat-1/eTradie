@@ -225,7 +225,7 @@ class BrokerConnectionRepository:
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
-        mt5_symbol: str = "EURUSD",
+        mt5_symbol: Optional[str] = None,
         platform: str = "mt5",
         # Activation
         activate: bool = True,
@@ -395,6 +395,7 @@ class BrokerConnectionRepository:
         mt5_server: Optional[str] = None,
         mt5_login: Optional[str] = None,
         mt5_password: Optional[str] = None,
+        mt5_symbol: Optional[str] = None,
         platform: Optional[str] = None,
     ) -> Optional[BrokerConnectionRow]:
         """Update fields on an existing connection.
@@ -427,6 +428,11 @@ class BrokerConnectionRepository:
             values["mt5_login"] = mt5_login
         if mt5_password is not None:
             values["mt5_password_encrypted"] = _encrypt(mt5_password)
+        if mt5_symbol is not None:
+            # Empty string is rejected upstream by the resolver; we only
+            # arrive here with a non-empty stripped string when a
+            # privileged caller wants to override the resolver's pick.
+            values["mt5_symbol"] = mt5_symbol.strip()
         if platform is not None:
             values["platform"] = platform
 
@@ -442,6 +448,37 @@ class BrokerConnectionRepository:
         await self._session.flush()
 
         return await self.get_by_id(connection_id, user_id)
+
+    async def update_chart_symbol(
+        self,
+        connection_id: str,
+        *,
+        chart_symbol: str,
+    ) -> Optional[BrokerConnectionRow]:
+        """Persist the chart-attach symbol picked by the provisioner.
+
+        Called once per (re-)provision after BrokerSyncService has
+        populated the broker_symbols catalog. user_id is intentionally
+        omitted because the provisioner runs server-side without a user
+        session; connection_id is sufficient and the call is internal.
+        """
+        values: dict = {
+            "mt5_symbol": chart_symbol.strip(),
+            "updated_at": datetime.now(UTC),
+        }
+        stmt = (
+            update(BrokerConnectionRow)
+            .where(BrokerConnectionRow.id == connection_id)
+            .values(**values)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
+        result = await self._session.execute(
+            select(BrokerConnectionRow).where(
+                BrokerConnectionRow.id == connection_id,
+            )
+        )
+        return result.scalar_one_or_none()
 
     # -- Activate / Deactivate / Set Primary -----------------------------------
 

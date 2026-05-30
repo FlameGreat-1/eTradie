@@ -1,120 +1,90 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
-import { useSymbols, useUpdateSymbols } from '@/features/symbols/api/symbols';
-import { useSystemConfig, useUpdateInterval } from '@/features/system/api/systemConfig';
-import { useTierGate } from '@/features/auth/hooks/useTierGate';
-import ProFeatureLock from '@/components/ui/ProFeatureLock';
+import { useEffect, useMemo, useState } from 'react';
+import { Save, Search } from 'lucide-react';
 
-// Storage key for the user's local symbol pool. Kept lowercase-only and
-// namespaced so it never collides with another feature's storage.
-const SYMBOL_POOL_STORAGE_KEY = 'etradie-symbol-pool';
+import ProFeatureLock from '@/components/ui/ProFeatureLock';
+import { useTierGate } from '@/features/auth/hooks/useTierGate';
+import {
+  BrokerSymbol,
+  useBrokerSymbols,
+  useSymbols,
+  useUpdateSymbols,
+} from '@/features/symbols/api/symbols';
+import { useSystemConfig, useUpdateInterval } from '@/features/system/api/systemConfig';
+
+type GroupKey = 'Forex' | 'Metals' | 'Indices' | 'Crypto' | 'Other';
+
+const GROUP_ORDER: GroupKey[] = ['Forex', 'Metals', 'Indices', 'Crypto', 'Other'];
+
+function classifySymbol(symbol: BrokerSymbol): GroupKey {
+  const path = (symbol.path || '').toLowerCase();
+  if (path.includes('forex') || path.includes('currenc') || path.includes('fx')) return 'Forex';
+  if (path.includes('metal') || path.includes('gold') || path.includes('silver')) return 'Metals';
+  if (path.includes('index') || path.includes('indices')) return 'Indices';
+  if (path.includes('crypto') || path.includes('digital')) return 'Crypto';
+  return 'Other';
+}
 
 export default function SymbolsSection() {
-  const { data: symbolData } = useSymbols();
+  const { data: activeData } = useSymbols();
+  const { data: brokerCatalog, isLoading: catalogLoading } = useBrokerSymbols();
   const { data: config } = useSystemConfig();
   const updateSymbols = useUpdateSymbols();
   const updateInterval = useUpdateInterval();
   const { isFree, copy, openUpgradeModal } = useTierGate();
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [pool, setPool] = useState<string[]>([]);
-  const [newSymbol, setNewSymbol] = useState('');
+  const [search, setSearch] = useState('');
   const [intervalMins, setIntervalMins] = useState(120);
 
-  // The product spec is unambiguous: Free tier is capped at exactly one
-  // active symbol. We resolve this once per render so the UI logic stays
-  // declarative below.
   const maxActiveSymbols = isFree ? 1 : Infinity;
   const gateCopy = copy('symbols');
 
   useEffect(() => {
-    if (!symbolData) return;
-    const active = symbolData.symbols || [];
-    // If the backend has already truncated a downgraded user to one
-    // symbol, reflect that immediately so the checkbox state is honest.
-    const initialSelected = isFree ? active.slice(0, 1) : active;
-    setSelected(initialSelected);
-
-    let savedPool: string[] = [];
-    try {
-      savedPool = JSON.parse(localStorage.getItem(SYMBOL_POOL_STORAGE_KEY) || '[]');
-    } catch {
-      savedPool = [];
-    }
-    const combined = Array.from(new Set([...savedPool, ...active]));
-    setPool(combined);
-    try {
-      localStorage.setItem(SYMBOL_POOL_STORAGE_KEY, JSON.stringify(combined));
-    } catch {
-      /* ignore quota errors; the pool is non-critical UI state */
-    }
-  }, [symbolData, isFree]);
+    const active = activeData?.symbols ?? [];
+    setSelected(isFree ? active.slice(0, 1) : active);
+  }, [activeData, isFree]);
 
   useEffect(() => {
-    if (config) {
-      setIntervalMins(Math.round(config.cycle_interval_seconds / 60));
-    }
+    if (config) setIntervalMins(Math.round(config.cycle_interval_seconds / 60));
   }, [config]);
 
-  const limitReached = useMemo(
-    () => selected.length >= maxActiveSymbols,
-    [selected.length, maxActiveSymbols],
-  );
+  const grouped = useMemo(() => {
+    const symbols = brokerCatalog?.symbols ?? [];
+    const needle = search.trim().toLowerCase();
+    const filtered = needle
+      ? symbols.filter((s) =>
+          s.name.toLowerCase().includes(needle) ||
+          (s.description || '').toLowerCase().includes(needle),
+        )
+      : symbols;
 
-  const toggleSymbol = (s: string) => {
+    const out: Record<GroupKey, BrokerSymbol[]> = {
+      Forex: [], Metals: [], Indices: [], Crypto: [], Other: [],
+    };
+    for (const s of filtered) out[classifySymbol(s)].push(s);
+    for (const k of GROUP_ORDER) out[k].sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+  }, [brokerCatalog, search]);
+
+  const limitReached = selected.length >= maxActiveSymbols;
+
+  const toggleSymbol = (name: string) => {
     setSelected((prev) => {
-      const isCurrentlySelected = prev.includes(s);
-      if (isCurrentlySelected) {
-        return prev.filter((x) => x !== s);
-      }
-      // Adding a new symbol: enforce the Free-tier cap inline.
+      if (prev.includes(name)) return prev.filter((x) => x !== name);
       if (isFree && prev.length >= maxActiveSymbols) {
         openUpgradeModal();
         return prev;
       }
-      return [...prev, s];
+      return [...prev, name];
     });
   };
 
-  const removeSymbolFromPool = (s: string) => {
-    const newPool = pool.filter((x) => x !== s);
-    setPool(newPool);
-    try {
-      localStorage.setItem(SYMBOL_POOL_STORAGE_KEY, JSON.stringify(newPool));
-    } catch {
-      /* non-fatal */
-    }
-
-    if (selected.includes(s)) {
-      setSelected((prev) => prev.filter((x) => x !== s));
-    }
+  const save = () => {
+    const payload = isFree ? selected.slice(0, maxActiveSymbols) : selected;
+    updateSymbols.mutate(payload);
   };
 
-  const addCustomSymbol = (e: React.FormEvent) => {
-    e.preventDefault();
-    const s = newSymbol.trim();
-    if (!s || pool.includes(s)) {
-      setNewSymbol('');
-      return;
-    }
-    const newPool = [...pool, s];
-    setPool(newPool);
-    try {
-      localStorage.setItem(SYMBOL_POOL_STORAGE_KEY, JSON.stringify(newPool));
-    } catch {
-      /* non-fatal */
-    }
-
-    // For Free users we never auto-select beyond the cap so the cap is
-    // honoured immediately on add as well. Pro/admin auto-selects as before.
-    setSelected((prev) => {
-      if (isFree && prev.length >= maxActiveSymbols) {
-        return prev;
-      }
-      return [...prev, s];
-    });
-    setNewSymbol('');
-  };
+  const totalCatalogCount = brokerCatalog?.symbols.length ?? 0;
 
   return (
     <div className="space-y-10 max-w-lg">
@@ -124,113 +94,84 @@ export default function SymbolsSection() {
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Configuration</div>
             <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Active Symbols</h3>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            {isFree ? (
-              <span className="text-black/20 dark:text-white/20">{selected.length} / 1 selected</span>
-            ) : (
-              <span className="text-brand border-b border-brand/30 pb-0.5">Add exact broker symbols</span>
-            )}
+          <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">
+            {isFree ? `${selected.length} / 1 selected` : `${selected.length} selected`}
           </span>
         </div>
 
         {isFree && (
-          <div
-            role="status"
-            className="mb-6 rounded-2xl border border-brand/20 bg-brand/5 p-4 shadow-sm"
-          >
-            <p className="text-[11px] font-bold text-black/60 dark:text-white/60 leading-relaxed">
-              {gateCopy.body}
-            </p>
+          <div role="status" className="mb-6 rounded-2xl border border-brand/20 bg-brand/5 p-4 shadow-sm">
+            <p className="text-[11px] font-bold text-black/60 dark:text-white/60 leading-relaxed">{gateCopy.body}</p>
             <button
               type="button"
               onClick={openUpgradeModal}
               className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-80 transition-all"
             >
-              Upgrade to Pro <Plus size={10} strokeWidth={4} />
+              Upgrade to Pro
             </button>
           </div>
         )}
 
         <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
-          <form onSubmit={addCustomSymbol} className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} strokeWidth={3} className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20" />
             <input
               type="text"
-              value={newSymbol}
-              onChange={(e) => setNewSymbol(e.target.value)}
-              placeholder="e.g. USDCHFm"
-              className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={catalogLoading ? 'Loading broker catalogue…' : `Search ${totalCatalogCount} broker symbols`}
+              disabled={catalogLoading}
+              className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black pl-11 pr-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none disabled:opacity-40"
             />
-            <button
-              type="submit"
-              disabled={!newSymbol.trim()}
-              className="flex items-center gap-1.5 rounded-xl bg-black dark:bg-white border border-transparent px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
-                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-20"
-            >
-              <Plus size={14} strokeWidth={3} /> Add
-            </button>
-          </form>
-
-          <div className="grid grid-cols-2 gap-4">
-            {pool.map((s) => {
-              const isSelected = selected.includes(s);
-              const disabledForCap = isFree && !isSelected && limitReached;
-              return (
-                <div key={s} className="flex items-center justify-between group p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
-                  <label
-                    className={`flex items-center gap-3 text-xs flex-1 ${
-                      disabledForCap
-                        ? 'cursor-not-allowed text-black/20 dark:text-white/20'
-                        : 'cursor-pointer text-black/60 dark:text-white/60 font-bold'
-                    }`}
-                    title={
-                      disabledForCap
-                        ? gateCopy.body
-                        : undefined
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={disabledForCap}
-                      onChange={() => {
-                        if (disabledForCap) {
-                          openUpgradeModal();
-                          return;
-                        }
-                        toggleSymbol(s);
-                      }}
-                      className="h-4 w-4 rounded border-black/10 dark:border-white/10 text-brand focus:ring-brand disabled:opacity-20 transition-all cursor-pointer"
-                    />
-                    <span className="tracking-tight">{s}</span>
-                  </label>
-                  <button
-                    onClick={() => removeSymbolFromPool(s)}
-                    className="text-black/20 dark:text-white/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-md hover:bg-red-500/10"
-                    title="Remove from pool"
-                  >
-                    <Trash2 size={12} strokeWidth={3} />
-                  </button>
-                </div>
-              );
-            })}
-            {pool.length === 0 && (
-              <div className="col-span-2 text-center text-[11px] font-bold text-black/20 dark:text-white/20 py-8 italic bg-black/5 dark:bg-white/5 rounded-xl border border-dashed border-black/10 dark:border-white/10">
-                No symbols added yet.
-              </div>
-            )}
           </div>
+
+          {!catalogLoading && totalCatalogCount === 0 && (
+            <div className="text-center text-[11px] font-bold text-black/30 dark:text-white/30 py-10 italic bg-black/5 dark:bg-white/5 rounded-xl border border-dashed border-black/10 dark:border-white/10">
+              No broker symbols available. Connect a broker first.
+            </div>
+          )}
+
+          {GROUP_ORDER.map((group) => {
+            const items = grouped[group];
+            if (items.length === 0) return null;
+            return (
+              <div key={group} className="space-y-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">{group}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {items.map((s) => {
+                    const isSelected = selected.includes(s.name);
+                    const disabledForCap = isFree && !isSelected && limitReached;
+                    return (
+                      <label
+                        key={s.name}
+                        title={disabledForCap ? gateCopy.body : s.description || s.path || s.name}
+                        className={`flex items-center gap-3 text-xs p-2 rounded-lg transition-all ${
+                          disabledForCap
+                            ? 'cursor-not-allowed text-black/20 dark:text-white/20'
+                            : 'cursor-pointer text-black/60 dark:text-white/60 font-bold hover:bg-black/5 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={disabledForCap}
+                          onChange={() => (disabledForCap ? openUpgradeModal() : toggleSymbol(s.name))}
+                          className="h-4 w-4 rounded border-black/10 dark:border-white/10 text-brand focus:ring-brand disabled:opacity-20 transition-all cursor-pointer"
+                        />
+                        <span className="tracking-tight">{s.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
           <div className="pt-2">
             <button
-              onClick={() => {
-                const payload = isFree
-                  ? selected.slice(0, maxActiveSymbols)
-                  : selected;
-                updateSymbols.mutate(payload);
-              }}
+              onClick={save}
               disabled={updateSymbols.isPending || selected.length === 0}
-              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
-                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40 w-fit"
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40 w-fit"
             >
               <Save size={14} strokeWidth={3} /> {updateSymbols.isPending ? 'Saving…' : 'Save Changes'}
             </button>
@@ -259,8 +200,7 @@ export default function SymbolsSection() {
             <button
               onClick={() => updateInterval.mutate(intervalMins * 60)}
               disabled={updateInterval.isPending}
-              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black
-                         hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
+              className="flex items-center gap-2 rounded-xl bg-black dark:bg-white px-12 py-3 text-[10px] font-black uppercase tracking-widest text-white dark:text-black hover:opacity-90 shadow-lg shadow-black/10 dark:shadow-white/10 transition-all disabled:opacity-40"
             >
               <Save size={14} strokeWidth={3} /> {updateInterval.isPending ? 'Saving…' : 'Update Interval'}
             </button>

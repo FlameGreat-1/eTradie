@@ -119,15 +119,15 @@ class BrokerConnectionRow(ProcessorBase):
         Text,
         nullable=True,
     )
-    # Default chart symbol for the hosted MT terminal. The engine writes
-    # this into the StatefulSet's MT_SYMBOL env var at provision time.
-    # The watchdog uses it to probe the EA's tick stream. Stored here so
-    # the HostedRecoveryService can re-provision with the correct symbol
-    # instead of hardcoding 'EURUSD'.
+    # The chart-attach symbol the hosted MT terminal opens on boot.
+    # Picked by the provisioner from the first row of the broker_symbols
+    # table after BrokerSyncService has synchronously populated the
+    # catalog from the broker's live Market Watch. NULL until the first
+    # successful catalog sync. The full broker catalog lives in the
+    # broker_symbols table; this column carries only the chart pick.
     mt5_symbol: Mapped[Optional[str]] = mapped_column(
         String(50),
         nullable=True,
-        server_default="EURUSD",
     )
 
     # -- State flags -----------------------------------------------------------

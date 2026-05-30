@@ -422,10 +422,12 @@ def create_mt5_broker_from_connection(
         # ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS, default 60s) and
         # re-provision it. Until then, ZmqClient calls will fail with
         # ProviderTimeoutError, which the caller surfaces to the user.
-        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+        from engine.ta.broker.mt5.hosted.provisioner import (
+            namespace_default,
+            service_dns_for,
+        )
 
-        provisioner = HostedProvisioner()
-        zmq_host = provisioner.resolve_zmq_host(row.hosted_container_id)
+        zmq_host = service_dns_for(row.hosted_container_id, namespace_default())
 
         if not zmq_host:
             raise ConfigurationError(

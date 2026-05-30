@@ -916,7 +916,6 @@ class ZmqClient(BrokerBase):
         )
 
     async def get_tick_price(self, symbol: str) -> TickPrice:
-
         raw = await self._request({"command": "TICK_PRICE", "symbol": symbol})
         if not isinstance(raw, dict):
             raise ProviderResponseError(

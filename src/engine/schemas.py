@@ -156,11 +156,9 @@ class CreateBrokerConnectionRequest(BaseModel):
     # binary is bundled in the mt-node image. Only 'mt5' is buildable
     # end-to-end today; see docker/mt-node/ea/README.md.
     platform: str = Field(default="mt5", description="Trading platform. Currently only 'mt5' is supported end-to-end; 'mt4' is reserved for future support.")
-    # Default chart symbol for the hosted MT terminal (broker-correct name,
-    # e.g. 'EURUSDm' on Exness). Defaults to 'EURUSD'. The engine writes
-    # this into the StatefulSet's MT_SYMBOL env var at provision time.
-    mt5_symbol: str = Field(default="EURUSD", description="Default chart symbol (broker-correct name)")
-    # EA: no user-facing fields (auto from env)
+    # No symbol field. The hosted provisioner runs automatic broker
+    # symbol resolution (GET_ALL_SYMBOLS over ZMQ) after the Pod boots
+    # and persists the canonical->broker-actual map to the row.
     activate: bool = True
 
 class UpdateBrokerConnectionRequest(BaseModel):

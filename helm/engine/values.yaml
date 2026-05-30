@@ -199,7 +199,6 @@ config:
     reconnectCapSecs: "30.0"
     reconnectMaxAttempts: "10"
     tickMaxAgeSecs: "10"
-    symbolResolverCacheTtlSecs: "3600"
     # Section 4 (EA stability). Identity verification + clock skew
     # monitor. Set eaIdentityVerifyEnabled to 'false' for an
     # operator kill-switch without redeploying. eaMinVersion is

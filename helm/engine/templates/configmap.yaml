@@ -112,7 +112,6 @@ data:
   ENGINE_CONNECTIVITY_RECONNECT_CAP_SECS: {{ .Values.config.connectivity.reconnectCapSecs | quote }}
   ENGINE_CONNECTIVITY_RECONNECT_MAX_ATTEMPTS: {{ .Values.config.connectivity.reconnectMaxAttempts | quote }}
   ENGINE_CONNECTIVITY_TICK_MAX_AGE_SECS: {{ .Values.config.connectivity.tickMaxAgeSecs | quote }}
-  ENGINE_CONNECTIVITY_SYMBOL_RESOLVER_CACHE_TTL_SECS: {{ .Values.config.connectivity.symbolResolverCacheTtlSecs | quote }}
 
   # EA stability (Section 4). Consumed by EAIdentityVerifier and
   # ClockSkewMonitor inside ZmqClient. Non-secret.
