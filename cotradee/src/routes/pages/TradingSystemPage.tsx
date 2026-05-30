@@ -174,23 +174,6 @@ function SystemTabContent({ tabId, profile }: { tabId: SystemTabId; profile: Tra
   }
 }
 
-/* ── Section title lookup ──────────────────────────────────────── */
-const SECTION_TITLES: Record<SystemTabId, string> = {
-  identity: '1. Identity',
-  style: '2. Style',
-  sessions: '3. Sessions',
-  risk: '4. Risk Personality',
-  confirmation: '5. Confirmation',
-  structural: '6. Structural',
-  entry: '7. Entry',
-  filtering: '8. Trade Filtering',
-  psychology: '9. Psychology',
-  confluence: '10. Confluence Weights',
-  automation: '11. Automation',
-  assets: '12. Assets',
-  goal: '13. Goal',
-  management: '14. Trade Management',
-};
 
 /**
  * Standalone Trading System dashboard page.
@@ -231,6 +214,32 @@ export default function TradingSystemPage() {
       setSearchParams(nextParams, { replace: true });
     }
   }, [view, justActivated, searchParams, setSearchParams]);
+
+  // ScrollSpy to update active tab based on what section is currently in view
+  useEffect(() => {
+    if (mode !== 'view' || view !== 'system') return;
+    
+    // We observe all the section elements. When they cross the top 20%-30% of the screen, we consider them "active".
+    const observer = new IntersectionObserver((entries) => {
+      // Find the first intersecting entry that is mostly visible
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const tabId = entry.target.id.replace('system-section-', '') as SystemTabId;
+          setActiveSystemTab(tabId);
+        }
+      }
+    }, {
+      rootMargin: '-20% 0px -70% 0px', // Trigger when section is near the top
+      threshold: 0
+    });
+
+    SYSTEM_TABS.forEach(tab => {
+      const el = document.getElementById(`system-section-${tab.id}`);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [mode, view, data?.profile]);
 
   if (isLoading) {
     return (
@@ -416,34 +425,62 @@ export default function TradingSystemPage() {
           style={{ transform: view === 'system' ? 'translateX(0%)' : 'translateX(-50%)' }}
         >
           {/* Pane 1: existing Trading System summary — tabbed */}
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20">
-            {/* Tab bar */}
-            <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full mb-6">
-              {SYSTEM_TABS.map((tab) => {
-                const active = activeSystemTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveSystemTab(tab.id)}
-                    className={`rounded-lg px-2 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 w-full sm:w-auto text-center ${
-                      active
-                        ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
-                        : 'text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+          <div className="relative h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20 custom-scrollbar">
+            {/* Tab bar (Sticky) */}
+            <div className="sticky top-0 z-20 bg-app pb-4 pt-2 -mt-2">
+              <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full">
+                {SYSTEM_TABS.map((tab) => {
+                  const active = activeSystemTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById(`system-section-${tab.id}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        // Optionally set it immediately so the UI feels perfectly responsive
+                        setActiveSystemTab(tab.id);
+                      }}
+                      className={`rounded-lg px-2 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all duration-200 w-full sm:w-auto text-center ${
+                        active
+                          ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
+                          : 'text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Active section content */}
+            {/* Content: All sections stacked in a single card */}
             <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-5 shadow-sm">
-              <h3 className="text-xs font-black text-brand uppercase tracking-[0.2em] mb-4">
-                {SECTION_TITLES[activeSystemTab]}
-              </h3>
-              <SystemTabContent tabId={activeSystemTab} profile={data!.profile!} />
+              {SYSTEM_TABS.map((tab, idx) => (
+                <div key={tab.id} id={`system-section-${tab.id}`} className="scroll-mt-[120px] pb-8 last:pb-0">
+                  {/* Header: Circle Step Indicator + Title */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-9 h-9 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-black text-black/60 dark:text-white/60">{idx + 1}/{SYSTEM_TABS.length}</span>
+                    </div>
+                    <h3 className="text-xs font-black text-brand uppercase tracking-[0.2em] m-0">
+                      {tab.label}
+                    </h3>
+                  </div>
+                  
+                  {/* Rows */}
+                  <div className="pl-12 space-y-1">
+                    <SystemTabContent tabId={tab.id} profile={data!.profile!} />
+                  </div>
+
+                  {/* Divider except on the very last item */}
+                  {idx < SYSTEM_TABS.length - 1 && (
+                    <div className="h-px bg-black/5 dark:border-white/5 mt-8 ml-12" />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
           {/* Pane 2: new Trading Plan workbook */}
