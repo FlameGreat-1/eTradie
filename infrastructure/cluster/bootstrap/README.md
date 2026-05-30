@@ -48,18 +48,52 @@ helm install external-secrets external-secrets/external-secrets \
   --version 0.10.4
 ```
 
-## 3. Install Vault (skip if using HCP / external Vault)
+## 3. Install Vault + Vault Agent Injector (skip Vault server step if using HCP / external Vault)
+
+The mt-node hosting path's H1 fix REQUIRES the Vault Agent Injector to be
+installed in-cluster. The injector mutates per-tenant mt-node Pods so
+Vault renders broker credentials into a tmpfs file at startup; the
+plaintext credentials never appear in a K8s Secret.
+
+### 3a. Self-hosted Vault (server + injector together)
 
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
 helm install vault hashicorp/vault \
   --namespace vault --create-namespace \
   --set 'server.ha.enabled=true' \
-  --set 'server.ha.replicas=3'
+  --set 'server.ha.replicas=3' \
+  --set 'injector.enabled=true' \
+  --set 'injector.replicas=2' \
+  --set 'injector.metrics.enabled=true'
 ```
 
 After install, initialise + unseal Vault and capture the root
 token (production: enable auto-unseal via the cluster's KMS).
+
+### 3b. HCP Vault / external Vault (injector only)
+
+When Vault itself runs outside the cluster, install ONLY the Vault Agent
+Injector with the chart's server.enabled=false flag. The injector
+authenticates against the external Vault using its own SA via the
+Kubernetes auth backend configured in step 4.
+
+```bash
+helm install vault hashicorp/vault \
+  --namespace vault --create-namespace \
+  --set 'server.enabled=false' \
+  --set 'injector.enabled=true' \
+  --set 'injector.externalVaultAddr=https://vault.example.com' \
+  --set 'injector.replicas=2' \
+  --set 'injector.metrics.enabled=true'
+```
+
+### 3c. Verify the injector is healthy before continuing
+
+```bash
+kubectl -n vault get pods -l app.kubernetes.io/name=vault-agent-injector
+# Expected: NAME ... STATUS=Running   READY=1/1
+```
 
 ## 4. Apply Vault path schema
 
@@ -146,14 +180,66 @@ the NODE pool stays fixed.
 
 ```bash
 vault kv put secret/etradie/services/mt-node/production \
-  mt_node_credential_encryption_key="$(openssl rand -hex 32)" \
   default_zmq_auth_token="$(openssl rand -hex 32)"
 ```
 
-The engine reads `MT_NODE_CREDENTIAL_ENCRYPTION_KEY` from this path
-to AES-GCM seal per-user MT broker credentials before writing them
-to a per-tenant Kubernetes Secret. Without it, the dashboard's
-'Hosted' connection option fails with a clear ConfigurationError.
+This Vault path holds the platform-level fallback ZMQ auth token (used
+by the mt-node container's EA AUTH_TOKEN input when no per-tenant
+override is set). Per-tenant MT broker credentials (login, password,
+per-tenant ZMQ token) are no longer stored as a K8s Secret with
+plaintext values - the H1 fix uses the Vault Agent Injector to render
+them directly into the per-tenant Pod at startup. See step 12 for the
+per-tenant infrastructure.
+
+The legacy mt_node_credential_encryption_key key is no longer required
+for new deployments. Existing deployments may retain it for backwards
+compatibility during the cutover window; the engine logs an
+informational message when it is unset.
+
+## 12. Provision the mt-node tenant Vault infrastructure (Vault Agent Injector)
+
+The terraform/cluster/vault-paths module bootstraps the per-tenant
+Vault path prefix, the Kubernetes auth roles, and the policies that
+lock each Pod to its own connection_id. Apply it AFTER step 11.
+
+```bash
+cd ../vault-paths
+terraform apply \
+  -var environment=production \
+  -var vault_address=$VAULT_ADDR \
+  -var k8s_host=https://kubernetes.default.svc \
+  -var k8s_ca_cert="$(kubectl get cm -n kube-system kube-root-ca.crt -o jsonpath='{.data.ca\.crt}')" \
+  -var k8s_reviewer_jwt="$(kubectl create token -n vault vault-auth)"
+```
+
+What this provisions (see vault-paths/mt_node_tenant_secrets.tf for the
+full contract):
+
+  - `vault_auth_backend.kubernetes` - declared as managed; idempotent on
+    a cluster where ESO already enabled it.
+  - `vault_kubernetes_auth_backend_config.kubernetes` - configures the
+    cluster API server + reviewer JWT.
+  - `vault_policy.mt_node_provisioner` - WRITE on every tenant path
+    under `etradie/data/tenants/mt-node/*`. Granted to the engine SA.
+  - `vault_policy.mt_node_tenant` - READ on EXACTLY the requesting
+    Pod's own tenant path (templated by the auth role's connection_id
+    metadata).
+  - `vault_kubernetes_auth_backend_role.mt_node_provisioner` - binds
+    the engine SA in etradie-system namespace.
+  - `vault_kubernetes_auth_backend_role.mt_node_tenant` - binds every
+    per-tenant SA the engine provisions (name pattern etradie-mt-*).
+
+Prerequisite: a vault-auth ServiceAccount with the
+`system:auth-delegator` ClusterRole must exist in the vault namespace.
+The Vault helm chart creates this automatically when injector.enabled=true.
+For external Vault, create it manually:
+
+```bash
+kubectl create serviceaccount -n vault vault-auth
+kubectl create clusterrolebinding vault-auth-delegator \
+  --clusterrole=system:auth-delegator \
+  --serviceaccount=vault:vault-auth
+```
 
 ## 11. Verify
 
