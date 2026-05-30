@@ -1205,6 +1205,15 @@ class HostedProvisioner:
             node_selector=node_selector,
             affinity=affinity_raw,
             topology_spread_constraints=topology_spread_raw,
+            # Match the chart-rendered PodSpec wire shape exactly so a
+            # 'kubectl get sts -o yaml' diff between chart-rendered and
+            # runtime-provisioned Pods is empty. K8s defaults for both
+            # fields already match these values (ClusterFirst is the
+            # default when hostNetwork is False; Always is the only
+            # valid restartPolicy on a StatefulSet PodTemplate and the
+            # API server enforces it), so this is a pure spec-match.
+            dns_policy="ClusterFirst",
+            restart_policy="Always",
         )
 
         # Vault Agent Injector annotations. The injector mutates the
