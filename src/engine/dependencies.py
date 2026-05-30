@@ -676,9 +676,26 @@ class Container:
         if self._hosted_provisioner is not None:
             return self._hosted_provisioner
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
+
+        async def _write_symbol_map(
+            connection_id: str,
+            symbol_map: dict,
+            active_symbol: Optional[str],
+        ) -> None:
+            async with self.db.session() as session:
+                repo = BrokerConnectionRepository(session)
+                await repo.update_symbol_map(
+                    connection_id,
+                    symbol_map=symbol_map,
+                    active_symbol=active_symbol,
+                )
 
         self._hosted_provisioner = HostedProvisioner(
             vault_client=self.vault_client,
+            symbol_map_writer=_write_symbol_map,
         )
         return self._hosted_provisioner
 
