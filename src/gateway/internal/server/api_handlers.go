@@ -405,6 +405,13 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if claims != nil && claims.Role != "admin" {
+		if err := h.validateAgainstBrokerCatalog(r.Context(), req.Symbols); err != nil {
+			writeJSONError(w, err.status, err.message)
+			return
+		}
+	}
+
 	userID := claims.UserID
 	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
 	ok := h.symbolStore.SetActiveSymbols(r.Context(), userID, req.Symbols)
@@ -426,6 +433,65 @@ func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 		"success":        ok,
 		"active_symbols": active,
 	})
+}
+
+type validationError struct {
+	status  int
+	message string
+}
+
+// validateAgainstBrokerCatalog rejects any submitted symbol that is
+// not published by the user's currently connected broker. The
+// catalog comes from the engine's /api/broker/symbols endpoint,
+// which is populated lazily by BrokerSyncService and reflects the
+// broker-actual names (e.g. EURUSDm on Exness) the EA returns from
+// GET_ALL_SYMBOLS. Admins bypass this check so platform operators
+// can seed defaults without a connected broker.
+func (h *APIHandler) validateAgainstBrokerCatalog(ctx context.Context, requested []string) *validationError {
+	catalog, err := h.engine.GetJSON(ctx, "/api/broker/symbols")
+	if err != nil {
+		h.log.Error().Err(err).Msg("symbols_catalog_fetch_failed")
+		return &validationError{
+			status:  http.StatusBadGateway,
+			message: "could not verify symbols against broker catalogue; try again in a moment",
+		}
+	}
+	rawList, _ := catalog["symbols"].([]interface{})
+	known := make(map[string]struct{}, len(rawList))
+	for _, entry := range rawList {
+		obj, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, ok := obj["name"].(string)
+		if !ok || strings.TrimSpace(name) == "" {
+			continue
+		}
+		known[strings.TrimSpace(name)] = struct{}{}
+	}
+	if len(known) == 0 {
+		return &validationError{
+			status:  http.StatusFailedDependency,
+			message: "broker catalogue is empty; connect a broker before configuring symbols",
+		}
+	}
+	unknown := make([]string, 0)
+	for _, sym := range requested {
+		trimmed := strings.TrimSpace(sym)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := known[trimmed]; !ok {
+			unknown = append(unknown, trimmed)
+		}
+	}
+	if len(unknown) > 0 {
+		return &validationError{
+			status:  http.StatusBadRequest,
+			message: "symbols not published by your broker: " + strings.Join(unknown, ", "),
+		}
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
