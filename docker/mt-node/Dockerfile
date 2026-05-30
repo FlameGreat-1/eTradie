@@ -99,7 +99,14 @@ RUN set -eux; \
     # --install-recommends on the same line; apt's last-flag-wins
     # meant Recommends were always installed but the intent was
     # unclear. Spell out the correct flag.
-    if [ -n "${WINEHQ_VERSION}" ]; then \
+    if [ -z "${WINEHQ_VERSION}" ]; then \
+        echo "FATAL: WINEHQ_VERSION build-arg is required. Pass --build-arg WINEHQ_VERSION=<apt-version-string> for production builds (run 'apt-cache policy winehq-stable' to discover the current value), or 'skip' for dev." >&2; \
+        exit 1; \
+    fi; \
+    if [ "${WINEHQ_VERSION}" = "skip" ]; then \
+        echo "WARN: WINEHQ_VERSION=skip - Wine will install at whatever winehq-${WINEHQ_BRANCH} resolves to today. NOT a reproducible build; dev only." >&2; \
+        apt-get install -y --install-recommends winehq-${WINEHQ_BRANCH}; \
+    else \
         echo "INFO: pinning winehq-${WINEHQ_BRANCH} to version ${WINEHQ_VERSION}" >&2; \
         apt-get install -y --install-recommends \
             winehq-${WINEHQ_BRANCH}=${WINEHQ_VERSION} \
@@ -111,10 +118,6 @@ RUN set -eux; \
             wine-${WINEHQ_BRANCH} \
             wine-${WINEHQ_BRANCH}-amd64 \
             wine-${WINEHQ_BRANCH}-i386; \
-    else \
-        echo "WARN: WINEHQ_VERSION build-arg is empty - Wine will install at whatever winehq-${WINEHQ_BRANCH} resolves to today. This build is NOT reproducible. Production CI MUST set WINEHQ_VERSION." >&2; \
-        apt-get install -y --install-recommends \
-            winehq-${WINEHQ_BRANCH}; \
     fi; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
