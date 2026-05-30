@@ -52,6 +52,77 @@ logging.basicConfig(
 )
 log = logging.getLogger("watchdog")
 
+
+def _load_vault_secrets_file(path: str) -> None:
+    """Parse `export KEY=VALUE` lines into os.environ.
+
+    The Vault Agent init-container renders broker credentials to this
+    file before the main containers start. The watchdog is Python so
+    it cannot `source` a bash file; this parser handles the same
+    shape that entrypoint.sh sources:
+
+        export MT_LOGIN=12345
+        export MT_PASSWORD='p@ss w/ spaces'
+        export MT_ZMQ_AUTH_TOKEN="..."
+        export MT_VAULT_RENDERED_AT=2026-05-30T12:34:56Z
+
+    Quoting (single, double, none) is handled. Lines that do not
+    match are skipped; bare comments and blank lines are ignored.
+    The file's absence is not an error: docker-compose dev has no
+    injector and exports the same env vars directly.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+    except FileNotFoundError:
+        log.info(
+            "Vault credentials file not present at %s; "
+            "relying on env (docker-compose / dev mode)",
+            path,
+        )
+        return
+    except OSError as exc:
+        log.warning("Failed to read Vault credentials file %s: %s", path, exc)
+        return
+
+    loaded = 0
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and (
+            (value[0] == '"' and value[-1] == '"')
+            or (value[0] == "'" and value[-1] == "'")
+        ):
+            value = value[1:-1]
+        if not key:
+            continue
+        os.environ[key] = value
+        loaded += 1
+
+    rendered_at = os.environ.get("MT_VAULT_RENDERED_AT", "")
+    if rendered_at:
+        log.info(
+            "Loaded %d Vault-rendered credential entries (rendered_at=%s)",
+            loaded,
+            rendered_at,
+        )
+    else:
+        log.info("Loaded %d Vault-rendered credential entries from %s", loaded, path)
+
+
+_VAULT_SECRETS_FILE = os.environ.get(
+    "VAULT_SECRETS_FILE", "/vault/secrets/mt-credentials.env"
+)
+_load_vault_secrets_file(_VAULT_SECRETS_FILE)
+
 # ----- Config from envFrom (ConfigMap) ---------------------------------
 POLL_INTERVAL = float(os.environ.get("WATCHDOG_POLL_INTERVAL_SECONDS", "10"))
 MAX_FAILURES = int(os.environ.get("WATCHDOG_MAX_FAILURES", "6"))
