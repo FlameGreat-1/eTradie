@@ -107,6 +107,27 @@ async def create_broker_connection(
             detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
         )
 
+    # platform='mt4' is not currently supported: docker/mt-node/ea/ZeroMQ_EA.ex4
+    # is not committed to the repository (see docker/mt-node/ea/README.md). A
+    # platform='mt4' hosted connection would launch terminal.exe inside the
+    # Wine container with no EA binary, fail every ZMQ authentication, and
+    # loop the Pod on the kubelet backoff envelope. Reject at the router with
+    # a stable error code so the dashboard can surface a specific message.
+    if (body.platform or "mt5").strip().lower() == "mt4":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "mt4_not_supported",
+                "message": (
+                    "MetaTrader 4 is not currently supported on the hosted "
+                    "and EA self-hosting paths. The MT4 EA binary is not "
+                    "bundled in the mt-node image. Select MetaTrader 5 "
+                    "(platform='mt5') to continue. MT4 support is on the "
+                    "roadmap; track CHECKLIST.md for status."
+                ),
+            },
+        )
+
     # connection_type='ea' is a local-development-only escape hatch
     # (it reads single-tenant MT5_ZMQ_* env vars from the engine's own
     # environment). Production and staging always reject it at the
@@ -371,6 +392,23 @@ async def update_broker_connection(
     (up to ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS = 10 min).
     """
     container: Container = request.app.state.container
+
+    # Same MT4 gate as the create route (see code='mt4_not_supported' above).
+    # Refuse to flip an existing connection's platform to mt4 until the .ex4
+    # binary is committed.
+    if body.platform is not None and body.platform.strip().lower() == "mt4":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "mt4_not_supported",
+                "message": (
+                    "MetaTrader 4 is not currently supported on the hosted "
+                    "and EA self-hosting paths. The MT4 EA binary is not "
+                    "bundled in the mt-node image. Select MetaTrader 5 "
+                    "(platform='mt5') to continue."
+                ),
+            },
+        )
 
     try:
         async with container.db.session() as session:
