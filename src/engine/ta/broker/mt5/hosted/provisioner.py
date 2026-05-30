@@ -474,6 +474,13 @@ class HostedProvisioner:
                     name=sa_name,
                     labels=labels,
                 )
+                await self._upsert_watchdog_configmap(
+                    core_api=core_api,
+                    name=f"{release}-watchdog-config",
+                    labels=labels,
+                    zmq_port=zmq_port,
+                    watchdog_port=DEFAULT_WATCHDOG_PORT,
+                )
                 await self._upsert_statefulset(
                     apps_api=apps_api,
                     release=release,
@@ -669,6 +676,11 @@ class HostedProvisioner:
                 "Secret(legacy-creds)",
             )
             ok &= await self._safe_delete(
+                core_api.delete_namespaced_config_map,
+                f"{container_id}-watchdog-config",
+                "ConfigMap(watchdog-config)",
+            )
+            ok &= await self._safe_delete(
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(container_id),
                 "PVC(wine-prefix)",
@@ -748,6 +760,11 @@ class HostedProvisioner:
                         f"{name}-creds", "Secret(legacy-creds)",
                     )
                     await self._safe_delete(
+                        core_api.delete_namespaced_config_map,
+                        f"{name}-watchdog-config",
+                        "ConfigMap(watchdog-config)",
+                    )
+                    await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
                         _pvc_name_for(name), "PVC",
                     )
@@ -798,6 +815,60 @@ class HostedProvisioner:
                 details={"path": path, **(exc.details or {})},
             ) from exc
         return _hash_secret_data(data)
+
+    async def _upsert_watchdog_configmap(
+        self,
+        *,
+        core_api: client.CoreV1Api,
+        name: str,
+        labels: dict[str, str],
+        zmq_port: int,
+        watchdog_port: int,
+    ) -> None:
+        """Idempotent create-or-update of the per-release watchdog
+        ConfigMap.
+
+        Carries the same seven keys helm/mt-node/templates/
+        configmap-watchdog.yaml emits so chart-rendered and runtime-
+        provisioned Pods feed their watchdog from a ConfigMap with an
+        identical wire shape.
+        """
+        data = {
+            "WATCHDOG_ZMQ_ENDPOINT": f"tcp://127.0.0.1:{zmq_port}",
+            "WATCHDOG_HTTP_PORT": str(watchdog_port),
+            "WATCHDOG_POLL_INTERVAL_SECONDS": "10",
+            "WATCHDOG_MAX_FAILURES": "6",
+            "WATCHDOG_MEMORY_SOFT_CAP_FRACTION": "0.8",
+            "WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION": "0.5",
+            "WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS": "6",
+            "WATCHDOG_LIVEZ_GRACE_SECONDS": "60",
+        }
+        body = client.V1ConfigMap(
+            metadata=client.V1ObjectMeta(
+                name=name, namespace=self._namespace, labels=labels,
+            ),
+            data=data,
+        )
+        async for attempt in await self._retrying():
+            with attempt:
+                try:
+                    await core_api.create_namespaced_config_map(
+                        namespace=self._namespace, body=body,
+                    )
+                    return
+                except ApiException as exc:
+                    if exc.status == 409:
+                        existing = await core_api.read_namespaced_config_map(
+                            name=name, namespace=self._namespace,
+                        )
+                        body.metadata.resource_version = (
+                            existing.metadata.resource_version
+                        )
+                        await core_api.replace_namespaced_config_map(
+                            name=name, namespace=self._namespace, body=body,
+                        )
+                        return
+                    raise
 
     async def _upsert_serviceaccount(
         self,
@@ -991,43 +1062,21 @@ class HostedProvisioner:
             requests={"cpu": "100m", "memory": "64Mi"},
             limits={"cpu": "100m", "memory": "64Mi"},
         )
-        # Watchdog reads MT_ZMQ_AUTH_TOKEN by sourcing the same Vault-
-        # rendered file the mt-node entrypoint sources. The platform
-        # DEFAULT_ZMQ_AUTH_TOKEN fallback still comes via envFrom.
-        watchdog_env_from: list[client.V1EnvFromSource] = []
+        # Watchdog runtime tunables live in a per-release ConfigMap so
+        # the engine-runtime provisioner and the chart-rendered
+        # platform path produce identical envFrom shapes. POD_NAME and
+        # POD_NAMESPACE stay inline because ConfigMaps cannot carry
+        # fieldRef.
+        watchdog_cm_name = f"{release}-watchdog-config"
+        watchdog_env_from = [
+            client.V1EnvFromSource(
+                config_map_ref=client.V1ConfigMapEnvSource(
+                    name=watchdog_cm_name,
+                    optional=False,
+                ),
+            ),
+        ]
         watchdog_env = [
-            client.V1EnvVar(
-                name="WATCHDOG_ZMQ_ENDPOINT",
-                value=f"tcp://127.0.0.1:{zmq_port}",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_HTTP_PORT",
-                value=str(watchdog_port),
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_POLL_INTERVAL_SECONDS",
-                value="10",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_MAX_FAILURES",
-                value="6",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_MEMORY_SOFT_CAP_FRACTION",
-                value="0.8",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION",
-                value="0.5",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS",
-                value="6",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_LIVEZ_GRACE_SECONDS",
-                value="60",
-            ),
             client.V1EnvVar(
                 name="POD_NAME",
                 value_from=client.V1EnvVarSource(
@@ -1566,6 +1615,11 @@ class HostedProvisioner:
             (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
             (core_api.delete_namespaced_service_account, sa_name, "ServiceAccount"),
             (core_api.delete_namespaced_secret, f"{release}-creds", "Secret(legacy-creds)"),
+            (
+                core_api.delete_namespaced_config_map,
+                f"{release}-watchdog-config",
+                "ConfigMap(watchdog-config)",
+            ),
             (
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(release),
