@@ -34,5 +34,4 @@ data:
   WATCHDOG_LIVEZ_GRACE_SECONDS: {{ .Values.sidecar.watchdog.config.livezGracePeriodSeconds | quote }}
   WATCHDOG_ZMQ_ENDPOINT: "tcp://127.0.0.1:{{ .Values.service.zmqPort }}"
   WATCHDOG_HTTP_PORT: {{ .Values.service.watchdogPort | quote }}
-  WATCHDOG_SYMBOL: {{ .Values.mtConnection.symbol | quote }}
 {{- end }}
