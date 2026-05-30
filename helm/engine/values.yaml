@@ -281,6 +281,20 @@ config:
       affinity: {}
       topologySpreadConstraints: []
       podAnnotations: {}
+  # Vault HTTP client. The engine reads VAULT_* at boot and uses its
+  # ServiceAccount token to authenticate against the Vault Kubernetes
+  # auth backend (role 'mt-node-provisioner', policy granting WRITE
+  # on etradie/data/tenants/mt-node/*). Empty defaults preserve the
+  # dev / docker-compose flow; production and staging overlays MUST
+  # set address.
+  vault:
+    address: ""
+    namespace: ""
+    kvMount: "etradie"
+    k8sAuthPath: "kubernetes"
+    k8sAuthRole: "mt-node-provisioner"
+    saTokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    tokenRenewSafetySecs: "60"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"

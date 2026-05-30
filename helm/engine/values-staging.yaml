@@ -18,10 +18,13 @@ config:
     env: "staging"
     debug: "false"
     logLevel: "DEBUG"
-  # CHECKLIST hardening (Gap #13): explicit mt-node image. Same
-  # reasoning as values-production.yaml.
+  # Explicit mt-node image. Same reasoning as values-production.yaml:
+  # the base values.yaml leaves this empty so a fork never inherits a
+  # personal-namespace default.
   mtNode:
     image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+  vault:
+    address: "https://vault.vault.svc.cluster.local:8200"
   rag:
     ingestOnStartup: "true"
   processor:
