@@ -521,7 +521,6 @@ class HostedRecoveryService:
             login=row.mt5_login,
             password=password,
             server=row.mt5_server,
-            symbol=row.mt5_symbol or "EURUSD",
             platform=row.platform,
         )
 
