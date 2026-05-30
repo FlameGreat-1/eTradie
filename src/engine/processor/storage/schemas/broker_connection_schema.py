@@ -21,7 +21,7 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from engine.processor.storage.schemas.processor_schema import ProcessorBase
@@ -119,15 +119,34 @@ class BrokerConnectionRow(ProcessorBase):
         Text,
         nullable=True,
     )
-    # Default chart symbol for the hosted MT terminal. The engine writes
-    # this into the StatefulSet's MT_SYMBOL env var at provision time.
-    # The watchdog uses it to probe the EA's tick stream. Stored here so
-    # the HostedRecoveryService can re-provision with the correct symbol
-    # instead of hardcoding 'EURUSD'.
+    # The broker's actual symbol name for the active chart on the
+    # hosted MT terminal. Broker-specific (e.g. 'EURUSDm' on Exness,
+    # 'EURUSD.r' on IC Markets) and resolved by the engine's automatic
+    # symbol resolver after the Pod boots and the EA reports the
+    # broker's full Market Watch via GET_ALL_SYMBOLS. The user never
+    # sets this directly; the resolver picks the highest-scoring
+    # candidate from the broker's live catalog. NULL until the first
+    # successful resolution; populated atomically alongside symbol_map
+    # in BrokerConnectionRepository.update_symbol_map().
     mt5_symbol: Mapped[Optional[str]] = mapped_column(
         String(50),
         nullable=True,
-        server_default="EURUSD",
+    )
+
+    # Full canonical -> broker-actual symbol mapping resolved at
+    # provision time and refreshed by HostedRecoveryService when the
+    # broker's Market Watch changes. Shape:
+    #   {"EURUSD": "EURUSDm", "GBPUSD": "GBPUSDm", "XAUUSD": "XAUUSDm", ...}
+    # Every symbol-taking engine code path (place_order, fetch_candles,
+    # get_tick_price) translates the canonical pair to the broker-actual
+    # name through this map at the ZmqClient boundary. Empty {} means
+    # resolution has not run yet (fresh row before first provision
+    # completed, or a row created on a connection type that does not
+    # need a per-broker symbol map - metaapi/ea).
+    symbol_map: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default="{}",
     )
 
     # -- State flags -----------------------------------------------------------
