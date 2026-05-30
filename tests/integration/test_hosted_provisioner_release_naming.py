@@ -77,16 +77,20 @@ async def test_provisioner_stamps_connection_id_into_every_resource() -> None:
     vault = AsyncMock()
     vault.write_kv = AsyncMock(return_value=None)
 
-    symbol_writes: list[tuple[str, dict, str | None]] = []
+    async def catalog_sync_runner(*, dns_name, zmq_port, auth_token):
+        return "EURUSDm"
 
-    async def write_symbol_map(connection_id: str, symbol_map: dict, active_symbol):
-        symbol_writes.append((connection_id, symbol_map, active_symbol))
+    chart_writes: list[tuple[str, str]] = []
+
+    async def chart_symbol_writer(connection_id: str, chart_symbol: str) -> None:
+        chart_writes.append((connection_id, chart_symbol))
 
     provisioner = HostedProvisioner(
         namespace="etradie-system",
         image="ghcr.io/test/etradie-mt-node:0.0.0",
         vault_client=vault,
-        symbol_map_writer=write_symbol_map,
+        catalog_sync_runner=catalog_sync_runner,
+        chart_symbol_writer=chart_symbol_writer,
     )
 
     labels = provisioner._labels(CONNECTION_ID, USER_ID, "mt5", release_name_for(CONNECTION_ID))
@@ -124,17 +128,18 @@ async def test_provisioner_stamps_connection_id_into_every_resource() -> None:
 
 
 @pytest.mark.asyncio
-async def test_symbol_map_writer_is_required() -> None:
-    """Provisioning without a writer must fail loudly so the engine
-    cannot silently boot a Pod whose resolution result would be
-    discarded."""
+async def test_catalog_sync_runner_and_writer_are_required() -> None:
+    """Provisioning without the injected catalog runner + chart-symbol
+    writer must fail loudly so the engine cannot silently boot a Pod
+    whose broker catalog would never be persisted."""
     from engine.shared.exceptions import ConfigurationError
 
     provisioner = HostedProvisioner(
         namespace="etradie-system",
         image="ghcr.io/test/etradie-mt-node:0.0.0",
         vault_client=AsyncMock(),
-        symbol_map_writer=None,
+        catalog_sync_runner=None,
+        chart_symbol_writer=None,
     )
     with pytest.raises(ConfigurationError):
         await provisioner.provision_account(

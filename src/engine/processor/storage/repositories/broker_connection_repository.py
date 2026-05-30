@@ -449,54 +449,23 @@ class BrokerConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def update_symbol_map(
+    async def update_chart_symbol(
         self,
         connection_id: str,
         *,
-        symbol_map: dict,
-        active_symbol: Optional[str] = None,
+        chart_symbol: str,
     ) -> Optional[BrokerConnectionRow]:
-        """Persist a resolver-produced symbol map onto a connection.
+        """Persist the chart-attach symbol picked by the provisioner.
 
-        Called by HostedProvisioner.provision_account() after the Pod
-        boots, the EA authenticates, and the resolver picks broker-
-        actual names for each canonical pair from the broker's live
-        Market Watch (one ZMQ GET_ALL_SYMBOLS call). Also called by
-        HostedRecoveryService on its periodic sweep when the broker's
-        Market Watch has changed.
-
-        This method is deliberately scoped narrower than
-        update_connection():
-          - the audit trail (and on-call grepping) distinguishes
-            user-driven edits from engine-driven auto-resolution;
-          - user_id is intentionally omitted because the provisioner
-            runs server-side without a user session - connection_id is
-            the only authority needed and the call is internal-only;
-          - only the two columns the resolver owns can be touched
-            (mt5_symbol + symbol_map). Other fields are out of scope.
-
-        Args:
-            connection_id: broker_connections.id row to update.
-            symbol_map: canonical -> broker-actual mapping. Must be a
-                JSON-serialisable dict[str, str]; the caller (the
-                resolver) is responsible for ensuring all values are
-                non-empty strings.
-            active_symbol: optional broker-actual name written into
-                mt5_symbol. Defaults to None; when None, mt5_symbol is
-                NOT modified (callers that only want to refresh the
-                map without changing the active chart symbol omit it).
-
-        Returns:
-            The updated BrokerConnectionRow, or None if connection_id
-            did not match any row.
+        Called once per (re-)provision after BrokerSyncService has
+        populated the broker_symbols catalog. user_id is intentionally
+        omitted because the provisioner runs server-side without a user
+        session; connection_id is sufficient and the call is internal.
         """
         values: dict = {
-            "symbol_map": symbol_map,
+            "mt5_symbol": chart_symbol.strip(),
             "updated_at": datetime.now(UTC),
         }
-        if active_symbol is not None and active_symbol.strip():
-            values["mt5_symbol"] = active_symbol.strip()
-
         stmt = (
             update(BrokerConnectionRow)
             .where(BrokerConnectionRow.id == connection_id)
@@ -504,10 +473,6 @@ class BrokerConnectionRepository:
         )
         await self._session.execute(stmt)
         await self._session.flush()
-
-        # Re-read without the user_id scope; the provisioner needs the
-        # row to forward into _patch_statefulset_symbol() and
-        # HostedRecoveryService needs it to log the new active symbol.
         result = await self._session.execute(
             select(BrokerConnectionRow).where(
                 BrokerConnectionRow.id == connection_id,

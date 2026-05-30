@@ -71,7 +71,6 @@ def _serialize_broker_connection(row) -> dict:
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
         "mt5_symbol": getattr(row, "mt5_symbol", None),
-        "symbol_map": dict(getattr(row, "symbol_map", {}) or {}),
         "platform": getattr(row, "platform", "mt5"),
         "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,

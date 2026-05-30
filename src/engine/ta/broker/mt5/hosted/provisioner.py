@@ -65,22 +65,24 @@ from engine.shared.exceptions import (
 )
 from engine.shared.logging import get_logger
 from engine.shared.vault import VaultClient, VaultError
-from engine.ta.broker.mt5.symbol_resolver import (
-    pick_default_symbol,
-    resolve_symbol_map,
-)
 
 logger = get_logger(__name__)
 
-# Sentinel value written into MT_SYMBOL/WATCHDOG_SYMBOL on first boot.
-# entrypoint.sh treats it as 'skip chart template; keep MT5 logged in
-# only' and watchdog.py treats it as 'skip symbol-specific probes'.
+# Sentinel value written into MT_SYMBOL on first boot. entrypoint.sh
+# treats it as 'skip chart template; keep MT5 logged in only'.
 # Resolution runs once Ready + PING succeed; the provisioner then
-# patches both env vars to the resolved broker-actual symbol, which
-# triggers a single rolling restart of the Pod.
+# patches MT_SYMBOL to a real broker-published name and K8s rolls
+# the Pod once.
 SYMBOL_PENDING_SENTINEL = "__pending__"
 
-SymbolMapWriter = Callable[[str, dict, Optional[str]], Awaitable[None]]
+# Runs BrokerSyncService against a freshly-ready Pod and returns the
+# chart-attach symbol name (the first instrument the broker publishes,
+# or None when the broker exposes nothing). Injected by Container.
+CatalogSyncRunner = Callable[..., Awaitable[Optional[str]]]
+
+# Persists the chart-attach symbol onto broker_connections.mt5_symbol.
+# Injected by Container; keeps DB coupling out of the K8s module.
+ChartSymbolWriter = Callable[[str, str], Awaitable[None]]
 
 # ---------------------------------------------------------------------
 # Chart contract (must match helm/mt-node)
@@ -191,10 +193,6 @@ def _parse_json_envelope(env_name: str, raw: str, expected: type):
 _READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
 _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS", "5"))
-# GET_ALL_SYMBOLS emits a multi-MB JSON payload on brokers exposing
-# several thousand instruments; the standard probe timeout is too
-# tight for the EA's per-symbol serialisation loop.
-_ZMQ_RESOLVE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_RESOLVE_TIMEOUT_SECS", "30"))
 
 # Vault path layout under VAULT_MOUNT.
 _VAULT_TENANT_PATH_PREFIX = "tenants/mt-node"
@@ -240,7 +238,8 @@ class HostedProvisioner:
         image: str | None = None,
         platform_default_token_secret_name: str | None = None,
         vault_client: Optional[VaultClient] = None,
-        symbol_map_writer: Optional[SymbolMapWriter] = None,
+        catalog_sync_runner: Optional[CatalogSyncRunner] = None,
+        chart_symbol_writer: Optional[ChartSymbolWriter] = None,
     ) -> None:
         self._namespace = namespace or namespace_default()
         self._image = image or self._resolve_image()
@@ -248,11 +247,11 @@ class HostedProvisioner:
         # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
         self._vault = vault_client
-        # Injected by Container so the provisioner can persist the
-        # resolver's output without importing the repository (keeps
-        # the K8s layer free of DB coupling). Required for hosted
-        # provisioning; absence is enforced at provision_account().
-        self._symbol_map_writer = symbol_map_writer
+        # Injected by Container: keeps DB + broker-client coupling out
+        # of the K8s module. Both are required for hosted provisioning;
+        # absence is enforced at provision_account().
+        self._catalog_sync_runner = catalog_sync_runner
+        self._chart_symbol_writer = chart_symbol_writer
 
     def _require_vault(self) -> VaultClient:
         if self._vault is None:
@@ -431,11 +430,11 @@ class HostedProvisioner:
                 f"platform must be mt4 or mt5 (got {platform!r})",
                 details={"platform": platform, "connection_id": connection_id},
             )
-        if self._symbol_map_writer is None:
+        if self._catalog_sync_runner is None or self._chart_symbol_writer is None:
             raise ConfigurationError(
-                "HostedProvisioner requires a symbol_map_writer for automatic "
-                "broker symbol resolution. Inject it via Container so the "
-                "resolver can persist its output to broker_connections.",
+                "HostedProvisioner requires catalog_sync_runner and "
+                "chart_symbol_writer for automatic broker catalog population. "
+                "Inject them via Container.",
                 details={"connection_id": connection_id},
             )
 
@@ -549,7 +548,7 @@ class HostedProvisioner:
                 timeout=timeout,
             )
 
-            symbol_map, active_symbol = await self._resolve_and_persist_symbols(
+            chart_symbol = await self._populate_broker_catalog(
                 connection_id=connection_id,
                 dns_name=dns_name,
                 zmq_port=zmq_port,
@@ -559,7 +558,7 @@ class HostedProvisioner:
             await self._patch_statefulset_symbol(
                 apps_api=apps_api,
                 release=release,
-                active_symbol=active_symbol,
+                active_symbol=chart_symbol or "",
             )
         finally:
             await self._close(core_api)
@@ -572,8 +571,7 @@ class HostedProvisioner:
                 "release": release,
                 "service": service_name,
                 "dns": dns_name,
-                "resolved_symbol_count": len(symbol_map),
-                "active_symbol": active_symbol,
+                "chart_symbol": chart_symbol,
             },
         )
 
@@ -584,8 +582,7 @@ class HostedProvisioner:
             "zmq_port": zmq_port,
             "zmq_auth_token": effective_token,
             "state": "running",
-            "symbol_map": symbol_map,
-            "active_symbol": active_symbol,
+            "chart_symbol": chart_symbol,
         }
 
     async def get_account_status(self, container_id: str) -> dict[str, Any]:
@@ -1372,37 +1369,35 @@ class HostedProvisioner:
             },
         )
 
-    # -- Internal: symbol resolution + StatefulSet env patch ---------------
+    # -- Internal: broker catalog population + StatefulSet env patch --
 
-    async def _resolve_and_persist_symbols(
+    async def _populate_broker_catalog(
         self,
         *,
         connection_id: str,
         dns_name: str,
         zmq_port: int,
         token: str,
-    ) -> tuple[dict[str, str], str]:
-        """Fetch the broker's Market Watch, resolve, persist, return.
+    ) -> Optional[str]:
+        """Sync the broker's full Market Watch into broker_symbols.
 
-        Returns (symbol_map, active_symbol). active_symbol is the
-        broker-actual name the chart will attach to on the next roll;
-        an empty string when the broker exposes none of the canonical
-        pairs (the caller still persists the empty map so future
-        recovery sweeps can retry).
+        Runs BrokerSyncService against the freshly-ready Pod (via the
+        injected runner) and returns the chart-attach symbol name:
+        the first instrument the broker publishes. None means the
+        broker exposes nothing - extremely rare in practice; the
+        caller leaves MT_SYMBOL on the sentinel and HostedRecoveryService
+        retries on its next sweep.
         """
-        raw = await self._zmq_get_all_symbols(
-            dns_name=dns_name, port=zmq_port, token=token,
+        assert self._catalog_sync_runner is not None
+        assert self._chart_symbol_writer is not None
+        chart_symbol = await self._catalog_sync_runner(
+            dns_name=dns_name,
+            zmq_port=zmq_port,
+            auth_token=token,
         )
-        symbol_map = resolve_symbol_map(raw)
-        active_symbol = pick_default_symbol(symbol_map)
-
-        assert self._symbol_map_writer is not None  # checked at entry
-        await self._symbol_map_writer(
-            connection_id,
-            symbol_map,
-            active_symbol or None,
-        )
-        return symbol_map, active_symbol
+        if chart_symbol:
+            await self._chart_symbol_writer(connection_id, chart_symbol)
+        return chart_symbol
 
     async def _patch_statefulset_symbol(
         self,
@@ -1470,58 +1465,6 @@ class HostedProvisioner:
                     "status": exc.status,
                 },
             ) from exc
-
-    async def _zmq_get_all_symbols(
-        self,
-        *,
-        dns_name: str,
-        port: int,
-        token: str,
-    ) -> list[dict]:
-        """One-shot GET_ALL_SYMBOLS over a dedicated REQ socket.
-
-        Uses a private REQ socket per call (NOT the engine's pooled
-        ZmqClient) so the resolution runs without taking the per-user
-        client pool lock and without leaving a long-lived socket open.
-        Returns the raw [{name, description, path}, ...] list the EA
-        emits via HandleGetAllSymbols.
-        """
-        endpoint = f"tcp://{dns_name}:{port}"
-        ctx = zmq_async.Context.instance()
-        sock = ctx.socket(zmq.REQ)
-        sock.setsockopt(zmq.LINGER, 0)
-        sock.setsockopt(zmq.RCVTIMEO, int(_ZMQ_RESOLVE_TIMEOUT_SECS * 1000))
-        sock.setsockopt(zmq.SNDTIMEO, int(_ZMQ_RESOLVE_TIMEOUT_SECS * 1000))
-        try:
-            sock.connect(endpoint)
-            await asyncio.wait_for(
-                sock.send_string(json.dumps({"command": "PING", "auth_token": token})),
-                timeout=_ZMQ_PROBE_TIMEOUT_SECS,
-            )
-            await asyncio.wait_for(sock.recv(), timeout=_ZMQ_PROBE_TIMEOUT_SECS)
-            await asyncio.wait_for(
-                sock.send_string(json.dumps({"command": "GET_ALL_SYMBOLS"})),
-                timeout=_ZMQ_PROBE_TIMEOUT_SECS,
-            )
-            raw = await asyncio.wait_for(sock.recv(), timeout=_ZMQ_RESOLVE_TIMEOUT_SECS)
-            reply = json.loads(raw.decode("utf-8"))
-            if not isinstance(reply, dict):
-                raise ProviderError(
-                    "GET_ALL_SYMBOLS returned a non-object",
-                    details={"reply_type": type(reply).__name__},
-                )
-            symbols = reply.get("symbols", [])
-            return [s for s in symbols if isinstance(s, dict)]
-        except asyncio.TimeoutError as exc:
-            raise ProviderTimeoutError(
-                "GET_ALL_SYMBOLS timed out during automatic symbol resolution",
-                details={"endpoint": endpoint},
-            ) from exc
-        finally:
-            try:
-                sock.close(linger=0)
-            except Exception:  # noqa: BLE001
-                pass
 
     async def _zmq_ping(self, *, dns_name: str, port: int, token: str) -> bool:
         endpoint = f"tcp://{dns_name}:{port}"

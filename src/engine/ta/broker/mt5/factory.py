@@ -313,7 +313,6 @@ def create_mt5_broker_from_connection(
         client = ZmqClient(
             config=config,
             auth_token=ea_auth_token,
-            symbol_map=dict(getattr(row, "symbol_map", {}) or {}),
             **_build_connectivity_kwargs("zmq-ea", endpoint_account),
             **_build_ea_verification_kwargs("zmq-ea", endpoint_account, row),
             **_build_throttle_kwargs("zmq-ea", endpoint_account),
@@ -491,7 +490,6 @@ def create_mt5_broker_from_connection(
         client = ZmqClient(
             config=config,
             auth_token=ea_auth_token,
-            symbol_map=dict(getattr(row, "symbol_map", {}) or {}),
             **_build_connectivity_kwargs("zmq-hosted", row.hosted_container_id),
             **_build_ea_verification_kwargs("zmq-hosted", row.hosted_container_id, row),
             **_build_throttle_kwargs("zmq-hosted", row.hosted_container_id),

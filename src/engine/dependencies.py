@@ -672,30 +672,86 @@ class Container:
         delete and the recovery service) MUST go through this
         accessor so the VaultClient + provisioner are shared and the
         Vault token cache is reused.
+
+        Injects two callables so the K8s layer stays free of DB +
+        broker-client coupling:
+          - catalog_sync_runner: runs BrokerSyncService against a
+            freshly-ready Pod and returns the chart-attach symbol
+            (the first row written to broker_symbols for that
+            connection's provider + account_id).
+          - chart_symbol_writer: persists that one name to
+            broker_connections.mt5_symbol.
         """
         if self._hosted_provisioner is not None:
             return self._hosted_provisioner
+        from engine.ta.broker.base import BrokerBase
+        from engine.ta.broker.mt5.config import MT5Config
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+        from engine.ta.broker.mt5.zmq.client import ZmqClient
+        from engine.ta.broker.sync import BrokerSyncService
         from engine.processor.storage.repositories.broker_connection_repository import (
             BrokerConnectionRepository,
         )
 
-        async def _write_symbol_map(
+        async def _catalog_sync_runner(
+            *,
+            dns_name: str,
+            zmq_port: int,
+            auth_token: str,
+        ) -> Optional[str]:
+            sync_config = MT5Config.model_construct(
+                enabled=True,
+                provider="native",
+                metaapi_token="",
+                metaapi_account_id="",
+                metaapi_base_url="",
+                zmq_host=dns_name,
+                zmq_port=zmq_port,
+                zmq_auth_token=auth_token,
+                terminal_path=None,
+                account=0,
+                password="",
+                server="",
+                timeout_seconds=60,
+                max_retries=3,
+                retry_delay_seconds=2,
+                connection_timeout_seconds=30,
+                max_candles_per_request=5000,
+                enable_tick_data=False,
+                magic_number=0,
+            )
+            client: BrokerBase = ZmqClient(
+                config=sync_config,
+                auth_token=auth_token,
+            )
+            try:
+                await BrokerSyncService(
+                    broker_client=client,
+                    uow_factory=self.ta_uow_factory,
+                ).sync_all_symbols()
+                names = await client.get_all_symbol_names()
+                return names[0] if names else None
+            finally:
+                try:
+                    await client.shutdown()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        async def _chart_symbol_writer(
             connection_id: str,
-            symbol_map: dict,
-            active_symbol: Optional[str],
+            chart_symbol: str,
         ) -> None:
             async with self.db.session() as session:
                 repo = BrokerConnectionRepository(session)
-                await repo.update_symbol_map(
+                await repo.update_chart_symbol(
                     connection_id,
-                    symbol_map=symbol_map,
-                    active_symbol=active_symbol,
+                    chart_symbol=chart_symbol,
                 )
 
         self._hosted_provisioner = HostedProvisioner(
             vault_client=self.vault_client,
-            symbol_map_writer=_write_symbol_map,
+            catalog_sync_runner=_catalog_sync_runner,
+            chart_symbol_writer=_chart_symbol_writer,
         )
         return self._hosted_provisioner
 
