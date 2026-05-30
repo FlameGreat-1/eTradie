@@ -71,6 +71,32 @@ ZMQ_PORT="${ZMQ_PORT:-5555}"
 DISPLAY=":99"
 export DISPLAY
 
+# ── Load Vault-rendered credentials ───────────────────────────────
+# The Vault Agent init-container renders broker credentials to
+# /vault/secrets/mt-credentials.env via the pod annotation
+# vault.hashicorp.com/agent-inject-template-mt-credentials.env. The
+# render is gated by agent-init-first=true on the Pod so the file
+# always exists by the time this entrypoint runs in a real K8s pod.
+#
+# Local docker-compose has no injector; the operator can either set
+# MT_LOGIN/MT_PASSWORD/MT_ZMQ_AUTH_TOKEN directly in the compose
+# file's environment block (skipping the source), or pre-create the
+# file at the same path.
+VAULT_SECRETS_FILE="${VAULT_SECRETS_FILE:-/vault/secrets/mt-credentials.env}"
+if [ -r "${VAULT_SECRETS_FILE}" ]; then
+  # shellcheck disable=SC1090
+  set -a
+  . "${VAULT_SECRETS_FILE}"
+  set +a
+  if [ -n "${MT_VAULT_RENDERED_AT:-}" ]; then
+    log INFO "Loaded Vault-rendered credentials (rendered_at=${MT_VAULT_RENDERED_AT})"
+  else
+    log INFO "Loaded Vault-rendered credentials from ${VAULT_SECRETS_FILE}"
+  fi
+else
+  log INFO "Vault credentials file not present at ${VAULT_SECRETS_FILE}; relying on env (docker-compose / dev mode)"
+fi
+
 # Choose per-tenant token first, else platform default.
 EFFECTIVE_AUTH_TOKEN="${MT_ZMQ_AUTH_TOKEN:-${DEFAULT_ZMQ_AUTH_TOKEN:-}}"
 
