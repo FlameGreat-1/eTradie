@@ -267,6 +267,23 @@ config:
     # this for power users via the production overlay or per-tenant
     # override.
     maxHostedPerUser: "1"
+    # Name of the chart-rendered platform Secret that holds
+    # DEFAULT_ZMQ_AUTH_TOKEN. HostedProvisioner envFroms this Secret
+    # on every runtime-provisioned mt-node + watchdog container so
+    # entrypoint.sh and watchdog.py have a fallback token when the
+    # Vault Agent fails to render the per-tenant credentials file.
+    #
+    # Value MUST match the Secret name produced by the helm/mt-node
+    # chart's platform-only release (mt-node-{staging,production}
+    # ArgoCD apps with mtConnection.enabled=false). The chart's
+    # mt-node.platformSecretName helper resolves to
+    # '<release>-platform' and the ArgoCD child apps pin the release
+    # name to 'etradie-mt-node-platform', so the Secret name is
+    # 'etradie-mt-node-platform-platform' on both envs.
+    #
+    # Empty string disables the envFrom in dev / docker-compose where
+    # ESO is not running and the Secret does not exist.
+    platformSecretName: "etradie-mt-node-platform-platform"
     # Scheduling envelope applied by HostedProvisioner to every
     # runtime-provisioned per-tenant StatefulSet. MUST mirror
     # helm/mt-node/values{,-production,-staging}.yaml so chart-

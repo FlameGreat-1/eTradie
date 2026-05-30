@@ -159,6 +159,16 @@ _AFFINITY_JSON_RAW = os.environ.get("MT_NODE_AFFINITY_JSON", "").strip()
 _TOPOLOGY_SPREAD_JSON_RAW = os.environ.get("MT_NODE_TOPOLOGY_SPREAD_JSON", "").strip()
 _POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").strip()
 
+# Name of the chart-rendered platform Secret that holds
+# DEFAULT_ZMQ_AUTH_TOKEN. When non-empty, every runtime-provisioned
+# mt-node + watchdog container envFroms this Secret so the entrypoint
+# and watchdog have a fallback token if the Vault Agent file render
+# fails. Sourced from the engine ConfigMap so the value lives in one
+# place (helm/engine/values.yaml::config.mtNode.platformSecretName).
+# Empty in dev / docker-compose; the chart-rendered behaviour is the
+# same when externalSecrets.enabled=false.
+_PLATFORM_SECRET_NAME = os.environ.get("MT_NODE_PLATFORM_SECRET_NAME", "").strip()
+
 
 def _parse_json_envelope(env_name: str, raw: str, expected: type):
     """Parse a JSON envelope env var into a dict or list.
@@ -961,12 +971,28 @@ class HostedProvisioner:
                 ),
             ),
         ]
-        # No per-tenant Secret envFrom: per-tenant credentials are
-        # rendered into /vault/secrets/<file> by the Vault Agent
-        # init-container. The platform Secret (DEFAULT_ZMQ_AUTH_TOKEN)
-        # is still consumed via envFrom by entrypoint.sh as the
-        # fallback when MT_ZMQ_AUTH_TOKEN is unset.
+        # Per-tenant credentials are rendered into /vault/secrets/<file>
+        # by the Vault Agent init-container. The platform Secret
+        # (DEFAULT_ZMQ_AUTH_TOKEN) is consumed via envFrom on BOTH the
+        # mt-node container and the watchdog sidecar so entrypoint.sh
+        # and watchdog.py have a fallback when the Vault Agent file
+        # render fails. optional=True so a brief Secret absence during
+        # cluster bootstrap does not block Pod scheduling - Vault Agent
+        # remains the primary source for per-tenant MT_ZMQ_AUTH_TOKEN.
+        #
+        # When MT_NODE_PLATFORM_SECRET_NAME is empty (dev / docker-
+        # compose / pytest), the envFrom list stays empty, matching
+        # the chart's externalSecrets.enabled=false posture.
         env_from: list[client.V1EnvFromSource] = []
+        if _PLATFORM_SECRET_NAME:
+            env_from.append(
+                client.V1EnvFromSource(
+                    secret_ref=client.V1SecretEnvSource(
+                        name=_PLATFORM_SECRET_NAME,
+                        optional=True,
+                    ),
+                ),
+            )
 
         # ── Shared security context (both containers) ──────────────────────
         container_security_ctx = client.V1SecurityContext(
@@ -1077,6 +1103,19 @@ class HostedProvisioner:
                 ),
             ),
         ]
+        # Same platform-Secret envFrom as the mt-node container above
+        # so the watchdog's AUTH_TOKEN fallback logic (MT_ZMQ_AUTH_TOKEN
+        # or DEFAULT_ZMQ_AUTH_TOKEN) has the platform value available
+        # when the Vault Agent file is not yet rendered.
+        if _PLATFORM_SECRET_NAME:
+            watchdog_env_from.append(
+                client.V1EnvFromSource(
+                    secret_ref=client.V1SecretEnvSource(
+                        name=_PLATFORM_SECRET_NAME,
+                        optional=True,
+                    ),
+                ),
+            )
         watchdog_env = [
             client.V1EnvVar(
                 name="POD_NAME",
