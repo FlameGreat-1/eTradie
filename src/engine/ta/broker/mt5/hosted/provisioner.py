@@ -556,13 +556,21 @@ class HostedProvisioner:
             await self._close(apps_api)
 
     async def delete_account(self, container_id: str) -> bool:
-        """Remove the StatefulSet, both Services, the per-tenant Secret,
-        and the per-replica Wine-prefix PVC for a release.
+        """Remove every resource associated with a release.
 
-        StatefulSet GC does NOT cascade to its volumeClaimTemplate
-        PVCs by design (the K8s authors decided that stateful data
-        deletion must be explicit). We delete the wine-prefix-<release>-0
-        PVC here so the engine's connection-delete flow is complete.
+        Order:
+          1. StatefulSet                                (K8s)
+          2. Regular Service                            (K8s)
+          3. Headless Service                           (K8s)
+          4. Per-tenant ServiceAccount                  (K8s)
+          5. Legacy per-tenant Secret                   (K8s; best-effort)
+          6. Per-replica Wine-prefix PVC                (K8s)
+          7. Vault tenant path (destroy all versions)   (Vault)
+
+        StatefulSet GC does NOT cascade to volumeClaimTemplate PVCs;
+        the Wine prefix PVC is deleted explicitly. The legacy Secret
+        delete covers the cutover window when some releases were
+        provisioned before the Vault Agent Injector migration.
         """
         core_api, apps_api = await self._api_clients()
         ok = True
@@ -579,13 +587,22 @@ class HostedProvisioner:
                 "Service(headless)",
             )
             ok &= await self._safe_delete(
-                core_api.delete_namespaced_secret, f"{container_id}-creds", "Secret(creds)",
+                core_api.delete_namespaced_service_account,
+                container_id,
+                "ServiceAccount",
             )
-            # Per-replica PVC the StatefulSet's volumeClaimTemplate produced.
+            ok &= await self._safe_delete(
+                core_api.delete_namespaced_secret,
+                f"{container_id}-creds",
+                "Secret(legacy-creds)",
+            )
             ok &= await self._safe_delete(
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(container_id),
                 "PVC(wine-prefix)",
+            )
+            await self._destroy_vault_path(
+                self._vault_path_for(container_id),
             )
             logger.info(
                 "hosted_release_deleted",
@@ -595,6 +612,25 @@ class HostedProvisioner:
         finally:
             await self._close(core_api)
             await self._close(apps_api)
+
+    async def _destroy_vault_path(self, path: str) -> None:
+        """Best-effort destroy of every version at the tenant Vault path.
+
+        Vault outage MUST NOT block the rest of the cleanup: a half-
+        deleted K8s release is harder to recover from than orphan
+        Vault credentials. The orphan path can be manually purged by
+        the operator.
+        """
+        if self._vault is None:
+            return
+        try:
+            await self._vault.destroy_all_versions(path)
+            logger.info("hosted_vault_path_destroyed", extra={"path": path})
+        except VaultError as exc:
+            logger.warning(
+                "hosted_vault_path_destroy_failed",
+                extra={"path": path, "error": str(exc), **(exc.details or {})},
+            )
 
     def resolve_zmq_host(self, container_id: str) -> Optional[str]:
         return f"{container_id}.{self._namespace}.svc.cluster.local"
@@ -632,12 +668,18 @@ class HostedProvisioner:
                         "Service(headless)",
                     )
                     await self._safe_delete(
-                        core_api.delete_namespaced_secret, f"{name}-creds", "Secret",
+                        core_api.delete_namespaced_service_account,
+                        name, "ServiceAccount",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_secret,
+                        f"{name}-creds", "Secret(legacy-creds)",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
                         _pvc_name_for(name), "PVC",
                     )
+                    await self._destroy_vault_path(self._vault_path_for(name))
                     deleted.append(name)
             return {"deleted": deleted, "scanned": len(sts_list.items)}
         finally:
@@ -1300,18 +1342,22 @@ class HostedProvisioner:
 
     async def _best_effort_cleanup(
         self,
+        *,
         core_api: client.CoreV1Api,
         apps_api: client.AppsV1Api,
+        vault: Optional[VaultClient],
         release: str,
         service_name: str,
         headless_service_name: str,
-        secret_name: str,
+        sa_name: str,
+        vault_path: str,
     ) -> None:
         for fn, name, kind in (
             (apps_api.delete_namespaced_stateful_set, release, "StatefulSet"),
             (core_api.delete_namespaced_service, service_name, "Service"),
             (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
-            (core_api.delete_namespaced_secret, secret_name, "Secret"),
+            (core_api.delete_namespaced_service_account, sa_name, "ServiceAccount"),
+            (core_api.delete_namespaced_secret, f"{release}-creds", "Secret(legacy-creds)"),
             (
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(release),
@@ -1326,3 +1372,11 @@ class HostedProvisioner:
                         "hosted_rollback_warning",
                         extra={"kind": kind, "name": name, "status": exc.status},
                     )
+        if vault is not None:
+            try:
+                await vault.destroy_all_versions(vault_path)
+            except VaultError as exc:
+                logger.warning(
+                    "hosted_rollback_vault_destroy_failed",
+                    extra={"path": vault_path, "error": str(exc)},
+                )
