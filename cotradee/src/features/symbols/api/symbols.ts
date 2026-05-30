@@ -20,16 +20,36 @@ export interface BrokerSymbol {
   path: string;
 }
 
-export function useBrokerSymbols() {
+type BrokerSymbolsResponse = { symbols: BrokerSymbol[]; count: number };
+
+export interface UseBrokerSymbolsOptions {
+  /**
+   * TanStack Query refetchInterval passthrough. Accepts a fixed
+   * number of milliseconds, `false` to disable polling, or a
+   * function receiving the query and returning either. Used by
+   * SymbolsStep to poll every 3 s while the catalog is still empty
+   * (the broker_symbols table populates asynchronously immediately
+   * after the broker-connect step). The default (omitted) preserves
+   * a single fetch with the 5-minute staleTime, which is what the
+   * header dropdown and settings page want.
+   */
+  refetchInterval?:
+    | number
+    | false
+    | ((query: { state: { data: BrokerSymbolsResponse | undefined } }) => number | false);
+}
+
+export function useBrokerSymbols(options: UseBrokerSymbolsOptions = {}) {
   const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['broker-symbols'],
     queryFn: async () => {
-      const { data } = await api.engine.get<{ symbols: BrokerSymbol[]; count: number }>('/api/broker/symbols');
+      const { data } = await api.engine.get<BrokerSymbolsResponse>('/api/broker/symbols');
       return data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes — matches backend cache TTL
     enabled: isAuthenticated,
+    refetchInterval: options.refetchInterval,
   });
 }
 
