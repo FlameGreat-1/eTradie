@@ -70,7 +70,8 @@ def _serialize_broker_connection(row) -> dict:
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
-        "mt5_symbol": getattr(row, "mt5_symbol", "EURUSD") or "EURUSD",
+        "mt5_symbol": getattr(row, "mt5_symbol", None),
+        "symbol_map": dict(getattr(row, "symbol_map", {}) or {}),
         "platform": getattr(row, "platform", "mt5"),
         "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
@@ -259,7 +260,6 @@ async def create_broker_connection(
                     login=body.mt5_login,
                     password=body.mt5_password,
                     server=body.mt5_server,
-                    symbol=body.mt5_symbol,
                     platform=body.platform,
                 )
                 hosted_container_id = hosted_result["container_id"]
@@ -300,7 +300,6 @@ async def create_broker_connection(
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
-                mt5_symbol=body.mt5_symbol,
                 platform=body.platform,
                 activate=body.activate,
                 id=_row_id_override,
@@ -469,6 +468,9 @@ async def update_broker_connection(
                 platform=row.platform or "mt5",
                 per_user_zmq_token=ea_auth_token or None,
             )
+            # provision_account() also re-runs symbol resolution on
+            # the new credentials and persists the refreshed map, so
+            # no extra call is needed here.
             logger.info(
                 "hosted_credentials_rotated_after_password_update",
                 extra={"connection_id": connection_id, "user_id": user.user_id},
