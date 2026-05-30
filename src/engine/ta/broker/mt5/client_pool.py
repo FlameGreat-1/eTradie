@@ -82,16 +82,15 @@ class BrokerClientPool:
         self._closing = False
 
     def _key_lock(self, key: tuple[str, str]) -> asyncio.Lock:
-        # Cheap path: lock already exists.
-        lk = self._key_locks.get(key)
-        if lk is not None:
-            return lk
-        # Slow path: create under the global lock to avoid two coroutines
-        # creating two locks for the same key.
-        # Note: we intentionally do NOT use asyncio.run_coroutine here -
-        # callers are already inside an event loop.
-        lk = self._key_locks.setdefault(key, asyncio.Lock())
-        return lk
+        # H2 fix: setdefault returns the EXISTING value when the key is
+        # present, so passing a freshly-constructed asyncio.Lock as the
+        # default value is correct - the lock is only inserted on the
+        # miss path, and every concurrent miss sees the SAME canonical
+        # Lock instance. The previous get-then-setdefault pattern was
+        # functionally correct on CPython only because the GIL serialises
+        # the two operations; the inlined idiom below has no such
+        # dependency and is strictly correct under any scheduler.
+        return self._key_locks.setdefault(key, asyncio.Lock())
 
     async def get(
         self,
