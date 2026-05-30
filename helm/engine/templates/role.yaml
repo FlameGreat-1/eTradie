@@ -36,13 +36,27 @@ metadata:
     {{- include "engine.labels" . | nindent 4 }}
     app.kubernetes.io/component: rbac
 rules:
-  # Per-user mt-node workloads. Engine creates a Deployment per
-  # broker connection; the K8s controller manager spawns the Pod.
+  # Per-user mt-node workloads. Engine creates a StatefulSet per
+  # broker connection so each Pod keeps a stable network identity
+  # (release-0) the engine's ZmqClient can resolve through the
+  # headless Service. The K8s StatefulSet controller spawns the Pod.
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/status"]
+    verbs: ["get"]
+
+  # Per-tenant ServiceAccount the Vault Agent Injector uses to
+  # authenticate to Vault. Names match etradie-mt-* (bound to the
+  # mt-node-tenant Vault role). Engine creates one SA per broker
+  # connection at provision time and deletes it on connection
+  # removal so SA garbage stays cleaned up.
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  # Engine reads the Deployment's controller-managed Pods to surface
+  # Engine reads the StatefulSet's controller-managed Pods to surface
   # phase/restart-count/last-state in the dashboard. NO create/delete
   # on pods - those are controller-managed.
   - apiGroups: [""]
@@ -52,19 +66,22 @@ rules:
     resources: ["pods/log"]
     verbs: ["get"]
 
-  # ClusterIP Service per mt-node so the engine's ZmqClient can
-  # dial tcp://<svc>.etradie-system.svc.cluster.local:5555 .
+  # ClusterIP + headless Services per mt-node so the engine's
+  # ZmqClient can dial tcp://<svc>.etradie-system.svc.cluster.local:5555.
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  # Per-tenant Secret holding the sealed MT credentials. Engine
-  # writes the AES-GCM ciphertext at provision time; the mt-node
-  # Deployment mounts it via envFrom. Engine does NOT need to read
-  # the Secret back (it already has the plaintext at create time).
+  # K8s Secrets. With credentials now in Vault, the engine no
+  # longer creates per-tenant Secrets, so create/update/patch are
+  # dropped. delete is retained so the recovery service can clean
+  # up any legacy *-creds Secrets left over from pre-Vault releases
+  # during the cutover window. get/list are required so the
+  # recovery service can detect those legacy Secrets without
+  # blindly issuing deletes.
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "delete"]
 
   # Downward config reads (broker-server allowlist, symbol-suffix
   # rules). Engine does NOT mutate ConfigMaps - chart owns them.
@@ -72,10 +89,18 @@ rules:
     resources: ["configmaps"]
     verbs: ["get", "list", "watch"]
 
-  # Events: engine reads K8s Events for the mt-node Deployment so
+  # Events: engine reads K8s Events for the mt-node StatefulSet so
   # the dashboard can show 'ImagePullBackOff', 'OOMKilled' etc.
   # No create/update/delete - events come from the K8s controllers.
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["get", "list", "watch"]
+
+  # PersistentVolumeClaims owned by the StatefulSet's
+  # volumeClaimTemplates. K8s does NOT GC volumeClaimTemplate PVCs
+  # when the STS is deleted (by design); the engine deletes them
+  # explicitly in HostedProvisioner.delete_account.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "delete"]
 {{- end }}

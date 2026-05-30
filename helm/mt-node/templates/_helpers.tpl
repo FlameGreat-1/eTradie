@@ -84,6 +84,32 @@ etradie.connection-id: {{ .Values.mtConnection.connectionId | quote }}
 {{- end -}}
 
 {{/*
+Vault role bound to this tenant's ServiceAccount. The Kubernetes
+auth backend role is created by
+infrastructure/cluster/vault-paths/mt_node_tenant_secrets.tf and is
+bound to SA names matching the glob etradie-mt-* in the chart's
+namespace. Operators may override per-cluster by setting
+.Values.vault.role.
+*/}}
+{{- define "mt-node.vaultRole" -}}
+{{- default "mt-node-tenant" .Values.vault.role -}}
+{{- end -}}
+
+{{/*
+Vault KV-v2 path holding this tenant's broker credentials. Defaults
+to tenants/mt-node/<connectionId> (relative to the Vault KV mount,
+which the Agent Injector reads from VAULT_ADDR + mount config). The
+engine writes here via HostedProvisioner._write_vault_credentials.
+*/}}
+{{- define "mt-node.vaultTenantPath" -}}
+{{- if .Values.vault.tenantPath -}}
+{{- .Values.vault.tenantPath -}}
+{{- else -}}
+{{- printf "tenants/mt-node/%s" .Values.mtConnection.connectionId -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve the container image with optional digest pin (preferred over
 tag for immutability).
 
@@ -114,9 +140,6 @@ sealedSecretName are unset. Forces HostedProvisioner to set them.
 {{- end -}}
 {{- if not .Values.mtConnection.userId -}}
 {{- fail "helm/mt-node: .Values.mtConnection.userId is REQUIRED. Engine must --set this from broker_connections.user_id." -}}
-{{- end -}}
-{{- if not .Values.mtConnection.sealedSecretName -}}
-{{- fail "helm/mt-node: .Values.mtConnection.sealedSecretName is REQUIRED. The engine creates the sealed-credentials Secret BEFORE helm install, then --set's its name here." -}}
 {{- end -}}
 {{- if not (or (eq .Values.mtConnection.platform "mt4") (eq .Values.mtConnection.platform "mt5")) -}}
 {{- fail (printf "helm/mt-node: .Values.mtConnection.platform must be 'mt4' or 'mt5' (got %q)." .Values.mtConnection.platform) -}}

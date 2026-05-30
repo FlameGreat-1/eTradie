@@ -137,6 +137,7 @@ data:
   ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.hostedRecoverySweepIntervalSecs | quote }}
   ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS: {{ .Values.config.connectivity.hostedRecoveryUnhealthyThresholdSecs | quote }}
   ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS: {{ .Values.config.connectivity.hostedRecoveryReprovisionCooldownSecs | quote }}
+  ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT: {{ .Values.config.connectivity.hostedRecoveryMaxConcurrent | default "4" | quote }}
 
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}
@@ -156,3 +157,25 @@ data:
   MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
   MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
   MT_NODE_MAX_HOSTED_PER_USER: {{ .Values.config.mtNode.maxHostedPerUser | default "1" | quote }}
+
+  # Vault HTTP client. The engine writes per-tenant MT credentials
+  # under VAULT_MOUNT/data/tenants/mt-node/<sa_name>; the per-tenant
+  # Pod's Vault Agent Injector reads from the same path. VAULT_ADDR
+  # MUST be set in production / staging (the overlays do this).
+  VAULT_ADDR: {{ .Values.config.vault.address | default "" | quote }}
+  VAULT_NAMESPACE: {{ .Values.config.vault.namespace | default "" | quote }}
+  VAULT_MOUNT: {{ .Values.config.vault.kvMount | default "etradie" | quote }}
+  VAULT_K8S_AUTH_PATH: {{ .Values.config.vault.k8sAuthPath | default "kubernetes" | quote }}
+  VAULT_K8S_AUTH_ROLE: {{ .Values.config.vault.k8sAuthRole | default "mt-node-provisioner" | quote }}
+  VAULT_K8S_SA_TOKEN_PATH: {{ .Values.config.vault.saTokenPath | default "/var/run/secrets/kubernetes.io/serviceaccount/token" | quote }}
+  VAULT_TOKEN_RENEW_SAFETY_SECS: {{ .Values.config.vault.tokenRenewSafetySecs | default "60" | quote }}
+
+  # Scheduling envelope read by HostedProvisioner so runtime-provisioned
+  # Pods match the chart-rendered platform shape. Empty defaults mean
+  # 'do not set the field'; the production overlay fills them in.
+  MT_NODE_PRIORITY_CLASS_NAME: {{ .Values.config.mtNode.scheduling.priorityClassName | default "" | quote }}
+  MT_NODE_TOLERATIONS_JSON: {{ .Values.config.mtNode.scheduling.tolerations | default list | toJson | quote }}
+  MT_NODE_NODE_SELECTOR_JSON: {{ .Values.config.mtNode.scheduling.nodeSelector | default dict | toJson | quote }}
+  MT_NODE_AFFINITY_JSON: {{ .Values.config.mtNode.scheduling.affinity | default dict | toJson | quote }}
+  MT_NODE_TOPOLOGY_SPREAD_JSON: {{ .Values.config.mtNode.scheduling.topologySpreadConstraints | default list | toJson | quote }}
+  MT_NODE_POD_ANNOTATIONS_JSON: {{ .Values.config.mtNode.scheduling.podAnnotations | default dict | toJson | quote }}

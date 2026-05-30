@@ -229,6 +229,12 @@ class BrokerConnectionRepository:
         platform: str = "mt5",
         # Activation
         activate: bool = True,
+        # Optional explicit row id (UUID string). When supplied, the row
+        # is persisted with this exact id so the hosted-connection path
+        # can pre-allocate it and pass the same value to the K8s
+        # provisioner. The broker_connections.id, the StatefulSet name,
+        # and the etradie.connection-id label all line up.
+        id: Optional[str] = None,
     ) -> BrokerConnectionRow:
         """Create a new broker connection.
 
@@ -266,9 +272,24 @@ class BrokerConnectionRepository:
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
 
+        # Validate any caller-supplied id up front so an invalid value
+        # fails the request cleanly rather than at INSERT time.
+        row_id: str
+        if id is not None:
+            try:
+                from uuid import UUID as _UUIDValidate
+                _UUIDValidate(str(id))
+                row_id = str(id)
+            except (ValueError, AttributeError, TypeError) as _id_exc:
+                raise ValueError(
+                    f"broker_connections.id must be a valid UUID; got {id!r}"
+                ) from _id_exc
+        else:
+            row_id = str(uuid4())
+
         now = datetime.now(UTC)
         row = BrokerConnectionRow(
-            id=str(uuid4()),
+            id=row_id,
             user_id=user_id,
             connection_type=connection_type,
             name=name,

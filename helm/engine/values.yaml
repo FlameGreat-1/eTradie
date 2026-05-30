@@ -218,18 +218,18 @@ config:
     requestDeadlineSafetyMs: "50"
     brokerPoolIdleTimeoutSecs: "600"
     brokerPoolSweepIntervalSecs: "60"
-    # Section 8 (CHECKLIST): hosted MT-node failure recovery loop.
-    # Read by engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig
-    # at engine boot. The eager startup sweep runs unconditionally
-    # when enabled=true; the background sweep ticks every
-    # sweepIntervalSecs. A StatefulSet that has been not-Ready longer
-    # than unhealthyThresholdSecs is reprovisioned, respecting a
-    # per-connection cooldown of reprovisionCooldownSecs to avoid
-    # stampeding a permanently broken connection.
+    # Hosted MT-node failure recovery loop. Read by
+    # engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig at
+    # boot. The startup sweep runs once before the engine serves
+    # traffic; the background sweep ticks every sweepIntervalSecs.
+    # A StatefulSet not-Ready longer than unhealthyThresholdSecs is
+    # reprovisioned, respecting the per-connection cooldown and the
+    # in-flight concurrency cap.
     hostedRecoveryEnabled: "true"
     hostedRecoverySweepIntervalSecs: "60"
     hostedRecoveryUnhealthyThresholdSecs: "600"
     hostedRecoveryReprovisionCooldownSecs: "300"
+    hostedRecoveryMaxConcurrent: "4"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential
@@ -268,6 +268,33 @@ config:
     # this for power users via the production overlay or per-tenant
     # override.
     maxHostedPerUser: "1"
+    # Scheduling envelope applied by HostedProvisioner to every
+    # runtime-provisioned per-tenant StatefulSet. MUST mirror
+    # helm/mt-node/values{,-production,-staging}.yaml so chart-
+    # rendered Pods and engine-runtime Pods produce wire-identical
+    # specs. Empty defaults preserve the dev/docker-compose shape;
+    # the production overlay fills in real values.
+    scheduling:
+      priorityClassName: ""
+      tolerations: []
+      nodeSelector: {}
+      affinity: {}
+      topologySpreadConstraints: []
+      podAnnotations: {}
+  # Vault HTTP client. The engine reads VAULT_* at boot and uses its
+  # ServiceAccount token to authenticate against the Vault Kubernetes
+  # auth backend (role 'mt-node-provisioner', policy granting WRITE
+  # on etradie/data/tenants/mt-node/*). Empty defaults preserve the
+  # dev / docker-compose flow; production and staging overlays MUST
+  # set address.
+  vault:
+    address: ""
+    namespace: ""
+    kvMount: "etradie"
+    k8sAuthPath: "kubernetes"
+    k8sAuthRole: "mt-node-provisioner"
+    saTokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    tokenRenewSafetySecs: "60"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
     port: "5432"

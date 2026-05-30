@@ -7,6 +7,15 @@ metadata:
   namespace: {{ include "mt-node.namespace" . }}
   labels:
     {{- include "mt-node.labels" . | nindent 4 }}
+  annotations:
+    # Stakater Reloader watches this named Secret. When ESO
+    # refreshes DEFAULT_ZMQ_AUTH_TOKEN from Vault into the platform
+    # Secret, Reloader bumps this StatefulSet's pod template and
+    # rolls the Pod so the new token reaches the EA's envFrom block.
+    # Per-tenant credential rotation is handled by the Vault Agent
+    # Injector (template re-render + file re-source), not by
+    # Reloader.
+    secret.reloader.stakater.com/reload: {{ include "mt-node.platformSecretName" . | quote }}
 spec:
   replicas: 1
   serviceName: {{ include "mt-node.fullname" . }}-headless
@@ -30,11 +39,25 @@ spec:
         etradie.platform: {{ .Values.mtConnection.platform | quote }}
       annotations:
         checksum/watchdog-config: {{ include (print $.Template.BasePath "/configmap-watchdog.yaml") . | sha256sum }}
-        checksum/platform-secret: {{ include (print $.Template.BasePath "/externalsecret-platform.yaml") . | sha256sum }}
-        # Per-tenant sealed Secret name is set by the engine; checksum
-        # of its name is enough to force a rollout if the engine
-        # re-seals credentials (e.g. user updated their broker password).
-        checksum/sealed-secret-name: {{ .Values.mtConnection.sealedSecretName | sha256sum }}
+        # Vault Agent Injector: render per-tenant broker credentials
+        # from Vault to /vault/secrets/{{ .Values.vault.fileName }}
+        # before the mt-node container starts. agent-init-first=true
+        # guarantees the file exists by the time entrypoint.sh runs.
+        # agent-pre-populate-only=false keeps the agent sidecar
+        # running so credential rotations are picked up without a
+        # pod restart on the next file source.
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ include "mt-node.vaultRole" . | quote }}
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-{{ .Values.vault.fileName }}: {{ include "mt-node.vaultTenantPath" . | quote }}
+        vault.hashicorp.com/agent-inject-template-{{ .Values.vault.fileName }}: |
+          {{`{{- with secret "`}}{{ include "mt-node.vaultTenantPath" . }}{{`" -}}`}}
+          export MT_LOGIN={{`{{ .Data.data.mt5_login }}`}}
+          export MT_PASSWORD={{`{{ .Data.data.mt5_password }}`}}
+          export MT_ZMQ_AUTH_TOKEN={{`{{ .Data.data.mt5_zmq_auth_token }}`}}
+          export MT_VAULT_RENDERED_AT={{`{{ timestamp "2006-01-02T15:04:05Z" }}`}}
+          {{`{{- end -}}`}}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -56,6 +79,13 @@ spec:
         fsGroup: {{ .Values.podSecurityContext.fsGroup | default 1000 }}
         seccompProfile:
           type: RuntimeDefault
+      # Share the PID namespace between mt-node and the watchdog
+      # sidecar so the watchdog's psutil.process_iter can see
+      # terminal64.exe / terminal.exe / wineserver and SIGTERM them
+      # when soft-cap thresholds trip. Each container has its own PID
+      # namespace by default, which would make every soft-cap signal a
+      # no-op.
+      shareProcessNamespace: true
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
@@ -106,16 +136,10 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
           envFrom:
-            # Per-tenant sealed credentials (MT_LOGIN, MT_PASSWORD,
-            # MT_ZMQ_AUTH_TOKEN). Created by the engine BEFORE helm
-            # install. The engine deletes this Secret when the
-            # broker connection is removed.
-            - secretRef:
-                name: {{ .Values.mtConnection.sealedSecretName | quote }}
-                optional: false
             # Platform defaults (DEFAULT_ZMQ_AUTH_TOKEN). The container
-            # entrypoint prefers MT_ZMQ_AUTH_TOKEN from the per-tenant
-            # Secret when set, else falls back to DEFAULT_ZMQ_AUTH_TOKEN.
+            # entrypoint prefers MT_ZMQ_AUTH_TOKEN sourced from the
+            # Vault-rendered file at /vault/secrets/{{ .Values.vault.fileName }},
+            # else falls back to DEFAULT_ZMQ_AUTH_TOKEN.
             - secretRef:
                 name: {{ include "mt-node.platformSecretName" . }}
                 optional: false
@@ -164,9 +188,9 @@ spec:
             - configMapRef:
                 name: {{ include "mt-node.watchdogConfigMapName" . }}
                 optional: false
-            - secretRef:
-                name: {{ .Values.mtConnection.sealedSecretName | quote }}
-                optional: false
+            # Platform default ZMQ token; per-tenant token is sourced
+            # from /vault/secrets/{{ .Values.vault.fileName }} by
+            # the watchdog at startup before AUTH_TOKEN is evaluated.
             - secretRef:
                 name: {{ include "mt-node.platformSecretName" . }}
                 optional: false

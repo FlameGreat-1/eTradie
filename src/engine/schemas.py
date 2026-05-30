@@ -152,7 +152,10 @@ class CreateBrokerConnectionRequest(BaseModel):
     mt5_login: Optional[str] = None
     mt5_password: Optional[str] = None
     mt5_server: Optional[str] = None
-    platform: str = Field(default="mt5", description="Trading platform (mt4 or mt5)")
+    # 'mt4' is reserved but rejected at the router until the MT4 EA
+    # binary is bundled in the mt-node image. Only 'mt5' is buildable
+    # end-to-end today; see docker/mt-node/ea/README.md.
+    platform: str = Field(default="mt5", description="Trading platform. Currently only 'mt5' is supported end-to-end; 'mt4' is reserved for future support.")
     # Default chart symbol for the hosted MT terminal (broker-correct name,
     # e.g. 'EURUSDm' on Exness). Defaults to 'EURUSD'. The engine writes
     # this into the StatefulSet's MT_SYMBOL env var at provision time.

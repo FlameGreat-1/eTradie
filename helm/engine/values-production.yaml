@@ -33,6 +33,56 @@ config:
     # same size so an operator can flip a tenant between paths without
     # losing the Wine prefix or hitting a PVC resize.
     pvcSize: "8Gi"
+    # Mirrors helm/mt-node/values-production.yaml so the chart-
+    # rendered and engine-runtime paths produce wire-identical pod
+    # specs. The toleration is required to land on the dedicated
+    # node pool tainted workload=etradie-system:NoSchedule.
+    scheduling:
+      priorityClassName: "etradie-mt-node-priority"
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: etradie-system
+          effect: NoSchedule
+      nodeSelector: {}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: etradie-mt-node
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: etradie-mt-node
+                topologyKey: topology.kubernetes.io/zone
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+        - maxSkew: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-mt-node
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        tier: production
+  # Vault address. Production runs an in-cluster Vault on the
+  # 'vault' namespace. Operators on HCP Vault or an external
+  # Vault override this in their own overlay.
+  vault:
+    address: "https://vault.vault.svc.cluster.local:8200"
   connectivity:
     # Production: same defaults but enforce a minimum EA build so a
     # stale terminal cannot trade. Bumped to 3.0.0 because EA v3.0.0

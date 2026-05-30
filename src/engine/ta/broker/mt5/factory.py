@@ -260,6 +260,24 @@ def create_mt5_broker_from_connection(
         ConfigurationError: On invalid connection type or missing data.
     """
     if row.connection_type == "ea":
+        # connection_type='ea' is a local-development-only path that
+        # reads single-tenant MT5_ZMQ_* env vars from the engine. The
+        # router rejects new 'ea' row CREATES in production/staging;
+        # this gate stops a pre-existing 'ea' row (from a shared DB or
+        # an out-of-band migration) from bypassing that policy at
+        # client-build time.
+        _app_env = os.environ.get("APP_ENV", "").strip().lower()
+        if _app_env in ("production", "staging"):
+            raise ConfigurationError(
+                "connection_type='ea' is a local-development path and is "
+                "refused in production/staging. Delete this row and "
+                "re-provision as connection_type='hosted' or 'metaapi'.",
+                details={
+                    "connection_id": str(row.id),
+                    "connection_type": row.connection_type,
+                    "app_env": _app_env,
+                },
+            )
         if not row.ea_host or row.ea_port is None:
             raise ConfigurationError(
                 "EA connection requires host and port",
@@ -369,6 +387,20 @@ def create_mt5_broker_from_connection(
         return client
 
     if row.connection_type == "hosted":
+        # MT4 hosted connections are non-functional because the MT4 EA
+        # binary is not bundled in the mt-node image (see
+        # docker/mt-node/ea/README.md). Fail fast with a clear error.
+        if (row.platform or "mt5").strip().lower() == "mt4":
+            raise ConfigurationError(
+                "platform='mt4' hosted connections are not currently "
+                "supported: the MT4 EA binary is not bundled in the "
+                "mt-node image. Re-create this connection with "
+                "platform='mt5'.",
+                details={
+                    "connection_id": str(row.id),
+                    "platform": row.platform,
+                },
+            )
         if not row.hosted_container_id:
             raise ConfigurationError(
                 "Hosted connection has no container_id. "

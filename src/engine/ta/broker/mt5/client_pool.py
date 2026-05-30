@@ -82,16 +82,10 @@ class BrokerClientPool:
         self._closing = False
 
     def _key_lock(self, key: tuple[str, str]) -> asyncio.Lock:
-        # Cheap path: lock already exists.
-        lk = self._key_locks.get(key)
-        if lk is not None:
-            return lk
-        # Slow path: create under the global lock to avoid two coroutines
-        # creating two locks for the same key.
-        # Note: we intentionally do NOT use asyncio.run_coroutine here -
-        # callers are already inside an event loop.
-        lk = self._key_locks.setdefault(key, asyncio.Lock())
-        return lk
+        # setdefault returns the existing value when the key is present,
+        # so concurrent misses see the same canonical Lock regardless of
+        # which one wins the insert race.
+        return self._key_locks.setdefault(key, asyncio.Lock())
 
     async def get(
         self,

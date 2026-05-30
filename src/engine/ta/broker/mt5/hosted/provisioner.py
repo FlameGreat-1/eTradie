@@ -38,7 +38,7 @@ are independent.
 from __future__ import annotations
 
 import asyncio
-import base64
+import hashlib
 import json
 import os
 import secrets
@@ -47,7 +47,6 @@ from typing import Any, Iterable, Optional
 
 import zmq
 import zmq.asyncio as zmq_async
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
 from tenacity import (
@@ -65,6 +64,7 @@ from engine.shared.exceptions import (
     ProviderUnavailableError,
 )
 from engine.shared.logging import get_logger
+from engine.shared.vault import VaultClient, VaultError
 
 logger = get_logger(__name__)
 
@@ -112,92 +112,73 @@ _CPU_REQUEST = os.environ.get("MT_NODE_CPU_REQUEST", "500m")
 _EPHEMERAL_LIMIT = os.environ.get("MT_NODE_EPHEMERAL_LIMIT", "1Gi")
 _EPHEMERAL_REQUEST = os.environ.get("MT_NODE_EPHEMERAL_REQUEST", "512Mi")
 
+# Scheduling envelope sourced from the engine ConfigMap so the runtime
+# provisioner and the chart-rendered platform path produce wire-identical
+# pod specs. Empty values mean 'do not set the field'.
+_PRIORITY_CLASS_NAME_RAW = os.environ.get("MT_NODE_PRIORITY_CLASS_NAME", "").strip()
+_TOLERATIONS_JSON_RAW = os.environ.get("MT_NODE_TOLERATIONS_JSON", "").strip()
+_NODE_SELECTOR_JSON_RAW = os.environ.get("MT_NODE_NODE_SELECTOR_JSON", "").strip()
+_AFFINITY_JSON_RAW = os.environ.get("MT_NODE_AFFINITY_JSON", "").strip()
+_TOPOLOGY_SPREAD_JSON_RAW = os.environ.get("MT_NODE_TOPOLOGY_SPREAD_JSON", "").strip()
+_POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").strip()
+
+
+def _parse_json_envelope(env_name: str, raw: str, expected: type):
+    """Parse a JSON envelope env var into a dict or list.
+
+    Returns None when the env var is empty or decodes to an empty
+    container, so callers can pass the result directly to the
+    kubernetes_asyncio constructors without emitting empty {} or [].
+    Raises ConfigurationError on malformed JSON or a type mismatch.
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConfigurationError(
+            f"{env_name} is not valid JSON: {exc}",
+            details={"env_var": env_name, "error": str(exc)},
+        ) from exc
+    if not isinstance(parsed, expected):
+        raise ConfigurationError(
+            f"{env_name} must be a JSON {expected.__name__}, got {type(parsed).__name__}",
+            details={"env_var": env_name, "got_type": type(parsed).__name__},
+        )
+    if isinstance(parsed, dict) and not parsed:
+        return None
+    if isinstance(parsed, list) and not parsed:
+        return None
+    return parsed
+
 # Readiness gate.
 _READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
 _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS", "5"))
 
-# Vault-sourced platform key for credential sealing. Required at
-# engine boot; absence means connection_type='hosted' is unusable
-# and the factory must surface a ConfigurationError to the dashboard.
-_ENC_KEY_ENV = "MT_NODE_CREDENTIAL_ENCRYPTION_KEY"
+# Vault path layout under VAULT_MOUNT.
+_VAULT_TENANT_PATH_PREFIX = "tenants/mt-node"
+# Vault role the per-tenant Pod's Vault Agent uses (matches
+# infrastructure/cluster/vault-paths/mt_node_tenant_secrets.tf).
+_VAULT_TENANT_ROLE = os.environ.get("MT_NODE_VAULT_TENANT_ROLE", "mt-node-tenant").strip() or "mt-node-tenant"
+# File the Vault Agent Injector renders the credentials into; the
+# mt-node entrypoint sources it.
+_VAULT_SECRETS_FILE = "mt-credentials.env"
+_VAULT_SECRETS_MOUNT = "/vault/secrets"
 
 
-def _load_encryption_key() -> bytes:
-    """Return a 32-byte key derived from MT_NODE_CREDENTIAL_ENCRYPTION_KEY.
+def _hash_secret_data(data: dict[str, str]) -> str:
+    """Stable SHA-256 of a K8s Secret data dict.
 
-    The env var carries a hex string. Production MUST use exactly 32 bytes
-    (AES-256-GCM, 64 hex chars). Development accepts 16 or 24 bytes for
-    convenience but logs a warning. The key is validated at call time so
-    a misconfigured engine pod fails its first hosted provision attempt
-    with a clear ConfigurationError rather than silently using a weak key.
+    The dict is canonicalised (sorted keys, no whitespace) so the same
+    payload always produces the same digest regardless of insertion
+    order. Stamped on the StatefulSet pod template so K8s observes a
+    diff and rolls the Pod whenever the underlying credentials change.
+    envFrom-mounted Secret data changes are otherwise invisible to the
+    StatefulSet controller.
     """
-    raw = os.environ.get(_ENC_KEY_ENV, "").strip()
-    if not raw:
-        raise ConfigurationError(
-            f"{_ENC_KEY_ENV} is not set. Populate Vault path "
-            "etradie/services/mt-node/<env>:mt_node_credential_encryption_key "
-            "(openssl rand -hex 32) before any user can pick connection_type=hosted.",
-            details={"env_var": _ENC_KEY_ENV},
-        )
-    try:
-        key = bytes.fromhex(raw)
-    except ValueError as exc:
-        raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must be a hex string (e.g. output of 'openssl rand -hex 32')",
-            details={"env_var": _ENC_KEY_ENV, "error": str(exc)},
-        ) from exc
-
-    app_env = os.environ.get("APP_ENV", "development").strip().lower()
-    is_prod_like = app_env in ("production", "staging")
-
-    if is_prod_like and len(key) != 32:
-        raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must decode to exactly 32 bytes (AES-256-GCM) in "
-            f"production/staging. Got {len(key)} bytes. "
-            "Generate with: openssl rand -hex 32",
-            details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
-        )
-    if len(key) not in (16, 24, 32):
-        raise ConfigurationError(
-            f"{_ENC_KEY_ENV} must decode to 16, 24, or 32 bytes (got {len(key)}). "
-            "32 bytes (AES-256-GCM) is required in production.",
-            details={"env_var": _ENC_KEY_ENV, "byte_len": len(key)},
-        )
-    if not is_prod_like and len(key) != 32:
-        logger.warning(
-            "mt_node_credential_encryption_key_not_32_bytes",
-            extra={
-                "byte_len": len(key),
-                "warning": (
-                    f"{_ENC_KEY_ENV} is {len(key)} bytes. "
-                    "Production requires exactly 32 bytes (AES-256-GCM). "
-                    "Generate with: openssl rand -hex 32"
-                ),
-            },
-        )
-    return key
-
-
-def _seal(plaintext: str, key: bytes) -> str:
-    """AES-GCM seal a string. Returns base64(nonce|ciphertext|tag).
-
-    The Kubernetes Secret stores the sealed string. The mt-node
-    container does NOT unseal - the engine writes the PLAIN values
-    into the Secret here (the seal is engine-side defense-in-depth
-    in case the engine pod is dumped). The container receives the
-    plain MT_LOGIN/MT_PASSWORD/MT_ZMQ_AUTH_TOKEN via envFrom; that
-    is acceptable because the Pod is per-tenant + read-only-rootfs
-    + non-root.
-    """
-    nonce = secrets.token_bytes(12)
-    aead = AESGCM(key)
-    ct = aead.encrypt(nonce, plaintext.encode("utf-8"), None)
-    return base64.b64encode(nonce + ct).decode("ascii")
-
-
-def _b64(value: str) -> str:
-    return base64.b64encode(value.encode("utf-8")).decode("ascii")
+    payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _pvc_name_for(release: str) -> str:
@@ -218,12 +199,33 @@ class HostedProvisioner:
         namespace: str | None = None,
         image: str | None = None,
         platform_default_token_secret_name: str | None = None,
+        vault_client: Optional[VaultClient] = None,
     ) -> None:
         self._namespace = namespace or os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
         self._image = image or self._resolve_image()
         # Platform Secret name the chart provisions. Defaults to the
         # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
+        self._vault = vault_client
+
+    def _require_vault(self) -> VaultClient:
+        if self._vault is None:
+            app_env = os.environ.get("APP_ENV", "development").strip().lower()
+            raise ConfigurationError(
+                "VaultClient is required for hosted provisioning. Set VAULT_ADDR "
+                "and VAULT_K8S_AUTH_ROLE so the engine can write per-tenant "
+                "credentials to Vault.",
+                details={"app_env": app_env},
+            )
+        return self._vault
+
+    @staticmethod
+    def _vault_path_for(release: str) -> str:
+        return f"{_VAULT_TENANT_PATH_PREFIX}/{release}"
+
+    def _vault_data_path(self, path: str) -> str:
+        mount = os.environ.get("VAULT_MOUNT", "etradie").strip() or "etradie"
+        return f"{mount}/data/{path}"
 
     @staticmethod
     def _resolve_image() -> str:
@@ -380,40 +382,41 @@ class HostedProvisioner:
                 details={"platform": platform, "connection_id": connection_id},
             )
 
-        key = _load_encryption_key()
+        vault = self._require_vault()
         release = self._release_name(connection_id)
         labels = self._labels(connection_id, user_id, platform, release)
         selector = self._selector_labels(connection_id, release)
         service_name = release
         headless_service_name = self._headless_service_name(release)
-        secret_name = f"{release}-creds"
+        sa_name = release
+        vault_path = self._vault_path_for(release)
 
         dns_name = f"{service_name}.{self._namespace}.svc.cluster.local"
 
-        # Effective per-tenant token. Engine generates one if the caller
-        # did not supply (e.g. first-time provision). Caller (factory.py)
-        # also persists it in broker_connections.ea_auth_token (already
-        # column-encrypted at REST by the broker_encryption_key) so
-        # ZmqClient can re-read it.
+        # Effective per-tenant token. The engine generates one when the
+        # caller did not supply (first-time provision). The caller
+        # (factory.py) also persists it in broker_connections.ea_auth_token
+        # (column-encrypted at REST) so ZmqClient can re-read it.
         effective_token = (per_user_zmq_token or secrets.token_hex(32)).strip()
 
-        # Persistent api clients for the WHOLE provision flow including
-        # the readiness gate. Without this, each readiness poll opened
-        # a fresh ApiClient and closed it - up to ~100 client churns
-        # per provision at 3s poll interval / 300s timeout. The
-        # persistent client also keeps the kube-apiserver connection
-        # warm for the duration.
+        # Persistent api clients for the whole provision flow including
+        # the readiness gate so each readiness poll does not re-open an
+        # ApiClient. The persistent client also keeps the kube-apiserver
+        # connection warm for the duration.
         core_api, apps_api = await self._api_clients()
         try:
             try:
-                await self._upsert_secret(
-                    core_api=core_api,
-                    name=secret_name,
-                    labels=labels,
+                credentials_checksum = await self._write_vault_credentials(
+                    vault=vault,
+                    path=vault_path,
                     login=login,
                     password=password,
                     token=effective_token,
-                    seal_key=key,
+                )
+                await self._upsert_serviceaccount(
+                    core_api=core_api,
+                    name=sa_name,
+                    labels=labels,
                 )
                 await self._upsert_statefulset(
                     apps_api=apps_api,
@@ -425,7 +428,9 @@ class HostedProvisioner:
                     server=server,
                     symbol=symbol,
                     zmq_port=zmq_port,
-                    secret_name=secret_name,
+                    vault_path=vault_path,
+                    sa_name=sa_name,
+                    credentials_checksum=credentials_checksum,
                 )
                 await self._upsert_service(
                     core_api=core_api,
@@ -457,8 +462,14 @@ class HostedProvisioner:
                 # Best-effort rollback so we do not leak orphans on a
                 # partial failure.
                 await self._best_effort_cleanup(
-                    core_api, apps_api, release,
-                    service_name, headless_service_name, secret_name,
+                    core_api=core_api,
+                    apps_api=apps_api,
+                    vault=vault,
+                    release=release,
+                    service_name=service_name,
+                    headless_service_name=headless_service_name,
+                    sa_name=sa_name,
+                    vault_path=vault_path,
                 )
                 raise ProviderError(
                     f"Failed to create hosted mt-node release: {exc.reason}",
@@ -545,13 +556,21 @@ class HostedProvisioner:
             await self._close(apps_api)
 
     async def delete_account(self, container_id: str) -> bool:
-        """Remove the StatefulSet, both Services, the per-tenant Secret,
-        and the per-replica Wine-prefix PVC for a release.
+        """Remove every resource associated with a release.
 
-        StatefulSet GC does NOT cascade to its volumeClaimTemplate
-        PVCs by design (the K8s authors decided that stateful data
-        deletion must be explicit). We delete the wine-prefix-<release>-0
-        PVC here so the engine's connection-delete flow is complete.
+        Order:
+          1. StatefulSet                                (K8s)
+          2. Regular Service                            (K8s)
+          3. Headless Service                           (K8s)
+          4. Per-tenant ServiceAccount                  (K8s)
+          5. Legacy per-tenant Secret                   (K8s; best-effort)
+          6. Per-replica Wine-prefix PVC                (K8s)
+          7. Vault tenant path (destroy all versions)   (Vault)
+
+        StatefulSet GC does NOT cascade to volumeClaimTemplate PVCs;
+        the Wine prefix PVC is deleted explicitly. The legacy Secret
+        delete covers the cutover window when some releases were
+        provisioned before the Vault Agent Injector migration.
         """
         core_api, apps_api = await self._api_clients()
         ok = True
@@ -568,13 +587,22 @@ class HostedProvisioner:
                 "Service(headless)",
             )
             ok &= await self._safe_delete(
-                core_api.delete_namespaced_secret, f"{container_id}-creds", "Secret(creds)",
+                core_api.delete_namespaced_service_account,
+                container_id,
+                "ServiceAccount",
             )
-            # Per-replica PVC the StatefulSet's volumeClaimTemplate produced.
+            ok &= await self._safe_delete(
+                core_api.delete_namespaced_secret,
+                f"{container_id}-creds",
+                "Secret(legacy-creds)",
+            )
             ok &= await self._safe_delete(
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(container_id),
                 "PVC(wine-prefix)",
+            )
+            await self._destroy_vault_path(
+                self._vault_path_for(container_id),
             )
             logger.info(
                 "hosted_release_deleted",
@@ -584,6 +612,25 @@ class HostedProvisioner:
         finally:
             await self._close(core_api)
             await self._close(apps_api)
+
+    async def _destroy_vault_path(self, path: str) -> None:
+        """Best-effort destroy of every version at the tenant Vault path.
+
+        Vault outage MUST NOT block the rest of the cleanup: a half-
+        deleted K8s release is harder to recover from than orphan
+        Vault credentials. The orphan path can be manually purged by
+        the operator.
+        """
+        if self._vault is None:
+            return
+        try:
+            await self._vault.destroy_all_versions(path)
+            logger.info("hosted_vault_path_destroyed", extra={"path": path})
+        except VaultError as exc:
+            logger.warning(
+                "hosted_vault_path_destroy_failed",
+                extra={"path": path, "error": str(exc), **(exc.details or {})},
+            )
 
     def resolve_zmq_host(self, container_id: str) -> Optional[str]:
         return f"{container_id}.{self._namespace}.svc.cluster.local"
@@ -621,12 +668,18 @@ class HostedProvisioner:
                         "Service(headless)",
                     )
                     await self._safe_delete(
-                        core_api.delete_namespaced_secret, f"{name}-creds", "Secret",
+                        core_api.delete_namespaced_service_account,
+                        name, "ServiceAccount",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_secret,
+                        f"{name}-creds", "Secret(legacy-creds)",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
                         _pvc_name_for(name), "PVC",
                     )
+                    await self._destroy_vault_path(self._vault_path_for(name))
                     deleted.append(name)
             return {"deleted": deleted, "scanned": len(sts_list.items)}
         finally:
@@ -643,47 +696,75 @@ class HostedProvisioner:
             retry=retry_if_exception_type(ApiException),
         )
 
-    async def _upsert_secret(
+    async def _write_vault_credentials(
+        self,
+        *,
+        vault: VaultClient,
+        path: str,
+        login: str,
+        password: str,
+        token: str,
+    ) -> str:
+        """Write per-tenant MT credentials to Vault.
+
+        Returns a SHA-256 digest over the payload. The caller stamps
+        it on the StatefulSet pod template so K8s rolls the Pod when
+        the underlying credentials rotate (Vault Agent does NOT push
+        updates into a running Pod's tmpfs; the Pod must restart for
+        the new credentials to take effect).
+        """
+        data = {
+            "mt5_login": login,
+            "mt5_password": password,
+            "mt5_zmq_auth_token": token,
+        }
+        try:
+            await vault.write_kv(path, data)
+        except VaultError as exc:
+            raise ProviderError(
+                f"Failed to write per-tenant credentials to Vault: {exc}",
+                details={"path": path, **(exc.details or {})},
+            ) from exc
+        return _hash_secret_data(data)
+
+    async def _upsert_serviceaccount(
         self,
         *,
         core_api: client.CoreV1Api,
         name: str,
         labels: dict[str, str],
-        login: str,
-        password: str,
-        token: str,
-        seal_key: bytes,
     ) -> None:
-        """Idempotent create-or-update of the per-tenant Secret.
+        """Idempotent create-or-update of the per-tenant ServiceAccount.
 
-        Keys written:
-          MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN  -> envFrom in chart
-          ETRADIE_SEAL                              -> defense-in-depth
-                                                       audit blob
+        The SA name matches the Vault tenant role's
+        bound_service_account_names glob ('etradie-mt-*') so the
+        per-tenant Pod can authenticate against Vault and read its
+        own tenant path. automountServiceAccountToken=True is
+        required because the Vault Agent init-container uses the
+        projected token.
         """
-        sealed_blob = json.dumps({
-            "login": _seal(login, seal_key),
-            "password": _seal(password, seal_key),
-            "token": _seal(token, seal_key),
-        })
-        body = client.V1Secret(
-            metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
-            type="Opaque",
-            data={
-                "MT_LOGIN": _b64(login),
-                "MT_PASSWORD": _b64(password),
-                "MT_ZMQ_AUTH_TOKEN": _b64(token),
-                "ETRADIE_SEAL": _b64(sealed_blob),
-            },
+        body = client.V1ServiceAccount(
+            metadata=client.V1ObjectMeta(
+                name=name, namespace=self._namespace, labels=labels,
+            ),
+            automount_service_account_token=True,
         )
         async for attempt in await self._retrying():
             with attempt:
                 try:
-                    await core_api.create_namespaced_secret(namespace=self._namespace, body=body)
+                    await core_api.create_namespaced_service_account(
+                        namespace=self._namespace, body=body,
+                    )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
-                        await core_api.replace_namespaced_secret(
+                        existing = await core_api.read_namespaced_service_account(
+                            name=name, namespace=self._namespace,
+                        )
+                        body.metadata.resource_version = (
+                            existing.metadata.resource_version
+                        )
+                        await core_api.replace_namespaced_service_account(
                             name=name, namespace=self._namespace, body=body,
                         )
                         return
@@ -701,20 +782,18 @@ class HostedProvisioner:
         server: str,
         symbol: str,
         zmq_port: int,
-        secret_name: str,
+        vault_path: str,
+        sa_name: str,
+        credentials_checksum: str = "",
     ) -> None:
         """Create or update the per-tenant StatefulSet.
 
-        Wire shape is identical to helm/mt-node/templates/statefulset.yaml.
-        Any operator-facing inspection (kubectl describe sts <release>)
-        produces an identical resource regardless of whether the chart
-        or this provisioner created it. Both paths are wire-compatible:
-          - Same labels / selectorLabels.
-          - Same volumeClaimTemplate name ('wine-prefix').
-          - Same watchdog sidecar with /healthz readiness + /livez liveness.
-          - Same lifecycle.preStop (5s sleep for Wine journal flush).
-          - Same terminationGracePeriodSeconds (60s).
-          - Same security context (non-root, drop ALL, readOnlyRootFilesystem).
+        Wire shape matches helm/mt-node/templates/statefulset.yaml so
+        the chart-rendered and engine-runtime paths produce equivalent
+        resources: same labels / selectorLabels, same volumeClaimTemplate
+        name, same watchdog sidecar with /healthz + /livez, same
+        lifecycle.preStop, same terminationGracePeriodSeconds, same
+        security context, and the same Vault Agent Injector annotations.
         """
         # Watchdog port (matches chart default service.watchdogPort).
         watchdog_port = DEFAULT_WATCHDOG_PORT
@@ -738,11 +817,12 @@ class HostedProvisioner:
                 ),
             ),
         ]
-        env_from = [
-            client.V1EnvFromSource(
-                secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
-            ),
-        ]
+        # No per-tenant Secret envFrom: per-tenant credentials are
+        # rendered into /vault/secrets/<file> by the Vault Agent
+        # init-container. The platform Secret (DEFAULT_ZMQ_AUTH_TOKEN)
+        # is still consumed via envFrom by entrypoint.sh as the
+        # fallback when MT_ZMQ_AUTH_TOKEN is unset.
+        env_from: list[client.V1EnvFromSource] = []
 
         # ── Shared security context (both containers) ──────────────────────
         container_security_ctx = client.V1SecurityContext(
@@ -839,13 +919,10 @@ class HostedProvisioner:
             requests={"cpu": "100m", "memory": "64Mi"},
             limits={"cpu": "100m", "memory": "64Mi"},
         )
-        # Watchdog env: reads auth token from the same per-tenant Secret
-        # (MT_ZMQ_AUTH_TOKEN) and the platform Secret (DEFAULT_ZMQ_AUTH_TOKEN).
-        watchdog_env_from = [
-            client.V1EnvFromSource(
-                secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
-            ),
-        ]
+        # Watchdog reads MT_ZMQ_AUTH_TOKEN by sourcing the same Vault-
+        # rendered file the mt-node entrypoint sources. The platform
+        # DEFAULT_ZMQ_AUTH_TOKEN fallback still comes via envFrom.
+        watchdog_env_from: list[client.V1EnvFromSource] = []
         watchdog_env = [
             client.V1EnvVar(
                 name="WATCHDOG_ZMQ_ENDPOINT",
@@ -920,10 +997,30 @@ class HostedProvisioner:
             ],
         )
 
+        # Parse each scheduling envelope from its ConfigMap-sourced JSON
+        # string. kubernetes_asyncio accepts raw dicts/lists in place of
+        # typed Tolerations / Affinity / TopologySpreadConstraint objects
+        # because the OpenAPI serialisation handles the camelCase mapping.
+        tolerations_raw = _parse_json_envelope(
+            "MT_NODE_TOLERATIONS_JSON", _TOLERATIONS_JSON_RAW, list,
+        )
+        node_selector = _parse_json_envelope(
+            "MT_NODE_NODE_SELECTOR_JSON", _NODE_SELECTOR_JSON_RAW, dict,
+        )
+        affinity_raw = _parse_json_envelope(
+            "MT_NODE_AFFINITY_JSON", _AFFINITY_JSON_RAW, dict,
+        )
+        topology_spread_raw = _parse_json_envelope(
+            "MT_NODE_TOPOLOGY_SPREAD_JSON", _TOPOLOGY_SPREAD_JSON_RAW, list,
+        )
+        pod_annotations = _parse_json_envelope(
+            "MT_NODE_POD_ANNOTATIONS_JSON", _POD_ANNOTATIONS_JSON_RAW, dict,
+        )
+
         # ── Pod spec ───────────────────────────────────────────────────────
         pod_spec = client.V1PodSpec(
-            service_account_name="default",  # mt-node never calls K8s API
-            automount_service_account_token=False,
+            service_account_name=sa_name,
+            automount_service_account_token=True,
             security_context=client.V1PodSecurityContext(
                 run_as_non_root=True,
                 run_as_user=1000,
@@ -932,6 +1029,12 @@ class HostedProvisioner:
                 seccomp_profile=client.V1SeccompProfile(type="RuntimeDefault"),
             ),
             termination_grace_period_seconds=60,
+            # Share the PID namespace between the mt-node container and
+            # the watchdog sidecar so the watchdog's psutil.process_iter
+            # can see terminal64.exe and SIGTERM it on a soft-cap trip.
+            # Each container has its own PID namespace by default, which
+            # would make every soft-cap signal a no-op.
+            share_process_namespace=True,
             containers=[container, watchdog_container],
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
@@ -940,15 +1043,67 @@ class HostedProvisioner:
                 client.V1Volume(name="tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
                 client.V1Volume(name="var-tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi")),
             ],
+            priority_class_name=_PRIORITY_CLASS_NAME_RAW or None,
+            tolerations=tolerations_raw,
+            node_selector=node_selector,
+            affinity=affinity_raw,
+            topology_spread_constraints=topology_spread_raw,
         )
 
-        pod_template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels=selector | {
+        # Vault Agent Injector annotations. The injector mutates the
+        # Pod at admission and adds an initContainer that authenticates
+        # against Vault using the Pod's SA token, fetches the secret
+        # at <vault_path>, and renders /vault/secrets/mt-credentials.env
+        # which the entrypoint and watchdog source at startup.
+        #
+        # agent-pre-populate-only=false keeps the Vault Agent running
+        # as a sidecar so a future token-renewal path can refresh the
+        # rendered file. agent-init-first ensures the initContainer
+        # runs before the mt-node container, so the file exists by
+        # the time entrypoint.sh reads it.
+        #
+        # The credentials checksum annotation forces a rolling update
+        # when the underlying Vault data rotates. Vault Agent does not
+        # push updates into a running Pod's tmpfs; the Pod must
+        # restart for the new credentials to take effect.
+        vault_template = (
+            "{{- with secret \""
+            + f"{self._vault_data_path(vault_path)}"
+            + "\" -}}\n"
+            "export MT_LOGIN={{ .Data.data.mt5_login }}\n"
+            "export MT_PASSWORD={{ .Data.data.mt5_password }}\n"
+            "export MT_ZMQ_AUTH_TOKEN={{ .Data.data.mt5_zmq_auth_token }}\n"
+            "export MT_VAULT_RENDERED_AT={{ timestamp }}\n"
+            "{{- end -}}"
+        )
+        merged_annotations: dict[str, str] = {
+            "vault.hashicorp.com/agent-inject": "true",
+            "vault.hashicorp.com/role": _VAULT_TENANT_ROLE,
+            "vault.hashicorp.com/agent-pre-populate-only": "false",
+            "vault.hashicorp.com/agent-init-first": "true",
+            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}":
+                self._vault_data_path(vault_path),
+            f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}":
+                vault_template,
+        }
+        if pod_annotations:
+            merged_annotations.update(pod_annotations)
+        if credentials_checksum:
+            merged_annotations[
+                "etradie.io/vault-credentials-checksum"
+            ] = credentials_checksum
+
+        pod_template_metadata = client.V1ObjectMeta(
+            labels=selector | {
                 _LABEL_PART_OF: _PART_OF_VALUE,
                 _LABEL_COMPONENT: "mt-node",
                 _LABEL_USER_ID: labels[_LABEL_USER_ID],
                 _LABEL_PLATFORM: platform,
-            }),
+            },
+            annotations=merged_annotations or None,
+        )
+        pod_template = client.V1PodTemplateSpec(
+            metadata=pod_template_metadata,
             spec=pod_spec,
         )
 
@@ -1187,18 +1342,22 @@ class HostedProvisioner:
 
     async def _best_effort_cleanup(
         self,
+        *,
         core_api: client.CoreV1Api,
         apps_api: client.AppsV1Api,
+        vault: Optional[VaultClient],
         release: str,
         service_name: str,
         headless_service_name: str,
-        secret_name: str,
+        sa_name: str,
+        vault_path: str,
     ) -> None:
         for fn, name, kind in (
             (apps_api.delete_namespaced_stateful_set, release, "StatefulSet"),
             (core_api.delete_namespaced_service, service_name, "Service"),
             (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
-            (core_api.delete_namespaced_secret, secret_name, "Secret"),
+            (core_api.delete_namespaced_service_account, sa_name, "ServiceAccount"),
+            (core_api.delete_namespaced_secret, f"{release}-creds", "Secret(legacy-creds)"),
             (
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(release),
@@ -1213,3 +1372,11 @@ class HostedProvisioner:
                         "hosted_rollback_warning",
                         extra={"kind": kind, "name": name, "status": exc.status},
                     )
+        if vault is not None:
+            try:
+                await vault.destroy_all_versions(vault_path)
+            except VaultError as exc:
+                logger.warning(
+                    "hosted_rollback_vault_destroy_failed",
+                    extra={"path": vault_path, "error": str(exc)},
+                )

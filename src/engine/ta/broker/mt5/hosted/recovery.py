@@ -91,6 +91,10 @@ class HostedRecoveryConfig:
     sweep_interval_secs: float
     unhealthy_threshold_secs: float
     reprovision_cooldown_secs: float
+    # Caps concurrent reprovision calls inside one sweep so a cluster-
+    # wide outage does not issue N parallel readiness gates against the
+    # kube-apiserver. Status checks remain unbounded.
+    max_concurrent_reprovisions: int
 
     @classmethod
     def from_env(cls) -> "HostedRecoveryConfig":
@@ -120,6 +124,22 @@ class HostedRecoveryConfig:
                 )
             return value
 
+        def _pos_int(name: str, default: str, minimum: int) -> int:
+            raw = (os.environ.get(name, default) or default).strip()
+            try:
+                value = int(raw)
+            except ValueError as exc:
+                raise ConfigurationError(
+                    f"{name} must be an int",
+                    details={"env_var": name, "value": raw, "error": str(exc)},
+                ) from exc
+            if value < minimum:
+                raise ConfigurationError(
+                    f"{name} must be >= {minimum} (got {value})",
+                    details={"env_var": name, "value": value, "minimum": minimum},
+                )
+            return value
+
         return cls(
             enabled=enabled,
             sweep_interval_secs=_pos_float(
@@ -130,6 +150,9 @@ class HostedRecoveryConfig:
             ),
             reprovision_cooldown_secs=_pos_float(
                 "ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS", "300", 30.0
+            ),
+            max_concurrent_reprovisions=_pos_int(
+                "ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT", "4", 1
             ),
         )
 
@@ -174,6 +197,12 @@ class HostedRecoveryService:
         # service waits at least unhealthy_threshold_secs before
         # treating a not-Ready StatefulSet as actionable.
         self._first_unhealthy: dict[str, float] = {}
+        # Bounds the number of in-flight reprovision calls inside one
+        # sweep. Sized at construction from the config so a misconfig
+        # surfaces at engine boot rather than at the first incident.
+        self._reprovision_gate = asyncio.Semaphore(
+            self._config.max_concurrent_reprovisions,
+        )
         self._task: Optional[asyncio.Task] = None
         self._stopped = False
 
@@ -359,42 +388,46 @@ class HostedRecoveryService:
                     )
                     continue
 
-            # Act.
-            self._last_reprovision[connection_id] = now_mono
-            HOSTED_RECOVERY_REPROVISIONS_TOTAL.labels(reason=reason).inc()
-            try:
-                await self._reprovision(row=row, reason=reason, phase=phase)
-                reprovisioned += 1
-                # Reset the first-unhealthy timestamp so a future
-                # failure starts a fresh threshold window.
-                self._first_unhealthy.pop(connection_id, None)
-            except (ConfigurationError, ProviderError, ProviderTimeoutError,
-                    ProviderUnavailableError) as exc:
-                failed += 1
-                logger.error(
-                    "hosted_recovery_reprovision_failed",
-                    extra={
-                        "connection_id": connection_id,
-                        "user_id": user_id,
-                        "release": release,
-                        "reason": reason,
-                        "error": str(exc),
-                        "error_type": type(exc).__name__,
-                    },
-                )
-            except Exception as exc:  # noqa: BLE001
-                failed += 1
-                logger.error(
-                    "hosted_recovery_reprovision_unexpected",
-                    extra={
-                        "connection_id": connection_id,
-                        "user_id": user_id,
-                        "release": release,
-                        "reason": reason,
-                        "error": str(exc),
-                        "error_type": type(exc).__name__,
-                    },
-                )
+            # The cooldown gate above this point already filtered out
+            # connections still inside their back-off window, so the
+            # semaphore acquire here only competes with rows that are
+            # genuinely ready to be reprovisioned.
+            async with self._reprovision_gate:
+                self._last_reprovision[connection_id] = time.monotonic()
+                HOSTED_RECOVERY_REPROVISIONS_TOTAL.labels(reason=reason).inc()
+                try:
+                    await self._reprovision(row=row, reason=reason, phase=phase)
+                    reprovisioned += 1
+                    # Reset the first-unhealthy timestamp so a future
+                    # failure starts a fresh threshold window.
+                    self._first_unhealthy.pop(connection_id, None)
+                except (ConfigurationError, ProviderError, ProviderTimeoutError,
+                        ProviderUnavailableError) as exc:
+                    failed += 1
+                    logger.error(
+                        "hosted_recovery_reprovision_failed",
+                        extra={
+                            "connection_id": connection_id,
+                            "user_id": user_id,
+                            "release": release,
+                            "reason": reason,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                        },
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    failed += 1
+                    logger.error(
+                        "hosted_recovery_reprovision_unexpected",
+                        extra={
+                            "connection_id": connection_id,
+                            "user_id": user_id,
+                            "release": release,
+                            "reason": reason,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                        },
+                    )
 
         # Metrics + summary.
         HOSTED_RECOVERY_PODS_UNHEALTHY.set(unhealthy_now)

@@ -107,6 +107,26 @@ async def create_broker_connection(
             detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
         )
 
+    # platform='mt4' is rejected at the router because the MT4 EA
+    # binary is not bundled in the mt-node image (see
+    # docker/mt-node/ea/README.md). A platform='mt4' hosted connection
+    # would loop the Pod forever; surface a stable error code so the
+    # dashboard can render a specific message.
+    if (body.platform or "mt5").strip().lower() == "mt4":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "mt4_not_supported",
+                "message": (
+                    "MetaTrader 4 is not currently supported on the hosted "
+                    "and EA self-hosting paths. The MT4 EA binary is not "
+                    "bundled in the mt-node image. Select MetaTrader 5 "
+                    "(platform='mt5') to continue. MT4 support is on the "
+                    "roadmap; track CHECKLIST.md for status."
+                ),
+            },
+        )
+
     # connection_type='ea' is a local-development-only escape hatch
     # (it reads single-tenant MT5_ZMQ_* env vars from the engine's own
     # environment). Production and staging always reject it at the
@@ -223,13 +243,18 @@ async def create_broker_connection(
                     },
                 )
 
+            # Allocate the connection_id ONCE and pass the same value to
+            # both the K8s provisioner and the DB row so the StatefulSet
+            # name, the etradie.connection-id label, and broker_connections.id
+            # all agree. HostedRecoveryService and gc_orphans key on the
+            # row id; any mismatch breaks recovery and GC silently.
             from uuid import uuid4 as _uuid4
-            temp_connection_id = str(_uuid4())
+            allocated_connection_id = str(_uuid4())
 
             try:
-                provisioner = HostedProvisioner()
+                provisioner = container.hosted_provisioner
                 hosted_result = await provisioner.provision_account(
-                    connection_id=temp_connection_id,
+                    connection_id=allocated_connection_id,
                     user_id=user.user_id,
                     login=body.mt5_login,
                     password=body.mt5_password,
@@ -253,6 +278,12 @@ async def create_broker_connection(
                     detail=f"Hosted provisioning failed: {exc}"
                 )
 
+        # Pin the row id to the pre-allocated connection_id for hosted
+        # rows so the persisted id equals the K8s release suffix. Other
+        # connection types let the repository allocate as before.
+        _row_id_override = (
+            allocated_connection_id if body.connection_type == "hosted" else None
+        )
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.create(
@@ -272,6 +303,7 @@ async def create_broker_connection(
                 mt5_symbol=body.mt5_symbol,
                 platform=body.platform,
                 activate=body.activate,
+                id=_row_id_override,
             )
             result = _serialize_broker_connection(row)
             connection_id = str(row.id)
@@ -372,6 +404,23 @@ async def update_broker_connection(
     """
     container: Container = request.app.state.container
 
+    # Same MT4 gate as the create route (see code='mt4_not_supported' above).
+    # Refuse to flip an existing connection's platform to mt4 until the .ex4
+    # binary is committed.
+    if body.platform is not None and body.platform.strip().lower() == "mt4":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "mt4_not_supported",
+                "message": (
+                    "MetaTrader 4 is not currently supported on the hosted "
+                    "and EA self-hosting paths. The MT4 EA binary is not "
+                    "bundled in the mt-node image. Select MetaTrader 5 "
+                    "(platform='mt5') to continue."
+                ),
+            },
+        )
+
     try:
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
@@ -402,12 +451,15 @@ async def update_broker_connection(
         and body.mt5_password is not None
     ):
         try:
-            provisioner = HostedProvisioner()
-            # Decrypt the freshly-stored password to pass to the provisioner.
+            provisioner = container.hosted_provisioner
             ea_auth_token = ""
             if row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-            password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
+            password_plain = (
+                decrypt_credential(row.mt5_password_encrypted)
+                if row.mt5_password_encrypted
+                else ""
+            )
             await provisioner.provision_account(
                 connection_id=connection_id,
                 user_id=user.user_id,
@@ -418,14 +470,14 @@ async def update_broker_connection(
                 per_user_zmq_token=ea_auth_token or None,
             )
             logger.info(
-                "hosted_secret_resealed_after_password_update",
+                "hosted_credentials_rotated_after_password_update",
                 extra={"connection_id": connection_id, "user_id": user.user_id},
             )
         except Exception as exc:
-            # Non-fatal: log and continue. The HostedRecoveryService
-            # will heal the connection on its next sweep.
+            # Non-fatal: log and continue. HostedRecoveryService will
+            # converge the Pod state on its next sweep.
             logger.error(
-                "hosted_secret_reseal_failed_after_password_update",
+                "hosted_credentials_rotation_failed_after_password_update",
                 extra={"connection_id": connection_id, "error": str(exc)},
             )
 
@@ -653,7 +705,7 @@ async def delete_broker_connection(
                 logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
     elif is_hosted and hosted_container_id:
         try:
-            provisioner = HostedProvisioner()
+            provisioner = container.hosted_provisioner
             asyncio.create_task(provisioner.delete_account(hosted_container_id))
         except Exception as exc:
             logger.error("failed_to_start_hosted_cleanup", extra={"error": str(exc)})

@@ -49,10 +49,31 @@ mtConnection:
   # the engine resolves the real symbol before --set'ing this value
   # via the GET_ALL_SYMBOLS pre-check.
   symbol: "EURUSD"
-  # Name of the per-tenant Secret the engine created BEFORE installing
-  # this release. The StatefulSet mounts it via envFrom. The chart
-  # does NOT create this Secret; the engine owns its lifecycle.
-  sealedSecretName: ""
+# ---------------------------------------------------------------------
+# Vault Agent Injector
+#
+# Broker credentials live in Vault under
+# etradie/data/<tenantPath> and the Vault Agent Injector renders
+# them to /vault/secrets/mt-credentials.env in the pod before the
+# mt-node and watchdog containers start. The engine's
+# HostedProvisioner writes the KV entries via its VaultClient at
+# provision time and destroys all versions on connection delete.
+#
+# Operators only override these when running a non-default Vault
+# setup (different role name, custom path).
+# ---------------------------------------------------------------------
+vault:
+  # Vault role bound to the tenant ServiceAccount. Created in
+  # Terraform (infrastructure/cluster/vault-paths/mt_node_tenant_
+  # secrets.tf) and bound to SA name glob etradie-mt-*.
+  role: "mt-node-tenant"
+  # KV-v2 path holding this tenant's credentials. Empty means
+  # use the default tenants/mt-node/<connectionId>.
+  tenantPath: ""
+  # File name the injector renders inside /vault/secrets/. Must
+  # match VAULT_SECRETS_FILE in docker/mt-node/entrypoint.sh and
+  # docker/mt-node/watchdog.py.
+  fileName: "mt-credentials.env"
 
 image:
   # REQUIRED. The chart fail-fasts on a render with an empty
@@ -80,8 +101,11 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
-  # mt-node never calls the K8s API. Token is NOT mounted.
-  automountServiceAccountToken: false
+  # The Vault Agent init-container exchanges this token for a Vault
+  # token via the Kubernetes auth backend. The mt-node and watchdog
+  # containers do NOT call the K8s API themselves; the projected
+  # token is only readable by the agent init-container's user.
+  automountServiceAccountToken: true
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -284,6 +308,21 @@ networkPolicy:
           podSelector:
             matchLabels:
               app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9100
+    # Kubelet liveness / readiness / startup probes target the
+    # watchdog port. On standard K8s the kubelet probe traffic
+    # appears with the node's IP as the source, which a podSelector
+    # rule cannot match. Allow any IPv4 source on the probe port so
+    # probes work uniformly across CNIs (Calico strict mode,
+    # Cilium, Antrea, etc.). Pod IPs are not routable from outside
+    # the cluster, so in practice this rule only opens the port to
+    # the kubelet on the same node plus the already-allowed
+    # Prometheus pod.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 9100
