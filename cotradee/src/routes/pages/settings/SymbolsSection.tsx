@@ -1,33 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Search } from 'lucide-react';
+import { Save, Check, ChevronDown, Loader2 } from 'lucide-react';
 
 import ProFeatureLock from '@/components/ui/ProFeatureLock';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import {
-  BrokerSymbol,
   useBrokerSymbols,
   useSymbols,
   useUpdateSymbols,
 } from '@/features/symbols/api/symbols';
+import { SymbolCombobox } from '@/features/symbols/components/SymbolCombobox';
 import { useSystemConfig, useUpdateInterval } from '@/features/system/api/systemConfig';
-
-type GroupKey = 'Forex' | 'Metals' | 'Indices' | 'Crypto' | 'Other';
-
-const GROUP_ORDER: GroupKey[] = ['Forex', 'Metals', 'Indices', 'Crypto', 'Other'];
-
-const FOREX_TOKENS = ['forex', 'currenc', 'fx', 'валют', 'divisa', 'moedas'] as const;
-const METALS_TOKENS = ['metal', 'metales', 'metais', 'gold', 'silver', 'oro', 'ouro', 'plata', 'prata', 'металл'] as const;
-const INDICES_TOKENS = ['index', 'indices', 'indice', 'индекс'] as const;
-const CRYPTO_TOKENS = ['crypto', 'cripto', 'digital', 'крипто'] as const;
-
-function classifySymbol(symbol: BrokerSymbol): GroupKey {
-  const path = (symbol.path || '').toLowerCase();
-  if (FOREX_TOKENS.some((t) => path.includes(t))) return 'Forex';
-  if (METALS_TOKENS.some((t) => path.includes(t))) return 'Metals';
-  if (INDICES_TOKENS.some((t) => path.includes(t))) return 'Indices';
-  if (CRYPTO_TOKENS.some((t) => path.includes(t))) return 'Crypto';
-  return 'Other';
-}
 
 export default function SymbolsSection() {
   const { data: activeData } = useSymbols();
@@ -38,7 +20,6 @@ export default function SymbolsSection() {
   const { isFree, copy, openUpgradeModal } = useTierGate();
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
   const [intervalMins, setIntervalMins] = useState(120);
 
   const maxActiveSymbols = isFree ? 1 : Infinity;
@@ -53,25 +34,13 @@ export default function SymbolsSection() {
     if (config) setIntervalMins(Math.round(config.cycle_interval_seconds / 60));
   }, [config]);
 
-  const grouped = useMemo(() => {
-    const symbols = brokerCatalog?.symbols ?? [];
-    const needle = search.trim().toLowerCase();
-    const filtered = needle
-      ? symbols.filter((s) =>
-          s.name.toLowerCase().includes(needle) ||
-          (s.description || '').toLowerCase().includes(needle),
-        )
-      : symbols;
+  const pool = useMemo(() => {
+    return Array.from(new Set(selected)).sort((a, b) => a.localeCompare(b));
+  }, [selected]);
 
-    const out: Record<GroupKey, BrokerSymbol[]> = {
-      Forex: [], Metals: [], Indices: [], Crypto: [], Other: [],
-    };
-    for (const s of filtered) out[classifySymbol(s)].push(s);
-    for (const k of GROUP_ORDER) out[k].sort((a, b) => a.name.localeCompare(b.name));
-    return out;
-  }, [brokerCatalog, search]);
+  const catalogSymbols = brokerCatalog?.symbols ?? [];
+  const catalogReady = catalogSymbols.length > 0;
 
-  const limitReached = selected.length >= maxActiveSymbols;
 
   const toggleSymbol = (name: string) => {
     setSelected((prev) => {
@@ -88,8 +57,6 @@ export default function SymbolsSection() {
     const payload = isFree ? selected.slice(0, maxActiveSymbols) : selected;
     updateSymbols.mutate(payload);
   };
-
-  const totalCatalogCount = brokerCatalog?.symbols.length ?? 0;
 
   return (
     <div className="space-y-10 max-w-lg">
@@ -119,58 +86,46 @@ export default function SymbolsSection() {
 
         <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
           <div className="relative">
-            <Search size={14} strokeWidth={3} className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={catalogLoading ? 'Loading broker catalogue…' : `Search ${totalCatalogCount} broker symbols`}
-              disabled={catalogLoading}
-              className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black pl-11 pr-4 py-2.5 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none disabled:opacity-40"
+            <SymbolCombobox
+              symbols={catalogSymbols}
+              isLoading={catalogLoading || !catalogReady}
+              onSelect={(sym) => {
+                if (selected.includes(sym)) return;
+                if (isFree && selected.length >= maxActiveSymbols) {
+                  openUpgradeModal();
+                  return;
+                }
+                setSelected((prev) => [...prev, sym]);
+              }}
+              disabled={!catalogReady}
+              triggerClassName="w-full flex items-center justify-between rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2.5 text-sm font-bold text-black dark:text-white transition-all focus:border-brand outline-none"
+              dropdownClassName="bg-white dark:bg-black border border-black/10 dark:border-white/10"
             />
           </div>
 
-          {!catalogLoading && totalCatalogCount === 0 && (
-            <div className="text-center text-[11px] font-bold text-black/30 dark:text-white/30 py-10 italic bg-black/5 dark:bg-white/5 rounded-xl border border-dashed border-black/10 dark:border-white/10">
-              No broker symbols available. Connect a broker first.
+          {pool.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {pool.map((s) => {
+                const isSelected = selected.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSymbol(s)}
+                    className={`flex items-center justify-between rounded-xl border p-2.5 sm:p-3 transition-all duration-200
+                      ${isSelected ? 'border-brand bg-brand/5 dark:bg-brand/10' : 'border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] hover:border-brand/30'}`}
+                  >
+                    <span className={`text-xs font-bold tracking-tight ${isSelected ? 'text-black dark:text-white' : 'text-black/60 dark:text-white/60'}`}>{s}</span>
+                    {isSelected && <Check size={14} className="text-brand" />}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-4 py-6 text-center text-[11px] font-bold text-black/30 dark:text-white/30">
+              Pick a symbol from the dropdown above to add it here.
             </div>
           )}
-
-          {GROUP_ORDER.map((group) => {
-            const items = grouped[group];
-            if (items.length === 0) return null;
-            return (
-              <div key={group} className="space-y-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">{group}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {items.map((s) => {
-                    const isSelected = selected.includes(s.name);
-                    const disabledForCap = isFree && !isSelected && limitReached;
-                    return (
-                      <label
-                        key={s.name}
-                        title={disabledForCap ? gateCopy.body : s.description || s.path || s.name}
-                        className={`flex items-center gap-3 text-xs p-2 rounded-lg transition-all ${
-                          disabledForCap
-                            ? 'cursor-not-allowed text-black/20 dark:text-white/20'
-                            : 'cursor-pointer text-black/60 dark:text-white/60 font-bold hover:bg-black/5 dark:hover:bg-white/5'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={disabledForCap}
-                          onChange={() => (disabledForCap ? openUpgradeModal() : toggleSymbol(s.name))}
-                          className="h-4 w-4 rounded border-black/10 dark:border-white/10 text-brand focus:ring-brand disabled:opacity-20 transition-all cursor-pointer"
-                        />
-                        <span className="tracking-tight">{s.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
 
           <div className="pt-2">
             <button

@@ -37,6 +37,12 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [limit, setLimit] = useState(50);
+
+  // Reset limit when query or tab changes
+  useEffect(() => {
+    setLimit(50);
+  }, [query, activeTab]);
 
   const { data: trackedData } = useSymbols();
   const { data: brokerData, isLoading: isBrokerLoading } = useBrokerSymbols();
@@ -83,8 +89,11 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
     }
 
     // Limit display count for performance.
-    return pool.slice(0, MAX_DISPLAY);
-  }, [allBrokerSymbols, activeTab, query]);
+    return {
+      items: pool.slice(0, limit),
+      isTruncated: pool.length > limit
+    };
+  }, [allBrokerSymbols, activeTab, query, limit]);
 
   const queryStr = query.trim();
   const showAddButton =
@@ -113,18 +122,20 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
       <div className="relative w-full max-w-2xl bg-white dark:bg-black rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in">
         {/* Header / Search Input */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-border bg-surface-1">
-          <Search size={20} className="text-content-muted" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Symbol search..."
-            className="flex-1 bg-transparent border-none outline-none text-base font-bold text-content placeholder:text-content-muted"
-          />
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search symbol or description..."
+              className="w-full bg-surface-3 border border-transparent focus:border-brand focus:bg-surface-2 focus:ring-0 rounded-xl py-3 pl-11 pr-4 text-sm font-bold text-content placeholder:font-normal placeholder:text-content-muted outline-none transition-all"
+            />
+          </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-surface-3 text-content-muted hover:text-content transition-all"
+            className="p-2 shrink-0 rounded-xl hover:bg-surface-3 text-content-muted hover:text-content transition-all"
           >
             <X size={20} />
           </button>
@@ -148,19 +159,24 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
         </div>
 
         {/* Symbol List */}
-        <div className="flex-1 overflow-y-auto max-h-[50vh] p-2">
+        <div className="flex-1 overflow-y-auto max-h-[50vh] p-2" onScroll={(e) => {
+          const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+          if (scrollHeight - scrollTop - clientHeight < 50) {
+            setLimit(prev => prev + 50);
+          }
+        }}>
           {isBrokerLoading ? (
             <div className="flex items-center justify-center py-12 text-content-muted gap-2">
               <Loader2 size={20} className="animate-spin" />
               <span>Loading broker instruments...</span>
             </div>
-          ) : filtered.length === 0 && !showAddButton ? (
+          ) : filtered.items.length === 0 && !showAddButton ? (
             <div className="text-center py-12 text-content-muted">
               No symbols match your search.
             </div>
           ) : (
             <>
-              {filtered.map((sym) => (
+              {filtered.items.map((sym) => (
                 <button
                   key={sym.name}
                   onClick={() => handleAddAndSelect(sym.name)}
@@ -206,6 +222,12 @@ export function SymbolSearchModal({ isOpen, onClose, onSelect }: SymbolSearchMod
                     </div>
                   </div>
                 </button>
+              )}
+              
+              {filtered.isTruncated && (
+                <div className="flex justify-center py-4">
+                  <Loader2 size={16} className="animate-spin text-content-muted" />
+                </div>
               )}
             </>
           )}

@@ -3,6 +3,7 @@ import { useSymbols, useBrokerSymbols, useUpdateSymbols } from '@/features/symbo
 import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import { BarChart3, Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { SymbolCombobox } from '@/features/symbols/components/SymbolCombobox';
 
 // One-time cleanup key. Old builds stored user-typed symbols here;
 // the catalog-driven flow does not need it. Removing on mount so a
@@ -39,7 +40,6 @@ export function SymbolsStep({ onComplete }: Props) {
   const { isFree, openUpgradeModal } = useTierGate();
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [picker, setPicker] = useState<string>('');
 
   const maxActiveSymbols = isFree ? 1 : Infinity;
 
@@ -74,24 +74,6 @@ export function SymbolsStep({ onComplete }: Props) {
   const catalogSymbols = brokerCatalog?.symbols ?? [];
   const catalogReady = catalogSymbols.length > 0;
 
-  const onPickFromDropdown = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const sym = e.target.value;
-    // Reset the picker value to the placeholder option so the same
-    // symbol can be re-picked (e.g. user unticks then re-ticks via
-    // the dropdown).
-    setPicker('');
-    if (!sym) return;
-
-    if (selected.includes(sym)) {
-      // Already ticked - no-op; visible in the grid below.
-      return;
-    }
-    if (isFree && selected.length >= maxActiveSymbols) {
-      openUpgradeModal();
-      return;
-    }
-    setSelected((prev) => [...prev, sym]);
-  };
 
   const toggleSymbol = (s: string) => {
     setSelected((prev) => {
@@ -148,35 +130,21 @@ export function SymbolsStep({ onComplete }: Props) {
           naming convention.
         */}
         <div className="relative">
-          <select
-            value={picker}
-            onChange={onPickFromDropdown}
+          <SymbolCombobox
+            symbols={catalogSymbols}
+            isLoading={catalogLoading || !catalogReady}
+            onSelect={(sym) => {
+              if (selected.includes(sym)) return;
+              if (isFree && selected.length >= maxActiveSymbols) {
+                openUpgradeModal();
+                return;
+              }
+              setSelected((prev) => [...prev, sym]);
+            }}
             disabled={!catalogReady}
-            className="w-full appearance-none rounded-xl border border-border bg-surface-3 px-4 py-2.5 pr-10 text-sm text-content focus:border-brand focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="" disabled>
-              {catalogLoading || !catalogReady
-                ? 'Loading broker catalog\u2026'
-                : 'Choose a symbol from your broker'}
-            </option>
-            {catalogSymbols.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.description ? `${s.name} \u2014 ${s.description}` : s.name}
-              </option>
-            ))}
-          </select>
-          {!catalogReady ? (
-            <Loader2
-              size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted animate-spin pointer-events-none"
-            />
-          ) : (
-            <ChevronDown
-              size={16}
-              strokeWidth={3}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none"
-            />
-          )}
+            triggerClassName="w-full flex items-center justify-between appearance-none rounded-xl border border-border bg-surface-3 px-4 py-2.5 text-sm font-bold text-content focus:border-brand focus:outline-none transition-colors"
+            dropdownClassName="border-border bg-surface-3 shadow-2xl"
+          />
         </div>
 
         {/*
