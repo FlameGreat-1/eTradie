@@ -223,6 +223,10 @@ class HostedProvisioner:
     def _vault_path_for(release: str) -> str:
         return f"{_VAULT_TENANT_PATH_PREFIX}/{release}"
 
+    def _vault_data_path(self, path: str) -> str:
+        mount = os.environ.get("VAULT_MOUNT", "etradie").strip() or "etradie"
+        return f"{mount}/data/{path}"
+
     @staticmethod
     def _resolve_image() -> str:
         """Resolve the mt-node container image with environment-aware
@@ -736,21 +740,18 @@ class HostedProvisioner:
         server: str,
         symbol: str,
         zmq_port: int,
-        secret_name: str,
-        secret_data_checksum: str = "",
+        vault_path: str,
+        sa_name: str,
+        credentials_checksum: str = "",
     ) -> None:
         """Create or update the per-tenant StatefulSet.
 
-        Wire shape is identical to helm/mt-node/templates/statefulset.yaml.
-        Any operator-facing inspection (kubectl describe sts <release>)
-        produces an identical resource regardless of whether the chart
-        or this provisioner created it. Both paths are wire-compatible:
-          - Same labels / selectorLabels.
-          - Same volumeClaimTemplate name ('wine-prefix').
-          - Same watchdog sidecar with /healthz readiness + /livez liveness.
-          - Same lifecycle.preStop (5s sleep for Wine journal flush).
-          - Same terminationGracePeriodSeconds (60s).
-          - Same security context (non-root, drop ALL, readOnlyRootFilesystem).
+        Wire shape matches helm/mt-node/templates/statefulset.yaml so
+        the chart-rendered and engine-runtime paths produce equivalent
+        resources: same labels / selectorLabels, same volumeClaimTemplate
+        name, same watchdog sidecar with /healthz + /livez, same
+        lifecycle.preStop, same terminationGracePeriodSeconds, same
+        security context, and the same Vault Agent Injector annotations.
         """
         # Watchdog port (matches chart default service.watchdogPort).
         watchdog_port = DEFAULT_WATCHDOG_PORT
@@ -774,11 +775,12 @@ class HostedProvisioner:
                 ),
             ),
         ]
-        env_from = [
-            client.V1EnvFromSource(
-                secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
-            ),
-        ]
+        # No per-tenant Secret envFrom: per-tenant credentials are
+        # rendered into /vault/secrets/<file> by the Vault Agent
+        # init-container. The platform Secret (DEFAULT_ZMQ_AUTH_TOKEN)
+        # is still consumed via envFrom by entrypoint.sh as the
+        # fallback when MT_ZMQ_AUTH_TOKEN is unset.
+        env_from: list[client.V1EnvFromSource] = []
 
         # ── Shared security context (both containers) ──────────────────────
         container_security_ctx = client.V1SecurityContext(
@@ -875,13 +877,10 @@ class HostedProvisioner:
             requests={"cpu": "100m", "memory": "64Mi"},
             limits={"cpu": "100m", "memory": "64Mi"},
         )
-        # Watchdog env: reads auth token from the same per-tenant Secret
-        # (MT_ZMQ_AUTH_TOKEN) and the platform Secret (DEFAULT_ZMQ_AUTH_TOKEN).
-        watchdog_env_from = [
-            client.V1EnvFromSource(
-                secret_ref=client.V1SecretEnvSource(name=secret_name, optional=False),
-            ),
-        ]
+        # Watchdog reads MT_ZMQ_AUTH_TOKEN by sourcing the same Vault-
+        # rendered file the mt-node entrypoint sources. The platform
+        # DEFAULT_ZMQ_AUTH_TOKEN fallback still comes via envFrom.
+        watchdog_env_from: list[client.V1EnvFromSource] = []
         watchdog_env = [
             client.V1EnvVar(
                 name="WATCHDOG_ZMQ_ENDPOINT",
@@ -978,8 +977,8 @@ class HostedProvisioner:
 
         # ── Pod spec ───────────────────────────────────────────────────────
         pod_spec = client.V1PodSpec(
-            service_account_name="default",  # mt-node never calls K8s API
-            automount_service_account_token=False,
+            service_account_name=sa_name,
+            automount_service_account_token=True,
             security_context=client.V1PodSecurityContext(
                 run_as_non_root=True,
                 run_as_user=1000,
@@ -1009,17 +1008,48 @@ class HostedProvisioner:
             topology_spread_constraints=topology_spread_raw,
         )
 
-        # Annotations carry both the operator-supplied set (prometheus.io/*,
-        # cluster-autoscaler.kubernetes.io/safe-to-evict, etc.) and the
-        # per-tenant Secret data checksum. The checksum forces a rolling
-        # update whenever the underlying credentials rotate; without it,
-        # K8s does not observe envFrom-mounted Secret data changes and
-        # the running Pod keeps using the old credentials.
-        merged_annotations: dict[str, str] = {}
+        # Vault Agent Injector annotations. The injector mutates the
+        # Pod at admission and adds an initContainer that authenticates
+        # against Vault using the Pod's SA token, fetches the secret
+        # at <vault_path>, and renders /vault/secrets/mt-credentials.env
+        # which the entrypoint and watchdog source at startup.
+        #
+        # agent-pre-populate-only=false keeps the Vault Agent running
+        # as a sidecar so a future token-renewal path can refresh the
+        # rendered file. agent-init-first ensures the initContainer
+        # runs before the mt-node container, so the file exists by
+        # the time entrypoint.sh reads it.
+        #
+        # The credentials checksum annotation forces a rolling update
+        # when the underlying Vault data rotates. Vault Agent does not
+        # push updates into a running Pod's tmpfs; the Pod must
+        # restart for the new credentials to take effect.
+        vault_template = (
+            "{{- with secret \""
+            + f"{self._vault_data_path(vault_path)}"
+            + "\" -}}\n"
+            "export MT_LOGIN={{ .Data.data.mt5_login }}\n"
+            "export MT_PASSWORD={{ .Data.data.mt5_password }}\n"
+            "export MT_ZMQ_AUTH_TOKEN={{ .Data.data.mt5_zmq_auth_token }}\n"
+            "export MT_VAULT_RENDERED_AT={{ timestamp }}\n"
+            "{{- end -}}"
+        )
+        merged_annotations: dict[str, str] = {
+            "vault.hashicorp.com/agent-inject": "true",
+            "vault.hashicorp.com/role": _VAULT_TENANT_ROLE,
+            "vault.hashicorp.com/agent-pre-populate-only": "false",
+            "vault.hashicorp.com/agent-init-first": "true",
+            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}":
+                self._vault_data_path(vault_path),
+            f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}":
+                vault_template,
+        }
         if pod_annotations:
             merged_annotations.update(pod_annotations)
-        if secret_data_checksum:
-            merged_annotations["etradie.io/secret-data-checksum"] = secret_data_checksum
+        if credentials_checksum:
+            merged_annotations[
+                "etradie.io/vault-credentials-checksum"
+            ] = credentials_checksum
 
         pod_template_metadata = client.V1ObjectMeta(
             labels=selector | {
