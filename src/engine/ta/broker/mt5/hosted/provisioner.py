@@ -650,63 +650,79 @@ class HostedProvisioner:
             retry=retry_if_exception_type(ApiException),
         )
 
-    async def _upsert_secret(
+    async def _write_vault_credentials(
+        self,
+        *,
+        vault: VaultClient,
+        path: str,
+        login: str,
+        password: str,
+        token: str,
+    ) -> str:
+        """Write per-tenant MT credentials to Vault.
+
+        Returns a SHA-256 digest over the payload. The caller stamps
+        it on the StatefulSet pod template so K8s rolls the Pod when
+        the underlying credentials rotate (Vault Agent does NOT push
+        updates into a running Pod's tmpfs; the Pod must restart for
+        the new credentials to take effect).
+        """
+        data = {
+            "mt5_login": login,
+            "mt5_password": password,
+            "mt5_zmq_auth_token": token,
+        }
+        try:
+            await vault.write_kv(path, data)
+        except VaultError as exc:
+            raise ProviderError(
+                f"Failed to write per-tenant credentials to Vault: {exc}",
+                details={"path": path, **(exc.details or {})},
+            ) from exc
+        return _hash_secret_data(data)
+
+    async def _upsert_serviceaccount(
         self,
         *,
         core_api: client.CoreV1Api,
         name: str,
         labels: dict[str, str],
-        login: str,
-        password: str,
-        token: str,
-        seal_key: bytes,
-    ) -> str:
-        """Idempotent create-or-update of the per-tenant Secret.
+    ) -> None:
+        """Idempotent create-or-update of the per-tenant ServiceAccount.
 
-        Keys written:
-          MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN  -> envFrom in chart
-          ETRADIE_SEAL                              -> defense-in-depth
-                                                       audit blob
-
-        Returns a SHA-256 digest over the Secret's data block so the
-        caller can stamp it on the StatefulSet pod template; the
-        rolling update on a credential rotation depends on this digest
-        changing whenever the Secret bytes change. ETRADIE_SEAL
-        re-randomises on every call (fresh AES-GCM nonce), so an
-        identical credential rotation still produces a different
-        digest and a single no-op rolling update.
+        The SA name matches the Vault tenant role's
+        bound_service_account_names glob ('etradie-mt-*') so the
+        per-tenant Pod can authenticate against Vault and read its
+        own tenant path. automountServiceAccountToken=True is
+        required because the Vault Agent init-container uses the
+        projected token.
         """
-        sealed_blob = json.dumps({
-            "login": _seal(login, seal_key),
-            "password": _seal(password, seal_key),
-            "token": _seal(token, seal_key),
-        })
-        secret_data = {
-            "MT_LOGIN": _b64(login),
-            "MT_PASSWORD": _b64(password),
-            "MT_ZMQ_AUTH_TOKEN": _b64(token),
-            "ETRADIE_SEAL": _b64(sealed_blob),
-        }
-        body = client.V1Secret(
-            metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
-            type="Opaque",
-            data=secret_data,
+        body = client.V1ServiceAccount(
+            metadata=client.V1ObjectMeta(
+                name=name, namespace=self._namespace, labels=labels,
+            ),
+            automount_service_account_token=True,
         )
         async for attempt in await self._retrying():
             with attempt:
                 try:
-                    await core_api.create_namespaced_secret(namespace=self._namespace, body=body)
-                    return _hash_secret_data(secret_data)
+                    await core_api.create_namespaced_service_account(
+                        namespace=self._namespace, body=body,
+                    )
+                    return
                 except ApiException as exc:
                     if exc.status == 409:
-                        await core_api.replace_namespaced_secret(
+                        existing = await core_api.read_namespaced_service_account(
+                            name=name, namespace=self._namespace,
+                        )
+                        body.metadata.resource_version = (
+                            existing.metadata.resource_version
+                        )
+                        await core_api.replace_namespaced_service_account(
                             name=name, namespace=self._namespace, body=body,
                         )
-                        return _hash_secret_data(secret_data)
+                        return
                     raise
-        # Unreachable in practice; the retry loop always returns or
-        # raises. Present so the function has a single typed return.
-        return _hash_secret_data(secret_data)
 
     async def _upsert_statefulset(
         self,
