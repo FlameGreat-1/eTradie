@@ -112,6 +112,53 @@ _CPU_REQUEST = os.environ.get("MT_NODE_CPU_REQUEST", "500m")
 _EPHEMERAL_LIMIT = os.environ.get("MT_NODE_EPHEMERAL_LIMIT", "1Gi")
 _EPHEMERAL_REQUEST = os.environ.get("MT_NODE_EPHEMERAL_REQUEST", "512Mi")
 
+# Scheduling envelope (C3 fix). The engine ConfigMap surfaces these from
+# .Values.config.mtNode.scheduling.* which mirrors helm/mt-node/values-*.yaml.
+# An empty string means 'do not set the field' so dev / docker-compose paths
+# (and any cluster without taints) continue to work as before. Malformed JSON
+# is a fatal configuration error and fails the first provision call with a
+# clear message - it does not corrupt the pod spec silently.
+_PRIORITY_CLASS_NAME_RAW = os.environ.get("MT_NODE_PRIORITY_CLASS_NAME", "").strip()
+_TOLERATIONS_JSON_RAW = os.environ.get("MT_NODE_TOLERATIONS_JSON", "").strip()
+_NODE_SELECTOR_JSON_RAW = os.environ.get("MT_NODE_NODE_SELECTOR_JSON", "").strip()
+_AFFINITY_JSON_RAW = os.environ.get("MT_NODE_AFFINITY_JSON", "").strip()
+_TOPOLOGY_SPREAD_JSON_RAW = os.environ.get("MT_NODE_TOPOLOGY_SPREAD_JSON", "").strip()
+_POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").strip()
+
+
+def _parse_json_envelope(env_name: str, raw: str, expected: type):
+    """Parse a JSON envelope from an engine ConfigMap env var.
+
+    Returns None when the env var is empty (the chart's empty-default
+    contract: '' means 'do not apply this field'). Raises
+    ConfigurationError on malformed JSON or on a type mismatch (e.g.
+    expected list, got dict). The expected type is one of dict or list;
+    kubernetes_asyncio model constructors do not accept arbitrary JSON
+    blobs, so the provisioner pre-validates the shape.
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConfigurationError(
+            f"{env_name} is not valid JSON: {exc}",
+            details={"env_var": env_name, "error": str(exc)},
+        ) from exc
+    if not isinstance(parsed, expected):
+        raise ConfigurationError(
+            f"{env_name} must be a JSON {expected.__name__}, got {type(parsed).__name__}",
+            details={"env_var": env_name, "got_type": type(parsed).__name__},
+        )
+    # Treat an empty container the same as 'not set' so the kubernetes
+    # client does not see {} or [] (which it would happily accept but
+    # which obscures operator intent).
+    if isinstance(parsed, dict) and not parsed:
+        return None
+    if isinstance(parsed, list) and not parsed:
+        return None
+    return parsed
+
 # Readiness gate.
 _READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
@@ -920,6 +967,30 @@ class HostedProvisioner:
             ],
         )
 
+        # ── Scheduling envelope (C3 fix) ──────────────────────────────────
+        # Parse each JSON envelope ONCE per provision. The parsers raise
+        # ConfigurationError on malformed JSON so a misconfigured ConfigMap
+        # surfaces immediately with a clear message.
+        tolerations_raw = _parse_json_envelope(
+            "MT_NODE_TOLERATIONS_JSON", _TOLERATIONS_JSON_RAW, list,
+        )
+        node_selector = _parse_json_envelope(
+            "MT_NODE_NODE_SELECTOR_JSON", _NODE_SELECTOR_JSON_RAW, dict,
+        )
+        affinity_raw = _parse_json_envelope(
+            "MT_NODE_AFFINITY_JSON", _AFFINITY_JSON_RAW, dict,
+        )
+        topology_spread_raw = _parse_json_envelope(
+            "MT_NODE_TOPOLOGY_SPREAD_JSON", _TOPOLOGY_SPREAD_JSON_RAW, list,
+        )
+        pod_annotations = _parse_json_envelope(
+            "MT_NODE_POD_ANNOTATIONS_JSON", _POD_ANNOTATIONS_JSON_RAW, dict,
+        )
+        # The kubernetes_asyncio client accepts raw dicts in place of
+        # typed Tolerations / Affinity / TopologySpreadConstraint objects
+        # because the underlying serialisation passes through the OpenAPI
+        # camelCase mapping. We feed the raw lists/dicts directly.
+
         # ── Pod spec ───────────────────────────────────────────────────────
         pod_spec = client.V1PodSpec(
             service_account_name="default",  # mt-node never calls K8s API
@@ -940,15 +1011,31 @@ class HostedProvisioner:
                 client.V1Volume(name="tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
                 client.V1Volume(name="var-tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi")),
             ],
+            priority_class_name=_PRIORITY_CLASS_NAME_RAW or None,
+            tolerations=tolerations_raw,
+            node_selector=node_selector,
+            affinity=affinity_raw,
+            topology_spread_constraints=topology_spread_raw,
         )
 
-        pod_template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels=selector | {
+        # Build the pod template metadata. Annotations come from the env
+        # envelope (production overlay sets prometheus.io/* and
+        # cluster-autoscaler.kubernetes.io/safe-to-evict). The chart's
+        # static path (helm/mt-node/templates/statefulset.yaml) attaches
+        # checksum/watchdog-config and checksum/platform-secret here too
+        # for force-rollout-on-config-change; the runtime path adds them
+        # in Step 4 (M2 fix) so the same drift detection applies.
+        pod_template_metadata = client.V1ObjectMeta(
+            labels=selector | {
                 _LABEL_PART_OF: _PART_OF_VALUE,
                 _LABEL_COMPONENT: "mt-node",
                 _LABEL_USER_ID: labels[_LABEL_USER_ID],
                 _LABEL_PLATFORM: platform,
-            }),
+            },
+            annotations=pod_annotations,
+        )
+        pod_template = client.V1PodTemplateSpec(
+            metadata=pod_template_metadata,
             spec=pod_spec,
         )
 
